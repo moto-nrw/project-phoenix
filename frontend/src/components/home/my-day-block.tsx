@@ -14,6 +14,7 @@ import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
 import {
   HomeCardLink,
   HomeMoreRow,
+  upcomingFirst,
   useBerlinClock,
   useHomeCardRows,
 } from "~/components/home/home-card-rows";
@@ -97,7 +98,17 @@ export function MyDayBlock() {
         a.startTime.localeCompare(b.startTime) ||
         a.endTime.localeCompare(b.endTime),
     );
-  const { shown, hidden } = useHomeCardRows(mine, MAX_ROWS);
+  // Zuerst zählt, was jetzt läuft oder noch kommt. Würde die Karte den
+  // Tagesanfang kürzen, fehlten nachmittags gerade der laufende und der
+  // nächste Einsatz. Ein laut Server laufender Block bleibt dabei relevant,
+  // auch wenn seine geplante Endzeit schon vorbei ist.
+  const relevant = upcomingFirst(
+    mine,
+    (block) => (block.status === "active" ? "24:00" : block.endTime),
+    now,
+    MAX_ROWS - 1,
+  );
+  const { shown, hidden } = useHomeCardRows(relevant, MAX_ROWS);
   // Die Jetzt-Linie steht vor dem ersten Block, dessen Endzeit noch nicht
   // vorbei ist — nach der Uhr, wie im Tagesplan. Ein Block, der laut Server
   // noch läuft, obwohl seine Zeit um ist, bleibt oben mit seiner Marke

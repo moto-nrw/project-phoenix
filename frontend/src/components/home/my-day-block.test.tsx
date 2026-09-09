@@ -123,36 +123,82 @@ describe("MyDayBlock (#2180)", () => {
     swr.isLoading = false;
   });
 
-  it("zeigt den ganzen eigenen Tag mit Raum, Kindern und Kolleginnen", () => {
+  it("zeigt aktuelle und kommende eigene Einsätze mit ihren Angaben", () => {
     render(<MyDayBlock />);
 
-    expect(screen.getByText("Frühbetreuung")).toBeInTheDocument();
+    // Vergangenes macht in der kompakten Karte Platz für das, was jetzt zählt.
+    expect(screen.queryByText("Frühbetreuung")).not.toBeInTheDocument();
+    expect(screen.getByText("Hausaufgaben")).toBeInTheDocument();
     expect(screen.getByText("Fußball-AG")).toBeInTheDocument();
     // Fremde Blöcke gehören in den Tagesplan, nicht in „Mein Tag".
     expect(screen.queryByText("Bewegungszeit")).not.toBeInTheDocument();
-    // Vorbei steht als Wort in der Zeile, nicht als Marke rechts.
-    expect(
-      screen.getByText(
-        "Beendet · OGS-Raum 1 · 15 Kinder · Julia Klein, Sabine Weber",
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Nicht gestartet · Mensa · Mittagessen · 18 Kinder"),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByText("Beendet", { exact: true }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByText("Vertretung")).toBeInTheDocument();
+    expect(screen.getByText("OGS-Raum 2 · 18 Kinder")).toBeInTheDocument();
+    expect(screen.getByText("Sporthalle · 18 Kinder")).toBeInTheDocument();
   });
 
   it("setzt die Jetzt-Linie vor den Block, der als Nächstes zählt", () => {
     render(<MyDayBlock />);
 
     const rows = screen.getAllByRole("listitem");
-    // 07:30 vorbei, 12:00 vorbei (13:10): die Linie steht vor 13:15.
-    expect(rows[2]).toHaveTextContent("Jetzt · 13:10 Uhr");
-    expect(rows[2]).toHaveTextContent("Hausaufgaben");
-    expect(rows[0]).not.toHaveTextContent("Jetzt");
+    // 07:30 und 12:00 sind vorbei (13:10): sichtbar ist die Linie vor 13:15.
+    expect(rows[0]).toHaveTextContent("Jetzt · 13:10 Uhr");
+    expect(rows[0]).toHaveTextContent("Hausaufgaben");
+    expect(rows[1]).not.toHaveTextContent("Jetzt");
+  });
+
+  it("zeigt bei vielen Einsätzen den laufenden und den nächsten zuerst", () => {
+    swr.data = [
+      block({
+        id: "1",
+        title: "Frühdienst",
+        startTime: "07:30",
+        endTime: "08:00",
+        status: "completed",
+      }),
+      block({
+        id: "2",
+        title: "Frühe Lernzeit",
+        startTime: "08:15",
+        endTime: "09:00",
+        status: "completed",
+      }),
+      block({
+        id: "3",
+        title: "Frühe Pause",
+        startTime: "09:15",
+        endTime: "10:00",
+        status: "completed",
+      }),
+      block({
+        id: "4",
+        title: "Vormittagsbetreuung",
+        startTime: "10:15",
+        endTime: "11:00",
+        status: "completed",
+      }),
+      block({
+        id: "5",
+        title: "Laufende Betreuung",
+        startTime: "13:00",
+        endTime: "14:00",
+        status: "active",
+      }),
+      block({
+        id: "6",
+        title: "Nächster Einsatz",
+        startTime: "14:15",
+        endTime: "15:00",
+      }),
+    ];
+
+    render(<MyDayBlock />);
+
+    expect(screen.getByText("Laufende Betreuung")).toBeInTheDocument();
+    expect(screen.getByText("Nächster Einsatz")).toBeInTheDocument();
+    expect(screen.queryByText("Frühdienst")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("listitem")[0]).toHaveTextContent(
+      "Jetzt · 13:10 Uhr",
+    );
   });
 
   it("startet den eigenen Block direkt aus der Karte", async () => {
