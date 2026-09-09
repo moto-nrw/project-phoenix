@@ -179,10 +179,17 @@ export function SectionCard({
             </div>
           </div>
           {headerActions != null && (
+            // Inline: der Titel ist auf die 40px-Symbolfläche zentriert, also
+            // bekommt die Aktion dieselbe Höhe und liegt auf derselben Mitte.
+            // Mit Beschreibung ist die Kopfzeile oben bündig; dann bleibt es
+            // bei der Oberkante.
             <div
               className={
                 inlineActions
-                  ? "flex shrink-0 items-center gap-2"
+                  ? cn(
+                      "flex shrink-0 items-center gap-2",
+                      !description && !kicker && "h-10",
+                    )
                   : "order-last flex w-full flex-wrap items-center gap-2 sm:order-none sm:w-auto sm:shrink-0"
               }
             >

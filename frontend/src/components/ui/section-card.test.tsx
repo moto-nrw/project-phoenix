@@ -36,6 +36,7 @@ describe("SectionCard Kopfzeilen-Aktionen", () => {
       name: "Öffnen",
     }).parentElement;
     expect(wrapper?.className).toContain("shrink-0");
+    expect(wrapper?.className).toContain("h-10");
     expect(wrapper?.className).not.toContain("order-last");
     expect(wrapper?.className).not.toContain("w-full");
   });
