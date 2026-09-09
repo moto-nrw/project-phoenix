@@ -639,8 +639,7 @@ func TestVisitRepository_TransferVisitsFromRecentSessions(t *testing.T) {
 		require.NoError(t, err)
 
 		// End the old group within the last hour
-		err = groupRepo.EndSession(ctx, oldGroup.ID)
-		require.NoError(t, err)
+		testpkg.EndTestActiveGroup(t, db, testpkg.EndedActiveGroup{GroupID: oldGroup.ID})
 
 		// Create new active group with same device
 		newGroup := &active.Group{

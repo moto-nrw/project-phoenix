@@ -352,6 +352,44 @@ integration-test rules mirror the People Directory owner; the
 legacy service factory still composes the enrollment decision service and
 go with #2751.
 
+The session end workflow (`workflows/sessionend`, owner `session-end`, kind
+`workflow`, #2697) is a cross-module write workflow of #2580. Its
+public command closes one live kiosk session in one UnitOfWork: it joins the
+caller's tenant transaction (or opens its own), locks the group, closes the
+open visits, supervisions, and the group through the Student Presence
+`GroupSessionCommand`, stamps the slot check-outs through the Timetable
+owner and finalizes the mirrored instance through its `InstanceCompletion`
+port, resolves the
+announcement data while the tenant role is still set, and queues every SSE
+event and guardian wake for after the commit. Its `ports` name the four owner
+capabilities it consumes (`session-end.port.*`, `session-end.application.*`);
+`compose` binds the tenant runtime and the realtime broadcaster. The root
+still satisfies `InstanceCompletion` with the retained
+`services/schedule.TimetableBridgeService` (the attendance finalization that
+#1747 requires before an instance may close); that binding is a legacy edge
+of the root composition tracked by #2762, and the port is rebound to the
+Timetable owner's public capability when that cutover lands. The kiosk
+endpoint (`api/iot/sessions`, `inbound-iot-sessions.to.session-end`) calls
+exactly this facade and no longer orchestrates the Timetable bridge and the
+active service itself. The other session-ending paths of the retained active
+service (the manual group end, the instance Complete and Cancel transitions
+through `EndActivitySession`, the timeout, and the nightly bulk end) write
+their presence rows through the same owner commands (`EndGroupSession`,
+`EndGroupSessions`). The two takeover paths that end a group and move its
+visits and supervisors to a replacement (force start, absorption of an
+unsupervised group into a started instance) release the group through the
+owner's `EndGroup`. The legacy group end and bulk end repository methods
+are deleted. Those paths still complete the mirrored instance through the
+retained bridge inside the active service; moving them onto the workflow is
+the remaining #2762 work. The workflow owns no data object: policy validation
+refuses a write owner of kind `workflow`. Under ADR 0013, this registration
+raises the policy epoch from 3 to 4 and uses only candidate-created packages.
+Existing-owner import and data-ownership guards remain unchanged.
+Its adapter-test permissions for the presence,
+timetable, people, and facilities compositions bind the real owners in the
+workflow integration tests; they are test-only permissions, not target
+dependencies.
+
 The Device Fleet authentication composition (`modules/devicefleet/deviceauth`)
 is classified as `device-fleet`/`http`. Its `device-fleet.device-auth.*`
 permissions for the retained `models/platform` school row, the

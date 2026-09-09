@@ -711,7 +711,7 @@ func (s *instanceService) absorbUnsupervisedOpenGroups(ctx context.Context, inst
 			return fmt.Errorf("move open visits from group %d to group %d: %w", group.ID, newGroupID, err)
 		}
 
-		if err := s.deps.ActiveGroupRepo.EndSession(ctx, group.ID); err != nil {
+		if err := s.deps.Presence.EndGroup(ctx, group.ID, s.now()); err != nil {
 			return fmt.Errorf("end absorbed group %d: %w", group.ID, err)
 		}
 		movedTotal += moved
@@ -1369,6 +1369,16 @@ func (s *instanceService) Cancel(ctx context.Context, instanceID int64, reason *
 			// a staff member downstream might have assumed the visits were
 			// closed for them.
 			return nil, &ScheduleError{Op: "cancel instance", Err: fmt.Errorf("active instance %d has no active_group_id", instance.ID)}
+		}
+		// Match Complete and kiosk session end: group before attendance.
+		// Taking assignment locks first would deadlock with a kiosk close
+		// holding this group while it stamps the same check-outs.
+		group, err := s.deps.ActiveGroupRepo.FindByIDForUpdate(ctx, *instance.ActiveGroupID)
+		if err != nil {
+			return nil, &ScheduleError{Op: "cancel instance: lock group", Err: err}
+		}
+		if group == nil || group.EndTime != nil {
+			return nil, fmt.Errorf("%w: active group is not open", ErrInvalidInstanceTransition)
 		}
 	}
 	// Same attendance row locks the PATCH path takes. Without them a PATCH

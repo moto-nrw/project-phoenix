@@ -19,7 +19,6 @@ type absorbGroupRepo struct {
 	openGroups   []*activeModel.Group
 	lockedGroups map[int64]*activeModel.Group
 	lockedIDs    []int64
-	endedIDs     []int64
 }
 
 func (r *absorbGroupRepo) FindActiveByRoomID(_ context.Context, _ int64) ([]*activeModel.Group, error) {
@@ -66,12 +65,7 @@ func TestInstanceStart_DoesNotAbsorbGroupMovedAfterCandidateLookup(t *testing.T)
 	require.NoError(t, err)
 	assert.Equal(t, []int64{candidate.ID}, groupRepo.lockedIDs)
 	assert.Empty(t, visitRepo.transfers)
-	assert.Empty(t, groupRepo.endedIDs)
-}
-
-func (r *absorbGroupRepo) EndSession(_ context.Context, id int64) error {
-	r.endedIDs = append(r.endedIDs, id)
-	return nil
+	assert.Empty(t, visitRepo.endedIDs)
 }
 
 type absorbSupervisorRepo struct {
@@ -87,6 +81,12 @@ type absorbVisitRepo struct {
 	InstancePresence
 	visits    []studentpresence.Visit
 	transfers [][2]int64
+	endedIDs  []int64
+}
+
+func (r *absorbVisitRepo) EndGroup(_ context.Context, id int64, _ time.Time) error {
+	r.endedIDs = append(r.endedIDs, id)
+	return nil
 }
 
 type absorbInstanceRepo struct {
@@ -231,7 +231,7 @@ func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, []int64{11, 12, 13}, groupRepo.lockedIDs, "only today's candidate sessions are locked")
-	assert.Equal(t, []int64{11}, groupRepo.endedIDs, "only the unbridged unsupervised session is ended")
+	assert.Equal(t, []int64{11}, visitRepo.endedIDs, "only the unbridged unsupervised session is ended")
 	assert.Equal(t, [][2]int64{{11, newGroupID}}, visitRepo.transfers, "open visits move through the conditional bulk update")
 	assert.Equal(t, []absorbedAttendanceUpdate{{
 		instanceID: instanceID,

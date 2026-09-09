@@ -26,6 +26,7 @@ import (
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/workflows/sessionend"
 	"github.com/uptrace/bun"
 )
 
@@ -55,12 +56,14 @@ type ServiceDependencies struct {
 	PickupScheduleService    scheduleSvc.PickupScheduleService
 	SchoolService            platformSvc.SchoolService
 	TimetableDataService     *scheduleSvc.TimetableDataService
-	TimetableBridge          *scheduleSvc.TimetableBridgeService
-	UnregisteredTagScans     auditSvc.UnregisteredTagScanService
-	Broadcaster              realtime.Broadcaster
-	Logger                   *slog.Logger
-	DailyCheckoutFallback    string
-	DB                       *bun.DB
+	// SessionEnd is the application workflow behind POST /session/end
+	// (#2697): one UnitOfWork over the Presence and Timetable commands.
+	SessionEnd            sessionend.Command
+	UnregisteredTagScans  auditSvc.UnregisteredTagScanService
+	Broadcaster           realtime.Broadcaster
+	Logger                *slog.Logger
+	DailyCheckoutFallback string
+	DB                    *bun.DB
 	// DeviceAuthenticator and DeviceOnlyAuthenticator guard the kiosk route
 	// groups. The Device Fleet composition builds them over one shared
 	// last-seen debouncer; this resource only mounts them.
@@ -174,10 +177,10 @@ func (rs *Resource) Router() chi.Router {
 			rs.ActivitiesService,
 			rs.FacilityService,
 			rs.EducationService,
+			rs.SessionEnd,
 		)
 		sessionsResource.ConfigureTimetableMirror(
 			rs.TimetableDataService,
-			rs.TimetableBridge,
 			rs.Broadcaster,
 		)
 		r.Mount("/session", sessionsResource.Router())

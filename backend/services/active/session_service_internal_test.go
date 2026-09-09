@@ -435,10 +435,11 @@ func TestProcessSessionTimeoutByID_ReturnsCheckoutAndEndErrors(t *testing.T) {
 			findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
 				return activeGroup, nil
 			},
-			endSessionFunc: func(context.Context, int64) error {
-				return errors.New("session end failed")
+		}, SchoolPresence: &mockVisitRepository{
+			endGroupSessionFunc: func(context.Context, int64, time.Time) (studentpresence.EndedGroupSession, error) {
+				return studentpresence.EndedGroupSession{}, errors.New("session end failed")
 			},
-		}, SchoolPresence: &mockVisitRepository{}, SupervisorRepo: &mockGroupSupervisorRepository{}},
+		}, SupervisorRepo: &mockGroupSupervisorRepository{}},
 		}
 
 		result, err := svc.ProcessSessionTimeoutByID(ctx, 100)
@@ -467,12 +468,13 @@ func TestProcessSessionTimeoutByID_CompletesTimetableMirrorBeforeEndingSession(t
 				findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
 					return activeGroup, nil
 				},
-				endSessionFunc: func(context.Context, int64) error {
+			},
+			SchoolPresence: &mockVisitRepository{
+				endGroupSessionFunc: func(_ context.Context, id int64, at time.Time) (studentpresence.EndedGroupSession, error) {
 					*order = append(*order, "session")
-					return nil
+					return studentpresence.EndedGroupSession{GroupID: id, EndedAt: at}, nil
 				},
 			},
-			SchoolPresence: &mockVisitRepository{},
 			SupervisorRepo: &mockGroupSupervisorRepository{},
 			TimetableBridgeCompleter: &timetableBridgeCompleterForSessionUnitTest{
 				completeFunc: func(_ context.Context, activeGroupIDs []int64, _ time.Time) (int64, error) {
@@ -526,9 +528,12 @@ func TestProcessSessionTimeoutByID_IsAtomic(t *testing.T) {
 				findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
 					return activeGroup, nil
 				},
-				endSessionFunc: func(context.Context, int64) error { return endSessionErr },
 			},
-			SchoolPresence: &mockVisitRepository{},
+			SchoolPresence: &mockVisitRepository{
+				endGroupSessionFunc: func(_ context.Context, id int64, at time.Time) (studentpresence.EndedGroupSession, error) {
+					return studentpresence.EndedGroupSession{GroupID: id, EndedAt: at}, endSessionErr
+				},
+			},
 			SupervisorRepo: &mockGroupSupervisorRepository{},
 			TimetableBridgeCompleter: &timetableBridgeCompleterForSessionUnitTest{
 				completeFunc: func(ctx context.Context, _ []int64, _ time.Time) (int64, error) {
@@ -573,8 +578,8 @@ func TestProcessSessionTimeoutByID_IsAtomic(t *testing.T) {
 // bridge never repairs it, because it only looks at active.groups that are
 // still running (#1747 review).
 // newEndGroupService builds the service EndActiveGroupSession is exercised
-// against. sessionEndErr fails GroupRepo.EndSession, i.e. the session end AFTER
-// the bridge has already completed the mirrored instance.
+// against. sessionEndErr fails the Student Presence owner's session end, i.e.
+// the session end AFTER the bridge has already completed the mirrored instance.
 func newEndGroupService(
 	t *testing.T,
 	order *[]string,
@@ -590,12 +595,13 @@ func newEndGroupService(
 			findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
 				return group, nil
 			},
-			endSessionFunc: func(context.Context, int64) error {
+		},
+		SchoolPresence: &mockVisitRepository{
+			endGroupSessionFunc: func(_ context.Context, id int64, at time.Time) (studentpresence.EndedGroupSession, error) {
 				*order = append(*order, "session")
-				return sessionEndErr
+				return studentpresence.EndedGroupSession{GroupID: id, EndedAt: at}, sessionEndErr
 			},
 		},
-		SchoolPresence: &mockVisitRepository{},
 		SupervisorRepo: &mockGroupSupervisorRepository{},
 		TimetableBridgeCompleter: &timetableBridgeCompleterForSessionUnitTest{
 			completeFunc: func(_ context.Context, activeGroupIDs []int64, _ time.Time) (int64, error) {
@@ -1170,7 +1176,8 @@ func TestEndExistingActivitySessionsForForceStart_SkipsInvalidRowsAndStopsOnErro
 					{Model: modelBase.Model{ID: 30}},
 				}, nil
 			},
-			endSessionFunc: func(_ context.Context, id int64) error {
+		}, SchoolPresence: &mockVisitRepository{
+			endGroupFunc: func(_ context.Context, id int64, _ time.Time) error {
 				ended = append(ended, id)
 				return nil
 			},
@@ -1205,7 +1212,8 @@ func TestEndExistingActivitySessionsForForceStart_SkipsInvalidRowsAndStopsOnErro
 			findActiveByGroupIDFunc: func(context.Context, int64) ([]*activeModels.Group, error) {
 				return []*activeModels.Group{{Model: modelBase.Model{ID: 31}}}, nil
 			},
-			endSessionFunc: func(context.Context, int64) error {
+		}, SchoolPresence: &mockVisitRepository{
+			endGroupFunc: func(context.Context, int64, time.Time) error {
 				return expectedErr
 			},
 		}},
@@ -1438,7 +1446,8 @@ func TestEndExistingDeviceSessionForForceStart_Branches(t *testing.T) {
 			findActiveByDeviceIDFunc: func(context.Context, int64) (*activeModels.Group, error) {
 				return &activeModels.Group{Model: modelBase.Model{ID: 302}}, nil
 			},
-			endSessionFunc: func(context.Context, int64) error {
+		}, SchoolPresence: &mockVisitRepository{
+			endGroupFunc: func(context.Context, int64, time.Time) error {
 				return expectedErr
 			},
 		}},
@@ -1451,9 +1460,15 @@ func TestEndExistingDeviceSessionForForceStart_Branches(t *testing.T) {
 	})
 
 	t.Run("returns ended session id", func(t *testing.T) {
+		var released []int64
 		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
 			findActiveByDeviceIDFunc: func(context.Context, int64) (*activeModels.Group, error) {
 				return &activeModels.Group{Model: modelBase.Model{ID: 303}}, nil
+			},
+		}, SchoolPresence: &mockVisitRepository{
+			endGroupFunc: func(_ context.Context, id int64, _ time.Time) error {
+				released = append(released, id)
+				return nil
 			},
 		}},
 		}
@@ -1462,6 +1477,7 @@ func TestEndExistingDeviceSessionForForceStart_Branches(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, int64(303), endedID)
+		assert.Equal(t, []int64{303}, released, "the presence owner releases the replaced group")
 	})
 }
 
@@ -1663,23 +1679,18 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("session bulk failure aborts supervisor cleanup", func(t *testing.T) {
+	// The Student Presence owner closes visits, sessions, and supervisions in
+	// one command (#2697): a failure inside it leaves no partial counts behind.
+	t.Run("owner bulk close failure records the error without partial counts", func(t *testing.T) {
 		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
 			listFunc: func(context.Context, *modelBase.QueryOptions) ([]*activeModels.Group, error) {
 				return []*activeModels.Group{activeGroup}, nil
 			},
-			endSessionsByIDsFunc: func(context.Context, []int64) (int64, error) {
-				return 0, errors.New("bulk session close failed")
-			},
 		}, SchoolPresence: &mockVisitRepository{
-			endVisitsByActiveGroupIDsFunc: func(context.Context, []int64) (int64, error) {
-				return 2, nil
+			endGroupSessionsFunc: func(context.Context, []int64, time.Time) (studentpresence.EndedGroupSessions, error) {
+				return studentpresence.EndedGroupSessions{}, errors.New("bulk session close failed")
 			},
-		}, SupervisorRepo: &mockGroupSupervisorRepository{
-			endSupervisionsByIDsFunc: func(context.Context, []int64) (int64, error) {
-				return 3, nil
-			},
-		}},
+		}, SupervisorRepo: &mockGroupSupervisorRepository{}},
 		}
 
 		svc.settings = &stubSettingsResolver{stringValues: map[string]string{configModels.KeyPresenceMode: PresenceModeDetailed}}
@@ -1687,37 +1698,34 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 
 		require.Error(t, err)
 		assert.False(t, result.Success)
-		assert.Equal(t, 2, result.VisitsEnded)
+		assert.Zero(t, result.VisitsEnded)
+		assert.Zero(t, result.SessionsEnded)
 		assert.Zero(t, result.SupervisorsEnded)
+		assert.Empty(t, result.EndedActiveGroupIDs)
 		assert.Contains(t, result.Errors[0], "bulk session close failed")
 	})
 
-	t.Run("supervisor bulk failure records error", func(t *testing.T) {
+	t.Run("owner bulk close reports every count", func(t *testing.T) {
 		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
 			listFunc: func(context.Context, *modelBase.QueryOptions) ([]*activeModels.Group, error) {
 				return []*activeModels.Group{activeGroup}, nil
 			},
-			endSessionsByIDsFunc: func(context.Context, []int64) (int64, error) {
-				return 1, nil
-			},
 		}, SchoolPresence: &mockVisitRepository{
-			endVisitsByActiveGroupIDsFunc: func(context.Context, []int64) (int64, error) {
-				return 2, nil
+			endGroupSessionsFunc: func(_ context.Context, ids []int64, _ time.Time) (studentpresence.EndedGroupSessions, error) {
+				return studentpresence.EndedGroupSessions{VisitsClosed: 2, SessionsEnded: 1, SupervisorsEnded: 3, EndedActiveGroupIDs: ids}, nil
 			},
-		}, SupervisorRepo: &mockGroupSupervisorRepository{
-			endSupervisionsByIDsFunc: func(context.Context, []int64) (int64, error) {
-				return 0, errors.New("bulk supervisor close failed")
-			},
-		}},
+		}, SupervisorRepo: &mockGroupSupervisorRepository{}},
 		}
 
 		svc.settings = &stubSettingsResolver{stringValues: map[string]string{configModels.KeyPresenceMode: PresenceModeDetailed}}
 		result, err := svc.EndDailySessions(ctx)
 
-		require.Error(t, err)
-		assert.False(t, result.Success)
+		require.NoError(t, err)
+		assert.True(t, result.Success)
+		assert.Equal(t, 2, result.VisitsEnded)
 		assert.Equal(t, 1, result.SessionsEnded)
-		assert.Contains(t, result.Errors[0], "bulk supervisor close failed")
+		assert.Equal(t, 3, result.SupervisorsEnded)
+		assert.Equal(t, []int64{activeGroup.ID}, result.EndedActiveGroupIDs)
 	})
 }
 

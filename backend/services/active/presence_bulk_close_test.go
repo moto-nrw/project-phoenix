@@ -14,17 +14,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// failingGroupVisitClose lets the owner's bulk close write its rows and then
+// reports a failure, so the test can prove the surrounding transaction rolls
+// every one of those writes back.
 type failingGroupVisitClose struct {
 	activeService.StudentPresence
 	afterClose error
 }
 
-func (p *failingGroupVisitClose) CloseGroupVisits(ctx context.Context, ids []int64) (int64, error) {
-	count, err := p.StudentPresence.CloseGroupVisits(ctx, ids)
+func (p *failingGroupVisitClose) EndGroupSessions(ctx context.Context, ids []int64, at time.Time) (studentpresence.EndedGroupSessions, error) {
+	result, err := p.StudentPresence.EndGroupSessions(ctx, ids, at)
 	if err == nil {
 		err = p.afterClose
 	}
-	return count, err
+	return result, err
 }
 
 func TestDailySessionClosureRollsBackPresenceWriteAndRetries(t *testing.T) {

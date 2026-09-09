@@ -739,6 +739,8 @@ func init() {
 		mealPlanQueries,
 		mealPlanRowsChanged,
 		mealPlanStatementDuration,
+		sessionEndOperations,
+		sessionEndDuration,
 		organizationTenancyOperations,
 		organizationTenancyDuration,
 		organizationTenancyQueries,
@@ -1563,4 +1565,29 @@ func refreshPWAGauges() {
 		}
 	}
 	pwaGaugeLabels = current
+}
+
+// Session end workflow (#2697): outcome and latency per stable operation. The
+// owners it coordinates record their own statement counts; the tenant runtime
+// records pool and lock waits for the unit of work.
+var (
+	sessionEndOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_session_end_operations_total", Help: "Session end workflow runs by operation and outcome."},
+		[]string{"operation", "outcome"},
+	)
+	sessionEndDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_session_end_operation_duration_seconds", Help: "Session end workflow duration by operation.", Buckets: []float64{0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5}},
+		[]string{"operation"},
+	)
+)
+
+// ObserveSessionEndOperation records one session end workflow run.
+func ObserveSessionEndOperation(operation string, duration time.Duration, err error) {
+	outcome := "success"
+	if err != nil {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	sessionEndOperations.WithLabelValues(operation, outcome).Inc()
+	sessionEndDuration.WithLabelValues(operation).Observe(duration.Seconds())
 }

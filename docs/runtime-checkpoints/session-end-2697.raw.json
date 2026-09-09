@@ -1,0 +1,642 @@
+[
+  {
+    "concurrency": 1,
+    "deadlocks": 0,
+    "go": "go1.27.0",
+    "lock_samples": {
+      "samples": 335,
+      "waiting_backend_samples": 0,
+      "max_waiting_backends": 0,
+      "max_sample_gap_ms": 8.626292
+    },
+    "operation": "end-mirrored-session",
+    "p50_ms": 12.474459,
+    "p95_ms": 15.765792,
+    "postgres": "17.11",
+    "samples": [
+      {
+        "write_rows_affected": 5,
+        "rows_affected": 20,
+        "statements_with_rows": 32,
+        "duration_ms": 12.391209,
+        "queries": 34,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 5,
+        "rows_affected": 20,
+        "statements_with_rows": 32,
+        "duration_ms": 11.884542,
+        "queries": 34,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 5,
+        "rows_affected": 20,
+        "statements_with_rows": 32,
+        "duration_ms": 11.825417,
+        "queries": 34,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 5,
+        "rows_affected": 20,
+        "statements_with_rows": 32,
+        "duration_ms": 12.474459,
+        "queries": 34,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 5,
+        "rows_affected": 20,
+        "statements_with_rows": 32,
+        "duration_ms": 19.448375,
+        "queries": 34,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 5,
+        "rows_affected": 20,
+        "statements_with_rows": 32,
+        "duration_ms": 11.8865,
+        "queries": 34,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 5,
+        "rows_affected": 20,
+        "statements_with_rows": 32,
+        "duration_ms": 15.765792,
+        "queries": 34,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 5,
+        "rows_affected": 20,
+        "statements_with_rows": 32,
+        "duration_ms": 13.245083,
+        "queries": 34,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 5,
+        "rows_affected": 20,
+        "statements_with_rows": 32,
+        "duration_ms": 11.804542,
+        "queries": 34,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 5,
+        "rows_affected": 20,
+        "statements_with_rows": 32,
+        "duration_ms": 11.552875,
+        "queries": 34,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 5,
+        "rows_affected": 20,
+        "statements_with_rows": 32,
+        "duration_ms": 12.276958,
+        "queries": 34,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 5,
+        "rows_affected": 20,
+        "statements_with_rows": 32,
+        "duration_ms": 12.7535,
+        "queries": 34,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 5,
+        "rows_affected": 20,
+        "statements_with_rows": 32,
+        "duration_ms": 12.638917,
+        "queries": 34,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 5,
+        "rows_affected": 20,
+        "statements_with_rows": 32,
+        "duration_ms": 12.140667,
+        "queries": 34,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 5,
+        "rows_affected": 20,
+        "statements_with_rows": 32,
+        "duration_ms": 12.91825,
+        "queries": 34,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 5,
+        "rows_affected": 20,
+        "statements_with_rows": 32,
+        "duration_ms": 13.320875,
+        "queries": 34,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 5,
+        "rows_affected": 20,
+        "statements_with_rows": 32,
+        "duration_ms": 12.351167,
+        "queries": 34,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 5,
+        "rows_affected": 20,
+        "statements_with_rows": 32,
+        "duration_ms": 13.259291,
+        "queries": 34,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 5,
+        "rows_affected": 20,
+        "statements_with_rows": 32,
+        "duration_ms": 12.340125,
+        "queries": 34,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 5,
+        "rows_affected": 20,
+        "statements_with_rows": 32,
+        "duration_ms": 12.615083,
+        "queries": 34,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 5,
+        "rows_affected": 20,
+        "statements_with_rows": 32,
+        "duration_ms": 13.215083,
+        "queries": 34,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 5,
+        "rows_affected": 20,
+        "statements_with_rows": 32,
+        "duration_ms": 12.408167,
+        "queries": 34,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 5,
+        "rows_affected": 20,
+        "statements_with_rows": 32,
+        "duration_ms": 14.049459,
+        "queries": 34,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 5,
+        "rows_affected": 20,
+        "statements_with_rows": 32,
+        "duration_ms": 13.602,
+        "queries": 34,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 5,
+        "rows_affected": 20,
+        "statements_with_rows": 32,
+        "duration_ms": 12.39725,
+        "queries": 34,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 5,
+        "rows_affected": 20,
+        "statements_with_rows": 32,
+        "duration_ms": 13.08275,
+        "queries": 34,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 5,
+        "rows_affected": 20,
+        "statements_with_rows": 32,
+        "duration_ms": 12.716209,
+        "queries": 34,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 5,
+        "rows_affected": 20,
+        "statements_with_rows": 32,
+        "duration_ms": 11.901333,
+        "queries": 34,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 5,
+        "rows_affected": 20,
+        "statements_with_rows": 32,
+        "duration_ms": 13.307,
+        "queries": 34,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 5,
+        "rows_affected": 20,
+        "statements_with_rows": 32,
+        "duration_ms": 12.197917,
+        "queries": 34,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      }
+    ],
+    "unexpected_errors": 0,
+    "warmup": 5,
+    "workload": "session-end-v1: one mirrored group, one supervisor, one present and one expected student"
+  },
+  {
+    "concurrency": 1,
+    "deadlocks": 0,
+    "go": "go1.27.0",
+    "lock_samples": {
+      "samples": 329,
+      "waiting_backend_samples": 0,
+      "max_waiting_backends": 0,
+      "max_sample_gap_ms": 2.930834
+    },
+    "operation": "reject-already-ended",
+    "p50_ms": 1.289541,
+    "p95_ms": 1.468208,
+    "postgres": "17.11",
+    "samples": [
+      {
+        "write_rows_affected": 0,
+        "rows_affected": 2,
+        "statements_with_rows": 3,
+        "duration_ms": 1.330875,
+        "queries": 5,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 0,
+        "rows_affected": 2,
+        "statements_with_rows": 3,
+        "duration_ms": 1.241125,
+        "queries": 5,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 0,
+        "rows_affected": 2,
+        "statements_with_rows": 3,
+        "duration_ms": 1.374375,
+        "queries": 5,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 0,
+        "rows_affected": 2,
+        "statements_with_rows": 3,
+        "duration_ms": 1.253625,
+        "queries": 5,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 0,
+        "rows_affected": 2,
+        "statements_with_rows": 3,
+        "duration_ms": 1.30375,
+        "queries": 5,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 0,
+        "rows_affected": 2,
+        "statements_with_rows": 3,
+        "duration_ms": 1.311375,
+        "queries": 5,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 0,
+        "rows_affected": 2,
+        "statements_with_rows": 3,
+        "duration_ms": 1.304292,
+        "queries": 5,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 0,
+        "rows_affected": 2,
+        "statements_with_rows": 3,
+        "duration_ms": 1.289541,
+        "queries": 5,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 0,
+        "rows_affected": 2,
+        "statements_with_rows": 3,
+        "duration_ms": 1.468208,
+        "queries": 5,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 0,
+        "rows_affected": 2,
+        "statements_with_rows": 3,
+        "duration_ms": 1.288292,
+        "queries": 5,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 0,
+        "rows_affected": 2,
+        "statements_with_rows": 3,
+        "duration_ms": 1.347167,
+        "queries": 5,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 0,
+        "rows_affected": 2,
+        "statements_with_rows": 3,
+        "duration_ms": 1.351208,
+        "queries": 5,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 0,
+        "rows_affected": 2,
+        "statements_with_rows": 3,
+        "duration_ms": 1.179458,
+        "queries": 5,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 0,
+        "rows_affected": 2,
+        "statements_with_rows": 3,
+        "duration_ms": 1.228166,
+        "queries": 5,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 0,
+        "rows_affected": 2,
+        "statements_with_rows": 3,
+        "duration_ms": 1.362167,
+        "queries": 5,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 0,
+        "rows_affected": 2,
+        "statements_with_rows": 3,
+        "duration_ms": 1.321042,
+        "queries": 5,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 0,
+        "rows_affected": 2,
+        "statements_with_rows": 3,
+        "duration_ms": 1.5185,
+        "queries": 5,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 0,
+        "rows_affected": 2,
+        "statements_with_rows": 3,
+        "duration_ms": 1.239333,
+        "queries": 5,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 0,
+        "rows_affected": 2,
+        "statements_with_rows": 3,
+        "duration_ms": 1.466375,
+        "queries": 5,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 0,
+        "rows_affected": 2,
+        "statements_with_rows": 3,
+        "duration_ms": 1.26325,
+        "queries": 5,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 0,
+        "rows_affected": 2,
+        "statements_with_rows": 3,
+        "duration_ms": 1.190958,
+        "queries": 5,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 0,
+        "rows_affected": 2,
+        "statements_with_rows": 3,
+        "duration_ms": 1.215583,
+        "queries": 5,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 0,
+        "rows_affected": 2,
+        "statements_with_rows": 3,
+        "duration_ms": 1.238542,
+        "queries": 5,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 0,
+        "rows_affected": 2,
+        "statements_with_rows": 3,
+        "duration_ms": 1.297583,
+        "queries": 5,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 0,
+        "rows_affected": 2,
+        "statements_with_rows": 3,
+        "duration_ms": 1.239666,
+        "queries": 5,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 0,
+        "rows_affected": 2,
+        "statements_with_rows": 3,
+        "duration_ms": 1.3955,
+        "queries": 5,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 0,
+        "rows_affected": 2,
+        "statements_with_rows": 3,
+        "duration_ms": 1.439916,
+        "queries": 5,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 0,
+        "rows_affected": 2,
+        "statements_with_rows": 3,
+        "duration_ms": 0.996208,
+        "queries": 5,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 0,
+        "rows_affected": 2,
+        "statements_with_rows": 3,
+        "duration_ms": 1.043083,
+        "queries": 5,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      },
+      {
+        "write_rows_affected": 0,
+        "rows_affected": 2,
+        "statements_with_rows": 3,
+        "duration_ms": 1.120333,
+        "queries": 5,
+        "status": 0,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0
+      }
+    ],
+    "unexpected_errors": 0,
+    "warmup": 5,
+    "workload": "session-end-v1: one mirrored group, one supervisor, one present and one expected student"
+  }
+]
