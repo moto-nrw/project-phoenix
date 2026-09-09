@@ -98,11 +98,6 @@ export function resolveSupervisionSelection(options: {
   const sessionTarget = (
     session: ActiveSupervisionRoom,
   ): SupervisionSelectionTarget => {
-    if (session.room_id && openRoomIds.has(session.room_id)) {
-      return session.room_id === currentOpenRoomId
-        ? { kind: "none" }
-        : { kind: "open-room", roomId: session.room_id };
-    }
     if (session.id === currentSessionId) return { kind: "none" };
     return { kind: "session", sessionId: session.id };
   };
@@ -142,6 +137,28 @@ export function resolveSupervisionSelection(options: {
   if (options.savedRoomId) {
     const target = roomTarget(options.savedRoomId);
     if (target) return target;
+  }
+
+  // With no explicit target, prefer an own session that does not already sit
+  // in a released room. The navigation has one entry for a released room, not
+  // one per session in it, so selecting such a session by default would leave
+  // the sidebar without a matching entry. If every running session is in a
+  // released room, select the first shared room instead.
+  if (openRoomIds.size > 0) {
+    const ownSession = rooms.find(
+      (room) => !room.room_id || !openRoomIds.has(room.room_id),
+    );
+    if (ownSession) return sessionTarget(ownSession);
+    const firstOpenRoomId = openRoomIds.values().next().value as
+      string | undefined;
+    if (firstOpenRoomId) {
+      return (
+        roomTarget(firstOpenRoomId) ?? {
+          kind: "open-room",
+          roomId: firstOpenRoomId,
+        }
+      );
+    }
   }
   return { kind: "persist-first" };
 }

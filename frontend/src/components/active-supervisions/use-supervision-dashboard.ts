@@ -8,6 +8,7 @@ import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
 import type { BulkArrivalTime } from "~/lib/student-arrival-api";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types";
+import { useTenantRouter } from "~/lib/tenant-router";
 import {
   buildGroupNameToIdMap,
   mapSupervisedGroupsToRooms,
@@ -227,6 +228,7 @@ export function useSupervisionDashboard(
   options: SupervisionDashboardOptions,
 ): SupervisionDashboard {
   const { sessionToken, sessionParam, roomParam } = options;
+  const router = useTenantRouter();
   const { data: session } = useSession();
   const accountId = session?.user.id;
 
@@ -592,15 +594,8 @@ export function useSupervisionDashboard(
 
   const isInitialLoading = !snapshot && !dashboardError;
 
-  const sessionParamTargetsOpenRoom = sessionParam
-    ? (allRooms.find((room) => room.id === sessionParam)?.room_id ?? null)
-    : null;
-  const isSessionParamOpenRoom =
-    !!sessionParamTargetsOpenRoom &&
-    openRoomIds.has(sessionParamTargetsOpenRoom);
   const isWaitingForUrlRoomSelection = sessionParam
-    ? !isSessionParamOpenRoom &&
-      allRooms.some((room) => room.id === sessionParam) &&
+    ? allRooms.some((room) => room.id === sessionParam) &&
       currentRoom?.id !== sessionParam
     : !!roomParam &&
       // A released room needs no wait at all: its occupancy is already in the
@@ -658,22 +653,6 @@ export function useSupervisionDashboard(
     const first = openRooms[0];
     if (first) setSelectedOpenRoomId(first.roomId);
   }, [allRoomsBase.length, openRooms, selectedOpenRoomId]);
-
-  // An own session that runs in a released room is part of that room's shared
-  // view, so the room is what the page shows. Without this the navigation and
-  // the selection would name different things: the room appears once in the
-  // tab list while the selection still points at one session inside it.
-  const selectedSessionRoomID =
-    (selectedRoomId
-      ? allRoomsBase.find((room) => room.id === selectedRoomId)?.room_id
-      : resolvedRoom?.room_id) ?? null;
-  useEffect(() => {
-    if (selectedOpenRoomId || !selectedSessionRoomID) return;
-    if (!openRoomIds.has(selectedSessionRoomID)) return;
-    setSelectedOpenRoomId(selectedSessionRoomID);
-    setSelectedRoomId(null);
-    setSelectedTimetableInstanceId(null);
-  }, [selectedOpenRoomId, selectedSessionRoomID, openRoomIds]);
 
   // ---- Selection → fetch reconciliation ----
 
@@ -787,6 +766,9 @@ export function useSupervisionDashboard(
     if (target.kind === "open-room") {
       selectOpenRoom(target.roomId);
       localStorage.setItem("sidebar-last-room", target.roomId);
+      if (!roomParam) {
+        router.replace(`/active-supervisions?room=${target.roomId}`);
+      }
       return;
     }
     if (allRoomsBase.length === 0) return;
@@ -811,7 +793,7 @@ export function useSupervisionDashboard(
     }
     // "none": already in sync
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allRoomsBase, sessionParam, roomParam, openRoomIds]);
+  }, [allRoomsBase, sessionParam, roomParam, openRoomIds, router]);
 
   return {
     dashboardError: dashboardError ?? undefined,

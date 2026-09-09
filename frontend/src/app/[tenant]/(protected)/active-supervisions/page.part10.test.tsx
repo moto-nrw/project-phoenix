@@ -62,9 +62,10 @@ vi.mock("~/lib/supervision-context", () => ({
 
 // Mock next/navigation
 const mockPush = vi.fn();
+const mockReplace = vi.fn();
 const mockRedirect = vi.fn();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ push: mockPush, replace: mockReplace }),
   useSearchParams: () => ({
     get: (key: string) =>
       key === "room"
@@ -186,6 +187,10 @@ vi.mock("@/components/ui/location-badge", () => ({
 // Mock EmptyStudentResults
 vi.mock("~/components/ui/empty-student-results", () => ({
   EmptyStudentResults: () => <div data-testid="empty-results">No results</div>,
+}));
+
+vi.mock("~/components/active-supervisions/timetable-roster", () => ({
+  TimetableRosterContent: () => <div data-testid="timetable-roster" />,
 }));
 
 // Mock location-helper
@@ -885,7 +890,7 @@ describe("open-room tab onTabChange callback", () => {
     });
   });
 
-  it("opens a session URL in a released room as the shared view", async () => {
+  it("keeps a session URL in a released room on its timetable roster", async () => {
     navigationMockState.sessionParam = "active-open";
     const dashboardData = {
       supervisedGroups: [
@@ -935,19 +940,29 @@ describe("open-room tab onTabChange callback", () => {
             mutate: mockMutate,
             isValidating: false,
           } as never)
-        : ({
-            data: null,
-            isLoading: false,
-            error: null,
-            mutate: mockMutate,
-            isValidating: false,
-          } as never)) as never);
+        : key === "timetable-roster-active-group-active-open"
+          ? ({
+              data: {
+                instance: { id: "instance-open", activeGroupId: "active-open" },
+                rows: [],
+              },
+              isLoading: false,
+              error: null,
+              mutate: mockMutate,
+              isValidating: false,
+            } as never)
+          : ({
+              data: null,
+              isLoading: false,
+              error: null,
+              mutate: mockMutate,
+              isValidating: false,
+            } as never)) as never);
 
     render(<MeinRaumPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Max Muster")).toBeInTheDocument();
-      expect(screen.getByText("Angebot: Fußball")).toBeInTheDocument();
+      expect(screen.getByTestId("timetable-roster")).toBeInTheDocument();
     });
   });
 

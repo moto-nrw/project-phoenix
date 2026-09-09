@@ -440,18 +440,20 @@ function isRoomSubItemActive(
   childSessionId: string | null,
   childRoomId: string | null,
   sessionId: string | null,
+  sessionIds: readonly string[],
   roomId: string,
   pathname: string,
   currentSessionParam: string | null,
   currentRoomParam: string | null,
   index: number,
 ): boolean {
+  if (currentSessionParam) {
+    if (sessionId) return currentSessionParam === sessionId;
+    if (sessionIds.includes(currentSessionParam)) return true;
+  }
   if (childSessionId) return sessionId !== null && childSessionId === sessionId;
   if (childRoomId) return childRoomId === roomId;
   if (!pathname.startsWith("/active-supervisions")) return false;
-  if (currentSessionParam) {
-    return sessionId !== null && currentSessionParam === sessionId;
-  }
   if (currentRoomParam) return currentRoomParam === roomId;
   return index === 0;
 }
@@ -1214,6 +1216,11 @@ function SidebarContent({
       // fallback for state written before session tracking existed.
       const savedSessionId = localStorage.getItem("supervision-last-session");
       const savedRoomId = localStorage.getItem("sidebar-last-room");
+      const savedSessionRoom = savedSessionId
+        ? supervisedRooms.find((room) =>
+            room.sessionIds?.includes(savedSessionId),
+          )
+        : undefined;
       const targetRoom =
         (savedSessionId
           ? supervisedRooms.find(
@@ -1224,7 +1231,9 @@ function SidebarContent({
           ? supervisedRooms.find((r) => r.id === savedRoomId)
           : undefined) ??
         supervisedRooms[0];
-      if (targetRoom) {
+      if (savedSessionId && savedSessionRoom) {
+        router.push(`/active-supervisions?session=${savedSessionId}`);
+      } else if (targetRoom) {
         router.push(supervisionHref(targetRoom));
       } else {
         router.push("/active-supervisions");
@@ -1318,7 +1327,7 @@ function SidebarContent({
                     erhalten und die Icons darunter springen beim Klappen
                     nicht nach oben. */}
                 <p
-                  className={`mb-1.5 truncate px-3 text-[10px] font-semibold tracking-wider text-gray-400 uppercase motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-100" : "opacity-0"}`}
+                  className={`mb-1.5 truncate px-3 text-xs font-semibold tracking-wider text-gray-400 uppercase motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-100" : "opacity-0"}`}
                   aria-hidden={collapsed}
                 >
                   {section.label}
@@ -1501,6 +1510,7 @@ function SidebarContent({
               childSessionId,
               childRoomId,
               room.isOpenRoom ? null : room.groupId,
+              room.sessionIds ?? [],
               room.id,
               pathname,
               currentSessionParam,

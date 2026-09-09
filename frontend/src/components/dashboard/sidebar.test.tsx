@@ -1775,6 +1775,43 @@ describe("Sidebar", () => {
       );
     });
 
+    it("marks the released room for a session running in it", () => {
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [
+          { id: "10", name: "Werkraum", groupId: "active-werk" },
+          {
+            id: "7",
+            name: "Turnhalle",
+            groupId: "7",
+            isOpenRoom: true,
+            sessionIds: ["active-turn"],
+          },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+      mockUsePathname.mockReturnValue("/active-supervisions");
+      mockUseSearchParams.mockReturnValue(
+        createMockSearchParams((key) =>
+          key === "session" ? "active-turn" : null,
+        ),
+      );
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Turnhalle").closest("a")).toHaveClass(
+        "bg-gray-100",
+      );
+      expect(screen.getByText("Werkraum").closest("a")).not.toHaveClass(
+        "bg-gray-100",
+      );
+    });
+
     it("lists a released room and an own supervision side by side", () => {
       mockUseSupervision.mockReturnValue({
         hasGroups: true,

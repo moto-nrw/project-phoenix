@@ -81,6 +81,7 @@ describe("deriveSupervision with released rooms", () => {
     const turnhalle = result.supervisedRooms.filter((room) => room.id === "7");
     expect(turnhalle).toHaveLength(1);
     expect(turnhalle[0]?.isOpenRoom).toBe(true);
+    expect(turnhalle[0]?.sessionIds).toEqual(["1"]);
   });
 
   it("lists a released room once even with several sessions running there", () => {
@@ -98,6 +99,7 @@ describe("deriveSupervision with released rooms", () => {
     expect(
       result.supervisedRooms.filter((room) => room.id === "7"),
     ).toHaveLength(1);
+    expect(result.supervisedRooms[0]?.sessionIds).toEqual(["1", "2"]);
   });
 
   it("still distinguishes parallel sessions in a room that is NOT released", () => {

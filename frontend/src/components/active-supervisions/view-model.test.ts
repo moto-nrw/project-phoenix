@@ -300,14 +300,14 @@ describe("resolveSupervisionSelection (#2265)", () => {
     ).toEqual({ kind: "open-room", roomId: "54" });
   });
 
-  it("normalizes a session URL in a released room to its shared view", () => {
+  it("keeps a session URL in a released room on the planned session", () => {
     expect(
       resolveSupervisionSelection({
         ...base,
         sessionParam: "group-b",
         openRoomIds: new Set(["54"]),
       }),
-    ).toEqual({ kind: "open-room", roomId: "54" });
+    ).toEqual({ kind: "session", sessionId: "group-b" });
   });
 
   it("keeps the current selection when the shared room is already open", () => {
@@ -359,11 +359,30 @@ describe("resolveSupervisionSelection (#2265)", () => {
     ).toEqual({ kind: "session", sessionId: "group-c" });
   });
 
-  it("restores a saved session in a released room as its shared view", () => {
+  it("restores a saved session in a released room", () => {
     expect(
       resolveSupervisionSelection({
         ...base,
         savedSessionId: "group-b",
+        openRoomIds: new Set(["54"]),
+      }),
+    ).toEqual({ kind: "session", sessionId: "group-b" });
+  });
+
+  it("prefers a non-released session for an unaddressed dashboard", () => {
+    expect(
+      resolveSupervisionSelection({
+        ...base,
+        openRoomIds: new Set(["54"]),
+      }),
+    ).toEqual({ kind: "session", sessionId: "group-c" });
+  });
+
+  it("opens the shared view when every available session is in a released room", () => {
+    expect(
+      resolveSupervisionSelection({
+        ...base,
+        rooms: rooms.slice(0, 2),
         openRoomIds: new Set(["54"]),
       }),
     ).toEqual({ kind: "open-room", roomId: "54" });

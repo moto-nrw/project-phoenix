@@ -19,6 +19,8 @@ export interface SupervisedRoom {
    * shared rooms visibly apart from the caller's own supervisions.
    */
   isOpenRoom?: boolean;
+  /** Active sessions in this released room, used to mark a `?session=` link. */
+  sessionIds?: readonly string[];
 }
 
 /**
@@ -73,15 +75,30 @@ export function sortNavigationGroups(
  * name matching — so sidebar, mobile navigation and target page all address
  * the same thing.
  */
-function openRoomEntries(rooms: OpenRoomPayload[] | null): SupervisedRoom[] {
+function openRoomEntries(
+  rooms: OpenRoomPayload[] | null,
+  supervised: SupervisedGroupPayload[] | null,
+): SupervisedRoom[] {
   if (!rooms) return [];
+  const sessionIdsByRoom = new Map<string, string[]>();
+  for (const session of supervised ?? []) {
+    if (!session.room_id) continue;
+    const roomId = session.room_id.toString();
+    const sessionIds = sessionIdsByRoom.get(roomId) ?? [];
+    sessionIds.push(session.id.toString());
+    sessionIdsByRoom.set(roomId, sessionIds);
+  }
   return rooms
-    .map((room) => ({
-      id: room.id.toString(),
-      name: room.name,
-      groupId: room.id.toString(),
-      isOpenRoom: true,
-    }))
+    .map((room) => {
+      const sessionIds = sessionIdsByRoom.get(room.id.toString());
+      return {
+        id: room.id.toString(),
+        name: room.name,
+        groupId: room.id.toString(),
+        isOpenRoom: true,
+        ...(sessionIds ? { sessionIds } : {}),
+      };
+    })
     .sort((a, b) => a.name.localeCompare(b.name, "de"));
 }
 
@@ -90,7 +107,7 @@ export function deriveSupervision(
   openRooms: OpenRoomPayload[] | null,
   overviewOk: boolean,
 ): DerivedSupervision {
-  const openEntries = openRoomEntries(openRooms);
+  const openEntries = openRoomEntries(openRooms, supervised);
   const openRoomIDs = new Set(openEntries.map((room) => room.id));
   const first = supervised?.[0];
 
@@ -155,7 +172,9 @@ export function sameSupervision(
   // Active groups can change while the physical room stays the same, so the
   // group id is part of the identity.
   const keys = (rooms: SupervisedRoom[]) =>
-    rooms.map((r) => `${r.id}:${r.groupId}`).join(",");
+    rooms
+      .map((r) => `${r.id}:${r.groupId}:${r.sessionIds?.join(".") ?? ""}`)
+      .join(",");
   return (
     prev.isSupervising === next.isSupervising &&
     prev.supervisedRoomId === next.supervisedRoomId &&
