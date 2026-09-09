@@ -5,12 +5,19 @@ import { signOut, useSession } from "next-auth/react";
 import { useProfile } from "~/lib/profile-context";
 import { operatorAbsoluteUrl, operatorPath } from "~/lib/operator-url";
 import { parentAbsoluteUrl, parentPath } from "~/lib/parent-url";
-import { schoolAbsoluteUrl, schoolPath } from "~/lib/school-url";
+import {
+  schoolAbsoluteUrl,
+  schoolPath,
+  schoolPortalLoginUrl,
+} from "~/lib/school-url";
 import { clearSessionCache, DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 import { createLogger } from "~/lib/logger";
 import { unsubscribePushSilently } from "~/lib/push-api";
 import { hasPermission } from "~/lib/auth-utils";
-import { getSmartRedirectPath } from "~/lib/redirect-utils";
+import {
+  getSmartRedirectPath,
+  isSchoolPortalHandoffPath,
+} from "~/lib/redirect-utils";
 import { performEndStaffPreview } from "~/lib/staff-preview-api";
 import { mutate } from "~/lib/swr";
 
@@ -85,8 +92,12 @@ export function TeacherShellProvider({
   const { data: session, status: sessionStatus, update } = useSession();
   const { profile } = useProfile();
   // Das Logo folgt derselben Portalentscheidung wie der Login-Redirect.
-  // Bestehende reine Lehrkraft-Sitzungen gehören noch ins Schul-Portal.
-  const homeUrl = getSmartRedirectPath(session);
+  // Der Redirect-Helfer liefert für reine Lehrkraft-Sitzungen ein Pfad-Signal;
+  // das Logo braucht dagegen die Schul-Portal-URL auf ihrem eigenen Host.
+  const redirectPath = getSmartRedirectPath(session);
+  const homeUrl = isSchoolPortalHandoffPath(redirectPath)
+    ? schoolPortalLoginUrl()
+    : redirectPath;
 
   const value = useMemo<ShellAuthContextType>(() => {
     const user: ShellUser | null = session?.user

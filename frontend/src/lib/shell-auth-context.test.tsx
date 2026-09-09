@@ -47,6 +47,12 @@ vi.mock("~/lib/operator-url", () => ({
   operatorPath: (path: string) => path,
 }));
 
+vi.mock("~/lib/school-url", () => ({
+  schoolAbsoluteUrl: (path: string) => path,
+  schoolPath: (path: string) => path,
+  schoolPortalLoginUrl: () => "https://schule.example.test/login",
+}));
+
 vi.mock("~/lib/session-cache", () => ({
   clearSessionCache: mockClearSessionCache,
 }));
@@ -152,7 +158,7 @@ describe("TeacherShellProvider", () => {
 
     const { result } = renderHook(() => useShellAuth(), { wrapper });
 
-    expect(result.current.homeUrl).toBe("/school/login");
+    expect(result.current.homeUrl).toBe("https://schule.example.test/login");
   });
 
   it("keeps dual-role lehrkraft accounts in the staff portal", () => {
