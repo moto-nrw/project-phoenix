@@ -292,7 +292,7 @@ describe("resolveHomeLayout — eigene Anordnung", () => {
   });
 
   it("lässt eine gespeicherte Platzierung weg, die später entfernt wurde", () => {
-    const { placements, addable } = resolveHomeLayout(
+    const { placements, addable, customized } = resolveHomeLayout(
       fullContext,
       [{ key: "section.birthdays", span: 4, col: 0, row: 0 }],
       { "section.birthdays": false },
@@ -301,6 +301,14 @@ describe("resolveHomeLayout — eigene Anordnung", () => {
 
     expect(keysOf(placements)).not.toContain("section.birthdays");
     expect(addable.map((block) => block.key)).toContain("section.birthdays");
+    // Bleibt von einer gespeicherten Anordnung nichts sichtbar, darf sie die
+    // Standardansicht nicht in einer einzelnen Spalte untereinander hängen.
+    expect(placements).toEqual(
+      DEFAULT_LAYOUTS.lead.filter((entry) => entry.key !== "section.birthdays"),
+    );
+    // Die versteckte Platzierung bleibt für eine spätere Verfügbarkeit
+    // erhalten und kann weiterhin über die Wiederherstellung verworfen werden.
+    expect(customized).toBe(true);
   });
 
   it("korrigiert eine Breite, die es für den Baustein nicht gibt", () => {

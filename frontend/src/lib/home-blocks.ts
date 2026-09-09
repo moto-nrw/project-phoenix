@@ -1009,9 +1009,11 @@ export function resolveHomeLayout(
     return BLOCK_BY_KEY.get(key) ?? null;
   };
 
-  // Die gespeicherte Anordnung behält ihre Reihen; die Reihen der
-  // Standardansicht gelten nur, solange niemand angeordnet hat.
-  const arranged = (stored?.length ?? 0) > 0;
+  // Die gespeicherte Anordnung behält ihre Reihen. Sind davon momentan keine
+  // Bausteine sichtbar, wird die sichtbare Standardansicht wieder gepackt.
+  // Die gespeicherte Anpassung bleibt trotzdem erhalten, damit ein später
+  // wieder verfügbarer Baustein seine Zelle nicht verliert.
+  const hasStoredPlacements = (stored?.length ?? 0) > 0;
   const profile = homeProfileFor(ctx.access);
 
   for (const entry of stored ?? []) {
@@ -1031,6 +1033,7 @@ export function resolveHomeLayout(
     placed.add(entry.key);
   }
   placements = normalizePlacements(placements);
+  const arranged = placements.length > 0;
 
   for (const entry of DEFAULT_LAYOUTS[profile]) {
     // Entfernt bleibt entfernt. Alles andere aus der Standardansicht steht am
@@ -1070,7 +1073,8 @@ export function resolveHomeLayout(
   );
 
   const customized =
-    arranged || Object.values(overrides ?? {}).some((shown) => shown === false);
+    hasStoredPlacements ||
+    Object.values(overrides ?? {}).some((shown) => shown === false);
 
   return { placements, addable, available, customized };
 }
