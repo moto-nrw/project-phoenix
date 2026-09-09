@@ -41,6 +41,10 @@ var legacyTimeTimeDateColumns = map[string]string{}
 // field (raw-SQL-only access or superseded tables). Every newly discovered
 // unmapped column must be classified here with a reason.
 var unmappedDateColumns = map[string]string{
+	// #2712 is Expand only: these empty tables have no application reader or
+	// writer. Cutover must replace these classifications with typed row fields.
+	"enrollment.care_offering_bookings.valid_from":  "empty Expand storage (#2712), no runtime model until Cutover",
+	"enrollment.care_offering_bookings.valid_until": "empty Expand storage (#2712), no runtime model until Cutover",
 	// Reminder push claims are written and deleted exclusively by the two
 	// SECURITY DEFINER functions from 001015255; the occurrence date is bound as
 	// a timezone.Date parameter there and never scanned into a struct, so the
