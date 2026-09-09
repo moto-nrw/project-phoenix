@@ -448,6 +448,19 @@ describe("proxy", () => {
       );
     });
 
+    it("rewrites /tagesinformationen to /school/tagesinformationen (#2208)", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${SCHOOL_HOSTNAME}/tagesinformationen`,
+          SCHOOL_HOSTNAME,
+        ),
+      );
+
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/school/tagesinformationen",
+      );
+    });
+
     it("rewrites a class page to /school/klasse (#2294)", () => {
       // Klasse und Tag stehen als Query-Parameter in der Adresse; die
       // Umschreibung muss sie unverändert mitnehmen.

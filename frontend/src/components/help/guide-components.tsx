@@ -29,10 +29,29 @@ const TALL_LETTER_SCREENSHOTS = new Set([
   "/help/screens/elternbrief-status.webp",
 ]);
 
+const GUIDE_SCREENSHOT_DIMENSIONS: Readonly<
+  Record<string, { readonly width: number; readonly height: number }>
+> = {
+  "/help/screens/tagesinformationen-anlegen.webp": {
+    width: 1440,
+    height: 1020,
+  },
+  "/help/screens/tagesinformationen-bestaetigungen.webp": {
+    width: 1440,
+    height: 1020,
+  },
+  "/help/screens/lehrkraft-tagesinformationen.webp": {
+    width: 1440,
+    height: 620,
+  },
+};
+
 function getGuideScreenshotDimensions(image: string): {
   width: number;
   height: number;
 } {
+  const dimensions = GUIDE_SCREENSHOT_DIMENSIONS[image];
+  if (dimensions) return dimensions;
   if (image === "/help/screens/anmeldung-loeschen.png") {
     return { width: 1440, height: 1100 };
   }

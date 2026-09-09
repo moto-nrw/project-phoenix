@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { setTestClock } from "~/test/clock";
 
 // The date fields moved from native inputs to the kit picker; this stub keeps
 // them settable via fireEvent.change and forwards min/max so the bound
@@ -141,8 +142,7 @@ describe("StaffCalendarPage", () => {
     // The page derives its week from `new Date()`; pin the clock into the
     // fixture week so events fall in the visible range (Date only, so waitFor's
     // real timers keep working). Fake the clock BEFORE any render.
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date(2026, 0, 7));
+    setTestClock(new Date(2026, 0, 7));
     mockCalendarSWR();
     mockUseSession.mockReturnValue({
       data: { user: { permissions: ["calendar:own", "calendar:manage"] } },
@@ -152,10 +152,6 @@ describe("StaffCalendarPage", () => {
     mockCreateStaffAppointment.mockResolvedValue({ appointment: { id: "1" } });
     mockUpdateStaffAppointment.mockResolvedValue({ appointment: { id: "5" } });
     mockMutate.mockResolvedValue(undefined);
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
   });
 
   it("shows the personal calendar subscription below the calendar", () => {
@@ -263,7 +259,7 @@ describe("StaffCalendarPage", () => {
     });
 
     // This fixture's occurrence sits in the week of 2026-01-19.
-    vi.setSystemTime(new Date(2026, 0, 21));
+    setTestClock(new Date(2026, 0, 21));
     render(<StaffCalendarPage />);
 
     // Management actions now live in the event detail sheet: open it first.

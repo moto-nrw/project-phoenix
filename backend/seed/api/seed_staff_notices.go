@@ -15,11 +15,15 @@ func (seedStaffNoticesStep) Name() string { return "Seeding staff notices" }
 func (seedStaffNoticesStep) Run(_ context.Context, rt *Runtime) error {
 	today := todaySeedDate()
 	isoWeekday := int16((int(today.Weekday())+6)%7 + 1)
+	// Zielgruppen (#2208): der erste Hinweis erreicht die ganze Einrichtung,
+	// danach je einer nur die Betreuung und nur die Lehrkräfte — so zeigt
+	// jedes Portal, dass es genau seinen Anteil sieht.
 	notices := []map[string]any{
 		{
 			"title":                    "Räumungsübung heute",
 			"body":                     "Bitte begleiten Sie Ihre Gruppe zum Sammelplatz.",
 			"priority":                 "important",
+			"audience":                 "all",
 			"valid_from":               today.String(),
 			"weekdays":                 []int16{},
 			"week_pattern":             0,
@@ -30,10 +34,22 @@ func (seedStaffNoticesStep) Run(_ context.Context, rt *Runtime) error {
 			"title":                    "Turnhalle belegt",
 			"body":                     "Die Turnhalle ist heute bis 15 Uhr belegt.",
 			"priority":                 "info",
+			"audience":                 "staff",
 			"valid_from":               today.String(),
 			"weekdays":                 []int16{isoWeekday},
 			"week_pattern":             0,
 			"requires_acknowledgement": false,
+			"active":                   true,
+		},
+		{
+			"title":                    "Übergabe nach der 6. Stunde",
+			"body":                     "Bitte geben Sie die Kinder der 2a heute erst um 13:30 Uhr an die OGS ab. Vorher findet die Klassenstunde statt.",
+			"priority":                 "info",
+			"audience":                 "lehrkraft",
+			"valid_from":               today.String(),
+			"weekdays":                 []int16{},
+			"week_pattern":             0,
+			"requires_acknowledgement": true,
 			"active":                   true,
 		},
 	}

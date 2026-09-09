@@ -7,6 +7,7 @@ import {
   within,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { releaseFakeTimers } from "~/test/clock";
 import useSWR from "swr";
 
 // Vaul (SlideOver) rendert in jsdom nichts: das Detailpanel bliebe im Test
@@ -899,7 +900,7 @@ describe("InstanceDetailModal", () => {
       ).not.toBeInTheDocument();
       expect(screen.getByText("Termin löschen?")).toBeInTheDocument();
     } finally {
-      vi.useRealTimers();
+      releaseFakeTimers();
     }
   });
 
@@ -925,7 +926,7 @@ describe("InstanceDetailModal", () => {
       ).not.toBeInTheDocument();
       expect(screen.getByText("Termin löschen?")).toBeInTheDocument();
     } finally {
-      vi.useRealTimers();
+      releaseFakeTimers();
     }
   });
 
@@ -954,7 +955,7 @@ describe("InstanceDetailModal", () => {
       ).not.toBeInTheDocument();
       expect(screen.getByText("Termin löschen?")).toBeInTheDocument();
     } finally {
-      vi.useRealTimers();
+      releaseFakeTimers();
     }
   });
 
@@ -1001,7 +1002,7 @@ describe("InstanceDetailModal", () => {
       ).not.toBeInTheDocument();
       expect(screen.queryByText("Termin löschen?")).not.toBeInTheDocument();
     } finally {
-      vi.useRealTimers();
+      releaseFakeTimers();
     }
   });
 

@@ -39,5 +39,5 @@ func NewWorkSessionTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func
 		r.StaffAbsence, r.GroupSupervisor, r.ActiveGroup, r.Staff, r.StaffWorkSchedule, r.WorkTimeModel, settings.Settings, slog.Default(), db)
 	service.SetStaffShiftRepo(r.StaffShift)
 	service.(interface{ SetBroadcaster(realtime.Broadcaster) }).SetBroadcaster(deliveryCompose.NewRealtimeHub(slog.Default()))
-	return WorkSessionTestModule{WorkSession: service, StaffClock: staffclock.NewService(identity.Users, newRFIDCardLookup(rfid.RFID.FindByID), service)}, nil
+	return WorkSessionTestModule{WorkSession: service, StaffClock: newStaffClockService(identity.Users, rfid.RFID.FindByID, service)}, nil
 }

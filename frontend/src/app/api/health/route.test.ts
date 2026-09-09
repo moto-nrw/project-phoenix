@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { releaseFakeTimers } from "~/test/clock";
 import { GET } from "./route";
 
 describe("GET /api/health", () => {
@@ -25,13 +26,13 @@ describe("GET /api/health", () => {
       timestamp: mockDate.toISOString(),
     });
 
-    vi.useRealTimers();
+    releaseFakeTimers();
   });
 
   it("always returns 200 status", async () => {
     const response = await GET();
     expect(response.status).toBe(200);
 
-    vi.useRealTimers();
+    releaseFakeTimers();
   });
 });

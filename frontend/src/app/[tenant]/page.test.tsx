@@ -10,6 +10,7 @@ import {
   act,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { releaseFakeTimers } from "~/test/clock";
 
 const mockTrackTenantEvent = vi.fn();
 const { mockLoginWithPasskey, mockIsPasskeySupported, MockPasskeyApiError } =
@@ -570,7 +571,7 @@ describe("HomePage (Login)", () => {
           "https://parents.example.test/login?from=staff",
         );
       } finally {
-        vi.useRealTimers();
+        releaseFakeTimers();
         if (ownHref) {
           Object.defineProperty(window.location, "href", ownHref);
         } else {

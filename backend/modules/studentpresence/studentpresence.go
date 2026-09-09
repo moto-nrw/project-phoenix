@@ -7,6 +7,7 @@ import (
 )
 
 type Query interface {
+	UnclaimedGroups(context.Context, string) ([]UnclaimedGroup, error)
 	AttendanceQuery
 	VisitQuery
 	ListOpenPresence(context.Context, []int64) ([]int64, error)
@@ -15,6 +16,7 @@ type Query interface {
 }
 
 type Command interface {
+	ClaimGroup(context.Context, GroupClaim) (ClaimedSupervision, error)
 	AttendanceCommand
 	VisitCommand
 	GroupRecovery
@@ -30,6 +32,8 @@ func (m *Module) LatestPresenceDate(ctx context.Context, studentID int64) (*stri
 	return m.engine.LatestPresenceDate(ctx, studentID)
 }
 
+// CountAttendanceRecords counts the student's attendance rows plus scheduled
+// checkouts; the deletion preview reports both as attendance records.
 func (m *Module) CountAttendanceRecords(ctx context.Context, studentID int64) (int, error) {
 	return m.engine.CountAttendanceRecords(ctx, studentID)
 }

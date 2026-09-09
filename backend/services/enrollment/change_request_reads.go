@@ -5,15 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 
-	legacy "github.com/moto-nrw/project-phoenix/models/enrollment"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
-func legacyChangeRequest(value *capability.ChangeRequest) (*legacy.ChangeRequest, error) {
+func changeRequestFromOwner(value *capability.ChangeRequest) (*ChangeRequest, error) {
 	if value == nil {
 		return nil, nil
 	}
-	row := new(legacy.ChangeRequest)
+	row := new(ChangeRequest)
 	row.ID = value.ID
 	row.TenantID = value.TenantID
 	row.CreatedAt = value.CreatedAt
@@ -45,89 +44,55 @@ func legacyChangeRequest(value *capability.ChangeRequest) (*legacy.ChangeRequest
 	}
 	return row, nil
 }
-func readChangeRequestByID(ctx context.Context, owner ChangeRequestIntakeRequests, id int64) (*legacy.ChangeRequest, error) {
+
+// changeRequestsFromOwner converts an owner read result, preserving its error
+// and the nil-versus-empty distinction of the owner's slice.
+func changeRequestsFromOwner(values []*capability.ChangeRequest, err error) ([]*ChangeRequest, error) {
+	if err != nil {
+		return nil, err
+	}
+	if values == nil {
+		return nil, nil
+	}
+	rows := make([]*ChangeRequest, 0, len(values))
+	for _, value := range values {
+		row, err := changeRequestFromOwner(value)
+		if err != nil {
+			return nil, err
+		}
+		rows = append(rows, row)
+	}
+	return rows, nil
+}
+
+func readChangeRequestByID(ctx context.Context, owner ChangeRequestIntakeRequests, id int64) (*ChangeRequest, error) {
 	values, err := owner.ChangeRequestByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	return legacyChangeRequest(values)
+	return changeRequestFromOwner(values)
 }
-func readChangeRequestByIDForUpdate(ctx context.Context, owner ChangeRequestIntakeRequests, id int64) (*legacy.ChangeRequest, error) {
+
+func readChangeRequestByIDForUpdate(ctx context.Context, owner ChangeRequestIntakeRequests, id int64) (*ChangeRequest, error) {
 	values, err := owner.ChangeRequestByIDForUpdate(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	return legacyChangeRequest(values)
+	return changeRequestFromOwner(values)
 }
-func readChangeRequestsForRequest(ctx context.Context, owner ChangeRequestIntakeRequests, requestID int64) ([]*legacy.ChangeRequest, error) {
-	values, err := owner.ChangeRequestsForRequest(ctx, requestID)
-	if err != nil {
-		return nil, err
-	}
-	if values == nil {
-		return nil, nil
-	}
-	rows := make([]*legacy.ChangeRequest, 0, len(values))
-	for _, value := range values {
-		row, err := legacyChangeRequest(value)
-		if err != nil {
-			return nil, err
-		}
-		rows = append(rows, row)
-	}
-	return rows, nil
+
+func readChangeRequestsForRequest(ctx context.Context, owner ChangeRequestIntakeRequests, requestID int64) ([]*ChangeRequest, error) {
+	return changeRequestsFromOwner(owner.ChangeRequestsForRequest(ctx, requestID))
 }
-func readOpenChangeRequestsForRequestForUpdate(ctx context.Context, owner ChangeRequestIntakeRequests, requestID int64) ([]*legacy.ChangeRequest, error) {
-	values, err := owner.OpenChangeRequestsForRequestForUpdate(ctx, requestID)
-	if err != nil {
-		return nil, err
-	}
-	if values == nil {
-		return nil, nil
-	}
-	rows := make([]*legacy.ChangeRequest, 0, len(values))
-	for _, value := range values {
-		row, err := legacyChangeRequest(value)
-		if err != nil {
-			return nil, err
-		}
-		rows = append(rows, row)
-	}
-	return rows, nil
+
+func readOpenChangeRequestsForRequestForUpdate(ctx context.Context, owner ChangeRequestIntakeRequests, requestID int64) ([]*ChangeRequest, error) {
+	return changeRequestsFromOwner(owner.OpenChangeRequestsForRequestForUpdate(ctx, requestID))
 }
-func readListChangeRequests(ctx context.Context, owner ChangeRequestIntakeRequests, filters capability.ChangeRequestListFilters) ([]*legacy.ChangeRequest, error) {
-	values, err := owner.ListChangeRequests(ctx, filters)
-	if err != nil {
-		return nil, err
-	}
-	if values == nil {
-		return nil, nil
-	}
-	rows := make([]*legacy.ChangeRequest, 0, len(values))
-	for _, value := range values {
-		row, err := legacyChangeRequest(value)
-		if err != nil {
-			return nil, err
-		}
-		rows = append(rows, row)
-	}
-	return rows, nil
+
+func readListChangeRequests(ctx context.Context, owner ChangeRequestIntakeRequests, filters capability.ChangeRequestListFilters) ([]*ChangeRequest, error) {
+	return changeRequestsFromOwner(owner.ListChangeRequests(ctx, filters))
 }
-func readChangeRequestsForReview(ctx context.Context, owner ChangeRequestIntakeRequests, filters capability.ChangeRequestReviewFilters) ([]*legacy.ChangeRequest, error) {
-	values, err := owner.ChangeRequestsForReview(ctx, filters)
-	if err != nil {
-		return nil, err
-	}
-	if values == nil {
-		return nil, nil
-	}
-	rows := make([]*legacy.ChangeRequest, 0, len(values))
-	for _, value := range values {
-		row, err := legacyChangeRequest(value)
-		if err != nil {
-			return nil, err
-		}
-		rows = append(rows, row)
-	}
-	return rows, nil
+
+func readChangeRequestsForReview(ctx context.Context, owner ChangeRequestIntakeRequests, filters capability.ChangeRequestReviewFilters) ([]*ChangeRequest, error) {
+	return changeRequestsFromOwner(owner.ChangeRequestsForReview(ctx, filters))
 }

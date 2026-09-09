@@ -124,16 +124,6 @@ func CreateAuditAdjustmentChild(tb testing.TB, db *bun.DB, requestID int64) int6
 	return childID
 }
 
-func OrganizationIDForSchool(tb testing.TB, db *bun.DB, schoolID int64) int64 {
-	tb.Helper()
-	var organizationID int64
-	require.NoError(tb, db.NewRaw(
-		"SELECT organization_id FROM platform.schools WHERE id = ?", schoolID,
-	).Scan(context.Background(), &organizationID))
-	require.NotZero(tb, organizationID)
-	return organizationID
-}
-
 // Fixture helpers for hermetic testing. Each helper creates a real database record
 // with proper relationships and returns the created entity with its real ID.
 // The package clone owns their row lifecycle; tests do not delete them.

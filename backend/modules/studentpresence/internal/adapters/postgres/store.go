@@ -149,7 +149,13 @@ func (s *Store) CountAttendanceRecords(ctx context.Context, studentID int64) (in
 		return 0, ports.Stats{}, err
 	}
 	started := time.Now()
-	count, err := db.NewSelect().Table("active.attendance").Where("tenant_id = ?", tenantID).Where("student_id = ?", studentID).Count(ctx)
+	var count int
+	err = db.NewRaw(`
+		SELECT (
+			(SELECT COUNT(*) FROM active.attendance WHERE tenant_id = ? AND student_id = ?) +
+			(SELECT COUNT(*) FROM active.scheduled_checkouts WHERE tenant_id = ? AND student_id = ?)
+		)::int
+	`, tenantID, studentID, tenantID, studentID).Scan(ctx, &count)
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		return 0, stats, fmt.Errorf("count attendance records: %w", err)

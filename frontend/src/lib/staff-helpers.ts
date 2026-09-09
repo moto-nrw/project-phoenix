@@ -6,7 +6,7 @@ import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "./location-helper";
 // Location status type matching the pattern from OGS groups
 interface LocationStatus {
   label: string;
-  /** Fläche der Pille — StatusDotBadge leitet Punkt und Schriftfarbe daraus ab. */
+  /** Fläche der Pille — StatusColorBadge leitet die Schriftfarbe daraus ab. */
   customBgColor: string;
 }
 

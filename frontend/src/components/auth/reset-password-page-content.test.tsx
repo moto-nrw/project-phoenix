@@ -6,6 +6,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { releaseFakeTimers } from "~/test/clock";
 import "@testing-library/jest-dom/vitest";
 
 import {
@@ -262,7 +263,7 @@ describe("ResetPasswordPageContent — successful reset", () => {
 
       expect(mocks.push).toHaveBeenCalledWith("/parents/login");
     } finally {
-      vi.useRealTimers();
+      releaseFakeTimers();
     }
   });
 });

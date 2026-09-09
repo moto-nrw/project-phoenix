@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { releaseFakeTimers } from "~/test/clock";
 
 import { PlannedNowSection } from "./planned-now-section";
 import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types";
@@ -148,7 +149,7 @@ describe("PlannedNowSection", () => {
       const button = screen.getByRole("button", { name: "Starten ab 13:45" });
       expect(button).toBeDisabled();
     } finally {
-      vi.useRealTimers();
+      releaseFakeTimers();
     }
   });
 
@@ -172,7 +173,7 @@ describe("PlannedNowSection", () => {
       );
       expect(screen.queryByText("Hausaufgaben")).not.toBeInTheDocument();
     } finally {
-      vi.useRealTimers();
+      releaseFakeTimers();
     }
   });
 

@@ -91,29 +91,32 @@ func (e *ConflictError) Unwrap() error        { return e.Cause }
 // StaffAbsence is one absence record of a staff member. Calendar dates are in
 // DateLayout; instants are timestamps.
 type StaffAbsence struct {
-	ID          int64
-	TenantID    int64
-	StaffID     int64
-	AbsenceType string
+	ID          int64  `json:"id"`
+	TenantID    int64  `json:"tenant_id"`
+	StaffID     int64  `json:"staff_id"`
+	AbsenceType string `json:"absence_type"`
 	// AbsenceTypeID optionally names the absence with a school-defined
 	// Abwesenheitsart; nil means one of the five standard types.
-	AbsenceTypeID     *int64
-	DateStart         string
-	DateEnd           string
-	HalfDay           bool
-	StartHalfDay      bool
-	EndHalfDay        bool
-	Note              string
-	Status            string
-	ApprovedBy        *int64
-	ApprovedAt        *time.Time
-	CreatedBy         int64
-	WorkingDays       *float64
-	DecisionNote      string
-	RequestedAt       time.Time
-	SubstituteStaffID *int64
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
+	AbsenceTypeID *int64 `json:"absence_type_id,omitempty"`
+	// AbsenceTypeLabel is the school's own wording of that art, resolved on
+	// read; empty for the standard types.
+	AbsenceTypeLabel  string     `json:"absence_type_label,omitempty"`
+	DateStart         string     `json:"date_start"`
+	DateEnd           string     `json:"date_end"`
+	HalfDay           bool       `json:"half_day"`
+	StartHalfDay      bool       `json:"start_half_day"`
+	EndHalfDay        bool       `json:"end_half_day"`
+	Note              string     `json:"note,omitempty"`
+	Status            string     `json:"status"`
+	ApprovedBy        *int64     `json:"approved_by,omitempty"`
+	ApprovedAt        *time.Time `json:"approved_at,omitempty"`
+	CreatedBy         int64      `json:"created_by"`
+	WorkingDays       *float64   `json:"working_days,omitempty"`
+	DecisionNote      string     `json:"decision_note,omitempty"`
+	RequestedAt       time.Time  `json:"requested_at"`
+	SubstituteStaffID *int64     `json:"substitute_staff_id,omitempty"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
 }
 
 // StaffAbsenceOrderField names a column a listing may be ordered by.

@@ -8,7 +8,7 @@ import { CollectionGrid } from "~/components/ui/collection-grid";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { TileCard } from "~/components/ui/tile-card";
-import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
@@ -965,10 +965,10 @@ function StaffPageContent() {
 
                               <span className="flex flex-shrink-0 flex-col items-end gap-1.5">
                                 {/* Dieselbe Pille wie beim Kind: helle Fläche,
-                                farbiger Punkt, dunkle Schrift. Vollflächige
-                                Badges in Signalfarbe waren auf einer Liste mit
-                                24 Personen eine Wand aus Rot. */}
-                                <StatusDotBadge
+                                dunkle farbige Schrift. Vollflächige Badges in
+                                Signalfarbe waren auf einer Liste mit 24
+                                Personen eine Wand aus Rot. */}
+                                <StatusColorBadge
                                   label={locationStatus.label}
                                   color={locationStatus.customBgColor}
                                 />

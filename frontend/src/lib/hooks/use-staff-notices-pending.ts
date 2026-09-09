@@ -3,13 +3,13 @@
 import { useSession } from "next-auth/react";
 import { hasPermission } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import { fetchTodaysNotices } from "~/lib/staff-notices-api";
+import {
+  fetchTodaysNotices,
+  STAFF_NOTICES_REFRESH_EVENT,
+} from "~/lib/staff-notices-api";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { useShellSeed } from "~/lib/shell-seed";
 import { useUnreadCount } from "./use-unread-count";
-
-/** Event, mit dem eine Kenntnisnahme das Badge sofort nachziehen lässt. */
-export const STAFF_NOTICES_REFRESH_EVENT = "staff-notices-refresh";
 
 /**
  * Badge der Tagesinformationen (#2180): heutige Hinweise, deren Kenntnisnahme

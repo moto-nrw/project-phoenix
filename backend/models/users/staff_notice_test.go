@@ -91,6 +91,7 @@ func TestStaffNoticeValidate(t *testing.T) {
 		return &StaffNotice{
 			Title:     "Hinweis",
 			Priority:  StaffNoticePriorityInfo,
+			Audience:  StaffNoticeAudienceAll,
 			ValidFrom: date(t, "2026-08-01"),
 			Active:    true,
 		}
@@ -98,6 +99,17 @@ func TestStaffNoticeValidate(t *testing.T) {
 
 	t.Run("gültiger Hinweis", func(t *testing.T) {
 		require.NoError(t, valid().Validate())
+	})
+
+	t.Run("unbekannte Zielgruppe wird abgelehnt", func(t *testing.T) {
+		notice := valid()
+		notice.Audience = "eltern"
+		assert.Error(t, notice.Validate())
+
+		// Leer ist keine Zielgruppe: der Service setzt "all", das Modell
+		// verlässt sich nicht darauf.
+		notice.Audience = ""
+		assert.Error(t, notice.Validate())
 	})
 
 	t.Run("Titel darf nicht leer sein", func(t *testing.T) {
@@ -133,4 +145,29 @@ func TestStaffNoticeValidate(t *testing.T) {
 		notice.WeekPattern = 3
 		assert.Error(t, notice.Validate())
 	})
+}
+
+func TestStaffNoticeAppliesTo(t *testing.T) {
+	t.Parallel()
+	// Die Leserart ist das Portal: Betreuung liest als "staff", eine
+	// Lehrkraft als "lehrkraft". "all" ist Zielgruppe, nie Leserart.
+	withAudience := func(audience string) *StaffNotice {
+		return &StaffNotice{Title: "Hinweis", Audience: audience}
+	}
+
+	assert.True(t, withAudience(StaffNoticeAudienceAll).AppliesTo(StaffNoticeAudienceStaff))
+	assert.True(t, withAudience(StaffNoticeAudienceAll).AppliesTo(StaffNoticeAudienceLehrkraft))
+
+	assert.True(t, withAudience(StaffNoticeAudienceStaff).AppliesTo(StaffNoticeAudienceStaff))
+	assert.False(t, withAudience(StaffNoticeAudienceStaff).AppliesTo(StaffNoticeAudienceLehrkraft),
+		"ein Hinweis nur für die Betreuung erreicht keine Lehrkraft")
+
+	assert.True(t, withAudience(StaffNoticeAudienceLehrkraft).AppliesTo(StaffNoticeAudienceLehrkraft))
+	assert.False(t, withAudience(StaffNoticeAudienceLehrkraft).AppliesTo(StaffNoticeAudienceStaff),
+		"ein Hinweis nur für Lehrkräfte erreicht keine Betreuungskraft")
+
+	// Fail-closed: weder "all" noch Unsinn ist eine Leserart, die etwas sieht.
+	assert.False(t, withAudience(StaffNoticeAudienceAll).AppliesTo(StaffNoticeAudienceAll))
+	assert.False(t, withAudience(StaffNoticeAudienceAll).AppliesTo(""))
+	assert.False(t, withAudience(StaffNoticeAudienceAll).AppliesTo("eltern"))
 }

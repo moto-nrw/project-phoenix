@@ -63,7 +63,6 @@ type GroupRepository interface {
 	UpdateLastActivity(ctx context.Context, id int64, lastActivity time.Time) error
 	FindActiveSessionsOlderThan(ctx context.Context, cutoffTime time.Time) ([]*Group, error)
 	// Unclaimed groups (for frontend claiming feature)
-	FindUnclaimed(ctx context.Context) ([]*Group, error)
 
 	// FindActiveGroups finds all groups with no end time (currently active)
 	FindActiveGroups(ctx context.Context) ([]*Group, error)

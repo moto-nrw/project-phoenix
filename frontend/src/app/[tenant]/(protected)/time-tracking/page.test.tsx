@@ -6,6 +6,7 @@ import {
   act,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { releaseFakeTimers } from "~/test/clock";
 
 // ─── Mocks (must come before component imports) ─────────────────────────────
 
@@ -1512,7 +1513,7 @@ describe("TimeTrackingPage", () => {
         // running it through `now` would print days of work the Saldo denies.
         expect(container.querySelector(".text-4xl")).toHaveTextContent("0min");
       } finally {
-        vi.useRealTimers();
+        releaseFakeTimers();
       }
     });
 
@@ -1535,7 +1536,7 @@ describe("TimeTrackingPage", () => {
           /^50min$/,
         );
       } finally {
-        vi.useRealTimers();
+        releaseFakeTimers();
       }
     });
 
@@ -3616,7 +3617,7 @@ describe("TimeTrackingPage", () => {
         });
         expect((startInput as HTMLInputElement).value).toBe("2026-03-01");
       } finally {
-        vi.useRealTimers();
+        releaseFakeTimers();
       }
     });
 
@@ -3631,7 +3632,7 @@ describe("TimeTrackingPage", () => {
         });
         expect((endInput as HTMLInputElement).value).toBe("2026-03-05");
       } finally {
-        vi.useRealTimers();
+        releaseFakeTimers();
       }
     });
 
@@ -4097,7 +4098,7 @@ describe("TimeTrackingPage", () => {
         // match on it pins the clamp.
         expect(screen.getByText("1h 30min")).toBeInTheDocument();
       } finally {
-        vi.useRealTimers();
+        releaseFakeTimers();
       }
     });
 
@@ -4131,7 +4132,7 @@ describe("TimeTrackingPage", () => {
         expect(screen.getByText("3h")).toBeInTheDocument();
         expect(screen.queryByText("5h")).not.toBeInTheDocument();
       } finally {
-        vi.useRealTimers();
+        releaseFakeTimers();
       }
     });
   });

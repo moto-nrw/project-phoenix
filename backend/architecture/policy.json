@@ -299,10 +299,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-time-tracking",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-timetable",
       "kind": "inbound"
     },
@@ -437,6 +433,27 @@
     "workflow-integration-test"
   ],
   "packages": [
+    {
+      "path": "modules/peopledirectory/enrollment",
+      "owner": "people-directory",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/peopledirectory/peopletest",
+      "owner": "people-directory",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/devicescan",
+      "owner": "process-device-scan",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
     {
       "path": "modules/studentpresence",
       "owner": "student-presence",
@@ -585,14 +602,14 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/calendar",
+      "path": "modules/staffcalendar/http",
       "owner": "inbound-calendar",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/classday",
+      "path": "modules/classday/http",
       "owner": "inbound-classday",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -767,7 +784,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/school",
+      "path": "modules/schoolportal",
       "owner": "inbound-school",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -795,7 +812,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/statistics",
+      "path": "modules/statistics/http",
       "owner": "inbound-statistics",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -821,13 +838,6 @@
       "role": "test-support",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "api/time-tracking",
-      "owner": "inbound-time-tracking",
-      "role": "http",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
     },
     {
       "path": "api/timetable",
@@ -1775,6 +1785,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/peopledirectory/contact",
+      "owner": "people-directory",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/peopledirectory/compose",
       "owner": "people-directory",
       "role": "compose",
@@ -2097,6 +2114,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/workforce/inbound/timetracking",
+      "owner": "workforce",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/delivery/application/notifications",
       "owner": "delivery-platform",
       "role": "application",
@@ -2104,10 +2128,17 @@
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "services/ogsgrouplive",
+      "path": "modules/grouplive",
       "owner": "group-live-view",
-      "role": "application",
+      "role": "public",
       "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/grouplive/legacy",
+      "owner": "group-live-view",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
       "external_test_role": "module-behavior-test"
     },
     {
@@ -2202,14 +2233,35 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/slotlists",
+      "path": "modules/classday",
+      "owner": "class-day-view",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/classday/internal/application",
       "owner": "class-day-view",
       "role": "application",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/slotlists/slotlisttest",
+      "path": "modules/classday/internal/ports",
+      "owner": "class-day-view",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/classday/compose",
+      "owner": "class-day-view",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/classday/classdaytest",
       "owner": "class-day-view",
       "role": "test-support",
       "internal_test_role": "module-internal-test",
@@ -2223,10 +2275,17 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/supervisiondashboard",
+      "path": "modules/supervisiondashboard",
       "owner": "calendar-view",
-      "role": "application",
+      "role": "public",
       "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/supervisiondashboard/legacy",
+      "owner": "calendar-view",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
       "external_test_role": "module-behavior-test"
     },
     {
@@ -2710,6 +2769,55 @@
       "owner": "device-fleet",
       "role": "port",
       "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/identityaccess",
+      "owner": "identity-access",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/identityaccess/compose",
+      "owner": "identity-access",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/identityaccess/internal/adapters/postgres",
+      "owner": "identity-access",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/identityaccess/internal/application",
+      "owner": "identity-access",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/identityaccess/internal/domain",
+      "owner": "identity-access",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/identityaccess/internal/ports",
+      "owner": "identity-access",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/identityaccess/integration",
+      "owner": "identity-access",
+      "role": "test-support",
+      "internal_test_role": "workflow-integration-test",
       "external_test_role": "module-behavior-test"
     }
   ],
@@ -4172,6 +4280,61 @@
   ],
   "rules": [
     {
+      "id": "enrollment.application.student-enrollment",
+      "description": "Enrollment decisions consume only the new student enrollment command contract (#2699).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "application",
+      "target_owner": "people-directory",
+      "target_role": "contract"
+    },
+    {
+      "id": "enrollment.behavior-test.people-test",
+      "description": "Enrollment behavior tests compose the owner through its new focused test support (#2699).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "module-behavior-test",
+      "target_owner": "people-directory",
+      "target_role": "test-support"
+    },
+    {
+      "id": "inbound-enrollment.adapter-test.people-test",
+      "description": "Enrollment router tests compose the student owner through focused test support (#2699).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-enrollment",
+      "source_role": "adapter-test",
+      "target_owner": "people-directory",
+      "target_role": "test-support"
+    },
+    {
+      "id": "people-directory.test-support.compose",
+      "description": "Focused student test support constructs the public owner composition (#2699).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "test-support",
+      "target_owner": "people-directory",
+      "target_role": "compose"
+    },
+    {
+      "id": "people-directory.test-support.contract",
+      "description": "Focused student test support returns the enrollment command contract (#2699).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "test-support",
+      "target_owner": "people-directory",
+      "target_role": "contract"
+    },
+    {
       "id": "inbound-students.http.student-presence-public",
       "description": "Student history, exports and day logs consume the owner attendance DTOs.",
       "scopes": [
@@ -4826,6 +4989,182 @@
       "target_role": "public"
     },
     {
+      "id": "legacy-composition.compose.to.group-live-view.public",
+      "description": "The legacy root constructs the live-group projection and adapts its consumer-owned ports from the retained owner services (#2702).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "group-live-view",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.compose.to.group-live-view.adapter",
+      "description": "The legacy root constructs the live-group compatibility adapters over the retained owner services (#2702).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "group-live-view",
+      "target_role": "adapter"
+    },
+    {
+      "id": "group-live-view.adapter.public",
+      "description": "The live-group compatibility adapters implement the projection's consumer-owned ports and return its public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "group-live-view",
+      "target_role": "public"
+    },
+    {
+      "id": "group-live-view.adapter.security-runtime-application",
+      "description": "The live-group compatibility adapter resolves the operational-overview gate and the excused-request review rule through the shared authorize helpers (#2702).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "security-runtime",
+      "target_role": "application"
+    },
+    {
+      "id": "group-live-view.adapter.security-runtime-contract",
+      "description": "The live-group compatibility adapter reads the request principal and the groups:read permission constant (#2702).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "group-live-view.adapter.identity-access-adapter",
+      "description": "The live-group compatibility adapter reads the caller's JWT permissions while the request principal still travels through the JWT context (#2702).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "group-live-view.adapter.identity-access-application",
+      "description": "The live-group compatibility adapter resolves supervised groups, substitutions, and student access through the retained user-context service (#2702).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "identity-access",
+      "target_role": "application"
+    },
+    {
+      "id": "group-live-view.adapter.settings-platform-application",
+      "description": "The live-group compatibility adapter prefetches and reads tenant settings through the retained settings service (#2702).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "settings-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "group-live-view.adapter.settings-platform-domain",
+      "description": "The live-group compatibility adapter names the setting keys it prefetches (#2702).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "group-live-view.adapter.student-presence-public",
+      "description": "The live-group compatibility adapter reads attendance rows and open visits through the Student Presence facade (#2702).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "group-live-view.adapter.student-presence-application",
+      "description": "The live-group compatibility adapter delegates location resolution, presence mode, status-day precedence, and tracking indicators to the retained presence service (#2702).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "student-presence",
+      "target_role": "application"
+    },
+    {
+      "id": "group-live-view.adapter.student-presence-domain",
+      "description": "The live-group compatibility adapter groups the retained status-day rows before the owner resolves their precedence (#2702).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "group-live-view.adapter.timetable-activities-application",
+      "description": "The live-group compatibility adapter reads effective arrival and pickup plans, planned instances, care days, and the shared day-planning precedence from the retained schedule service (#2702).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "group-live-view.adapter.people-directory-application",
+      "description": "The live-group compatibility adapter reads group members, person names, and care participation from the retained people services (#2702).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "people-directory",
+      "target_role": "application"
+    },
+    {
+      "id": "group-live-view.adapter.school-structure-application",
+      "description": "The live-group compatibility adapter lists tenant groups, group rooms, and the substitution overview through the retained education services (#2702).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "school-structure",
+      "target_role": "application"
+    },
+    {
+      "id": "group-live-view.adapter.legacy-shared-domain",
+      "description": "The live-group compatibility adapter translates calendar dates, Berlin wall clocks, and German collation for the retained signatures (#2702).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
       "id": "legacy-composition.compose.to.enrollment.compose",
       "description": "legacy-composition compose uses the Enrollment cutover's enrollment compose boundary.",
       "scopes": [
@@ -5312,7 +5651,7 @@
         "production"
       ],
       "source_owner": "calendar-view",
-      "source_role": "application",
+      "source_role": "public",
       "target_owner": "school-calendar",
       "target_role": "public"
     },
@@ -5323,7 +5662,7 @@
         "production"
       ],
       "source_owner": "calendar-view",
-      "source_role": "application",
+      "source_role": "public",
       "target_owner": "timetable-activities",
       "target_role": "public"
     },
@@ -5334,7 +5673,7 @@
         "production"
       ],
       "source_owner": "calendar-view",
-      "source_role": "application",
+      "source_role": "public",
       "target_owner": "workforce",
       "target_role": "public"
     },
@@ -5990,13 +6329,15 @@
       "target_role": "public"
     },
     {
-      "id": "group-live-view.internal-test.student-presence",
-      "description": "Group live-view fixtures use public visit DTOs in location snapshots.",
-      "scopes": ["internal_test"],
+      "id": "group-live-view.internal-test.care-plan-contract",
+      "description": "Projection tests fake the Care Plan pending-request reader the planning badge consumes (#2702).",
+      "scopes": [
+        "internal_test"
+      ],
       "source_owner": "group-live-view",
       "source_role": "module-internal-test",
-      "target_owner": "student-presence",
-      "target_role": "public"
+      "target_owner": "care-plan",
+      "target_role": "contract"
     },
     {
       "id": "group-live-view.from.school-structure",
@@ -6005,7 +6346,7 @@
         "production"
       ],
       "source_owner": "group-live-view",
-      "source_role": "application",
+      "source_role": "public",
       "target_owner": "school-structure",
       "target_role": "public"
     },
@@ -6016,7 +6357,7 @@
         "production"
       ],
       "source_owner": "group-live-view",
-      "source_role": "application",
+      "source_role": "public",
       "target_owner": "student-presence",
       "target_role": "public"
     },
@@ -6117,6 +6458,17 @@
       "source_owner": "inbound-classday",
       "source_role": "http",
       "target_owner": "class-day-view",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-students.to.group-live-view",
+      "description": "The students HTTP surface reads the live-group projection through its one public capability (#2702).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "http",
+      "target_owner": "group-live-view",
       "target_role": "public"
     },
     {
@@ -6694,7 +7046,7 @@
         "production"
       ],
       "source_owner": "group-live-view",
-      "source_role": "application",
+      "source_role": "public",
       "target_owner": "care-plan",
       "target_role": "contract"
     },
@@ -6837,17 +7189,6 @@
         "production"
       ],
       "source_owner": "inbound-substitutions",
-      "source_role": "http",
-      "target_owner": "workforce",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-time-tracking.to.workforce",
-      "description": "inbound-time-tracking calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-time-tracking",
       "source_role": "http",
       "target_owner": "workforce",
       "target_role": "public"
@@ -7219,6 +7560,17 @@
       "source_owner": "staff-clock",
       "source_role": "application",
       "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "staff-clock.to.process-device-scan",
+      "description": "staff-clock implements the public device-scan staff clock contract the kiosk boundary consumes (#2690).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-clock",
+      "source_role": "application",
+      "target_owner": "process-device-scan",
       "target_role": "public"
     },
     {
@@ -7703,19 +8055,6 @@
       ],
       "source_owner": "root-composition",
       "source_role": "compose",
-      "target_owner": "export-transfer",
-      "target_role": "contract"
-    },
-    {
-      "id": "inbound-time-tracking.to.export-transfer",
-      "description": "The workforce time-tracking HTTP resource calls the public Export Transfer capability to send an already-produced export file (#3050).",
-      "scopes": [
-        "production",
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "inbound-time-tracking",
-      "source_role": "http",
       "target_owner": "export-transfer",
       "target_role": "contract"
     },
@@ -14174,6 +14513,1727 @@
       "source_role": "test-support",
       "target_owner": "device-fleet",
       "target_role": "http"
+    },
+    {
+      "id": "class-day-view.public.timetable-domain",
+      "description": "The class-day contract reuses the Timetable owner's list-kind vocabulary and labels for slot lists (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "public",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "class-day-view.public.document-rendering",
+      "description": "The class-day contract renders slot lists through the Document Rendering format and file types (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "public",
+      "target_owner": "document-rendering",
+      "target_role": "application"
+    },
+    {
+      "id": "class-day-view.port.public",
+      "description": "The class-day ports carry the projection's own contract types (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "port",
+      "target_owner": "class-day-view",
+      "target_role": "public"
+    },
+    {
+      "id": "class-day-view.port.calendar-date",
+      "description": "The class-day ports read owner facts by calendar day (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "port",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "class-day-view.application.public",
+      "description": "The class-day application serves the projection's own contract (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "application",
+      "target_owner": "class-day-view",
+      "target_role": "public"
+    },
+    {
+      "id": "class-day-view.application.port",
+      "description": "The class-day application reads the retained services only through its consumer-owned ports (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "application",
+      "target_owner": "class-day-view",
+      "target_role": "port"
+    },
+    {
+      "id": "class-day-view.from.people-directory",
+      "description": "class-day-view reads the public people-directory query seam (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "application",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "class-day-view.from.facilities",
+      "description": "class-day-view reads the public facilities query seam for room names (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "application",
+      "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "class-day-view.from.care-plan",
+      "description": "class-day-view reads the public care-plan query seam for status days and pickup exceptions (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "application",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "class-day-view.application.calendar-date",
+      "description": "The class-day application scopes every read to a Berlin calendar day (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "application",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "class-day-view.application.school-class-normalization",
+      "description": "The class-day application matches a requested class against the caller's assignments with the School Structure class normalization (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "application",
+      "target_owner": "school-structure",
+      "target_role": "domain"
+    },
+    {
+      "id": "class-day-view.application.document-rendering",
+      "description": "The class-day application renders slot lists through the Document Rendering renderer (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "application",
+      "target_owner": "document-rendering",
+      "target_role": "application"
+    },
+    {
+      "id": "class-day-view.application.crypto",
+      "description": "The class-day application fingerprints a rendered list for the export drift guard (#1565, #2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "application",
+      "target_class": "crypto"
+    },
+    {
+      "id": "class-day-view.compose.public",
+      "description": "The class-day composition returns the projection's own contract (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "compose",
+      "target_owner": "class-day-view",
+      "target_role": "public"
+    },
+    {
+      "id": "class-day-view.compose.application",
+      "description": "The class-day composition constructs the projection's application (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "compose",
+      "target_owner": "class-day-view",
+      "target_role": "application"
+    },
+    {
+      "id": "class-day-view.compose.port",
+      "description": "The class-day composition binds the projection's consumer-owned ports (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "compose",
+      "target_owner": "class-day-view",
+      "target_role": "port"
+    },
+    {
+      "id": "class-day-view.compose.security-application",
+      "description": "Compatibility binding (#2701): the read-access port grants administrators through the retained permission check until Security Runtime exposes a public verdict.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "compose",
+      "target_owner": "security-runtime",
+      "target_role": "application"
+    },
+    {
+      "id": "class-day-view.compose.identity-adapter",
+      "description": "Compatibility binding (#2701): the read-access port reads the token permissions from the retained JWT context.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "class-day-view.compose.identity-application",
+      "description": "Compatibility binding (#2701): the caller port resolves class assignments and the staff record through the retained user-context service.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "application"
+    },
+    {
+      "id": "class-day-view.compose.calendar-date",
+      "description": "The class-day composition translates the retained calendar-date signatures at the port boundary (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "compose",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "class-day-view.compose.settings-domain",
+      "description": "Compatibility binding (#2701): the settings port resolves the timetable flag and the Ganztag cutoffs by their registered keys.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "compose",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "class-day-view.compose.timetable-domain",
+      "description": "Compatibility binding (#2701): the roster care-day rule forwards to the Timetable owner's derivation over its retained row model.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "compose",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "class-day-view.compose.people-domain",
+      "description": "Compatibility binding (#2701): the enrollment rule forwards to the People Directory owner's retained EnrolledOn and the caller port maps the retained staff row.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "compose",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "class-day-view.compose.enrollment-application",
+      "description": "Compatibility binding (#2701): the day-report and arrival-exception ports forward to the retained enrollment report and class-day write seam until Enrollment exposes them publicly.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "compose",
+      "target_owner": "enrollment",
+      "target_role": "application"
+    },
+    {
+      "id": "class-day-view.compose.document-rendering",
+      "description": "The class-day composition hands the Document Rendering renderer to the application (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "compose",
+      "target_owner": "document-rendering",
+      "target_role": "application"
+    },
+    {
+      "id": "class-day-view.compose.timetable-application",
+      "description": "Compatibility binding (#2701): the care-day, effective-time and pickup-baseline ports forward to the retained schedule services until Care Plan exposes them publicly.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "compose",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-classday.http-common",
+      "description": "Class-day handlers reuse common HTTP rendering, the school-scope group and the permission gates (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-classday",
+      "source_role": "http",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "inbound-classday.security-contract",
+      "description": "Class-day handlers name the class-day permissions (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-classday",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "inbound-classday.identity-adapter",
+      "description": "Class-day handlers read the authenticated account claims (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-classday",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-classday.calendar-date",
+      "description": "Class-day handlers parse the requested calendar day (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-classday",
+      "source_role": "http",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-classday.orm-sql",
+      "description": "Class-day HTTP composition passes the concrete Bun database to the shared school-scope middleware (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-classday",
+      "source_role": "http",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "inbound-classday.adapter-test.identity-adapter",
+      "description": "Class-day handler tests construct school-scope claims (#2701).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-classday",
+      "source_role": "adapter-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-classday.adapter-test.class-day-compose",
+      "description": "Class-day handler tests compose the projection over the test modules (#2701).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-classday",
+      "source_role": "adapter-test",
+      "target_owner": "class-day-view",
+      "target_role": "compose"
+    },
+    {
+      "id": "inbound-classday.adapter-test.http-router",
+      "description": "Class-day handler tests exercise HTTP requests and responses (#2701).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-classday",
+      "source_role": "adapter-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "inbound-school.http-common",
+      "description": "School-portal handlers reuse common HTTP rendering, request binding and the security principal middleware (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-school",
+      "source_role": "http",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "inbound-school.identity-adapter",
+      "description": "School-portal handlers verify school-scope tokens and read enrollment claims (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-school",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-school.identity-application",
+      "description": "Compatibility permission (#2701): school-portal login, MFA and password reset call the retained auth services until Identity & Access exposes them publicly.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-school",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-school.tenant-runtime",
+      "description": "School-portal MFA enrollment pins the tenant of the enrollment claims for the audit trail (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-school",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-school.to.inbound-classday",
+      "description": "The school portal mounts the class-day surface (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-school",
+      "source_role": "http",
+      "target_owner": "inbound-classday",
+      "target_role": "http"
+    },
+    {
+      "id": "inbound-school.to.inbound-timetable",
+      "description": "The school portal mounts the assignment-bound supervision surface (#2527, #2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-school",
+      "source_role": "http",
+      "target_owner": "inbound-timetable",
+      "target_role": "http"
+    },
+    {
+      "id": "inbound-school.orm-sql",
+      "description": "Compatibility permission (#2701): the school password reset classifies the retained not-found error until the auth service maps it.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-school",
+      "source_role": "http",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "inbound-school.adapter-test.http-router",
+      "description": "School-portal handler tests exercise HTTP requests, routers and responses (#2701).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-school",
+      "source_role": "adapter-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "inbound-school.adapter-test.orm-sql",
+      "description": "School-portal handler tests verify persisted rows on the test database (#2701).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-school",
+      "source_role": "adapter-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "inbound-school.adapter-test.http-common",
+      "description": "School-portal handler tests read the common MFA request shapes (#2701).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-school",
+      "source_role": "adapter-test",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "inbound-school.adapter-test.inbound-timetable",
+      "description": "School-portal handler tests construct the supervision surface they mount (#2527, #2701).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-school",
+      "source_role": "adapter-test",
+      "target_owner": "inbound-timetable",
+      "target_role": "http"
+    },
+    {
+      "id": "inbound-school.adapter-test.inbound-classday",
+      "description": "School-portal handler tests construct the class-day surface they mount (#2701).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-school",
+      "source_role": "adapter-test",
+      "target_owner": "inbound-classday",
+      "target_role": "http"
+    },
+    {
+      "id": "inbound-school.adapter-test.class-day-compose",
+      "description": "School-portal handler tests compose the class-day projection over the test modules (#2701).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-school",
+      "source_role": "adapter-test",
+      "target_owner": "class-day-view",
+      "target_role": "compose"
+    },
+    {
+      "id": "inbound-school.adapter-test.identity-adapter",
+      "description": "School-portal handler tests construct claims of every portal scope (#2701).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-school",
+      "source_role": "adapter-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-school.adapter-test.identity-application",
+      "description": "School-portal handler tests stub the retained MFA service and read its error contract (#2701).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-school",
+      "source_role": "adapter-test",
+      "target_owner": "identity-access",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-school.adapter-test.calendar-date",
+      "description": "School-portal handler tests pin fixed calendar days (#2701).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-school",
+      "source_role": "adapter-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-school.adapter-test.settings-domain",
+      "description": "School-portal handler tests switch tenant settings by their registered keys (#2701).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-school",
+      "source_role": "adapter-test",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-school.adapter-test.timetable-domain",
+      "description": "School-portal handler tests seed retained activity instances for the supervision surface (#2701).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-school",
+      "source_role": "adapter-test",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "class-day-view.internal-test.calendar-date",
+      "description": "Class-day application tests pin fixed calendar days (#2701).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "module-internal-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "class-day-view.internal-test.people-directory-public",
+      "description": "Class-day application tests build directory students for the candidate rules (#2701).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "module-internal-test",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "class-day-view.internal-test.timetable-public",
+      "description": "Class-day application tests name the Timetable instance statuses (#2701).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "module-internal-test",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "class-day-view.integration-test.compose",
+      "description": "Class-day integration tests compose the projection the way the service factory does (#2701).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "class-day-view",
+      "target_role": "compose"
+    },
+    {
+      "id": "class-day-view.integration-test.port",
+      "description": "Class-day integration tests verify the rule bindings against the port facts (#2701).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "class-day-view",
+      "target_role": "port"
+    },
+    {
+      "id": "class-day-view.integration-test.class-day-support",
+      "description": "Class-day integration tests compose the retained schedule adapters through local test support (#2701).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "class-day-view",
+      "target_role": "test-support"
+    },
+    {
+      "id": "class-day-view.integration-test.care-plan-support",
+      "description": "Class-day integration tests compose Care Plan through its test support (#2701).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "care-plan",
+      "target_role": "test-support"
+    },
+    {
+      "id": "class-day-view.integration-test.facilities-compose",
+      "description": "Class-day integration tests construct the real Facilities owner for room lookups (#2701).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "facilities",
+      "target_role": "compose"
+    },
+    {
+      "id": "class-day-view.integration-test.people-directory-compose",
+      "description": "Class-day integration tests construct the real People Directory owner for students and names (#2701).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "people-directory",
+      "target_role": "compose"
+    },
+    {
+      "id": "class-day-view.integration-test.school-structure-compose",
+      "description": "Class-day integration tests construct the real School Structure owner for group names (#2701).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "school-structure",
+      "target_role": "compose"
+    },
+    {
+      "id": "class-day-view.integration-test.student-presence-compose",
+      "description": "Class-day integration tests construct the real Student Presence owner for visits and attendance (#2701).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "class-day-view.integration-test.people-directory-postgres",
+      "description": "Compatibility permission (#2701): class-day integration tests hand the retained student and person repositories to the retained schedule services.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "people-directory",
+      "target_role": "postgres"
+    },
+    {
+      "id": "class-day-view.integration-test.calendar-date",
+      "description": "Class-day integration tests pin fixed calendar days and Berlin instants (#2701).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "class-day-view.integration-test.student-presence-domain",
+      "description": "Class-day integration tests name the retained status-day statuses (#2701).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "class-day-view.integration-test.timetable-domain",
+      "description": "Class-day integration tests seed retained activity instances and roster rows (#2701).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "class-day-view.integration-test.settings-domain",
+      "description": "Class-day integration tests stub tenant settings by their registered keys (#2701).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "class-day-view.integration-test.people-domain",
+      "description": "Class-day integration tests name the retained student statuses and stub the staff record (#2701).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "class-day-view.integration-test.document-rendering",
+      "description": "Class-day integration tests render a PDF through the Document Rendering renderer (#2701).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "document-rendering",
+      "target_role": "application"
+    },
+    {
+      "id": "class-day-view.integration-test.timetable-application",
+      "description": "Compatibility permission (#2701): class-day integration tests construct the retained schedule services behind the compatibility bindings.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "class-day-view.integration-test.enrollment-application",
+      "description": "Compatibility permission (#2701): the day-report parity test marshals the retained enrollment report next to the projection's contract.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "enrollment",
+      "target_role": "application"
+    },
+    {
+      "id": "class-day-view.integration-test.orm-sql",
+      "description": "Class-day integration tests seed rows and open tenant transactions on the test database (#2701).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "workflow-integration-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "inbound-timetable.to.class-day-view",
+      "description": "The timetable list endpoints read the class-day projection (#1565, #2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "http",
+      "target_owner": "class-day-view",
+      "target_role": "public"
+    },
+    {
+      "id": "root-composition.to.class-day-compose",
+      "description": "The production root composes the class-day projection's school-portal capability (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "class-day-view",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.to.class-day-http",
+      "description": "The production root constructs the class-day HTTP adapter (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "inbound-classday",
+      "target_role": "http"
+    },
+    {
+      "id": "root-composition.to.school-portal-http",
+      "description": "The production root constructs the school-portal HTTP adapter (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "inbound-school",
+      "target_role": "http"
+    },
+    {
+      "id": "legacy-composition.to.class-day-public",
+      "description": "The legacy service factory exposes the class-day projection's slot lists to the timetable endpoints (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "class-day-view",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.to.class-day-compose",
+      "description": "The legacy service factory composes the class-day projection's slot lists (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "class-day-view",
+      "target_role": "compose"
+    },
+    {
+      "id": "inbound-active.to.calendar-view",
+      "description": "The active HTTP surface reads the supervision projection through its one public capability (#2703).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-active",
+      "source_role": "http",
+      "target_owner": "calendar-view",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.compose.to.calendar-view.public",
+      "description": "The legacy root constructs the supervision projection and names its public capability (#2703).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "calendar-view",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.compose.to.calendar-view.adapter",
+      "description": "The legacy root constructs the supervision compatibility adapters over the retained owner services (#2703).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "calendar-view",
+      "target_role": "adapter"
+    },
+    {
+      "id": "calendar-view.adapter.public",
+      "description": "The supervision compatibility adapters implement the projection's consumer-owned ports and return its public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter",
+      "target_owner": "calendar-view",
+      "target_role": "public"
+    },
+    {
+      "id": "calendar-view.adapter.security-runtime-application",
+      "description": "The supervision compatibility adapter resolves the operational-overview gate and permission checks through the shared authorize helpers (#2703).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter",
+      "target_owner": "security-runtime",
+      "target_role": "application"
+    },
+    {
+      "id": "calendar-view.adapter.security-runtime-contract",
+      "description": "The supervision compatibility adapter reads the request principal and the schedules:read and users:read permission constants (#2703).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "calendar-view.adapter.identity-access-adapter",
+      "description": "The supervision compatibility adapter reads the caller's JWT claims and permissions while the request principal still travels through the JWT context (#2703).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "calendar-view.adapter.identity-access-application",
+      "description": "The supervision compatibility adapter resolves the staff record, supervised sessions, own groups and student access through the retained user-context service (#2703).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter",
+      "target_owner": "identity-access",
+      "target_role": "application"
+    },
+    {
+      "id": "calendar-view.adapter.legacy-shared-domain",
+      "description": "The supervision compatibility adapter translates calendar dates, Berlin wall clocks, and German collation for the retained signatures (#2703).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "calendar-view.adapter.transaction-runtime-domain",
+      "description": "The supervision compatibility adapter passes the retained query options to the active-group list (#2703).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "calendar-view.adapter.student-presence-domain",
+      "description": "The supervision compatibility adapter maps the retained active-group rows into session records (#2703).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "calendar-view.adapter.student-presence-application",
+      "description": "The supervision compatibility adapter reads running sessions, supervisions, visits, attendance and tracking indicators through the retained presence service (#2703).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter",
+      "target_owner": "student-presence",
+      "target_role": "application"
+    },
+    {
+      "id": "calendar-view.adapter.settings-platform-application",
+      "description": "The supervision compatibility adapter prefetches and reads tenant settings through the retained settings service (#2703).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter",
+      "target_owner": "settings-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "calendar-view.adapter.settings-platform-domain",
+      "description": "The supervision compatibility adapter names the setting keys it prefetches (#2703).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "calendar-view.adapter.facilities-domain",
+      "description": "The supervision compatibility adapter maps the retained room rows into session records (#2703).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter",
+      "target_owner": "facilities",
+      "target_role": "domain"
+    },
+    {
+      "id": "calendar-view.adapter.facilities-application",
+      "description": "The supervision compatibility adapter reads the Schulhof workflow state through the retained facilities service (#2703).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter",
+      "target_owner": "facilities",
+      "target_role": "application"
+    },
+    {
+      "id": "calendar-view.adapter.school-structure-application",
+      "description": "The supervision compatibility adapter resolves education group rooms through the retained education service (#2703).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter",
+      "target_owner": "school-structure",
+      "target_role": "application"
+    },
+    {
+      "id": "calendar-view.adapter.timetable-activities-application",
+      "description": "The supervision compatibility adapter reads planned instances, running sessions and effective arrival and pickup plans from the retained schedule services (#2703).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "calendar-view.adapter-test.identity-access-adapter",
+      "description": "Adapter tests place JWT claims and permissions in the context (#2703).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "calendar-view.adapter-test.identity-access-application",
+      "description": "Adapter tests fake the retained user-context service (#2703).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter-test",
+      "target_owner": "identity-access",
+      "target_role": "application"
+    },
+    {
+      "id": "calendar-view.adapter-test.legacy-shared-domain",
+      "description": "Adapter tests pin calendar days and Berlin instants (#2703).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "calendar-view.adapter-test.transaction-runtime-domain",
+      "description": "Adapter tests build retained rows with the shared model base (#2703).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter-test",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "calendar-view.adapter-test.student-presence-domain",
+      "description": "Adapter tests build retained active-group rows (#2703).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter-test",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "calendar-view.adapter-test.student-presence-application",
+      "description": "Adapter tests fake the retained presence service (#2703).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter-test",
+      "target_owner": "student-presence",
+      "target_role": "application"
+    },
+    {
+      "id": "calendar-view.adapter-test.settings-platform-application",
+      "description": "Adapter tests fake the retained settings service (#2703).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter-test",
+      "target_owner": "settings-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "calendar-view.adapter-test.settings-platform-domain",
+      "description": "Adapter tests name the setting keys the adapter resolves (#2703).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter-test",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "calendar-view.adapter-test.facilities-domain",
+      "description": "Adapter tests build retained room rows (#2703).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter-test",
+      "target_owner": "facilities",
+      "target_role": "domain"
+    },
+    {
+      "id": "calendar-view.adapter-test.facilities-application",
+      "description": "Adapter tests fake the retained Schulhof service and build its status (#2703).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter-test",
+      "target_owner": "facilities",
+      "target_role": "application"
+    },
+    {
+      "id": "calendar-view.adapter-test.school-structure-domain",
+      "description": "Adapter tests build retained education group rows (#2703).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter-test",
+      "target_owner": "school-structure",
+      "target_role": "domain"
+    },
+    {
+      "id": "calendar-view.adapter-test.school-structure-application",
+      "description": "Adapter tests fake the retained education service (#2703).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter-test",
+      "target_owner": "school-structure",
+      "target_role": "application"
+    },
+    {
+      "id": "calendar-view.adapter-test.people-directory-domain",
+      "description": "Adapter tests build the retained staff row (#2703).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter-test",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "calendar-view.adapter-test.timetable-activities-domain",
+      "description": "Adapter tests build retained activity rows for session names (#2703).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter-test",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "calendar-view.adapter-test.timetable-activities-application",
+      "description": "Adapter tests fake the retained schedule services and build their rows for the wire parity check (#2703).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter-test",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-calendar.http-common",
+      "description": "Staff calendar handlers reuse common HTTP rendering, the tenant middleware chain and the permission gates (#2703).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-calendar",
+      "source_role": "http",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "inbound-calendar.security-contract",
+      "description": "Staff calendar handlers name the calendar permissions (#2703).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-calendar",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "inbound-calendar.identity-adapter",
+      "description": "Staff calendar handlers verify and authenticate the JWT and scope the tenant (#2703).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-calendar",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-calendar.calendar-date",
+      "description": "Staff calendar handlers parse calendar days and wall clocks (#2703).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-calendar",
+      "source_role": "http",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-calendar.school-calendar-application",
+      "description": "Compatibility binding (#2703): the staff calendar handlers call the retained calendar service until School Calendar exposes the staff calendar publicly.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-calendar",
+      "source_role": "http",
+      "target_owner": "school-calendar",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-calendar.adapter-test.http-router",
+      "description": "Staff calendar handler tests exercise HTTP requests, responses and routes (#2703).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-calendar",
+      "source_role": "adapter-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "inbound-calendar.adapter-test.calendar-date",
+      "description": "Staff calendar handler tests pin calendar days (#2703).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-calendar",
+      "source_role": "adapter-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-calendar.adapter-test.school-calendar-domain",
+      "description": "Staff calendar handler tests build retained appointment rows (#2703).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-calendar",
+      "source_role": "adapter-test",
+      "target_owner": "school-calendar",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-calendar.adapter-test.school-calendar-application",
+      "description": "Staff calendar handler tests fake the retained calendar service (#2703).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-calendar",
+      "source_role": "adapter-test",
+      "target_owner": "school-calendar",
+      "target_role": "application"
+    },
+    {
+      "id": "root-composition.to.inbound-calendar-http",
+      "description": "The production root constructs the staff calendar HTTP adapter and mounts its CalDAV handler (#2703).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "inbound-calendar",
+      "target_role": "http"
+    },
+    {
+      "id": "e2e-calendar.to.inbound-calendar-http",
+      "description": "The calendar E2E flows drive the staff calendar HTTP adapter (#2703).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "test-support",
+      "source_role": "e2e-test",
+      "target_owner": "inbound-calendar",
+      "target_role": "http"
+    },
+    {
+      "id": "inbound-statistics.http-common",
+      "description": "Statistics handlers reuse common HTTP rendering, the tenant group and the permission gates (#2703).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-statistics",
+      "source_role": "http",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "inbound-statistics.security-contract",
+      "description": "Statistics handlers name the report permissions (#2703).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-statistics",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "inbound-statistics.identity-adapter",
+      "description": "Statistics handlers read the authenticated account claims (#2703).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-statistics",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-statistics.calendar-date",
+      "description": "Statistics handlers parse the report range (#2703).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-statistics",
+      "source_role": "http",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-statistics.document-rendering",
+      "description": "Statistics handlers render the report exports through the Document Rendering renderer (#2703).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-statistics",
+      "source_role": "http",
+      "target_owner": "document-rendering",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-statistics.student-presence-application",
+      "description": "Compatibility binding (#2703): the statistics handlers call the retained statistics service until Student Presence exposes the report publicly.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-statistics",
+      "source_role": "http",
+      "target_owner": "student-presence",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-statistics.orm-sql",
+      "description": "Statistics HTTP composition passes the concrete Bun database to the shared tenant middleware (#2703).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-statistics",
+      "source_role": "http",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "inbound-statistics.adapter-test.http-router",
+      "description": "Statistics handler tests exercise HTTP requests and responses (#2703).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-statistics",
+      "source_role": "adapter-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "inbound-statistics.adapter-test.orm-sql",
+      "description": "Statistics handler tests seed rows on the test database (#2703).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-statistics",
+      "source_role": "adapter-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "inbound-statistics.adapter-test.identity-adapter",
+      "description": "Statistics handler tests construct tenant claims (#2703).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-statistics",
+      "source_role": "adapter-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-statistics.adapter-test.calendar-date",
+      "description": "Statistics handler tests pin calendar days (#2703).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-statistics",
+      "source_role": "adapter-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-statistics.adapter-test.student-presence-domain",
+      "description": "Statistics handler tests seed retained attendance and visit rows (#2703).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-statistics",
+      "source_role": "adapter-test",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-statistics.adapter-test.timetable-activities-domain",
+      "description": "Statistics handler tests seed retained activity instances (#2703).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-statistics",
+      "source_role": "adapter-test",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-statistics.adapter-test.people-directory-domain",
+      "description": "Statistics handler tests seed retained student rows (#2703).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-statistics",
+      "source_role": "adapter-test",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "root-composition.to.inbound-statistics-http",
+      "description": "The production root constructs the statistics HTTP adapter (#2703).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "inbound-statistics",
+      "target_role": "http"
+    },
+    {
+      "id": "identity-access.port-domain",
+      "description": "Identity & Access ports express persistence operations using their own domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "identity-access.compose.application",
+      "description": "Identity & Access composition constructs its application service.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "application"
+    },
+    {
+      "id": "identity-access.compose.domain",
+      "description": "Identity & Access composition maps its internal domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "domain"
+    },
+    {
+      "id": "identity-access.compose.orm-sql",
+      "description": "Identity & Access composition supplies the concrete Bun database dependency.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "identity-access.compose.port",
+      "description": "Identity & Access composition exposes observations from its consumer-owned port.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "port"
+    },
+    {
+      "id": "identity-access.compose.postgres",
+      "description": "Identity & Access composition constructs its Postgres adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "postgres"
+    },
+    {
+      "id": "identity-access.compose.public",
+      "description": "Identity & Access composition returns its public facade.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "public"
+    },
+    {
+      "id": "identity-access.compose.tenant-runtime",
+      "description": "Identity & Access composition binds the shared tenant transaction runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "identity-access.integration-test.public",
+      "description": "Identity & Access integration tests exercise the public guardian-access facade.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "workflow-integration-test",
+      "target_owner": "identity-access",
+      "target_role": "public"
+    },
+    {
+      "id": "identity-access.integration-test.compose",
+      "description": "Identity & Access integration tests compose the owner with production composition.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "workflow-integration-test",
+      "target_owner": "identity-access",
+      "target_role": "compose"
+    },
+    {
+      "id": "identity-access.integration-test.support",
+      "description": "Identity & Access integration tests use hermetic database support.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "identity-access.internal-test.orm-sql",
+      "description": "Identity & Access integration tests arrange and verify PostgreSQL fixtures.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "workflow-integration-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "enrollment.application.to.identity-access.public",
+      "description": "Enrollment acceptance recognises a parent's platform account and grants it guardian access through the public Identity & Access capability (#2699).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "application",
+      "target_owner": "identity-access",
+      "target_role": "public"
+    },
+    {
+      "id": "enrollment.internal-test.identity-access-public",
+      "description": "Enrollment decision unit tests stub the guardian-access seam with the public Identity & Access values.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "module-internal-test",
+      "target_owner": "identity-access",
+      "target_role": "public"
+    },
+    {
+      "id": "enrollment.behavior-test.identity-access-compose",
+      "description": "Enrollment decision behavior tests compose the real Identity & Access capability.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "module-behavior-test",
+      "target_owner": "identity-access",
+      "target_role": "compose"
+    },
+    {
+      "id": "inbound-enrollment.adapter-test.identity-access-compose",
+      "description": "Enrollment decision router tests compose the real Identity & Access capability.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-enrollment",
+      "source_role": "adapter-test",
+      "target_owner": "identity-access",
+      "target_role": "compose"
+    },
+    {
+      "id": "legacy-composition.to.identity-access-compose",
+      "description": "The legacy service factory composes the Identity & Access capability the enrollment decision service consumes (#2699).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "compose"
+    },
+    {
+      "id": "legacy-composition.to.identity-access-public",
+      "description": "The legacy service factory maps Identity & Access outcomes to stable codes for the root observer (#2699).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "public"
+    },
+    {
+      "id": "people-directory.public.contact",
+      "description": "Enrollment student commands use the new canonical contact contract, shared with retained model consumers (#2699).",
+      "scopes": ["production"],
+      "source_owner": "people-directory",
+      "source_role": "public",
+      "target_owner": "people-directory",
+      "target_role": "contract"
+    },
+    {
+      "id": "people-directory.domain.contact",
+      "description": "Retained student/contact model validation delegates to the new owner contact contract (#2699).",
+      "scopes": ["production"],
+      "source_owner": "people-directory",
+      "source_role": "domain",
+      "target_owner": "people-directory",
+      "target_role": "contract"
     }
   ]
 }

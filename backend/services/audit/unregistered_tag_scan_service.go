@@ -27,7 +27,6 @@ type OrganizationNameQuery interface {
 
 type unregisteredTagScanService struct {
 	repo          auditModels.UnregisteredTagScanRepository
-	command       auditModels.Command
 	tenantID      func(context.Context) int64
 	withinAdmin   func(context.Context, func(context.Context) error) error
 	organizations OrganizationNameQuery
@@ -38,11 +37,14 @@ type UnregisteredTagScanRuntime struct {
 	WithinAdmin func(context.Context, func(context.Context) error) error
 }
 
-func NewUnregisteredTagScanService(repo auditModels.UnregisteredTagScanRepository, command auditModels.Command, organizations OrganizationNameQuery, runtime UnregisteredTagScanRuntime) (UnregisteredTagScanService, error) {
-	if repo == nil || command == nil || organizations == nil || runtime.TenantID == nil || runtime.WithinAdmin == nil {
+// NewUnregisteredTagScanService builds the retained review service. repo is
+// the Device Fleet owner behind the retained repository port (#2678): every
+// scan read and write, including the append, goes through that owner.
+func NewUnregisteredTagScanService(repo auditModels.UnregisteredTagScanRepository, organizations OrganizationNameQuery, runtime UnregisteredTagScanRuntime) (UnregisteredTagScanService, error) {
+	if repo == nil || organizations == nil || runtime.TenantID == nil || runtime.WithinAdmin == nil {
 		return nil, fmt.Errorf("unregistered tag scan service dependencies are required")
 	}
-	return &unregisteredTagScanService{repo: repo, command: command, organizations: organizations, tenantID: runtime.TenantID, withinAdmin: runtime.WithinAdmin}, nil
+	return &unregisteredTagScanService{repo: repo, organizations: organizations, tenantID: runtime.TenantID, withinAdmin: runtime.WithinAdmin}, nil
 }
 
 func (s *unregisteredTagScanService) Record(ctx context.Context, tagUID string, deviceID *int64) error {
@@ -60,7 +62,7 @@ func (s *unregisteredTagScanService) Record(ctx context.Context, tagUID string, 
 		ScannedAt: time.Now(),
 	}
 	scan.SetTenantID(tenantID)
-	return s.command.Append(ctx, scan)
+	return s.repo.Create(ctx, scan)
 }
 
 func (s *unregisteredTagScanService) ListForOperator(ctx context.Context, filter auditModels.UnregisteredTagScanFilter) ([]*auditModels.UnregisteredTagScan, error) {

@@ -799,70 +799,6 @@ func groupsToMap(groups []*active.Group) map[int64]*active.Group {
 	return result
 }
 
-// schulhofRoomName is the room the deviceless claim is limited to.
-const schulhofRoomName = "Schulhof"
-
-// FindUnclaimed finds all active groups that have no supervisors assigned
-// This is used to allow teachers to claim Schulhof via the frontend
-// Only returns groups in rooms named "Schulhof" - this is the only room that
-// supports deviceless claiming. The room owner resolves the rooms; a group
-// whose room is not visible is dropped, as the former INNER JOIN dropped it.
-func (r *GroupRepository) FindUnclaimed(ctx context.Context) ([]*active.Group, error) {
-	candidates, err := r.queryUnclaimedGroups(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := r.loadUnclaimedGroupRelations(ctx, candidates); err != nil {
-		return nil, err
-	}
-
-	groups := make([]*active.Group, 0, len(candidates))
-	for _, g := range candidates {
-		if g.Room != nil && g.Room.Name == schulhofRoomName {
-			groups = append(groups, g)
-		}
-	}
-	return groups, nil
-}
-
-// queryUnclaimedGroups fetches unclaimed groups from the database
-func (r *GroupRepository) queryUnclaimedGroups(ctx context.Context) ([]*active.Group, error) {
-	var groups []*active.Group
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&groups).
-		ModelTableExpr(`active.groups AS "group"`).
-		Join(`LEFT JOIN active.group_supervisors AS "sup" ON "sup"."group_id" = "group"."id" AND "sup"."start_date" <= ? AND ("sup"."end_date" IS NULL OR "sup"."end_date" > ?)`, r.today(), r.today()).
-		Where(`"group"."end_time" IS NULL`).
-		Where(`"sup"."id" IS NULL`)
-
-	query = base.WithTenantFilter(ctx, query, "group")
-
-	err := query.
-		Order("start_time DESC").
-		Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find unclaimed groups", Err: base.TranslateNotFound(err)}
-	}
-	return groups, nil
-}
-
-// loadUnclaimedGroupRelations batch loads rooms and activity groups
-func (r *GroupRepository) loadUnclaimedGroupRelations(ctx context.Context, groups []*active.Group) error {
-	roomIDs, groupIDs := collectRelationIDs(groups)
-
-	if err := r.loadAndAssignRooms(ctx, groups, roomIDs); err != nil {
-		return err
-	}
-
-	if err := r.loadAndAssignActivityGroups(ctx, groups, groupIDs); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // collectRelationIDs extracts unique room and group IDs. Spontaneous sessions
 // (g.GroupID == nil) have no parent template — they are skipped here rather
 // than materialising as spurious zero IDs.
@@ -881,21 +817,6 @@ func collectRelationIDs(groups []*active.Group) (roomIDs, groupIDs []int64) {
 		}
 	}
 	return roomIDs, groupIDs
-}
-
-// loadAndAssignRooms loads rooms and assigns them to groups
-func (r *GroupRepository) loadAndAssignRooms(ctx context.Context, groups []*active.Group, roomIDs []int64) error {
-	if len(roomIDs) == 0 {
-		return nil
-	}
-
-	rooms, err := r.queryRoomsByIDs(ctx, roomIDs, "batch load rooms for unclaimed groups")
-	if err != nil {
-		return err
-	}
-
-	assignRoomsToGroups(groups, rooms)
-	return nil
 }
 
 // loadAndAssignActivityGroups loads activity groups and assigns them

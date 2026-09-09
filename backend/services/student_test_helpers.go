@@ -15,12 +15,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	"github.com/moto-nrw/project-phoenix/modules/grouplive"
+	grouplivelegacy "github.com/moto-nrw/project-phoenix/modules/grouplive/legacy"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
-	"github.com/moto-nrw/project-phoenix/services/ogsgrouplive"
 	"github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
@@ -46,7 +48,7 @@ type StudentTestModule struct {
 	MasterDataReview   users.MasterDataReviewService
 	ParentRequests     *users.ParentRequestCoordinator
 	FamilyProtection   *users.FamilyProtectionService
-	OGSGroupLive       ogsgrouplive.Getter
+	OGSGroupLive       grouplive.Query
 }
 
 func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter users.FeedbackEntryCounter, clocks ...func() time.Time) (StudentTestModule, error) {
@@ -125,48 +127,52 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		pickupAutoExcusal,
 		db,
 	)
+	guardianAccess, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	if err != nil {
+		return StudentTestModule{}, err
+	}
 	enrollmentDecisionService := enrollment.NewDecisionService(enrollment.DecisionServiceConfig{
-		Requests:               repos.Enrollment(),
-		Children:               repos.Enrollment(),
-		Guardians:              repos.Enrollment(),
-		LateInviteRepo:         repos.Enrollment(),
-		ApprovedOfferings:      approvedOfferings,
-		CareOfferingRepo:       repos.CareOffering,
-		Phases:                 repos.Enrollment(),
-		Schemas:                repos.Enrollment(),
-		DataAccessLogRepo:      repos.DataAccessLog,
-		OfferingAdjustmentRepo: repos.EnrollmentOfferingAdjustment,
-		RestorationAuditRepo:   repos.EnrollmentRestorationAudit,
-		SchoolRepo:             repos.School,
-		PersonRepo:             repos.Person,
-		StaffRepo:              repos.Staff,
-		StudentRepo:            repos.Student,
-		StudentGuardianRepo:    repos.StudentGuardian,
-		GuardianFinancialAudit: repos.GuardianFinancialChange,
-		GuardianProfileRepo:    repos.GuardianProfile,
-		GuardianPhoneRepo:      repos.GuardianPhoneNumber,
-		PickupScheduleRepo:     repos.StudentPickupSchedule,
-		PickupBaselines:        pickupBaselines,
-		ArrivalScheduleRepo:    repos.StudentArrivalSchedule,
-		StudentEnrollmentRepo:  repos.StudentEnrollment,
-		ActivityGroupRepo:      repos.ActivityGroup,
-		ActivityScheduleRepo:   repos.ActivitySchedule,
-		CalendarPeriodRepo:     repos.CalendarPeriod,
-		TimeframeRepo:          repos.Timeframe,
-		ActivityExceptionRepo:  repos.ActivityException,
-		AccountRepo:            repos.Account,
-		AccountTenantRepo:      repos.AccountTenant,
-		AccountRoleRepo:        repos.AccountRole,
-		RoleRepo:               repos.Role,
-		OutboxEnqueuer:         emailOutboxService,
-		StudentAudit:           studentAuditService,
-		StudentConsents:        studentConsentService,
-		CareWithdrawal:         careLifecycleService,
-		Broadcaster:            realtimeHub,
-		PickupGuardianNotifier: pillEmitter,
-		FrontendURL:            frontendURL,
-		ParentsURL:             parentsURL,
-		Settings:               settingsService,
+		Requests:                  repos.Enrollment(),
+		Children:                  repos.Enrollment(),
+		Guardians:                 repos.Enrollment(),
+		LateInviteRepo:            repos.Enrollment(),
+		ApprovedOfferings:         approvedOfferings,
+		CareOfferingRepo:          repos.CareOffering,
+		Phases:                    repos.Enrollment(),
+		Schemas:                   repos.Enrollment(),
+		DataAccessLogRepo:         repos.DataAccessLog,
+		OfferingAdjustmentRepo:    repos.EnrollmentOfferingAdjustment,
+		RestorationAuditRepo:      repos.EnrollmentRestorationAudit,
+		SchoolRepo:                repos.School,
+		PersonRepo:                repos.Person,
+		StaffRepo:                 repos.Staff,
+		StudentRepo:               repos.Student,
+		StudentGuardianRepo:       repos.StudentGuardian,
+		GuardianFinancialAudit:    repos.GuardianFinancialChange,
+		GuardianProfileRepo:       repos.GuardianProfile,
+		GuardianPhoneRepo:         repos.GuardianPhoneNumber,
+		PickupScheduleRepo:        repos.StudentPickupSchedule,
+		PickupBaselines:           pickupBaselines,
+		ArrivalScheduleRepo:       repos.StudentArrivalSchedule,
+		StudentEnrollmentRepo:     repos.StudentEnrollment,
+		ActivityGroupRepo:         repos.ActivityGroup,
+		ActivityScheduleRepo:      repos.ActivitySchedule,
+		CalendarPeriodRepo:        repos.CalendarPeriod,
+		TimeframeRepo:             repos.Timeframe,
+		ActivityExceptionRepo:     repos.ActivityException,
+		GuardianAccess:            guardianAccess,
+		StudentEnrollment:         persons,
+		DepartureCompanions:       repos.StudentCompanion,
+		DeleteDepartureCompanions: repos.CarePlan.DeleteCompanionEdges,
+		OutboxEnqueuer:            emailOutboxService,
+		StudentAudit:              studentAuditService,
+		StudentConsents:           studentConsentService,
+		CareWithdrawal:            careLifecycleService,
+		Broadcaster:               realtimeHub,
+		PickupGuardianNotifier:    pillEmitter,
+		FrontendURL:               frontendURL,
+		ParentsURL:                parentsURL,
+		Settings:                  settingsService,
 		LockTemplateRecurrence: func(ctx context.Context) error {
 			return schedule.LockTenantRecurrenceWrites(ctx, db)
 		},
@@ -338,7 +344,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		db,
 		now,
 	)
-	ogsGroupLiveService := ogsgrouplive.NewService(ogsgrouplive.Dependencies{
+	ogsGroupLiveService, err := grouplivelegacy.New(grouplivelegacy.Sources{
 		Presence:          newStudentPresence(db, logger),
 		People:            usersService,
 		Education:         educationService,
@@ -356,6 +362,9 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		Logger:            logger.With("service", "ogs-group-live"),
 		Now:               now,
 	})
+	if err != nil {
+		return StudentTestModule{}, fmt.Errorf("compose OGS group live projection: %w", err)
+	}
 	return StudentTestModule{
 		ActiveTestModule: live, GradeTransitionTestModule: grade, PeopleDirectory: persons, Audit: auditCommand,
 		Schools: platform.NewSchoolService(repos.School), CareLifecycle: careLifecycleService, StudentAudit: studentAuditService,

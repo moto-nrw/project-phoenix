@@ -5,7 +5,8 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { setTestClock } from "~/test/clock";
 
 import { ShiftEditModal } from "./shift-edit-modal";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
@@ -776,13 +777,8 @@ describe("ShiftEditModal series rule editing", () => {
 describe("ShiftEditModal series rule editing at the end of a segment", () => {
   beforeEach(() => {
     // Fake ONLY Date: testing-library's findBy* polls on real timers.
-    vi.useFakeTimers({ toFake: ["Date"] });
     // 12:00 Berlin on the opened occurrence's own day.
-    vi.setSystemTime(new Date("2026-09-07T10:00:00Z"));
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
+    setTestClock(new Date("2026-09-07T10:00:00Z"));
   });
 
   it("warns instead of saving when nothing is left to change", async () => {

@@ -78,31 +78,3 @@ func TestFactoryResolvesRoomsThroughTheOwner(t *testing.T) {
 	})
 	require.NoError(t, err)
 }
-
-// Deviceless claiming is limited to rooms named "Schulhof"; the filter moved
-// from the former INNER JOIN into the owner-backed read.
-func TestFindUnclaimedKeepsOnlySchulhofGroups(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	tenantID := testpkg.Tenant(t)
-	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-
-	var schulhofID int64
-	err := db.NewRaw("INSERT INTO facilities.rooms (tenant_id, name) VALUES (?, ?) RETURNING id", tenantID, "Schulhof").Scan(testpkg.Ctx(t), &schulhofID)
-	require.NoError(t, err)
-	other := testpkg.CreateTestRoom(t, db, "Igelraum")
-	activity := testpkg.CreateTestActivityGroup(t, db, "Unclaimed Activity")
-	yard := testpkg.CreateTestActiveGroup(t, db, activity.ID, schulhofID)
-	testpkg.CreateTestActiveGroup(t, db, activity.ID, other.ID)
-
-	err = testpkg.WithinTenantContext(t, context.Background(), db, tenantID, func(ctx context.Context) error {
-		groups, err := factory.ActiveGroup.FindUnclaimed(ctx)
-		require.NoError(t, err)
-		require.Len(t, groups, 1)
-		assert.Equal(t, yard.ID, groups[0].ID)
-		require.NotNil(t, groups[0].Room)
-		assert.Equal(t, "Schulhof", groups[0].Room.Name)
-		return nil
-	})
-	require.NoError(t, err)
-}

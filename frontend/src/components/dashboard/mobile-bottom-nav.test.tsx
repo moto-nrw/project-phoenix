@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { releaseFakeTimers } from "~/test/clock";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import {
   expectIdleRenderBudget,
@@ -1176,7 +1177,7 @@ describe("MobileBottomNav", () => {
       // The active link should show the "Gruppe" label after timers complete
       expect(screen.getByText("Gruppe")).toBeInTheDocument();
 
-      vi.useRealTimers();
+      releaseFakeTimers();
     });
 
     it("hides indicator when no active item found", async () => {
@@ -1195,7 +1196,7 @@ describe("MobileBottomNav", () => {
       const activeLinks = container.querySelectorAll("a.bg-gray-100");
       expect(activeLinks.length).toBe(0);
 
-      vi.useRealTimers();
+      releaseFakeTimers();
     });
 
     it("shows indicator on more button when additional route is active", async () => {
@@ -1214,7 +1215,7 @@ describe("MobileBottomNav", () => {
       // The "Mehr" label should be visible (indicating More button is highlighted)
       expect(screen.getByText("Mehr")).toBeInTheDocument();
 
-      vi.useRealTimers();
+      releaseFakeTimers();
     });
   });
 

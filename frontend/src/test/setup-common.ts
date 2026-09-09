@@ -1,6 +1,40 @@
-import { vi } from "vitest";
+import { afterEach, beforeEach, vi } from "vitest";
+
+import { freezeTestClock } from "./clock";
 
 process.env.API_URL = "http://server:8080";
+
+// Deterministic test clock (#3101, see docs/agents/frontend-testing.md and
+// src/test/clock.ts). Freeze `Date` at the shared instant before every test
+// and hand the real clock back afterwards. Only `Date` is mocked; timers and
+// promises stay real, so `waitFor` and debounce tests keep their behaviour.
+// A test that installs `vi.useFakeTimers()` starts its fake clock at the
+// frozen instant; the hook uninstalls it after the test unless the file
+// installed it before the test (beforeAll / module scope). In that case it
+// preserves the file's fake-timer mode while resetting its system time before
+// each test. If a test releases it, the hook restores it after that test, so
+// the file's `afterAll` can end the scope; uninstalling it remains the file's
+// responsibility.
+//
+// The module-scope freeze covers collection time: a `vi.useFakeTimers()` at
+// the top of a test file also starts at the shared instant.
+freezeTestClock();
+
+let fakeTimersInstalledBeforeTest = false;
+
+beforeEach(() => {
+  fakeTimersInstalledBeforeTest = vi.isFakeTimers();
+  freezeTestClock();
+});
+
+afterEach(() => {
+  if (fakeTimersInstalledBeforeTest) {
+    if (!vi.isFakeTimers()) vi.useFakeTimers();
+    freezeTestClock();
+    return;
+  }
+  vi.useRealTimers();
+});
 
 // Prevent ClientLogger from accessing the browser, starting timers, or making
 // requests. Pass through to console.* so existing spies keep working.

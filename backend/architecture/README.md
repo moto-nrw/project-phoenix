@@ -245,6 +245,20 @@ The retained `models/schedule` repository contracts are served from
 `database/repositories` over the Workforce facade; that package's
 `models/schedule` import is already recorded debt.
 
+The Workforce time-tracking HTTP composition
+(`modules/workforce/inbound/timetracking`) is classified `workforce`/`http`
+under the same compatibility permissions (#2690). It replaced
+`api/time-tracking` and serves the public work-session, absence, month,
+ledger, month-close, overview, audit-log, export and personnel-record
+contracts of `modules/workforce`, which the root composition adapts from the
+retained `services/active` and `services/users` services. Its remaining
+`services/schedule`, `models/schedule` and `api/staff-shifts` imports (own
+shifts and assignments) go with the shift services' move. The kiosk staff
+clock consumes the public device-scan contract in `modules/devicescan`
+(`process-device-scan`/`public`); `staff-clock.to.process-device-scan` is the
+one rule anchored to that new point, and the staff-clock workflow reaches the
+Workforce time clock only through its own port.
+
 The Care Plan compatibility adapter (`modules/careplan/legacy`) uses this
 representation. Its remaining imports and repository-composition caller are
 bound to #2743, the root API caller to #2750, and the test-support caller to
@@ -253,6 +267,90 @@ existing imports; it adds no runtime dependency or composition caller.
 `target.svg` has no compatibility-rule edges. `migration.svg` renders these
 exact imports as orange-red `legacy` debt, separate from gray target-valid
 imports and dashed-red new violations, even when they share owner endpoints.
+
+The class-day read projection (`modules/classday`, #2701) is the `class-day-view`
+projection owner: `modules/classday` is its public contract, `internal/application`
+builds the slot lists and the school-portal day view, `internal/ports` declares
+the consumer-owned read seams, and `compose` binds them. The projection reads
+`schedule.activity_instances`, `schedule.instance_students`, `active.visits`,
+`active.attendance`, `users.students`, `users.persons`, `education.groups`, the
+rooms and the Care Plan status days and pickup exceptions only through the public
+owner facades (`class-day-view.from.*`). Its `class-day-view.compose.*`
+permissions for the retained schedule services (care-day derivation, effective
+times, pickup baselines), the enrollment report and class-day write seam, the
+settings service, the user context and the JWT permission check exist only
+because PR mode cannot record debt for a package the candidate creates. They are
+compatibility bindings, not target dependencies: convert them to exact debt with
+the rule above once the packages exist at a base SHA, and remove each binding
+when its owner exposes the read publicly. The same applies to the
+`inbound-classday.*` permissions of the class-day HTTP adapter
+(`modules/classday/http`: common HTTP rendering, the permission contract, the
+JWT claims, the calendar-date type and the Bun database the shared school-scope
+middleware takes), to the `inbound-school.identity-application` and
+`inbound-school.orm-sql` permissions of the school portal (`modules/schoolportal`),
+and to the retained-repository and retained-service permissions of the
+projection's integration and adapter tests.
+
+The live-group read projection (`modules/grouplive`, `group-live-view`/`public`)
+reads every foreign fact through consumer-owned ports and the Care Plan
+excused-request contract; it persists nothing and never writes. Its
+compatibility adapter (`modules/grouplive/legacy`, `group-live-view`/`adapter`)
+binds those ports to the retained identity, settings, presence, schedule,
+people, and education services and to the shared authorize rules. Every
+`group-live-view.adapter.*` rule is a compatibility permission that exists
+only because PR mode cannot record debt for a package the candidate creates
+(#2702): convert them to exact debt with the rule above once the package
+exists at a base SHA, rebind each port to its owner's public capability as it
+appears, and delete the adapter with the last legacy source.
+
+The supervision read projection (`modules/supervisiondashboard`,
+`calendar-view`/`public`, #2703) builds the "Aktuelle Aufsicht" aggregate
+from plain owner facts through consumer-owned ports; it persists nothing and
+never writes. Its compatibility adapter (`modules/supervisiondashboard/legacy`,
+`calendar-view`/`adapter`) binds those ports to the retained identity,
+settings, presence, Schulhof, timetable-operations and day-planning services
+and to the shared authorize rules, and maps the Timetable and Facilities wire
+rows field by field (the adapter tests pin byte-identical JSON). Every
+`calendar-view.adapter.*` and `calendar-view.adapter-test.*` rule is a
+compatibility permission that exists only because PR mode cannot record debt
+for a package the candidate creates: convert them to exact debt with the rule
+above once the package exists at a base SHA, rebind each port to its owner's
+public capability as it appears, and delete the adapter with the last legacy
+source. The same applies to the staff calendar HTTP adapter
+(`modules/staffcalendar/http`, `inbound-calendar`/`http`: common HTTP
+rendering, the permission contract, the JWT middleware, the calendar-date type
+and, as the one compatibility binding, the retained `services/calendar`
+until School Calendar exposes the staff calendar publicly) and to the
+statistics HTTP adapter (`modules/statistics/http`, `inbound-statistics`/`http`:
+the same shared HTTP dependencies, the Bun database the tenant middleware
+takes, the Document Rendering renderer and, as compatibility binding, the
+retained `services/statistics`), including their `*.adapter-test.*`
+permissions.
+
+The Identity & Access guardian-access capability (`modules/identityaccess`,
+`identity-access`/`public`) is the first just-in-time slice of the late
+Identity & Access migration (#2580 sequencing, #2699): it resolves platform
+accounts and grants an account guardian access to the tenant in context over
+`auth.accounts`, `auth.account_tenants`, `auth.account_roles` and
+`auth.roles`. Enrollment acceptance consumes it through a consumer-owned port;
+the retained `services/auth` invitation flow still reaches the same tables
+through its own repositories. The other tables the acceptance cutover (#2699)
+names are not served by Identity & Access. Enrollment acceptance now reads,
+locks, creates and renews `users.students` through the bounded People Directory
+enrollment contract. Profile writes distinguish unchanged fields from explicit
+NULL. The application coordinates departure-plan locks and companion-stranding
+checks; People Directory writes the normalized plan and its legacy mirrors,
+and Care Plan removes companion edges. All commands join the same tenant
+transaction. `users.class_list_entries`,
+`enrollment.request_child_offerings` and `schedule.instance_students` reach
+their owners through the legacy-composition adapters over the School
+Membership, Enrollment and Timetable facades. The retained in-memory student
+mapping and owner-backed compatibility adapters are cleanup debt under #2733,
+not alternative acceptance writers. Its `identity-access.compose.*` and
+integration-test rules mirror the People Directory owner; the
+`legacy-composition.to.identity-access-*` permissions exist because the
+legacy service factory still composes the enrollment decision service and
+go with #2751.
 
 The Device Fleet authentication composition (`modules/devicefleet/deviceauth`)
 is classified as `device-fleet`/`http`. Its `device-fleet.device-auth.*`

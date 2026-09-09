@@ -55,7 +55,7 @@ type matchedStudentFixture struct {
 	auth     *stubReEnrollAuthorizer
 	req      *enrollmentModels.Request
 	phase    *capability.Phase
-	row      *enrollmentModels.ChangeRequest
+	row      *ChangeRequest
 }
 
 func newMatchedStudentFixture(audience string, resolved *int64, collision bool) *matchedStudentFixture {
@@ -81,7 +81,7 @@ func newMatchedStudentFixture(audience string, resolved *int64, collision bool) 
 		auth:     auth,
 		req:      req,
 		phase:    &capability.Phase{Audience: audience},
-		row:      &enrollmentModels.ChangeRequest{},
+		row:      &ChangeRequest{},
 	}
 }
 
@@ -287,7 +287,7 @@ func TestReconcileMatchedStudent_NoOpForUnpinnedOrdinaryChild(t *testing.T) {
 func TestPostApprovalChildStatus(t *testing.T) {
 	t.Parallel()
 
-	row := &enrollmentModels.ChangeRequest{
+	row := &ChangeRequest{
 		BaseSnapshot:     map[string]any{"children": []any{map[string]any{"id": int64(11), "first_name": "Anna"}}},
 		ProposedSnapshot: map[string]any{"children": []any{map[string]any{"id": int64(11), "first_name": "Anna-Lena"}}},
 	}
@@ -307,7 +307,7 @@ func TestPostApprovalChildStatus(t *testing.T) {
 
 	t.Run("rejected child without own change stays rejected", func(t *testing.T) {
 		child.Status = enrollmentModels.ChildStatusRejected
-		unchanged := &enrollmentModels.ChangeRequest{
+		unchanged := &ChangeRequest{
 			BaseSnapshot:     row.BaseSnapshot,
 			ProposedSnapshot: row.BaseSnapshot,
 		}

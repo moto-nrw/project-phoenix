@@ -11,8 +11,10 @@ import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
 import { parseISODate, toISODate, todayISO } from "~/lib/date-helpers";
+import { AUDIENCE_LABELS } from "~/lib/staff-notices-api";
 import type {
   StaffNotice,
+  StaffNoticeAudience,
   StaffNoticeInput,
   StaffNoticePriority,
   StaffNoticeWeekPattern,
@@ -33,6 +35,23 @@ const PRIORITY_OPTIONS = [
   { value: "important", label: "Wichtig" },
 ];
 
+// Zielgruppe (#2208): drei feste Werte. Die Erklärung darunter sagt, wo der
+// Hinweis ankommt — die Leitung sieht ihn selbst nur im OGS-Portal.
+const AUDIENCE_OPTIONS: readonly {
+  value: StaffNoticeAudience;
+  label: string;
+}[] = [
+  { value: "all", label: AUDIENCE_LABELS.all },
+  { value: "staff", label: AUDIENCE_LABELS.staff },
+  { value: "lehrkraft", label: AUDIENCE_LABELS.lehrkraft },
+];
+
+const AUDIENCE_HINTS: Readonly<Record<StaffNoticeAudience, string>> = {
+  all: "Erscheint bei der Betreuung im OGS-Portal und bei Lehrkräften in moto schule.",
+  staff: "Erscheint nur bei der Betreuung im OGS-Portal.",
+  lehrkraft: "Erscheint nur bei Lehrkräften in moto schule.",
+};
+
 const WEEK_PATTERN_OPTIONS = [
   { value: "0", label: "Jede Woche" },
   { value: "1", label: "Nur Woche A" },
@@ -43,6 +62,7 @@ interface FormState {
   title: string;
   body: string;
   priority: StaffNoticePriority;
+  audience: StaffNoticeAudience;
   validFrom: string;
   validUntil: string;
   weekdays: number[];
@@ -57,6 +77,7 @@ function initialState(notice: StaffNotice | null): FormState {
       title: "",
       body: "",
       priority: "info",
+      audience: "all",
       validFrom: todayISO(),
       validUntil: "",
       weekdays: [],
@@ -69,6 +90,7 @@ function initialState(notice: StaffNotice | null): FormState {
     title: notice.title,
     body: notice.body,
     priority: notice.priority,
+    audience: notice.audience,
     validFrom: notice.valid_from,
     validUntil: notice.valid_until ?? "",
     weekdays: [...notice.weekdays],
@@ -136,6 +158,7 @@ export function StaffNoticeModal({
         title: form.title.trim(),
         body: form.body.trim(),
         priority: form.priority,
+        audience: form.audience,
         valid_from: form.validFrom,
         valid_until: form.validUntil || null,
         weekdays: form.weekdays,
@@ -193,6 +216,23 @@ export function StaffNoticeModal({
           value={form.body}
           onChange={(e) => setForm({ ...form, body: e.target.value })}
         />
+
+        <div>
+          <span className="mb-1 block text-sm font-medium text-gray-700">
+            Für wen
+          </span>
+          <CustomSelect
+            value={form.audience}
+            options={AUDIENCE_OPTIONS}
+            ariaLabel="Für wen"
+            onChange={(value) =>
+              setForm({ ...form, audience: value as StaffNoticeAudience })
+            }
+          />
+          <p className="mt-1 text-xs text-gray-500">
+            {AUDIENCE_HINTS[form.audience]}
+          </p>
+        </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>

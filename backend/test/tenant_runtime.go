@@ -18,6 +18,8 @@ import (
 
 type UnitOfWorkEvidence struct {
 	Kind     string
+	Result   string
+	Retries  int
 	Duration time.Duration
 }
 
@@ -32,9 +34,14 @@ func ContextForTenant(ctx context.Context, tenantID int64) context.Context {
 func CaptureUnitOfWorkEvidence(ctx context.Context) (context.Context, func() []UnitOfWorkEvidence) {
 	events := make([]UnitOfWorkEvidence, 0)
 	ctx = tenant.WithUnitOfWorkObserver(ctx, func(event tenant.UnitOfWorkEvent) {
-		events = append(events, UnitOfWorkEvidence{Kind: string(event.Kind), Duration: event.Duration})
+		events = append(events, UnitOfWorkEvidence{Kind: string(event.Kind), Result: string(event.Result), Retries: event.Retries, Duration: event.Duration})
 	})
 	return ctx, func() []UnitOfWorkEvidence { return append([]UnitOfWorkEvidence(nil), events...) }
+}
+
+// WithinCurrentTenant runs a test callback through the bound production runtime.
+func WithinCurrentTenant(ctx context.Context, fn func(context.Context) error) error {
+	return tenant.WithinCurrentTenant(ctx, fn)
 }
 
 func AttachLockWaitEvidence(db *bun.DB) {

@@ -1,7 +1,7 @@
 // Package devicefleet is the public Device Fleet capability. It owns
-// iot.devices and display.displays and answers every device and info-point
-// question for other owners without leaking those tables into their
-// repositories.
+// iot.devices, display.displays, and audit.unregistered_tag_scans and answers
+// every device, info-point, and unregistered-scan question for other owners
+// without leaking those tables into their repositories.
 package devicefleet
 
 import (
@@ -209,12 +209,14 @@ type DisplayCommand interface {
 type Query interface {
 	DeviceQuery
 	DisplayQuery
+	UnregisteredTagScanQuery
 }
 
 // Command is every write this owner performs.
 type Command interface {
 	DeviceCommand
 	DisplayCommand
+	UnregisteredTagScanCommand
 }
 
 // Capability is the full Device Fleet contract.
@@ -258,6 +260,12 @@ type engine interface {
 	RegenerateDisplayToken(context.Context, int64) (string, error)
 	DeleteDisplay(context.Context, int64) error
 	Dashboard(context.Context, string) (Dashboard, error)
+
+	FindUnregisteredTagScan(context.Context, int64) (UnregisteredTagScan, error)
+	ListUnregisteredTagScans(context.Context, UnregisteredTagScanFilter) ([]UnregisteredTagScan, error)
+	RecordUnregisteredTagScan(context.Context, RecordUnregisteredTagScan) (UnregisteredTagScan, error)
+	ResolveUnregisteredTagScan(context.Context, ResolveUnregisteredTagScan) (UnregisteredTagScan, error)
+	DeleteExpiredUnregisteredTagScans(context.Context, time.Time) (int64, error)
 }
 
 // Module is the public facade every caller holds.
@@ -293,6 +301,14 @@ func ErrorCode(err error) string {
 		return "invalid_display"
 	case errors.Is(err, ErrDashboardTokenMissing):
 		return "display_token_missing"
+	case errors.Is(err, ErrUnregisteredTagScanNotFound):
+		return "unregistered_tag_scan_not_found"
+	case errors.Is(err, ErrUnregisteredTagScanResolved):
+		return "unregistered_tag_scan_resolved"
+	case errors.Is(err, ErrInvalidUnregisteredTagScan):
+		return "invalid_unregistered_tag_scan"
+	case errors.Is(err, ErrTenantRequired):
+		return "tenant_required"
 	default:
 		return "internal"
 	}

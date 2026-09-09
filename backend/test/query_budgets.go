@@ -119,6 +119,11 @@ var queryBudgets = map[string]queryBudget{
 	// modules/schoolmembership — assignment lists, 8 rows each.
 	"modules.schoolmembership.list_class_assignments": {max: 5},
 	"modules.schoolmembership.list_group_assignments": {max: 5},
+	// modules/classday — one slot reconciliation over the owner facades
+	// inside its tenant transaction, 3 and then 8 planned children (#2701).
+	// Every read is a bulk load by ID set; the count must not move with the
+	// roster.
+	"modules.classday.slot_list.build": {max: 16},
 	// modules/timetable — group and target lookups stay one bulk query as IDs grow.
 	"modules.timetable.groups.list":              {max: 1, exact: true},
 	"modules.timetable.group_targets.list":       {max: 1, exact: true},
@@ -136,7 +141,14 @@ var queryBudgets = map[string]queryBudget{
 	// modules/communication — inbox reads remain fixed as thread count grows.
 	"modules.communication.parent_messages.list_inbox": {max: 1, exact: true},
 	"modules.communication.staff_messages.list_inbox":  {max: 2, exact: true},
-	"modules.careplan.request_feed.list":               {max: 1, exact: true},
+	// modules/workforce/inbound/timetracking — GET
+	// /api/staff-notices/{id}/acknowledgements (#2208): four tenant-transaction
+	// statements (BEGIN, SET ROLE, set_config, COMMIT) plus one notice read, one
+	// acknowledgement list and ONE batched People-Directory name lookup for the
+	// whole list. Flat at three acknowledgements — a per-row lookup would show
+	// as N+1 here.
+	"api.staff_notices.acknowledgements": {max: 7, exact: true},
+	"modules.careplan.request_feed.list": {max: 1, exact: true},
 	// services/usercontext — #2099 request cache dedups the identity chain.
 	"services.usercontext.identity_chain.persons":       {max: 1, exact: true},
 	"services.usercontext.identity_chain.staff":         {max: 1, exact: true},
