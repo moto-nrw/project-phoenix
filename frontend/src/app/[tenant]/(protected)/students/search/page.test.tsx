@@ -109,7 +109,9 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
           onChange={(e) =>
             f.onChange(
               f.multiSelect
-                ? Array.from(e.target.selectedOptions, (option) => option.value)
+                ? Array.from(e.target.options)
+                    .filter((option) => option.selected)
+                    .map((option) => option.value)
                 : e.target.value,
             )
           }
@@ -656,7 +658,7 @@ describe("StudentSearchPage", () => {
         expect(screen.getByTestId("filter-pickupStatus")).toHaveValue(
           "pickedUp",
         );
-        expect(screen.getByTestId("filter-pickupTime")).toHaveValue("15:30");
+        expect(screen.getByTestId("filter-pickupTime")).toHaveValue(["15:30"]);
         expect(screen.getByTestId("filter-arrivalTime")).toHaveValue("08:00");
         expect(screen.getByTestId("filter-attendance")).toHaveValue("anwesend");
         expect(screen.getByTestId("filter-sort")).toHaveValue("pickup");
@@ -2670,6 +2672,203 @@ describe("StudentSearchPage", () => {
   });
 
   describe("Pickup Time Filtering", () => {
+    it.each([
+      ["all", ["Max", "Tom", "Anna", "Lisa"]],
+      ["none", ["Anna", "Lisa"]],
+      ["15:30", ["Max"]],
+      ["14:30", []],
+    ])(
+      "keeps legacy pickup link %s and allows clearing an empty result (#3136)",
+      async (value, names) => {
+        mockSearchParams.set("pickup_time", value);
+        render(<StudentSearchPage />);
+        await screen.findByTestId("filter-pickupTime");
+        for (const name of ["Max", "Tom", "Anna", "Lisa"]) {
+          const child = screen.queryByText(new RegExp(`^${name}\\b`));
+          if (names.includes(name)) expect(child).toBeInTheDocument();
+          else expect(child).not.toBeInTheDocument();
+        }
+        if (value !== "all") {
+          fireEvent.click(
+            screen.getByTestId(`active-filter-pickupTime-${value}`),
+          );
+          expect(screen.getByTestId("filter-pickupTime")).toHaveValue([]);
+          expect(screen.getByText(/^Max\b/)).toBeInTheDocument();
+        }
+      },
+    );
+
+    it("keeps other time filters ANDed with the pickup selection and exports both values (#3136)", async () => {
+      render(<StudentSearchPage />);
+      await screen.findByTestId("filter-pickupTime");
+      selectFilterOptions(screen.getByTestId("filter-pickupTime"), [
+        "15:30",
+        "16:00",
+      ]);
+      fireEvent.change(screen.getByTestId("filter-arrivalTime"), {
+        target: { value: "08:00" },
+      });
+      expect(screen.getByText(/^Max\b/)).toBeInTheDocument();
+      expect(screen.queryByText(/^Tom\b/)).not.toBeInTheDocument();
+      expect(
+        new URL(window.location.href).searchParams.get("pickup_time"),
+      ).toBe("15:30,16:00");
+      expect(
+        JSON.parse(
+          localStorage.getItem(STUDENT_SEARCH_FILTER_STORAGE_KEY) ?? "{}",
+        ),
+      ).toMatchObject({ pickup_time: "15:30,16:00", arrival_time: "08:00" });
+
+      fireEvent.click(screen.getByTestId("overflow-Exportieren"));
+      expect(
+        JSON.parse(
+          screen.getByTestId("export-modal").getAttribute("data-filters") ??
+            "{}",
+        ),
+      ).toMatchObject({ pickup_time: "15:30,16:00", arrival_time: "08:00" });
+      fireEvent.change(screen.getByTestId("filter-arrivalTime"), {
+        target: { value: "all" },
+      });
+      fireEvent.change(screen.getByTestId("filter-attendance"), {
+        target: { value: "unterwegs" },
+      });
+      expect(screen.getByText(/^Tom\b/)).toBeInTheDocument();
+      expect(screen.queryByText(/^Max\b/)).not.toBeInTheDocument();
+      fireEvent.click(screen.getByTestId("clear-filters"));
+      expect(screen.getByTestId("filter-pickupTime")).toHaveValue([]);
+      expect(
+        new URL(window.location.href).searchParams.has("pickup_time"),
+      ).toBe(false);
+      expect(screen.getByText(/^Tom\b/)).toBeInTheDocument();
+    });
+
+    it("combines none with a time without matching redacted or exception-only children (#3136)", async () => {
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: {
+          students: [
+            ...mockStudents,
+            {
+              ...mockStudents[1],
+              id: "redacted",
+              first_name: "Redacted",
+              has_full_access: false,
+            },
+            {
+              ...mockStudents[1],
+              id: "exception",
+              first_name: "Exception",
+              pickup_is_exception: true,
+            },
+          ],
+        },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+      render(<StudentSearchPage />);
+      await screen.findByTestId("filter-pickupTime");
+      selectFilterOptions(screen.getByTestId("filter-pickupTime"), [
+        "none",
+        "15:30",
+      ]);
+      for (const name of ["Anna", "Lisa", "Max"]) {
+        expect(screen.getByText(new RegExp(`^${name}\\b`))).toBeInTheDocument();
+      }
+      for (const name of ["Tom", "Redacted", "Exception"]) {
+        expect(
+          screen.queryByText(new RegExp(`^${name}\\b`)),
+        ).not.toBeInTheDocument();
+      }
+      fireEvent.click(screen.getByTestId("active-filter-pickupTime-none"));
+      expect(screen.getByText(/^Max\b/)).toBeInTheDocument();
+      expect(screen.queryByText(/^Anna\b/)).not.toBeInTheDocument();
+    });
+
+    it.each(["url", "stored"])(
+      "restores deduplicated pickup selections from %s and retains absent options (#3136)",
+      async (source) => {
+        if (source === "url") {
+          mockSearchParams.append("pickup_time", "15:30,16:00");
+          mockSearchParams.append("pickup_time", "16:00,14:30");
+        } else {
+          localStorage.setItem(
+            STUDENT_SEARCH_FILTER_STORAGE_KEY,
+            JSON.stringify({ pickup_time: "15:30,16:00,16:00,14:30" }),
+          );
+        }
+        render(<StudentSearchPage />);
+        await waitFor(() =>
+          expect(screen.getByTestId("filter-pickupTime")).toHaveValue([
+            "14:30",
+            "15:30",
+            "16:00",
+          ]),
+        );
+        expect(screen.getAllByText(/^Max\b/)).toHaveLength(1);
+        expect(screen.getAllByText(/^Tom\b/)).toHaveLength(1);
+        fireEvent.click(screen.getByTestId("active-filter-pickupTime-14:30"));
+        expect(
+          screen.queryByTestId("active-filter-pickupTime-14:30"),
+        ).not.toBeInTheDocument();
+        expect(screen.getByTestId("filter-pickupTime")).toHaveValue([
+          "15:30",
+          "16:00",
+        ]);
+      },
+    );
+
+    it("restores pickup selections on history navigation without overwriting preferences when leaving search (#3136)", async () => {
+      render(<StudentSearchPage />);
+      await screen.findByTestId("filter-pickupTime");
+      const navigateHistory = (url: string) =>
+        act(() => {
+          window.history.replaceState({ preserved: true }, "", url);
+          window.dispatchEvent(new PopStateEvent("popstate"));
+        });
+      navigateHistory("/students/search?pickup_time=15:30&pickup_time=16:00");
+      expect(screen.getByTestId("filter-pickupTime")).toHaveValue([
+        "15:30",
+        "16:00",
+      ]);
+      expect(screen.getByText(/^Max\b/)).toBeInTheDocument();
+      expect(screen.getByText(/^Tom\b/)).toBeInTheDocument();
+      navigateHistory("/students/search?pickup_time=16:00");
+      expect(screen.queryByText(/^Max\b/)).not.toBeInTheDocument();
+      const stored = localStorage.getItem(STUDENT_SEARCH_FILTER_STORAGE_KEY);
+      navigateHistory("/dashboard");
+      expect(localStorage.getItem(STUDENT_SEARCH_FILTER_STORAGE_KEY)).toBe(
+        stored,
+      );
+      navigateHistory("/students/search");
+      expect(screen.getByTestId("filter-pickupTime")).toHaveValue([]);
+      expect(screen.getByText(/^Anna\b/)).toBeInTheDocument();
+    });
+
+    it("combines pickup times with OR and removes only the deselected time (#3136)", async () => {
+      render(<StudentSearchPage />);
+      await screen.findByTestId("filter-pickupTime");
+
+      selectFilterOptions(screen.getByTestId("filter-pickupTime"), [
+        "15:30",
+        "16:00",
+      ]);
+      expect(screen.getAllByText(/^Max\b/)).toHaveLength(1);
+      expect(screen.getAllByText(/^Tom\b/)).toHaveLength(1);
+      expect(screen.queryByText(/^Anna\b/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/^Lisa\b/)).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByTestId("active-filter-pickupTime-15:30"));
+      expect(screen.queryByText(/^Max\b/)).not.toBeInTheDocument();
+      expect(screen.getByText(/^Tom\b/)).toBeInTheDocument();
+      expect(screen.getByTestId("filter-pickupTime")).toHaveValue(["16:00"]);
+
+      fireEvent.click(screen.getByTestId("active-filter-pickupTime-16:00"));
+      expect(screen.getByTestId("filter-pickupTime")).toHaveValue([]);
+      for (const name of ["Max", "Tom", "Anna", "Lisa"]) {
+        expect(screen.getByText(new RegExp(`^${name}\\b`))).toBeInTheDocument();
+      }
+    });
+
     it("filters students by specific pickup time", async () => {
       render(<StudentSearchPage />);
 
@@ -2679,7 +2878,7 @@ describe("StudentSearchPage", () => {
 
       // Filter by 15:30, only Max has this pickup time
       const pickupFilter = screen.getByTestId("filter-pickupTime");
-      fireEvent.change(pickupFilter, { target: { value: "15:30" } });
+      selectFilterOptions(pickupFilter, ["15:30"]);
 
       await waitFor(() => {
         expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
@@ -2704,7 +2903,7 @@ describe("StudentSearchPage", () => {
 
       // Filter by "none": Anna and Lisa have no pickup_time
       const pickupFilter = screen.getByTestId("filter-pickupTime");
-      fireEvent.change(pickupFilter, { target: { value: "none" } });
+      selectFilterOptions(pickupFilter, ["none"]);
 
       await waitFor(() => {
         // Anna has no pickup_time and has_full_access=true
@@ -2762,7 +2961,7 @@ describe("StudentSearchPage", () => {
 
       // Apply "none" pickup time filter: redacted student should be excluded (GDPR)
       const pickupFilter = screen.getByTestId("filter-pickupTime");
-      fireEvent.change(pickupFilter, { target: { value: "none" } });
+      selectFilterOptions(pickupFilter, ["none"]);
 
       await waitFor(() => {
         expect(screen.getByText(new RegExp(`^Visible\\b`))).toBeInTheDocument();
@@ -2784,27 +2983,27 @@ describe("StudentSearchPage", () => {
       const pickupFilter = screen.getByTestId("filter-pickupTime");
 
       // Verify "Keine Gehzeit" chip label for "none"
-      fireEvent.change(pickupFilter, { target: { value: "none" } });
+      selectFilterOptions(pickupFilter, ["none"]);
       await waitFor(() => {
         expect(
-          screen.getByTestId("active-filter-pickupTime"),
+          screen.getByTestId("active-filter-pickupTime-none"),
         ).toHaveTextContent("Keine Gehzeit");
       });
 
       // Switch to specific time: verify chip label and clear-all
-      fireEvent.change(pickupFilter, { target: { value: "15:30" } });
+      selectFilterOptions(screen.getByTestId("filter-pickupTime"), ["15:30"]);
       await waitFor(() => {
         expect(
-          screen.getByTestId("active-filter-pickupTime"),
+          screen.getByTestId("active-filter-pickupTime-15:30"),
         ).toHaveTextContent("Gehzeit 15:30 Uhr");
       });
 
       // Clear all filters
       fireEvent.click(screen.getByTestId("clear-filters"));
       await waitFor(() => {
-        expect(screen.getByTestId("filter-pickupTime")).toHaveValue("all");
+        expect(screen.getByTestId("filter-pickupTime")).toHaveValue([]);
         expect(
-          screen.queryByTestId("active-filter-pickupTime"),
+          screen.queryByTestId(/^active-filter-pickupTime-/),
         ).not.toBeInTheDocument();
       });
     });
