@@ -38,6 +38,8 @@ import (
 	devicefleetModule "github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
+	"github.com/moto-nrw/project-phoenix/modules/emergencysnapshot"
+	emergencysnapshotlegacy "github.com/moto-nrw/project-phoenix/modules/emergencysnapshot/legacy"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
@@ -64,7 +66,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/config/sideeffects"
 	"github.com/moto-nrw/project-phoenix/services/database"
 	"github.com/moto-nrw/project-phoenix/services/education"
-	"github.com/moto-nrw/project-phoenix/services/emergency"
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/filestore"
@@ -191,7 +192,7 @@ type Factory struct {
 	ClassListImport           *importService.ImportService[importModels.ClassListEntryImportRow] // Class-list entry import (#2382)
 	OpeningBalanceImport      importService.OpeningBalanceImportFactory                          // Opening balance import (#2132), request-scoped
 	ListExport                *listexport.RendererService
-	Emergency                 *emergency.Service
+	Emergency                 emergencysnapshot.Query
 	SlotLists                 classday.SlotLists
 	PlanExport                planexport.Service
 	Reminders                 reminder.Capability
@@ -2790,28 +2791,25 @@ func newFactory(
 	})
 
 	listExportService := listexport.NewService()
-	emergencyService := emergency.NewService(emergency.Dependencies{
-		Attendance:  newStudentPresence(db, logger),
-		StudentRepo: repos.Student,
-		PersonRepo:  repos.Person,
-		Visits:      newStudentPresence(db, logger),
-		RoomNames: func(ctx context.Context, ids []int64) (map[int64]string, error) {
-			rows, err := rooms.ListRoomsByID(ctx, ids)
-			if err != nil {
-				return nil, err
-			}
-			names := make(map[int64]string, len(rows))
-			for _, room := range rows {
-				names[room.ID] = room.Name
-			}
-			return names, nil
-		},
-		StudentGuardianRepo: repos.StudentGuardian,
-		ActiveService:       activeService,
-		ListExport:          listExportService,
-		Settings:            settingsService,
-		Logger:              logger,
+	// The Notfallliste is the emergency snapshot read projection (#2704): the
+	// owner facades are its tenant-safe reads, the retained student and
+	// guardian repositories, the presence-mode read and the renderer its
+	// compatibility bindings.
+	emergencyService, err := emergencysnapshotlegacy.New(emergencysnapshotlegacy.Sources{
+		Presence:     newStudentPresence(db, logger),
+		PresenceMode: activeService,
+		Students:     repos.Student,
+		Persons:      persons,
+		Contacts:     repos.StudentGuardian,
+		Rooms:        rooms,
+		Settings:     settingsService,
+		Renderer:     listExportService,
+		Now:          now,
+		Logger:       logger.With("module", "emergency-snapshot"),
 	})
+	if err != nil {
+		return nil, fmt.Errorf("compose emergency snapshot projection: %w", err)
+	}
 	// The slot lists are the class-day read projection (#2701): the owner
 	// facades are its tenant-safe reads, the retained schedule services its
 	// compatibility bindings.

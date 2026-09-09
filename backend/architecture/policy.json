@@ -673,7 +673,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/emergency",
+      "path": "modules/emergencysnapshot/http",
       "owner": "inbound-emergency",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -1639,10 +1639,17 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/emergency",
+      "path": "modules/emergencysnapshot",
       "owner": "emergency-snapshot",
-      "role": "application",
+      "role": "public",
       "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/emergencysnapshot/legacy",
+      "owner": "emergency-snapshot",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
       "external_test_role": "module-behavior-test"
     },
     {
@@ -2908,6 +2915,14 @@
   ],
   "data_objects": [
     {
+      "name": "active.activity_session_attendance",
+      "write_owner": "student-presence"
+    },
+    {
+      "name": "active.activity_sessions",
+      "write_owner": "student-presence"
+    },
+    {
       "name": "active.attendance",
       "write_owner": "student-presence"
     },
@@ -3312,6 +3327,10 @@
       "write_owner": "care-plan"
     },
     {
+      "name": "enrollment.care_offering_bookings",
+      "write_owner": "care-plan"
+    },
+    {
       "name": "enrollment.care_offerings",
       "write_owner": "care-plan"
     },
@@ -3337,6 +3356,10 @@
     },
     {
       "name": "enrollment.phases",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.request_child_offering_selections",
       "write_owner": "enrollment"
     },
     {
@@ -3654,6 +3677,14 @@
     {
       "name": "users.staff",
       "write_owner": "school-membership"
+    },
+    {
+      "name": "users.staff_school_memberships",
+      "write_owner": "school-membership"
+    },
+    {
+      "name": "users.staff_employment_profiles",
+      "write_owner": "workforce"
     },
     {
       "name": "users.staff_document_file_cleanup",
@@ -4554,13 +4585,13 @@
       "target_role": "compose"
     },
     {
-      "id": "emergency-snapshot.module-internal-test.presence-compose",
-      "description": "Existing integration fixtures construct the owner facade for migrated visit records.",
+      "id": "emergency-snapshot.adapter-test.presence-compose",
+      "description": "Emergency snapshot adapter tests construct the Student Presence facade for migrated visit and attendance records (#2704).",
       "scopes": [
         "internal_test"
       ],
       "source_owner": "emergency-snapshot",
-      "source_role": "module-internal-test",
+      "source_role": "adapter-test",
       "target_owner": "student-presence",
       "target_role": "compose"
     },
@@ -4621,15 +4652,6 @@
       "scopes": ["external_test"],
       "source_owner": "class-day-view",
       "source_role": "module-behavior-test",
-      "target_owner": "student-presence",
-      "target_role": "public"
-    },
-    {
-      "id": "emergency-snapshot.module-internal-test.student-presence-public",
-      "description": "Emergency snapshot tests verify public visit-location selection and read failures (#2691).",
-      "scopes": ["internal_test"],
-      "source_owner": "emergency-snapshot",
-      "source_role": "module-internal-test",
       "target_owner": "student-presence",
       "target_role": "public"
     },
@@ -6296,45 +6318,34 @@
     },
     {
       "id": "emergency-snapshot.from.facilities",
-      "description": "emergency-snapshot reads the public facilities query seam.",
+      "description": "The emergency snapshot adapter binds the room-name port to the public facilities query seam (#2704).",
       "scopes": [
         "production"
       ],
       "source_owner": "emergency-snapshot",
-      "source_role": "application",
+      "source_role": "adapter",
       "target_owner": "facilities",
       "target_role": "public"
     },
     {
       "id": "emergency-snapshot.from.people-directory",
-      "description": "emergency-snapshot reads the public people-directory query seam.",
+      "description": "The emergency snapshot adapter binds the person port to the public people-directory query seam (#2704).",
       "scopes": [
         "production"
       ],
       "source_owner": "emergency-snapshot",
-      "source_role": "application",
+      "source_role": "adapter",
       "target_owner": "people-directory",
       "target_role": "public"
     },
     {
-      "id": "emergency-snapshot.from.school-membership",
-      "description": "emergency-snapshot reads the public school-membership query seam.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "emergency-snapshot",
-      "source_role": "application",
-      "target_owner": "school-membership",
-      "target_role": "public"
-    },
-    {
       "id": "emergency-snapshot.from.student-presence",
-      "description": "emergency-snapshot reads the public student-presence query seam.",
+      "description": "The emergency snapshot adapter binds the presence ports to the public student-presence query seam (#2704).",
       "scopes": [
         "production"
       ],
       "source_owner": "emergency-snapshot",
-      "source_role": "application",
+      "source_role": "adapter",
       "target_owner": "student-presence",
       "target_role": "public"
     },
@@ -17649,6 +17660,201 @@
       "source_owner": "staff-offboarding",
       "source_role": "compose",
       "target_class": "orm-sql"
+    },
+    {
+      "id": "legacy-composition.compose.to.emergency-snapshot.public",
+      "description": "The legacy root constructs the emergency snapshot projection and names its public capability (#2704).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "emergency-snapshot",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.compose.to.emergency-snapshot.adapter",
+      "description": "The legacy root constructs the emergency snapshot compatibility adapters over the retained owner services (#2704).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "emergency-snapshot",
+      "target_role": "adapter"
+    },
+    {
+      "id": "emergency-snapshot.adapter.public",
+      "description": "The emergency snapshot compatibility adapters implement the projection's consumer-owned ports and return its public capability (#2704).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "emergency-snapshot",
+      "source_role": "adapter",
+      "target_owner": "emergency-snapshot",
+      "target_role": "public"
+    },
+    {
+      "id": "emergency-snapshot.adapter.people-directory-domain",
+      "description": "Compatibility binding (#2704): the adapter reads the retained student row (health note, legacy contact columns) and the guardian contact rows until People Directory exposes them publicly.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "emergency-snapshot",
+      "source_role": "adapter",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "emergency-snapshot.adapter.settings-platform-domain",
+      "description": "Compatibility binding (#2704): the adapter names the health-info setting key of the retained settings service.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "emergency-snapshot",
+      "source_role": "adapter",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "emergency-snapshot.adapter.legacy-shared-domain",
+      "description": "Compatibility binding (#2704): the adapter supplies the calendar day and the German collation of the shared helpers.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "emergency-snapshot",
+      "source_role": "adapter",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "emergency-snapshot.adapter.document-rendering-application",
+      "description": "Compatibility binding (#2704): the adapter renders the Notfallliste through the retained Document Rendering renderer.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "emergency-snapshot",
+      "source_role": "adapter",
+      "target_owner": "document-rendering",
+      "target_role": "application"
+    },
+    {
+      "id": "emergency-snapshot.adapter-test.people-directory-domain",
+      "description": "Emergency snapshot adapter tests build retained student, guardian and phone rows (#2704).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "emergency-snapshot",
+      "source_role": "adapter-test",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "emergency-snapshot.adapter-test.people-directory-postgres",
+      "description": "Emergency snapshot adapter tests construct the retained student and guardian repositories for the two-tenant RLS proof (#2704).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "emergency-snapshot",
+      "source_role": "adapter-test",
+      "target_owner": "people-directory",
+      "target_role": "postgres"
+    },
+    {
+      "id": "emergency-snapshot.adapter-test.people-directory-compose",
+      "description": "Emergency snapshot adapter tests construct the People Directory facade for the two-tenant RLS proof (#2704).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "emergency-snapshot",
+      "source_role": "adapter-test",
+      "target_owner": "people-directory",
+      "target_role": "compose"
+    },
+    {
+      "id": "emergency-snapshot.adapter-test.facilities-compose",
+      "description": "Emergency snapshot adapter tests construct the Facilities facade for the two-tenant RLS proof (#2704).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "emergency-snapshot",
+      "source_role": "adapter-test",
+      "target_owner": "facilities",
+      "target_role": "compose"
+    },
+    {
+      "id": "emergency-snapshot.adapter-test.document-rendering-application",
+      "description": "Emergency snapshot adapter tests pin the rendered Document Rendering document field by field (#2704).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "emergency-snapshot",
+      "source_role": "adapter-test",
+      "target_owner": "document-rendering",
+      "target_role": "application"
+    },
+    {
+      "id": "emergency-snapshot.adapter-test.orm-sql",
+      "description": "Emergency snapshot adapter tests seed rows and open tenant transactions through the Bun database (#2704).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "emergency-snapshot",
+      "source_role": "adapter-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "inbound-emergency.http-common",
+      "description": "Emergency snapshot handlers reuse common HTTP rendering, the tenant middleware chain and the permission gates (#2704).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-emergency",
+      "source_role": "http",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "inbound-emergency.security-contract",
+      "description": "Emergency snapshot handlers name the users:read permission (#2704).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-emergency",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "inbound-emergency.orm-sql",
+      "description": "Emergency snapshot HTTP composition passes the concrete Bun database to the shared tenant middleware (#2704).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-emergency",
+      "source_role": "http",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "inbound-emergency.adapter-test.http-router",
+      "description": "Emergency snapshot handler tests exercise HTTP requests and responses (#2704).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-emergency",
+      "source_role": "adapter-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "root-composition.to.inbound-emergency-http",
+      "description": "The production root constructs the emergency snapshot HTTP adapter (#2704).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "inbound-emergency",
+      "target_role": "http"
     }
   ]
 }

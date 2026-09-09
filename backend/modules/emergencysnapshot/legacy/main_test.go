@@ -1,4 +1,4 @@
-package emergency
+package legacy
 
 import (
 	"testing"
