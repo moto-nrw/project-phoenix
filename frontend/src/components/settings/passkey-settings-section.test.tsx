@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { PasskeySettingsSection } from "./passkey-settings-section";
 
 const {
@@ -159,10 +165,29 @@ describe("PasskeySettingsSection", () => {
 
     render(<PasskeySettingsSection scope="operator" />);
 
+    // #3109: the trash icon opens the ConfirmDeleteModal; the passkey is
+    // only revoked after the two-step confirmation inside the dialog.
     fireEvent.click(await screen.findByLabelText("Passkey entfernen"));
+    expect(mockRevokePasskey).not.toHaveBeenCalled();
+    expect(
+      within(
+        screen.getByRole("dialog", { name: "Passkey entfernen?" }),
+      ).getByText("Old phone"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Ja, entfernen" }));
+    expect(mockRevokePasskey).not.toHaveBeenCalled();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Endgültig entfernen" }),
+    );
 
     await waitFor(() => {
       expect(mockRevokePasskey).toHaveBeenCalledWith("operator", "5");
+    });
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("heading", { name: "Passkey entfernen?" }),
+      ).not.toBeInTheDocument();
     });
     await waitFor(() => {
       expect(screen.getByText("Passkey wurde entfernt.")).toBeInTheDocument();
@@ -170,6 +195,43 @@ describe("PasskeySettingsSection", () => {
         screen.getByText("Keine Passkeys hinterlegt."),
       ).toBeInTheDocument();
     });
+  });
+
+  it("keeps the passkey when the removal is cancelled", async () => {
+    mockListPasskeys.mockResolvedValue([
+      { id: "5", name: "Old phone", created_at: "2026-06-15T10:00:00Z" },
+    ]);
+    render(<PasskeySettingsSection />);
+
+    fireEvent.click(await screen.findByLabelText("Passkey entfernen"));
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+
+    expect(mockRevokePasskey).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("heading", { name: "Passkey entfernen?" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Old phone")).toBeInTheDocument();
+    expect(mockListPasskeys).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a failed removal inside the dialog", async () => {
+    mockListPasskeys.mockResolvedValue([
+      { id: "5", name: "Old phone", created_at: "2026-06-15T10:00:00Z" },
+    ]);
+    mockRevokePasskey.mockRejectedValueOnce(new Error("Nicht erlaubt"));
+    render(<PasskeySettingsSection />);
+
+    fireEvent.click(await screen.findByLabelText("Passkey entfernen"));
+    fireEvent.click(screen.getByRole("button", { name: "Ja, entfernen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Endgültig entfernen" }),
+    );
+
+    expect(await screen.findByText("Nicht erlaubt")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Passkey entfernen?" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Old phone")).toHaveLength(2);
   });
 
   it("shows load and action errors", async () => {
