@@ -215,6 +215,10 @@ func (rs *Resource) Router() chi.Router {
 		// per-child write scope of the master-data queue — both are decided in the
 		// same Anfragen module.
 		r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Post("/care-schedule-change-requests/{requestId}/decide", rs.decideCareScheduleChangeRequest)
+		// Read-only view of ONE care-schedule request of any status, opened
+		// from a message-thread pill (#3135). Same route gate as deciding; the
+		// service re-checks the per-child review scope. Reading never writes.
+		r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Get("/care-schedule-change-requests/{requestId}", rs.getCareScheduleChangeRequest)
 
 		// Post-enrollment offering change requests (#1665). Approving one moves
 		// the child between activity groups on a chosen date, so it shares the

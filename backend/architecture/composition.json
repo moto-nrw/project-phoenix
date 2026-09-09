@@ -9276,10 +9276,10 @@
     {
       "scope": "test",
       "file": "services/schedule/care_request_service_test.go",
-      "declaration": "newCareFixture",
+      "declaration": "newCareFixtureWithEmitter",
       "target": "database/repositories.NewFactory",
       "lines": [
-        100
+        107
       ],
       "tables": []
     },
