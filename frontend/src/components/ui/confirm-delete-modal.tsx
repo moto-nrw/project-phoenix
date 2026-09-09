@@ -47,7 +47,7 @@ type GateConfig =
       readonly preview?: ReactNode;
     };
 
-export interface ConfirmDeleteScopeOption {
+interface ConfirmDeleteScopeOption {
   readonly value: string;
   readonly label: string;
   readonly description?: string;
@@ -56,7 +56,7 @@ export interface ConfirmDeleteScopeOption {
   readonly disabled?: boolean;
 }
 
-export interface ConfirmDeleteScope {
+interface ConfirmDeleteScope {
   /** Question above the options, e.g. „Was soll gelöscht werden?“ */
   readonly label: string;
   /** Radio group name; also prefixes the option ids. */
