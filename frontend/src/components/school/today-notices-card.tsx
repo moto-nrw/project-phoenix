@@ -8,6 +8,8 @@
 
 import { useSession } from "next-auth/react";
 
+import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import NavigationLink from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -23,13 +25,13 @@ const SCHOOL_NOTICES_ROUTE = "/school/tagesinformationen";
 
 export function TodayNoticesCard() {
   const { data: session } = useSession();
-  const { data } = useSWRAuth<StaffNotice[]>(
+  const { data, error, isValidating, mutate } = useSWRAuth<StaffNotice[]>(
     session ? SCHOOL_NOTICES_TODAY_KEY : null,
     schoolStaffNoticesApi.fetchTodaysNotices,
     { revalidateOnFocus: false },
   );
   const notices = data ?? [];
-  if (notices.length === 0) return null;
+  if (!error && notices.length === 0) return null;
 
   const pending = notices.filter(
     (n) => n.requires_acknowledgement && !n.acknowledged_at,
@@ -48,28 +50,54 @@ export function TodayNoticesCard() {
         </NavigationLink>
       }
     >
-      <ul className="space-y-2">
-        {notices.map((notice) => (
-          <li key={notice.id} className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-medium text-gray-900">
-              {notice.title}
-            </span>
-            {notice.priority === "important" && (
-              <StatusBadge label="Wichtig" tone="orange" />
-            )}
-            {notice.requires_acknowledgement && !notice.acknowledged_at && (
-              <StatusBadge label="Bitte bestätigen" tone="blue" />
-            )}
-          </li>
-        ))}
-      </ul>
-      {pending > 0 && (
-        <p className="mt-3 text-sm text-gray-500">
-          {pending === 1
-            ? "Ein Hinweis wartet auf Ihre Kenntnisnahme."
-            : `${pending} Hinweise warten auf Ihre Kenntnisnahme.`}
-        </p>
-      )}
+      {error ? (
+        <div className="mb-3 space-y-2">
+          <Alert
+            type="error"
+            message={
+              notices.length > 0
+                ? "Die Tagesinformationen konnten nicht aktualisiert werden. Die zuletzt geladenen Hinweise bleiben sichtbar."
+                : "Die Tagesinformationen konnten nicht geladen werden."
+            }
+          />
+          <Button
+            type="button"
+            size="compact"
+            variant="outline"
+            isLoading={isValidating}
+            loadingText="Wird geladen..."
+            onClick={() => void mutate()}
+          >
+            Erneut laden
+          </Button>
+        </div>
+      ) : null}
+      {notices.length > 0 ? (
+        <>
+          <ul className="space-y-2">
+            {notices.map((notice) => (
+              <li key={notice.id} className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-medium text-gray-900">
+                  {notice.title}
+                </span>
+                {notice.priority === "important" && (
+                  <StatusBadge label="Wichtig" tone="orange" />
+                )}
+                {notice.requires_acknowledgement && !notice.acknowledged_at && (
+                  <StatusBadge label="Bitte bestätigen" tone="blue" />
+                )}
+              </li>
+            ))}
+          </ul>
+          {pending > 0 && (
+            <p className="mt-3 text-sm text-gray-500">
+              {pending === 1
+                ? "Ein Hinweis wartet auf Ihre Kenntnisnahme."
+                : `${pending} Hinweise warten auf Ihre Kenntnisnahme.`}
+            </p>
+          )}
+        </>
+      ) : null}
     </SectionCard>
   );
 }
