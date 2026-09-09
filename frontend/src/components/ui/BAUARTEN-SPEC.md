@@ -91,7 +91,14 @@ keine zweite Ansicht.
 6. **Löschen ist portalweit ein Muster:** `ConfirmDeleteModal`. Die
    Texteingabe-Bestätigung ist die Stufe für Unwiderrufliches mit
    Datenverlust, sonst reicht die einfache Rückfrage. Kein `window.confirm`,
-   kein Umschalten des Formular-Footers, kein eigenes Löschmodal je Domäne.
+   kein Umschalten des Formular-Footers, kein eigenes Löschmodal je Domäne,
+   kein `ConfirmationModal` für Löschen. Braucht eine Löschung eine
+   Reichweite (Serie/Einzeltermin, nur dieses Kind/vollständig), liegt die
+   Wahl im `scope`-Slot des Bauteils, nicht in einer vorgeschalteten
+   `ChoiceModal`; die Wahl ist dann der erste Schritt der Rückfrage.
+   Zustandswechsel mit Entfernen-Folge (Stornieren, Widerrufen, Abmelden,
+   Archivieren, „Änderung speichern“) sind keine Löschung und bleiben auf
+   `ConfirmationModal` (#3110).
 7. **Keine deaktivierten Platzhalter-Aktionen.** Was es nicht gibt, steht
    nicht im Menü.
 8. **Zurück** immer über den Kopf der `TenantPage` (`back`/`backHref`).
@@ -162,7 +169,11 @@ bekommt eine shrink-only Baseline analog zum bestehenden
 2. `bauart/no-local-field-grid` — kein lokales `<dt>/<dd>`-Feldgitter
    außerhalb `ui/detail-modal-components`.
 3. `bauart/one-delete-confirm` — nur `ConfirmDeleteModal`; kein
-   `window.confirm`, kein `ConfirmationModal` für Löschen.
+   `window.confirm`, kein `ConfirmationModal` für Löschen. **Umgesetzt**
+   (`scripts/oxlint-plugin-bauart.mjs`, hard-zero, #3110): prüft die
+   Beschriftung der Hauptaktion (`confirmText` einer `ConfirmationModal`,
+   `title` einer `Modal`/`ChoiceModal`/`FormModal`) auf „löschen“ /
+   „entfernen“ und jeden `window.confirm`-Aufruf.
 4. `bauart/no-own-skeleton` — kein eigenes Seiten-Skelett neben den
    `TenantPage`-Zuständen.
 5. `bauart/no-raw-status-hex` — keine rohen Hexwerte für Status- und

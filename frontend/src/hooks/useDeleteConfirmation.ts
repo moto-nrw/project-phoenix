@@ -23,12 +23,20 @@ import { useState, useCallback } from "react";
  *   confirmDelete,
  * } = useDeleteConfirmation();
  *
- * <ConfirmationModal
+ * <ConfirmDeleteModal
  *   isOpen={showConfirmModal}
- *   onClose={handleDeleteCancel}
+ *   title="Eintrag löschen"
+ *   description="…"
+ *   gate={{ mode: "twoStep" }}
  *   onConfirm={() => confirmDelete(() => void handleDelete())}
+ *   onClose={handleDeleteCancel}
+ *   loading={false}
+ *   error=""
  * />
  * ```
+ *
+ * Löschen bestätigt portalweit `ConfirmDeleteModal` (BAUARTEN-SPEC Bauart 2
+ * Regel 6); `ConfirmationModal` ist für Zustandswechsel.
  */
 export function useDeleteConfirmation(
   setShowDetailModal?: (show: boolean) => void,

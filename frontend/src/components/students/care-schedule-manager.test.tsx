@@ -211,29 +211,24 @@ vi.mock("./care-plan-editor-modal", () => ({
     ) : null,
 }));
 
+// ConfirmDeleteModal (#3110) renders through the kit Modal, so the mock
+// keeps its title, body and footer observable.
 vi.mock("~/components/ui/modal", () => ({
-  ConfirmationModal: ({
+  Modal: ({
     isOpen,
     title,
     children,
-    onClose,
-    onConfirm,
+    footer,
   }: {
     isOpen: boolean;
     title: string;
     children: React.ReactNode;
-    onClose: () => void;
-    onConfirm: () => void;
+    footer?: React.ReactNode;
   }) =>
     isOpen ? (
       <div role="dialog" aria-label={title}>
         {children}
-        <button type="button" onClick={onConfirm}>
-          Entfernen
-        </button>
-        <button type="button" onClick={onClose}>
-          Abbrechen
-        </button>
+        {footer}
       </div>
     ) : null,
 }));
@@ -1015,12 +1010,16 @@ describe("CareScheduleManager", () => {
     );
 
     expect(
-      screen.getByRole("dialog", { name: "Geplanten Status entfernen?" }),
+      screen.getByRole("dialog", { name: "Geplanten Status entfernen" }),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/Dienstag, 26.05.2026 entfernt/),
     ).toBeInTheDocument();
+    // Zweistufige Löschbestätigung (ConfirmDeleteModal, #3110).
     fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Endgültig entfernen" }),
+    );
 
     await waitFor(() => {
       expect(onDeleteStatusDay).toHaveBeenCalledWith("7");

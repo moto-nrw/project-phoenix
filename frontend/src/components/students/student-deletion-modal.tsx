@@ -1,23 +1,20 @@
 "use client";
 
-import { Database, Trash2 } from "lucide-react";
+import { Database } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useEffect, useMemo, useState } from "react";
 
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
-import { Input } from "~/components/ui/input";
-import { Modal } from "~/components/ui/modal";
 import {
   DataField,
   DataGrid,
   InfoSection,
   InfoText,
 } from "~/components/ui/detail-modal-components";
-import { WizardStepper } from "~/components/ui/wizard-stepper";
 import {
   deleteStudentWithData,
   fetchStudentDeletionImpact,
@@ -62,8 +59,6 @@ const RETENTION_REASON_OPTION = {
   label: "Aufbewahrungsfrist abgelaufen",
 };
 
-const DELETION_STEPS = ["Daten prüfen", "Name bestätigen"] as const;
-
 interface StudentDeletionModalProps {
   readonly isOpen: boolean;
   readonly studentId: string;
@@ -72,35 +67,40 @@ interface StudentDeletionModalProps {
   /** Die Betreuung dieses Kindes ist beendet — nur dann gibt es den Grund
    *  "Aufbewahrungsfrist abgelaufen" (#2487). */
   readonly careEnded?: boolean;
+  /** Aus einer offenen Abmeldung heraus: das Kind wird sofort gelöscht, ein
+   *  späterer letzter Betreuungstag wird nicht abgewartet (#2434). */
+  readonly skipsLastCareDay?: boolean;
   readonly onClose: () => void;
   readonly onDeleted: () => Promise<void> | void;
 }
 
+// Endgültiges Löschen eines Kindes (#3110): ein ConfirmDeleteModal mit der
+// Texteingabe-Stufe. Vorschau der Folgen, Löschgrund und Bestätigungshaken
+// liegen im Dialog; die Namenseingabe ist das Gate des Bauteils.
 export function StudentDeletionModal({
   isOpen,
   studentId,
   displayName,
   completionId,
   careEnded = false,
+  skipsLastCareDay = false,
   onClose,
   onDeleted,
 }: StudentDeletionModalProps) {
   const [impact, setImpact] = useState<StudentDeletionImpact | null>(null);
-  const [step, setStep] = useState<1 | 2>(1);
   const [reason, setReason] = useState<StudentDeletionReason | "">("");
   const [acknowledged, setAcknowledged] = useState(false);
-  const [confirmationName, setConfirmationName] = useState("");
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
+  // Bumped after a 409 so the dialog remounts and the typed name is cleared.
+  const [gateReset, setGateReset] = useState(0);
 
   useEffect(() => {
     if (!isOpen) {
       setImpact(null);
-      setStep(1);
       setReason("");
       setAcknowledged(false);
-      setConfirmationName("");
       setError("");
       return;
     }
@@ -149,17 +149,16 @@ export function StudentDeletionModal({
     [careEnded],
   );
 
-  const firstStepComplete = Boolean(impact && reason && acknowledged);
-  const nameMatches = confirmationName === impact?.confirmation_name;
+  const prerequisitesMet = Boolean(impact && reason && acknowledged);
 
   const handleDelete = async () => {
-    if (!impact || !reason || !acknowledged || !nameMatches) return;
+    if (!impact || !reason || !acknowledged) return;
     setDeleting(true);
     setError("");
     try {
       const input = {
         expected_fingerprint: impact.fingerprint,
-        confirmation_name: confirmationName,
+        confirmation_name: impact.confirmation_name,
         reason,
         acknowledged: true as const,
       };
@@ -198,10 +197,11 @@ export function StudentDeletionModal({
         deleteError.code === "students.deletion_preview_changed"
       ) {
         // The backend re-checks the preview under a row lock. A 409 means the
-        // user must see a fresh impact before confirming again.
-        setStep(1);
+        // user must see a fresh impact before confirming again: the
+        // acknowledgement resets, and the dialog remounts (`key` below),
+        // which clears the typed name.
         setAcknowledged(false);
-        setConfirmationName("");
+        setGateReset((count) => count + 1);
         setLoadingPreview(true);
         try {
           setImpact(await fetchStudentDeletionImpact(studentId, completionId));
@@ -224,187 +224,119 @@ export function StudentDeletionModal({
     }
   };
 
-  const footer =
-    step === 1 ? (
-      <>
-        <Button
-          type="button"
-          variant="outline"
-          size="md"
-          onClick={onClose}
-          disabled={deleting}
-        >
-          Abbrechen
-        </Button>
-        <Button
-          type="button"
-          variant="danger"
-          size="md"
-          className="text-white"
-          disabled={!firstStepComplete || loadingPreview || deleting}
-          onClick={() => {
-            setError("");
-            setStep(2);
-          }}
-        >
-          Weiter
-        </Button>
-      </>
-    ) : (
-      <>
-        <Button
-          type="button"
-          variant="outline"
-          size="md"
-          onClick={() => setStep(1)}
-          disabled={deleting}
-        >
-          Zurück
-        </Button>
-        <Button
-          type="button"
-          variant="danger"
-          size="md"
-          className="text-white"
-          isLoading={deleting}
-          loadingText="Wird gelöscht…"
-          disabled={!nameMatches || deleting}
-          onClick={() => void handleDelete()}
-        >
-          <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
-          Kind endgültig löschen
-        </Button>
-      </>
-    );
-
   return (
-    <Modal
+    <ConfirmDeleteModal
+      key={gateReset}
       isOpen={isOpen}
-      onClose={onClose}
-      title={
-        step === 1
-          ? `${displayName} löschen`
-          : `Löschung von ${displayName} bestätigen`
-      }
-      widthClass="mx-4 w-[calc(100%-2rem)] max-w-2xl"
-      footer={footer}
-      isDismissDisabled={deleting}
-    >
-      <div className="space-y-4">
-        <WizardStepper steps={DELETION_STEPS} current={step - 1} />
-
+      title={`${displayName} löschen`}
+      description={
         <Alert
           type="warning"
-          message={`${displayName} wird dauerhaft entfernt. Die unten aufgeführten Daten werden je nach Art gelöscht oder vom Kind gelöst. Dieser Schritt kann nicht rückgängig gemacht werden.`}
+          message={`${displayName} wird dauerhaft entfernt. Die unten aufgeführten Daten werden je nach Art gelöscht oder vom Kind gelöst.${
+            skipsLastCareDay
+              ? " Das Kind wird sofort gelöscht. Auch ein späterer letzter Betreuungstag wird nicht abgewartet."
+              : ""
+          } Dieser Schritt kann nicht rückgängig gemacht werden.`}
         />
-
-        {loadingPreview ? (
-          <p className="text-sm text-gray-500">Auswirkungen werden geladen…</p>
-        ) : null}
-        {error ? <Alert type="error" message={error} /> : null}
-
-        {impact && step === 1 ? (
-          <>
-            <InfoSection
-              title={`Was wird gelöscht oder gelöst? (${impact.total})`}
-              icon={<Database className="h-full w-full" strokeWidth={2} />}
-              accentColor="red"
-            >
-              {countRows.length > 0 ? (
-                <DataGrid>
-                  {countRows.map((row) => (
-                    <DataField key={row.key} label={row.label}>
-                      {row.value}
-                    </DataField>
-                  ))}
-                </DataGrid>
-              ) : (
-                <InfoText>Keine weiteren verknüpften Daten gefunden.</InfoText>
-              )}
-            </InfoSection>
-
-            <InfoSection
-              title="Was bleibt erhalten?"
-              icon={<MotoConceptIcon concept="permissions" size="100%" />}
-              accentColor="gray"
-            >
-              <InfoText>
-                Elternkonten und Profile der Erziehungsberechtigten, andere
-                Kinder sowie gemeinsam genutzte Stundenplan-Termine bleiben
-                bestehen. Anmeldungen und Zugriffsprotokolle bleiben erhalten
-                und verlieren nur die Kindzuordnung.
-              </InfoText>
-            </InfoSection>
-
-            <div>
-              <label
-                id="student-deletion-reason-label"
-                htmlFor="student-deletion-reason"
-                className="mb-2 block text-sm font-medium text-gray-700"
-              >
-                Löschgrund
-              </label>
-              <CustomSelect
-                id="student-deletion-reason"
-                value={reason}
-                options={reasonOptions}
-                onChange={(value) =>
-                  setReason(value as StudentDeletionReason | "")
-                }
-                ariaLabelledBy="student-deletion-reason-label"
-                disabled={deleting}
-                required
-              />
-            </div>
-
-            <ChoiceTile
-              htmlFor="student-deletion-acknowledgement"
-              disabled={deleting}
-              className="border-moto-red/20 hover:border-moto-red/20 items-start p-4 font-normal"
-            >
-              <Checkbox
-                id="student-deletion-acknowledgement"
-                checked={acknowledged}
-                onChange={(event) => setAcknowledged(event.target.checked)}
-                disabled={deleting}
-              />
-              <span>
-                Ich habe geprüft, welche Daten entfernt werden, und möchte das
-                Kind dauerhaft löschen.
-              </span>
-            </ChoiceTile>
-          </>
-        ) : null}
-
-        {impact && step === 2 ? (
-          <section className="space-y-3">
-            <p className="text-sm text-gray-700">
-              Zur Sicherheit: Tippe den Namen genau so ein, wie er hier steht.
+      }
+      warningSlot={
+        <div className="space-y-4">
+          {loadingPreview ? (
+            <p className="text-sm text-gray-500">
+              Auswirkungen werden geladen…
             </p>
-            <InfoSection
-              title="Name des Kindes"
-              icon={<MotoConceptIcon concept="permissions" size="100%" />}
-              accentColor="gray"
-            >
-              <InfoText>{impact.confirmation_name}</InfoText>
-            </InfoSection>
-            <Input
-              name="student-deletion-confirmation-name"
-              label="Name erneut eingeben"
-              value={confirmationName}
-              onChange={(event) => setConfirmationName(event.target.value)}
-              placeholder={impact.confirmation_name}
-              autoComplete="off"
-              disabled={deleting}
-              error={
-                confirmationName.length > 0 && !nameMatches
-                  ? "Der Name stimmt noch nicht exakt überein."
-                  : undefined
-              }
-            />
-          </section>
-        ) : null}
-      </div>
-    </Modal>
+          ) : null}
+
+          {impact ? (
+            <>
+              <InfoSection
+                title={`Was wird gelöscht oder gelöst? (${impact.total})`}
+                icon={<Database className="h-full w-full" strokeWidth={2} />}
+                accentColor="red"
+              >
+                {countRows.length > 0 ? (
+                  <DataGrid>
+                    {countRows.map((row) => (
+                      <DataField key={row.key} label={row.label}>
+                        {row.value}
+                      </DataField>
+                    ))}
+                  </DataGrid>
+                ) : (
+                  <InfoText>
+                    Keine weiteren verknüpften Daten gefunden.
+                  </InfoText>
+                )}
+              </InfoSection>
+
+              <InfoSection
+                title="Was bleibt erhalten?"
+                icon={<MotoConceptIcon concept="permissions" size="100%" />}
+                accentColor="gray"
+              >
+                <InfoText>
+                  Elternkonten und Profile der Erziehungsberechtigten, andere
+                  Kinder sowie gemeinsam genutzte Stundenplan-Termine bleiben
+                  bestehen. Anmeldungen und Zugriffsprotokolle bleiben erhalten
+                  und verlieren nur die Kindzuordnung.
+                </InfoText>
+              </InfoSection>
+
+              <div>
+                <label
+                  id="student-deletion-reason-label"
+                  htmlFor="student-deletion-reason"
+                  className="mb-2 block text-sm font-medium text-gray-700"
+                >
+                  Löschgrund
+                </label>
+                <CustomSelect
+                  id="student-deletion-reason"
+                  value={reason}
+                  options={reasonOptions}
+                  onChange={(value) =>
+                    setReason(value as StudentDeletionReason | "")
+                  }
+                  ariaLabelledBy="student-deletion-reason-label"
+                  disabled={deleting}
+                  required
+                />
+              </div>
+
+              <ChoiceTile
+                htmlFor="student-deletion-acknowledgement"
+                disabled={deleting}
+                className="border-moto-red/20 hover:border-moto-red/20 items-start p-4 font-normal"
+              >
+                <Checkbox
+                  id="student-deletion-acknowledgement"
+                  checked={acknowledged}
+                  onChange={(event) => setAcknowledged(event.target.checked)}
+                  disabled={deleting}
+                />
+                <span>
+                  Ich habe geprüft, welche Daten entfernt werden, und möchte das
+                  Kind dauerhaft löschen.
+                </span>
+              </ChoiceTile>
+            </>
+          ) : null}
+        </div>
+      }
+      gate={{
+        mode: "textConfirm",
+        expected: impact?.confirmation_name ?? "",
+        inputId: "student-deletion-confirmation-name",
+        label: "Zur Sicherheit: Name des Kindes erneut eingeben",
+        placeholder: impact?.confirmation_name,
+        preview: impact?.confirmation_name,
+      }}
+      confirmDisabled={loadingPreview || !prerequisitesMet}
+      confirmLabel="Kind endgültig löschen"
+      onConfirm={handleDelete}
+      onClose={onClose}
+      loading={deleting}
+      error={error}
+    />
   );
 }

@@ -239,7 +239,8 @@ export function ShiftEditModal({
   const confirmedClosingConflict = useRef<string | null>(null);
   // Scope question ("Nur diese Woche" / "Ab jetzt dauerhaft" / "Alle Termine
   // der Serie") for edits and deletes of a series-backed row.
-  const [scopeQuestion, setScopeQuestion] = useState<"edit" | "delete" | null>(
+  const [scopeQuestion, setScopeQuestion] = useState<"edit" | null>(null);
+  const [deleteScope, setDeleteScope] = useState<"single" | "following" | null>(
     null,
   );
 
@@ -964,24 +965,21 @@ export function ShiftEditModal({
     }
   };
 
+  // Löschen (#3110): ein Dialog; bei einer Serienschicht liegt die Scope-Wahl
+  // (nur diese Woche / ab jetzt dauerhaft) als Slot in der ConfirmDeleteModal.
   const handleDeleteClick = () => {
-    if (isSeriesRow) {
-      setScopeQuestion("delete");
-      return;
-    }
+    setDeleteScope(isSeriesRow ? null : "single");
     setConfirmDeleteOpen(true);
   };
 
+  const handleConfirmDelete = async () => {
+    if (deleteScope === "following") await endSeriesFromHere();
+    else await deleteSingleShift();
+  };
+
   const handleScopeSelect = (value: string) => {
-    if (scopeQuestion === "edit") {
-      if (value === "single") void saveSingleShift();
-      else void splitSeriesFromHere();
-      return;
-    }
-    if (scopeQuestion === "delete") {
-      if (value === "single") void deleteSingleShift();
-      else void endSeriesFromHere();
-    }
+    if (value === "single") void saveSingleShift();
+    else void splitSeriesFromHere();
   };
 
   const title = seriesEditOpen
@@ -1538,15 +1536,50 @@ export function ShiftEditModal({
         isOpen={confirmDeleteOpen}
         title="Schicht löschen"
         description={
-          <>
-            Die geplante Schicht am <strong>{formatLongDate(date)}</strong> für{" "}
-            <strong>{staffName}</strong> wird gelöscht.
-          </>
+          isSeriesRow ? (
+            <>
+              Die Schicht am <strong>{formatLongDate(date)}</strong> für{" "}
+              <strong>{staffName}</strong> ist Teil einer Serie.
+            </>
+          ) : (
+            <>
+              Die geplante Schicht am <strong>{formatLongDate(date)}</strong>{" "}
+              für <strong>{staffName}</strong> wird gelöscht.
+            </>
+          )
+        }
+        scope={
+          isSeriesRow
+            ? {
+                label: "Was soll gelöscht werden?",
+                name: "shift-delete-scope",
+                value: deleteScope,
+                onChange: (value) =>
+                  setDeleteScope(
+                    value === "following" ? "following" : "single",
+                  ),
+                options: [
+                  {
+                    value: "single",
+                    label: "Nur diese Woche",
+                    description:
+                      "Nur dieser Termin entfällt; die Serie plant ihn nicht erneut ein.",
+                  },
+                  {
+                    value: "following",
+                    label: "Ab jetzt dauerhaft",
+                    description:
+                      "Die Serie endet ab diesem Datum; einzeln angepasste Termine bleiben bestehen.",
+                  },
+                ],
+              }
+            : undefined
         }
         gate={{ mode: "twoStep" }}
+        confirmLabel={isSeriesRow ? "Löschen" : "Endgültig löschen"}
         loading={isDeleting}
         error=""
-        onConfirm={deleteSingleShift}
+        onConfirm={handleConfirmDelete}
         onClose={() => setConfirmDeleteOpen(false)}
       />
       <ChoiceModal
@@ -1570,28 +1603,6 @@ export function ShiftEditModal({
         ]}
         onSelect={handleScopeSelect}
         isBusy={isSaving}
-      />
-      <ChoiceModal
-        isOpen={isOpen && scopeQuestion === "delete"}
-        onClose={() => setScopeQuestion(null)}
-        title="Schicht löschen"
-        description="Diese Schicht ist Teil einer Serie. Was soll gelöscht werden?"
-        options={[
-          {
-            value: "single",
-            label: "Nur diese Woche",
-            description:
-              "Nur dieser Termin entfällt; die Serie plant ihn nicht erneut ein.",
-          },
-          {
-            value: "following",
-            label: "Ab jetzt dauerhaft",
-            description:
-              "Die Serie endet ab diesem Datum; einzeln angepasste Termine bleiben bestehen.",
-          },
-        ]}
-        onSelect={handleScopeSelect}
-        isBusy={isDeleting}
       />
     </>
   );

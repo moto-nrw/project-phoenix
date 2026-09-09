@@ -184,9 +184,9 @@ describe("ClosingDaysEditor", () => {
     render(<ClosingDaysEditor />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Löschen" }));
-    // Bestätigungsdialog: der Confirm-Button trägt ebenfalls "Löschen".
-    const confirmButtons = screen.getAllByRole("button", { name: "Löschen" });
-    fireEvent.click(confirmButtons[confirmButtons.length - 1]!);
+    // Zweistufige Löschbestätigung (ConfirmDeleteModal, #3110).
+    fireEvent.click(screen.getByRole("button", { name: "Ja, löschen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Endgültig löschen" }));
 
     await waitFor(() => expect(mockDelete).toHaveBeenCalledWith("3"));
     await waitFor(() => expect(mockInvalidate).toHaveBeenCalledOnce());

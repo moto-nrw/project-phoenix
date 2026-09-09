@@ -499,7 +499,7 @@ function DialogModal({
   return modalContent;
 }
 
-export type ConfirmVariant = "primary" | "danger" | "warning" | "success";
+type ConfirmVariant = "primary" | "danger" | "warning" | "success";
 
 // A specialized confirmation modal with yes/no buttons
 interface ConfirmationModalProps {

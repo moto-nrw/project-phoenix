@@ -61,6 +61,50 @@ export const WithError: Story = {
   },
 };
 
+export const Scoped: Story = {
+  args: {
+    isOpen: true,
+    title: "Termin löschen",
+    description: "Der Termin gehört zu einer Reihe.",
+    gate: { mode: "twoStep" },
+    confirmLabel: "Löschen",
+    onConfirm: () => {},
+    onClose: () => {},
+    loading: false,
+    error: "",
+  },
+  render: (args) => {
+    function ScopedDemo() {
+      const [scope, setScope] = useState<string | null>(null);
+      return (
+        <ConfirmDeleteModal
+          {...args}
+          scope={{
+            label: "Was soll gelöscht werden?",
+            name: "story-delete-scope",
+            value: scope,
+            onChange: setScope,
+            options: [
+              {
+                value: "occurrence",
+                label: "Nur dieser Termin",
+                description: "Die Reihe bleibt bestehen.",
+              },
+              {
+                value: "series",
+                label: "Ganze Reihe",
+                description: "Alle Termine dieser Reihe werden gelöscht.",
+              },
+            ],
+          }}
+        />
+      );
+    }
+
+    return <ScopedDemo />;
+  },
+};
+
 export const Loading: Story = {
   args: {
     isOpen: true,
