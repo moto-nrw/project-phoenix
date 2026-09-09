@@ -106,6 +106,7 @@ function ListCard({
       className="flex h-full flex-col"
       bodyClassName={HOME_CARD_BODY}
       leading={<HomeCardIcon concept={concept} />}
+      inlineActions
       actions={
         href ? (
           <HomeCardLink href={href} label={`${title}: ${linkText}`}>

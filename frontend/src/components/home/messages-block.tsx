@@ -57,6 +57,7 @@ export function MessagesBlock() {
       leading={<HomeCardIcon concept="messages" />}
       className="flex h-full flex-col"
       bodyClassName={HOME_CARD_BODY}
+      inlineActions
       actions={
         <HomeCardLink
           href={allHref}

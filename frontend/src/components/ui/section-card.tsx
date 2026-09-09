@@ -34,6 +34,7 @@ export function SectionCard({
   leading,
   action,
   actions,
+  inlineActions = false,
   bare = false,
   testId,
   collapsible = false,
@@ -65,6 +66,12 @@ export function SectionCard({
   /** Single header action. `actions` is the multi-element form. */
   action?: ReactNode;
   actions?: ReactNode;
+  /**
+   * Aktionen bleiben auch auf dem Telefon neben dem Titel, statt als eigene
+   * Zeile darunter umzubrechen. Passt für einen einzelnen kompakten Knopf
+   * (Startseiten-Kacheln); breite Aktionsgruppen behalten den Umbruch.
+   */
+  inlineActions?: boolean;
   /**
    * Ohne eigene Kartenfläche, wenn der Inhalt selbst schon aus Karten besteht
    * (eine Reihe `StatCard`, eine Liste `TileCard`). Sonst steht eine weiße
@@ -172,7 +179,13 @@ export function SectionCard({
             </div>
           </div>
           {headerActions != null && (
-            <div className="order-last flex w-full flex-wrap items-center gap-2 sm:order-none sm:w-auto sm:shrink-0">
+            <div
+              className={
+                inlineActions
+                  ? "flex shrink-0 items-center gap-2"
+                  : "order-last flex w-full flex-wrap items-center gap-2 sm:order-none sm:w-auto sm:shrink-0"
+              }
+            >
               {headerActions}
             </div>
           )}

@@ -46,6 +46,7 @@ export function RemindersBlock() {
       className="flex h-full flex-col"
       bodyClassName={HOME_CARD_BODY}
       leading={<HomeCardIcon concept="pickup" />}
+      inlineActions
       actions={
         <HomeCardLink
           href={tenantPath("/reminders")}

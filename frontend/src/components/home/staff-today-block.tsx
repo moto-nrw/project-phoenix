@@ -58,6 +58,7 @@ export function StaffTodayBlock({
       leading={<HomeCardIcon concept="staff" />}
       className="flex h-full flex-col"
       bodyClassName={HOME_CARD_BODY}
+      inlineActions
       actions={
         <HomeCardLink
           href={tenantPath("/staff")}

@@ -68,6 +68,7 @@ export function OpenRequestsBlock() {
       leading={<HomeCardIcon concept="requests" />}
       className="flex h-full flex-col"
       bodyClassName={HOME_CARD_BODY}
+      inlineActions
       actions={
         <HomeCardLink
           href={tenantPath("/anfragen")}

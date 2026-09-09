@@ -80,6 +80,7 @@ export function MyGroupBlock() {
       leading={<HomeCardIcon concept="groups" />}
       className="flex h-full flex-col"
       bodyClassName={HOME_CARD_BODY}
+      inlineActions
       actions={
         <HomeCardLink href={href} label="Meine Gruppe heute: zur Gruppe">
           Zur Gruppe

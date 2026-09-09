@@ -51,6 +51,7 @@ export function StaffNoticesBlock() {
       className="flex h-full flex-col"
       bodyClassName={HOME_CARD_BODY}
       leading={<HomeCardIcon concept="announcements" />}
+      inlineActions
       actions={
         <HomeCardLink
           href={tenantPath("/tagesinformationen")}

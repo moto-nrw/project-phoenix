@@ -120,6 +120,7 @@ export function MyDayBlock() {
       leading={<HomeCardIcon concept="carePlan" />}
       className="flex h-full flex-col"
       bodyClassName={HOME_CARD_BODY}
+      inlineActions
       actions={
         <HomeCardLink href={dayPlanHref} label={`Mein Tag: ${dayPlanLabel}`}>
           {dayPlanLabel}
