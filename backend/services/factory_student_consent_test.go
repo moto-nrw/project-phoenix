@@ -53,6 +53,7 @@ func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 		func(string, string, string, time.Duration, error) {},
 		func(string, string, string, time.Duration, int, error) {},
 		func(string, time.Duration, int64, int64, time.Duration, string, error) {},
+		func(string, time.Duration, int64, int64, time.Duration, string, error) {},
 		true,
 	)
 	require.NoError(t, err)

@@ -42,9 +42,13 @@ import (
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	grouplivelegacy "github.com/moto-nrw/project-phoenix/modules/grouplive/legacy"
+	identityaccessModule "github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
+	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
@@ -55,7 +59,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/auth"
-	calendarService "github.com/moto-nrw/project-phoenix/services/calendar"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"
 	"github.com/moto-nrw/project-phoenix/services/config/sideeffects"
@@ -285,7 +288,7 @@ type Factory struct {
 	ParentEventEmitter *parentmessaging.Emitter
 
 	// Calendar (staff and parent personal calendars)
-	Calendar            calendarService.FullService
+	Calendar            calendarCompose.Application
 	CalendarFeedCleanup calendarService.FeedCleanupService
 
 	// ParentAnnouncement (staff-side parent broadcast news authoring, #1669)
@@ -404,6 +407,10 @@ type DeliveryObserver func(transport, template, caller string, duration time.Dur
 // DeviceFleetObserver records one Device Fleet operation. The composition
 // root supplies it so this package keeps no metrics dependency.
 type DeviceFleetObserver func(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error)
+
+// IdentityAccessObserver records one Identity & Access operation. The
+// composition root supplies it so this package keeps no metrics dependency.
+type IdentityAccessObserver func(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error)
 type DurableDeliveryObserver func(transport, template, operation string, duration time.Duration, count int, err error)
 
 func newAuditCommand(store auditModels.AppendStore, logger *slog.Logger, observe AuditAppendObserver) (auditModels.Command, error) {
@@ -456,16 +463,17 @@ func NewFactoryWithModules(
 	observeDelivery DeliveryObserver,
 	observeDurableDelivery DurableDeliveryObserver,
 	observeDeviceFleet DeviceFleetObserver,
+	observeIdentityAccess IdentityAccessObserver,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
-	if organizations == nil || persons == nil || groups == nil || rooms == nil || membership == nil || calendar == nil || timetableCapability == nil || appointmentCapability == nil || communicationCapability == nil || observeCommunication == nil || observeCarePlan == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil || observeDeviceFleet == nil {
-		return nil, errors.New("organization tenancy, people directory, school structure, facilities, school membership, school calendar, timetable, appointments, communication, care plan, meal plan, feedback, Audit, and Delivery capabilities with their binders and observers are required")
+	if organizations == nil || persons == nil || groups == nil || rooms == nil || membership == nil || calendar == nil || timetableCapability == nil || appointmentCapability == nil || communicationCapability == nil || observeCommunication == nil || observeCarePlan == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil || observeDeviceFleet == nil || observeIdentityAccess == nil {
+		return nil, errors.New("organization tenancy, people directory, school structure, facilities, school membership, school calendar, timetable, appointments, communication, care plan, meal plan, feedback, Audit, Delivery, and Identity & Access capabilities with their binders and observers are required")
 	}
 	communicationCompose.InstallMessageQueryInstrumentation(db)
 	repos.BindAppointments(appointmentCapability)
 	cfg := currentFactoryConfig()
 	cfg.PublicAPIURL = publicAPIURL
-	return newFactory(repos, db, logger, cfg, tenantRuntime, organizations, persons, groups, rooms, membership, calendar, timetableCapability, communicationCapability, observeCommunication, observeCarePlan, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, observeDeviceFleet, false, clocks...)
+	return newFactory(repos, db, logger, cfg, tenantRuntime, organizations, persons, groups, rooms, membership, calendar, timetableCapability, communicationCapability, observeCommunication, observeCarePlan, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, observeDeviceFleet, observeIdentityAccess, false, clocks...)
 }
 
 func newFactory(
@@ -492,6 +500,7 @@ func newFactory(
 	observeDelivery DeliveryObserver,
 	observeDurableDelivery DurableDeliveryObserver,
 	observeDeviceFleet DeviceFleetObserver,
+	observeIdentityAccess IdentityAccessObserver,
 	allowAuditRootWrites bool,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
@@ -1752,7 +1761,7 @@ func newFactory(
 		platform.RendererFunc(communicationCompose.NewParentMessageRenderer(communicationCompose.ParentMessageRendererConfig{DefaultFrom: defaultFrom})),
 	)
 	// Calendar appointment (Termine) notifications — one renderer, all four kinds.
-	appointmentRenderer := platform.RendererFunc(calendarService.NewAppointmentRenderer(calendarService.EmailConfig{
+	appointmentRenderer := platform.RendererFunc(NewCalendarAppointmentRenderer(CalendarEmailDependencies{
 		DefaultFrom: defaultFrom,
 		DB:          db,
 		Guardians:   repos.StudentGuardian,
@@ -2191,48 +2200,60 @@ func newFactory(
 		waker.SetGuardianWaker(pillEmitter)
 	}
 
+	// Enrollment acceptance grants parents portal access through the public
+	// Identity & Access capability instead of the account, mapping and role
+	// repositories (#2699).
+	guardianAccess, err := identityaccessCompose.New(identityaccessCompose.Dependencies{
+		DB: db,
+		Observe: func(observation identityaccessCompose.Observation) {
+			observeIdentityAccess(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, identityaccessModule.ErrorCode(observation.Err), observation.Err)
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
 	enrollmentDecisionService := enrollment.NewDecisionService(enrollment.DecisionServiceConfig{
-		Requests:               repos.Enrollment(),
-		Children:               repos.Enrollment(),
-		Guardians:              repos.Enrollment(),
-		LateInviteRepo:         repos.Enrollment(),
-		ApprovedOfferings:      enrollment.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudents{query: persons}),
-		CareOfferingRepo:       repos.CareOffering,
-		Phases:                 repos.Enrollment(),
-		Schemas:                repos.Enrollment(),
-		DataAccessLogRepo:      repos.DataAccessLog,
-		OfferingAdjustmentRepo: repos.EnrollmentOfferingAdjustment,
-		RestorationAuditRepo:   repos.EnrollmentRestorationAudit,
-		SchoolRepo:             repos.School,
-		PersonRepo:             repos.Person,
-		StaffRepo:              repos.Staff,
-		StudentRepo:            repos.Student,
-		StudentGuardianRepo:    repos.StudentGuardian,
-		GuardianFinancialAudit: repos.GuardianFinancialChange,
-		GuardianProfileRepo:    repos.GuardianProfile,
-		GuardianPhoneRepo:      repos.GuardianPhoneNumber,
-		PickupScheduleRepo:     repos.StudentPickupSchedule,
-		PickupBaselines:        pickupBaselines,
-		ArrivalScheduleRepo:    repos.StudentArrivalSchedule,
-		StudentEnrollmentRepo:  repos.StudentEnrollment,
-		ActivityGroupRepo:      repos.ActivityGroup,
-		ActivityScheduleRepo:   repos.ActivitySchedule,
-		CalendarPeriodRepo:     repos.CalendarPeriod,
-		TimeframeRepo:          repos.Timeframe,
-		ActivityExceptionRepo:  repos.ActivityException,
-		AccountRepo:            repos.Account,
-		AccountTenantRepo:      repos.AccountTenant,
-		AccountRoleRepo:        repos.AccountRole,
-		RoleRepo:               repos.Role,
-		OutboxEnqueuer:         emailOutboxService,
-		StudentAudit:           studentAuditService,
-		StudentConsents:        studentConsentService,
-		CareWithdrawal:         careLifecycleService,
-		Broadcaster:            realtimeHub,
-		PickupGuardianNotifier: pillEmitter,
-		FrontendURL:            frontendURL,
-		ParentsURL:             parentsURL,
-		Settings:               settingsService,
+		Requests:                  repos.Enrollment(),
+		Children:                  repos.Enrollment(),
+		Guardians:                 repos.Enrollment(),
+		LateInviteRepo:            repos.Enrollment(),
+		ApprovedOfferings:         enrollment.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudents{query: persons}),
+		CareOfferingRepo:          repos.CareOffering,
+		Phases:                    repos.Enrollment(),
+		Schemas:                   repos.Enrollment(),
+		DataAccessLogRepo:         repos.DataAccessLog,
+		OfferingAdjustmentRepo:    repos.EnrollmentOfferingAdjustment,
+		RestorationAuditRepo:      repos.EnrollmentRestorationAudit,
+		SchoolRepo:                repos.School,
+		PersonRepo:                repos.Person,
+		StaffRepo:                 repos.Staff,
+		StudentRepo:               repos.Student,
+		StudentGuardianRepo:       repos.StudentGuardian,
+		GuardianFinancialAudit:    repos.GuardianFinancialChange,
+		StudentEnrollment:         persons,
+		DepartureCompanions:       repos.StudentCompanion,
+		DeleteDepartureCompanions: repos.CarePlan().DeleteCompanionEdges,
+		GuardianProfileRepo:       repos.GuardianProfile,
+		GuardianPhoneRepo:         repos.GuardianPhoneNumber,
+		PickupScheduleRepo:        repos.StudentPickupSchedule,
+		PickupBaselines:           pickupBaselines,
+		ArrivalScheduleRepo:       repos.StudentArrivalSchedule,
+		StudentEnrollmentRepo:     repos.StudentEnrollment,
+		ActivityGroupRepo:         repos.ActivityGroup,
+		ActivityScheduleRepo:      repos.ActivitySchedule,
+		CalendarPeriodRepo:        repos.CalendarPeriod,
+		TimeframeRepo:             repos.Timeframe,
+		ActivityExceptionRepo:     repos.ActivityException,
+		GuardianAccess:            guardianAccess,
+		OutboxEnqueuer:            emailOutboxService,
+		StudentAudit:              studentAuditService,
+		StudentConsents:           studentConsentService,
+		CareWithdrawal:            careLifecycleService,
+		Broadcaster:               realtimeHub,
+		PickupGuardianNotifier:    pillEmitter,
+		FrontendURL:               frontendURL,
+		ParentsURL:                parentsURL,
+		Settings:                  settingsService,
 		LockTemplateRecurrence: func(ctx context.Context) error {
 			return schedule.LockTenantRecurrenceWrites(ctx, db)
 		},
@@ -2668,31 +2689,33 @@ func newFactory(
 		Observe:     observeCommunication,
 	})
 
-	calendarSvc := calendarService.NewService(calendarService.Config{
+	calendarSvc := NewCalendarPortal(CalendarDependencies{
+		CalendarFacts: repositories.CalendarFacts{
+			StaffRepo:            repos.Staff,
+			StudentRepo:          repos.Student,
+			GuardianProfileRepo:  repos.GuardianProfile,
+			StudentGuardianRepo:  repos.StudentGuardian,
+			ChildRepo:            repos.ParentChild,
+			GroupRepo:            repos.Group,
+			InstanceStaffRepo:    repos.InstanceStaff,
+			ActivityInstanceRepo: repos.ActivityInstance,
+			RoomRepo:             repos.Room,
+			StaffShiftRepo:       repos.StaffShift,
+			ShiftTypeRepo:        repos.ShiftType,
+			SchoolRepo:           repos.School,
+			AccountRepo:          repos.Account,
+			StaffFeedRepo:        repos.StaffCalendarFeedToken,
+			PersonRepo:           repos.Person,
+		},
 		Appointments:           repos.Appointments(),
-		StaffRepo:              repos.Staff,
-		StudentRepo:            repos.Student,
-		GuardianProfileRepo:    repos.GuardianProfile,
-		StudentGuardianRepo:    repos.StudentGuardian,
-		ChildRepo:              repos.ParentChild,
-		GroupRepo:              repos.Group,
-		InstanceStaffRepo:      repos.InstanceStaff,
-		ActivityInstanceRepo:   repos.ActivityInstance,
-		RoomRepo:               repos.Room,
-		StaffShiftRepo:         repos.StaffShift,
-		ShiftTypeRepo:          repos.ShiftType,
 		UserContext:            userContextService,
 		DB:                     db,
 		CalendarRenderer:       schoolCalendarRendererAdapter{renderer: repos.SchoolCalendar()},
 		Outbox:                 emailOutboxService,
 		PushOutbox:             durablePushAdapter{module: deliveryRuntime.Module},
-		SchoolRepo:             repos.School,
 		Settings:               settingsService,
 		CalDAVPolicy:           calendarCalDAVPolicy{settings: settingsService},
-		AccountRepo:            repos.Account,
-		StaffFeedRepo:          repos.StaffCalendarFeedToken,
 		StaffFeedTombstoneRepo: repos.CalendarStaffFeedTombstone,
-		PersonRepo:             repos.Person,
 		ParentsURL:             parentsURL,
 		FrontendURL:            frontendURL,
 		CalDAVURL:              publicAPIURL,

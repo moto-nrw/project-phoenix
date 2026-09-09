@@ -10,6 +10,11 @@ import (
 // tenant in context when one is present; inside an admin transaction they
 // span every tenant. Writes always require a tenant.
 type StudentStore interface {
+	ReadEnrollment(context.Context, int64, string) (domain.EnrollmentRecord, domain.OperationStats, error)
+	LockEnrollmentClassWrites(context.Context) (domain.OperationStats, error)
+	ApplyEnrollmentProfile(context.Context, int64, domain.EnrollmentProfilePatch) (domain.OperationStats, error)
+	CreateEnrollment(context.Context, domain.EnrollmentStudent) (domain.Student, domain.OperationStats, error)
+	RenewEnrollment(context.Context, int64, domain.EnrollmentStudent) (domain.OperationStats, error)
 	// ListByIDs returns the rows for ids, alumni included.
 	ListByIDs(context.Context, []int64) ([]domain.Student, domain.OperationStats, error)
 	ListNamesByIDs(context.Context, []int64) ([]domain.StudentName, domain.OperationStats, error)

@@ -3,8 +3,25 @@ package peopledirectory_test
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/enrollment"
+
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
+
+func (e *recordingEngine) ReadEnrollmentStudent(context.Context, int64, string) (enrollment.Record, error) {
+	e.calls++
+	return enrollment.Record{}, nil
+}
+
+func (e *recordingEngine) LockEnrollmentClassWrites(context.Context) error {
+	e.calls++
+	return nil
+}
+
+func (e *recordingEngine) ApplyEnrollmentProfile(context.Context, int64, enrollment.ProfilePatch) error {
+	e.calls++
+	return nil
+}
 
 // The student half of the recording engine: every call is counted and its
 // normalized arguments are kept so the module's validation can be asserted
@@ -15,6 +32,16 @@ type studentCall struct {
 	from    string
 	to      string
 	status  string
+}
+
+func (e *recordingEngine) CreateEnrollmentStudent(_ context.Context, input peopledirectory.EnrollmentStudent) (peopledirectory.CreatedEnrollmentStudent, error) {
+	e.calls++
+	return peopledirectory.CreatedEnrollmentStudent{PersonID: input.PersonID, SchoolClass: input.SchoolClass}, nil
+}
+
+func (e *recordingEngine) RenewEnrollmentStudent(context.Context, int64, peopledirectory.EnrollmentStudent) error {
+	e.calls++
+	return nil
 }
 
 func (e *recordingEngine) ListStudentsByIDs(_ context.Context, ids []int64) ([]peopledirectory.Student, error) {

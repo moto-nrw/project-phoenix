@@ -20,7 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	calendarService "github.com/moto-nrw/project-phoenix/services/calendar"
+	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 )
 
 type Resource struct {
@@ -153,7 +153,7 @@ func (rs *Resource) listMy(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	events, err := rs.service.ListMyStaffEvents(r.Context(), from, to)
+	events, err := rs.service.ListMyStaffEvents(r.Context(), calendarService.Date(from), calendarService.Date(to))
 	if err != nil {
 		renderCalendarError(w, r, err)
 		return
@@ -221,8 +221,8 @@ func (rs *Resource) createAppointment(w http.ResponseWriter, r *http.Request) {
 		Title:              req.Title,
 		Description:        req.Description,
 		Location:           req.Location,
-		StartDate:          req.StartDate,
-		EndDate:            req.EndDate,
+		StartDate:          calendarService.Date(req.StartDate),
+		EndDate:            calendarService.Date(req.EndDate),
 		StartTime:          startTime,
 		EndTime:            endTime,
 		AllDay:             req.AllDay,
@@ -276,8 +276,8 @@ func (rs *Resource) updateAppointment(w http.ResponseWriter, r *http.Request) {
 		Title:              req.Title,
 		Description:        req.Description,
 		Location:           req.Location,
-		StartDate:          req.StartDate,
-		EndDate:            req.EndDate,
+		StartDate:          calendarService.Date(req.StartDate),
+		EndDate:            calendarService.Date(req.EndDate),
 		StartTime:          startTime,
 		EndTime:            endTime,
 		AllDay:             req.AllDay,
@@ -328,7 +328,7 @@ func (rs *Resource) cancelOccurrence(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid occurrence date")))
 		return
 	}
-	if err := rs.service.CancelStaffAppointmentOccurrence(r.Context(), appointmentID, occurrenceDate); err != nil {
+	if err := rs.service.CancelStaffAppointmentOccurrence(r.Context(), appointmentID, calendarService.Date(occurrenceDate)); err != nil {
 		renderCalendarError(w, r, err)
 		return
 	}

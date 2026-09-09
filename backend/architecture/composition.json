@@ -6285,261 +6285,6 @@
     },
     {
       "scope": "test",
-      "file": "services/calendar/reminders_delivery_test.go",
-      "declaration": "TestCalendarServiceIntegration_QueuedAppointmentMailStopsAtRevokedChildAccess",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        164
-      ],
-      "tables": [
-        "users.students",
-        "users.students_guardians"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/calendar/reminders_integration_test.go",
-      "declaration": "TestCalendarServiceIntegration_ReminderForMovedRecurringOccurrence",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        632
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/calendar/service_integration_test.go",
-      "declaration": "TestCalendarServiceIntegration_CancelAfterDeleteDoesNotTransition",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        519
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/calendar/service_integration_test.go",
-      "declaration": "TestCalendarServiceIntegration_CancelHonoursEmailOptOutAndTransition",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        473
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/calendar/service_integration_test.go",
-      "declaration": "TestCalendarServiceIntegration_CancelledTombstoneSurvivesLookbackWindow",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        1378
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/calendar/service_integration_test.go",
-      "declaration": "TestCalendarServiceIntegration_CleanupExpiredFeedTombstonesCascadesChildren",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        1162
-      ],
-      "tables": [
-        "calendar.appointments",
-        "calendar.recurrence_rules",
-        "calendar.staff_feed_tombstones"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/calendar/service_integration_test.go",
-      "declaration": "TestCalendarServiceIntegration_DeleteFeedVisibleLeavesTombstone",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        1255
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/calendar/service_integration_test.go",
-      "declaration": "TestCalendarServiceIntegration_EditRacingCancellationConflicts",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        1325
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/calendar/service_integration_test.go",
-      "declaration": "TestCalendarServiceIntegration_FeedRejectsInactiveAccount",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        2381
-      ],
-      "tables": [
-        "auth.accounts"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/calendar/service_integration_test.go",
-      "declaration": "TestCalendarServiceIntegration_FeedSkipsExpiredCountBoundedSeries",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        2975
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/calendar/service_integration_test.go",
-      "declaration": "TestCalendarServiceIntegration_MultiDayRecurrenceVisibleOnFinalOverlapDay",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        2074
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/calendar/service_integration_test.go",
-      "declaration": "TestCalendarServiceIntegration_OccurrenceCancelIsConflictSafe",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        3038
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/calendar/service_integration_test.go",
-      "declaration": "TestCalendarServiceIntegration_RepositoryReadAndReplacePaths",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        2207
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/calendar/service_integration_test.go",
-      "declaration": "TestCalendarServiceIntegration_StaffCalDAVSettingFailureLeavesICalendarAvailable",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        862
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/calendar/service_integration_test.go",
-      "declaration": "TestCalendarServiceIntegration_StaffCalDAVUsesSharedReadOnlyProjectionAndToken",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        777
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/calendar/service_integration_test.go",
-      "declaration": "TestCalendarServiceIntegration_StaffFeedPreservesIdentityDatabaseErrors",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        887
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/calendar/service_integration_test.go",
-      "declaration": "TestCalendarServiceIntegration_StaffSubscriptionFeed",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        725
-      ],
-      "tables": [
-        "auth.account_tenants"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/calendar/service_integration_test.go",
-      "declaration": "TestCalendarServiceIntegration_StaffSubscriptionLifecycleKeepsParentFeedIndependent",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        909
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/calendar/service_integration_test.go",
-      "declaration": "TestCalendarServiceIntegration_StaffSubscriptionMatchesPersonalCalendarWithoutPrivateDescriptions",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        956
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/calendar/service_integration_test.go",
-      "declaration": "TestCalendarServiceIntegration_StaffSubscriptionPublishesOccurrenceAndDeletionCancellations",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        1112
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/calendar/service_integration_test.go",
-      "declaration": "TestCalendarServiceIntegration_StaffSubscriptionRetainsCancelledScheduleEventsOutsideLookback",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        1060
-      ],
-      "tables": [
-        "schedule.activity_instances"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/calendar/service_integration_test.go",
-      "declaration": "TestCalendarServiceIntegration_StaffSubscriptionRetainsRemovedScheduleEvents",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        1013
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/calendar/service_integration_test.go",
-      "declaration": "TestCalendarServiceIntegration_SubscriptionFeed",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        623
-      ],
-      "tables": [
-        "auth.accounts"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/calendar/service_integration_test.go",
-      "declaration": "calendarTestConfig",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        39
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "services/education/class_teacher_service_test.go",
       "declaration": "setupClassTeacherService",
       "target": "database/repositories.NewFactory",
@@ -6799,7 +6544,7 @@
       "declaration": "TestCareOfferingService_Clone_ClearsLinkedTemplateAcrossPhases",
       "target": "database/repositories.NewFactory",
       "lines": [
-        829
+        849
       ],
       "tables": [
         "enrollment.care_offerings",
@@ -6812,7 +6557,7 @@
       "declaration": "TestCareOfferingService_Clone_RepointsToTargetPhase",
       "target": "database/repositories.NewFactory",
       "lines": [
-        775
+        795
       ],
       "tables": [
         "enrollment.care_offerings",
@@ -6825,7 +6570,7 @@
       "declaration": "TestCareOfferingService_Create_ActiveOfferingRequiresActivePeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        592
+        612
       ],
       "tables": []
     },
@@ -6835,7 +6580,7 @@
       "declaration": "TestCareOfferingService_Create_AllowsNonOccurrencePhaseBoundaries",
       "target": "database/repositories.NewFactory",
       "lines": [
-        562
+        582
       ],
       "tables": []
     },
@@ -6845,7 +6590,7 @@
       "declaration": "TestCareOfferingService_Create_RejectsAdvertisedDayAbsentFromShortPhase",
       "target": "database/repositories.NewFactory",
       "lines": [
-        503
+        523
       ],
       "tables": []
     },
@@ -6855,7 +6600,7 @@
       "declaration": "TestCareOfferingService_Create_UsesTemplateCalendarPeriodFallback",
       "target": "database/repositories.NewFactory",
       "lines": [
-        407
+        427
       ],
       "tables": []
     },
@@ -6865,7 +6610,7 @@
       "declaration": "createCareOfferingTemplateGroup",
       "target": "database/repositories.NewFactory",
       "lines": [
-        124
+        144
       ],
       "tables": [
         "activities.schedules"
@@ -6877,7 +6622,7 @@
       "declaration": "createCareOfferingTestPeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        106
+        126
       ],
       "tables": []
     },
@@ -6887,7 +6632,7 @@
       "declaration": "setupCareTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        53
+        73
       ],
       "tables": [
         "enrollment.care_offerings",
@@ -7080,7 +6825,7 @@
       "declaration": "TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        3865
+        3870
       ],
       "tables": []
     },
@@ -27513,22 +27258,22 @@
         },
         {
           "file": "api/base.go",
-          "line": 445,
+          "line": 446,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 608,
+          "line": 609,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 846,
+          "line": 847,
           "declaration": "initializeAPIResourcesWithRequestFeed"
         },
         {
           "file": "api/base.go",
-          "line": 1134,
+          "line": 1135,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -27553,7 +27298,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 605,
+          "line": 606,
           "declaration": "type API"
         },
         {
@@ -27658,12 +27403,12 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 435,
+          "line": 442,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 472,
+          "line": 480,
           "declaration": "newFactory"
         },
         {

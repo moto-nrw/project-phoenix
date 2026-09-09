@@ -7,6 +7,43 @@ import (
 
 var ErrStudentNotFound = errors.New("student not found")
 
+// EnrollmentProfilePatch distinguishes unchanged fields from an explicit NULL.
+type EnrollmentProfilePatch struct {
+	// DepartureSet replaces the normalized plan and its legacy mirrors together.
+	DepartureSet                bool
+	DepartureCompanionDays      map[string]bool
+	AllowedDepartureModes       map[string][]string
+	DepartureDays               map[string]string
+	BusDays                     map[string]bool
+	PickupDays                  map[string]bool
+	PickupStatus                string
+	DepartureCompanionNote      *string
+	HealthInfoSet               bool
+	HealthInfo                  *string
+	ExtraInfoSet                bool
+	ExtraInfo                   *string
+	PhotoConsentGivenAtSet      bool
+	PhotoConsentGivenAt         *time.Time
+	PhotoConsentGivenBySet      bool
+	PhotoConsentGivenBy         *int64
+	AGBAcceptedAtSet            bool
+	AGBAcceptedAt               *time.Time
+	DataProcessingAcceptedAtSet bool
+	DataProcessingAcceptedAt    *time.Time
+	EmailContactAcceptedAtSet   bool
+	EmailContactAcceptedAt      *time.Time
+}
+
+type EnrollmentStudent struct {
+	PersonID      int64
+	SchoolClass   string
+	Status        string
+	EnrolledFrom  string
+	EnrolledUntil string
+	GuardianEmail *string
+	GuardianPhone *string
+}
+
 // StudentStatusAlumnus is the lifecycle status of a graduated child. Rows
 // keep it instead of being deleted, so every roster read excludes it.
 const StudentStatusAlumnus = "alumnus"

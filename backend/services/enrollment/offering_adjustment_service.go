@@ -2,6 +2,7 @@ package enrollment
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -207,7 +208,7 @@ func (s *decisionService) loadOfferingAdjustmentSubject(ctx context.Context, wor
 	if err := s.lockTemplateRecurrence(ctx); err != nil {
 		return err
 	}
-	student, err := s.StudentRepo.FindByIDForUpdate(ctx, *child.CreatedStudentID)
+	student, err := s.readEnrollmentStudent(ctx, *child.CreatedStudentID, "update")
 	if err != nil {
 		return fmt.Errorf("decision: lock adjustment student: %w", err)
 	}
@@ -774,9 +775,12 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 		return nil, err
 	}
 
-	student, err := s.StudentRepo.FindByIDForUpdate(ctx, *child.CreatedStudentID)
-	if err != nil || student == nil {
+	student, err := s.readEnrollmentStudent(ctx, *child.CreatedStudentID, "update")
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && student == nil) {
 		return nil, ErrDecisionStudentNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("decision: load approved child student: %w", err)
 	}
 	person, err := s.PersonRepo.FindByID(ctx, student.PersonID)
 	if err != nil || person == nil {
@@ -805,7 +809,10 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 		student.GuardianEmail = &guardianEmail
 	}
 	student.GuardianPhone = req.GuardianPhone
-	if err := s.StudentRepo.Update(ctx, student); err != nil {
+	if s.StudentEnrollment == nil {
+		return nil, fmt.Errorf("decision: student enrollment capability is required")
+	}
+	if err := s.StudentEnrollment.RenewEnrollmentStudent(ctx, student.ID, enrollmentStudentInput(student)); err != nil {
 		return nil, fmt.Errorf("decision: sync approved child student: %w", err)
 	}
 
@@ -886,7 +893,7 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 			if s.StudentAudit != nil {
 				afterTargetedSync := student
 				if terr != nil {
-					persistedStudent, reloadErr := s.StudentRepo.FindByID(ctx, student.ID)
+					persistedStudent, reloadErr := s.readEnrollmentStudent(ctx, student.ID, "")
 					if reloadErr != nil {
 						return nil, fmt.Errorf("decision: reload approved child after partial targeted-field sync: %w", reloadErr)
 					}
@@ -975,8 +982,8 @@ func (s *decisionService) actorSnapshot(ctx context.Context, accountID int64) (*
 		}
 	}
 	var email *string
-	if s.AccountRepo != nil {
-		if account, err := s.AccountRepo.FindByID(ctx, accountID); err == nil && account != nil && strings.TrimSpace(account.Email) != "" {
+	if s.GuardianAccess != nil {
+		if account, err := s.GuardianAccess.FindAccount(ctx, accountID); err == nil && strings.TrimSpace(account.Email) != "" {
 			value := account.Email
 			email = &value
 		}

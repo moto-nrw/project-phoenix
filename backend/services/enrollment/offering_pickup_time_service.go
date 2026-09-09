@@ -39,8 +39,8 @@ type OfferingPickupBaselineReader interface {
 // caller locks student rows and then changes booking- or offering-derived
 // state. Transaction-scoped locks are safe to acquire again downstream.
 func (s *decisionService) LockOfferingDerivedWrites(ctx context.Context) error {
-	if s.StudentRepo != nil {
-		if err := s.StudentRepo.LockStudentClassWritesShared(ctx); err != nil {
+	if s.StudentEnrollment != nil {
+		if err := s.StudentEnrollment.LockEnrollmentClassWrites(ctx); err != nil {
 			return fmt.Errorf("lock class writes for offering-derived change: %w", err)
 		}
 	}

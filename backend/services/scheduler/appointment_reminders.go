@@ -6,7 +6,7 @@
 // appointment itself.
 //
 // The tick owns only the schedule. Which occurrences fall due, who is reachable
-// and what the mail says lives in services/calendar, which owns occurrence
+// and what the mail says lives in modules/schoolcalendar/portal, which owns occurrence
 // expansion — a second copy of that arithmetic here would drift from the
 // calendar the parent is looking at.
 package scheduler
