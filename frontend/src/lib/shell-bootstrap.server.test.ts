@@ -94,12 +94,8 @@ describe("loadShellBootstrap", () => {
           { id: 1, group_id: 1, room_id: 5, room: { id: 5, name: "Aula" } },
         ],
       },
-      "/api/active/schulhof/status": {
-        data: {
-          exists: true,
-          room_name: "Schulhof",
-          is_user_supervising: false,
-        },
+      "/api/rooms?is_open_room=true": {
+        data: [{ id: 8, name: "Kreativraum" }],
       },
       "/api/staff/absences/pending": { data: [{}, {}] },
       "/api/messages/unread-count": { data: { unread_count: 4 } },
@@ -143,11 +139,7 @@ describe("loadShellBootstrap", () => {
       supervised: [
         { id: 1, group_id: 1, room_id: 5, room: { id: 5, name: "Aula" } },
       ],
-      schulhof: {
-        exists: true,
-        room_name: "Schulhof",
-        is_user_supervising: false,
-      },
+      openRooms: [{ id: 8, name: "Kreativraum" }],
       overviewOk: true,
     });
     expect(shell.counts).toEqual({
@@ -171,7 +163,7 @@ describe("loadShellBootstrap", () => {
       "/auth/account/tenants": { data: [] },
       "/api/students/ogs-group-navigation": { data: [] },
       "/api/me/groups/supervised": { data: [] },
-      "/api/active/schulhof/status": { data: { exists: false } },
+      "/api/rooms?is_open_room=true": { data: [] },
       "/api/staff-notices/today": { data: [] },
       "/api/messages/unread-count": { data: { unread_count: 2 } },
       "/api/reminders": { data: { enabled: false, reminders: [], count: 0 } },

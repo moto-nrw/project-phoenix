@@ -22,6 +22,18 @@ type StudentDisplayReader interface {
 	ListStudentDisplayFacts(context.Context, []int64) ([]StudentDisplayFacts, error)
 }
 
+// VisitDisplayBatchReader exposes only the bulk visit display read needed by
+// projections that combine several active sessions.
+type VisitDisplayBatchReader interface {
+	GetActiveGroupVisitsWithDisplayForGroups(context.Context, []int64) ([]*VisitWithStudentDisplay, error)
+}
+
+// NewVisitDisplayBatchReader builds the narrow bulk reader from the same
+// dependencies as the full active service.
+func NewVisitDisplayBatchReader(deps ServiceDependencies) VisitDisplayBatchReader {
+	return &service{SchoolPresence: deps.SchoolPresence, StudentDisplay: deps.StudentDisplay}
+}
+
 // GetActiveGroupVisitsWithDisplay keeps visit ordering and drops students
 // absent from the tenant-scoped directory, matching the original inner join.
 func (s *service) GetActiveGroupVisitsWithDisplay(ctx context.Context, groupID int64) ([]*VisitWithStudentDisplay, error) {

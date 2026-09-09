@@ -92,7 +92,7 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	presence := active.NewService(active.ServiceDependencies{
+	presenceDeps := active.ServiceDependencies{
 		StudentDisplay: studentDisplayProjection{students: students, groups: displayGroups},
 		SchoolPresence: newStudentPresence(db, logger),
 		GroupRepo:      r.ActiveGroup, SessionStartLock: r.SessionStartLock, SupervisorRepo: r.GroupSupervisor,
@@ -103,7 +103,8 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 		EducationService: groups.Education, UsersService: data.Users, DB: db, Broadcaster: hub, WorkSessionService: work.WorkSession,
 		AttendanceSyncer:         schedule.NewAttendanceSyncService(r.ActivityInstance, r.InstanceStudent, logger),
 		TimetableBridgeCompleter: bridge, Logger: logger, Now: optionalClock(clocks),
-	})
+	}
+	presence := active.NewService(presenceDeps)
 	presence.SetSettingsService(settings.Settings)
 	groups.Active = presence
 	groups.Users = data.Users
@@ -118,14 +119,15 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 		StudentRepo: r.Student, EducationGroupRepo: r.Group, RoomRepo: r.Room, PersonService: data.Users, PlanningTrackRepo: r.PlanningTrack,
 		Settings: settings.Settings, Broadcaster: hub, DB: db, Logger: logger, Now: optionalClock(clocks), RecoveryRepo: repositories.NewActivityRecoveryRepository(db, r.InstanceStudent),
 	})
-	dashboard, err := supervisiondashboardlegacy.New(supervisiondashboardlegacy.Sources{Active: presence, UserContext: groups.UserContext, Education: groups.Education,
-		Schulhof: yard, Operations: operations, Settings: settings.Settings, Pickups: pickups, Arrivals: arrivals, Now: optionalClock(clocks)})
-	if err != nil {
-		return ActiveTestModule{}, fmt.Errorf("compose supervision dashboard projection: %w", err)
-	}
 	rooms, err := repositories.NewFacilities(db)
 	if err != nil {
 		return ActiveTestModule{}, err
+	}
+	dashboard, err := supervisiondashboardlegacy.New(supervisiondashboardlegacy.Sources{Active: presence, ActiveGroups: r.ActiveGroup,
+		OpenVisits: active.NewVisitDisplayBatchReader(presenceDeps), Rooms: openRoomDirectory{rooms: rooms}, UserContext: groups.UserContext, Education: groups.Education,
+		Schulhof: yard, Operations: operations, Settings: settings.Settings, Pickups: pickups, Arrivals: arrivals, Now: optionalClock(clocks)})
+	if err != nil {
+		return ActiveTestModule{}, fmt.Errorf("compose supervision dashboard projection: %w", err)
 	}
 	timetableOwner, err := repositories.NewTimetable(db, students, rooms, schedule.TimetableCareDayLocker(db))
 	if err != nil {
