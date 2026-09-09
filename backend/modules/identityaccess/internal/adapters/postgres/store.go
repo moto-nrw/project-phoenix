@@ -90,9 +90,19 @@ func (s *Store) EnsureActiveTenantMapping(ctx context.Context, accountID, tenant
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
+	// Account lifecycle commands lock account before mapping and roles. Take
+	// that same lock before the upsert, otherwise its mapping lock can cycle
+	// with offboarding and the role insert's account foreign-key lock.
+	started := time.Now()
+	var lockedID int64
+	err = db.NewRaw("SELECT id FROM auth.accounts WHERE id = ? FOR UPDATE", accountID).Scan(ctx, &lockedID)
+	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
+	if err != nil {
+		return stats, fmt.Errorf("identity access postgres: lock account for guardian grant: %w", err)
+	}
 	now := time.Now()
 	row := accountTenantRow{AccountID: accountID, TenantID: tenantID, Status: "active", ActivatedAt: now, CreatedAt: now, UpdatedAt: now}
-	started := time.Now()
+	started = time.Now()
 	result, err := db.NewInsert().Model(&row).ModelTableExpr(`auth.account_tenants`).
 		Value("invited_at", "NULL").
 		On("CONFLICT (account_id, tenant_id) DO UPDATE").
@@ -101,7 +111,7 @@ func (s *Store) EnsureActiveTenantMapping(ctx context.Context, accountID, tenant
 		Set("deactivated_at = NULL").
 		Set("updated_at = NOW()").
 		Exec(ctx)
-	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
+	stats.Add(domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)})
 	if err != nil {
 		return stats, fmt.Errorf("identity access postgres: ensure active tenant mapping: %w", err)
 	}

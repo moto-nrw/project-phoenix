@@ -8,7 +8,7 @@ import (
 )
 
 func init() {
-	MigrationRegistry.Register(&Migration{Version: "1.15.373", Description: "Lease durable staff-offboarding file cleanup (#2709)", DependsOn: []string{"1.15.1", createTenantRolesVersion}})
+	MigrationRegistry.Register(&Migration{Version: "1.15.374", Description: "Lease durable staff-offboarding file cleanup (#2709)", DependsOn: []string{"1.15.1", createTenantRolesVersion}})
 	Migrations.MustRegister(staffOffboardingCleanupUp, staffOffboardingCleanupDown)
 }
 

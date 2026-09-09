@@ -24,7 +24,7 @@ Session starts share activity → staff/balance → room/group locking; force-st
 discovers transferred staff before locking, then rechecks that set under group
 locks before mutation.
 
-Existing table ownership is unchanged. Migration 1.15.373 adds the Workforce-owned
+Existing table ownership is unchanged. Migration 1.15.374 adds the Workforce-owned
 `users.staff_offboarding_cleanup` outbox. Workflow registration uses the reviewed
 [#3130](https://github.com/moto-nrw/project-phoenix/issues/3130) prerequisite and
 [ADR 0013](../adr/0013-staff-offboarding-is-an-application-workflow.md).
@@ -120,3 +120,44 @@ File names remain in existing document/upload records. Cleanup uses immutable
 stored names and treats missing bytes as success; final job completion is
 token-fenced. External filesystem operations cannot be transactionally rolled
 back. No production files, credentials or external delivery were used here.
+
+## Integrated review on 2026-09-09
+
+Rebased onto `de4a1258089e8ffb3be399078a56c73f90772767`, including Enrollment
+acceptance and the Calendar portal. The original measurements above remain
+historical evidence. Migration 1.15.373 was occupied by the integrated Staff
+Notices change, so this migration now uses 1.15.374.
+
+Three concurrency regressions were demonstrated and fixed:
+
+1. Guardian grant previously held the tenant mapping while waiting for the
+   offboarding account lock. The controlled PostgreSQL regression observed
+   `55P03` when offboarding attempted its mapping update. Grants now lock the
+   account before the mapping, without changing global account fields.
+2. Existing-student approval resynchronized class-driven rosters before its
+   guardian grant. The regression observed the resync before the pending
+   guardian role existed. Attachment now precedes roster work in the same
+   transaction, preserving account-before-instance order.
+3. Timetable Update and Patch could discover assignments, then miss a newly
+   assigned and retired staff member before moving history into the future.
+   Both regression variants previously succeeded incorrectly. Editors now
+   lock known staff, lock the instance and recheck assignments; newly
+   discovered staff produce a conflict without inverted lock acquisition.
+   Assignment Create/Update share the instance lock after their staff lock.
+
+All three regression tests pass after the fixes. These controlled cases do
+not establish general deadlock freedom. The existing seeder's inactive-account
+step exercises the real staff DELETE path; no new seed-coverage allowance was
+added.
+
+The isolated runtime workload was rerun after these fixes with the same
+five warmups and 30 sequential samples per operation. Raw evidence:
+[integration samples](staff-offboarding-2709.integration.raw.json).
+
+| Operation | Statements | p50 | p95 | Successful DML rows | Errors |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Preview | 29 | 6.174 ms | 7.363 ms | 0 | 0/30 |
+| Execute | 103 | 21.402 ms | 24.320 ms | 13 | 0/30 |
+
+Pool waits and deadlock-counter delta were zero. These remain local capability
+measurements, not end-to-end DELETE latency or production observations.

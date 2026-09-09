@@ -18,6 +18,52 @@ import (
 
 type approvalOutboxFunc func(context.Context, platformModels.OutboxEnqueueRequest) error
 
+type accountBeforeRosterGroups struct {
+	activitiesModels.GroupRepository
+	check func(context.Context) error
+}
+
+func (r accountBeforeRosterGroups) FindTemplatesWithOfferingSource(ctx context.Context) ([]*activitiesModels.Group, error) {
+	if err := r.check(ctx); err != nil {
+		return nil, err
+	}
+	return r.GroupRepository.FindTemplatesWithOfferingSource(ctx)
+}
+
+func TestExistingStudentApprovalGrantsAccountBeforeClassRosterResync(t *testing.T) {
+	t.Parallel()
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.Ctx(t)
+	account := testpkg.CreateTestAccount(t, env.db, "existing-student-lock-order")
+	existing := testpkg.CreateTestStudent(t, env.db, "Existing", "Child", "1a")
+	requestID, childID := submitOneChild(t, env, account.Email, "Existing", "Child")
+	matchChildToExistingStudent(t, env, childID, existing.ID)
+	_, err := env.db.NewRaw("UPDATE enrollment.request_children SET target_school_class = '2a' WHERE id = ? AND tenant_id = ?", childID, testpkg.Tenant(t)).Exec(ctx)
+	require.NoError(t, err)
+	var txDB bun.IDB
+	checked := false
+	env.repos.ActivityGroup = accountBeforeRosterGroups{GroupRepository: env.repos.ActivityGroup, check: func(txCtx context.Context) error {
+		checked = true
+		var granted bool
+		if err := txDB.NewRaw("SELECT EXISTS (SELECT 1 FROM auth.account_roles ar JOIN auth.roles r ON r.id = ar.role_id WHERE ar.account_id = ? AND ar.tenant_id = ? AND LOWER(r.name) = 'guardian')", account.ID, testpkg.Tenant(t)).Scan(txCtx, &granted); err != nil {
+			return err
+		}
+		if !granted {
+			return errors.New("class roster resync reached before the account-first guardian grant")
+		}
+		return nil
+	}}
+	decision := newDecisionServiceForTest(env.rolloverTestEnv, nil, nil)
+	err = testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
+		txDB = tx
+		_, err := decision.Decide(txCtx, enrollmentService.DecideInput{RequestID: requestID, ChildID: childID, Status: enrollmentService.DecisionApproved, ReviewedBy: env.creatorID})
+		return err
+	})
+	require.True(t, checked, "the changed class must reach roster resynchronization")
+	require.NoError(t, err)
+}
+
 func (f approvalOutboxFunc) EnqueueOutbox(ctx context.Context, request platformModels.OutboxEnqueueRequest) error {
 	return f(ctx, request)
 }

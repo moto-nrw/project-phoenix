@@ -47,6 +47,9 @@ func (s *Service) CreateInstanceStaff(ctx context.Context, fields domain.Instanc
 		if err := s.lockStaffAssignment(txCtx, fields.StaffID); err != nil {
 			return err
 		}
+		if err := s.lockInstanceForStaffAssignment(txCtx, fields.InstanceID, stats); err != nil {
+			return err
+		}
 		value, queryStats, createErr := s.store.CreateInstanceStaff(txCtx, fields)
 		stats.Add(queryStats)
 		result = value
@@ -58,6 +61,9 @@ func (s *Service) CreateInstanceStaff(ctx context.Context, fields domain.Instanc
 func (s *Service) UpdateInstanceStaff(ctx context.Context, id int64, fields domain.InstanceStaffFields) (result domain.InstanceStaff, err error) {
 	err = s.runWrite(ctx, "update_instance_staff", true, func(txCtx context.Context, stats *domain.OperationStats) error {
 		if err := s.lockStaffAssignment(txCtx, fields.StaffID); err != nil {
+			return err
+		}
+		if err := s.lockInstanceForStaffAssignment(txCtx, fields.InstanceID, stats); err != nil {
 			return err
 		}
 		value, found, queryStats, updateErr := s.store.UpdateInstanceStaff(txCtx, id, fields)
@@ -72,6 +78,18 @@ func (s *Service) UpdateInstanceStaff(ctx context.Context, id int64, fields doma
 		return nil
 	})
 	return result, err
+}
+
+func (s *Service) lockInstanceForStaffAssignment(ctx context.Context, instanceID int64, stats *domain.OperationStats) error {
+	_, found, queryStats, err := s.store.LockActivityInstance(ctx, instanceID, false)
+	stats.Add(queryStats)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return domain.ErrActivityInstanceNotFound
+	}
+	return nil
 }
 
 func (s *Service) PatchInstanceStaff(ctx context.Context, id int64, fields domain.InstanceStaffFields, columns []string) (result int64, err error) {

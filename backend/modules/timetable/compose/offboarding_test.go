@@ -4,12 +4,66 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
+
+func TestOperationalDateEditRejectsAssignmentsAddedAfterDiscovery(t *testing.T) {
+	t.Parallel()
+	for _, patch := range []bool{false, true} {
+		name := "update"
+		if patch {
+			name = "patch"
+		}
+		t.Run(name, func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			db := testpkg.SetupTestDB(t)
+			ctx := testpkg.Ctx(t)
+			module := buildModule(t, db)
+			first := testpkg.CreateTestStaff(t, db, "First", "Assignment")
+			retired := testpkg.CreateTestStaff(t, db, "Late", "Assignment")
+			fixture := newOwnedActivityInstanceFixture(t, db, "concurrent-date-edit")
+			past := time.Now().AddDate(-1, 0, 0).Format("2006-01-02")
+			future := time.Now().AddDate(1, 0, 0).Format("2006-01-02")
+			instance := createOwnedActivityInstance(t, module, ctx, fixture, past, "08:00:00", "History")
+			createOwnedInstanceStaff(t, module, ctx, instance.ID, first.ID, true, false)
+			interleaved := false
+			editor, err := New(Dependencies{DB: db,
+				Students: StudentDirectoryFunc(func(context.Context) ([]TargetStudent, error) { return nil, nil }),
+				Rooms:    testRooms(), CareDays: testCareDays(), CarePlan: unusedCarePlanDirectory{},
+				Observe: func(Observation) {},
+				LockStaffAssignment: func(context.Context, int64) error {
+					if !interleaved {
+						interleaved = true
+						// The editor has discovered A but has not locked the instance.
+						// A separate committed writer adds B, then B retires while
+						// the assignment is still historical and must be retained.
+						createOwnedInstanceStaff(t, module, ctx, instance.ID, retired.ID, false, false)
+						_, err := db.NewRaw("UPDATE users.staff SET deleted_at = NOW() WHERE id = ? AND tenant_id = ?", retired.ID, testpkg.Tenant(t)).Exec(ctx)
+						return err
+					}
+					return nil
+				},
+			})
+			require.NoError(t, err)
+			fields := ownedActivityInstanceInput(fixture, future, "08:00:00", "Future")
+			if patch {
+				_, err = editor.PatchActivityInstance(ctx, instance.ID, fields, []string{"date"})
+			} else {
+				_, err = editor.UpdateActivityInstance(ctx, instance.ID, fields)
+			}
+			require.True(t, interleaved)
+			require.ErrorIs(t, err, timetable.ErrOffboardingConflict)
+			unchanged, err := module.FindActivityInstance(ctx, instance.ID)
+			require.NoError(t, err)
+			require.Equal(t, past, unchanged.Date)
+		})
+	}
+}
 
 func TestOffboardingTimetableKeepsTodaysNonPlannedAssignments(t *testing.T) {
 	t.Parallel()

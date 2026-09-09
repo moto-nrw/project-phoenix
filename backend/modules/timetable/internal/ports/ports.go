@@ -110,6 +110,7 @@ type Store interface {
 	DeleteActivityException(context.Context, int64) (domain.OperationStats, error)
 	DeleteActivityExceptionsBefore(context.Context, string) (int64, domain.OperationStats, error)
 	FindActivityInstance(context.Context, int64) (domain.ActivityInstance, bool, domain.OperationStats, error)
+	LockActivityInstance(context.Context, int64, bool) (domain.ActivityInstance, bool, domain.OperationStats, error)
 	ListActivityInstances(context.Context, domain.ActivityInstanceFilter) ([]domain.ActivityInstance, domain.OperationStats, error)
 	MaxActivityInstanceID(context.Context) (int64, domain.OperationStats, error)
 	CountActivityInstances(context.Context, *string) (int, domain.OperationStats, error)
