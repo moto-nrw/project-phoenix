@@ -339,6 +339,41 @@ describe("ChildMasterDataView", () => {
     );
   });
 
+  it("asks before an in-app navigation while an auto-save is pending", async () => {
+    let resolveSave: ((value: ChildMasterData) => void) | undefined;
+    mockUpdateField.mockImplementationOnce(
+      () =>
+        new Promise<ChildMasterData>((resolve) => {
+          resolveSave = resolve;
+        }),
+    );
+
+    render(
+      <>
+        <Link href="/parents/pending">Weiter</Link>
+        <ChildMasterDataView studentId="42" childName="Lina Muster" />
+      </>,
+    );
+    const health = await screen.findByDisplayValue("Allergie");
+
+    fireEvent.change(health, { target: { value: "Neue Info" } });
+    fireEvent.blur(health);
+    await waitFor(() => expect(mockUpdateField).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    fireEvent.click(screen.getByRole("link", { name: "Weiter" }));
+    expect(
+      await screen.findByText("Nicht gespeicherte Änderungen"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hierbleiben" }));
+    await act(async () => {
+      resolveSave?.(masterData({ health_info: "Neue Info" }));
+    });
+  });
+
   it("asks before leaving after a departure request has failed", async () => {
     mockSubmit.mockRejectedValueOnce(new Error("request failed"));
 

@@ -85,22 +85,8 @@ function useUnsavedChangesGuard(
 ) {
   const values = Object.values(states);
   const hasUnsaved = values.some((state) => state !== "clean");
-  const hasFailed = values.includes("error");
 
-  useEffect(() => {
-    if (!hasUnsaved) return;
-    const onBeforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = "";
-    };
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [hasUnsaved]);
-
-  // Der In-App-Guard greift nur bei fehlgeschlagenen Speicherungen: ein
-  // laufender oder per Blur ausgelöster Speichervorgang läuft nach dem
-  // Seitenwechsel zu Ende, eine gescheiterte Änderung wäre verloren.
-  return useNavigationGuard(hasFailed);
+  return useNavigationGuard(hasUnsaved);
 }
 
 interface Props {
