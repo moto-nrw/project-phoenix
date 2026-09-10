@@ -107,6 +107,10 @@ function PlanningTracksPageContent() {
       sections,
       toFormValues: (track) => ({ name: track.name, color: track.color }),
       createDefaults: { name: "", color: DEFAULT_COLOR },
+      // Neue Spuren folgen der bekannten aktiven Reihenfolge. Vor dem Laden
+      // wäre ihre Position geraten und könnte mit einem Bestandseintrag
+      // kollidieren.
+      createDisabled: items === undefined,
       create: (values) =>
         planningTrackService.create({
           name: String(values.name ?? "").trim(),

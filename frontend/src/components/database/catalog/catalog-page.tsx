@@ -122,6 +122,8 @@ export interface CatalogConfig<T extends CatalogItem> {
   readonly readOnlyHint?: string;
   /** Neue Auswahlwerte ergänzen den offenen Entwurf, statt ihn zurückzusetzen. */
   readonly preserveDraftOnSectionsChange?: boolean;
+  /** Anlegen erst freigeben, wenn die für neue Einträge nötigen Daten vorliegen. */
+  readonly createDisabled?: boolean;
 }
 
 interface CatalogPageProps<T extends CatalogItem> {
@@ -166,6 +168,7 @@ export function CatalogPage<T extends CatalogItem>({
   const [formGeneration, setFormGeneration] = useState(0);
 
   const all = useMemo(() => items ?? [], [items]);
+  const createDisabled = config.createDisabled ?? false;
 
   const select = useCallback(
     (id: string | null) => updateUrlParams({ [CATALOG_SELECTION_PARAM]: id }),
@@ -571,6 +574,7 @@ export function CatalogPage<T extends CatalogItem>({
                   <DatabaseCreateAction
                     label={config.singular}
                     ariaLabel={`${config.singular} anlegen`}
+                    disabled={createDisabled}
                     onClick={() => setCreateOpen(true)}
                   />
                 ),
@@ -590,6 +594,7 @@ export function CatalogPage<T extends CatalogItem>({
             <DatabaseCreateAction
               label={config.singular}
               ariaLabel={`${config.singular} anlegen`}
+              disabled={createDisabled}
               onClick={() => setCreateOpen(true)}
             />
           </div>
@@ -635,6 +640,9 @@ export function CatalogPage<T extends CatalogItem>({
                 },
               }}
               onSubmit={handleCreate}
+              preserveDraftOnSectionsChange={
+                config.preserveDraftOnSectionsChange
+              }
             />
           )}
 

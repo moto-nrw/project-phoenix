@@ -1,5 +1,11 @@
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import ShiftTypesPage from "./page";
@@ -179,6 +185,28 @@ describe("Schichtarten — Kategorie-Zuordnung (#1837, #3114)", () => {
 
     expect(screen.getByDisplayValue("Neue Betreuung")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText("Essen")).toBeInTheDocument());
+  });
+
+  it("keeps a create draft when categories finish loading", () => {
+    setCategories({ data: undefined, isLoading: true });
+    const { rerender } = render(<ShiftTypesPage />);
+
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Schichtart anlegen" })[0]!,
+    );
+    const modal = within(screen.getByRole("dialog"));
+    fireEvent.change(modal.getByLabelText("Name*"), {
+      target: { value: "Neue Schichtart" },
+    });
+    fireEvent.change(modal.getByLabelText("Beschreibung"), {
+      target: { value: "Bleibt erhalten" },
+    });
+
+    setCategories({ data: CATEGORIES });
+    rerender(<ShiftTypesPage />);
+
+    expect(screen.getByDisplayValue("Neue Schichtart")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Bleibt erhalten")).toBeInTheDocument();
   });
 
   it("omits the mapping while the categories are still loading", async () => {
