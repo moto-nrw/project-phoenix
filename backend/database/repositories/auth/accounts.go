@@ -96,23 +96,12 @@ func accountMembershipScope(ctx context.Context) (membershipScopeKind, []any) {
 	return membershipScopeTenant, []any{tenantID, auth.AccountTenantStatusActive}
 }
 
-// scopeSelectToMembership applies the caller's membership scope to an
-// account query; the global scope leaves the query untouched.
-func scopeSelectToMembership(ctx context.Context, query *bun.SelectQuery) *bun.SelectQuery {
-	switch kind, args := accountMembershipScope(ctx); kind {
-	case membershipScopeDenied:
-		return query.Where(membershipScopeDeniedSQL)
-	case membershipScopeOrganization:
-		return query.Where(membershipScopeOrganizationSQL, args...)
-	case membershipScopeTenant:
-		return query.Where(membershipScopeTenantSQL, args...)
-	default:
-		return query
-	}
-}
-
-// scopeUpdateToMembership is scopeSelectToMembership for account updates.
-func scopeUpdateToMembership(ctx context.Context, query *bun.UpdateQuery) *bun.UpdateQuery {
+// scopeToMembership applies the caller's membership scope to an account read
+// or write; the global scope leaves the query untouched. It is generic over
+// the query kind for the same reason base.WithTenantFilter is: selects and
+// updates must apply the identical predicate, and one definition is what
+// keeps them from drifting apart.
+func scopeToMembership[Q interface{ Where(string, ...any) Q }](ctx context.Context, query Q) Q {
 	switch kind, args := accountMembershipScope(ctx); kind {
 	case membershipScopeDenied:
 		return query.Where(membershipScopeDeniedSQL)
@@ -253,7 +242,7 @@ func (r *AccountRepository) FindManageableByID(ctx context.Context, id int64) (*
 		Model(account).
 		ModelTableExpr(accountTableAlias).
 		Where(`"account".id = ?`, id)
-	err := scopeSelectToMembership(ctx, query).Scan(ctx)
+	err := scopeToMembership(ctx, query).Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find by id", Err: base.TranslateNotFound(err)}
 	}
@@ -557,7 +546,7 @@ func (r *AccountRepository) list(ctx context.Context, filters map[string]interfa
 	var accounts []*auth.Account
 	query := base.GetDB(ctx, r.db).NewSelect().Model(&accounts).ModelTableExpr(accountTableAlias)
 	if manageable {
-		query = scopeSelectToMembership(ctx, query)
+		query = scopeToMembership(ctx, query)
 	}
 
 	// Apply filters
@@ -900,7 +889,7 @@ func (r *AccountRepository) update(ctx context.Context, account *auth.Account, m
 		ModelTableExpr(accountTableAlias).
 		Where(`"account".id = ?`, account.ID)
 	if manageable {
-		query = scopeUpdateToMembership(ctx, query)
+		query = scopeToMembership(ctx, query)
 	}
 
 	result, err := query.Exec(ctx)

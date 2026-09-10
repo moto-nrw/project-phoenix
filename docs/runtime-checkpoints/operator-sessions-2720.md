@@ -55,20 +55,45 @@ events including warmups, and the database deadlock counter changed by zero.
 No latency SLO or query budget is defined for these flows; the values are
 observations, not thresholds or a before/after benchmark.
 
+Including warmups, the trace records 70 lock-acquisition statement events
+totalling 21.724 ms and 70 pool-wait events totalling 0.044 ms. The existing
+hook measures SQL acquisition duration, an upper bound on lock wait, not
+wait-only time. This workload is sequential, so it contains no contention:
+these values are a floor, not evidence about behaviour under load.
+Zero transactions reported a retry, so there were no serialization retries.
+Duplicate-prevention conflicts do not apply to these flows: no operator or
+session write is an upsert or a conflict-tolerant insert. The one
+conflict-shaped case is the rotation hand-off, whose second attempt is
+rejected rather than absorbed, and is counted as an error in test 2 below,
+not as a conflict.
+
 ## Failure, rollback and contract evidence
 
-1. `TestOperatorSessionWritesJoinAmbientTransaction` injects a failure after a
-   session insert and login stamp inside the administrative transaction; both
-   writes roll back and the retry succeeds from a clean state.
+1. `TestOperatorRefreshRollsBackAfterEachWrite` injects a failure after each of
+   the four authoritative writes of a refresh in turn (successor insert,
+   rotation hand-off, expired-predecessor sweep, login stamp). Each case
+   proves the predecessor survives un-rotated, the successor never existed,
+   the family still ends at the predecessor and no login stamp was recorded,
+   then that the full retry commits.
+   `TestOperatorRevocationRollsBackWithItsCaller` does the same for family
+   revocation and proves a repeated revoke is a no-op, not an error.
+   `TestOperatorSessionWritesJoinAmbientTransaction` covers the login pair.
 2. `TestOperatorSessionRotationHandoff` proves a second hand-off on the same
    session returns `ErrOperatorSessionRotated` instead of silently re-rotating,
    and that rotated predecessors stay as replay evidence until their JWT expires.
-3. `TestOperatorAuditLogRepository_AppendsWithoutTenantAndJoinsTransaction`
-   proves the operator ledger appends without a tenant and rolls back with the
-   caller's transaction.
+3. `TestOperatorAuditLogRepository_AppendsWithoutTenant` proves the operator
+   ledger appends and reads back without a tenant in the runtime, which is
+   what makes it a platform-scoped ledger rather than a tenant one.
 4. `TestPersonRepository_FindWithAccountRequiresAccountLookup` and the staff
    messaging and guardian profile reads fail closed without the owner query.
-5. Existing suites cover the unchanged contracts: operator login, MFA lockout,
+5. `TestOperatorRowsAreVisibleFromEveryTenantContext` pins the isolation
+   contract of the two migrated tables: they carry no tenant column, so an
+   operator and its session resolve identically from the test's own tenant
+   and from a foreign one. The tenant-scoped tables this owner also touches
+   keep their existing two-tenant coverage in
+   `database/repositories/auth` (`account_tenant`, `account_role`,
+   `token`, `invitation_token` repository tests).
+6. Existing suites cover the unchanged contracts: operator login, MFA lockout,
    refresh replay detection and password-change revocation
    (`services/platform`), session validation across all four portals
    (`services/auth`), parent dashboard listing (`modules/careplan/integration`)
@@ -77,5 +102,14 @@ observations, not thresholds or a before/after benchmark.
 ## Rollback and limits
 
 Reverting the composition restores the previous adapters against unchanged
-table shapes. The removed parent-account endpoints had no frontend caller and
-the table is empty in production, so no data is affected.
+table shapes; no schema changed and nothing is deleted irreversibly, so the
+cutover needs no tracer window before its old provider goes.
+
+The parent-account removal is the one change that drops a public surface. It
+is required rather than optional: `auth.accounts_parents` has no target owner,
+and the architecture README forbids inventing one to silence the check, so the
+access had to go. Zero-caller proof is a repository-wide search for the six
+routes, the service methods and the generated client, all of which this change
+removes together; `seed/api/coverage_ratchet_test.go` records the table as
+"empty in prod too". Should the surface be wanted again, it belongs behind the
+Identity & Access owner over `auth.accounts`, not behind the orphaned table.

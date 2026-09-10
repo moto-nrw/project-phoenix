@@ -287,3 +287,167 @@ func TestOperatorObservationsCountRows(t *testing.T) {
 		assert.EqualValues(t, 1, observation.Stats.Queries, observation.Operation)
 	}
 }
+
+// Operators and their refresh sessions are platform-wide: the tables carry no
+// tenant column, so no tenant context may narrow or widen what a reader sees.
+// The isolation contract for these two tables is exactly that, and it has to
+// hold explicitly, because every other table this owner touches is
+// tenant-scoped and a reader could reasonably assume the same here.
+func TestOperatorRowsAreVisibleFromEveryTenantContext(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	access := newOperatorAccess(t, db)
+	operator := testpkg.CreateTestOperator(t, db)
+	session, err := access.CreateOperatorSession(testpkg.Ctx(t), newSession(operator.ID, uuid.Must(uuid.NewV4()).String(), 0))
+	require.NoError(t, err)
+
+	first := testpkg.Tenant(t)
+	second, _ := testpkg.CreateTestTenant(t, db)
+	require.NotEqual(t, first, second)
+
+	for name, tenantID := range map[string]int64{"own tenant": first, "foreign tenant": second} {
+		t.Run(name, func(t *testing.T) {
+			ctx := testpkg.TenantContext(tenantID)
+			found, err := access.FindOperator(ctx, operator.ID)
+			require.NoError(t, err)
+			assert.Equal(t, operator.Email, found.Email)
+			stored, err := access.FindOperatorSessionForUpdate(ctx, session.Token)
+			require.NoError(t, err)
+			assert.Equal(t, operator.ID, stored.OperatorID)
+		})
+	}
+}
+
+// refreshState carries the two sessions one refresh works on between its
+// writes.
+type refreshState struct {
+	predecessor identityaccess.OperatorSession
+	successor   identityaccess.OperatorSession
+}
+
+// The refresh flow performs four authoritative writes in one administrative
+// transaction: the successor insert, the rotation hand-off on the
+// predecessor, the expired-predecessor sweep and the login stamp. A failure
+// after any one of them must leave the family exactly as it was, and the
+// retry must then succeed from that clean state. Injecting after each write
+// in turn is the only way to prove no write escapes the transaction.
+func TestOperatorRefreshRollsBackAfterEachWrite(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	access := newOperatorAccess(t, db)
+	ctx := testpkg.WithTenantRuntime(t, testpkg.Ctx(t), db)
+
+	writes := []struct {
+		name string
+		run  func(context.Context, int64, *refreshState) error
+	}{
+		{"successor insert", func(txCtx context.Context, operatorID int64, state *refreshState) error {
+			successor, err := access.CreateOperatorSession(txCtx, newSession(operatorID, state.predecessor.FamilyID, state.predecessor.Generation+1))
+			state.successor = successor
+			return err
+		}},
+		{"rotation hand-off", func(txCtx context.Context, _ int64, state *refreshState) error {
+			return access.MarkOperatorSessionRotated(txCtx, state.predecessor.ID, state.successor.Token, []byte{7}, time.Now())
+		}},
+		{"expired-predecessor sweep", func(txCtx context.Context, _ int64, state *refreshState) error {
+			return access.DeleteExpiredRotatedOperatorSessions(txCtx, state.predecessor.FamilyID, time.Now())
+		}},
+		{"login stamp", func(txCtx context.Context, operatorID int64, _ *refreshState) error {
+			return access.RecordOperatorLogin(txCtx, operatorID)
+		}},
+	}
+
+	for injectAfter, write := range writes {
+		t.Run("fails after the "+write.name, func(t *testing.T) {
+			// Its own operator, so one subtest's committed retry cannot be
+			// mistaken for another's rolled-back write.
+			operator := testpkg.CreateTestOperatorWithEmail(t, db, uniqueEmail("rollback"), "Rollback Operator")
+			predecessor, err := access.CreateOperatorSession(testpkg.Ctx(t), newSession(operator.ID, uuid.Must(uuid.NewV4()).String(), 0))
+			require.NoError(t, err)
+			state := &refreshState{predecessor: predecessor}
+
+			err = testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, _ bun.Tx) error {
+				for step := 0; step <= injectAfter; step++ {
+					if err := writes[step].run(txCtx, operator.ID, state); err != nil {
+						return err
+					}
+				}
+				return errInjected
+			})
+			require.ErrorIs(t, err, errInjected)
+
+			stored, err := access.FindOperatorSessionForUpdate(testpkg.Ctx(t), predecessor.Token)
+			require.NoError(t, err, "the predecessor must survive the rollback")
+			assert.Nil(t, stored.RotatedAt, "the rolled-back hand-off must not be recorded")
+			assert.Nil(t, stored.ReplacementToken)
+			if state.successor.Token != "" {
+				_, err = access.FindOperatorSessionForUpdate(testpkg.Ctx(t), state.successor.Token)
+				require.ErrorIs(t, err, identityaccess.ErrOperatorSessionNotFound, "the rolled-back successor must not exist")
+			}
+			latest, err := access.LatestOperatorSessionInFamily(testpkg.Ctx(t), predecessor.FamilyID)
+			require.NoError(t, err)
+			assert.Equal(t, predecessor.ID, latest.ID, "the family must still end at the predecessor")
+			reloaded, err := access.FindOperator(testpkg.Ctx(t), operator.ID)
+			require.NoError(t, err)
+			assert.Nil(t, reloaded.LastLogin, "the rolled-back login stamp must not be recorded")
+
+			require.NoError(t, testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, _ bun.Tx) error {
+				for _, retry := range writes {
+					if err := retry.run(txCtx, operator.ID, state); err != nil {
+						return err
+					}
+				}
+				return nil
+			}), "the retry must succeed from the clean state")
+			rotated, err := access.FindOperatorSessionForUpdate(testpkg.Ctx(t), predecessor.Token)
+			require.NoError(t, err)
+			require.NotNil(t, rotated.RotatedAt, "the retry records the hand-off")
+			reloaded, err = access.FindOperator(testpkg.Ctx(t), operator.ID)
+			require.NoError(t, err)
+			require.NotNil(t, reloaded.LastLogin, "the retry records the login stamp")
+		})
+	}
+}
+
+// Revocation and its audit evidence commit together or not at all: a failure
+// after the family delete must leave every session in place.
+func TestOperatorRevocationRollsBackWithItsCaller(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	access := newOperatorAccess(t, db)
+	operator := testpkg.CreateTestOperator(t, db)
+	ctx := testpkg.WithTenantRuntime(t, testpkg.Ctx(t), db)
+	familyID := uuid.Must(uuid.NewV4()).String()
+	for generation := range 2 {
+		_, err := access.CreateOperatorSession(testpkg.Ctx(t), newSession(operator.ID, familyID, generation))
+		require.NoError(t, err)
+	}
+
+	err := testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, _ bun.Tx) error {
+		deleted, err := access.RevokeOperatorSessionFamily(txCtx, familyID)
+		if err != nil {
+			return err
+		}
+		require.Len(t, deleted, 2)
+		return errInjected
+	})
+	require.ErrorIs(t, err, errInjected)
+
+	latest, err := access.LatestOperatorSessionInFamily(testpkg.Ctx(t), familyID)
+	require.NoError(t, err, "the rolled-back revocation must leave the family intact")
+	assert.Equal(t, 1, latest.Generation)
+
+	require.NoError(t, testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, _ bun.Tx) error {
+		_, err := access.RevokeOperatorSessions(txCtx, operator.ID)
+		return err
+	}), "the retry revokes from the clean state")
+	_, err = access.LatestOperatorSessionInFamily(testpkg.Ctx(t), familyID)
+	require.ErrorIs(t, err, identityaccess.ErrOperatorSessionNotFound)
+
+	// Revoking again is a no-op, not an error.
+	require.NoError(t, testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, _ bun.Tx) error {
+		deleted, err := access.RevokeOperatorSessions(txCtx, operator.ID)
+		assert.Empty(t, deleted, "an idempotent retry deletes nothing")
+		return err
+	}))
+}

@@ -13,14 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
-// IdentityAccess is the slice of the Identity & Access capability the legacy
-// repository graph consumes: operator identity and refresh sessions (#2720)
-// and the platform account facts the Care Plan parent reads need.
-type IdentityAccess interface {
-	identityaccess.GuardianAccessQuery
-	identityaccess.OperatorAccess
-}
-
 // NewOperatorRepositories serves the retained operator repository contracts
 // over the Identity & Access owner for compositions that do not build the
 // legacy factory (session validation, focused tests).
