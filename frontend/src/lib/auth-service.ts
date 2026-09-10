@@ -12,12 +12,10 @@ import {
   mapRoleResponse,
   mapPermissionResponse,
   mapTokenResponse,
-  mapParentAccountResponse,
   type Account,
   type Role,
   type Permission,
   type Token,
-  type ParentAccount,
   type LoginRequest,
   type RegisterRequest,
   type TokenResponse,
@@ -29,12 +27,10 @@ import {
   type CreatePermissionRequest,
   type UpdatePermissionRequest,
   type UpdateAccountRequest,
-  type CreateParentAccountRequest,
   type BackendAccount,
   type BackendRole,
   type BackendPermission,
   type BackendToken,
-  type BackendParentAccount,
 } from "./auth-helpers";
 import type { AxiosError } from "axios";
 import type { ApiError } from "./api-error";
@@ -1057,71 +1053,5 @@ export const authService = {
       method: "DELETE",
       mapper: (data) => data.cleaned_tokens,
       errorPrefix: "Cleanup expired tokens",
-    }),
-
-  // Admin endpoints - Parent account management
-  createParentAccount: async (
-    data: CreateParentAccountRequest,
-  ): Promise<ParentAccount> =>
-    authFetch<BackendParentAccount, ParentAccount>("/auth/parent-accounts", {
-      method: "POST",
-      body: {
-        email: data.email,
-        username: data.username,
-        password: data.password,
-        confirm_password: data.confirmPassword,
-      },
-      mapper: mapParentAccountResponse,
-      errorPrefix: "Create parent account",
-    }),
-
-  getParentAccounts: async (filters?: {
-    email?: string;
-    active?: boolean;
-  }): Promise<ParentAccount[]> => {
-    const params = new URLSearchParams();
-    if (filters?.email) params.append("email", filters.email);
-    if (filters?.active !== undefined)
-      params.append("active", filters.active.toString());
-    const queryString = params.toString();
-    const endpoint = queryString
-      ? `/auth/parent-accounts?${queryString}`
-      : "/auth/parent-accounts";
-    return authFetchList<BackendParentAccount, ParentAccount>(
-      endpoint,
-      mapParentAccountResponse,
-      { errorPrefix: "Get parent accounts" },
-    );
-  },
-
-  getParentAccount: async (id: string): Promise<ParentAccount> =>
-    authFetch<BackendParentAccount, ParentAccount>(
-      `/auth/parent-accounts/${id}`,
-      {
-        mapper: mapParentAccountResponse,
-        errorPrefix: "Get parent account",
-      },
-    ),
-
-  updateParentAccount: async (
-    id: string,
-    data: { email: string; username?: string },
-  ): Promise<void> =>
-    authFetchVoid(`/auth/parent-accounts/${id}`, {
-      method: "PUT",
-      body: data,
-      errorPrefix: "Update parent account",
-    }),
-
-  activateParentAccount: async (id: string): Promise<void> =>
-    authFetchVoid(`/auth/parent-accounts/${id}/activate`, {
-      method: "PUT",
-      errorPrefix: "Activate parent account",
-    }),
-
-  deactivateParentAccount: async (id: string): Promise<void> =>
-    authFetchVoid(`/auth/parent-accounts/${id}/deactivate`, {
-      method: "PUT",
-      errorPrefix: "Deactivate parent account",
     }),
 };

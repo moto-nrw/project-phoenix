@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -622,4 +623,17 @@ func TestPersonRepository_EdgeCases(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, longName, found.FirstName)
 	})
+}
+
+// Identity & Access owns auth.accounts: without the owner lookup the
+// repository fails closed instead of joining the table itself (#2720).
+func TestPersonRepository_FindWithAccountRequiresAccountLookup(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	person, _ := testpkg.CreateTestPersonWithAccount(t, db, "NoLookup", "Test")
+
+	_, err := usersRepo.NewPersonRepository(db).FindWithAccount(testpkg.Ctx(t), person.ID)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "account lookup is required")
 }

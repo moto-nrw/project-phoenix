@@ -27,7 +27,7 @@ func TestOperatorMFARepositoriesSmoke(t *testing.T) {
 	ctx := context.Background()
 
 	uniqueEmail := fmt.Sprintf("op-mfa-smoke-%d@test.local", time.Now().UnixNano())
-	op := createTestOperator(t, db, uniqueEmail, "MFA Smoke Operator")
+	op := testpkg.CreateTestOperatorWithEmail(t, db, uniqueEmail, "MFA Smoke Operator")
 
 	credentialRepo := platformRepo.NewOperatorMFACredentialRepository(db)
 	challengeRepo := platformRepo.NewOperatorMFAEmailChallengeRepository(db)

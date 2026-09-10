@@ -845,7 +845,6 @@ func newFactory(
 		StudentGuardianRepo:     repos.StudentGuardian,
 		GuardianInvitationRepo:  repos.GuardianInvitation,
 		AccountRepo:             repos.Account,
-		AccountParentRepo:       repos.AccountParent,
 		AccountTenantRepo:       repos.AccountTenant,
 		AccountRoleRepo:         repos.AccountRole,
 		RoleRepo:                repos.Role,

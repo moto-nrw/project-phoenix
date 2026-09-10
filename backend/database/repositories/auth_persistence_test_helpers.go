@@ -44,7 +44,7 @@ func NewInvitationPersistence(db *bun.DB) (*InvitationPersistence, error) {
 		Permission:      authRepo.NewPermissionRepository(db),
 		AccountRole:     authRepo.NewAccountRoleRepository(db),
 		MFACredential:   authRepo.NewMFACredentialRepository(db),
-		Person:          usersRepo.NewPersonRepository(db),
+		Person:          NewPersonRepository(db),
 		Staff:           staff, Teacher: teachers,
 		Student: usersRepo.NewStudentRepository(db),
 		School:  platformRepo.NewSchoolRepository(db),
@@ -62,12 +62,13 @@ type SessionValidationPersistence struct {
 }
 
 func NewSessionValidationPersistence(db *bun.DB) *SessionValidationPersistence {
+	operators, operatorSessions := NewOperatorRepositories(newUnobservedIdentityAccess(db))
 	return &SessionValidationPersistence{
 		Account:              authRepo.NewAccountRepository(db),
 		AccountTenant:        authRepo.NewAccountTenantRepository(db),
 		Token:                authRepo.NewTokenRepository(db),
-		Operator:             platformRepo.NewOperatorRepository(db),
-		OperatorRefreshToken: platformRepo.NewOperatorRefreshTokenRepository(db),
+		Operator:             operators,
+		OperatorRefreshToken: operatorSessions,
 	}
 }
 
@@ -78,7 +79,7 @@ func newInvitationMembershipRepositories(db *bun.DB) (userModels.StaffRepository
 	if err != nil {
 		return nil, nil, err
 	}
-	deps := newStaffMembershipDeps(usersRepo.NewPersonRepository(db), authRepo.NewAccountRepository(db), authRepo.NewAccountTenantRepository(db), authRepo.NewPermissionRepository(db), authRepo.NewRoleRepository(db))
+	deps := newStaffMembershipDeps(NewPersonRepository(db), authRepo.NewAccountRepository(db), authRepo.NewAccountTenantRepository(db), authRepo.NewPermissionRepository(db), authRepo.NewRoleRepository(db))
 	groupTeachers := newGroupTeacherRepository(membership, educationRepo.NewGroupRepository(db))
 	deps.groupTeachers = func() educationModels.GroupTeacherRepository { return groupTeachers }
 	return staffMembershipRepository{membership: membership, deps: deps}, teacherMembershipRepository{membership: membership, deps: deps}, nil

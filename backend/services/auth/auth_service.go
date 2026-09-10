@@ -25,7 +25,6 @@ const (
 	opUpdateAccount                 = "update account"
 	opValidateToken                 = "validate token"
 	opAssignPermissionToRole        = "assign permission to role"
-	opCreateParentAccount           = "create parent account"
 )
 
 var passwordResetEmailBackoff = []time.Duration{

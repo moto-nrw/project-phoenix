@@ -553,6 +553,7 @@ func (m *mockAuthService) ResetPassword(context.Context, string, string) error {
 func (m *mockAuthService) CleanupExpiredRateLimits(context.Context) (int, error) {
 	return 0, nil
 }
+func (m *mockAuthService) CountExpiredTokens(context.Context) (int, error)   { return 0, nil }
 func (m *mockAuthService) CleanupExpiredTokens(context.Context) (int, error) { return 0, nil }
 func (m *mockAuthService) CleanupExpiredPasswordResetTokens(context.Context) (int, error) {
 	return 0, nil
@@ -576,23 +577,6 @@ func (m *mockAuthService) ListStaffPreviewCandidates(context.Context, int64, int
 	return nil, nil
 }
 func (m *mockAuthService) LinkAccountToTenant(context.Context, string, *int64, int64) (*authModels.Account, error) {
-	return nil, nil
-}
-func (m *mockAuthService) CreateParentAccount(context.Context, string, string, string) (*authModels.AccountParent, error) {
-	return nil, nil
-}
-func (m *mockAuthService) GetParentAccountByID(context.Context, int) (*authModels.AccountParent, error) {
-	return nil, nil
-}
-func (m *mockAuthService) GetParentAccountByEmail(context.Context, string) (*authModels.AccountParent, error) {
-	return nil, nil
-}
-func (m *mockAuthService) UpdateParentAccount(context.Context, *authModels.AccountParent) error {
-	return nil
-}
-func (m *mockAuthService) ActivateParentAccount(context.Context, int) error   { return nil }
-func (m *mockAuthService) DeactivateParentAccount(context.Context, int) error { return nil }
-func (m *mockAuthService) ListParentAccounts(context.Context, map[string]interface{}) ([]*authModels.AccountParent, error) {
 	return nil, nil
 }
 

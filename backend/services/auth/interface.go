@@ -119,6 +119,7 @@ type AuthService interface {
 	CleanupExpiredRateLimits(ctx context.Context) (int, error)
 
 	// Token Management
+	CountExpiredTokens(ctx context.Context) (int, error)
 	CleanupExpiredTokens(ctx context.Context) (int, error)
 	CleanupExpiredPasswordResetTokens(ctx context.Context) (int, error)
 	RevokeAllTokens(ctx context.Context, accountID int) error
@@ -161,15 +162,6 @@ type AuthService interface {
 	// LinkSchoolAccount is LinkAccountToTenant plus the school identity the
 	// role requires, in one transaction (#2222).
 	LinkSchoolAccount(ctx context.Context, email string, roleID *int64, tenantID int64, identity *SchoolAccountIdentity) (*auth.Account, *SchoolIdentity, error)
-
-	// Parent Account Management
-	CreateParentAccount(ctx context.Context, email, username, password string) (*auth.AccountParent, error)
-	GetParentAccountByID(ctx context.Context, id int) (*auth.AccountParent, error)
-	GetParentAccountByEmail(ctx context.Context, email string) (*auth.AccountParent, error)
-	UpdateParentAccount(ctx context.Context, account *auth.AccountParent) error
-	ActivateParentAccount(ctx context.Context, accountID int) error
-	DeactivateParentAccount(ctx context.Context, accountID int) error
-	ListParentAccounts(ctx context.Context, filters map[string]interface{}) ([]*auth.AccountParent, error)
 }
 
 // Note: The NewService function is implemented in auth_service.go

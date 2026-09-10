@@ -5,7 +5,6 @@ import (
 
 	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -56,7 +55,7 @@ func NewMembershipTestRepositories(db *bun.DB) (MembershipTestRepositories, erro
 	})
 	repos := &Factory{
 		db: db, Group: group,
-		Person: usersRepo.NewPersonRepository(db), Account: authRepo.NewAccountRepository(db),
+		Person: NewPersonRepository(db), Account: authRepo.NewAccountRepository(db),
 		AccountTenant: authRepo.NewAccountTenantRepository(db),
 	}
 	repos.membershipDeps = newStaffMembershipDeps(repos.Person, repos.Account, repos.AccountTenant,
