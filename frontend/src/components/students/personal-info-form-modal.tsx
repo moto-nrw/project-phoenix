@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState, useEffect } from "react";
+import { useFormError } from "~/components/ui/form-error";
 import { Alert } from "~/components/ui/alert";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Button } from "~/components/ui/button";
@@ -123,7 +124,7 @@ export function PersonalInfoFormModal({
   // Ein Speicherfehler darf nicht nur als Kurzmeldung vorbeiziehen: er steht
   // oben im Bearbeiten-Bereich, und wo er zu einem Feld gehört, zusätzlich
   // direkt an diesem Feld.
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useFormError();
   const [departureError, setDepartureError] = useState<string | null>(null);
   // Set when the backend refused because a linked child's own departure plan
   // does not allow the requested days. Answering yes re-sends the identical
@@ -180,7 +181,7 @@ export function PersonalInfoFormModal({
       setSaveError(null);
       setDepartureError(null);
     }
-  }, [isOpen, student]);
+  }, [isOpen, student, setSaveError]);
 
   // The Laufgemeinschaft lives in its own table, so it is fetched when the
   // modal opens and submitted together with the departure plan it belongs to.

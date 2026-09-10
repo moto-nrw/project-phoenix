@@ -45,6 +45,7 @@ import {
 } from "~/components/ui/detail-modal-components";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
+import { useFormError } from "~/components/ui/form-error";
 import { Input } from "~/components/ui/input";
 import { Checkbox } from "~/components/ui/checkbox";
 import { DatePicker } from "~/components/ui/date-picker";
@@ -1048,7 +1049,7 @@ function AnnouncementFormModal({
   const [submitting, setSubmitting] = useState<"draft" | "publish" | null>(
     null,
   );
-  const [formError, setFormError] = useState("");
+  const [formError, setFormError] = useFormError();
 
   const validateContent = (): boolean => {
     if (!title.trim()) {

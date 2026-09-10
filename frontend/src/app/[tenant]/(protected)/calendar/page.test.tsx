@@ -360,6 +360,30 @@ describe("StaffCalendarPage", () => {
     expect(mockToastWarning).not.toHaveBeenCalled();
   });
 
+  it("scrolls the alert into view on every failed attempt, even with the same message", async () => {
+    const scrollIntoView = vi.fn();
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scrollIntoView;
+    try {
+      render(<StaffCalendarPage />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Neuer Termin" }));
+      fireEvent.change(screen.getByLabelText("Titel"), {
+        target: { value: "Ohne Ziel" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Termin speichern" }));
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Bitte mindestens ein Ziel auswählen.",
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Termin speichern" }));
+
+      await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(2));
+      expect(mockCreateStaffAppointment).not.toHaveBeenCalled();
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
+  });
+
   it("marks a missing title at the field and in the alert", async () => {
     render(<StaffCalendarPage />);
 

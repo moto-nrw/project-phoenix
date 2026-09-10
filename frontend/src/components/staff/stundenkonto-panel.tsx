@@ -13,6 +13,7 @@ import { Banknote, Clock4, Flag, RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ISODatePicker } from "~/components/ui/date-picker";
+import { useFormError } from "~/components/ui/form-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
@@ -313,7 +314,7 @@ function AdjustmentModal({
   const maxEffectiveDateKey = toISODate(horizon);
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useFormError();
   const toast = useToast();
 
   const handleSubmit = async () => {
@@ -428,7 +429,7 @@ function ResetModal({
   const [carryoverHours, setCarryoverHours] = useState("0");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useFormError();
   const toast = useToast();
 
   const carryover = Number.parseFloat(carryoverHours.replace(",", "."));
@@ -570,7 +571,7 @@ function OpeningModal({
   const [openingHours, setOpeningHours] = useState("0");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useFormError();
   const toast = useToast();
 
   const opening = parseDecimalInput(openingHours);

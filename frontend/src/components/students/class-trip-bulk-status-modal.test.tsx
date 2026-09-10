@@ -37,7 +37,7 @@ vi.mock("~/components/ui/form-modal", () => ({
     children: React.ReactNode;
     footer?: React.ReactNode;
     onClose: () => void;
-    error?: string | null;
+    error?: string | { message: string } | null;
   }) =>
     isOpen ? (
       <div role="dialog" aria-label={title}>
@@ -45,7 +45,11 @@ vi.mock("~/components/ui/form-modal", () => ({
         <button type="button" onClick={onClose}>
           Modal schließen
         </button>
-        {error ? <div role="alert">{error}</div> : null}
+        {error ? (
+          <div role="alert">
+            {typeof error === "string" ? error : error.message}
+          </div>
+        ) : null}
         {children}
         <div>{footer}</div>
       </div>

@@ -259,7 +259,7 @@ const ROW_ACTION_BASELINE = new Map(
       "Block bearbeiten@960",
     ],
     "src/components/staff/stundenkonto-panel.tsx": [
-      "Buchung vom löschen@187",
+      "Buchung vom löschen@188",
     ],
     "src/components/students/class-arrival-exception-panel.tsx": [
       "Entfernen@529",
@@ -272,20 +272,20 @@ const ROW_ACTION_BASELINE = new Map(
     // Formular-intern (Eintrag eines Formularwerts, kein gespeichertes
     // Objekt): fest an die bestehende Stelle gebunden, damit keine neue
     // Zeilenaktion dieselbe Ausnahme nutzen kann.
-    "src/app/[tenant]/(protected)/calendar/page.tsx": ["entfernen@1186"],
+    "src/app/[tenant]/(protected)/calendar/page.tsx": ["entfernen@1190"],
     "src/app/[tenant]/(protected)/meal-plan/page.tsx": [
-      "Gericht entfernen@737",
+      "Gericht entfernen@738",
     ],
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
-      "Antwort entfernen@1428",
-      "Entfernen@1700",
+      "Antwort entfernen@1429",
+      "Entfernen@1701",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
-      "Bedingung löschen@1967",
+      "Bedingung löschen@1974",
     ],
     "src/components/enrollment/enrollment-form-editor.tsx": [
-      "abweichend bearbeiten@2511",
-      "Auswahlzeit entfernen@3435",
+      "abweichend bearbeiten@2512",
+      "Auswahlzeit entfernen@3436",
     ],
     "src/components/guardians/guardian-form-modal.tsx": [
       "Entfernen@585",

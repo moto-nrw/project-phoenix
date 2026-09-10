@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { Button } from "~/components/ui/button";
+import { useFormError } from "~/components/ui/form-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Modal } from "~/components/ui/modal";
 import { Textarea } from "~/components/ui/textarea";
@@ -51,7 +52,7 @@ function AbsenceNoteModal({
 }) {
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useFormError();
   const toast = useToast();
 
   const handleSubmit = async () => {

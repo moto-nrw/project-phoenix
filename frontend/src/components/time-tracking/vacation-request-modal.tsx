@@ -16,6 +16,7 @@ import {
   SlideOverTitle,
 } from "~/components/ui/slide-over";
 import { Textarea } from "~/components/ui/textarea";
+import { useFormError } from "~/components/ui/form-error";
 import { BooleanField } from "~/components/settings/fields/boolean-field";
 import { useToast } from "~/contexts/ToastContext";
 import { dispatchAbsencesRefresh } from "~/lib/absence-helpers";
@@ -202,7 +203,7 @@ export function VacationRequestModal({
   const [endHalf, setEndHalf] = useState(false);
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [formError, setFormError] = useFormError();
   const [confirmedOverBalance, setConfirmedOverBalance] = useState(false);
   const toast = useToast();
 

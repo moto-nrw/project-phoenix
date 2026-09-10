@@ -33,6 +33,7 @@ import {
   fetchCareOfferingBookingStats,
 } from "~/lib/care-offering-booking-stats";
 import { Alert } from "~/components/ui/alert";
+import { useFormError } from "~/components/ui/form-error";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { CheckboxCard } from "~/components/ui/checkbox-card";
 import { ToggleChip } from "~/components/ui/toggle-chip";
@@ -434,7 +435,7 @@ export function CareOfferingsEditor({
     useState<PlannerMetadataStatus>("loading");
   const [loading, setLoading] = useState(true);
   const [catalogError, setCatalogError] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useFormError();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<CareOfferingInput | null>(null);
   const [saving, setSaving] = useState(false);
@@ -575,7 +576,7 @@ export function CareOfferingsEditor({
         if (catalogLoadSeq.current === requestSeq) setLoading(false);
       }
     },
-    [loadPlannerMetadata, toast],
+    [loadPlannerMetadata, setError, toast],
   );
 
   useEffect(() => {
@@ -613,12 +614,16 @@ export function CareOfferingsEditor({
     setError(null);
   };
 
-  const beginEdit = (offering: CareOffering) => {
-    setDraft(offeringToInput(offering));
-    setEditingId(offering.id);
-    setCloneSource(null);
-    setError(null);
-  };
+  // Stabil, weil die Spaltendefinition der Tabelle (useMemo) darauf zeigt.
+  const beginEdit = useCallback(
+    (offering: CareOffering) => {
+      setDraft(offeringToInput(offering));
+      setEditingId(offering.id);
+      setCloneSource(null);
+      setError(null);
+    },
+    [setError],
+  );
 
   const cancelFocusMode = () => {
     setDraft(null);
@@ -729,7 +734,7 @@ export function CareOfferingsEditor({
     } finally {
       setDeletingId(null);
     }
-  }, [deleteTarget, loadAll, toast]);
+  }, [deleteTarget, loadAll, setError, toast]);
 
   const handleClone = async (targetPhaseId: string) => {
     if (!cloneSource) return;
@@ -864,7 +869,7 @@ export function CareOfferingsEditor({
         ),
       },
     ],
-    [deletingId, gradeLevelMax, saving],
+    [beginEdit, deletingId, gradeLevelMax, saving, setError],
   );
 
   const panelOpen = Boolean(draft ?? cloneSource);
@@ -877,7 +882,9 @@ export function CareOfferingsEditor({
       {/* Fehler einer Listenaktion stehen über der Liste. Ist das Panel
           offen, trägt dessen Rumpf den Fehler (Bauart 2 Regel 5); hier
           stünde er sonst hinter dem Panel und doppelt. */}
-      {error && !panelOpen ? <Alert type="error" message={error} /> : null}
+      {error && !panelOpen ? (
+        <Alert type="error" message={error.message} />
+      ) : null}
 
       {metadataStatus === "unavailable" ? (
         <PlannerMetadataNotice onRetry={() => void loadPlannerMetadata()} />

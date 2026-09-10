@@ -41,6 +41,7 @@ import {
   TableSkeleton,
 } from "~/components/ui/page-skeletons";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { useFormError } from "~/components/ui/form-error";
 import { useToast } from "~/contexts/ToastContext";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { berlinTodayISO, toISODate } from "~/lib/date-helpers";
@@ -426,7 +427,7 @@ function StaffCalendarPageInner() {
   // Fehler des Terminformulars: Alert oben im Panel, Titel zusätzlich am
   // Feld (Bauart 2 Regel 5). Kein Toast: der verblasst, bevor jemand bei
   // fünfzehn Feldern das fehlende gefunden hat.
-  const [formError, setFormError] = useState<string | null>(null);
+  const [formError, setFormError] = useFormError();
   const [titleError, setTitleError] = useState<string | undefined>(undefined);
   // Fehler von Aktionen ohne eigene Fläche (Laden, Antworten, Teilnehmer,
   // Absagen): Alert über dem Raster, bis die nächste Aktion startet.
@@ -666,7 +667,9 @@ function StaffCalendarPageInner() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setFormError(null);
+    // Den Formularfehler erst nach bestandener Prüfung löschen: ein
+    // vorheriges `setFormError(null)` würde den Versuchszähler zurücksetzen,
+    // und der Alert scrollt beim zweiten gleichen Fehler nicht mehr.
     setTitleError(undefined);
     if (!title.trim()) {
       setTitleError("Bitte einen Titel eintragen.");
@@ -707,6 +710,7 @@ function StaffCalendarPageInner() {
               !endsOn && occurrenceCount ? occurrenceCount : undefined,
           };
 
+    setFormError(null);
     setSubmitting(true);
     try {
       if (editingId) {

@@ -24,12 +24,16 @@ vi.mock("~/components/ui/form-modal", () => ({
     title: string;
     children: React.ReactNode;
     footer?: React.ReactNode;
-    error?: string | null;
+    error?: string | { message: string } | null;
   }) =>
     isOpen ? (
       <div role="dialog" aria-label={title}>
         <h2>{title}</h2>
-        {error ? <div role="alert">{error}</div> : null}
+        {error ? (
+          <div role="alert">
+            {typeof error === "string" ? error : error.message}
+          </div>
+        ) : null}
         {children}
         <div>{footer}</div>
       </div>

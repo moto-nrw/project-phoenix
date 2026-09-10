@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useFormError } from "~/components/ui/form-error";
 import { ChevronDown, Loader2, StickyNote } from "lucide-react";
 import { Checkbox } from "~/components/ui/checkbox";
 import { FormModal } from "~/components/ui/form-modal";
@@ -57,7 +58,7 @@ export function CareWeeklyPlanModal({
     () => new Set(),
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useFormError();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -93,7 +94,7 @@ export function CareWeeklyPlanModal({
       ),
     );
     setError(null);
-  }, [isOpen, initialArrivalSchedules, initialPickupSchedules]);
+  }, [isOpen, initialArrivalSchedules, initialPickupSchedules, setError]);
 
   const updateRow = (
     weekday: number,

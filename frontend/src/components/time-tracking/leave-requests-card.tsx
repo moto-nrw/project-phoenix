@@ -8,6 +8,7 @@ import { SectionCard } from "~/components/ui/section-card";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { Textarea } from "~/components/ui/textarea";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { useFormError } from "~/components/ui/form-error";
 import { useToast } from "~/contexts/ToastContext";
 import {
   absenceStatusMeta,
@@ -401,7 +402,7 @@ function ResubmitAbsenceForm({
   // Fehler stehen am Formular (Alert oben, Feldfehler am Feld), nicht als
   // Toast: Bauart 2 Regel 5.
   const [noteError, setNoteError] = useState<string | null>(null);
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useFormError();
   const toast = useToast();
 
   const handleSubmit = async () => {

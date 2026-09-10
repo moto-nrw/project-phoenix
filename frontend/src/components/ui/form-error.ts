@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useReducer } from "react";
 
 /**
  * A form's current error together with the number of the attempt that
@@ -40,11 +40,33 @@ export function useFormError(): readonly [
   FormError | null,
   (message: string | null | undefined) => void,
 ] {
-  const [error, setState] = useState<FormError | null>(null);
-  const setError = useCallback((message: string | null | undefined) => {
-    setState((previous) =>
-      message ? { message, attempt: (previous?.attempt ?? 0) + 1 } : null,
-    );
-  }, []);
-  return [error, setError] as const;
+  // useReducer: the dispatch is identity-stable for the component's life, so
+  // a handler may list `setError` in its dependency array without re-creating
+  // itself on every render. The lint cannot see that through a custom hook,
+  // so callers still list it; that is correct and cheap.
+  const [state, setError] = useReducer(nextFormErrorState, EMPTY_STATE);
+  return [state.error, setError] as const;
+}
+
+interface FormErrorState {
+  readonly error: FormError | null;
+  /** Attempts seen so far, kept across clears: a handler that clears the
+   *  error and sets it again in the same tick (React batches both) must
+   *  still land on a NEW attempt number, or the alert would not re-scroll. */
+  readonly attempts: number;
+}
+
+const EMPTY_STATE: FormErrorState = { error: null, attempts: 0 };
+
+function nextFormErrorState(
+  previous: FormErrorState,
+  message: string | null | undefined,
+): FormErrorState {
+  if (!message) {
+    return previous.error === null
+      ? previous
+      : { error: null, attempts: previous.attempts };
+  }
+  const attempts = previous.attempts + 1;
+  return { error: { message, attempt: attempts }, attempts };
 }

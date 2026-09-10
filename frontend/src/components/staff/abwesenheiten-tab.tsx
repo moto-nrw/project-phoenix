@@ -48,6 +48,7 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
+import { useFormError } from "~/components/ui/form-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
@@ -1029,7 +1030,7 @@ function VacationOpeningModal({
   const [remainingDays, setRemainingDays] = useState("");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useFormError();
   const toast = useToast();
 
   const yearEndKey = `${year}-12-31`;
@@ -1277,7 +1278,7 @@ function EditQuotaModal({
   const [entitled, setEntitled] = useState(String(quota.entitled_days));
   const [carryover, setCarryover] = useState(String(quota.carryover_days));
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useFormError();
   const toast = useToast();
 
   const handleSubmit = async () => {

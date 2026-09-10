@@ -5,6 +5,7 @@ import { useSWRConfig } from "swr";
 
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { useFormError } from "~/components/ui/form-error";
 import { Input } from "~/components/ui/input";
 import {
   SlideOver,
@@ -363,7 +364,7 @@ function EditArbeitszeitmodellModal({
 }) {
   const toast = useToast();
 
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useFormError();
   const [mode, setMode] = useState<"template" | "custom">(schedule.mode);
   const [selectedModelId, setSelectedModelId] = useState<string>(
     schedule.model?.id ?? "",

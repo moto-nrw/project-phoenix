@@ -69,6 +69,7 @@ import {
 import { TenantPage } from "~/components/ui/tenant-page";
 import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
 import { Alert } from "~/components/ui/alert";
+import { useFormError } from "~/components/ui/form-error";
 import { formatChatDateTime, formatDate } from "~/lib/date-helpers";
 import {
   DataTable,
@@ -235,7 +236,7 @@ export function PhasesEditor() {
   const [schemas, setSchemas] = useState<FormSchema[]>([]);
   const [periods, setPeriods] = useState<CalendarPeriod[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useFormError();
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<PhaseInput | null>(null);
@@ -319,7 +320,7 @@ export function PhasesEditor() {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [setError, toast]);
 
   useEffect(() => {
     void loadAll();
@@ -351,7 +352,7 @@ export function PhasesEditor() {
     setSchemaSource(assignSchema ? "reuse" : "base");
     setHighlightFormSection(Boolean(assignSchema));
     setError(null);
-  }, [assignSchema]);
+  }, [assignSchema, setError]);
 
   const startEdit = useCallback(
     (phase: Phase, forceFormHighlight = false) => {
@@ -364,7 +365,7 @@ export function PhasesEditor() {
       setHighlightFormSection(Boolean(assignSchema) || forceFormHighlight);
       setError(null);
     },
-    [assignSchema],
+    [assignSchema, setError],
   );
 
   const cancelEdit = () => {
@@ -548,12 +549,15 @@ export function PhasesEditor() {
     toast,
   ]);
 
-  const startRollover = useCallback((phase: Phase) => {
-    setRolloverSource(phase);
-    setEditingId(null);
-    setDraft(null);
-    setError(null);
-  }, []);
+  const startRollover = useCallback(
+    (phase: Phase) => {
+      setRolloverSource(phase);
+      setEditingId(null);
+      setDraft(null);
+      setError(null);
+    },
+    [setError],
+  );
 
   const startRolloverByID = useCallback(
     (sourcePhaseID: string) => {
@@ -566,7 +570,7 @@ export function PhasesEditor() {
       }
       startRollover(source);
     },
-    [phases, startRollover],
+    [phases, setError, startRollover],
   );
 
   useEffect(() => {
@@ -641,7 +645,7 @@ export function PhasesEditor() {
         setSaving(false);
       }
     },
-    [loadAll, refreshPhaseExpiryWarnings, toast],
+    [loadAll, refreshPhaseExpiryWarnings, setError, toast],
   );
 
   const activePhaseCount = phases.filter((phase) => phase.is_active).length;
@@ -960,7 +964,7 @@ export function PhasesEditor() {
             Speicherfehler (Bauart 2 Regel 5); hier stünde er sonst hinter dem
             Panel und doppelt. */}
         {error && !(editingId && draft) ? (
-          <Alert type="error" message={error} />
+          <Alert type="error" message={error.message} />
         ) : null}
         <div className="grid gap-2 sm:grid-cols-3">
           <EnrollmentStatTile

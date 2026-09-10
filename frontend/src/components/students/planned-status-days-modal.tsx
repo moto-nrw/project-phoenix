@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useFormError } from "~/components/ui/form-error";
 import {
   addDays,
   differenceInCalendarDays,
@@ -120,7 +121,7 @@ export function PlannedStatusDaysModal({
   const [selectionHint, setSelectionHint] = useState<string | null>(null);
   // Save error of the form (Bauart 2 Regel 5): shown in the body's error
   // slot, not as a toast by the caller.
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useFormError();
   const [checkedExistingDays, setCheckedExistingDays] = useState<
     StudentStatusDay[]
   >([]);
@@ -369,7 +370,7 @@ export function PlannedStatusDaysModal({
       setStatusDayPendingDeletion(null);
       setCarePlanDay(null);
     },
-    [isClassTrip],
+    [isClassTrip, setSubmitError],
   );
 
   useEffect(() => {

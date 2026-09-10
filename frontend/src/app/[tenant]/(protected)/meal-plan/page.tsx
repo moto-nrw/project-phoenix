@@ -14,6 +14,7 @@ import {
 
 import { Button } from "~/components/ui/button";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { useFormError } from "~/components/ui/form-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
@@ -162,7 +163,7 @@ export default function MealPlanPage() {
   // meals based on a failed load, so we surface an error + retry instead.
   const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useFormError();
   const [copyingPrev, setCopyingPrev] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, DishDraft[]>>({});
   const [originals, setOriginals] = useState<Record<string, DishDraft[]>>({});

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
+import { useFormError } from "~/components/ui/form-error";
 import { useToast } from "~/contexts/ToastContext";
 import type { ActivityCategory } from "~/lib/activity-helpers";
 import {
@@ -289,7 +290,7 @@ export function useEventForm({
   const [loadingStaff, setLoadingStaff] = useState(false);
   const [staffLoadError, setStaffLoadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [validationError, setValidationError] = useState<string | null>(null);
+  const [validationError, setValidationError] = useFormError();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteEffectiveDate, setDeleteEffectiveDate] = useState("");
@@ -697,6 +698,7 @@ export function useEventForm({
     initialSeries,
     invalidateReferenceLoads,
     isOpen,
+    setValidationError,
     variant,
   ]);
 

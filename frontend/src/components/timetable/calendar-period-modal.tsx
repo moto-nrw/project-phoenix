@@ -29,6 +29,7 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import { useFormError } from "~/components/ui/form-error";
 import { useToast } from "~/contexts/ToastContext";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import {
@@ -141,7 +142,7 @@ export function CalendarPeriodModal({
   const [deleting, setDeleting] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [togglingPhaseId, setTogglingPhaseId] = useState<string | null>(null);
-  const [validationError, setValidationError] = useState<string | null>(null);
+  const [validationError, setValidationError] = useFormError();
   const [saveWarnings, setSaveWarnings] = useState<CalendarPeriodWarning[]>([]);
   // Once a save succeeded in this modal session, further submits must update
   // that period — otherwise a corrected re-submit after an advisory warning
@@ -187,7 +188,7 @@ export function CalendarPeriodModal({
     setDeleteConfirmOpen(false);
     setSaveWarnings([]);
     setSavedPeriod(null);
-  }, [isOpen, initial, createDefaults]);
+  }, [isOpen, initial, createDefaults, setValidationError]);
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));

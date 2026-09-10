@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useFormError } from "~/components/ui/form-error";
 import { format } from "date-fns";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -49,7 +50,7 @@ export function ClassTripBulkStatusModal({
   const [conflictTotal, setConflictTotal] = useState(0);
   // Validation and save errors of the form (Bauart 2 Regel 5): shown in the
   // FormModal error slot, not as a toast.
-  const [formError, setFormError] = useState<string | null>(null);
+  const [formError, setFormError] = useFormError();
 
   useEffect(() => {
     if (!isOpen) {
@@ -63,7 +64,7 @@ export function ClassTripBulkStatusModal({
     setConflicts([]);
     setConflictTotal(0);
     setFormError(null);
-  }, [isOpen]);
+  }, [isOpen, setFormError]);
 
   const handleSubmit = async () => {
     setFormError(null);

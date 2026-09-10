@@ -5,6 +5,7 @@ import { Eye, Landmark, Loader2 } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { useFormError } from "~/components/ui/form-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
@@ -62,7 +63,7 @@ export function StudentPaymentCard({
   const [holderDraft, setHolderDraft] = useState("");
   // Ein Fehler-Slot für die ganze Karte: Alert oben im Bearbeiten-Bereich
   // (Bauart 2 Regel 5), gelöscht, sobald die nächste Aktion startet.
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useFormError();
 
   const payerId = payer?.id ?? null;
 

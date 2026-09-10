@@ -24,6 +24,21 @@ describe("useFormError", () => {
     });
   });
 
+  it("keeps counting across a clear in the same tick", () => {
+    const { result } = renderHook(() => useFormError());
+
+    act(() => result.current[1]("Fehler"));
+    expect(result.current[0]?.attempt).toBe(1);
+
+    // A submit handler that resets the slot before validating and then sets
+    // the same message again: both updates land in one render.
+    act(() => {
+      result.current[1](null);
+      result.current[1]("Fehler");
+    });
+    expect(result.current[0]).toEqual({ message: "Fehler", attempt: 2 });
+  });
+
   it("clears on null and on an empty string", () => {
     const { result } = renderHook(() => useFormError());
 

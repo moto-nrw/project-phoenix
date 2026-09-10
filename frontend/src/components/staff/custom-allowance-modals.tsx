@@ -7,6 +7,7 @@ import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
+import { useFormError } from "~/components/ui/form-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
@@ -124,7 +125,7 @@ function useBookingSubmission(
   projection: ReturnType<typeof projectBooking>,
 ) {
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useFormError();
   const toast = useToast();
   const save = async () => {
     if (!projection.selected || projection.blocked) return;

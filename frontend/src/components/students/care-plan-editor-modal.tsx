@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useFormError } from "~/components/ui/form-error";
 import { ChevronDown, Clock, Loader2, StickyNote } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
@@ -184,7 +185,7 @@ export function CarePlanEditorModal({
     () => new Set(),
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useFormError();
   const [showRemovalConfirm, setShowRemovalConfirm] = useState(false);
   const [showParentConfirm, setShowParentConfirm] = useState(false);
   const [noteDeletionTarget, setNoteDeletionTarget] =
@@ -248,7 +249,7 @@ export function CarePlanEditorModal({
     setPickupMode(pickupInit.mode);
     setPickupTime(pickupInit.time);
     setPickupReason(pickupInit.reason);
-  }, [isOpen, isException, arrivalDay, pickupDay]);
+  }, [isOpen, isException, arrivalDay, pickupDay, setError]);
 
   useEffect(() => {
     if (!isOpen || isException) {
@@ -283,7 +284,7 @@ export function CarePlanEditorModal({
           .map((row) => row.weekday),
       ),
     );
-  }, [isOpen, isException, weeklyArrival, weeklyPickup]);
+  }, [isOpen, isException, weeklyArrival, weeklyPickup, setError]);
 
   useEffect(() => {
     if (weeklyAdjustment && !decisionWasVisible.current) {

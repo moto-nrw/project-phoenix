@@ -8,6 +8,7 @@
 import { useState, type ReactNode } from "react";
 
 import { Button } from "~/components/ui/button";
+import { useFormError } from "~/components/ui/form-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Modal } from "~/components/ui/modal";
 import { Textarea } from "~/components/ui/textarea";
@@ -35,7 +36,7 @@ export function MonthCloseReasonModal({
 }) {
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useFormError();
   const toast = useToast();
 
   const canSubmit = !submitting && reason.trim() !== "";

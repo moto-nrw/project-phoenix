@@ -32,6 +32,7 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useToast } from "~/contexts/ToastContext";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Modal } from "~/components/ui/modal";
+import { useFormError } from "~/components/ui/form-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
 import { Alert } from "~/components/ui/alert";
@@ -360,7 +361,7 @@ export function EnrollmentFormEditor({
   );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useFormError();
   const [mode, setMode] = useState<EditorMode>("overview");
   const [pendingNavigation, setPendingNavigation] =
     useState<PendingNavigation | null>(null);
@@ -408,7 +409,7 @@ export function EnrollmentFormEditor({
     } finally {
       setLoading(false);
     }
-  }, [tenantSlug]);
+  }, [setError, tenantSlug]);
 
   useEffect(() => {
     void loadAll();
@@ -941,7 +942,7 @@ export function EnrollmentFormEditor({
           onPreview={previewSchema}
           onRename={requestRenameSchema}
           onDelete={requestRemoveSchema}
-          error={error}
+          error={error?.message ?? null}
         />
         <DeleteSchemaDialog
           schema={deleteTarget}
@@ -1771,7 +1772,7 @@ function RenameSchemaDialog({
 }>) {
   const [value, setValue] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useFormError();
 
   // Reset the field to the current name each time the dialog opens for a
   // schema so the admin edits from the existing value.
@@ -1781,7 +1782,7 @@ function RenameSchemaDialog({
       setError(null);
       setSubmitting(false);
     }
-  }, [schema]);
+  }, [schema, setError]);
 
   const isOpen = schema !== null;
   const trimmed = value.trim();

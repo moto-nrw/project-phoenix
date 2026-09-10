@@ -52,11 +52,15 @@ vi.mock("~/components/ui/slide-over", () => ({
     error,
     children,
   }: {
-    error?: string | null;
+    error?: string | { message: string } | null;
     children: React.ReactNode;
   }) => (
     <div>
-      {error ? <div role="alert">{error}</div> : null}
+      {error ? (
+        <div role="alert">
+          {typeof error === "string" ? error : error.message}
+        </div>
+      ) : null}
       {children}
     </div>
   ),

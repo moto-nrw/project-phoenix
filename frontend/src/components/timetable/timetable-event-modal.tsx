@@ -446,7 +446,7 @@ export function TimetableEventModal({
         isOpen={isOpen && choiceDialogOpen}
         onClose={onClose}
         title="Wiederholenden Termin ändern"
-        description={`Der Termin am ${formatDate(initialInstance.date)} gehört zu einem Regeltermin. Wählen Sie zuerst, welchen Umfang Sie bearbeiten möchten.${validationError ? ` ${validationError}` : ""}`}
+        description={`Der Termin am ${formatDate(initialInstance.date)} gehört zu einem Regeltermin. Wählen Sie zuerst, welchen Umfang Sie bearbeiten möchten.${validationError ? ` ${validationError.message}` : ""}`}
         options={[
           {
             value: "single",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useFormError } from "~/components/ui/form-error";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { FormModal } from "~/components/ui/form-modal";
@@ -87,7 +88,7 @@ export function FilteredBulkArrivalModal({
   const [saving, setSaving] = useState(false);
   // Validation and save errors of the form (Bauart 2 Regel 5): shown in the
   // FormModal error slot, not as a toast.
-  const [formError, setFormError] = useState<string | null>(null);
+  const [formError, setFormError] = useFormError();
   const [
     arrivalExceptionConfirmationOpen,
     setArrivalExceptionConfirmationOpen,
@@ -237,7 +238,7 @@ export function FilteredBulkArrivalModal({
       setArrivalExceptionConfirmationOpen(false);
       setFormError(null);
     }
-  }, [isOpen]);
+  }, [isOpen, setFormError]);
 
   return (
     <FormModal

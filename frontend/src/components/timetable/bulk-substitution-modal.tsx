@@ -36,6 +36,7 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import { useFormError } from "~/components/ui/form-error";
 import { useToast } from "~/contexts/ToastContext";
 import { formatDate, parseISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
@@ -113,7 +114,7 @@ export function BulkSubstitutionModal({
   const [saving, setSaving] = useState(false);
   // Speicherfehler stehen oben im Panel (SlideOverBody `error`), nicht als
   // Toast: Bauart 2 Regel 5.
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useFormError();
 
   // Nach dem Tagesübergang wären Von/Bis-Werte von gestern ungültige
   // Vergangenheit; auf den neuen Berliner "heute"-Anker nachziehen.

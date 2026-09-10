@@ -14,6 +14,7 @@ import { compressAvatar } from "~/lib/image-utils";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { useFormError } from "~/components/ui/form-error";
 import { PasswordChangeModal } from "~/components/ui/password-change-modal";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -53,7 +54,7 @@ function ProfileContent() {
   const [isSaving, setIsSaving] = useState(false);
   // Speicherfehler stehen oben im Bearbeiten-Bereich der Karte, nicht als
   // Toast: Bauart 2 Regel 5.
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useFormError();
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [formData, setFormData] = useState({
     firstName: "",

@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { Button } from "~/components/ui/button";
+import { useFormError, type FormErrorInput } from "~/components/ui/form-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
@@ -46,7 +47,7 @@ function useAllowanceEditor({ staffId, year, entry, onSaved }: EditorProps) {
   const [days, setDays] = useState(String(entry.summary.entitledDays));
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useFormError();
   const toast = useToast();
   const entitledDays = Number(days.replace(",", "."));
   const validDays =
@@ -123,7 +124,7 @@ function EditorFields({
 }: {
   days: string;
   reason: string;
-  error: string | null;
+  error: FormErrorInput;
   setDays: (value: string) => void;
   setReason: (value: string) => void;
 }) {
