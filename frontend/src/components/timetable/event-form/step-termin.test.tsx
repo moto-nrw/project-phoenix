@@ -2,7 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { CREATE_CATEGORY_OPTION, StepTermin } from "./step-termin";
+import { StepTermin } from "./step-termin";
 import { emptyForm } from "./form-model";
 import type { ActivityCategory } from "~/lib/activity-helpers";
 import { ToastProvider } from "~/contexts/ToastContext";
@@ -21,7 +21,6 @@ function renderStep(
   overrides: Partial<React.ComponentProps<typeof StepTermin>> = {},
 ) {
   const update = vi.fn();
-  const onManageCategories = vi.fn();
   render(
     <ToastProvider>
       <StepTermin
@@ -37,59 +36,53 @@ function renderStep(
         quickPreset=""
         listKindTouched={createRef<boolean>() as React.RefObject<boolean>}
         canManageCategories
-        onManageCategories={onManageCategories}
+        canManagePlanningTracks
         {...overrides}
       />
     </ToastProvider>,
   );
-  return { update, onManageCategories };
+  return { update };
 }
 
-describe("StepTermin — Kategorie (#2131)", () => {
-  it("offers creating the missing category without leaving the Termin", () => {
-    const { onManageCategories, update } = renderStep();
-
-    // The dropdown is a CustomSelect; open it, then pick the last entry.
-    fireEvent.click(screen.getByRole("combobox", { name: "Kategorie" }));
-    fireEvent.click(
-      screen.getByRole("option", { name: "+ Neue Kategorie anlegen" }),
-    );
-
-    expect(onManageCategories).toHaveBeenCalledWith("create");
-    // The sentinel must never land in the form state as a category id.
-    expect(update).not.toHaveBeenCalledWith(
-      "categoryId",
-      CREATE_CATEGORY_OPTION,
-    );
-  });
-
-  it("selects a real category normally", () => {
-    const { update, onManageCategories } = renderStep();
+describe("StepTermin — Kategorie (#2131, #3114)", () => {
+  it("selects a category", () => {
+    const { update } = renderStep();
 
     fireEvent.click(screen.getByRole("combobox", { name: "Kategorie" }));
     fireEvent.click(screen.getByRole("option", { name: "Sport" }));
 
     expect(update).toHaveBeenCalledWith("categoryId", "1");
-    expect(onManageCategories).not.toHaveBeenCalled();
   });
 
-  it("opens the manage dialog on the list from the Verwalten link", () => {
-    const { onManageCategories } = renderStep();
+  it("offers no create entry in the field — the catalogue has a route now", () => {
+    renderStep();
 
-    fireEvent.click(screen.getByRole("button", { name: "Verwalten" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Kategorie" }));
 
-    expect(onManageCategories).toHaveBeenCalledWith("list");
+    expect(
+      screen.queryByRole("option", { name: /Neue Kategorie anlegen/ }),
+    ).not.toBeInTheDocument();
   });
 
-  it("hides management controls without the category permission", () => {
+  it("links to the catalogue in a second window so the draft survives", () => {
+    renderStep();
+
+    const link = screen.getByRole("link", { name: /Kategorien verwalten/ });
+
+    // Der Pfad trägt den Mandanten, wie jeder interne Link.
+    expect(link).toHaveAttribute(
+      "href",
+      expect.stringContaining("/database/categories") as unknown as string,
+    );
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("hides the catalogue link without the category permission", () => {
     renderStep({ canManageCategories: false });
 
     expect(
-      screen.queryByRole("button", { name: "Verwalten" }),
-    ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("combobox", { name: "Kategorie" }));
-    expect(
-      screen.queryByRole("option", { name: "+ Neue Kategorie anlegen" }),
+      screen.queryByRole("link", { name: /Kategorien verwalten/ }),
     ).not.toBeInTheDocument();
   });
 
@@ -101,5 +94,29 @@ describe("StepTermin — Kategorie (#2131)", () => {
     expect(
       screen.getByText("Bitte eine Kategorie auswählen."),
     ).toBeInTheDocument();
+  });
+});
+
+describe("StepTermin — Planungsspur (#3114)", () => {
+  it("links to the catalogue in a second window", () => {
+    renderStep();
+
+    const link = screen.getByRole("link", {
+      name: /Planungsspuren verwalten/,
+    });
+
+    expect(link).toHaveAttribute(
+      "href",
+      expect.stringContaining("/database/planning-tracks") as unknown as string,
+    );
+    expect(link).toHaveAttribute("target", "_blank");
+  });
+
+  it("hides the catalogue link without the planning permission", () => {
+    renderStep({ canManagePlanningTracks: false });
+
+    expect(
+      screen.queryByRole("link", { name: /Planungsspuren verwalten/ }),
+    ).not.toBeInTheDocument();
   });
 });

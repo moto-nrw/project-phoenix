@@ -67,6 +67,26 @@
 //                               handlers (delete, toggle, load) pass.
 //                               Hard-zero; tenant portal only.
 //
+//   bauart/no-manage-surface-in-overlay — the Stammdaten of a school are
+//                               managed on a route of the Datenverwaltung,
+//                               never in a SlideOver, Modal, Popover or
+//                               inside a select (Bauart 1 Regel 9, issue
+//                               #3114). The rule flags a per-row kebab entry
+//                               or button whose label is an object action
+//                               (bearbeiten, löschen, archivieren,
+//                               wiederherstellen, umbenennen, duplizieren,
+//                               (de)aktivieren) rendered inside one of those
+//                               shells — directly, through a helper the
+//                               shell renders, or in a menu slot of
+//                               `ListboxDropdown`. „entfernen“ is not in the
+//                               list: inside a dialog it removes a form
+//                               value far more often than a stored object,
+//                               and no-row-action-buttons covers that case.
+//                               Hard-zero; the pinned exceptions
+//                               (OWN_OBJECT_ENTRY_EXCEPTIONS) are entries of
+//                               the very object the dialog edits, which
+//                               Bauart 2 Regel 4 allows.
+//
 // Files under src/components/ui/ are exempt (ConfirmDeleteModal is itself
 // built on Modal and owns the final destructive button), as are tests and
 // stories.
@@ -1139,6 +1159,244 @@ const noToastFormError = {
   },
 };
 
+// --- bauart/no-manage-surface-in-overlay --------------------------------------
+
+// Shells that float over a page. Anything rendered inside one of them is an
+// overlay; a kebab per list row in there is a management surface in a dialog.
+const OVERLAY_ELEMENTS = new Set([
+  "SlideOver",
+  "SlideOverContent",
+  "SlideOverBody",
+  "Modal",
+  "FormModal",
+  "ChoiceModal",
+  "ConfirmationModal",
+  "ConfirmDeleteModal",
+  "Drawer",
+  "DrawerContent",
+  "AnchoredPopover",
+  "Popover",
+  "PopoverContent",
+  "ListboxDropdown",
+]);
+// Slots of the kit listbox that render inside its floating menu. A button
+// per option there manages the option list from inside a select.
+const LISTBOX_MENU_SLOTS = new Set([
+  "renderOptionActions",
+  "menuHeader",
+  "menuFooter",
+]);
+// Object actions that make a row a managed object. „entfernen“ is absent on
+// purpose: inside a dialog it removes a form value (a staged guardian, a
+// chip) far more often than a stored object, and that case has its own rule.
+const MANAGE_ACTION_LABEL_RE =
+  /(?:^|\P{L})(?:bearbeiten|löschen|archivieren|wiederherstellen|umbenennen|duplizieren|deaktivieren|aktivieren)(?:\P{L}|$)/iu;
+
+// Einträge des Objekts, um das der Dialog ohnehin geht — keine Stammdaten,
+// die anderswo in einer Auswahl stehen. Bauart 2 Regel 4 lässt das Nachtragen
+// eines Eintrags am Objekt ausdrücklich zu; verboten ist der Katalog der
+// Schule in einem Overlay. Ortsgebunden, damit die Ausnahme nicht wandert.
+const OWN_OBJECT_ENTRY_EXCEPTIONS = new Map(
+  Object.entries({
+    // Teilentschuldigungen genau dieses Kindes an genau diesen Tagen.
+    "src/components/students/planned-status-days-modal.tsx": ["Bearbeiten@1139"],
+  }),
+);
+
+/** Static labels of the entries in an OverflowMenu `items` expression. */
+function collectMenuItemLabels(node, labels, seen = new WeakSet()) {
+  if (!node || typeof node !== "object" || seen.has(node)) return;
+  seen.add(node);
+  if (
+    node.type === "Property" &&
+    node.key?.type === "Identifier" &&
+    node.key.name === "label"
+  ) {
+    const text = staticText(node.value);
+    if (text) labels.push(text);
+    return;
+  }
+  for (const [key, value] of Object.entries(node)) {
+    if (key === "parent") continue;
+    if (Array.isArray(value)) {
+      for (const child of value) collectMenuItemLabels(child, labels, seen);
+    } else {
+      collectMenuItemLabels(value, labels, seen);
+    }
+  }
+}
+
+/** Ein Menü-Slot der Kit-Auswahlliste, als Objekteintrag (der Hook baut die
+ *  Props) oder als JSX-Attribut (die Komponente bekommt sie direkt). */
+function isListboxMenuSlot(node) {
+  if (
+    node?.type === "Property" &&
+    node.key?.type === "Identifier" &&
+    LISTBOX_MENU_SLOTS.has(node.key.name)
+  ) {
+    return true;
+  }
+  return (
+    node?.type === "JSXAttribute" &&
+    node.name?.type === "JSXIdentifier" &&
+    LISTBOX_MENU_SLOTS.has(node.name.name)
+  );
+}
+
+/**
+ * Where a node sits: `overlay` when a JSX ancestor is an overlay shell or a
+ * listbox menu slot, `inJsx` when it is rendered at all, `binding` = the
+ * nearest `const x = …` / `function x()` around it. The binding is what
+ * links a helper such as `renderManageView` or `listFooter` to the overlay
+ * that renders it.
+ */
+function locate(node) {
+  let current = node.parent;
+  let overlay = false;
+  let inJsx = false;
+  let inListboxSlot = false;
+  let binding = null;
+  while (current) {
+    if (current.type === "JSXExpressionContainer") inJsx = true;
+    if (
+      current.type === "JSXElement" &&
+      OVERLAY_ELEMENTS.has(jsxName(current.openingElement.name))
+    ) {
+      overlay = true;
+    }
+    if (isListboxMenuSlot(current)) {
+      overlay = true;
+      inListboxSlot = true;
+    }
+    if (binding === null) {
+      if (
+        current.type === "VariableDeclarator" &&
+        current.id?.type === "Identifier"
+      ) {
+        binding = current.id.name;
+      } else if (current.type === "FunctionDeclaration" && current.id) {
+        binding = current.id.name;
+      }
+    }
+    current = current.parent;
+  }
+  return { overlay, inJsx, inListboxSlot, binding };
+}
+
+const noManageSurfaceInOverlay = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "A collection with per-object actions (Bearbeiten, Archivieren, Löschen, …) is a route in the Datenverwaltung, never a view inside a SlideOver, Modal, Popover or select.",
+    },
+    messages: {
+      manageSurface:
+        "Verwaltungsfläche im Overlay: die Zeilenaktion „{{label}}“ liegt in einem {{shell}}. Sammlung und Objektbearbeitung sind eine Route der Datenverwaltung (Bauart 1 + 2); ein Formular, dem ein Stammdatum fehlt, trägt nur die Auswahl und einen Link „… verwalten“ zur Route (BAUARTEN-SPEC Bauart 1 Regel 9, #3114).",
+    },
+    schema: [],
+  },
+  create(context) {
+    if (isExempt(context)) return {};
+    if (OTHER_PORTAL_RE.test(fileKey(context))) return {};
+    const ownEntries = new Set(
+      OWN_OBJECT_ENTRY_EXCEPTIONS.get(fileKey(context)) ?? [],
+    );
+
+    // Names rendered directly inside an overlay, and the names each binding
+    // renders in turn; the closure of the first over the second is every
+    // helper whose JSX ends up in an overlay.
+    const overlayReferences = new Set();
+    const referencesByBinding = new Map();
+    const pending = [];
+
+    const record = (node, label) => {
+      if (ownEntries.delete(`${label}@${node.loc.start.line}`)) return;
+      const { overlay, inListboxSlot, binding } = locate(node);
+      const shell = inListboxSlot ? "Auswahlfeld" : "Overlay";
+      if (overlay) {
+        context.report({
+          node,
+          messageId: "manageSurface",
+          data: { label, shell },
+        });
+        return;
+      }
+      if (binding) pending.push({ node, label, binding });
+    };
+
+    return {
+      Identifier(node) {
+        const parent = node.parent;
+        // Only expression references count: not the name being declared,
+        // not a property key, not a parameter.
+        if (
+          (parent?.type === "VariableDeclarator" && parent.id === node) ||
+          (parent?.type === "Property" && parent.key === node) ||
+          (parent?.type === "MemberExpression" && parent.property === node) ||
+          parent?.type === "FunctionDeclaration"
+        ) {
+          return;
+        }
+        const { overlay, inJsx, binding } = locate(node);
+        if (!inJsx) return;
+        if (overlay) {
+          overlayReferences.add(node.name);
+          return;
+        }
+        if (!binding || binding === node.name) return;
+        let references = referencesByBinding.get(binding);
+        if (!references) {
+          references = new Set();
+          referencesByBinding.set(binding, references);
+        }
+        references.add(node.name);
+      },
+      JSXOpeningElement(node) {
+        const name = jsxName(node.name);
+        if (name === "OverflowMenu") {
+          if (!isPerItemRender(node)) return;
+          const labels = [];
+          collectMenuItemLabels(jsxAttribute(node, "items")?.value, labels);
+          const label = labels.find((text) =>
+            MANAGE_ACTION_LABEL_RE.test(text),
+          );
+          if (label) record(node, label);
+          return;
+        }
+        if (name !== "Button" && name !== "button") return;
+        const { inListboxSlot } = locate(node);
+        if (!inListboxSlot && !isPerItemRender(node)) return;
+        const { text } = accessibleName(node);
+        if (MANAGE_ACTION_LABEL_RE.test(text)) record(node, text);
+      },
+      "Program:exit"() {
+        const scoped = new Set(overlayReferences);
+        let grew = true;
+        while (grew) {
+          grew = false;
+          for (const name of [...scoped]) {
+            for (const reference of referencesByBinding.get(name) ?? []) {
+              if (!scoped.has(reference)) {
+                scoped.add(reference);
+                grew = true;
+              }
+            }
+          }
+        }
+        for (const { node, label, binding } of pending) {
+          if (!scoped.has(binding)) continue;
+          context.report({
+            node,
+            messageId: "manageSurface",
+            data: { label, shell: "Overlay" },
+          });
+        }
+      },
+    };
+  },
+};
+
 export default {
   meta: { name: "bauart" },
   rules: {
@@ -1147,5 +1405,6 @@ export default {
     "no-unconfirmed-destructive-click": noUnconfirmedDestructiveClick,
     "no-autosave": noAutosave,
     "no-toast-form-error": noToastFormError,
+    "no-manage-surface-in-overlay": noManageSurfaceInOverlay,
   },
 };

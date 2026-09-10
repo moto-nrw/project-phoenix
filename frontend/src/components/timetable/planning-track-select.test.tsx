@@ -1,19 +1,6 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-import { ToastProvider } from "~/contexts/ToastContext";
-
-const { create, update, reorder, archive, restore } = vi.hoisted(() => ({
-  create: vi.fn(),
-  update: vi.fn(),
-  reorder: vi.fn(),
-  archive: vi.fn(),
-  restore: vi.fn(),
-}));
-
-vi.mock("~/lib/planning-track-api", () => ({
-  planningTrackService: { create, update, reorder, archive, restore },
-}));
+import "@testing-library/jest-dom/vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import { PlanningTrackSelect } from "./planning-track-select";
 
@@ -29,201 +16,92 @@ const tracks = [
   },
 ];
 
-function renderSelect() {
+function renderSelect(value = "") {
   const onChange = vi.fn();
-  const onTracksChanged = vi.fn();
   render(
-    <ToastProvider>
-      <PlanningTrackSelect
-        value=""
-        tracks={tracks}
-        onChange={onChange}
-        onTracksChanged={onTracksChanged}
-        canManage
-      />
-    </ToastProvider>,
+    <PlanningTrackSelect value={value} tracks={tracks} onChange={onChange} />,
   );
-  return { onChange, onTracksChanged };
+  return { onChange };
 }
 
+// Seit #3114 ist das Feld eine reine Auswahl: Anlegen, Umbenennen,
+// Umsortieren und Archivieren liegen unter „Datenverwaltung →
+// Planungsspuren", nicht mehr in diesem Popover.
 describe("PlanningTrackSelect", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    reorder.mockResolvedValue([tracks[1], tracks[0], tracks[2]]);
-    archive.mockResolvedValue(undefined);
-    restore.mockResolvedValue({ ...tracks[2], archivedAt: undefined });
-  });
-
-  it("creates the name entered by the user and selects the result", async () => {
-    const created = {
-      id: "4",
-      name: "Nord",
-      color: "#83CD2D",
-      sortOrder: 2,
-    };
-    create.mockResolvedValue(created);
-    const { onChange, onTracksChanged } = renderSelect();
+  it("selects a track and closes", () => {
+    const { onChange } = renderSelect();
 
     fireEvent.click(screen.getByRole("combobox", { name: "Planungsspur" }));
-    fireEvent.change(
-      screen.getByPlaceholderText("Planungsspur suchen oder anlegen …"),
-      { target: { value: "Nord" } },
-    );
-    fireEvent.click(
-      screen.getByRole("option", {
-        name: "„Nord“ als Planungsspur anlegen",
-      }),
-    );
+    fireEvent.click(screen.getByRole("option", { name: /Jahrgang 2/ }));
 
-    expect(screen.getByLabelText("Name")).toHaveValue("Nord");
-    fireEvent.change(screen.getByLabelText("Farbe"), {
-      target: { value: "#83cd2d" },
+    expect(onChange).toHaveBeenCalledWith("2");
+    expect(
+      screen.getByRole("combobox", { name: "Planungsspur" }),
+    ).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("clears the choice", () => {
+    const { onChange } = renderSelect("2");
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Planungsspur" }));
+    fireEvent.click(screen.getByRole("option", { name: "Keine Planungsspur" }));
+
+    expect(onChange).toHaveBeenCalledWith("");
+  });
+
+  it("filters by the typed text", () => {
+    renderSelect();
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Planungsspur" }));
+    fireEvent.change(screen.getByPlaceholderText("Planungsspur suchen …"), {
+      target: { value: "jahrgang 2" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Anlegen" }));
 
-    await waitFor(() =>
-      expect(create).toHaveBeenCalledWith({
-        name: "Nord",
-        color: "#83CD2D",
-        sort_order: 2,
-      }),
-    );
-    expect(onChange).toHaveBeenCalledWith("4");
-    expect(onTracksChanged).toHaveBeenCalledWith(created);
-  });
-
-  it("keeps the form open when creating a track fails", async () => {
-    create.mockRejectedValue(
-      new Error("Planungsspur konnte nicht angelegt werden"),
-    );
-    const { onChange, onTracksChanged } = renderSelect();
-
-    fireEvent.click(screen.getByRole("combobox", { name: "Planungsspur" }));
-    fireEvent.change(
-      screen.getByPlaceholderText("Planungsspur suchen oder anlegen …"),
-      { target: { value: "Nord" } },
-    );
-    fireEvent.click(
-      screen.getByRole("option", {
-        name: "„Nord“ als Planungsspur anlegen",
-      }),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Anlegen" }));
-
+    expect(screen.getByRole("option", { name: /Jahrgang 2/ })).toBeTruthy();
     expect(
-      await screen.findByText("Planungsspur konnte nicht angelegt werden"),
-    ).toBeInTheDocument();
-    expect(screen.getByLabelText("Name")).toHaveValue("Nord");
-    expect(onChange).not.toHaveBeenCalled();
-    expect(onTracksChanged).not.toHaveBeenCalled();
-  });
-
-  it("manages ordering and archiving inside the same popover", async () => {
-    const { onTracksChanged } = renderSelect();
-
-    fireEvent.click(screen.getByRole("combobox", { name: "Planungsspur" }));
-    fireEvent.click(
-      screen.getByRole("button", { name: "Planungsspuren verwalten" }),
-    );
-
-    expect(
-      screen.getByRole("button", { name: "Jahrgang 1 nach unten" }),
-    ).toBeEnabled();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Jahrgang 1 nach unten" }),
-    );
-    await waitFor(() => expect(reorder).toHaveBeenCalledWith(["2", "1"]));
-
-    // #3109: Archivieren läuft nicht mehr aus dem Klick, sondern erst nach
-    // der Rückfrage. Das Popover weicht dem Dialog und kommt danach in der
-    // Verwaltung zurück.
-    fireEvent.click(
-      screen.getByRole("button", { name: "Aktionen für Jahrgang 1" }),
-    );
-    fireEvent.click(screen.getByRole("menuitem", { name: "Archivieren" }));
-    expect(archive).not.toHaveBeenCalled();
-    expect(
-      screen.getByRole("heading", { name: "Planungsspur archivieren?" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("heading", { name: "Planungsspuren verwalten" }),
+      screen.queryByRole("option", { name: /Jahrgang 1/ }),
     ).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Archivieren" }));
-    await waitFor(() => expect(archive).toHaveBeenCalledWith("1"));
-    expect(onTracksChanged).toHaveBeenCalled();
-    await waitFor(() =>
-      expect(
-        screen.queryByRole("heading", { name: "Planungsspur archivieren?" }),
-      ).not.toBeInTheDocument(),
-    );
-    expect(
-      screen.getByRole("heading", { name: "Planungsspuren verwalten" }),
-    ).toBeInTheDocument();
-    expect(screen.getByText("Archivierte Planungsspuren (2)")).toBeVisible();
   });
 
-  it("keeps the track when archiving is cancelled", () => {
+  it("offers no way to create a track from the field", () => {
     renderSelect();
 
     fireEvent.click(screen.getByRole("combobox", { name: "Planungsspur" }));
-    fireEvent.click(
-      screen.getByRole("button", { name: "Planungsspuren verwalten" }),
-    );
-    fireEvent.click(
-      screen.getByRole("button", { name: "Aktionen für Jahrgang 1" }),
-    );
-    fireEvent.click(screen.getByRole("menuitem", { name: "Archivieren" }));
-    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+    fireEvent.change(screen.getByPlaceholderText("Planungsspur suchen …"), {
+      target: { value: "Nord" },
+    });
 
-    expect(archive).not.toHaveBeenCalled();
     expect(
-      screen.queryByRole("heading", { name: "Planungsspur archivieren?" }),
+      screen.getByText("Keine Planungsspur gefunden."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /anlegen/i }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Aktionen für Jahrgang 1" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("button", { name: /verwalten/i }),
+    ).not.toBeInTheDocument();
   });
 
-  it("reports a failed archive inside the management view", async () => {
-    archive.mockRejectedValueOnce(new Error("Archivieren fehlgeschlagen"));
-    renderSelect();
-
-    fireEvent.click(screen.getByRole("combobox", { name: "Planungsspur" }));
-    fireEvent.click(
-      screen.getByRole("button", { name: "Planungsspuren verwalten" }),
-    );
-    fireEvent.click(
-      screen.getByRole("button", { name: "Aktionen für Jahrgang 1" }),
-    );
-    fireEvent.click(screen.getByRole("menuitem", { name: "Archivieren" }));
-    fireEvent.click(screen.getByRole("button", { name: "Archivieren" }));
-
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Archivieren fehlgeschlagen",
-    );
-    expect(
-      screen.getByRole("button", { name: "Aktionen für Jahrgang 1" }),
-    ).toBeInTheDocument();
-  });
-
-  it("keeps archived tracks out of selection and restores them in management", async () => {
-    renderSelect();
+  it("hides an archived track unless it is the current value", () => {
+    const { onChange } = renderSelect();
 
     fireEvent.click(screen.getByRole("combobox", { name: "Planungsspur" }));
     expect(
       screen.queryByRole("option", { name: /Archiv/ }),
     ).not.toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Planungsspuren verwalten" }),
-    );
-    fireEvent.click(screen.getByText("Archivierte Planungsspuren (1)"));
-    fireEvent.click(
-      screen.getByRole("button", { name: "Aktionen für Archiv" }),
-    );
-    fireEvent.click(screen.getByRole("menuitem", { name: "Wiederherstellen" }));
+    expect(onChange).not.toHaveBeenCalled();
+  });
 
-    await waitFor(() => expect(restore).toHaveBeenCalledWith("3"));
+  it("keeps showing the archived track a Termin still points at", () => {
+    renderSelect("3");
+
+    expect(
+      screen.getByRole("combobox", { name: "Planungsspur" }),
+    ).toHaveTextContent("Archiv (archiviert)");
+    fireEvent.click(screen.getByRole("combobox", { name: "Planungsspur" }));
+    expect(
+      screen.getByRole("option", { name: /Archiv \(archiviert\)/ }),
+    ).toBeInTheDocument();
   });
 
   it("closes only the popover on Escape and restores trigger focus", () => {
@@ -231,15 +109,14 @@ describe("PlanningTrackSelect", () => {
     const trigger = screen.getByRole("combobox", { name: "Planungsspur" });
 
     fireEvent.click(trigger);
-    fireEvent.keyDown(
-      screen.getByPlaceholderText("Planungsspur suchen oder anlegen …"),
-      { key: "Escape" },
-    );
+    fireEvent.keyDown(screen.getByPlaceholderText("Planungsspur suchen …"), {
+      key: "Escape",
+    });
 
     expect(trigger).toHaveAttribute("aria-expanded", "false");
     expect(trigger).toHaveFocus();
     expect(
-      screen.queryByPlaceholderText("Planungsspur suchen oder anlegen …"),
+      screen.queryByPlaceholderText("Planungsspur suchen …"),
     ).not.toBeInTheDocument();
   });
 });

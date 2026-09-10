@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { UseAbsenceTypeOptionsResult } from "./use-absence-type-options";
@@ -40,6 +40,8 @@ beforeEach(() => {
   typeOptions.current = { options: [...OPTIONS] };
 });
 
+// Seit #3114 ist das Feld eine reine Auswahl: Anlegen, Umbenennen und
+// Abschalten liegen unter „Datenverwaltung → Abwesenheitsarten".
 describe("useAbsenceTypeSelect", () => {
   it("shows the selected option's label on the trigger", () => {
     render(<Select value="custom:7" />);
@@ -57,6 +59,16 @@ describe("useAbsenceTypeSelect", () => {
       screen.getByRole("option", { name: /Regenerationstag/ }),
     ).toBeTruthy();
     expect(screen.queryByRole("option", { name: "Krank" })).toBeNull();
+  });
+
+  it("says so when nothing matches", () => {
+    render(<Select value="sick" />);
+    open();
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "Ferienzeit" },
+    });
+
+    expect(screen.getByText("Kein Treffer.")).toBeTruthy();
   });
 
   it("moves option focus with the arrow, home, and end keys", () => {
@@ -79,34 +91,7 @@ describe("useAbsenceTypeSelect", () => {
     expect(screen.getByRole("option", { name: "Krank" })).toHaveFocus();
   });
 
-  it("offers to add a name that does not exist yet and selects it", async () => {
-    const create = vi.fn().mockResolvedValue("custom:12");
-    const onChange = vi.fn();
-    typeOptions.current = { options: [...OPTIONS], create };
-    render(<Select value="sick" onChange={onChange} />);
-    open();
-    fireEvent.change(screen.getByRole("textbox"), {
-      target: { value: "  Ferienzeit  " },
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: /Ferienzeit.*hinzuf/ }));
-
-    await waitFor(() => expect(create).toHaveBeenCalledWith("Ferienzeit"));
-    await waitFor(() => expect(onChange).toHaveBeenCalledWith("custom:12"));
-  });
-
-  it("does not offer to add a name that already exists, in any case", () => {
-    typeOptions.current = { options: [...OPTIONS], create: vi.fn() };
-    render(<Select value="sick" />);
-    open();
-    fireEvent.change(screen.getByRole("textbox"), {
-      target: { value: "REGENERATIONSTAG" },
-    });
-
-    expect(screen.queryByRole("button", { name: /hinzuf/ })).toBeNull();
-  });
-
-  it("hides every management affordance without the callbacks", () => {
+  it("carries no management affordance at all", () => {
     render(<Select value="sick" />);
     open();
     fireEvent.change(screen.getByRole("textbox"), {
@@ -115,70 +100,7 @@ describe("useAbsenceTypeSelect", () => {
 
     expect(screen.queryByRole("button", { name: /hinzuf/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /umbenennen/i })).toBeNull();
-  });
-
-  it("never offers to rename or retire a fixed option", () => {
-    typeOptions.current = {
-      options: [...OPTIONS],
-      rename: vi.fn(),
-      setActive: vi.fn(),
-    };
-    render(<Select value="sick" />);
-    open();
-
-    expect(
-      screen.getByRole("button", { name: "Regenerationstag umbenennen" }),
-    ).toBeTruthy();
-    expect(
-      screen.queryByRole("button", { name: "Krank umbenennen" }),
-    ).toBeNull();
-    expect(
-      screen.queryByRole("button", { name: "Urlaub deaktivieren" }),
-    ).toBeNull();
-  });
-
-  it("renames an option in place", async () => {
-    const rename = vi.fn().mockResolvedValue(undefined);
-    typeOptions.current = { options: [...OPTIONS], rename };
-    render(<Select value="sick" />);
-    open();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Regenerationstag umbenennen" }),
-    );
-    fireEvent.change(screen.getByRole("textbox", { name: /Name von/ }), {
-      target: { value: "Regenerationstage" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Namen speichern" }));
-
-    await waitFor(() =>
-      expect(rename).toHaveBeenCalledWith("custom:7", "Regenerationstage"),
-    );
-  });
-
-  it("keeps focus in the rename field instead of the search field", () => {
-    typeOptions.current = { options: [...OPTIONS], rename: vi.fn() };
-    render(<Select value="sick" />);
-    open();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Regenerationstag umbenennen" }),
-    );
-
-    expect(screen.getByRole("textbox", { name: /Name von/ })).toHaveFocus();
-  });
-
-  it("surfaces a failed add instead of closing silently", async () => {
-    const create = vi
-      .fn()
-      .mockRejectedValue(new Error("Name ist bereits vergeben"));
-    typeOptions.current = { options: [...OPTIONS], create };
-    render(<Select value="sick" />);
-    open();
-    fireEvent.change(screen.getByRole("textbox"), {
-      target: { value: "Ferienzeit" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /hinzuf/ }));
-
-    expect(await screen.findByText("Name ist bereits vergeben")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /deaktivieren/i })).toBeNull();
   });
 
   it("keeps a retired option visible while it is the current value", () => {
@@ -194,7 +116,7 @@ describe("useAbsenceTypeSelect", () => {
     expect(screen.getByRole("option", { name: /Sonderurlaub/ })).toBeTruthy();
   });
 
-  it("hides a retired option from someone who cannot restore it", () => {
+  it("hides a retired option that is not the current value", () => {
     typeOptions.current = {
       options: [
         ...OPTIONS,
@@ -207,25 +129,12 @@ describe("useAbsenceTypeSelect", () => {
     expect(screen.queryByRole("option", { name: /Sonderurlaub/ })).toBeNull();
   });
 
-  it("keeps a retired option available for reactivation but not for selection", () => {
+  it("selects an option", () => {
     const onChange = vi.fn();
-    typeOptions.current = {
-      options: [
-        ...OPTIONS,
-        { value: "custom:9", label: "Sonderurlaub", inactive: true },
-      ],
-      setActive: vi.fn(),
-    };
     render(<Select value="sick" onChange={onChange} />);
     open();
+    fireEvent.click(screen.getByRole("option", { name: /Regenerationstag/ }));
 
-    const option = screen.getByRole("option", { name: /Sonderurlaub/ });
-    expect(option).toBeDisabled();
-    expect(option).toHaveAttribute("aria-disabled", "true");
-    expect(
-      screen.getByRole("button", { name: "Sonderurlaub wieder aktivieren" }),
-    ).toBeTruthy();
-    fireEvent.click(option);
-    expect(onChange).not.toHaveBeenCalled();
+    expect(onChange).toHaveBeenCalledWith("custom:7");
   });
 });

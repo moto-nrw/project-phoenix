@@ -112,6 +112,7 @@ import {
   indexWorkSessionMinutesByBerlinDate,
   OPEN_MONTH_REFRESH_MS,
 } from "~/lib/time-tracking-helpers";
+import { CatalogManageLink } from "~/components/database/catalog/catalog-manage-link";
 import { useAbsenceTypeSelect } from "~/components/staff/use-absence-type-select";
 import { absenceRequestFor, selectValueFor } from "~/lib/absence-type-select";
 import { formatWeekLabel } from "~/lib/timetable-helpers";
@@ -2667,13 +2668,24 @@ function EditSessionModal({
                 <>
                   {/* Absence type */}
                   <div>
-                    <label
-                      id="edit-abs-type-label"
-                      htmlFor="edit-abs-type"
-                      className="mb-1 block text-sm font-medium text-gray-700"
-                    >
-                      Art der Abwesenheit
-                    </label>
+                    <div className="mb-1 flex items-baseline justify-between gap-2">
+                      <label
+                        id="edit-abs-type-label"
+                        htmlFor="edit-abs-type"
+                        className="block text-sm font-medium text-gray-700"
+                      >
+                        Art der Abwesenheit
+                      </label>
+                      {/* Eigene Namen pflegt die Datenverwaltung (#3114); der
+                          Link öffnet ein zweites Fenster, damit dieser Eintrag
+                          stehen bleibt. */}
+                      {canManage && (
+                        <CatalogManageLink
+                          href="/database/absence-types"
+                          label="Abwesenheitsarten verwalten"
+                        />
+                      )}
+                    </div>
                     <ListboxDropdown
                       {...absenceTypeSelect}
                       id="edit-abs-type"
@@ -2865,13 +2877,21 @@ function CreateAbsenceModal({
       <div className="space-y-4">
         {/* Absence type */}
         <div>
-          <label
-            id="absence-type-label"
-            htmlFor="absence-type"
-            className="mb-1 block text-sm font-medium text-gray-700"
-          >
-            Art der Abwesenheit
-          </label>
+          <div className="mb-1 flex items-baseline justify-between gap-2">
+            <label
+              id="absence-type-label"
+              htmlFor="absence-type"
+              className="block text-sm font-medium text-gray-700"
+            >
+              Art der Abwesenheit
+            </label>
+            {canManageAbsenceTypes && (
+              <CatalogManageLink
+                href="/database/absence-types"
+                label="Abwesenheitsarten verwalten"
+              />
+            )}
+          </div>
           <ListboxDropdown
             {...absenceTypeSelect}
             id="absence-type"

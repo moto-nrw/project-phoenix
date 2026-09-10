@@ -17,10 +17,25 @@ const PERSONNEL_PAGE_PERMISSIONS = [
   "staff:stammdaten",
 ] as const;
 
+/**
+ * Die Stammdaten-Kataloge (#3114) hängen an dem Recht, mit dem das Backend
+ * ihre Schreibzugriffe beantwortet — sonst stünde die Seite offen und jede
+ * Aktion darin liefe in ein 403.
+ */
+const CATALOG_PAGE_PERMISSIONS: Readonly<Record<string, string>> = {
+  "/database/categories": "activities:manage_categories",
+  "/database/planning-tracks": "schedules:manage",
+  "/database/shift-types": "time_tracking:manage",
+  "/database/absence-types": "time_tracking:manage",
+};
+
 function permissionForPath(
   pathname: string | null,
 ): string | readonly string[] | undefined {
   if (pathname === null) return undefined;
+  for (const [suffix, permission] of Object.entries(CATALOG_PAGE_PERMISSIONS)) {
+    if (pathname.endsWith(suffix)) return permission;
+  }
   if (pathname.endsWith("/database/personal/opening-balances")) {
     return "time_tracking:manage";
   }

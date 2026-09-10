@@ -19,7 +19,7 @@ import { LOCATION_COLORS } from "@/lib/location-helper";
  * Display value is normalised to upper-case hex so the audit log and the
  * uniqueness index stay consistent.
  */
-export function RoomColorField(props: {
+export function CatalogColorField(props: {
   value: unknown;
   onChange: (value: unknown) => void;
   label: string;

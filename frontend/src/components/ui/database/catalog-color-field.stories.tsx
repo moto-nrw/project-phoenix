@@ -1,13 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { useState } from "react";
-import { RoomColorField } from "./room-color-field";
+import { CatalogColorField } from "./catalog-color-field";
 
 /**
- * `RoomColorField` is a controlled component (`value` + `onChange`), so each
+ * `CatalogColorField` is a controlled component (`value` + `onChange`), so each
  * story wraps it in a tiny stateful shell to make the color picker and the
  * "Zurücksetzen" button interactive in the Storybook canvas.
  */
-function ControlledRoomColorField(
+function ControlledCatalogColorField(
   props: Readonly<{
     initialValue: unknown;
     label: string;
@@ -18,7 +18,7 @@ function ControlledRoomColorField(
   const [value, setValue] = useState<unknown>(initialValue);
 
   return (
-    <RoomColorField
+    <CatalogColorField
       value={value}
       onChange={setValue}
       label={label}
@@ -28,8 +28,8 @@ function ControlledRoomColorField(
 }
 
 const meta = {
-  title: "ui/database/RoomColorField",
-  component: RoomColorField,
+  title: "ui/database/CatalogColorField",
+  component: CatalogColorField,
   args: {
     value: null,
     onChange: () => undefined,
@@ -43,7 +43,7 @@ const meta = {
       },
     },
   },
-} satisfies Meta<typeof RoomColorField>;
+} satisfies Meta<typeof CatalogColorField>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
@@ -51,20 +51,24 @@ type Story = StoryObj<typeof meta>;
 /** No color set — shows the OTHER_ROOM blue fallback preview and "Standard" label. */
 export const Unset: Story = {
   render: (args) => (
-    <ControlledRoomColorField initialValue={null} label={args.label} />
+    <ControlledCatalogColorField initialValue={null} label={args.label} />
   ),
 };
 
 /** A custom hex color is already set — shows the hex value and the reset button. */
 export const CustomColorSet: Story = {
   render: (args) => (
-    <ControlledRoomColorField initialValue="#F78C10" label={args.label} />
+    <ControlledCatalogColorField initialValue="#F78C10" label={args.label} />
   ),
 };
 
 /** Required field variant — label carries the "*" suffix. */
 export const Required: Story = {
   render: (args) => (
-    <ControlledRoomColorField initialValue={null} label={args.label} required />
+    <ControlledCatalogColorField
+      initialValue={null}
+      label={args.label}
+      required
+    />
   ),
 };

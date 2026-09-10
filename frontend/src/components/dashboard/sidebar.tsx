@@ -372,6 +372,25 @@ const NFC_ONLY_HREFS = new Set<string>([
   "/database/devices",
 ]);
 
+/**
+ * Die Stammdaten-Kataloge der Datenverwaltung (#3114) und das Recht, das ihre
+ * Route verlangt. Dieselbe Zuordnung steht im Guard der Route
+ * (`database/layout.tsx`); hier entscheidet sie nur, ob der Eintrag sichtbar
+ * ist.
+ */
+const DATABASE_CATALOG_PERMISSIONS: Readonly<Record<string, string>> = {
+  "/database/categories": "activities:manage_categories",
+  "/database/planning-tracks": "schedules:manage",
+  "/database/shift-types": "time_tracking:manage",
+  "/database/absence-types": "time_tracking:manage",
+};
+
+/** Kataloge, die ohne den Planungsbereich nichts zu ordnen haben. */
+const PLANNING_CATALOG_HREFS = new Set<string>([
+  "/database/planning-tracks",
+  "/database/shift-types",
+]);
+
 // Nav items hidden in binary-mode tenants. Rooms and Activities are room/visit
 // concepts with no operational meaning when the tenant only tracks
 // in-school/out-of-school on active.attendance. The Aktuelle-Aufsicht
@@ -675,9 +694,20 @@ function SidebarContent({
             userIsAdmin || hasPermission(session, "grade_transitions:read")
           );
         }
+        // Die Stammdaten-Kataloge (#3114) tragen dasselbe Recht wie ihre
+        // Schreibzugriffe; ohne es führt der Eintrag nur auf ein 403.
+        const catalogPermission = DATABASE_CATALOG_PERMISSIONS[page.href];
+        if (catalogPermission !== undefined) {
+          if (!userIsAdmin && !hasPermission(session, catalogPermission)) {
+            return false;
+          }
+          // Planungsspuren und Schichtarten gehören zum Planungsbereich; ist
+          // er ausgeschaltet, gibt es nichts zu ordnen.
+          if (PLANNING_CATALOG_HREFS.has(page.href)) return timetableEnabled;
+        }
         return true;
       }),
-    [nfcEnabled, userIsAdmin, session],
+    [nfcEnabled, userIsAdmin, session, timetableEnabled],
   );
 
   // Visible "Eltern" accordion sub-pages. Same per-item gating the flat
