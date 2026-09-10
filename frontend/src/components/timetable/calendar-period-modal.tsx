@@ -301,7 +301,8 @@ export function CalendarPeriodModal({
   };
 
   // Schreibt die geänderten Verknüpfungen nach dem Speichern des Zeitraums,
-  // eine nach der anderen. Fehler (Toast + Reload) behandelt der Aufrufer.
+  // eine nach der anderen. Der Aufrufer lädt danach neu; Fehler bleiben hier
+  // im Modal, damit die betroffene Änderung erneut versucht werden kann.
   const applyPhaseDraft = async () => {
     if (!phaseLink) return;
     for (const phase of phaseLink.phases) {

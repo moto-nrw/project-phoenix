@@ -509,6 +509,21 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     expect(garschagenCard).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeEnabled();
 
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("searchbox", { name: "Kind ungeplant suchen" }),
+      ).not.toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Kind hinzufügen" }));
+    expect(
+      screen.queryByText("Kind konnte nicht zur Aktivität hinzugefügt werden."),
+    ).not.toBeInTheDocument();
+
+    await searchFor("Marie");
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Marie Garschagen/ }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
 
     await waitFor(() => {

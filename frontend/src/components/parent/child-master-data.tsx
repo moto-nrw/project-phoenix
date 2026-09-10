@@ -286,7 +286,7 @@ function ChildMasterDataContent({
   );
 
   if (area === "departure") {
-    return (
+    return guarded(
       <DepartureSection
         studentId={studentId}
         childName={childName}
@@ -294,7 +294,7 @@ function ChildMasterDataContent({
         features={features}
         pending={pendingByField.get("departure/allowed_departure_modes")}
         onApplied={onApplied}
-      />
+      />,
     );
   }
 
@@ -652,6 +652,15 @@ function DepartureSection({
   const displayedModes = hasAccompanied
     ? [...DEPARTURE_REQUEST_MODES, "accompanied"]
     : DEPARTURE_REQUEST_MODES;
+  useReportFieldState(
+    status === "saving"
+      ? "saving"
+      : status === "error"
+        ? "error"
+        : changed && !requestSaved
+          ? "dirty"
+          : "clean",
+  );
 
   useEffect(() => {
     const previous = departureBase.current;
