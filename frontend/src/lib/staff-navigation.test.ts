@@ -59,10 +59,12 @@ describe("staff navigation tree", () => {
     expect(new Set(sections).size).toBe(sections.length);
   });
 
-  it("keeps the role start pages above and the pinned pages below the groups", () => {
+  it("keeps the one start page above and the pinned pages below the groups", () => {
+    // Seit #2180 gibt es genau eine Startseite für alle Rollen; der Tagesplan
+    // steht im Tagesbetrieb.
     expect(
       STAFF_NAV_TOP.map((entry) => entry.kind === "page" && entry.href),
-    ).toEqual(["/dashboard", "/tagesplan"]);
+    ).toEqual(["/home"]);
     expect(
       STAFF_NAV_BOTTOM.map((entry) => entry.kind === "page" && entry.href),
     ).toEqual(["/emergency", "/help", "/settings"]);
@@ -104,8 +106,9 @@ describe("staff navigation tree", () => {
     });
 
     it("returns null for the start and pinned pages", () => {
-      expect(getStaffNavGroupForHref("/dashboard")).toBeNull();
-      expect(getStaffNavGroupForHref("/tagesplan")).toBeNull();
+      expect(getStaffNavGroupForHref("/home")).toBeNull();
+      // Der Tagesplan gehört seit #2180 in den Tagesbetrieb.
+      expect(getStaffNavGroupForHref("/tagesplan")).toBe("tagesbetrieb");
       expect(getStaffNavGroupForHref("/settings")).toBeNull();
     });
   });

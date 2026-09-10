@@ -172,7 +172,7 @@ describe("AnfragenPage", () => {
 
     render(<AnfragenPage />);
 
-    expect(mockRedirect).toHaveBeenCalledWith("/test-tenant/dashboard");
+    expect(mockRedirect).toHaveBeenCalledWith("/test-tenant/home");
   });
 
   it("rendert die aggregierte Liste in der Offen-Ansicht", () => {

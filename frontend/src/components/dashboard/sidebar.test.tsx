@@ -220,11 +220,11 @@ describe("Sidebar", () => {
       isSessionExpired: false,
       logout: vi.fn(),
       mode: "teacher",
-      homeUrl: "/dashboard",
+      homeUrl: "/home",
 
       profileUrl: "/profile",
     });
-    mockUsePathname.mockReturnValue("/dashboard");
+    mockUsePathname.mockReturnValue("/home");
     mockUseSearchParams.mockReturnValue(createMockSearchParams());
     mockUseSession.mockReturnValue(createMockSession(false));
     mockUseSupervision.mockReturnValue({
@@ -320,7 +320,7 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       // Admin-only items
-      expect(screen.getByText("Home")).toBeInTheDocument();
+      expect(screen.getByText("Startseite")).toBeInTheDocument();
       expect(screen.getByText("Vertretungen")).toBeInTheDocument();
       expect(screen.queryByText("Übergaben")).not.toBeInTheDocument();
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
@@ -560,13 +560,13 @@ describe("Sidebar", () => {
 
   describe("active link highlighting", () => {
     it("highlights dashboard link when on dashboard", () => {
-      mockUsePathname.mockReturnValue("/dashboard");
+      mockUsePathname.mockReturnValue("/home");
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
 
       render(<Sidebar />);
 
-      const dashboardLink = screen.getByText("Home").closest("a");
+      const dashboardLink = screen.getByText("Startseite").closest("a");
       expect(dashboardLink).toHaveClass("bg-gray-100");
       expect(dashboardLink).toHaveClass("text-gray-900");
     });
@@ -649,7 +649,7 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      const dashboardLink = screen.getByText("Home").closest("a");
+      const dashboardLink = screen.getByText("Startseite").closest("a");
       expect(dashboardLink).not.toHaveClass("bg-gray-100");
     });
 
@@ -1988,7 +1988,7 @@ describe("Sidebar", () => {
       // Die Gruppenzeile ist ein Schalter, keine Seite: das frühere
       // Navigate-on-expand des Planung-Akkordeons entfällt.
       mockRouterPush.mockClear();
-      mockUsePathname.mockReturnValue("/dashboard");
+      mockUsePathname.mockReturnValue("/home");
 
       render(<Sidebar />);
       const header = screen.getByRole("button", { name: "Planung" });
@@ -2751,7 +2751,7 @@ describe("Sidebar", () => {
     });
 
     it.each([
-      ["/dashboard", true],
+      ["/home", true],
       ["/ogs-groups", false],
     ])(
       `commits at most ${RENDER_BUDGET_MAX_COMMITS} times in idle on %s`,

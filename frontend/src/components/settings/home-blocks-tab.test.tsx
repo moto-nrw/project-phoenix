@@ -118,6 +118,6 @@ describe("HomeBlocksTab", () => {
     // NFC und Räume sind hier an, die offene Betreuung aus — also gibt es
     // Auslastung, aber keinen Grund, etwas Unsichtbares vorzugeben.
     expect(screen.getByText("Auslastung")).toBeInTheDocument();
-    expect(screen.getByText("Aktive Gruppen")).toBeInTheDocument();
+    expect(screen.getByText("Laufende Betreuung")).toBeInTheDocument();
   });
 });

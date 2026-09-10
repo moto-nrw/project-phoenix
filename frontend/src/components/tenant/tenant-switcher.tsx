@@ -51,7 +51,7 @@ interface BrandTenantSwitcherProps {
  */
 export function BrandTenantSwitcher({
   isScrolled = false,
-  href = "/dashboard",
+  href = "/home",
   label,
   hideLabelBelow,
 }: BrandTenantSwitcherProps) {
@@ -132,7 +132,7 @@ export function BrandTenantSwitcher({
         const tenantDomain = clientEnv.NEXT_PUBLIC_TENANT_DOMAIN;
         const port = window.location.port ? `:${window.location.port}` : "";
         const protocol = window.location.protocol;
-        window.location.href = `${protocol}//${targetTenant.subdomain}.${tenantDomain}${port}/dashboard`;
+        window.location.href = `${protocol}//${targetTenant.subdomain}.${tenantDomain}${port}/home`;
       } catch (err) {
         logger.error("tenant_switch_failed", {
           error: err instanceof Error ? err.message : String(err),

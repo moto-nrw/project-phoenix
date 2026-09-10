@@ -62,11 +62,11 @@ describe("BrandLink", () => {
     expect(screen.queryByText("moto")).not.toBeInTheDocument();
   });
 
-  it("links to /dashboard", () => {
+  it("links to /home", () => {
     render(<BrandLink />);
 
     const link = screen.getByRole("link");
-    expect(link).toHaveAttribute("href", "/dashboard");
+    expect(link).toHaveAttribute("href", "/home");
   });
 
   it("applies smaller text size when scrolled", () => {

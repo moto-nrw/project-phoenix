@@ -8,11 +8,13 @@ const {
   mockSignOut,
   mockClearSessionCache,
   mockEndStaffPreview,
+  mockSchoolPortalLoginUrl,
 } = vi.hoisted(() => ({
   mockUseSession: vi.fn(),
   mockSignOut: vi.fn(),
   mockClearSessionCache: vi.fn(),
   mockEndStaffPreview: vi.fn(),
+  mockSchoolPortalLoginUrl: vi.fn(),
 }));
 
 const mockProfile = {
@@ -47,6 +49,12 @@ vi.mock("~/lib/operator-url", () => ({
   operatorPath: (path: string) => path,
 }));
 
+vi.mock("~/lib/school-url", () => ({
+  schoolAbsoluteUrl: (path: string) => path,
+  schoolPath: (path: string) => path,
+  schoolPortalLoginUrl: mockSchoolPortalLoginUrl,
+}));
+
 vi.mock("~/lib/session-cache", () => ({
   clearSessionCache: mockClearSessionCache,
 }));
@@ -69,6 +77,9 @@ describe("TeacherShellProvider", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSignOut.mockResolvedValue(undefined);
+    mockSchoolPortalLoginUrl.mockReturnValue(
+      "https://schule.example.test/login",
+    );
   });
 
   const wrapper = ({ children }: { children: ReactNode }) => (
@@ -82,8 +93,6 @@ describe("TeacherShellProvider", () => {
           name: "John Doe",
           email: "john@example.com",
           roles: ["teacher", "admin"],
-          // schedules:read: das Gate der Tagesplan-Route — ohne das Recht
-          // bleibt /dashboard das Logo-Ziel (eigener Test unten).
           permissions: ["schedules:read"],
         },
       },
@@ -100,13 +109,12 @@ describe("TeacherShellProvider", () => {
     expect(result.current.status).toBe("authenticated");
     expect(result.current.isSessionExpired).toBe(false);
     expect(result.current.mode).toBe("teacher");
-    // Betreuungskräfte (auch mit Doppelrolle) haben den Tagesplan als Home
-    // (#2383) — dieselbe Priorität wie der Login-Redirect.
-    expect(result.current.homeUrl).toBe("/tagesplan");
+    // Das Logo führt für jede Rolle auf die Startseite (#2180).
+    expect(result.current.homeUrl).toBe("/home");
     expect(result.current.profileUrl).toBe("/profile");
   });
 
-  it("keeps /dashboard as home for admin-only accounts (#2383)", () => {
+  it("keeps the start page as home for admin-only accounts (#2180)", () => {
     mockUseSession.mockReturnValue({
       data: {
         user: {
@@ -120,10 +128,10 @@ describe("TeacherShellProvider", () => {
 
     const { result } = renderHook(() => useShellAuth(), { wrapper });
 
-    expect(result.current.homeUrl).toBe("/dashboard");
+    expect(result.current.homeUrl).toBe("/home");
   });
 
-  it("keeps /dashboard as home for caregivers without schedules:read (#2383)", () => {
+  it("keeps the start page as home for caregivers without schedules:read (#2180)", () => {
     mockUseSession.mockReturnValue({
       data: {
         user: {
@@ -138,7 +146,63 @@ describe("TeacherShellProvider", () => {
 
     const { result } = renderHook(() => useShellAuth(), { wrapper });
 
-    expect(result.current.homeUrl).toBe("/dashboard");
+    expect(result.current.homeUrl).toBe("/home");
+  });
+
+  it("hands existing school-only sessions to the school portal", () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          name: "Lehrkraft",
+          email: "lehrkraft@example.com",
+          roles: ["lehrkraft"],
+        },
+      },
+      status: "authenticated",
+    });
+
+    const { result } = renderHook(() => useShellAuth(), { wrapper });
+
+    expect(result.current.homeUrl).toBe("/school/login");
+    expect(mockSchoolPortalLoginUrl).not.toHaveBeenCalled();
+  });
+
+  it("keeps the school-only hand-off safe during server rendering", () => {
+    mockSchoolPortalLoginUrl.mockImplementation(() => {
+      throw new Error("schoolPortalLoginUrl() is client-only.");
+    });
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          name: "Lehrkraft",
+          email: "lehrkraft@example.com",
+          roles: ["lehrkraft"],
+        },
+      },
+      status: "authenticated",
+    });
+
+    const { result } = renderHook(() => useShellAuth(), { wrapper });
+
+    expect(result.current.homeUrl).toBe("/school/login");
+    expect(mockSchoolPortalLoginUrl).not.toHaveBeenCalled();
+  });
+
+  it("keeps dual-role lehrkraft accounts in the staff portal", () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          name: "Lehrkraft mit Betreuung",
+          email: "lehrkraft@example.com",
+          roles: ["lehrkraft", "user"],
+        },
+      },
+      status: "authenticated",
+    });
+
+    const { result } = renderHook(() => useShellAuth(), { wrapper });
+
+    expect(result.current.homeUrl).toBe("/home");
   });
 
   it("provides profile data from context", () => {

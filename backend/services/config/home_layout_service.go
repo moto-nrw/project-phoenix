@@ -29,6 +29,10 @@ type HomeLayoutView struct {
 	// Overrides are the person's own deviations. Absent means "undecided",
 	// which is not the same as hidden.
 	Overrides map[string]bool `json:"overrides"`
+	// Blocks is the arrangement the person built: order and width (#2180).
+	// Empty means they never arranged anything and see their role's
+	// recommended start page.
+	Blocks []configModel.HomeBlockPlacement `json:"blocks"`
 	// Policies are the school's prescriptions. Absent means BlockOptional.
 	Policies map[string]configModel.BlockPolicy `json:"policies"`
 	// CanManagePolicies tells the client whether to offer the school-wide
@@ -74,6 +78,7 @@ func (s *HomeLayoutService) View(ctx context.Context, tenantID, accountID int64,
 
 	view := HomeLayoutView{
 		Overrides:         map[string]bool{},
+		Blocks:            []configModel.HomeBlockPlacement{},
 		Policies:          map[string]configModel.BlockPolicy{},
 		CanManagePolicies: hasPermission(HomeBlockPolicyWritePermission, permissions),
 	}
@@ -94,6 +99,9 @@ func (s *HomeLayoutService) View(ctx context.Context, tenantID, accountID int64,
 		if layout != nil && layout.Overrides != nil {
 			view.Overrides = layout.Overrides
 		}
+		if layout != nil && layout.Blocks != nil {
+			view.Blocks = layout.Blocks
+		}
 		return nil
 	})
 	if err != nil {
@@ -111,7 +119,21 @@ func (s *HomeLayoutService) View(ctx context.Context, tenantID, accountID int64,
 // A concurrent school policy wins over an incoming choice without destroying
 // the choice already stored for that block. The client sends its full stored
 // map so choices for currently unavailable blocks also survive another edit.
-func (s *HomeLayoutService) SetOverrides(ctx context.Context, tenantID, accountID int64, overrides map[string]bool) error {
+// The arrangement in blocks is stored as sent, after validation: order and
+// width are the person's decision and the server has no opinion about them.
+// What the school prescribes still wins when the page is rendered.
+func (s *HomeLayoutService) SetOverrides(ctx context.Context, tenantID, accountID int64, overrides map[string]bool, blocks []configModel.HomeBlockPlacement) error {
+	return s.setOverrides(ctx, tenantID, accountID, overrides, blocks, false)
+}
+
+// SetOverridesKeepingBlocks updates the deviations sent by a client from
+// before start page arrangements existed. Reading the arrangement after the
+// account lock prevents a concurrent save from being overwritten.
+func (s *HomeLayoutService) SetOverridesKeepingBlocks(ctx context.Context, tenantID, accountID int64, overrides map[string]bool) error {
+	return s.setOverrides(ctx, tenantID, accountID, overrides, nil, true)
+}
+
+func (s *HomeLayoutService) setOverrides(ctx context.Context, tenantID, accountID int64, overrides map[string]bool, blocks []configModel.HomeBlockPlacement, keepBlocks bool) error {
 	if err := s.ready(); err != nil {
 		return err
 	}
@@ -120,6 +142,11 @@ func (s *HomeLayoutService) SetOverrides(ctx context.Context, tenantID, accountI
 	}
 	if err := validateBlockKeys(overrides); err != nil {
 		return err
+	}
+	if !keepBlocks {
+		if err := configModel.ValidateHomeBlockPlacements(blocks); err != nil {
+			return invalidBlocks(err.Error())
+		}
 	}
 
 	return s.runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
@@ -148,11 +175,19 @@ func (s *HomeLayoutService) SetOverrides(ctx context.Context, tenantID, accountI
 		if err != nil {
 			return err
 		}
+		storedBlocks := blocks
+		if keepBlocks {
+			storedBlocks = []configModel.HomeBlockPlacement{}
+			if existing != nil && existing.Blocks != nil {
+				storedBlocks = existing.Blocks
+			}
+		}
 
 		layout := &configModel.HomeLayout{
 			TenantID:  tenantID,
 			AccountID: accountID,
 			Overrides: mergeHomeLayoutOverrides(overrides, existing, policies),
+			Blocks:    storedBlocks,
 		}
 		if err := validateBlockKeys(layout.Overrides); err != nil {
 			return err

@@ -166,8 +166,10 @@ interface NavItem {
 // Admins don't have assigned groups or supervision duties (#608)
 const ADMIN_MAIN_ITEMS: NavItem[] = [
   {
-    href: "/dashboard",
-    label: "Home",
+    href: "/home",
+    // Unten in der Leiste ist wenig Platz; „Start" ist die mobile Kurzform
+    // von „Startseite" (#2180), wie „Suchen" für „Alle Kinder".
+    label: "Start",
     iconKey: "home",
     concept: "dashboard",
     alwaysShow: true,
@@ -196,9 +198,20 @@ const ADMIN_MAIN_ITEMS: NavItem[] = [
 
 const STAFF_MAIN_ITEMS: NavItem[] = [
   {
-    // Tagesplan (#2383): die Standardseite der Betreuungskräfte, deshalb der
-    // erste Tab. Gating (binary-Modus, timetable.enabled) unten in
-    // filteredMainItemsByMode.
+    // Die Startseite (#2180) ist das Ziel nach dem Anmelden — für jede Rolle.
+    // Eine Seite, auf der man landet, muss die Leiste unten auch kennen,
+    // sonst findet man nicht zurück. Die Aktivitäten wandern dafür ins
+    // Mehr-Menü: fünf Reiter sind die Grenze, und der laufende Tag (Tagesplan,
+    // Gruppe, Aufsicht, Suchen) steht näher am Alltag.
+    href: "/home",
+    label: "Start",
+    iconKey: "home",
+    concept: "dashboard",
+    alwaysShow: true,
+  },
+  {
+    // Tagesplan (#2383): der Einstieg in den laufenden Betreuungstag. Gating
+    // (binary-Modus, timetable.enabled) unten in filteredMainItemsByMode.
     href: "/tagesplan",
     label: "Tagesplan",
     iconKey: "betreuungsplan",
@@ -223,13 +236,6 @@ const STAFF_MAIN_ITEMS: NavItem[] = [
     href: "/students/search",
     label: "Suchen",
     iconKey: "search",
-    alwaysShow: true,
-  },
-  {
-    href: "/activities",
-    label: "Aktivitäten",
-    iconKey: "activities",
-    concept: "activities",
     alwaysShow: true,
   },
 ];
@@ -342,10 +348,14 @@ const OPERATOR_ADDITIONAL_ITEMS: AdditionalNavItem[] = [
  */
 const PAGE_ITEMS: readonly AdditionalNavItem[] = [
   {
+    // Startseite aller Rollen (#2180). Unten in der Leiste bleibt für
+    // Betreuungskräfte der laufende Tag (Tagesplan, Gruppe, Aufsicht,
+    // Suchen, Aktivitäten); die Startseite ist über das Mehr-Menü und das
+    // Logo erreichbar.
     ...STAFF_FLAT_PAGES.dashboard,
     iconKey: "home",
     concept: "dashboard",
-    requiresAdmin: true,
+    alwaysShow: true,
   },
   {
     // Tagesplan (#2383): Laufzeit-Gating (binary, timetable.enabled,
@@ -628,8 +638,8 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       if (href === "/parents") {
         return pathname === "/parents" || pathname === "/";
       }
-      if (href === "/dashboard") {
-        return pathname === "/dashboard" || pathname === "/";
+      if (href === "/home") {
+        return pathname === "/home" || pathname === "/";
       }
       // Check if we came from this page via the 'from' query parameter. Grouped
       // items (e.g. Eltern) own several routes via activePaths, so a child page

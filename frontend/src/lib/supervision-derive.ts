@@ -40,13 +40,30 @@ export interface SupervisedGroupPayload {
 export interface SupervisionSnapshot {
   groups: NavigationEducationalGroup[] | null;
   supervised: SupervisedGroupPayload[] | null;
+  /** Eigene laufende Aufsichten zusätzlich zur schulweiten Übersicht. */
+  ownSupervised?: SupervisedGroupPayload[] | null;
   schulhof: SchulhofStatus | null;
   /** True when `supervised` came from the school-wide overview endpoint. */
   overviewOk: boolean;
 }
 
 export interface DerivedSupervision {
+  /**
+   * Es gibt etwas zu beaufsichtigen: eigene Räume, die schulweite Übersicht
+   * oder der Schulhof, dem sich jede Person anschließen kann. Steuert die
+   * Sichtbarkeit von „Aufsicht" in der Navigation — NICHT, ob die Person
+   * selbst gerade Aufsicht führt.
+   */
   isSupervising: boolean;
+  /**
+   * Die Person führt gerade selbst eine Aufsicht: ein eigener laufender Raum
+   * oder der Schulhof, dem sie sich angeschlossen hat. Mit der schulweiten
+   * Übersicht sind eigene Räume nicht von fremden zu unterscheiden; dann
+   * zählt nur der Schulhof. Steuert „Aufsicht fortsetzen" auf der Startseite.
+   * Optional, damit die vielen Test-Fixturen des Kontexts unverändert bleiben;
+   * `deriveSupervision` setzt es immer, fehlend heißt „nein".
+   */
+  ownSupervision?: boolean;
   supervisedRoomId?: string;
   supervisedRoomName?: string;
   supervisedRooms: SupervisedRoom[];
@@ -79,15 +96,23 @@ export function deriveSupervision(
   supervised: SupervisedGroupPayload[] | null,
   schulhof: SchulhofStatus | null,
   overviewOk: boolean,
+  ownSupervised: SupervisedGroupPayload[] | null = null,
 ): DerivedSupervision {
   const schulhofEntry = schulhofRoom(schulhof);
   const first = supervised?.[0];
+  const ownsRegularRoom =
+    overviewOk &&
+    ownSupervised?.some(
+      (group) =>
+        group.room_id !== undefined && group.room?.name !== SCHULHOF_ROOM_NAME,
+    ) === true;
 
   if (!supervised || !first) {
     // No regular supervision (or the request failed): Schulhof alone still
     // counts, so anyone can join it.
     return {
       isSupervising: schulhofEntry !== null,
+      ownSupervision: ownsRegularRoom || schulhof?.is_user_supervising === true,
       supervisedRoomId: schulhofEntry ? SCHULHOF_TAB_ID : undefined,
       supervisedRoomName: schulhofEntry ? SCHULHOF_ROOM_NAME : undefined,
       supervisedRooms: schulhofEntry ? [schulhofEntry] : [],
@@ -124,6 +149,13 @@ export function deriveSupervision(
 
   return {
     isSupervising: true,
+    // Ohne Übersicht stammt jede Zeile aus /api/me/groups/supervised und ist
+    // eine eigene Aufsicht. Mit Übersicht liefert die zusätzliche eigene
+    // Abfrage das Signal für „Aufsicht fortsetzen“.
+    ownSupervision:
+      (!overviewOk && eligible.length > 0) ||
+      ownsRegularRoom ||
+      schulhof?.is_user_supervising === true,
     supervisedRoomId: first.room_id?.toString(),
     supervisedRoomName:
       first.room?.name ?? (first.room_id ? `Room ${first.room_id}` : undefined),
@@ -142,6 +174,7 @@ export function sameSupervision(
     rooms.map((r) => `${r.id}:${r.groupId}`).join(",");
   return (
     prev.isSupervising === next.isSupervising &&
+    prev.ownSupervision === next.ownSupervision &&
     prev.supervisedRoomId === next.supervisedRoomId &&
     prev.supervisedRoomName === next.supervisedRoomName &&
     prev.overviewEnabled === next.overviewEnabled &&
