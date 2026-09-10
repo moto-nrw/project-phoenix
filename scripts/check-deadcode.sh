@@ -10,9 +10,9 @@ run_deadcode() {
 
   set +e
   if [[ "$mode" == "tests" ]]; then
-    output=$(go tool deadcode -test ./... 2>&1)
+    output=$(go tool deadcode -test ./...)
   else
-    output=$(go tool deadcode ./... 2>&1)
+    output=$(go tool deadcode ./...)
   fi
   status=$?
   set -e
@@ -53,7 +53,7 @@ fi
 deadcode_binary=$(go tool -n deadcode)
 tool_output=$(
   cd "$repo_root/scripts/backend-architecture"
-  "$deadcode_binary" ./... 2>&1
+  "$deadcode_binary" ./...
 )
 tool_findings=$(printf '%s\n' "$tool_output" | grep -v '^go: ' || true)
 if [[ -n "$tool_findings" ]]; then
