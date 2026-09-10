@@ -237,6 +237,32 @@ describe("ChildMasterDataView", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("ignores a failed auto-save after reverting a text field", async () => {
+    let rejectSave: ((reason?: unknown) => void) | undefined;
+    mockUpdateField.mockImplementationOnce(
+      () =>
+        new Promise<ChildMasterData>((_resolve, reject) => {
+          rejectSave = reject;
+        }),
+    );
+
+    render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
+    const health = await screen.findByDisplayValue("Allergie");
+
+    fireEvent.change(health, { target: { value: "Neue Info" } });
+    fireEvent.blur(health);
+    await waitFor(() => expect(mockUpdateField).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(health, { target: { value: "Allergie" } });
+    await act(async () => {
+      rejectSave?.(new Error("write failed"));
+    });
+
+    expect(
+      screen.queryByRole("button", { name: "Erneut versuchen" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("warns before a hard unload while an auto-save is still pending", async () => {
     let resolveSave: ((value: ChildMasterData) => void) | undefined;
     mockUpdateField.mockImplementationOnce(
@@ -476,6 +502,41 @@ describe("ChildMasterDataView", () => {
         "en",
       ),
     );
+  });
+
+  it("ignores a failed auto-save after reverting a selection", async () => {
+    let rejectSave: ((reason?: unknown) => void) | undefined;
+    mockUpdateField.mockImplementationOnce(
+      () =>
+        new Promise<ChildMasterData>((_resolve, reject) => {
+          rejectSave = reject;
+        }),
+    );
+
+    render(
+      <ChildMasterDataView
+        studentId="42"
+        childName="Lina Muster"
+        area="contact"
+      />,
+    );
+    const method = await screen.findByRole("combobox", {
+      name: "Bevorzugter Kontaktweg",
+    });
+
+    fireEvent.click(method);
+    fireEvent.click(screen.getByRole("option", { name: "Telefon" }));
+    await waitFor(() => expect(mockUpdateField).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(method);
+    fireEvent.click(screen.getByRole("option", { name: "E-Mail" }));
+    await act(async () => {
+      rejectSave?.(new Error("write failed"));
+    });
+
+    expect(
+      screen.queryByRole("button", { name: "Erneut versuchen" }),
+    ).not.toBeInTheDocument();
   });
 
   it("merges direct-save snapshots without rolling back other saved fields", async () => {

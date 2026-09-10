@@ -911,7 +911,9 @@ function AutoSaveField({
           setDirty(false);
         }
       } catch {
-        setStatus("error");
+        if (latestValue.current === next && next !== savedValue.current) {
+          setStatus("error");
+        }
       } finally {
         inFlightValue.current = null;
         const queued = queuedValue.current;
@@ -1067,7 +1069,9 @@ function AutoSaveSelect({
           setDirty(false);
         }
       } catch {
-        setStatus("error");
+        if (latestValue.current === next && next !== savedValue.current) {
+          setStatus("error");
+        }
       } finally {
         inFlightValue.current = null;
         const queued = queuedValue.current;
