@@ -842,6 +842,9 @@ describe("PlannedStatusDaysModal", () => {
       screen.getByText("17.08.2026 bis 19.08.2026 · 3 Tage"),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Grund (optional)")).toHaveValue("Arzttermin");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Die Krankmeldung konnte nicht gespeichert werden. Bitte erneut versuchen.",
+    );
   });
 
   it("refreshes and shows a conflict that appears during submission", async () => {
@@ -879,9 +882,11 @@ describe("PlannedStatusDaysModal", () => {
     await clickEnabledButton("Entschuldigen");
 
     await waitFor(() => {
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "18.08.2026 (krank): 1 von 3 Tagen hat bereits einen Status",
-      );
+      expect(
+        screen.getByText(
+          /18\.08\.2026 \(krank\): 1 von 3 Tagen hat bereits einen Status/,
+        ),
+      ).toBeInTheDocument();
     });
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
@@ -942,6 +947,42 @@ describe("PlannedStatusDaysModal", () => {
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledWith(["2026-05-25", "2026-05-27"]);
     });
+  });
+
+  it("shows a form error when every selected date already has a status", async () => {
+    const existingDay: StudentStatusDay = {
+      ...existingDays[0]!,
+      date: "2026-08-17",
+    };
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <PlannedStatusDaysModal
+        isOpen
+        status="sick"
+        studentName="Kevin Anders"
+        isSubmitting={false}
+        existingDays={[]}
+        onClose={vi.fn()}
+        loadExistingDays={vi.fn().mockResolvedValue([existingDay])}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Zeitraum" }));
+    fireEvent.change(screen.getByLabelText("Von"), {
+      target: { value: "2026-08-17" },
+    });
+    fireEvent.change(screen.getByLabelText("Bis"), {
+      target: { value: "2026-08-17" },
+    });
+
+    await clickEnabledButton("Krankmelden");
+
+    expect(
+      screen.getByText("Wähle einen Zeitraum ohne bestehenden Status aus."),
+    ).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 
   it("clears a stale conflict after an existing status day is deleted", async () => {

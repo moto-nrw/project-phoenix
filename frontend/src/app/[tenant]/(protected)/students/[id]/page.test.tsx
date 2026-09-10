@@ -1303,7 +1303,7 @@ describe("StudentDetailPage", () => {
       });
     });
 
-    it("shows error toast when sick toggle fails", async () => {
+    it("does not emit a toast when planned sickness saving fails", async () => {
       mockCreateStudentStatusDays.mockRejectedValue(new Error("Toggle failed"));
 
       render(<StudentDetailPage />);
@@ -1322,12 +1322,10 @@ describe("StudentDetailPage", () => {
         fireEvent.click(confirmButton);
       });
 
-      await waitFor(() => {
-        expect(mockToastError).toHaveBeenCalled();
-      });
+      expect(mockToastError).not.toHaveBeenCalled();
     });
 
-    it("explains an atomic conflict without reporting a successful save", async () => {
+    it("does not emit a toast for an atomic conflict", async () => {
       mockCreateStudentStatusDays.mockRejectedValue(
         new MockStudentStatusDayConflictError([
           {
@@ -1349,11 +1347,10 @@ describe("StudentDetailPage", () => {
       });
       fireEvent.click(screen.getByTestId("planned-status-submit"));
 
-      await waitFor(() => {
-        expect(mockToastWarning).toHaveBeenCalledWith(
-          "25.05.2026 (entschuldigt) wurde zwischenzeitlich eingetragen und nicht überschrieben. Bitte Auswahl prüfen.",
-        );
-      });
+      await waitFor(() =>
+        expect(mockCreateStudentStatusDays).toHaveBeenCalled(),
+      );
+      expect(mockToastWarning).not.toHaveBeenCalled();
       expect(mockToastSuccess).not.toHaveBeenCalled();
     });
 
@@ -1622,7 +1619,7 @@ describe("StudentDetailPage", () => {
       });
     });
 
-    it("shows error toast when excused toggle fails", async () => {
+    it("does not emit a toast when planned excusal saving fails", async () => {
       mockCreateStudentStatusDays.mockRejectedValue(new Error("fail"));
       render(<StudentDetailPage />);
       fireEvent.click(screen.getByTestId("excused-toggle-button"));
@@ -1634,9 +1631,7 @@ describe("StudentDetailPage", () => {
       await act(async () => {
         fireEvent.click(screen.getByTestId("planned-status-submit"));
       });
-      await waitFor(() => {
-        expect(mockToastError).toHaveBeenCalled();
-      });
+      expect(mockToastError).not.toHaveBeenCalled();
     });
 
     it("shows aufheben modal when student is already excused", async () => {

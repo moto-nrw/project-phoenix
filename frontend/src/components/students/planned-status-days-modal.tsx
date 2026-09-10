@@ -118,7 +118,6 @@ export function PlannedStatusDaysModal({
   const [selectedDates, setSelectedDates] = useState<Date[]>([]);
   const [rangeStart, setRangeStart] = useState("");
   const [rangeEnd, setRangeEnd] = useState("");
-  const [selectionHint, setSelectionHint] = useState<string | null>(null);
   // Save error of the form (Bauart 2 Regel 5): shown in the body's error
   // slot, not as a toast by the caller.
   const [submitError, setSubmitError] = useFormError();
@@ -353,7 +352,6 @@ export function PlannedStatusDaysModal({
       const today = new Date();
       const todayKey = toISODate(today);
       setSelectionMode("individual");
-      setSelectionHint(null);
       setSubmitError(null);
       setRangeStart(prefillClassTrip && isClassTrip ? todayKey : "");
       setRangeEnd(prefillClassTrip && isClassTrip ? todayKey : "");
@@ -486,7 +484,7 @@ export function PlannedStatusDaysModal({
       const key = toISODate(date);
       const existingDay = activeExistingDayByDate.get(key);
       if (existingDay) {
-        setSelectionHint(
+        setSubmitError(
           `${formatDateLabel(existingDay.date)} ist ${getExistingStatusLabel(
             existingDay.status,
           )}.`,
@@ -494,9 +492,6 @@ export function PlannedStatusDaysModal({
       } else {
         unique.set(key, date);
       }
-    }
-    if (unique.size === sourceDates.length) {
-      setSelectionHint(null);
     }
     if (isPartialExcusal) {
       // While editing an existing partial excusal the date is fixed: clearing
@@ -510,7 +505,7 @@ export function PlannedStatusDaysModal({
         if (editing) {
           const editDate = parseISODate(editing.date);
           setSelectedDates([editDate]);
-          setSelectionHint(
+          setSubmitError(
             "Beim Bearbeiten bleibt das Datum fest. Abbrechen, um einen anderen Tag zu wählen.",
           );
           return;
@@ -563,7 +558,7 @@ export function PlannedStatusDaysModal({
 
   const handleSelectionModeChange = (next: SelectionMode) => {
     setSelectionMode(next);
-    setSelectionHint(null);
+    setSubmitError(null);
     setCheckedExistingDays([]);
     setCheckedSelectionKey("");
     setConflictCheckError(null);
@@ -628,7 +623,7 @@ export function PlannedStatusDaysModal({
     setSubmitError(null);
     const dateKeys = selectableDateKeys;
     if (dateKeys.length === 0) {
-      setSelectionHint(
+      setSubmitError(
         usesRangeSelection
           ? "Wähle einen Zeitraum ohne bestehenden Status aus."
           : "Wähle mindestens einen Tag ohne Krankmeldung oder Entschuldigung aus.",
@@ -674,8 +669,15 @@ export function PlannedStatusDaysModal({
         await onSubmit(dateKeys);
       }
     } catch {
-      // The caller owns the user-facing error toast. Keep every input intact
-      // and refresh conflicts in case the write lost a concurrent race.
+      setSubmitError(
+        isSick
+          ? "Die Krankmeldung konnte nicht gespeichert werden. Bitte erneut versuchen."
+          : isClassTrip
+            ? "Die Klassenfahrt konnte nicht gespeichert werden. Bitte erneut versuchen."
+            : "Die Entschuldigung konnte nicht gespeichert werden. Bitte erneut versuchen.",
+      );
+      // Keep every input intact and refresh conflicts in case the write lost
+      // a concurrent race.
       setConflictCheckRevision((current) => current + 1);
       return;
     }
@@ -702,7 +704,6 @@ export function PlannedStatusDaysModal({
           isCheckingConflicts ||
           !checkedCurrentSelection ||
           conflictCheckError !== null ||
-          selectableDateKeys.length === 0 ||
           hasInvalidRangeOrder ||
           hasSelectionTooWide ||
           (isPartialExcusal &&
@@ -841,11 +842,6 @@ export function PlannedStatusDaysModal({
                         : `${formatCalendarDate(rangeStart)} bis ${formatCalendarDate(rangeEnd)} · ${rangeDateKeys.length} Tage`}
                     </p>
                   ) : null}
-                  {selectionHint ? (
-                    <p className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong mt-2 rounded-lg border px-3 py-2 text-sm">
-                      {selectionHint}
-                    </p>
-                  ) : null}
                 </div>
               ) : (
                 <>
@@ -880,11 +876,6 @@ export function PlannedStatusDaysModal({
                         calendarLayout="inline"
                       />
                     )}
-                    {selectionHint ? (
-                      <p className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong mt-2 rounded-lg border px-3 py-2 text-sm">
-                        {selectionHint}
-                      </p>
-                    ) : null}
                   </div>
 
                   <div>
@@ -924,7 +915,7 @@ export function PlannedStatusDaysModal({
                               {format(date, "dd.MM.", { locale: de })}
                             </span>
                             {existingDay ? (
-                              <span className="mt-1 block text-[10px] leading-tight font-medium sm:text-[11px]">
+                              <span className="mt-1 block text-sm leading-tight font-medium">
                                 <span className="block">bereits</span>
                                 <span className="block">
                                   {getStatusLabel(

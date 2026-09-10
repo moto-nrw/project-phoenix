@@ -80,8 +80,6 @@ import {
   createStudentStatusDays,
   deleteStudentStatusDay,
   fetchStudentStatusDays,
-  StudentStatusDayConflictError,
-  StudentStatusDayPartialAbsenceConflictError,
   type StudentStatusDay,
   type StudentStatusKind,
 } from "~/lib/student-status-days-api";
@@ -1015,22 +1013,7 @@ function StudentDetailPageContent() {
         status: plannedStatusModal,
         error: err instanceof Error ? err.message : String(err),
       });
-      if (err instanceof StudentStatusDayPartialAbsenceConflictError) {
-        toast.warning(err.message);
-      } else if (err instanceof StudentStatusDayConflictError) {
-        const conflicts = err.conflicts
-          .map(
-            (day) =>
-              `${formatCalendarDate(day.date)} (${day.label.toLowerCase()})`,
-          )
-          .join(", ");
-        const wasOrWere = err.conflicts.length === 1 ? "wurde" : "wurden";
-        toast.warning(
-          `${conflicts} ${wasOrWere} zwischenzeitlich eingetragen und nicht überschrieben. Bitte Auswahl prüfen.`,
-        );
-      } else {
-        toast.error("Geplanter Status konnte nicht gespeichert werden");
-      }
+      // The open modal shows the failure in its error slot.
       throw err;
     } finally {
       setPlannedStatusLoading(false);
