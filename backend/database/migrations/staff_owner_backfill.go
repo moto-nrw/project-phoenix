@@ -620,11 +620,11 @@ func (r *staffOwnerTenantRun) removeOrphans(ctx context.Context, cp *StaffOwnerB
 	return r.reconcileOrphans(ctx, cp, false)
 }
 
-// Cleanup and any conflict rewind commit together with their counters. The
-// tenant predicate and source-existence check preserve live and soft-deleted
-// memberships; only genuinely orphaned copies are removed.
+// Cleanup, source-backed retirements and any conflict rewind commit together
+// with their counters. Retired memberships are retained, not deleted.
 func (r *staffOwnerTenantRun) reconcileOrphans(ctx context.Context, cp *StaffOwnerBackfillCheckpoint, rewind bool) error {
 	var removed int64
+	var retired int64
 	err := r.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		if _, err := tx.ExecContext(ctx, `SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '60s'`); err != nil {
 			return err
@@ -639,18 +639,44 @@ func (r *staffOwnerTenantRun) reconcileOrphans(ctx context.Context, cp *StaffOwn
 			SELECT count(*) FROM removed`, r.tenantID).Scan(ctx, &removed); err != nil {
 			return err
 		}
+		if rewind {
+			// The replacement may have a lower ID than its retired predecessor
+			// and occupy a different batch. Rewinding alone cannot reach the
+			// predecessor before the immediate active-person unique check.
+			result, err := tx.ExecContext(ctx, `
+				UPDATE users.staff_school_memberships AS m
+				SET deleted_at = s.deleted_at, created_at = s.created_at, updated_at = s.updated_at
+				FROM users.staff AS s
+				WHERE m.tenant_id = ? AND s.tenant_id = m.tenant_id AND s.id = m.id
+				  AND s.person_id = m.person_id AND m.deleted_at IS NULL AND s.deleted_at IS NOT NULL
+				  AND (s.work_time_model_id IS NULL OR EXISTS (
+					SELECT 1 FROM config.work_time_models AS w WHERE w.id = s.work_time_model_id AND w.tenant_id = s.tenant_id))
+				  AND EXISTS (SELECT 1 FROM users.staff AS replacement
+					WHERE replacement.tenant_id = s.tenant_id AND replacement.person_id = s.person_id
+					  AND replacement.id <> s.id AND replacement.deleted_at IS NULL)`, r.tenantID)
+			if err != nil {
+				return err
+			}
+			retired, err = result.RowsAffected()
+			if err != nil {
+				return err
+			}
+		}
 		_, err := tx.ExecContext(ctx, `
 			UPDATE platform.storage_backfill_checkpoints SET
 				high_water_id = CASE WHEN ? THEN 0 ELSE high_water_id END,
+				rows_scanned = rows_scanned + ?, rows_copied = rows_copied + ?,
 				rows_removed = rows_removed + ?, pass_writes = pass_writes + ?, updated_at = now()
-			WHERE backfill = ? AND tenant_id = ?`, rewind, removed, removed, StaffOwnerBackfillName, r.tenantID)
+			WHERE backfill = ? AND tenant_id = ?`, rewind, retired, retired, removed, removed+retired, StaffOwnerBackfillName, r.tenantID)
 		return err
 	})
 	if err != nil {
 		return fmt.Errorf("staff owner backfill: tenant %d remove orphans: %w", r.tenantID, err)
 	}
 	cp.RowsRemoved += removed
-	cp.PassWrites += removed
+	cp.RowsScanned += retired
+	cp.RowsCopied += retired
+	cp.PassWrites += removed + retired
 	if rewind {
 		cp.HighWaterID = 0
 	}

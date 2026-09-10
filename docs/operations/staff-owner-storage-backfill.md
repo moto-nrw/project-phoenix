@@ -36,6 +36,12 @@ old rows are never modified. The field mapping is unchanged from
   source row was physically deleted and records their removal count. This
   clears an orphaned active membership that would otherwise block the person's
   new Staff ID forever; soft-deleted source rows are preserved and re-read.
+  Recovery also applies a source-backed retirement to an active target that
+  blocks another active Staff ID for the same person, even when the retired
+  source lies in a later batch. Tenant, source ID and Person must all match;
+  foreign work-time-model rows remain rejected. Retirement copies, their
+  counters and the rewind commit together, without deleting retained history
+  or changing source rows. Other changed fields are copied by the resumed pass.
 - A school whose batch fails with any other error is reported and skipped for
   this run; the remaining schools still run, and the command exits non-zero.
 - Rows that reference a work-time model of another school are rejected, not
