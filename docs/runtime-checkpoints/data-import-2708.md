@@ -9,8 +9,9 @@ It is not a staging or production observation window.
 
 ## Cutover and ownership
 
-`services/import` holds no repository and issues no SQL. Every accepted row
-is committed through the public commands of its owners:
+`services/import` performs no write of its own: it issues no SQL and holds no
+writing repository. Every accepted row is committed through the public
+commands of its owners:
 
 | Row type | Owners invoked |
 | --- | --- |
@@ -19,9 +20,22 @@ is committed through the public commands of its owners:
 | Class-list entry | School Membership (entry), People Directory (student duplicate check), Audit Platform (entry change, GDPR import record) |
 | Opening balance | unchanged Workforce services (#2132) |
 
-The owner ports live in `services/import/ports`; the composition root binds
-the production capabilities. `api/import` is unchanged: the same four routes
-call the same import services, so there is one switch and no dual-write.
+The opening-balance row type is the one exception: it still books through the
+retained `services/active` balance and absence services. Those writes are
+Workforce's own, they were introduced by #2132 after this issue was written,
+and no blocker of #2708 exposes an owner command for them, so cutting them
+over stays open.
+
+The owner ports live in `services/import/ports`; `services/import_composition.go`
+binds them, and the behaviour tests compose the same graph so production and
+test wiring cannot drift. `api/import` is unchanged: the same four routes call
+the same import services, so there is one switch and no dual-write.
+
+Four read-only legacy repositories remain, none of them written by the
+import: the RFID card the optional tag column resolves, the education group
+and room the relationship resolver matches, and the roles, accounts and
+school name the staff row type reads. They stay tracked in
+`architecture/legacy.jsonl` under their own migration issues.
 
 A batch is now validated completely before the first owner command runs.
 Each accepted row is applied inside its own PostgreSQL savepoint, so a row

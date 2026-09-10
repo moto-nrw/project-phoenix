@@ -111,7 +111,6 @@ func MapGuardianRole(raw string) (string, bool) {
 	return "", false
 }
 
-// StudentImportConfig implements ImportConfig for student imports
 // StudentImportConfig implements ImportConfig for student imports. Every
 // write goes through the owner commands in StudentImportDeps (#2708).
 type StudentImportConfig struct {
@@ -120,7 +119,7 @@ type StudentImportConfig struct {
 
 // StudentImportDeps are the consumer-owned ports of the student import.
 // Persons, Students and Guardians are the People Directory; Schedules is
-// Care Plan; ports.PrivacyConsents is Student Presence; ConsentHistory is the
+// Care Plan; PrivacyConsents is Student Presence; ConsentHistory is the
 // Audit platform recorder of the consent timestamps.
 type StudentImportDeps struct {
 	Persons         ports.PersonDirectory
@@ -153,6 +152,37 @@ type (
 func (c *StudentImportConfig) PreloadReferenceData(ctx context.Context) error {
 	// Pre-load all groups for relationship resolution
 	return c.Resolver.PreloadGroups(ctx)
+}
+
+// ValidateBatch flags rows that claim the same RFID card as an earlier row
+// of the same file. The card is still free while the batch is validated, so
+// only a batch-wide check can tell the second claim apart from a legitimate
+// import; without it the owner refuses the second row at write time with a
+// generic error instead of naming the card (#2708). The map is keyed by the
+// zero-based slice index, and the message shows the 1-based file row
+// including the header line, matching the engine's own row numbering.
+func (c *StudentImportConfig) ValidateBatch(_ context.Context, rows []importModels.StudentImportRow) map[int][]importModels.ValidationError {
+	result := make(map[int][]importModels.ValidationError)
+	seen := make(map[string]int, len(rows))
+	for i, row := range rows {
+		tag := strings.TrimSpace(row.TagID)
+		if tag == "" {
+			continue
+		}
+		key := strings.ToLower(tag)
+		if firstRow, duplicate := seen[key]; duplicate {
+			result[i] = append(result[i], importModels.ValidationError{
+				Field:       "tag_id",
+				Message:     fmt.Sprintf("RFID-Karte '%s' ist in der Datei mehrfach vergeben (bereits in Zeile %d).", tag, firstRow+2),
+				Code:        "duplicate_in_file",
+				Severity:    importModels.ErrorSeverityError,
+				ActualValue: tag,
+			})
+			continue
+		}
+		seen[key] = i
+	}
+	return result
 }
 
 // Validate validates a single row of student import data
@@ -301,11 +331,6 @@ func (c *StudentImportConfig) Validate(ctx context.Context, row *importModels.St
 // already assigned to a different person. An occupied card is the import's
 // strongest match key, so it is accepted only when its wearer is a student;
 // names may legitimately change and are not an ownership proof.
-// validateTag resolves the RFID column to a card of this tenant and rewrites
-// the cell to the stored spelling. Blocks the row when the card is unknown or
-// already assigned to a different person. An occupied card is the import's
-// strongest match key, so it is accepted only when its wearer is a student;
-// names may legitimately change and are not an ownership proof.
 func (c *StudentImportConfig) validateTag(ctx context.Context, row *importModels.StudentImportRow) []importModels.ValidationError {
 	raw := strings.TrimSpace(row.TagID)
 	if raw == "" {
@@ -378,6 +403,9 @@ func (c *StudentImportConfig) validateTag(ctx context.Context, row *importModels
 	}}
 }
 
+// validateEnrollmentDates validates the optional enrollment date range and
+// normalizes the row values to ISO format. Enrollment dates may legitimately
+// lie in the future, so they are parsed without the birthday future-date check.
 func validateEnrollmentDates(row *importModels.StudentImportRow) []importModels.ValidationError {
 	var errors []importModels.ValidationError
 

@@ -197,6 +197,15 @@ func (f *fakeClassList) CreateClassListEntry(_ context.Context, input ports.Crea
 	if f.create != nil {
 		return f.create(input)
 	}
+	// The owner's unique index over the case-folded name and class, which is
+	// what refuses a racing second create.
+	for _, entry := range f.entries {
+		if strings.EqualFold(strings.TrimSpace(entry.FirstName), strings.TrimSpace(input.FirstName)) &&
+			strings.EqualFold(strings.TrimSpace(entry.LastName), strings.TrimSpace(input.LastName)) &&
+			strings.EqualFold(strings.TrimSpace(entry.SchoolClass), strings.TrimSpace(input.SchoolClass)) {
+			return ports.ClassListEntry{}, ports.ErrMembershipClassListEntryDuplicate
+		}
+	}
 	f.nextID++
 	entry := ports.ClassListEntry{ID: f.nextID, FirstName: input.FirstName, LastName: input.LastName, SchoolClass: input.SchoolClass, CreatedBy: input.CreatedBy}
 	f.entries = append(f.entries, entry)

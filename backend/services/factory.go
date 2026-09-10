@@ -1898,76 +1898,31 @@ func newFactory(
 		return nil, err
 	}
 
-	// Data Import (#2708): every accepted row is committed through the
-	// owner commands of People Directory, School Membership, Workforce,
-	// Care Plan, Student Presence and the Audit platform; the import holds
-	// no repository. The observer records rows parsed/accepted/rejected
-	// per run without personal data.
-	importRuntime := importService.ImportRuntime{
-		Audit: auditCommand,
+	// Data Import (#2708): every accepted row is committed through the owner
+	// commands the composer binds. The observer records rows
+	// parsed/accepted/rejected per run without personal data.
+	dataImports := newImports(importWiring{
+		Persons: persons, Membership: membership, Workforce: workTime,
+		CarePlan: repos.CarePlan(), Presence: newStudentPresence(db, logger),
+		InvitationService: invitationService,
+		Reads: importService.LegacyReads{
+			RFIDCard: repos.RFIDCard, InvitationToken: repos.InvitationToken, Account: repos.Account,
+			AccountTenant: repos.AccountTenant, Role: repos.Role, Permission: repos.Permission,
+			School: repos.School, Groups: repos.Group, Rooms: repos.Room,
+		},
+		OpeningBalance: importService.OpeningBalanceImportDeps{
+			StaffRepo:            repos.Staff,
+			AdjustmentRepo:       repos.StaffBalanceAdjust,
+			VacationOpeningRepo:  repos.StaffVacationOpening,
+			BalanceAdjustService: staffBalanceAdjustService,
+			StaffAbsenceService:  staffAbsenceService,
+		},
+		ConsentHistory: studentConsentService,
+		Audit:          auditCommand,
 		Observe: func(observation importService.ImportObservation) {
 			observeDataImport(observation.Entity, observation.DryRun, observation.Rows, observation.Accepted, observation.Rejected, observation.Created, observation.Updated, observation.Duration)
 		},
-	}
-	relationshipResolver := importService.NewRelationshipResolver(repos.Group, repos.Room)
-	studentImportConfig := importService.NewStudentImportConfig(
-		importService.StudentImportDeps{
-			Persons:         persons,
-			Students:        persons,
-			Guardians:       persons,
-			Schedules:       repos.CarePlan(),
-			PrivacyConsents: newStudentPresence(db, logger),
-			RFIDCardRepo:    repos.RFIDCard,
-			Resolver:        relationshipResolver,
-			ConsentHistory:  studentConsentService,
-		},
-	)
-	studentImportService := importService.NewImportServiceWithRuntime(studentImportConfig, importRuntime)
-
-	// Staff import files the Stammdatensatz (Person/Staff/Teacher/master
-	// data) immediately and issues an invitation for rows with an e-mail;
-	// accepting links the account to the imported person (#2600).
-	staffImportConfig := importService.NewStaffImportConfig(
-		importService.StaffImportDeps{
-			InvitationService: invitationService,
-			InvitationRepo:    repos.InvitationToken,
-			AccountRepo:       repos.Account,
-			AccountTenantRepo: repos.AccountTenant,
-			RoleRepo:          repos.Role,
-			PermissionRepo:    repos.Permission,
-			SchoolRepo:        repos.School,
-			Persons:           persons,
-			Membership:        membership,
-			Records:           workTime,
-		},
-	)
-	staffImportService := importService.NewImportServiceWithRuntime(staffImportConfig, importRuntime)
-
-	// Class-list entry import (#2382): creates through the Membership owner
-	// so the duplicate guards and the audit trail apply to imported rows too.
-	classListImportConfig := importService.NewClassListImportConfig(importService.ClassListImportDeps{
-		Membership: membership,
-		Persons:    persons,
-		Students:   persons,
-		Audit:      auditCommand,
 	})
-	classListImportService := importService.NewImportServiceWithRuntime(classListImportConfig, importRuntime)
-
-	// Opening balance import (#2132): the config is request-scoped (Stichtag,
-	// Begründung, and acting staff member come from the upload form), so the
-	// factory closes over the request-independent deps and builds a fresh
-	// service per request.
-	openingBalanceImportFactory := importService.OpeningBalanceImportFactory(
-		func(effectiveDate timezone.Date, note string, decidedByStaffID int64) *importService.ImportService[importModels.OpeningBalanceImportRow] {
-			config := importService.NewOpeningBalanceImportConfig(importService.OpeningBalanceImportDeps{
-				StaffRepo:            repos.Staff,
-				AdjustmentRepo:       repos.StaffBalanceAdjust,
-				VacationOpeningRepo:  repos.StaffVacationOpening,
-				BalanceAdjustService: staffBalanceAdjustService,
-				StaffAbsenceService:  staffAbsenceService,
-			}, effectiveDate, note, decidedByStaffID)
-			return importService.NewImportServiceWithRuntime(config, importRuntime)
-		})
 
 	// Email change tokens deliberately reuse PASSWORD_RESET_TOKEN_EXPIRY_MINUTES
 	// because both serve the same purpose (one-time verification links with the same
@@ -3111,10 +3066,10 @@ func newFactory(
 		DatabaseStatsCapabilities: func(ctx context.Context) database.StatsCapabilities {
 			return usercontext.DatabaseStatsCapabilities(ctx)
 		},
-		Import:                   studentImportService,        // Student import service
-		StaffImport:              staffImportService,          // Staff (Mitarbeiter) import service
-		ClassListImport:          classListImportService,      // Class-list entry import (#2382)
-		OpeningBalanceImport:     openingBalanceImportFactory, // Opening balance import (#2132)
+		Import:                   dataImports.Student,        // Student import service
+		StaffImport:              dataImports.Staff,          // Staff (Mitarbeiter) import service
+		ClassListImport:          dataImports.ClassList,      // Class-list entry import (#2382)
+		OpeningBalanceImport:     dataImports.OpeningBalance, // Opening balance import (#2132)
 		ListExport:               listExportService,
 		PlanExport:               planExportService,
 		Emergency:                emergencyService,

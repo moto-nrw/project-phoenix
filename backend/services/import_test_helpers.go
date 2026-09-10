@@ -1,8 +1,6 @@
 package services
 
 import (
-	"log/slog"
-
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
@@ -18,7 +16,7 @@ type ImportTestModule struct {
 	ClassListImport *importService.ImportService[importModels.ClassListEntryImportRow]
 	Users           users.PersonService
 	// Observations collects the per-run counters the production observer
-	// receives, so router tests can assert the runtime evidence contract.
+	// receives, so tests can assert the runtime evidence contract.
 	Observations *[]importService.ImportObservation
 }
 
@@ -32,8 +30,8 @@ type ImportTestOptions struct {
 
 // NewImportTestModule composes the Data Import over the real owners
 // (People Directory with its guardian provider, School Membership,
-// Workforce, Care Plan, Student Presence, Audit) on a test database. It
-// mirrors the production wiring in newFactory without the legacy graph.
+// Workforce, Care Plan, Student Presence, Audit) on a test database,
+// through the same composer the production root uses.
 func NewImportTestModule(db *bun.DB, unit tenant.UnitOfWork) (ImportTestModule, error) {
 	return NewImportTestModuleWithOptions(db, unit, ImportTestOptions{})
 }
@@ -73,58 +71,34 @@ func NewImportTestModuleWithOptions(db *bun.DB, unit tenant.UnitOfWork, options 
 	if err != nil {
 		return ImportTestModule{}, err
 	}
+
 	observations := &[]importService.ImportObservation{}
-	runtime := importService.ImportRuntime{Audit: command, Observe: func(observation importService.ImportObservation) {
-		*observations = append(*observations, observation)
-	}}
 	persons := guardians.PeopleDirectory
-	var guardianPort importService.GuardianPort = persons
-	if options.WrapGuardians != nil {
-		guardianPort = options.WrapGuardians(guardianPort)
+	wiring := importWiring{
+		Persons: persons, Membership: membership, Workforce: workTime,
+		CarePlan: repos.CarePlan, Presence: repositories.NewStudentPresenceForTests(db),
+		InvitationService: auth.Invitation,
+		Reads: importService.LegacyReads{
+			RFIDCard: identity.RFIDCard, InvitationToken: identity.InvitationToken, Account: repos.Account,
+			AccountTenant: repos.AccountTenant, Role: repos.Role, Permission: identity.Permission,
+			School: repos.School, Groups: repos.Group, Rooms: repos.Room,
+		},
+		ConsentHistory: users.NewStudentConsentService(repos.StudentConsentChange),
+		Audit:          command,
+		Observe: func(observation importService.ImportObservation) {
+			*observations = append(*observations, observation)
+		},
 	}
-	studentConsentService := users.NewStudentConsentService(repos.StudentConsentChange)
-	relationshipResolver := importService.NewRelationshipResolver(repos.Group, repos.Room)
-	studentImportConfig := importService.NewStudentImportConfig(
-		importService.StudentImportDeps{
-			Persons:         persons,
-			Students:        persons,
-			Guardians:       guardianPort,
-			Schedules:       repos.CarePlan,
-			PrivacyConsents: newStudentPresence(db, slog.Default()),
-			RFIDCardRepo:    identity.RFIDCard,
-			Resolver:        relationshipResolver,
-			ConsentHistory:  studentConsentService,
-		},
-	)
-	studentImportService := importService.NewImportServiceWithRuntime(studentImportConfig, runtime)
+	if options.WrapGuardians != nil {
+		// The composer binds one People Directory to three ports; only the
+		// guardian one is decorated, so the person and student paths keep
+		// talking to the real owner.
+		wiring.GuardianOverride = options.WrapGuardians(persons)
+	}
 
-	// Staff import files the Stammdatensatz (Person/Staff/Teacher/master
-	// data) immediately and issues an invitation for rows with an e-mail;
-	// accepting links the account to the imported person (#2600).
-	staffImportConfig := importService.NewStaffImportConfig(
-		importService.StaffImportDeps{
-			InvitationService: auth.Invitation,
-			InvitationRepo:    identity.InvitationToken,
-			AccountRepo:       repos.Account,
-			AccountTenantRepo: repos.AccountTenant,
-			RoleRepo:          repos.Role,
-			PermissionRepo:    identity.Permission,
-			SchoolRepo:        repos.School,
-			Persons:           persons,
-			Membership:        membership,
-			Records:           workTime,
-		},
-	)
-	staffImportService := importService.NewImportServiceWithRuntime(staffImportConfig, runtime)
-
-	// Class-list entry import (#2382): creates through the Membership owner
-	// so the duplicate guards and the audit trail apply to imported rows too.
-	classListImportConfig := importService.NewClassListImportConfig(importService.ClassListImportDeps{
-		Membership: membership,
-		Persons:    persons,
-		Students:   persons,
-		Audit:      command,
-	})
-	classListImportService := importService.NewImportServiceWithRuntime(classListImportConfig, runtime)
-	return ImportTestModule{Import: studentImportService, StaffImport: staffImportService, ClassListImport: classListImportService, Users: people.Users, Observations: observations}, nil
+	dataImports := newImports(wiring)
+	return ImportTestModule{
+		Import: dataImports.Student, StaffImport: dataImports.Staff, ClassListImport: dataImports.ClassList,
+		Users: people.Users, Observations: observations,
+	}, nil
 }

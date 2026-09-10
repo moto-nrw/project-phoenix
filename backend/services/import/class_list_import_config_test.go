@@ -143,11 +143,11 @@ func TestClassListImportConfig_CreateThroughMembershipWithAuditTrail(t *testing.
 	assert.Equal(t, "Zoe Aalders (1a)", change.NewValue)
 	assert.Equal(t, importerID, change.ChangedBy)
 
-	// A replay of the same row is refused by the duplicate guard before any
-	// owner write: the entry count and the audit trail do not grow.
+	// A second create of the same row is refused by the owner's unique index
+	// and reported as the duplicate it is; the audit trail does not grow.
 	_, err = config.Create(ctx, classListRow("zoe", "aalders", "1A"))
 	assert.ErrorIs(t, err, ErrClassListEntryDuplicate)
-	assert.Len(t, entries.created, 1)
+	assert.Len(t, entries.entries, 1)
 	assert.Len(t, audit.events, 1)
 }
 

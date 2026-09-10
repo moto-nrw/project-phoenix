@@ -9,15 +9,19 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	"github.com/moto-nrw/project-phoenix/services/import/ports"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
+// The two duplicate guards keep the German wording of the class-list
+// service they replace: the import report interpolates the error text into
+// the row message a school administrator reads.
 var (
 	// ErrClassListEntryDuplicate reports a class-list entry that already
 	// carries the row's name and class.
-	ErrClassListEntryDuplicate = errors.New("class list entry already exists in this class")
+	ErrClassListEntryDuplicate = errors.New("Ein Eintrag mit diesem Namen existiert in dieser Klasse bereits") //nolint:staticcheck // ST1005: user-facing German message
 	// ErrClassListEntryStudentExists reports a regular student that already
 	// carries the row's name and class; the child needs no list entry.
-	ErrClassListEntryStudentExists = errors.New("a student with this name already exists in this class")
+	ErrClassListEntryStudentExists = errors.New("Ein Kind mit diesem Namen ist in dieser Klasse bereits angelegt") //nolint:staticcheck // ST1005: user-facing German message
 )
 
 // ClassListImportDeps are the owner ports of the class-list entry import
@@ -125,21 +129,33 @@ func (c *ClassListImportConfig) FindExisting(ctx context.Context, row importMode
 }
 
 // Create creates one entry through the owner: the duplicate-against-students
-// guard and the audit row are applied exactly like for manual creation.
+// guard and the audit row are applied exactly like for manual creation. The
+// entry and its audit row share a savepoint, so a refused trail never leaves
+// an unaudited entry behind in the batch.
 func (c *ClassListImportConfig) Create(ctx context.Context, row importModels.ClassListEntryImportRow) (int64, error) {
-	existingID, err := c.FindExisting(ctx, row)
-	if err != nil {
-		return 0, fmt.Errorf("class list entry duplicate check: %w", err)
+	if _, hasTx := tenant.TransactionFromContext(ctx); !hasTx {
+		return c.createEntry(ctx, row)
 	}
-	if existingID != nil {
-		students, err := findStudentsByNameAndClass(ctx, c.deps.Persons, c.deps.Students, row.FirstName, row.LastName, row.SchoolClass)
-		if err != nil {
-			return 0, fmt.Errorf("class list entry student check: %w", err)
-		}
-		if len(students) > 0 {
-			return 0, ErrClassListEntryStudentExists
-		}
-		return 0, ErrClassListEntryDuplicate
+	var entryID int64
+	err := tenant.WithSavepoint(ctx, func(savepointCtx context.Context) error {
+		var err error
+		entryID, err = c.createEntry(savepointCtx, row)
+		return err
+	})
+	return entryID, err
+}
+
+func (c *ClassListImportConfig) createEntry(ctx context.Context, row importModels.ClassListEntryImportRow) (int64, error) {
+	// The engine only calls Create after FindExisting came back empty, so
+	// this guard covers the window since then: a student created meanwhile
+	// has no database constraint to catch it, while a competing entry is
+	// caught by the owner's unique index below.
+	students, err := findStudentsByNameAndClass(ctx, c.deps.Persons, c.deps.Students, row.FirstName, row.LastName, row.SchoolClass)
+	if err != nil {
+		return 0, fmt.Errorf("class list entry student check: %w", err)
+	}
+	if len(students) > 0 {
+		return 0, ErrClassListEntryStudentExists
 	}
 
 	changedBy := ImporterIDFromContext(ctx)
