@@ -10,7 +10,18 @@ cat >"$fixture/bin/go" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
 if [[ "$*" == 'tool -n deadcode' ]]; then
-  printf '%s/deadcode\n' "$(dirname "$0")"
+  # A remote Go cache may return a build-workspace executable that disappears
+  # when `go tool -n` exits. Callers must not rely on this path surviving.
+  printf '%s/removed-build-workspace/deadcode\n' "$(dirname "$0")"
+  exit 0
+fi
+if [[ "${1:-}" == build ]]; then
+  if [[ "$FAIL_MODE" == build ]]; then
+    echo 'analyzer build failed' >&2
+    exit 7
+  fi
+  [[ "${2:-}" == -o && "${4:-}" == golang.org/x/tools/cmd/deadcode ]]
+  cp "$(dirname "$0")/deadcode" "$3"
   exit 0
 fi
 if [[ "$*" == 'tool deadcode -test ./...' ]]; then
@@ -49,7 +60,7 @@ run_case() {
   if [[ -n "$finding_mode" ]]; then
     grep -q 'unreachable func: Example' "$fixture/stdout"
   elif [[ -n "$fail_mode" ]]; then
-    grep -q 'analyzer failed' "$fixture/stderr"
+    grep -Eq 'analyzer (build )?failed' "$fixture/stderr"
   else
     grep -q 'No unexpected dead code detected' "$fixture/stdout"
     grep -q 'blacksmith-gocacheprog' "$fixture/stderr"
@@ -66,3 +77,4 @@ for mode in tests production architecture; do
   run_case "$mode findings still fail" "$mode" '' 1
   run_case "$mode analyzer errors still fail" '' "$mode" 7
 done
+run_case 'analyzer build errors still fail' '' build 7
