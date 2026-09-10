@@ -119,14 +119,21 @@ describe("StudentPaymentCard", () => {
     const input = await screen.findByLabelText("IBAN");
     expect(input).toHaveValue(FULL_IBAN);
 
+    // Unverändert gibt es nichts zu speichern.
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("Anderer Kontoinhaber"), {
+      target: { value: "Sabine Schneider-Kern" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     await waitFor(() =>
       expect(mockUpdatePayment).toHaveBeenCalledWith("10", {
         iban: FULL_IBAN,
-        accountHolder: null,
+        accountHolder: "Sabine Schneider-Kern",
       }),
     );
+    expect(mockSetPayer).not.toHaveBeenCalled();
   });
 
   it("assigns the payer and lets the parent refetch", async () => {
@@ -144,13 +151,82 @@ describe("StudentPaymentCard", () => {
       />,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
     fireEvent.click(screen.getByRole("combobox"));
     fireEvent.click(
       await screen.findByRole("option", { name: "Klaus Schneider" }),
     );
 
+    // Die Auswahl allein schreibt nichts (Bauart 2, Regel 4).
+    expect(mockSetPayer).not.toHaveBeenCalled();
+    expect(onChanged).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
     await waitFor(() => expect(mockSetPayer).toHaveBeenCalledWith("7", "11"));
     expect(onChanged).toHaveBeenCalled();
+  });
+
+  it("hides the IBAN fields while the payer is being changed and names the next step", async () => {
+    mockRevealPayment.mockResolvedValue({
+      guardianId: "10",
+      iban: FULL_IBAN,
+      accountHolder: null,
+    });
+
+    render(
+      <StudentPaymentCard
+        studentId="7"
+        guardians={[
+          guardian("10", "Sabine", true),
+          guardian("11", "Klaus", false),
+        ]}
+      />,
+    );
+    await waitFor(() => expect(mockFetchPayment).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    expect(await screen.findByLabelText("IBAN")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("combobox"));
+    fireEvent.click(
+      await screen.findByRole("option", { name: "Klaus Schneider" }),
+    );
+
+    expect(screen.queryByLabelText("IBAN")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/Die Bankverbindung von Klaus Schneider/),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+    expect(mockSetPayer).not.toHaveBeenCalled();
+    expect(mockUpdatePayment).not.toHaveBeenCalled();
+    expect(screen.getAllByText("Sabine Schneider").length).toBeGreaterThan(0);
+  });
+
+  it("shows a save failure as an Alert inside the edit area", async () => {
+    mockSetPayer.mockRejectedValue(new Error("Speichern hat nicht geklappt."));
+
+    render(
+      <StudentPaymentCard
+        studentId="7"
+        guardians={[guardian("11", "Klaus", false)]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    fireEvent.click(screen.getByRole("combobox"));
+    fireEvent.click(
+      await screen.findByRole("option", { name: "Klaus Schneider" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText("Speichern hat nicht geklappt."),
+    ).toBeInTheDocument();
+    expect(mockToastError).not.toHaveBeenCalled();
+    // Der Entwurf bleibt offen.
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
   });
 
   it("names the consequence when no payer is assigned", () => {
