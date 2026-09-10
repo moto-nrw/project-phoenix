@@ -396,6 +396,20 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
+function editStandardLegalBlock(index: number) {
+  const displaySwitch = screen.getAllByRole("switch", {
+    name: /in dieser Vorlage anzeigen/i,
+  })[index]!;
+  const actionMenu = within(displaySwitch.parentElement!).getByRole("button", {
+    name: /^Aktionen für /,
+  });
+
+  fireEvent.click(actionMenu);
+  fireEvent.click(
+    screen.getByRole("menuitem", { name: "Abweichend bearbeiten" }),
+  );
+}
+
 beforeEach(() => {
   mocks.createCareOffering.mockReset();
   mocks.createLateInvite.mockReset();
@@ -863,11 +877,10 @@ describe("CareOfferingsEditor", () => {
     }
     await chooseOption("Regeltermin", /Lernzeit/);
 
-    expect(
-      screen.getByText(
-        /Regeltermin deckt die ausgewählten Angebotstage Di, Mi, Do, Fr nicht ab/,
-      ),
-    ).toHaveAttribute("role", "alert");
+    // Der Hinweis steht als Kit-Alert am Feld (Bauart 2 Regel 5, #3113).
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      /Regeltermin deckt die ausgewählten Angebotstage Di, Mi, Do, Fr nicht ab/,
+    );
     expect(
       screen.getByText(
         "Der Regeltermin enthält Tage, die im Angebot nicht auswählbar sind.",
@@ -1506,15 +1519,15 @@ describe("CareOfferingsEditor", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
-    expect(
-      await screen.findByText(
-        "Betreuungsangebot konnte nicht gespeichert werden",
-      ),
-    ).toBeVisible();
-    expect(screen.queryByText(technicalError)).not.toBeInTheDocument();
-    expect(mocks.toast.error).toHaveBeenCalledWith(
+    const saveError = await screen.findByText(
       "Betreuungsangebot konnte nicht gespeichert werden",
     );
+    expect(saveError).toBeVisible();
+    // Der Speicherfehler steht im Alert oben im Panel, nicht im Toast
+    // (Bauart 2 Regel 5, #3113).
+    expect(saveError.closest('[role="alert"]')).not.toBeNull();
+    expect(screen.queryByText(technicalError)).not.toBeInTheDocument();
+    expect(mocks.toast.error).not.toHaveBeenCalled();
   });
 
   it("clears a linked Regeltermin when the phase change makes it incompatible", async () => {
@@ -2194,9 +2207,8 @@ describe("PhasesEditor", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Bitte gib einen Namen für die Anmeldephase ein.",
     );
-    expect(mocks.toast.error).toHaveBeenCalledWith(
-      "Bitte gib einen Namen für die Anmeldephase ein.",
-    );
+    // Kein Toast mehr neben dem Alert (Bauart 2 Regel 5, #3113).
+    expect(mocks.toast.error).not.toHaveBeenCalled();
     expect(mocks.createPhase).not.toHaveBeenCalled();
   });
 
@@ -2801,10 +2813,15 @@ describe("EnrollmentFormEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     expect(
-      await screen.findByText("Es gibt bereits ein Formular mit diesem Namen."),
-    ).toBeInTheDocument();
+      await screen.findAllByText(
+        "Es gibt bereits ein Formular mit diesem Namen.",
+      ),
+    ).toHaveLength(2);
     // Dialog stays open so the admin can correct the name.
-    expect(screen.getByLabelText("Name")).toBeInTheDocument();
+    expect(screen.getByLabelText("Name")).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
   });
 
   it("renames via the builder name field when saving an edited template", async () => {
@@ -2992,9 +3009,7 @@ describe("EnrollmentFormEditor", () => {
         target: { value: "Rechtstextformular" },
       },
     );
-    fireEvent.click(
-      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
-    );
+    editStandardLegalBlock(0);
     const legalTextAreas = await screen.findAllByLabelText(
       "Rechtstext / Erklärung",
     );
@@ -3047,9 +3062,7 @@ describe("EnrollmentFormEditor", () => {
         target: { value: "PDF-Rechtstextformular" },
       },
     );
-    fireEvent.click(
-      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
-    );
+    editStandardLegalBlock(0);
     fireEvent.click(
       screen.getByRole("button", { name: /PDF-Datei hochladen/ }),
     );
@@ -3116,9 +3129,7 @@ describe("EnrollmentFormEditor", () => {
         target: { value: "PDF-Rechtstextformular" },
       },
     );
-    fireEvent.click(
-      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
-    );
+    editStandardLegalBlock(0);
     fireEvent.click(
       screen.getByRole("button", { name: /PDF-Datei hochladen/ }),
     );
@@ -3187,9 +3198,7 @@ describe("EnrollmentFormEditor", () => {
         target: { value: "Text-Rechtstextformular" },
       },
     );
-    fireEvent.click(
-      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
-    );
+    editStandardLegalBlock(0);
     fireEvent.click(
       screen.getByRole("button", { name: /PDF-Datei hochladen/ }),
     );
@@ -3263,9 +3272,7 @@ describe("EnrollmentFormEditor", () => {
         target: { value: "PDF-Rechtstextformular" },
       },
     );
-    fireEvent.click(
-      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
-    );
+    editStandardLegalBlock(0);
     fireEvent.click(
       screen.getByRole("button", { name: /PDF-Datei hochladen/ }),
     );
@@ -3458,9 +3465,7 @@ describe("EnrollmentFormEditor", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Neue Vorlage" }),
     );
-    fireEvent.click(
-      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
-    );
+    editStandardLegalBlock(0);
     fireEvent.click(screen.getByRole("button", { name: /Text eingeben/ }));
 
     expect(screen.getByLabelText("Rechtstext / Erklärung")).toHaveValue("");
@@ -3479,9 +3484,7 @@ describe("EnrollmentFormEditor", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Neue Vorlage" }),
     );
-    fireEvent.click(
-      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
-    );
+    editStandardLegalBlock(0);
     fireEvent.click(
       screen.getByRole("button", { name: /PDF-Datei hochladen/ }),
     );
@@ -3517,9 +3520,7 @@ describe("EnrollmentFormEditor", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Neue Vorlage" }),
     );
-    fireEvent.click(
-      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
-    );
+    editStandardLegalBlock(0);
     fireEvent.click(
       screen.getByRole("button", { name: /PDF-Datei hochladen/ }),
     );
@@ -3569,9 +3570,7 @@ describe("EnrollmentFormEditor", () => {
         target: { value: "Retry-Rechtstextformular" },
       },
     );
-    fireEvent.click(
-      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
-    );
+    editStandardLegalBlock(0);
     fireEvent.click(
       screen.getByRole("button", { name: /PDF-Datei hochladen/ }),
     );
@@ -3628,9 +3627,7 @@ describe("EnrollmentFormEditor", () => {
       screen.queryByLabelText("Rechtstext / Erklärung"),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(
-      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
-    );
+    editStandardLegalBlock(0);
 
     expect(screen.getByLabelText("Rechtstext / Erklärung")).toBeInTheDocument();
     expect(
@@ -3664,11 +3661,7 @@ describe("EnrollmentFormEditor", () => {
       screen.getAllByText("Ist für diese Vorlage ausgeblendet.").length,
     ).toBeGreaterThan(0);
 
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Fotoeinwilligung abweichend bearbeiten",
-      }),
-    );
+    editStandardLegalBlock(2);
 
     expect(screen.getByLabelText("Rechtstext / Erklärung")).toHaveValue(
       "Foto-Rechtstext aus den Einstellungen",
@@ -3693,8 +3686,8 @@ describe("EnrollmentFormEditor", () => {
     const displaySwitches = screen.getAllByRole("switch", {
       name: /in dieser Vorlage anzeigen/i,
     });
-    const editButtons = screen.getAllByRole("button", {
-      name: /abweichend bearbeiten/i,
+    const actionMenus = screen.getAllByRole("button", {
+      name: /^Aktionen für (AGB \/ Teilnahmebedingungen|Datenschutzinformation|Fotoeinwilligung|E-Mail-Kontakt)$/,
     });
 
     expect(displaySwitches[0]?.tagName).toBe("BUTTON");
@@ -3703,8 +3696,8 @@ describe("EnrollmentFormEditor", () => {
     expect(displaySwitches[0]!.querySelector("span")).toHaveClass(
       "translate-x-[18px]",
     );
-    expect(editButtons[0]).toHaveTextContent("");
-    expect(editButtons[0]).not.toHaveClass("border", "bg-white", "shadow-sm");
+    expect(actionMenus[0]).toHaveTextContent("");
+    expect(actionMenus[0]).not.toHaveClass("border", "bg-white", "shadow-sm");
   });
 
   it("restores missing standard legal blocks when editing an older schema", async () => {
@@ -3876,9 +3869,7 @@ describe("EnrollmentFormEditor", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Neue Vorlage" }),
     );
-    fireEvent.click(
-      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
-    );
+    editStandardLegalBlock(0);
 
     const displayToggles = screen.getAllByRole("checkbox", {
       name: "Im Formular anzeigen",
@@ -3959,9 +3950,7 @@ describe("EnrollmentFormEditor", () => {
       await screen.findByRole("button", { name: "Neue Vorlage" }),
     );
     // Blockreihenfolge: AGB, Datenschutz, Foto, E-Mail — Foto aufklappen.
-    fireEvent.click(
-      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[2]!,
-    );
+    editStandardLegalBlock(2);
 
     expect(
       screen.getByText(
@@ -3982,9 +3971,7 @@ describe("EnrollmentFormEditor", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Neue Vorlage" }),
     );
-    fireEvent.click(
-      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
-    );
+    editStandardLegalBlock(0);
 
     expect(
       screen.getAllByRole("button", { name: "Mit Checkbox" }).length,

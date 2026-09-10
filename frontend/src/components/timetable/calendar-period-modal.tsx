@@ -13,6 +13,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { Alert } from "~/components/ui/alert";
+import { useFormError } from "~/components/ui/form-error";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
@@ -23,6 +24,7 @@ import { Input } from "~/components/ui/input";
 import {
   SlideOver,
   SlideOverCloseButton,
+  SlideOverBody,
   SlideOverContent,
   SlideOverFooter,
   SlideOverHeader,
@@ -144,7 +146,7 @@ export function CalendarPeriodModal({
   // Entwurf der Phasen-Verknüpfungen: phase.id → gewünscht verknüpft. Leer
   // heißt: keine Abweichung vom gespeicherten Stand.
   const [phaseDraft, setPhaseDraft] = useState<Record<string, boolean>>({});
-  const [validationError, setValidationError] = useState<string | null>(null);
+  const [validationError, setValidationError] = useFormError();
   const [saveWarnings, setSaveWarnings] = useState<CalendarPeriodWarning[]>([]);
   // Once a save succeeded in this modal session, further submits must update
   // that period — otherwise a corrected re-submit after an advisory warning
@@ -193,7 +195,7 @@ export function CalendarPeriodModal({
     setSavedPeriod(null);
     setPeriodSaveNotified(false);
     setPhaseDraft({});
-  }, [isOpen, initial, createDefaults]);
+  }, [isOpen, initial, createDefaults, setValidationError]);
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -265,7 +267,6 @@ export function CalendarPeriodModal({
           ? err.message
           : "Kalenderzeitraum konnte nicht gespeichert werden";
       setValidationError(msg);
-      toastError(msg);
       setSubmitting(false);
       return;
     }
@@ -287,7 +288,6 @@ export function CalendarPeriodModal({
         error: msg,
       });
       setValidationError(msg);
-      toastError(msg);
       setSubmitting(false);
       return;
     }
@@ -385,7 +385,7 @@ export function CalendarPeriodModal({
           </div>
           <SlideOverCloseButton aria-label="Zeitraum schließen" />
         </SlideOverHeader>
-        <div className="flex-1 overflow-y-auto px-5 py-4">
+        <SlideOverBody error={validationError}>
           <form
             id="calendar-period-form"
             onSubmit={(e) => void handleSubmit(e)}
@@ -541,12 +541,8 @@ export function CalendarPeriodModal({
                 message={warning.message}
               />
             ))}
-
-            {validationError && (
-              <Alert type="error" message={validationError} />
-            )}
           </form>
-        </div>
+        </SlideOverBody>
         <SlideOverFooter className="flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="w-full sm:w-auto">
             {isEdit && (

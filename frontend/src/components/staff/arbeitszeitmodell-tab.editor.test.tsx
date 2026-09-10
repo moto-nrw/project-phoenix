@@ -147,9 +147,13 @@ describe("Arbeitszeitmodell decimal-hours editor", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
     expect(mocks.updateSchedule).not.toHaveBeenCalled();
-    expect(mocks.toastError).toHaveBeenCalledWith(
+    // The form error stands in the alert at the top of the panel body, not in
+    // a toast (BAUARTEN-SPEC Bauart 2 Regel 5); the field keeps its own alert.
+    const alerts = screen.getAllByRole("alert").map((a) => a.textContent);
+    expect(alerts).toContain(
       "Bitte die ungültigen Dezimalstunden korrigieren.",
     );
+    expect(mocks.toastError).not.toHaveBeenCalled();
   });
 
   it("clears removed rotation weeks from both visible and saved state", async () => {

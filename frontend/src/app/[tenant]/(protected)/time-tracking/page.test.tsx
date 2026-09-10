@@ -248,6 +248,18 @@ vi.mock("~/components/ui/slide-over", () => ({
   SlideOverContent: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="modal-body">{children}</div>
   ),
+  SlideOverBody: ({
+    children,
+    error,
+  }: {
+    children: React.ReactNode;
+    error?: string | null;
+  }) => (
+    <div>
+      {error ? <div role="alert">{error}</div> : null}
+      {children}
+    </div>
+  ),
   SlideOverHeader: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
