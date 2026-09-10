@@ -2929,6 +2929,14 @@
   ],
   "data_objects": [
     {
+      "name": "active.presence_backfill_batches",
+      "write_owner": "student-presence"
+    },
+    {
+      "name": "active.presence_backfill_checkpoints",
+      "write_owner": "student-presence"
+    },
+    {
       "name": "active.activity_session_attendance",
       "write_owner": "student-presence"
     },

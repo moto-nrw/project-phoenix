@@ -33,6 +33,7 @@ import {
   fetchCareOfferingBookingStats,
 } from "~/lib/care-offering-booking-stats";
 import { Alert } from "~/components/ui/alert";
+import { useFormError } from "~/components/ui/form-error";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { CheckboxCard } from "~/components/ui/checkbox-card";
 import { ToggleChip } from "~/components/ui/toggle-chip";
@@ -41,6 +42,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
 import {
   SlideOver,
+  SlideOverBody,
   SlideOverContent,
   SlideOverHeader,
   SlideOverTitle,
@@ -433,7 +435,7 @@ export function CareOfferingsEditor({
     useState<PlannerMetadataStatus>("loading");
   const [loading, setLoading] = useState(true);
   const [catalogError, setCatalogError] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useFormError();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<CareOfferingInput | null>(null);
   const [saving, setSaving] = useState(false);
@@ -574,7 +576,7 @@ export function CareOfferingsEditor({
         if (catalogLoadSeq.current === requestSeq) setLoading(false);
       }
     },
-    [loadPlannerMetadata, toast],
+    [loadPlannerMetadata, setError, toast],
   );
 
   useEffect(() => {
@@ -612,12 +614,16 @@ export function CareOfferingsEditor({
     setError(null);
   };
 
-  const beginEdit = (offering: CareOffering) => {
-    setDraft(offeringToInput(offering));
-    setEditingId(offering.id);
-    setCloneSource(null);
-    setError(null);
-  };
+  // Stabil, weil die Spaltendefinition der Tabelle (useMemo) darauf zeigt.
+  const beginEdit = useCallback(
+    (offering: CareOffering) => {
+      setDraft(offeringToInput(offering));
+      setEditingId(offering.id);
+      setCloneSource(null);
+      setError(null);
+    },
+    [setError],
+  );
 
   const cancelFocusMode = () => {
     setDraft(null);
@@ -630,14 +636,12 @@ export function CareOfferingsEditor({
     if (!draft) return;
     if (draft.available_days.length === 0) {
       setError(CARE_OFFERING_DAYS_REQUIRED_MESSAGE);
-      toast.error(CARE_OFFERING_DAYS_REQUIRED_MESSAGE);
       return;
     }
     const missingPickupDays = missingRequiredPickupDays(draft);
     if (missingPickupDays.length > 0) {
       const message = missingPickupTimesMessage(missingPickupDays);
       setError(message);
-      toast.error(message);
       return;
     }
     const originalActivityGroupID =
@@ -653,7 +657,6 @@ export function CareOfferingsEditor({
       )
     ) {
       setError(UNVERIFIABLE_TEMPLATE_CHANGE_MESSAGE);
-      toast.error(UNVERIFIABLE_TEMPLATE_CHANGE_MESSAGE);
       return;
     }
     if (
@@ -674,7 +677,6 @@ export function CareOfferingsEditor({
         ? INACTIVE_TEMPLATE_PERIOD_MESSAGE
         : CARE_OFFERING_TEMPLATE_PERIOD_MISMATCH_MESSAGE;
       setError(message);
-      toast.error(message);
       return;
     }
     const weekdayError = linkedTemplateWeekdayError(
@@ -684,7 +686,6 @@ export function CareOfferingsEditor({
     );
     if (weekdayError) {
       setError(weekdayError);
-      toast.error(weekdayError);
       return;
     }
     setSaving(true);
@@ -705,7 +706,6 @@ export function CareOfferingsEditor({
       logger.error("care_offering_save_failed", { error: technicalMessage });
       const message = safeCareOfferingSaveMessage(err, editingId === "new");
       setError(message);
-      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -734,7 +734,7 @@ export function CareOfferingsEditor({
     } finally {
       setDeletingId(null);
     }
-  }, [deleteTarget, loadAll, toast]);
+  }, [deleteTarget, loadAll, setError, toast]);
 
   const handleClone = async (targetPhaseId: string) => {
     if (!cloneSource) return;
@@ -752,7 +752,6 @@ export function CareOfferingsEditor({
         err instanceof Error ? err.message : "Klonen fehlgeschlagen";
       logger.error("care_offering_clone_failed", { error: message });
       setError(message);
-      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -870,23 +869,22 @@ export function CareOfferingsEditor({
         ),
       },
     ],
-    [deletingId, gradeLevelMax, saving],
+    [beginEdit, deletingId, gradeLevelMax, saving, setError],
   );
+
+  const panelOpen = Boolean(draft ?? cloneSource);
 
   return (
     // Flex-Spalte: als Editor-Wurzel einer Tenant-Seite reicht sie den
     // Platz an die Tabelle weiter, die dann bis zur Unterkante des
     // Bildschirms wächst (`.moto-tenant-body`).
     <div className="flex flex-col space-y-4">
-      {error && (
-        <div
-          className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-4 text-sm"
-          role="alert"
-          aria-live="polite"
-        >
-          {error}
-        </div>
-      )}
+      {/* Fehler einer Listenaktion stehen über der Liste. Ist das Panel
+          offen, trägt dessen Rumpf den Fehler (Bauart 2 Regel 5); hier
+          stünde er sonst hinter dem Panel und doppelt. */}
+      {error && !panelOpen ? (
+        <Alert type="error" message={error.message} />
+      ) : null}
 
       {metadataStatus === "unavailable" ? (
         <PlannerMetadataNotice onRetry={() => void loadPlannerMetadata()} />
@@ -928,7 +926,7 @@ export function CareOfferingsEditor({
               Liste: das Formular ist zu breit für eine aufgeklappte
               Tabellenzeile, und der Katalog darf dabei nicht verschwinden. */}
           <SlideOver
-            open={Boolean(draft ?? cloneSource)}
+            open={panelOpen}
             onOpenChange={(open) => {
               if (!open) cancelFocusMode();
             }}
@@ -943,7 +941,7 @@ export function CareOfferingsEditor({
                       : "Betreuungsangebot bearbeiten"}
                 </SlideOverTitle>
               </SlideOverHeader>
-              <div className="flex-1 overflow-y-auto px-5 py-4">
+              <SlideOverBody error={error}>
                 {cloneSource ? (
                   <CloneOfferingForm
                     source={cloneSource}
@@ -981,7 +979,7 @@ export function CareOfferingsEditor({
                     }
                   />
                 ) : null}
-              </div>
+              </SlideOverBody>
             </SlideOverContent>
           </SlideOver>
 
@@ -1556,14 +1554,15 @@ function CareOfferingTemplateField({
         den ausgewählten Angebotstagen erwartet.
       </p>
       {periodMismatch ? (
-        <p
-          className="border-moto-red/30 bg-moto-red/10 text-moto-red-strong mt-2 rounded-lg border px-3 py-2 text-xs"
-          role="alert"
-        >
-          {inactivePeriodMismatch
-            ? INACTIVE_TEMPLATE_PERIOD_MESSAGE
-            : CARE_OFFERING_TEMPLATE_PERIOD_MISMATCH_MESSAGE}
-        </p>
+        <Alert
+          type="error"
+          className="mt-2"
+          message={
+            inactivePeriodMismatch
+              ? INACTIVE_TEMPLATE_PERIOD_MESSAGE
+              : CARE_OFFERING_TEMPLATE_PERIOD_MISMATCH_MESSAGE
+          }
+        />
       ) : null}
       {compatibilityUnknown ? (
         <p className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong mt-2 rounded-lg border px-3 py-2 text-xs">
@@ -1571,12 +1570,7 @@ function CareOfferingTemplateField({
         </p>
       ) : null}
       {weekdayError ? (
-        <p
-          className="border-moto-red/30 bg-moto-red/10 text-moto-red-strong mt-2 rounded-lg border px-3 py-2 text-xs"
-          role="alert"
-        >
-          {weekdayError}
-        </p>
+        <Alert type="error" className="mt-2" message={weekdayError} />
       ) : null}
       {metadataStatus === "ready" &&
       !periodMismatch &&
@@ -2091,14 +2085,7 @@ function CareOfferingAvailabilityFields({
             <Plus className="h-4 w-4" />
             Bedingung hinzufügen
           </Button>
-          {error ? (
-            <p
-              role="alert"
-              className="border-moto-red/30 bg-moto-red/10 text-moto-red-strong rounded-lg border px-3 py-2 text-xs"
-            >
-              {error}
-            </p>
-          ) : null}
+          {error ? <Alert type="error" message={error} /> : null}
           {!error && conflicts > 0 ? (
             <p
               role="status"
@@ -2377,12 +2364,7 @@ function CareOfferingForm({
       />
 
       {unverifiableTemplateChange ? (
-        <p
-          className="border-moto-red/30 bg-moto-red/10 text-moto-red-strong rounded-lg border px-3 py-2 text-xs"
-          role="alert"
-        >
-          {UNVERIFIABLE_TEMPLATE_CHANGE_MESSAGE}
-        </p>
+        <Alert type="error" message={UNVERIFIABLE_TEMPLATE_CHANGE_MESSAGE} />
       ) : null}
 
       <label className="block">

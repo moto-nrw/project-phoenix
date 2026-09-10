@@ -23,6 +23,7 @@
     "phoenix cleanup visits",
     "phoenix gendoc",
     "phoenix migrate",
+    "phoenix migrate presence-backfill",
     "phoenix migrate reset",
     "phoenix migrate status",
     "phoenix migrate validate",

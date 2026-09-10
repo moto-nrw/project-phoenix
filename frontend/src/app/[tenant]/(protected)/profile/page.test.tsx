@@ -377,7 +377,7 @@ describe("ProfilePage", () => {
       });
     });
 
-    it("should show error toast when profile save fails", async () => {
+    it("keeps a failed profile save in the form with the reason on top", async () => {
       mockUpdateProfile.mockRejectedValue(new Error("Save failed"));
 
       render(<ProfilePage />);
@@ -389,11 +389,13 @@ describe("ProfilePage", () => {
 
       fireEvent.click(screen.getByRole("button", { name: /^speichern$/i }));
 
-      await waitFor(() => {
-        expect(mockToastError).toHaveBeenCalledWith(
-          "Fehler beim Speichern des Profils",
-        );
-      });
+      // Bauart 2 Regel 5 (#3113): the reason stands in the alert of the edit
+      // block, not in a toast; the form stays open with the typed value.
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Fehler beim Speichern des Profils",
+      );
+      expect(screen.getByLabelText("Vorname")).toHaveValue("Jane");
+      expect(mockToastError).not.toHaveBeenCalled();
     });
 
     it("should handle avatar upload successfully", async () => {

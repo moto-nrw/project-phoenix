@@ -2363,7 +2363,8 @@ describe("TimetableEventModal", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Backend sagt nein",
     );
-    expect(mockToastError).toHaveBeenCalledWith("Backend sagt nein");
+    // Der Alert oben im Panel ist die einzige Meldung (Bauart 2 Regel 5).
+    expect(mockToastError).not.toHaveBeenCalled();
   });
 
   it("quick variant renders only the quick fields with prefilled times", async () => {
@@ -4786,11 +4787,16 @@ describe("TimetableEventModal", () => {
 
     await clickSave();
 
-    await waitFor(() =>
-      expect(mockToastError).toHaveBeenCalledWith(
-        "Der Stichtag liegt in der Vergangenheit. Bitte einen künftigen Termin der Serie wählen.",
+    // Der Fehler steht oben im Panel (Bauart 2 Regel 5), nicht als Toast.
+    const alerts = await screen.findAllByRole("alert");
+    expect(
+      alerts.some((alert) =>
+        alert.textContent?.includes(
+          "Der Stichtag liegt in der Vergangenheit. Bitte einen künftigen Termin der Serie wählen.",
+        ),
       ),
-    );
+    ).toBe(true);
+    expect(mockToastError).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
   });
 

@@ -7,6 +7,8 @@ import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
+import { useFormError } from "~/components/ui/form-error";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
@@ -123,10 +125,12 @@ function useBookingSubmission(
   projection: ReturnType<typeof projectBooking>,
 ) {
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useFormError();
   const toast = useToast();
   const save = async () => {
     if (!projection.selected || projection.blocked) return;
     setSaving(true);
+    setSaveError(null);
     try {
       await staffAbsenceService.createAbsence(props.staff.id, {
         absence_type: "other",
@@ -139,7 +143,7 @@ function useBookingSubmission(
       toast.success("Abwesenheit eingetragen.");
       await props.onSaved();
     } catch (error) {
-      toast.error(
+      setSaveError(
         error instanceof Error
           ? error.message
           : "Abwesenheit konnte nicht eingetragen werden.",
@@ -148,7 +152,7 @@ function useBookingSubmission(
       setSaving(false);
     }
   };
-  return { saving, save };
+  return { saving, saveError, save };
 }
 
 function useBookingState(props: BookingProps) {
@@ -324,6 +328,7 @@ function BookingFields({
 }) {
   return (
     <div className="space-y-4">
+      <FormErrorAlert message={state.saveError} />
       <div>
         <label
           htmlFor="custom-absence-type"

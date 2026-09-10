@@ -18,15 +18,22 @@ vi.mock("~/components/ui/form-modal", () => ({
     title,
     children,
     footer,
+    error,
   }: {
     isOpen: boolean;
     title: string;
     children: React.ReactNode;
     footer?: React.ReactNode;
+    error?: string | { message: string } | null;
   }) =>
     isOpen ? (
       <div role="dialog" aria-label={title}>
         <h2>{title}</h2>
+        {error ? (
+          <div role="alert">
+            {typeof error === "string" ? error : error.message}
+          </div>
+        ) : null}
         {children}
         <div>{footer}</div>
       </div>
@@ -219,10 +226,10 @@ describe("CareWeeklyPlanModal", () => {
       screen.getByRole("button", { name: "Wochenplan speichern" }),
     );
 
-    await waitFor(() => {
-      expect(screen.getByText("Backend kaputt")).toBeInTheDocument();
-    });
-    expect(toastError).toHaveBeenCalledWith("Backend kaputt");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Backend kaputt",
+    );
+    expect(toastError).not.toHaveBeenCalled();
   });
 
   it("stores a selected care day without an own arrival time", async () => {

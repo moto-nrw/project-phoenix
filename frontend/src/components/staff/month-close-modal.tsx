@@ -8,6 +8,8 @@
 import { useState, type ReactNode } from "react";
 
 import { Button } from "~/components/ui/button";
+import { useFormError } from "~/components/ui/form-error";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Modal } from "~/components/ui/modal";
 import { Textarea } from "~/components/ui/textarea";
 import { useToast } from "~/contexts/ToastContext";
@@ -34,6 +36,7 @@ export function MonthCloseReasonModal({
 }) {
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useFormError();
   const toast = useToast();
 
   const canSubmit = !submitting && reason.trim() !== "";
@@ -41,14 +44,13 @@ export function MonthCloseReasonModal({
   const handleSubmit = async () => {
     if (!canSubmit) return;
     setSubmitting(true);
+    setError(null);
     try {
       await onSubmit(reason.trim());
       if (successMessage) toast.success(successMessage);
       onClose();
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Aktion fehlgeschlagen.",
-      );
+      setError(err instanceof Error ? err.message : "Aktion fehlgeschlagen.");
       setSubmitting(false);
     }
   };
@@ -82,6 +84,7 @@ export function MonthCloseReasonModal({
       }
     >
       <div className="space-y-4">
+        <FormErrorAlert message={error} />
         <div className="space-y-2 text-sm text-gray-600">{description}</div>
         <div>
           <label
