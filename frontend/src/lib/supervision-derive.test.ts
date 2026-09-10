@@ -33,11 +33,32 @@ describe("deriveSupervision", () => {
   it("reports no supervision when the request failed and Schulhof is absent", () => {
     expect(deriveSupervision(null, null, true)).toEqual({
       isSupervising: false,
+      ownSupervision: false,
       supervisedRoomId: undefined,
       supervisedRoomName: undefined,
       supervisedRooms: [],
       overviewEnabled: false,
     });
+  });
+
+  // „Aufsicht fortsetzen" auf der Startseite darf nur erscheinen, wenn die
+  // Person selbst gerade Aufsicht führt — nicht, weil es einen Schulhof gibt.
+  it("unterscheidet die eigene Aufsicht von der bloßen Möglichkeit dazu", () => {
+    // Schulhof existiert, niemand hat sich angeschlossen: nichts fortzusetzen.
+    expect(deriveSupervision([], schulhof, true).ownSupervision).toBe(false);
+    // Schulhof, dem sich die Person angeschlossen hat.
+    expect(
+      deriveSupervision([], { ...schulhof, is_user_supervising: true }, true)
+        .ownSupervision,
+    ).toBe(true);
+    // Eigener Raum aus /api/me/groups/supervised (keine Übersicht).
+    expect(
+      deriveSupervision([room(1, 5, "Zebra")], null, false).ownSupervision,
+    ).toBe(true);
+    // Dieselbe Zeile aus der schulweiten Übersicht kann fremd sein.
+    expect(
+      deriveSupervision([room(1, 5, "Zebra")], null, true).ownSupervision,
+    ).toBe(false);
   });
 
   it("keeps Schulhof alone supervisable, but never as an enabled overview", () => {

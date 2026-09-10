@@ -38,8 +38,8 @@ func TestSeedHomeLayoutStepUsesStartPageAPIs(t *testing.T) {
 	assert.Equal(t, "/api/settings/home-layout/policies", requests[1].path)
 	assert.Equal(t, map[string]any{
 		"policies": map[string]any{
-			"tile.students_sick": "required",
-			"tile.students_home": "disabled",
+			"section.staff_notices":   "required",
+			"section.recent_activity": "disabled",
 		},
 	}, requests[1].body)
 }

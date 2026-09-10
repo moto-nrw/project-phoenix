@@ -64,12 +64,16 @@ func (r *HomeLayoutRepository) UpsertForAccount(ctx context.Context, layout *con
 	if layout.Overrides == nil {
 		layout.Overrides = map[string]bool{}
 	}
+	if layout.Blocks == nil {
+		layout.Blocks = []config.HomeBlockPlacement{}
+	}
 
 	_, err := r.runtime.DB(ctx).NewInsert().
 		Model(layout).
 		ModelTableExpr(tableHomeLayouts).
 		On("CONFLICT (tenant_id, account_id) DO UPDATE").
 		Set("overrides = EXCLUDED.overrides").
+		Set("blocks = EXCLUDED.blocks").
 		Set("updated_at = NOW()").
 		Exec(ctx)
 	if err != nil {

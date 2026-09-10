@@ -84,10 +84,14 @@ func TestStaffNoticeRepository_Acknowledge(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "notice-reader@test.local")
+	// Verfasserin und Leserin sind zwei Personen: die Kenntnisnahme der
+	// Verfasserin zählt seit #2180 nicht als Leserin mit, und dieser Test
+	// prüft die Entprellung ("eine Person zählt einmal"), nicht das.
+	author := testpkg.CreateTestAccount(t, db, "notice-author@test.local")
 
 	from, err := timezone.ParseDate("2026-08-01")
 	require.NoError(t, err)
-	notice := testpkg.NewTestStaffNotice(t, "Bitte bestätigen", from, account.ID, testpkg.StaffNoticeOpts{
+	notice := testpkg.NewTestStaffNotice(t, "Bitte bestätigen", from, author.ID, testpkg.StaffNoticeOpts{
 		Important:               true,
 		RequiresAcknowledgement: true,
 	})
@@ -114,6 +118,45 @@ func TestStaffNoticeRepository_Acknowledge(t *testing.T) {
 	counts, err = repo.AcknowledgedCounts(ctx, []int64{notice.ID})
 	require.NoError(t, err)
 	assert.Equal(t, 1, counts[notice.ID], "eine Person zählt einmal")
+}
+
+// Die Verfasserin bekommt ihre Kenntnisnahme beim Anlegen gestempelt, damit der
+// eigene Hinweis sie nicht danach fragt. Als Leserin ist sie damit nicht
+// gemeint: sonst stünde bei einem frisch geschriebenen Hinweis „1 Person hat
+// bestätigt", und die Leitung liest darin ein Teammitglied.
+func TestStaffNoticeRepository_AcknowledgedCountsExcludesTheAuthor(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+
+	repo := scheduleRepo.NewStaffNoticeRepository(db)
+	ctx := testpkg.Ctx(t)
+
+	author := testpkg.CreateTestAccount(t, db, "count-author@test.local")
+	reader := testpkg.CreateTestAccount(t, db, "count-reader@test.local")
+
+	from, err := timezone.ParseDate("2026-08-01")
+	require.NoError(t, err)
+	notice := testpkg.NewTestStaffNotice(t, "Bitte bestätigen", from, author.ID, testpkg.StaffNoticeOpts{
+		RequiresAcknowledgement: true,
+	})
+	notice.Audience = "all"
+	require.NoError(t, repo.Create(ctx, notice))
+
+	require.NoError(t, repo.Acknowledge(ctx, notice.ID, author.ID))
+	counts, err := repo.AcknowledgedCounts(ctx, []int64{notice.ID})
+	require.NoError(t, err)
+	assert.Zero(t, counts[notice.ID], "die eigene Kenntnisnahme der Verfasserin zählt nicht")
+
+	require.NoError(t, repo.Acknowledge(ctx, notice.ID, reader.ID))
+	counts, err = repo.AcknowledgedCounts(ctx, []int64{notice.ID})
+	require.NoError(t, err)
+	assert.Equal(t, 1, counts[notice.ID], "eine Person aus dem Team hat bestätigt")
+
+	// Die Bestätigungsliste der Leitung (#2208) folgt derselben Regel.
+	rows, err := repo.Acknowledgements(ctx, notice.ID)
+	require.NoError(t, err)
+	require.Len(t, rows, 1, "die Verfasserin steht nicht in der Bestätigungsliste")
+	assert.Equal(t, reader.ID, rows[0].AccountID)
 }
 
 // Zielgruppe (#2208): die Datenbank grenzt auf "alle" plus die Leserart ein.

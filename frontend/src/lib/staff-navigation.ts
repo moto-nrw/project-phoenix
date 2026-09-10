@@ -91,10 +91,13 @@ function section(key: StaffNavSectionKey): StaffNavEntry {
   return { kind: "section", section: key };
 }
 
-/** Über den Gruppen: die Startseite der jeweiligen Rolle. */
+/**
+ * Über den Gruppen: die Startseite. Seit #2180 gibt es genau eine, für jede
+ * Rolle dieselbe — der Tagesplan steht seitdem im Tagesbetrieb, wo er
+ * inhaltlich hingehört, und ist von der Startseite aus einen Klick entfernt.
+ */
 export const STAFF_NAV_TOP: readonly StaffNavEntry[] = [
   page(STAFF_FLAT_PAGES.dashboard.href),
-  page(STAFF_FLAT_PAGES.tagesplan.href),
 ];
 
 export const STAFF_NAV_GROUPS: readonly StaffNavGroup[] = [
@@ -103,6 +106,9 @@ export const STAFF_NAV_GROUPS: readonly StaffNavGroup[] = [
     label: "Tagesbetrieb",
     icon: SunIcon,
     entries: [
+      // Der Tagesplan führt in den laufenden Betreuungstag und steht deshalb
+      // ganz oben im Tagesbetrieb (#2180).
+      page(STAFF_FLAT_PAGES.tagesplan.href),
       section("groups"),
       section("supervisions"),
       page(STAFF_FLAT_PAGES.studentSearch.href),

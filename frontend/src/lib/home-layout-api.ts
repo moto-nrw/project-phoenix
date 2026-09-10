@@ -1,7 +1,9 @@
 import { createLogger } from "./logger";
 import {
+  sanitizeHomeBlockPlacements,
   sanitizeHomeBlockPolicies,
   sanitizeHomeLayoutOverrides,
+  type HomeBlockPlacement,
   type HomeBlockPolicies,
   type HomeLayoutOverrides,
 } from "./home-blocks";
@@ -18,6 +20,8 @@ export function homeLayoutSWRKey(
 
 /** Was die Startseite zum Rendern braucht: eigene Auswahl und Vorgabe der Schule. */
 export interface HomeLayoutState {
+  /** Die eigene Anordnung: Reihenfolge und Breite. Leer = Standardansicht. */
+  blocks: readonly HomeBlockPlacement[];
   overrides: HomeLayoutOverrides;
   policies: HomeBlockPolicies;
   /** Darf diese Person die Vorgabe der Schule ändern? */
@@ -26,6 +30,7 @@ export interface HomeLayoutState {
 
 interface HomeLayoutResponse {
   data?: {
+    blocks?: unknown;
     overrides?: unknown;
     policies?: unknown;
     can_manage_policies?: unknown;
@@ -33,6 +38,7 @@ interface HomeLayoutResponse {
 }
 
 const EMPTY_STATE: HomeLayoutState = {
+  blocks: [],
   overrides: {},
   policies: {},
   canManagePolicies: false,
@@ -75,6 +81,7 @@ export async function fetchHomeLayout(): Promise<HomeLayoutState> {
 
   const result = (await response.json()) as HomeLayoutResponse;
   return {
+    blocks: sanitizeHomeBlockPlacements(result.data?.blocks),
     overrides: sanitizeHomeLayoutOverrides(result.data?.overrides),
     policies: sanitizeHomeBlockPolicies(result.data?.policies),
     canManagePolicies: result.data?.can_manage_policies === true,
@@ -84,11 +91,12 @@ export async function fetchHomeLayout(): Promise<HomeLayoutState> {
 /** Speichert die eigene Auswahl. Wirft, damit der Dialog es anzeigen kann. */
 export async function saveHomeLayout(
   overrides: HomeLayoutOverrides,
+  blocks: readonly HomeBlockPlacement[],
 ): Promise<void> {
   const response = await sessionFetch("/api/settings/home-layout", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ overrides }),
+    body: JSON.stringify({ overrides, blocks }),
   });
 
   if (!response.ok) {
