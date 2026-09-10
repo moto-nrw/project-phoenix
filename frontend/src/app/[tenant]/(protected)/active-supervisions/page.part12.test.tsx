@@ -82,6 +82,7 @@ vi.mock("~/components/ui/alert", () => ({
 
 // Mock Modal and ConfirmationModal
 vi.mock("~/components/ui/modal", () => ({
+  dialogAriaProps: { role: "dialog" as const, "aria-modal": true },
   Modal: ({
     isOpen,
     children,
@@ -406,7 +407,14 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     cleanup();
   });
 
+  // Die Suche steht im Dialog hinter der Kopf-Aktion „Kind hinzufügen“
+  // (#3112); ist er schon offen, bleibt er offen.
   const searchFor = async (value: string) => {
+    if (!screen.queryByRole("searchbox", { name: "Kind ungeplant suchen" })) {
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Kind hinzufügen" }),
+      );
+    }
     const input = await screen.findByRole("searchbox", {
       name: "Kind ungeplant suchen",
     });

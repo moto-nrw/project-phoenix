@@ -963,7 +963,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Bei anwesendem Kind auf `Einchecken` klicken.",
           "Bei bekannter Abwesenheit `Entschuldigt` wählen.",
           "Falsche Markierung mit `Zurück auf erwartet` korrigieren.",
-          "Ungeplantes Kind über `Weiteres Kind suchen...` finden.",
+          "Ungeplantes Kind über `Kind hinzufügen` in der Kopfzeile der Liste nachtragen. Im Fenster das Kind über `Weiteres Kind suchen...` finden.",
           "Bei mehreren Treffern ein Kind antippen. Danach `Hinzufügen` wählen. Bei einem Treffer direkt `Hinzufügen` wählen.",
           "Im Bereich `Kinder unterwegs` Kinder ohne Raum auswählen, einen Zielraum wählen und mit `In Raum setzen` zuweisen.",
           "Den Schulhof über den Schulhof-Tab und `Beaufsichtigen` führen. Läuft dort bereits eine Aufsicht oder ein gestarteter Termin, treten Sie als weitere Aufsicht bei; sonst startet eine spontane Schulhof-Aufsicht. Im Dialog für eine spontane Aktivität lässt sich der Raum `Schulhof` wie jeder andere Raum wählen.",

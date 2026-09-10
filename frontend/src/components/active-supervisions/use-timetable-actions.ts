@@ -61,6 +61,7 @@ export interface TimetableActions {
   readonly setShowCompleteConfirmation: (open: boolean) => void;
   readonly moveNotice: string | null;
   readonly addStudentSearch: string;
+  readonly addStudentError: string | null;
   readonly addStudentResults: Student[];
   readonly handleAddStudentSearchChange: (value: string) => void;
   readonly handleStartPlannedInstance: (
@@ -125,6 +126,9 @@ export function useTimetableActions(
     readonly students: Student[];
   } | null>(null);
   const [isAddingStudent, setIsAddingStudent] = useState(false);
+  // Fehler des Nachtragens stehen im Dialog „Kind ungeplant hinzufügen“, nicht
+  // in der Seiten-Meldung dahinter (#3112).
+  const [addStudentError, setAddStudentError] = useState<string | null>(null);
   // Info notice after a check-in auto-moved the child out of another running
   // session (#2386). Cleared by the next roster action.
   const [moveNotice, setMoveNotice] = useState<string | null>(null);
@@ -180,6 +184,7 @@ export function useTimetableActions(
   const handleAddStudentSearchChange = useCallback((value: string) => {
     setAddStudentSearch(value);
     setAddStudentResult(null);
+    setAddStudentError(null);
   }, []);
 
   const handleStartPlannedInstance = useCallback(
@@ -443,6 +448,7 @@ export function useTimetableActions(
       if (!activeTimetableInstanceId) return false;
       const instanceId = activeTimetableInstanceId;
       setMoveNotice(null);
+      setAddStudentError(null);
       try {
         setIsAddingStudent(true);
         const rosterResult = await runOwnAttendanceMutation(
@@ -462,18 +468,15 @@ export function useTimetableActions(
           student_id: studentId,
           error: err instanceof Error ? err.message : String(err),
         });
-        setError("Kind konnte nicht zur Aktivität hinzugefügt werden.");
+        setAddStudentError(
+          "Kind konnte nicht zur Aktivität hinzugefügt werden.",
+        );
         return false;
       } finally {
         setIsAddingStudent(false);
       }
     },
-    [
-      activeTimetableInstanceId,
-      activeTimetableInstanceIdRef,
-      mutateRoster,
-      setError,
-    ],
+    [activeTimetableInstanceId, activeTimetableInstanceIdRef, mutateRoster],
   );
 
   return {
@@ -486,6 +489,7 @@ export function useTimetableActions(
     setShowCompleteConfirmation,
     moveNotice,
     addStudentSearch,
+    addStudentError,
     addStudentResults,
     handleAddStudentSearchChange,
     handleStartPlannedInstance,
