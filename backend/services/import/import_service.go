@@ -70,14 +70,6 @@ type importModeAuthorizer interface {
 	AuthorizeImportMode(ctx context.Context, mode importModels.ImportMode) error
 }
 
-// NewImportService creates a new import service
-func NewImportService[T any](config importModels.ImportConfig[T]) *ImportService[T] {
-	return &ImportService[T]{
-		config:    config,
-		batchSize: 100, // Default batch size
-	}
-}
-
 // ImportRuntime carries the platform collaborators of an import service:
 // the Audit command the GDPR import record is appended through (issue #584:
 // audit writes moved out of api/import; #2708: the owner command replaces
@@ -89,10 +81,10 @@ type ImportRuntime struct {
 	Observe func(ImportObservation)
 }
 
-// NewImportServiceWithRuntime creates an import service bound to its
-// platform collaborators. Production wiring uses it; NewImportService stays
-// for decision tests that never record an audit row.
-func NewImportServiceWithRuntime[T any](config importModels.ImportConfig[T], runtime ImportRuntime) *ImportService[T] {
+// NewImportService creates an import service bound to its platform
+// collaborators. A zero ImportRuntime is legitimate for decision tests that
+// never record an audit row or read an observation.
+func NewImportService[T any](config importModels.ImportConfig[T], runtime ImportRuntime) *ImportService[T] {
 	return &ImportService[T]{
 		config:    config,
 		batchSize: 100, // Default batch size

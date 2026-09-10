@@ -90,7 +90,7 @@ func TestNewImportService(t *testing.T) {
 		config := &mockImportConfig{}
 
 		// ACT
-		service := NewImportService[testRow](config)
+		service := NewImportService[testRow](config, ImportRuntime{})
 
 		// ASSERT
 		require.NotNil(t, service)
@@ -108,7 +108,7 @@ func TestImportService_RecordAuditInTransaction(t *testing.T) {
 		created, _ = event.(*auditModels.DataImport)
 		return nil
 	}}
-	service := NewImportServiceWithRuntime[testRow](&mockImportConfig{}, ImportRuntime{Audit: audit})
+	service := NewImportService[testRow](&mockImportConfig{}, ImportRuntime{Audit: audit})
 	result := &importModels.ImportResult[testRow]{
 		TotalRows:    4,
 		CreatedCount: 3,
@@ -137,7 +137,7 @@ func TestImportService_RecordAuditInTransaction(t *testing.T) {
 
 	// An unwired audit command fails the import instead of acknowledging it
 	// without the required GDPR record.
-	unwired := NewImportService[testRow](&mockImportConfig{})
+	unwired := NewImportService[testRow](&mockImportConfig{}, ImportRuntime{})
 	require.Error(t, unwired.RecordAuditInTransaction(ctx, "student", "x.csv", result, accountID, false, wantTenantID))
 }
 
@@ -155,7 +155,7 @@ func TestImportService_Import(t *testing.T) {
 		config := &mockImportConfig{
 			preloadErr: errors.New("preload failed"),
 		}
-		service := NewImportService[testRow](config)
+		service := NewImportService[testRow](config, ImportRuntime{})
 		request := importModels.ImportRequest[testRow]{
 			Rows: []testRow{{Name: "test", Value: "value"}},
 		}
@@ -174,7 +174,7 @@ func TestImportService_Import(t *testing.T) {
 		config := &mockImportConfig{
 			findExistingID: nil, // New entity
 		}
-		service := NewImportService[testRow](config)
+		service := NewImportService[testRow](config, ImportRuntime{})
 		request := importModels.ImportRequest[testRow]{
 			Rows:   []testRow{{Name: "test1", Value: "value1"}, {Name: "test2", Value: "value2"}},
 			DryRun: true,
@@ -197,7 +197,7 @@ func TestImportService_Import(t *testing.T) {
 		config := &mockImportConfig{
 			findExistingID: &existingID, // Existing entity
 		}
-		service := NewImportService[testRow](config)
+		service := NewImportService[testRow](config, ImportRuntime{})
 		request := importModels.ImportRequest[testRow]{
 			Rows:   []testRow{{Name: "test1", Value: "value1"}},
 			DryRun: true,
@@ -219,7 +219,7 @@ func TestImportService_Import(t *testing.T) {
 		config := &mockImportConfig{
 			findExistingID: &existingID,
 		}
-		service := NewImportService[testRow](config)
+		service := NewImportService[testRow](config, ImportRuntime{})
 		request := importModels.ImportRequest[testRow]{
 			Rows:   []testRow{{Name: "test1", Value: "value1"}},
 			DryRun: true,
@@ -244,7 +244,7 @@ func TestImportService_Import(t *testing.T) {
 			findExistingID: nil, // New entity
 			createID:       1,
 		}
-		service := NewImportService[testRow](config)
+		service := NewImportService[testRow](config, ImportRuntime{})
 		request := importModels.ImportRequest[testRow]{
 			Rows:   []testRow{{Name: "test", Value: "value"}},
 			DryRun: false,
@@ -266,7 +266,7 @@ func TestImportService_Import(t *testing.T) {
 		config := &mockImportConfig{
 			findExistingID: &existingID,
 		}
-		service := NewImportService[testRow](config)
+		service := NewImportService[testRow](config, ImportRuntime{})
 		request := importModels.ImportRequest[testRow]{
 			Rows:   []testRow{{Name: "test", Value: "value"}},
 			DryRun: false,
@@ -289,7 +289,7 @@ func TestImportService_Import(t *testing.T) {
 				{Field: "name", Message: "Name is required", Code: "required", Severity: importModels.ErrorSeverityError},
 			},
 		}
-		service := NewImportService[testRow](config)
+		service := NewImportService[testRow](config, ImportRuntime{})
 		request := importModels.ImportRequest[testRow]{
 			Rows:   []testRow{{Name: "", Value: "value"}},
 			DryRun: false,
@@ -313,7 +313,7 @@ func TestImportService_Import(t *testing.T) {
 			},
 			createID: 1,
 		}
-		service := NewImportService[testRow](config)
+		service := NewImportService[testRow](config, ImportRuntime{})
 		request := importModels.ImportRequest[testRow]{
 			Rows:   []testRow{{Name: "test", Value: "value"}},
 			DryRun: false,
@@ -337,7 +337,7 @@ func TestImportService_Import(t *testing.T) {
 				{Field: "name", Message: "Invalid", Code: "invalid", Severity: importModels.ErrorSeverityError},
 			},
 		}
-		service := NewImportService[testRow](config)
+		service := NewImportService[testRow](config, ImportRuntime{})
 		request := importModels.ImportRequest[testRow]{
 			Rows:        []testRow{{Name: "test1"}, {Name: "test2"}},
 			DryRun:      false,
@@ -359,7 +359,7 @@ func TestImportService_Import(t *testing.T) {
 			findExistingID: nil,
 			createErr:      errors.New("creation failed"),
 		}
-		service := NewImportService[testRow](config)
+		service := NewImportService[testRow](config, ImportRuntime{})
 		request := importModels.ImportRequest[testRow]{
 			Rows:   []testRow{{Name: "test", Value: "value"}},
 			DryRun: false,
@@ -383,7 +383,7 @@ func TestImportService_Import(t *testing.T) {
 			findExistingID: &existingID,
 			updateErr:      errors.New("update failed"),
 		}
-		service := NewImportService[testRow](config)
+		service := NewImportService[testRow](config, ImportRuntime{})
 		request := importModels.ImportRequest[testRow]{
 			Rows:   []testRow{{Name: "test", Value: "value"}},
 			DryRun: false,
@@ -406,7 +406,7 @@ func TestImportService_Import(t *testing.T) {
 		config := &mockImportConfig{
 			findExistingErr: errors.New("db error"),
 		}
-		service := NewImportService[testRow](config)
+		service := NewImportService[testRow](config, ImportRuntime{})
 		request := importModels.ImportRequest[testRow]{
 			Rows:   []testRow{{Name: "test", Value: "value"}},
 			DryRun: false,
@@ -429,7 +429,7 @@ func TestImportService_Import(t *testing.T) {
 		config := &mockImportConfig{
 			findExistingID: &existingID,
 		}
-		service := NewImportService[testRow](config)
+		service := NewImportService[testRow](config, ImportRuntime{})
 		request := importModels.ImportRequest[testRow]{
 			Rows:   []testRow{{Name: "test", Value: "value"}},
 			DryRun: false,
@@ -451,7 +451,7 @@ func TestImportService_Import(t *testing.T) {
 		config := &mockImportConfig{
 			findExistingID: nil, // Not found
 		}
-		service := NewImportService[testRow](config)
+		service := NewImportService[testRow](config, ImportRuntime{})
 		request := importModels.ImportRequest[testRow]{
 			Rows:   []testRow{{Name: "test", Value: "value"}},
 			DryRun: false,
@@ -471,7 +471,7 @@ func TestImportService_Import(t *testing.T) {
 	t.Run("records timing information", func(t *testing.T) {
 		// ARRANGE
 		config := &mockImportConfig{}
-		service := NewImportService[testRow](config)
+		service := NewImportService[testRow](config, ImportRuntime{})
 		request := importModels.ImportRequest[testRow]{
 			Rows:   []testRow{{Name: "test", Value: "value"}},
 			DryRun: true,
@@ -493,7 +493,7 @@ func TestImportService_ImportUsesConfiguredProcessingOrder(t *testing.T) {
 	t.Parallel()
 
 	config := &mockImportConfig{processingOrder: []int{1, 0}}
-	service := NewImportService[testRow](config)
+	service := NewImportService[testRow](config, ImportRuntime{})
 
 	result, err := service.Import(context.Background(), importModels.ImportRequest[testRow]{
 		Rows: []testRow{{Name: "first"}, {Name: "second"}},
@@ -513,7 +513,7 @@ func TestImportService_ImportKeepsOriginalRowNumbersWhenReordered(t *testing.T) 
 			"second": errors.New("cannot create second"),
 		},
 	}
-	service := NewImportService[testRow](config)
+	service := NewImportService[testRow](config, ImportRuntime{})
 
 	result, err := service.Import(context.Background(), importModels.ImportRequest[testRow]{
 		Rows: []testRow{{Name: "first"}, {Name: "second"}},
@@ -568,7 +568,7 @@ func TestGenerateBulkActions(t *testing.T) {
 	t.Run("generates bulk actions for repeated errors", func(t *testing.T) {
 		// ARRANGE
 		config := &mockImportConfig{}
-		service := NewImportService[testRow](config)
+		service := NewImportService[testRow](config, ImportRuntime{})
 
 		errors := []importModels.ImportError[testRow]{
 			{
@@ -620,7 +620,7 @@ func TestGenerateBulkActions(t *testing.T) {
 	t.Run("ignores single occurrences", func(t *testing.T) {
 		// ARRANGE
 		config := &mockImportConfig{}
-		service := NewImportService[testRow](config)
+		service := NewImportService[testRow](config, ImportRuntime{})
 
 		errors := []importModels.ImportError[testRow]{
 			{
@@ -651,7 +651,7 @@ func TestGenerateBulkActions(t *testing.T) {
 	t.Run("ignores errors without AutoFix", func(t *testing.T) {
 		// ARRANGE
 		config := &mockImportConfig{}
-		service := NewImportService[testRow](config)
+		service := NewImportService[testRow](config, ImportRuntime{})
 
 		errors := []importModels.ImportError[testRow]{
 			{
@@ -702,7 +702,7 @@ func TestImportService_DryRunDuplicateCheckError(t *testing.T) {
 		config := &mockImportConfig{
 			findExistingErr: errors.New("db connection failed"),
 		}
-		service := NewImportService[testRow](config)
+		service := NewImportService[testRow](config, ImportRuntime{})
 		request := importModels.ImportRequest[testRow]{
 			Rows:   []testRow{{Name: "test", Value: "value"}},
 			DryRun: true,

@@ -65,7 +65,7 @@ func newImports(wiring importWiring) imports {
 		guardians = wiring.GuardianOverride
 	}
 
-	student := importService.NewImportServiceWithRuntime(importService.NewStudentImportConfig(
+	student := importService.NewImportService(importService.NewStudentImportConfig(
 		importService.StudentImportDeps{
 			Persons:         wiring.Persons,
 			Students:        wiring.Persons,
@@ -82,7 +82,7 @@ func newImports(wiring importWiring) imports {
 	// profile, master data, qualifications) immediately and issues an
 	// invitation for rows with an e-mail; accepting links the account to the
 	// imported person (#2600).
-	staff := importService.NewImportServiceWithRuntime(importService.NewStaffImportConfig(
+	staff := importService.NewImportService(importService.NewStaffImportConfig(
 		importService.StaffImportDeps{
 			InvitationService: wiring.InvitationService,
 			InvitationRepo:    wiring.Reads.InvitationToken,
@@ -99,7 +99,7 @@ func newImports(wiring importWiring) imports {
 
 	// Class-list entries (#2382) are created through the Membership owner, so
 	// the duplicate guards and the audit trail apply to imported rows too.
-	classList := importService.NewImportServiceWithRuntime(importService.NewClassListImportConfig(
+	classList := importService.NewImportService(importService.NewClassListImportConfig(
 		importService.ClassListImportDeps{
 			Membership: wiring.Membership,
 			Persons:    wiring.Persons,
@@ -115,7 +115,7 @@ func newImports(wiring importWiring) imports {
 	openingBalance := importService.OpeningBalanceImportFactory(
 		func(effectiveDate timezone.Date, note string, decidedByStaffID int64) *importService.ImportService[importModels.OpeningBalanceImportRow] {
 			config := importService.NewOpeningBalanceImportConfig(wiring.OpeningBalance, effectiveDate, note, decidedByStaffID)
-			return importService.NewImportServiceWithRuntime(config, runtime)
+			return importService.NewImportService(config, runtime)
 		})
 
 	return imports{Student: student, Staff: staff, ClassList: classList, OpeningBalance: openingBalance}
