@@ -167,6 +167,45 @@ describe("StudentPaymentCard", () => {
     expect(onChanged).toHaveBeenCalled();
   });
 
+  it("leaves edit mode when the payer changes outside the card", async () => {
+    mockRevealPayment.mockResolvedValue({
+      guardianId: "10",
+      iban: FULL_IBAN,
+      accountHolder: null,
+    });
+
+    const { rerender } = render(
+      <StudentPaymentCard
+        studentId="7"
+        guardians={[
+          guardian("10", "Sabine", true),
+          guardian("11", "Klaus", false),
+        ]}
+      />,
+    );
+    await waitFor(() => expect(mockFetchPayment).toHaveBeenCalledWith("10"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    expect(await screen.findByLabelText("IBAN")).toBeInTheDocument();
+
+    rerender(
+      <StudentPaymentCard
+        studentId="7"
+        guardians={[
+          guardian("10", "Sabine", false),
+          guardian("11", "Klaus", true),
+        ]}
+      />,
+    );
+
+    await waitFor(() => expect(mockFetchPayment).toHaveBeenCalledWith("11"));
+    expect(
+      screen.queryByRole("button", { name: "Speichern" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Bearbeiten" })).toBeEnabled();
+    expect(mockSetPayer).not.toHaveBeenCalled();
+  });
+
   it("hides the IBAN fields while the payer is being changed and names the next step", async () => {
     mockRevealPayment.mockResolvedValue({
       guardianId: "10",

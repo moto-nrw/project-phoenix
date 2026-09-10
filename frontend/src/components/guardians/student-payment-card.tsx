@@ -82,6 +82,14 @@ export function StudentPaymentCard({
 
   const payerId = payer?.id ?? null;
 
+  useEffect(() => {
+    if (draft !== null && baseline?.payerId !== payerId) {
+      setDraft(null);
+      setBaseline(null);
+      setEditError(null);
+    }
+  }, [baseline?.payerId, draft, payerId]);
+
   // Reload trigger. The effect below deliberately depends on payerId and this
   // counter only: a card that refetches on every render — and resets the
   // revealed IBAN while doing so — is not a failure worth risking.
