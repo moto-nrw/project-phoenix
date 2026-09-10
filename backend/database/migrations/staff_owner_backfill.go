@@ -72,7 +72,10 @@ type StaffOwnerBackfillCheckpoint struct {
 	Pass        int    `bun:"pass" json:"pass"`
 	HighWaterID int64  `bun:"high_water_id" json:"high_water_id"`
 	PassWrites  int64  `bun:"pass_writes" json:"pass_writes"`
-	Stable      bool   `bun:"stable" json:"stable"`
+	// PassCompleted marks a pass that reached the end of the table and was
+	// verified; the next run starts a fresh pass instead of resuming it.
+	PassCompleted bool `bun:"pass_completed" json:"pass_completed"`
+	Stable        bool `bun:"stable" json:"stable"`
 
 	RowsScanned  int64 `bun:"rows_scanned" json:"rows_scanned"`
 	RowsCopied   int64 `bun:"rows_copied" json:"rows_copied"`
@@ -282,11 +285,24 @@ func RunStaffOwnerBackfill(ctx context.Context, db *bun.DB, opts StaffOwnerBackf
 	if err := db.NewRaw(`SELECT id FROM platform.schools ORDER BY id`).Scan(ctx, &tenantIDs); err != nil {
 		return nil, fmt.Errorf("staff owner backfill: list schools: %w", err)
 	}
+	// A failing school must not leave the remaining schools unvisited: each
+	// keeps its own checkpoint, so the others proceed and the failures are
+	// reported together. Cancellation stops the run immediately.
+	var failures []error
 	for _, tenantID := range tenantIDs {
 		if err := runStaffOwnerTenant(ctx, db, opts, tenantID); err != nil {
-			return nil, err
+			if ctx.Err() != nil {
+				return nil, err
+			}
+			opts.Logger.Error("staff owner backfill tenant failed",
+				"tenant_id", tenantID,
+				"error", err)
+			failures = append(failures, err)
 		}
 	}
+	// The membership sequence only has to stay above the preserved
+	// identities; nothing allocates from it before Cutover, which owns the
+	// hand-over from the users.staff sequence.
 	if _, err := db.ExecContext(ctx, `
 		SELECT setval('users.staff_school_memberships_id_seq', GREATEST(
 			COALESCE((SELECT max(id) FROM users.staff_school_memberships), 1),
@@ -301,8 +317,9 @@ func RunStaffOwnerBackfill(ctx context.Context, db *bun.DB, opts StaffOwnerBackf
 	opts.Logger.Info("staff owner backfill finished",
 		"tenants", len(report.Tenants),
 		"stable", report.Stable(),
-		"unstable_tenants", report.Unstable())
-	return report, nil
+		"unstable_tenants", report.Unstable(),
+		"failed_tenants", len(failures))
+	return report, errors.Join(failures...)
 }
 
 type staffOwnerTenantRun struct {
@@ -319,15 +336,15 @@ func runStaffOwnerTenant(ctx context.Context, db *bun.DB, opts StaffOwnerBackfil
 	if err != nil {
 		return err
 	}
-	if cp.Stable {
-		// A stable checkpoint sits at the end of the table. Re-read the
-		// whole tenant so old rows changed since StableAt are found by the
-		// copy, not only by verification.
+	if cp.PassCompleted {
+		// The persisted pass is complete (stable, or left at the pass
+		// limit). Re-read the whole tenant so old rows changed since then
+		// are found by the copy, not only by verification.
 		if err := run.startPass(ctx, cp); err != nil {
 			return err
 		}
 	}
-	for pass := 0; pass < opts.MaxPasses; pass++ {
+	for pass := 1; ; pass++ {
 		if err := run.copyPass(ctx, cp); err != nil {
 			return err
 		}
@@ -339,6 +356,11 @@ func runStaffOwnerTenant(ctx context.Context, db *bun.DB, opts StaffOwnerBackfil
 		}
 		if cp.Stable {
 			return nil
+		}
+		if pass >= opts.MaxPasses {
+			// Keep the completed pass and its high-water mark; the next run
+			// re-reads from a fresh pass without discarding evidence here.
+			break
 		}
 		if err := run.startPass(ctx, cp); err != nil {
 			return err
@@ -392,11 +414,12 @@ func (r *staffOwnerTenantRun) copyPass(ctx context.Context, cp *StaffOwnerBackfi
 // pass from zero because the target can only accept a rejoined person after
 // the earlier, now soft-deleted, row has been re-read.
 func (r *staffOwnerTenantRun) copyBatch(ctx context.Context, cp *StaffOwnerBackfillCheckpoint) (staffOwnerBatch, error) {
-	var pending struct{ retried, deadlocks, serialization, lockTimeouts int64 }
-	for attempt := 1; ; attempt++ {
+	var pending staffOwnerRetries
+	attempt, restarts := 1, 0
+	for {
 		started := time.Now()
 		waitBefore := r.db.DB.Stats().WaitDuration
-		batch, err := r.tryCopyBatch(ctx, cp, attempt, pending.retried, pending.deadlocks, pending.serialization, pending.lockTimeouts)
+		batch, err := r.tryCopyBatch(ctx, cp, attempt, pending)
 		r.poolWait += r.db.DB.Stats().WaitDuration - waitBefore
 		if err == nil {
 			batch.Attempts = attempt
@@ -410,39 +433,84 @@ func (r *staffOwnerTenantRun) copyBatch(ctx context.Context, cp *StaffOwnerBackf
 			return batch, nil
 		}
 		code := sqlState(err)
-		restart := code == "23505"
-		if !restart && code != "40P01" && code != "40001" && code != "55P03" {
+		if !pending.record(code) {
 			return staffOwnerBatch{}, fmt.Errorf("staff owner backfill: tenant %d batch after id %d: %w", r.tenantID, cp.HighWaterID, err)
 		}
-		if attempt >= r.opts.MaxAttempts {
-			return staffOwnerBatch{}, fmt.Errorf("staff owner backfill: tenant %d batch after id %d gave up after %d attempts: %w", r.tenantID, cp.HighWaterID, attempt, err)
-		}
-		pending.retried++
-		switch code {
-		case "40P01":
-			pending.deadlocks++
-		case "40001":
-			pending.serialization++
-		case "55P03":
-			pending.lockTimeouts++
-		}
+		restart := code == sqlStateUniqueViolation
 		if restart {
-			cp.HighWaterID = 0
+			// Persist the rewind so a crash before the next commit resumes
+			// the restarted pass instead of the stale mark. Restarts have
+			// their own budget: each one is caused by a source change, not
+			// by contention on the same batch.
+			restarts++
+			if restarts > r.opts.MaxAttempts {
+				return staffOwnerBatch{}, fmt.Errorf("staff owner backfill: tenant %d restarted the pass %d times without converging: %w", r.tenantID, restarts-1, err)
+			}
+			if err := r.rewindPass(ctx, cp); err != nil {
+				return staffOwnerBatch{}, err
+			}
+		} else {
+			attempt++
+			if attempt > r.opts.MaxAttempts {
+				return staffOwnerBatch{}, fmt.Errorf("staff owner backfill: tenant %d batch after id %d gave up after %d attempts: %w", r.tenantID, cp.HighWaterID, attempt-1, err)
+			}
 		}
 		r.opts.Logger.Warn("staff owner backfill batch retry",
 			"tenant_id", r.tenantID,
 			"attempt", attempt,
+			"restarts", restarts,
 			"sqlstate", code,
 			"restart_pass", restart)
 		select {
 		case <-ctx.Done():
 			return staffOwnerBatch{}, ctx.Err()
-		case <-time.After(staffOwnerRetryBackoff * time.Duration(attempt)):
+		case <-time.After(staffOwnerRetryBackoff * time.Duration(attempt+restarts)):
 		}
 	}
 }
 
-func (r *staffOwnerTenantRun) tryCopyBatch(ctx context.Context, cp *StaffOwnerBackfillCheckpoint, attempt int, retried, deadlocks, serialization, lockTimeouts int64) (staffOwnerBatch, error) {
+// PostgreSQL SQLSTATE classes the batch loop reacts to.
+const (
+	sqlStateUniqueViolation      = "23505"
+	sqlStateSerializationFailure = "40001"
+	sqlStateDeadlockDetected     = "40P01"
+	sqlStateLockNotAvailable     = "55P03"
+)
+
+// staffOwnerRetries accumulates the transient failures of one batch until
+// its successful commit persists them with the checkpoint.
+type staffOwnerRetries struct {
+	retried, deadlocks, serialization, lockTimeouts int64
+}
+
+// record classifies a failed attempt and reports whether it may be retried.
+func (p *staffOwnerRetries) record(code string) bool {
+	switch code {
+	case sqlStateDeadlockDetected:
+		p.deadlocks++
+	case sqlStateSerializationFailure:
+		p.serialization++
+	case sqlStateLockNotAvailable:
+		p.lockTimeouts++
+	case sqlStateUniqueViolation:
+	default:
+		return false
+	}
+	p.retried++
+	return true
+}
+
+func (r *staffOwnerTenantRun) rewindPass(ctx context.Context, cp *StaffOwnerBackfillCheckpoint) error {
+	cp.HighWaterID = 0
+	if _, err := r.db.ExecContext(ctx, `
+		UPDATE platform.storage_backfill_checkpoints SET high_water_id = 0, updated_at = now()
+		WHERE backfill = ? AND tenant_id = ?`, StaffOwnerBackfillName, r.tenantID); err != nil {
+		return fmt.Errorf("staff owner backfill: tenant %d rewind pass: %w", r.tenantID, err)
+	}
+	return nil
+}
+
+func (r *staffOwnerTenantRun) tryCopyBatch(ctx context.Context, cp *StaffOwnerBackfillCheckpoint, attempt int, pending staffOwnerRetries) (staffOwnerBatch, error) {
 	var batch staffOwnerBatch
 	err := r.db.RunInTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead}, func(ctx context.Context, tx bun.Tx) error {
 		if _, err := tx.ExecContext(ctx, `SET LOCAL lock_timeout = '5s'`); err != nil {
@@ -463,7 +531,7 @@ func (r *staffOwnerTenantRun) tryCopyBatch(ctx context.Context, cp *StaffOwnerBa
 				lock_timeouts = lock_timeouts + ?, updated_at = now()
 			WHERE backfill = ? AND tenant_id = ?`,
 			batch.LastID, batch.Copied, batch.Scanned, batch.Copied, batch.Skipped, batch.Rejected,
-			retried, deadlocks, serialization, lockTimeouts, StaffOwnerBackfillName, r.tenantID); err != nil {
+			pending.retried, pending.deadlocks, pending.serialization, pending.lockTimeouts, StaffOwnerBackfillName, r.tenantID); err != nil {
 			return err
 		}
 		if r.opts.injectFault != nil {
@@ -549,6 +617,7 @@ func (r *staffOwnerTenantRun) verify(ctx context.Context, cp *StaffOwnerBackfill
 		cp.OldestUnmigratedAt = &oldest.Time
 	}
 	cp.VerifiedAt = &now
+	cp.PassCompleted = true
 	cp.Stable = cp.PassWrites == 0 && cp.Verified()
 	if cp.Stable {
 		cp.StableAt = &now
@@ -566,7 +635,7 @@ func (r *staffOwnerTenantRun) verify(ctx context.Context, cp *StaffOwnerBackfill
 		UPDATE platform.storage_backfill_checkpoints SET
 			source_count = ?, target_count = ?, source_checksum = ?, target_checksum = ?,
 			mismatch_count = ?, oldest_unmigrated_at = ?, verified_at = ?, stable = ?, stable_at = ?,
-			batch_p95_ms = ?, batch_max_ms = ?, pool_wait_ms = ?, updated_at = now()
+			batch_p95_ms = ?, batch_max_ms = ?, pool_wait_ms = ?, pass_completed = true, updated_at = now()
 		WHERE backfill = ? AND tenant_id = ?`,
 		cp.SourceCount, cp.TargetCount, cp.SourceChecksum, cp.TargetChecksum,
 		cp.MismatchCount, cp.OldestUnmigratedAt, cp.VerifiedAt, cp.Stable, cp.StableAt,
@@ -590,9 +659,11 @@ func (r *staffOwnerTenantRun) startPass(ctx context.Context, cp *StaffOwnerBackf
 	cp.Pass++
 	cp.HighWaterID = 0
 	cp.PassWrites = 0
+	cp.PassCompleted = false
+	cp.Stable = false
 	if _, err := r.db.ExecContext(ctx, `
 		UPDATE platform.storage_backfill_checkpoints SET
-			pass = ?, high_water_id = 0, pass_writes = 0, updated_at = now()
+			pass = ?, high_water_id = 0, pass_writes = 0, pass_completed = false, stable = false, updated_at = now()
 		WHERE backfill = ? AND tenant_id = ?`, cp.Pass, StaffOwnerBackfillName, r.tenantID); err != nil {
 		return fmt.Errorf("staff owner backfill: tenant %d start pass %d: %w", r.tenantID, cp.Pass, err)
 	}

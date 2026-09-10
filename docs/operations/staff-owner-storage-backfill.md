@@ -21,8 +21,11 @@ old rows are never modified. The field mapping is unchanged from
   completed batch writes nothing.
 - Deadlocks (`40P01`), serialization failures (`40001`), and lock timeouts
   (`55P03`) retry the batch up to five times. A unique-index conflict
-  (`23505`) restarts the tenant's pass from zero: it happens when a person is
-  offboarded and rejoins between two batches of the same pass.
+  (`23505`) rewinds the tenant's pass to zero, persisting the rewind first: it
+  happens when a person is offboarded and rejoins between two batches of the
+  same pass. Rewinds have their own budget of five per batch.
+- A school whose batch fails with any other error is reported and skipped for
+  this run; the remaining schools still run, and the command exits non-zero.
 - Rows that reference a work-time model of another school are rejected, not
   copied. The superuser connection bypasses the tenant policy that rejects
   such assignments for the application role, so the backfill must surface the
@@ -33,10 +36,16 @@ old rows are never modified. The field mapping is unchanged from
   (`md5(string_agg(to_jsonb(row) ORDER BY id))` over the same twelve columns on
   both sides) and a row-wise mismatch count are stored. A tenant is stable when
   a pass changed nothing and verification matches. Unstable tenants get another
-  pass, up to `--max-passes` (default 5) per run.
-- A run on a stable tenant starts a new pass so old rows changed since
-  `stable_at` are re-read. The migration sequence of the memberships is aligned
-  above the preserved identities after every run.
+  pass, up to `--max-passes` (default 5) per run; at the limit the completed
+  pass and its high-water mark are kept.
+- A run on a tenant whose persisted pass is complete starts a new pass so old
+  rows changed since the last verification are re-read. The membership
+  sequence is kept above the preserved identities after every run; the
+  hand-over from the `users.staff` sequence belongs to Cutover.
+- The migration runs the first copy inline so every deployment leaves a
+  populated target, at the cost of migration wall time proportional to
+  `users.staff`. An error in one school fails the migration after the other
+  schools have run; rerunning `migrate` resumes from the checkpoints.
 
 ## Commands
 
@@ -67,19 +76,21 @@ created after the last run). Missing schools count as unstable. Fields:
 | `source_count`, `target_count`, `source_checksum`, `target_checksum`, `mismatch_count`, `verified_at` | Last verification |
 | `oldest_unmigrated_at` | `updated_at` of the oldest source row still differing from the targets at the last verification; `null` when none |
 | `batch_p95_ms`, `batch_max_ms` | p95 of the last run's batch transactions and the maximum across runs |
-| `pool_wait_ms` | Cumulative connection-pool wait attributed to the tenant's batches |
+| `pool_wait_ms` | Pool-wide connection wait observed while the tenant's batches ran; the process pool is shared, so concurrent users of the same pool are included |
 
 Lock waits are bounded by the 5 s statement-level `lock_timeout` and reported
-as `lock_timeouts`; the observer SQL in the Expand runbook measures blocked
-sessions from the outside. Deadlocks are counted from the backfill's own
-`40P01` retries, not from `pg_stat_database`.
+as `lock_timeouts` (a count, not a duration); the observer SQL in the Expand
+runbook measures blocked sessions and wait time from the outside. Deadlocks
+are counted from the backfill's own `40P01` retries, not from
+`pg_stat_database`.
 
 ## Rollback
 
 `backfill staff-owner reset` and the migration's down step truncate only the
-two target tables and delete the checkpoints; `users.staff` is not touched.
-Stopping a run retains its checkpoint. The Expand rollback follows after the
-targets are empty.
+two target tables and delete this backfill's checkpoints; `users.staff` is not
+touched. The down step drops the shared checkpoint table only when no other
+backfill has rows in it. Stopping a run retains its checkpoint. The Expand
+rollback follows after the targets are empty.
 
 ## Exit criterion for Cutover
 
@@ -111,9 +122,22 @@ then run `backfill staff-owner` until stable and attach the JSON report.
 
 Migration tests cover interrupt and resume after every batch boundary, rerun
 of completed batches, injected deadlock, serialization and lock-timeout
-failures with retry accounting, changed-row re-read and orphan removal,
-foreign work-time model rejection, mid-pass rejoin conflict restart, two-tenant
-RLS reads, index validity and an index-backed batch plan with sequential scans
-disabled, reset, and the guarded down/up sequence with the Expand rollback.
-The CLI test drives run, status, reset and the unstable exit path against an
-isolated clone. These results do not replace the staging record above.
+failures with retry accounting, one failing school not blocking the others,
+changed-row re-read and orphan removal, foreign work-time model rejection with
+the pass limit keeping the high-water mark, mid-pass rejoin conflict with a
+persisted rewind, two-tenant RLS reads, index validity and index-backed plans
+for the batch, checksum and mismatch queries with sequential scans disabled,
+reset, and the guarded down/up sequence with the Expand rollback and shared
+checkpoint retention. The CLI test drives run, status, reset and the unstable
+exit path against an isolated clone.
+
+- `scripts/test-changed.sh origin/development` (without `--fast`, pinned
+  toolchain, `CGO_ENABLED=0`): `cmd`, `database/migrations`,
+  `internal/architecture`, `seed/api`, `test` passed.
+- `scripts/backend-architecture.sh check`: no new keys, composition
+  796 → 796, 1,647 existing legacy violations remain; the new checkpoint
+  table is owned by `migrations` in `policy.json`.
+- `scripts/backend-architecture.sh validate-ticket --ticket backend/architecture/staff-owner-backfill-2752.json`: passed.
+- `golangci-lint run` on `cmd`, `database/migrations`, `seed/api`: zero issues.
+
+These results do not replace the staging record above.

@@ -36,6 +36,7 @@ func staffOwnerBackfillUp(ctx context.Context, db *bun.DB) error {
 				pass INTEGER NOT NULL DEFAULT 1,
 				high_water_id BIGINT NOT NULL DEFAULT 0,
 				pass_writes BIGINT NOT NULL DEFAULT 0,
+				pass_completed BOOLEAN NOT NULL DEFAULT FALSE,
 				stable BOOLEAN NOT NULL DEFAULT FALSE,
 				rows_scanned BIGINT NOT NULL DEFAULT 0,
 				rows_copied BIGINT NOT NULL DEFAULT 0,
@@ -86,10 +87,12 @@ func staffOwnerBackfillUp(ctx context.Context, db *bun.DB) error {
 	return nil
 }
 
-// staffOwnerBackfillDown truncates only the target rows and drops the
-// checkpoint storage so the Expand rollback can follow. users.staff is never
-// touched. It refuses after Cutover, when users.staff is a compatibility view
-// and the targets hold the authoritative data.
+// staffOwnerBackfillDown truncates only the target rows and removes this
+// backfill's checkpoints so the Expand rollback can follow. The checkpoint
+// table is shared with later backfills and is dropped only when no other
+// backfill has recorded progress in it. users.staff is never touched. It
+// refuses after Cutover, when users.staff is a compatibility view and the
+// targets hold the authoritative data.
 func staffOwnerBackfillDown(ctx context.Context, db *bun.DB) error {
 	if err := assertStaffSourceIsBaseTable(ctx, db); err != nil {
 		return err
@@ -97,8 +100,13 @@ func staffOwnerBackfillDown(ctx context.Context, db *bun.DB) error {
 	return db.RunInTx(ctx, &sql.TxOptions{}, func(ctx context.Context, tx bun.Tx) error {
 		_, err := tx.ExecContext(ctx, `
 			TRUNCATE users.staff_employment_profiles, users.staff_school_memberships;
-			DROP TABLE IF EXISTS platform.storage_backfill_checkpoints;
-		`)
+			DELETE FROM platform.storage_backfill_checkpoints WHERE backfill = ?;
+			DO $$ BEGIN
+				IF NOT EXISTS (SELECT 1 FROM platform.storage_backfill_checkpoints) THEN
+					DROP TABLE platform.storage_backfill_checkpoints;
+				END IF;
+			END $$;
+		`, StaffOwnerBackfillName)
 		return err
 	})
 }

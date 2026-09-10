@@ -22,8 +22,9 @@ const (
 // storage backfills of the architecture migration (#2580) can be driven from
 // the CLI and tested without a real connection.
 type backfillRoot struct {
+	// openDatabase returns the pool and a release function; tests hand in
+	// the package pool with a no-op release instead of closing it.
 	openDatabase func() (*bun.DB, func(), error)
-	output       io.Writer
 }
 
 var defaultBackfillRoot = backfillRoot{
@@ -42,7 +43,7 @@ func (root backfillRoot) run(ctx context.Context, operation func(context.Context
 	}
 	db, release, err := root.openDatabase()
 	if err != nil {
-		return fmt.Errorf("open backfill database: %w", err)
+		return fmt.Errorf(errInitDB, err)
 	}
 	if db == nil {
 		return fmt.Errorf("database opener returned nil")
@@ -53,13 +54,6 @@ func (root backfillRoot) run(ctx context.Context, operation func(context.Context
 	return operation(ctx, db)
 }
 
-func (root backfillRoot) writer(cmd *cobra.Command) io.Writer {
-	if root.output != nil {
-		return root.output
-	}
-	return cmd.OutOrStdout()
-}
-
 func (root backfillRoot) staffOwnerRun(cmd *cobra.Command, opts migrations.StaffOwnerBackfillOptions) error {
 	return root.run(cmd.Context(), func(ctx context.Context, db *bun.DB) error {
 		opts.Logger = slog.Default().With("backfill", migrations.StaffOwnerBackfillName)
@@ -67,7 +61,7 @@ func (root backfillRoot) staffOwnerRun(cmd *cobra.Command, opts migrations.Staff
 		if err != nil {
 			return err
 		}
-		return writeStaffOwnerReport(root.writer(cmd), report)
+		return writeStaffOwnerReport(cmd.OutOrStdout(), report)
 	})
 }
 
@@ -77,7 +71,7 @@ func (root backfillRoot) staffOwnerStatus(cmd *cobra.Command) error {
 		if err != nil {
 			return err
 		}
-		return writeStaffOwnerReport(root.writer(cmd), report)
+		return writeStaffOwnerReport(cmd.OutOrStdout(), report)
 	})
 }
 
@@ -86,7 +80,7 @@ func (root backfillRoot) staffOwnerReset(cmd *cobra.Command) error {
 		if err := migrations.ResetStaffOwnerBackfill(ctx, db); err != nil {
 			return err
 		}
-		_, err := fmt.Fprintln(root.writer(cmd), "staff owner backfill reset: target rows and checkpoints discarded; users.staff untouched")
+		_, err := fmt.Fprintln(cmd.OutOrStdout(), "staff owner backfill reset: target rows and checkpoints discarded; users.staff untouched")
 		return err
 	})
 }

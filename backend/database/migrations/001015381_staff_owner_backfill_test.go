@@ -199,7 +199,7 @@ func TestStaffOwnerBackfillRerunsCompletedBatchesIdempotently(t *testing.T) {
 
 	// Rewind the persisted high-water mark as if the last checkpoint write
 	// had been lost, so every completed batch runs again.
-	_, err = db.ExecContext(ctx, `UPDATE platform.storage_backfill_checkpoints SET high_water_id = 0, stable = false WHERE backfill = ? AND tenant_id = ?`, StaffOwnerBackfillName, tenantID)
+	_, err = db.ExecContext(ctx, `UPDATE platform.storage_backfill_checkpoints SET high_water_id = 0, pass_completed = false, stable = false WHERE backfill = ? AND tenant_id = ?`, StaffOwnerBackfillName, tenantID)
 	require.NoError(t, err)
 	second, err := RunStaffOwnerBackfill(ctx, db, StaffOwnerBackfillOptions{BatchSize: 3})
 	require.NoError(t, err)
@@ -223,7 +223,9 @@ func TestStaffOwnerBackfillRetriesInjectedFailures(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
+	otherTenant := staffOwnerSecondTenant(t, db)
 	staffOwnerFixture(t, db, tenantID, 3)
+	staffOwnerFixture(t, db, otherTenant, 2)
 	raise := func(ctx context.Context, tx testpkg.Tx, code string) error {
 		_, err := tx.ExecContext(ctx, fmt.Sprintf(`DO $$ BEGIN RAISE EXCEPTION 'injected %s' USING ERRCODE = '%s'; END $$`, code, code))
 		return err
@@ -262,13 +264,19 @@ func TestStaffOwnerBackfillRetriesInjectedFailures(t *testing.T) {
 	require.Equal(t, cp.RowsCopied, staffOwnerCheckpoint(t, status, tenantID).RowsCopied)
 	require.Equal(t, staffTargetRows(t, db, tenantID), staffTargetRows(t, db, tenantID))
 
-	_, err = RunStaffOwnerBackfill(ctx, db, StaffOwnerBackfillOptions{injectFault: func(ctx context.Context, tx testpkg.Tx, id int64, _ int) error {
+	_, err = db.ExecContext(ctx, `UPDATE users.staff SET staff_notes = 'changed while the other school fails' WHERE tenant_id = ?`, otherTenant)
+	require.NoError(t, err)
+	report, err = RunStaffOwnerBackfill(ctx, db, StaffOwnerBackfillOptions{injectFault: func(ctx context.Context, tx testpkg.Tx, id int64, _ int) error {
 		if id != tenantID {
 			return nil
 		}
 		return raise(ctx, tx, "22023")
 	}})
 	require.ErrorContains(t, err, "22023", "non-transient failures surface immediately")
+	require.NotNil(t, report, "the other schools are still visited and reported")
+	require.Equal(t, []int64{tenantID}, report.Unstable())
+	other := requireStaffOwnerTenantEqual(t, db, report, otherTenant)
+	require.EqualValues(t, 4, other.RowsCopied, "a failing school does not block the remaining schools")
 }
 
 func TestStaffOwnerBackfillRereadsChangedRowsAndRemovesOrphans(t *testing.T) {
@@ -334,6 +342,8 @@ func TestStaffOwnerBackfillRejectsCrossTenantWorkTimeModel(t *testing.T) {
 	require.EqualValues(t, 1, cp.TargetCount)
 	require.NotNil(t, cp.OldestUnmigratedAt)
 	require.Greater(t, cp.OldestUnmigratedAge(time.Now()), time.Duration(0))
+	require.EqualValues(t, 2, cp.Pass)
+	require.Equal(t, idsA[1], cp.HighWaterID, "the pass limit keeps the completed pass and its high-water mark")
 	var copied bool
 	require.NoError(t, db.NewRaw(`SELECT EXISTS (SELECT 1 FROM users.staff_school_memberships WHERE id = ?)`, idsA[0]).Scan(ctx, &copied))
 	require.False(t, copied)
@@ -352,8 +362,18 @@ func TestStaffOwnerBackfillRestartsPassWhenPersonRejoinsMidPass(t *testing.T) {
 	tenantID := testpkg.Tenant(t)
 	first := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Rejoin", "Person")
 	testpkg.CreateTestStaffForTenant(t, db, tenantID, "Other", "Person")
-	rejoined := false
-	opts := StaffOwnerBackfillOptions{BatchSize: 1, afterBatch: func(id int64, batch staffOwnerBatch) error {
+	rejoined, rewound := false, false
+	opts := StaffOwnerBackfillOptions{BatchSize: 1, injectFault: func(ctx context.Context, tx testpkg.Tx, id int64, _ int) error {
+		if id != tenantID || !rejoined || rewound {
+			return nil
+		}
+		// Read the committed checkpoint from outside the batch transaction:
+		// the first batch after the conflict must start from a persisted 0.
+		var persisted int64
+		require.NoError(t, db.NewRaw(`SELECT high_water_id FROM platform.storage_backfill_checkpoints WHERE backfill = ? AND tenant_id = ?`, StaffOwnerBackfillName, id).Scan(ctx, &persisted))
+		rewound = persisted == 0
+		return nil
+	}, afterBatch: func(id int64, batch staffOwnerBatch) error {
 		if id != tenantID || rejoined || batch.LastID != first.ID {
 			return nil
 		}
@@ -373,6 +393,7 @@ func TestStaffOwnerBackfillRestartsPassWhenPersonRejoinsMidPass(t *testing.T) {
 	cp := requireStaffOwnerTenantEqual(t, db, report, tenantID)
 	require.True(t, rejoined)
 	require.GreaterOrEqual(t, cp.BatchesRetried, int64(1), "the unique conflict restarts the pass instead of failing")
+	require.True(t, rewound, "the rewind is persisted before the restarted pass commits its first batch")
 	require.EqualValues(t, 3, cp.SourceCount)
 	var active int64
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM users.staff_school_memberships WHERE tenant_id = ? AND person_id = ? AND deleted_at IS NULL`, tenantID, first.PersonID).Scan(ctx, &active))
@@ -439,14 +460,23 @@ func TestStaffOwnerBackfillIndexesAndQueryPlans(t *testing.T) {
 		if _, err := tx.ExecContext(ctx, `SET LOCAL enable_seqscan = off`); err != nil {
 			return err
 		}
-		var lines []string
-		if err := tx.NewRaw(`EXPLAIN `+staffOwnerCopyBatch, tenantID, int64(0), 100, int64(0)).Scan(ctx, &lines); err != nil {
-			return err
+		for name, query := range map[string]struct {
+			sql  string
+			args []any
+		}{
+			"batch":           {staffOwnerCopyBatch, []any{tenantID, int64(0), 100, int64(0)}},
+			"source checksum": {staffOwnerSourceChecksum, []any{tenantID}},
+			"target checksum": {staffOwnerTargetChecksum, []any{tenantID}},
+			"mismatch":        {staffOwnerMismatch, []any{tenantID, tenantID}},
+		} {
+			var lines []string
+			if err := tx.NewRaw(`EXPLAIN `+query.sql, query.args...).Scan(ctx, &lines); err != nil {
+				return fmt.Errorf("%s: %w", name, err)
+			}
+			plan := strings.Join(lines, "\n")
+			require.Contains(t, plan, "Index", "%s plan: %s", name, plan)
+			require.NotContains(t, plan, "Seq Scan", "%s must be index-driven on every tenant-scoped table: %s", name, plan)
 		}
-		plan := strings.Join(lines, "\n")
-		require.Contains(t, plan, "Index")
-		require.NotContains(t, plan, "Seq Scan on users.staff s")
-		require.NotContains(t, plan, "Seq Scan on staff s")
 		return nil
 	})
 	require.NoError(t, err)
@@ -477,8 +507,18 @@ func TestStaffOwnerBackfillResetAndRollback(t *testing.T) {
 	cp := requireStaffOwnerTenantEqual(t, db, report, tenantID)
 	require.EqualValues(t, 3, cp.RowsCopied, "reset restarts from zero")
 
+	// The checkpoint table is shared with later backfills: rolling back this
+	// one keeps their progress and drops the table only once it is empty.
+	_, err = db.ExecContext(ctx, `INSERT INTO platform.storage_backfill_checkpoints (backfill, tenant_id) VALUES ('other-backfill', ?)`, tenantID)
+	require.NoError(t, err)
 	require.NoError(t, staffOwnerBackfillDown(ctx, db))
 	requireStaffOwnerTargetsEmpty(t, db)
+	var remaining []string
+	require.NoError(t, db.NewRaw(`SELECT backfill FROM platform.storage_backfill_checkpoints`).Scan(ctx, &remaining))
+	require.Equal(t, []string{"other-backfill"}, remaining)
+	_, err = db.ExecContext(ctx, `DELETE FROM platform.storage_backfill_checkpoints WHERE backfill = 'other-backfill'`)
+	require.NoError(t, err)
+	require.NoError(t, staffOwnerBackfillDown(ctx, db))
 	var checkpointsAbsent bool
 	require.NoError(t, db.NewRaw(`SELECT to_regclass('platform.storage_backfill_checkpoints') IS NULL`).Scan(ctx, &checkpointsAbsent))
 	require.True(t, checkpointsAbsent)
