@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 import { ClosingDayModal } from "~/components/planning/closing-day-modal";
@@ -17,6 +17,7 @@ import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
 import { closingDayService } from "~/lib/closing-day-api";
 import {
@@ -147,26 +148,26 @@ export function ClosingDaysEditor() {
         className: "w-px",
         headerClassName: "w-px",
         render: (day) => (
-          // Auf schmalen Screens stapeln sich die beiden Aktionen, sonst
-          // passen Grund-Spalte und Buttons nicht nebeneinander (#2033).
-          <div className="flex flex-col items-end justify-end gap-1 sm:flex-row sm:items-center">
-            <Button
-              type="button"
-              variant="ghost"
-              size="compact"
-              onClick={() => beginEdit(day)}
-            >
-              Bearbeiten
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="compact"
-              className="text-moto-red hover:text-moto-red-strong"
-              onClick={() => setDeleting(day)}
-            >
-              Löschen
-            </Button>
+          // Zeilenaktionen nur im Kebab (BAUARTEN-SPEC Bauart 1 Regel 4);
+          // ein Auslöser passt auch auf 320px neben die Grund-Spalte.
+          <div className="flex justify-end">
+            <OverflowMenu
+              ariaLabel={`Aktionen für ${day.reason}`}
+              items={[
+                {
+                  label: "Bearbeiten",
+                  icon: <Pencil className="h-4 w-4" aria-hidden />,
+                  onClick: () => beginEdit(day),
+                },
+                { kind: "separator" },
+                {
+                  label: "Löschen",
+                  icon: <Trash2 className="h-4 w-4" aria-hidden />,
+                  destructive: true,
+                  onClick: () => setDeleting(day),
+                },
+              ]}
+            />
           </div>
         ),
       },

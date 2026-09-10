@@ -101,6 +101,14 @@ interface OverflowMenuProps {
    * fixed-width popover would poke out the side and read as misaligned.
    */
   readonly matchContainerSelector?: string;
+  /**
+   * Identifies an overlay which owns this menu while the menu itself is
+   * rendered at the document level. This lets a scrollable overlay treat menu
+   * interactions as internal without clipping the menu at its scroll edge.
+   */
+  readonly portalOwnerId?: string;
+  /** Stacking level for a document-level menu owned by an overlay. */
+  readonly portalZIndex?: number;
 }
 
 /**
@@ -123,6 +131,8 @@ export function OverflowMenu({
   triggerClassName = "",
   triggerContent,
   matchContainerSelector,
+  portalOwnerId,
+  portalZIndex,
 }: OverflowMenuProps) {
   // Size variant: the "default" values are byte-for-byte the previous hardcoded
   // ones, so unchanged callers keep the exact 36px trigger + 20px icon +
@@ -150,6 +160,12 @@ export function OverflowMenu({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
+  // Menus normally stay inside a slide-over's focus scope. A scrollable
+  // AnchoredPopover instead passes an owner ID, so its menu can escape the
+  // clipped panel while the popover still recognizes the interaction.
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(
+    null,
+  );
 
   // Close on outside click + Escape. Because the menu is fixed-positioned, also
   // close on scroll/resize so it never lingers detached from its trigger. Only
@@ -207,8 +223,24 @@ export function OverflowMenu({
   // - If neither side fits, use the side with more room and clamp to the
   //   viewport inset.
   const handleOpen = () => {
-    const rect = triggerRef.current?.getBoundingClientRect();
-    if (rect != null) {
+    const trigger = triggerRef.current;
+    if (isOpen) {
+      setIsOpen(false);
+      return;
+    }
+    if (trigger != null && typeof document !== "undefined") {
+      const scope = portalOwnerId
+        ? null
+        : trigger.closest(
+            '[data-overflow-menu-scope="true"], [data-date-picker-focus-trap="true"]',
+          );
+      const nextPortalContainer =
+        scope instanceof HTMLElement ? scope : document.body;
+      const scopeRect =
+        nextPortalContainer === document.body
+          ? null
+          : nextPortalContainer.getBoundingClientRect();
+      const rect = trigger.getBoundingClientRect();
       const gap = 4; // matches the old mt-1
       const viewportInset = 8;
       // Vertical anchoring: below the trigger by default, flipped ABOVE it when
@@ -226,23 +258,28 @@ export function OverflowMenu({
       const flipUp = roomBelow < estimatedMenuHeight && roomAbove > roomBelow;
       const vertical: CSSProperties = flipUp
         ? {
-            bottom: window.innerHeight - rect.top + gap,
+            bottom: scopeRect
+              ? scopeRect.bottom - rect.top + gap
+              : window.innerHeight - rect.top + gap,
             maxHeight: roomAbove,
           }
-        : { top: rect.bottom + gap, maxHeight: roomBelow };
+        : {
+            top: rect.bottom + gap - (scopeRect?.top ?? 0),
+            maxHeight: roomBelow,
+          };
       // Container-stretch mode: when an ancestor selector is given, size the
       // menu to that ancestor (8px inset both sides) so it sits cleanly INSIDE
       // a narrow container instead of poking out the side. The trigger only
       // contributes the vertical position here.
       const container = matchContainerSelector
-        ? triggerRef.current?.closest(matchContainerSelector)
+        ? trigger.closest(matchContainerSelector)
         : null;
       if (container != null) {
         const cr = container.getBoundingClientRect();
         const inset = 8;
         setMenuStyle({
           ...vertical,
-          left: cr.left + inset,
+          left: cr.left + inset - (scopeRect?.left ?? 0),
           width: cr.width - inset * 2,
         });
       } else {
@@ -267,15 +304,21 @@ export function OverflowMenu({
         const alignRight =
           roomLeft >= renderedWidth ||
           (roomRight < renderedWidth && roomLeft >= roomRight);
-        const horizontal: CSSProperties = alignRight
-          ? { right: clampOffset(window.innerWidth - rect.right) }
-          : { left: clampOffset(rect.left) };
+        const left = alignRight
+          ? clampOffset(rect.right - renderedWidth)
+          : clampOffset(rect.left);
+        const horizontal: CSSProperties = scopeRect
+          ? { left: left - scopeRect.left }
+          : alignRight
+            ? { right: clampOffset(window.innerWidth - rect.right) }
+            : { left };
         const style: CSSProperties = { ...vertical, ...size, ...horizontal };
         setMenuStyle(style);
       }
+      setPortalContainer(nextPortalContainer);
     }
-    if (!isOpen) onOpen?.();
-    setIsOpen((prev) => !prev);
+    onOpen?.();
+    setIsOpen(true);
   };
 
   const onItemKey =
@@ -316,14 +359,20 @@ export function OverflowMenu({
         )}
       </button>
 
-      {isOpen
+      {isOpen && portalContainer
         ? createPortal(
             <div
               ref={menuRef}
               id={menuId}
               role="menu"
               aria-label={ariaLabel}
-              style={menuStyle}
+              data-overflow-menu-owner={portalOwnerId}
+              style={{
+                ...menuStyle,
+                position:
+                  portalContainer !== document.body ? "absolute" : "fixed",
+                zIndex: portalZIndex,
+              }}
               // Surface mirrors DesktopFilters dropdown so menu / filter
               // popovers read as one component family — same border, radius,
               // and shadow elevation across the page. Fixed + portaled so it
@@ -468,7 +517,7 @@ export function OverflowMenu({
                 );
               })}
             </div>,
-            document.body,
+            portalContainer,
           )
         : null}
     </div>

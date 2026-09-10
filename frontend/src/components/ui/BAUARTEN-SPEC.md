@@ -54,7 +54,13 @@ Aktivitäten, Gruppen, Rollen, Geräte, Dateien, Nachrichten, Anfragen.
    es an anderer Stelle anlegbar ist.
 4. **Zeilenaktionen ausschließlich im Kebab der Zeile.** Keine Icon-Reihe,
    keine Aktion, die nur beim Überfahren erscheint. Was das Objekt betrifft
-   und nicht die Liste, gehört in die Objektansicht.
+   und nicht die Liste, gehört in die Objektansicht. Auch die eine „wichtige"
+   Aktion („Veröffentlichen" eines Entwurfs, „Elternlink kopieren") ist ein
+   Menüeintrag und kein Knopf neben dem Kebab; sie steht dann oben im Menü,
+   und ein Ergebnis, das der Knopf sonst anzeigen würde (Häkchen „kopiert"),
+   meldet ein Toast (#3111). Umsortieren (Pfeile ↑/↓) ist eine Listenaktion
+   und bleibt sichtbar; das X an einem Chip in einem Formular entfernt einen
+   Eingabewert und ist keine Zeilenaktion.
 5. **Mehrfachauswahl ist eine Eigenschaft der Bauart, nicht der Seite.** Wo
    sie fachlich sinnvoll ist, wird sie überall gleich ausgelöst
    (Kopf-Aktion „Auswählen" schaltet den Auswahlmodus). Sie fehlt nicht auf
@@ -198,6 +204,16 @@ bekommt eine shrink-only Baseline analog zum bestehenden
    Klick, der nur den Dialog öffnet (`setDeleteTarget(x)`), passiert. Ein
    per Namen übergebener Handler (`onClick={handleDelete}`) liegt außerhalb
    der Ratsche und gehört ins Review.
+9. `bauart/no-row-action-buttons` — Zeilenaktionen nur im Kebab (Bauart 1
+   Regel 4). **Umgesetzt** (`scripts/oxlint-plugin-bauart.mjs`, #3111): ein
+   `Button`/`<button>` je Listeneintrag (in einem `.map(…)` oder dem
+   `render` einer Tabellenspalte), dessen zugänglicher Name eine
+   Objektaktion ist (bearbeiten, löschen, entfernen, archivieren,
+   wiederherstellen, duplizieren, umbenennen, veröffentlichen, kopieren),
+   fällt durch. Pfeile zum Umsortieren und das reine Icon-X „… entfernen"
+   eines Formular-Chips sind ausgenommen. Shrink-only Baseline je Datei für
+   den Bestand, den #3111 auf Folge-PRs verteilt; Operator-, Eltern- und
+   Schul-Portal sind nicht im Scope.
 
 ## Reihenfolge der Umsetzung
 

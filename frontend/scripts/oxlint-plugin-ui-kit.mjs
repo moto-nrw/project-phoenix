@@ -479,7 +479,7 @@ src/components/dashboard/sidebar.tsx|text-[10px]@1310
 src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@920 text-[11px]@939
 src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1305 text-[11px]@2990 text-[11px]@3182 text-[11px]@3187 text-[11px]@3192 text-[11px]@3346 text-[11px]@3938 text-[10px]@4155 text-[11px]@4167 text-[11px]@4202 text-[10px]@4216 text-[10px]@4260
 src/components/enrollment/enrollment-form.tsx|text-[11px]@2090
-src/components/enrollment/phases-editor.tsx|text-[11px]@663 text-[11px]@668
+src/components/enrollment/phases-editor.tsx|text-[11px]@664 text-[11px]@669
 src/components/files/files-page.tsx|text-[11px]@158 text-[11px]@275
 src/components/guardians/guardian-contact-actions.tsx|text-[10px]@141
 src/components/guardians/guardian-list.tsx|text-[10px]@334
@@ -493,7 +493,7 @@ src/components/staff/arbeitszeitmodell-tab.tsx|text-[10px]@227 text-[10px]@240 t
 src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@468 text-[11px]@564 text-[11px]@573 text-[11px]@580 text-[10px]@714
 src/components/staff/staff-session-table.tsx|text-[11px]@1178
 src/components/students/care-schedule-manager.tsx|text-[10px]@1126 text-[11px]@1281 text-[11px]@1370 text-[11px]@1380 text-[11px]@1410
-src/components/students/planned-status-days-modal.tsx|text-[10px]@913 text-[11px]@913
+src/components/students/planned-status-days-modal.tsx|text-[10px]@914 text-[11px]@914
 src/components/students/school-checkin-fab.tsx|text-[10px]@198
 src/components/time-tracking/edit-history-accordion.tsx|text-[10px]@118 text-[10px]@139 text-[10px]@150
 src/components/time-tracking/leave-requests-card.tsx|text-[10px]@475
@@ -521,7 +521,7 @@ src/components/ui/multi-checkbox-select.tsx|text-[11px]@246
 src/components/ui/notification-badge.tsx|text-[10px]@15
 src/components/ui/origin-chip.tsx|text-[11px]@24
 src/components/ui/page-header/FilterButton.tsx|text-[10px]@61
-src/components/ui/page-header/OverflowMenu.tsx|text-[10px]@344 text-[11px]@407
+src/components/ui/page-header/OverflowMenu.tsx|text-[10px]@393 text-[11px]@456
 src/components/ui/parent-visible-badge.tsx|text-[11px]@44
 src/components/ui/plan-block.tsx|text-[11px]@126 text-[11px]@133
 src/components/ui/plan-legend.tsx|text-[11px]@106

@@ -33,7 +33,10 @@ interface AnchoredPopoverProps {
     panelId: string;
     toggle: () => void;
   }) => ReactNode;
-  readonly children: (props: { close: () => void }) => ReactNode;
+  readonly children: (props: {
+    close: () => void;
+    overflowMenuPortal: { ownerId: string; zIndex: number };
+  }) => ReactNode;
 }
 
 export function AnchoredPopover({
@@ -122,17 +125,32 @@ export function AnchoredPopover({
 
   useEffect(() => {
     if (!open) return;
+    const belongsToPopoverMenu = (target: EventTarget | null) => {
+      const element =
+        target instanceof Element
+          ? target
+          : target instanceof Node
+            ? target.parentElement
+            : null;
+      return (
+        element
+          ?.closest("[data-overflow-menu-owner]")
+          ?.getAttribute("data-overflow-menu-owner") === panelId
+      );
+    };
     const handlePointerDown = (event: MouseEvent) => {
       const target = event.target as Node;
       if (
         triggerRef.current?.contains(target) ||
-        panelRef.current?.contains(target)
+        panelRef.current?.contains(target) ||
+        belongsToPopoverMenu(target)
       ) {
         return;
       }
       close(false);
     };
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (belongsToPopoverMenu(event.target)) return;
       if (event.key === "Escape") close();
     };
     document.addEventListener("mousedown", handlePointerDown);
@@ -141,7 +159,7 @@ export function AnchoredPopover({
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [close, open]);
+  }, [close, open, panelId]);
 
   useEffect(() => {
     if (!open || !panelStyle) return;
@@ -155,6 +173,7 @@ export function AnchoredPopover({
         id={panelId}
         role="dialog"
         aria-label={ariaLabel}
+        data-overflow-menu-scope="true"
         onKeyDown={(event) => {
           if (event.key !== "Escape") return;
           event.preventDefault();
@@ -168,7 +187,10 @@ export function AnchoredPopover({
         )}
         style={{ ...panelStyle, visibility: panelStyle ? "visible" : "hidden" }}
       >
-        {children({ close: () => close() })}
+        {children({
+          close: () => close(),
+          overflowMenuPortal: { ownerId: panelId, zIndex: 10001 },
+        })}
       </div>
     ) : null;
 
