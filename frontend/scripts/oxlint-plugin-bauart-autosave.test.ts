@@ -67,6 +67,19 @@ describe("bauart/no-autosave", () => {
     expect(output).toContain("onBlur schreibt sofort (save)");
   });
 
+  it("rejects a direct Promise-returning save prop in an arrow component", () => {
+    const { status, output } = lintSource(
+      `import { Input } from "~/components/ui/input";
+      const Probe = ({ save, value }: { save: (v: string) => Promise<void>; value: string }) => (
+        <Input value={value} onChange={() => {}} onBlur={() => save(value)} />
+      );
+      export { Probe };`,
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain("onBlur schreibt sofort (save)");
+  });
+
   it("rejects a direct imported write out of onBlur", () => {
     const { status, output } = lintSource(
       `import { Input } from "~/components/ui/input";

@@ -902,12 +902,13 @@ const noAutosave = {
           reactStateSetters.add(setter.name);
         }
         if (
-          node.id?.type === "Identifier" &&
-          (node.init?.type === "ArrowFunctionExpression" ||
-            node.init?.type === "FunctionExpression") &&
-          node.init.async
+          node.init?.type === "ArrowFunctionExpression" ||
+          node.init?.type === "FunctionExpression"
         ) {
-          asyncFunctions.add(node.id.name);
+          addPromiseReturningParameterNames(node.init.params, asyncFunctions);
+          if (node.id?.type === "Identifier" && node.init.async) {
+            asyncFunctions.add(node.id.name);
+          }
         }
       },
       JSXElement(node) {
