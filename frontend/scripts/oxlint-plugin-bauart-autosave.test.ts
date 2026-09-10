@@ -55,6 +55,18 @@ describe("bauart/no-autosave", () => {
     expect(output).toContain("onBlur schreibt sofort (save)");
   });
 
+  it("rejects a direct write out of onBlur", () => {
+    const { status, output } = lintSource(
+      `import { Input } from "~/components/ui/input";
+      export function Probe({ save, value }: { save: (v: string) => Promise<void>; value: string }) {
+        return <Input value={value} onChange={() => {}} onBlur={() => save(value)} />;
+      }`,
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain("onBlur schreibt sofort (save)");
+  });
+
   it("lets validation from onBlur pass", () => {
     const { status, output } = lintSource(
       `import { Input } from "~/components/ui/input";
@@ -87,6 +99,18 @@ describe("bauart/no-autosave", () => {
     expect(output).toContain("setStudentPayer");
   });
 
+  it("rejects a direct write from a kit field change handler", () => {
+    const { status, output } = lintSource(
+      `import { Input } from "~/components/ui/input";
+      export function Probe({ update }: { update: (v: string) => Promise<void> }) {
+        return <Input value="" onChange={(event) => update(event.target.value)} />;
+      }`,
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain("Input speichert im onChange sofort (update)");
+  });
+
   it("sees a promise chain as a fired write", () => {
     const { status, output } = lintSource(
       `import { Checkbox } from "~/components/ui/checkbox";
@@ -111,6 +135,21 @@ describe("bauart/no-autosave", () => {
       export function Probe() {
         const [draft, setDraft] = useState("");
         return <Input value={draft} onChange={(e) => setDraft(e.target.value)} />;
+      }`,
+    );
+
+    expect(output).not.toContain("bauart(no-autosave)");
+    expect(status).toBe(0);
+  });
+
+  it("lets a synchronous write-named draft helper pass", () => {
+    const { status, output } = lintSource(
+      `import { useState } from "react";
+      import { Input } from "~/components/ui/input";
+      export function Probe() {
+        const [draft, setDraft] = useState("");
+        const updateDraft = (next: string) => setDraft(next);
+        return <Input value={draft} onChange={(event) => updateDraft(event.target.value)} />;
       }`,
     );
 

@@ -665,8 +665,9 @@ const noUnconfirmedDestructiveClick = {
 // bauart/no-autosave — automatic saving exists only where it is named
 // (Bauart 4, Bauart 2 Regel 4, issue #3112). A form control that persists on
 // blur or on change, without a „Speichern“ below it, is the pattern: the
-// inline handler fires an async call (`void save(x)`, `await update(x)`,
-// `.then(`) straight out of `onBlur`, or out of a change handler on a kit
+// inline handler fires an async call (`void save(x)`, `await update(x)`, a
+// direct Promise-returning call, `.then(`) straight out of `onBlur`, or out
+// of a change handler on a kit
 // control when the callee reads like a write (save, update, persist, patch,
 // set…, submit, store, assign, link, mutate). Reads out of a change handler
 // (`void search(q)`) pass; the search field of a list is not a save.
@@ -736,15 +737,17 @@ function isAutosaveExempt(context) {
   return AUTOSAVE_BASELINE.has(relativeFileName(context));
 }
 
-/** `void call()`, `await call()`, or a `.then(`/`.catch(` chain: the handler
- *  runs something asynchronous itself. Returns the inner call or null. */
+/** `void call()`, `await call()`, a direct call, or a `.then(`/`.catch(` chain
+ *  from the handler. Returns the fired call and whether it is direct. */
 function firedCall(expression) {
   if (!expression) return null;
   if (
     (expression.type === "UnaryExpression" && expression.operator === "void") ||
     expression.type === "AwaitExpression"
   ) {
-    return isCall(expression.argument) ? expression.argument : null;
+    return isCall(expression.argument)
+      ? { call: expression.argument, direct: false }
+      : null;
   }
   if (
     isCall(expression) &&
@@ -763,8 +766,9 @@ function firedCall(expression) {
     ) {
       inner = inner.callee.object;
     }
-    return isCall(inner) ? inner : expression;
+    return { call: isCall(inner) ? inner : expression, direct: false };
   }
+  if (isCall(expression)) return { call: expression, direct: true };
   return null;
 }
 
@@ -773,8 +777,8 @@ function firedCall(expression) {
 function findFiredCall(node, accept, seen = new WeakSet()) {
   if (!node || typeof node !== "object" || seen.has(node)) return null;
   seen.add(node);
-  const call = firedCall(node);
-  if (call && accept(call)) return call;
+  const fired = firedCall(node);
+  if (fired && accept(fired.call, fired.direct)) return fired.call;
   if (
     node.type === "ArrowFunctionExpression" ||
     node.type === "FunctionExpression"
@@ -808,9 +812,46 @@ function inlineHandlerBody(attribute) {
   return handler.body;
 }
 
-function isWriteCall(call) {
+function isWriteCall(call, reactStateSetters) {
   const name = calledFunctionName(call);
-  return name !== null && WRITE_VERB_RE.test(name);
+  return (
+    name !== null &&
+    !reactStateSetters.has(name) &&
+    WRITE_VERB_RE.test(name)
+  );
+}
+
+function isPromiseReturningFunctionType(annotation) {
+  const type = annotation?.typeAnnotation;
+  return (
+    type?.type === "TSFunctionType" &&
+    type.returnType?.typeAnnotation?.type === "TSTypeReference" &&
+    type.returnType.typeAnnotation.typeName?.type === "Identifier" &&
+    type.returnType.typeAnnotation.typeName.name === "Promise"
+  );
+}
+
+function addPromiseReturningParameterNames(params, asyncFunctions) {
+  for (const parameter of params ?? []) {
+    if (
+      parameter?.type === "Identifier" &&
+      isPromiseReturningFunctionType(parameter.typeAnnotation)
+    ) {
+      asyncFunctions.add(parameter.name);
+      continue;
+    }
+    const members = parameter?.typeAnnotation?.typeAnnotation?.members;
+    if (!Array.isArray(members)) continue;
+    for (const member of members) {
+      if (
+        member?.type === "TSPropertySignature" &&
+        member.key?.type === "Identifier" &&
+        isPromiseReturningFunctionType(member.typeAnnotation)
+      ) {
+        asyncFunctions.add(member.key.name);
+      }
+    }
+  }
 }
 
 const noAutosave = {
@@ -828,8 +869,34 @@ const noAutosave = {
   },
   create(context) {
     if (isAutosaveExempt(context)) return {};
+    const reactStateSetters = new Set();
+    const asyncFunctions = new Set();
 
     return {
+      FunctionDeclaration(node) {
+        if (node.async && node.id?.type === "Identifier") {
+          asyncFunctions.add(node.id.name);
+        }
+        addPromiseReturningParameterNames(node.params, asyncFunctions);
+      },
+      VariableDeclarator(node) {
+        const setter = node.id?.elements?.[1];
+        if (
+          setter?.type === "Identifier" &&
+          isCall(node.init) &&
+          calledFunctionName(node.init) === "useState"
+        ) {
+          reactStateSetters.add(setter.name);
+        }
+        if (
+          node.id?.type === "Identifier" &&
+          (node.init?.type === "ArrowFunctionExpression" ||
+            node.init?.type === "FunctionExpression") &&
+          node.init.async
+        ) {
+          asyncFunctions.add(node.id.name);
+        }
+      },
       JSXElement(node) {
         const opening = node.openingElement;
         const element = jsxName(opening.name);
@@ -837,7 +904,10 @@ const noAutosave = {
         const onBlur = jsxAttribute(opening, "onBlur");
         const blurBody = inlineHandlerBody(onBlur);
         if (blurBody) {
-          const call = findFiredCall(blurBody, isWriteCall);
+          const call = findFiredCall(blurBody, (fired, direct) =>
+            isWriteCall(fired, reactStateSetters) &&
+            (!direct || asyncFunctions.has(calledFunctionName(fired))),
+          );
           if (call) {
             context.report({
               node: onBlur,
@@ -852,7 +922,10 @@ const noAutosave = {
           const attribute = jsxAttribute(opening, attributeName);
           const body = inlineHandlerBody(attribute);
           if (!body) continue;
-          const call = findFiredCall(body, isWriteCall);
+          const call = findFiredCall(body, (fired, direct) =>
+            isWriteCall(fired, reactStateSetters) &&
+            (!direct || asyncFunctions.has(calledFunctionName(fired))),
+          );
           if (!call) continue;
           context.report({
             node: attribute,
