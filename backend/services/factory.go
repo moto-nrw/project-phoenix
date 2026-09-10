@@ -56,6 +56,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	supervisiondashboardlegacy "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/activities"
@@ -411,6 +412,11 @@ type DeviceFleetObserver func(operation string, duration time.Duration, queries,
 type IdentityAccessObserver func(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error)
 type DurableDeliveryObserver func(transport, template, operation string, duration time.Duration, count int, err error)
 
+// DataImportObserver records one Data Import run (#2708): rows parsed,
+// accepted, rejected, created and updated plus the run duration. The
+// composition root supplies it so this package keeps no metrics dependency.
+type DataImportObserver func(entity string, dryRun bool, rows, accepted, rejected, created, updated int, duration time.Duration)
+
 func newAuditCommand(store auditModels.AppendStore, logger *slog.Logger, observe AuditAppendObserver) (auditModels.Command, error) {
 	if store == nil || logger == nil || observe == nil {
 		return nil, errors.New("audit command store, logger, and observer are required")
@@ -462,16 +468,18 @@ func NewFactoryWithModules(
 	observeDurableDelivery DurableDeliveryObserver,
 	observeDeviceFleet DeviceFleetObserver,
 	observeIdentityAccess IdentityAccessObserver,
+	workTime workforceModule.Capability,
+	observeDataImport DataImportObserver,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
-	if organizations == nil || persons == nil || groups == nil || rooms == nil || membership == nil || calendar == nil || timetableCapability == nil || appointmentCapability == nil || communicationCapability == nil || observeCommunication == nil || observeCarePlan == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil || observeDeviceFleet == nil || observeIdentityAccess == nil {
-		return nil, errors.New("organization tenancy, people directory, school structure, facilities, school membership, school calendar, timetable, appointments, communication, care plan, meal plan, feedback, Audit, Delivery, and Identity & Access capabilities with their binders and observers are required")
+	if organizations == nil || persons == nil || groups == nil || rooms == nil || membership == nil || calendar == nil || timetableCapability == nil || appointmentCapability == nil || communicationCapability == nil || observeCommunication == nil || observeCarePlan == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil || observeDeviceFleet == nil || observeIdentityAccess == nil || workTime == nil || observeDataImport == nil {
+		return nil, errors.New("organization tenancy, people directory, school structure, facilities, school membership, school calendar, timetable, appointments, communication, care plan, meal plan, feedback, Audit, Delivery, Identity & Access, Workforce, and Data Import capabilities with their binders and observers are required")
 	}
 	communicationCompose.InstallMessageQueryInstrumentation(db)
 	repos.BindAppointments(appointmentCapability)
 	cfg := currentFactoryConfig()
 	cfg.PublicAPIURL = publicAPIURL
-	return newFactory(repos, db, logger, cfg, tenantRuntime, organizations, persons, groups, rooms, membership, calendar, timetableCapability, communicationCapability, observeCommunication, observeCarePlan, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, observeDeviceFleet, observeIdentityAccess, false, clocks...)
+	return newFactory(repos, db, logger, cfg, tenantRuntime, organizations, persons, groups, rooms, membership, calendar, timetableCapability, communicationCapability, observeCommunication, observeCarePlan, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, observeDeviceFleet, observeIdentityAccess, workTime, observeDataImport, false, clocks...)
 }
 
 func newFactory(
@@ -499,6 +507,8 @@ func newFactory(
 	observeDurableDelivery DurableDeliveryObserver,
 	observeDeviceFleet DeviceFleetObserver,
 	observeIdentityAccess IdentityAccessObserver,
+	workTime workforceModule.Capability,
+	observeDataImport DataImportObserver,
 	allowAuditRootWrites bool,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
@@ -1888,26 +1898,31 @@ func newFactory(
 		return nil, err
 	}
 
-	// Initialize import service
+	// Data Import (#2708): every accepted row is committed through the
+	// owner commands of People Directory, School Membership, Workforce,
+	// Care Plan, Student Presence and the Audit platform; the import holds
+	// no repository. The observer records rows parsed/accepted/rejected
+	// per run without personal data.
+	importRuntime := importService.ImportRuntime{
+		Audit: auditCommand,
+		Observe: func(observation importService.ImportObservation) {
+			observeDataImport(observation.Entity, observation.DryRun, observation.Rows, observation.Accepted, observation.Rejected, observation.Created, observation.Updated, observation.Duration)
+		},
+	}
 	relationshipResolver := importService.NewRelationshipResolver(repos.Group, repos.Room)
 	studentImportConfig := importService.NewStudentImportConfig(
 		importService.StudentImportDeps{
-			PersonRepo:          repos.Person,
-			StudentRepo:         repos.Student,
-			GuardianRepo:        repos.GuardianProfile,
-			GuardianPhoneRepo:   repos.GuardianPhoneNumber,
-			RelationRepo:        repos.StudentGuardian,
-			PrivacyRepo:         repos.PrivacyConsent,
-			ArrivalScheduleRepo: repos.StudentArrivalSchedule,
-			PickupScheduleRepo:  repos.StudentPickupSchedule,
-			RFIDCardRepo:        repos.RFIDCard,
-			Resolver:            relationshipResolver,
-			Consents:            studentConsentService,
+			Persons:         persons,
+			Students:        persons,
+			Guardians:       persons,
+			Schedules:       repos.CarePlan(),
+			PrivacyConsents: newStudentPresence(db, logger),
+			RFIDCardRepo:    repos.RFIDCard,
+			Resolver:        relationshipResolver,
+			ConsentHistory:  studentConsentService,
 		},
-		db,
 	)
-	studentImportService := importService.NewImportService(studentImportConfig)
-	studentImportService.SetAuditRepository(repos.DataImport)
+	studentImportService := importService.NewImportServiceWithRuntime(studentImportConfig, importRuntime)
 
 	// Staff import files the Stammdatensatz (Person/Staff/Teacher/master
 	// data) immediately and issues an invitation for rows with an e-mail;
@@ -1921,25 +1936,22 @@ func newFactory(
 			RoleRepo:          repos.Role,
 			PermissionRepo:    repos.Permission,
 			SchoolRepo:        repos.School,
-			PersonRepo:        repos.Person,
-			StaffRepo:         repos.Staff,
-			TeacherRepo:       repos.Teacher,
-			MasterDataRepo:    repos.StaffMasterData,
-			QualificationRepo: repos.StaffQualification,
+			Persons:           persons,
+			Membership:        membership,
+			Records:           workTime,
 		},
 	)
-	staffImportService := importService.NewImportService(staffImportConfig)
-	staffImportService.SetAuditRepository(repos.DataImport)
+	staffImportService := importService.NewImportServiceWithRuntime(staffImportConfig, importRuntime)
 
-	// Class-list entry import (#2382): creates through the entry service so
-	// the duplicate guards and the audit trail apply to imported rows too.
+	// Class-list entry import (#2382): creates through the Membership owner
+	// so the duplicate guards and the audit trail apply to imported rows too.
 	classListImportConfig := importService.NewClassListImportConfig(importService.ClassListImportDeps{
-		EntryService: users.NewClassListEntryService(repos.ClassListEntry, repos.Student, repos.ClassListEntryChange),
-		EntryRepo:    repos.ClassListEntry,
-		StudentRepo:  repos.Student,
+		Membership: membership,
+		Persons:    persons,
+		Students:   persons,
+		Audit:      auditCommand,
 	})
-	classListImportService := importService.NewImportService(classListImportConfig)
-	classListImportService.SetAuditRepository(repos.DataImport)
+	classListImportService := importService.NewImportServiceWithRuntime(classListImportConfig, importRuntime)
 
 	// Opening balance import (#2132): the config is request-scoped (Stichtag,
 	// Begründung, and acting staff member come from the upload form), so the
@@ -1954,9 +1966,7 @@ func newFactory(
 				BalanceAdjustService: staffBalanceAdjustService,
 				StaffAbsenceService:  staffAbsenceService,
 			}, effectiveDate, note, decidedByStaffID)
-			svc := importService.NewImportService(config)
-			svc.SetAuditRepository(repos.DataImport)
-			return svc
+			return importService.NewImportServiceWithRuntime(config, importRuntime)
 		})
 
 	// Email change tokens deliberately reuse PASSWORD_RESET_TOKEN_EXPIRY_MINUTES

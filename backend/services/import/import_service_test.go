@@ -32,24 +32,15 @@ type mockImportConfig struct {
 	createErrByName map[string]error
 }
 
-type mockDataImportRepository struct {
-	created *auditModels.DataImport
-	ctx     context.Context
-	err     error
+// mockAuditCommand hands each appended event to the closure the test
+// supplies, so the recorded state lives in the test rather than in a
+// field-assigning double.
+type mockAuditCommand struct {
+	appendFn func(context.Context, any) error
 }
 
-func (m *mockDataImportRepository) Create(ctx context.Context, record *auditModels.DataImport) error {
-	m.ctx = ctx
-	m.created = record
-	return m.err
-}
-
-func (m *mockDataImportRepository) FindByID(context.Context, int64) (*auditModels.DataImport, error) {
-	return nil, nil
-}
-
-func (m *mockDataImportRepository) List(context.Context, map[string]interface{}) ([]*auditModels.DataImport, error) {
-	return nil, nil
+func (m mockAuditCommand) Append(ctx context.Context, event any) error {
+	return m.appendFn(ctx, event)
 }
 
 func (m *mockImportConfig) PreloadReferenceData(_ context.Context) error {
@@ -110,9 +101,14 @@ func TestNewImportService(t *testing.T) {
 func TestImportService_RecordAuditInTransaction(t *testing.T) {
 	t.Parallel()
 
-	service := NewImportService[testRow](&mockImportConfig{})
-	repo := &mockDataImportRepository{}
-	service.SetAuditRepository(repo)
+	var appendedCtx context.Context
+	var created *auditModels.DataImport
+	audit := mockAuditCommand{appendFn: func(ctx context.Context, event any) error {
+		appendedCtx = ctx
+		created, _ = event.(*auditModels.DataImport)
+		return nil
+	}}
+	service := NewImportServiceWithRuntime[testRow](&mockImportConfig{}, ImportRuntime{Audit: audit})
 	result := &importModels.ImportResult[testRow]{
 		TotalRows:    4,
 		CreatedCount: 3,
@@ -121,21 +117,28 @@ func TestImportService_RecordAuditInTransaction(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Sentinel values for the in-memory repository stub — no DB rows involved.
+	// Sentinel values for the in-memory audit stub — no DB rows involved.
 	const wantTenantID int64 = 7
 	const accountID int64 = 42
 
 	err := service.RecordAuditInTransaction(ctx, "opening_balance", "opening.csv", result, accountID, false, wantTenantID)
 
 	require.NoError(t, err)
-	require.NotNil(t, repo.created)
-	assert.Same(t, ctx, repo.ctx)
-	assert.Equal(t, wantTenantID, repo.created.TenantID)
-	assert.Equal(t, "opening_balance", repo.created.EntityType)
-	assert.Equal(t, "opening.csv", repo.created.Filename)
-	assert.Equal(t, 3, repo.created.CreatedCount)
-	assert.Equal(t, 1, repo.created.ErrorCount)
-	assert.False(t, repo.created.DryRun)
+	require.NotNil(t, created)
+	// The append must run on the caller's transaction context: a detached
+	// context lands on a role without grants on audit.data_imports (#2141).
+	assert.Same(t, ctx, appendedCtx)
+	assert.Equal(t, wantTenantID, created.TenantID)
+	assert.Equal(t, "opening_balance", created.EntityType)
+	assert.Equal(t, "opening.csv", created.Filename)
+	assert.Equal(t, 3, created.CreatedCount)
+	assert.Equal(t, 1, created.ErrorCount)
+	assert.False(t, created.DryRun)
+
+	// An unwired audit command fails the import instead of acknowledging it
+	// without the required GDPR record.
+	unwired := NewImportService[testRow](&mockImportConfig{})
+	require.Error(t, unwired.RecordAuditInTransaction(ctx, "student", "x.csv", result, accountID, false, wantTenantID))
 }
 
 // ============================================================================

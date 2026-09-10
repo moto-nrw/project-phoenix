@@ -6,19 +6,30 @@ import (
 	"fmt"
 	"strings"
 
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	usersService "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/services/import/ports"
 )
 
-// ClassListImportDeps are the dependencies of the class-list entry import
-// (#2382). The config creates through the service so the duplicate guards and
-// the audit trail apply to imported rows exactly like to manually created
-// ones.
+var (
+	// ErrClassListEntryDuplicate reports a class-list entry that already
+	// carries the row's name and class.
+	ErrClassListEntryDuplicate = errors.New("class list entry already exists in this class")
+	// ErrClassListEntryStudentExists reports a regular student that already
+	// carries the row's name and class; the child needs no list entry.
+	ErrClassListEntryStudentExists = errors.New("a student with this name already exists in this class")
+)
+
+// ClassListImportDeps are the owner ports of the class-list entry import
+// (#2382, #2708): School Membership writes the entry, People Directory
+// answers whether a student already carries the name, and the Audit
+// platform records the change so imported rows leave the same trail as
+// manually created ones.
 type ClassListImportDeps struct {
-	EntryService usersService.ClassListEntryService
-	EntryRepo    userModels.ClassListEntryRepository
-	StudentRepo  userModels.StudentRepository
+	Membership ports.ClassListMembership
+	Persons    ports.PersonDirectory
+	Students   ports.StudentDirectory
+	Audit      ports.AuditCommand
 }
 
 // ClassListImportConfig implements ImportConfig for class-list entries.
@@ -88,11 +99,13 @@ func (c *ClassListImportConfig) ValidateBatch(_ context.Context, rows []importMo
 // with the same name and class, or a regular student — a student IS the
 // child's row on the list, so the dry-run preview must report that case as
 // "already exists" too instead of counting it as creatable and failing only
-// on the actual create (via the service's ErrClassListEntryStudentExists
-// guard). The import mode is create-only, so the returned ID is never used
-// for an update; a hit becomes the engine's "already exists" row error.
+// on the actual create. The import mode is create-only, so the returned ID
+// is never used for an update; a hit becomes the engine's "already exists"
+// row error.
 func (c *ClassListImportConfig) FindExisting(ctx context.Context, row importModels.ClassListEntryImportRow) (*int64, error) {
-	existing, err := c.deps.EntryRepo.FindByNameAndClass(ctx, row.FirstName, row.LastName, row.SchoolClass)
+	existing, err := c.deps.Membership.ListClassListEntries(ctx, ports.ClassListEntryFilter{
+		FirstName: row.FirstName, LastName: row.LastName, SchoolClass: row.SchoolClass,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +113,7 @@ func (c *ClassListImportConfig) FindExisting(ctx context.Context, row importMode
 		id := existing[0].ID
 		return &id, nil
 	}
-	students, err := c.deps.StudentRepo.FindByNameAndClass(ctx, row.FirstName, row.LastName, row.SchoolClass)
+	students, err := findStudentsByNameAndClass(ctx, c.deps.Persons, c.deps.Students, row.FirstName, row.LastName, row.SchoolClass)
 	if err != nil {
 		return nil, err
 	}
@@ -111,19 +124,48 @@ func (c *ClassListImportConfig) FindExisting(ctx context.Context, row importMode
 	return nil, nil
 }
 
-// Create creates one entry through the service: duplicate-against-students
-// guard and audit row included.
+// Create creates one entry through the owner: the duplicate-against-students
+// guard and the audit row are applied exactly like for manual creation.
 func (c *ClassListImportConfig) Create(ctx context.Context, row importModels.ClassListEntryImportRow) (int64, error) {
-	entry, err := c.deps.EntryService.Create(ctx, usersService.ClassListEntryInput{
-		FirstName:   row.FirstName,
-		LastName:    row.LastName,
-		SchoolClass: row.SchoolClass,
-	}, ImporterIDFromContext(ctx))
+	existingID, err := c.FindExisting(ctx, row)
 	if err != nil {
-		if errors.Is(err, usersService.ErrClassListEntryStudentExists) || errors.Is(err, usersService.ErrClassListEntryDuplicate) {
-			return 0, err
+		return 0, fmt.Errorf("class list entry duplicate check: %w", err)
+	}
+	if existingID != nil {
+		students, err := findStudentsByNameAndClass(ctx, c.deps.Persons, c.deps.Students, row.FirstName, row.LastName, row.SchoolClass)
+		if err != nil {
+			return 0, fmt.Errorf("class list entry student check: %w", err)
+		}
+		if len(students) > 0 {
+			return 0, ErrClassListEntryStudentExists
+		}
+		return 0, ErrClassListEntryDuplicate
+	}
+
+	changedBy := ImporterIDFromContext(ctx)
+	input := ports.CreateClassListEntry{ClassListEntryFields: ports.ClassListEntryFields{
+		FirstName: row.FirstName, LastName: row.LastName, SchoolClass: row.SchoolClass,
+	}}
+	if changedBy > 0 {
+		input.CreatedBy = &changedBy
+	}
+	entry, err := c.deps.Membership.CreateClassListEntry(ctx, input)
+	if err != nil {
+		if errors.Is(err, ports.ErrMembershipClassListEntryDuplicate) {
+			// A concurrent create slipped past the advisory check above; the
+			// DB index is the race-safe backstop — report it as the duplicate
+			// it is, not as a server error.
+			return 0, ErrClassListEntryDuplicate
 		}
 		return 0, fmt.Errorf("create class list entry: %w", err)
+	}
+	if c.deps.Audit != nil {
+		display := strings.TrimSpace(entry.FirstName) + " " + strings.TrimSpace(entry.LastName) + " (" + strings.TrimSpace(entry.SchoolClass) + ")"
+		if err := c.deps.Audit.Append(ctx, &auditModels.ClassListEntryChange{
+			EntryID: entry.ID, Action: auditModels.ClassListEntryActionCreated, OldValue: "", NewValue: display, ChangedBy: changedBy,
+		}); err != nil {
+			return 0, fmt.Errorf("record class list entry change: %w", err)
+		}
 	}
 	return entry.ID, nil
 }

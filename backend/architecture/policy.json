@@ -1744,6 +1744,20 @@
       "external_test_role": "workflow-integration-test"
     },
     {
+      "path": "services/import/ports",
+      "owner": "data-import",
+      "role": "port",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "services/import/integration",
+      "owner": "data-import",
+      "role": "test-support",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "services/iot",
       "owner": "device-fleet",
       "role": "application",
@@ -6230,6 +6244,159 @@
       "source_role": "application",
       "target_owner": "school-membership",
       "target_role": "public"
+    },
+    {
+      "id": "data-import.port.people-directory",
+      "description": "Data import ports name the People Directory person, student and guardian commands through their public contract (#2708).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "port",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.port.school-membership",
+      "description": "Data import ports name the School Membership staff, caregiver and class-list commands through their public contract (#2708).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "port",
+      "target_owner": "school-membership",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.port.care-plan",
+      "description": "Data import ports name the Care Plan weekly schedule commands through their public contract (#2708).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "port",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.port.student-presence",
+      "description": "Data import ports name the Student Presence retention-consent commands through their public contract (#2708).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "port",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.port.workforce",
+      "description": "Data import ports name the Workforce personnel-record commands through their public contract (#2708).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "port",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.integration-test.legacy-composition",
+      "description": "Data import integration tests compose the owner graph at the legacy composition boundary (#2708).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "data-import",
+      "source_role": "workflow-integration-test",
+      "target_owner": "legacy-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "data-import.integration-test.data-import.application",
+      "description": "Data import integration tests drive the import application through its public entry points (#2708).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "data-import",
+      "source_role": "workflow-integration-test",
+      "target_owner": "data-import",
+      "target_role": "application"
+    },
+    {
+      "id": "data-import.integration-test.data-import.port",
+      "description": "Data import integration tests decorate the owner ports to observe rollback (#2708).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "data-import",
+      "source_role": "workflow-integration-test",
+      "target_owner": "data-import",
+      "target_role": "port"
+    },
+    {
+      "id": "data-import.integration-test.data-import.domain",
+      "description": "Data import integration tests build rows from the import domain types (#2708).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "data-import",
+      "source_role": "workflow-integration-test",
+      "target_owner": "data-import",
+      "target_role": "domain"
+    },
+    {
+      "id": "data-import.integration-test.tenant-runtime",
+      "description": "Data import integration tests run batches in real tenant transactions (#2708).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "data-import",
+      "source_role": "workflow-integration-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.integration-test.security-runtime",
+      "description": "Data import integration tests assert the guardian role presets the security runtime defines (#2708).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "data-import",
+      "source_role": "workflow-integration-test",
+      "target_owner": "security-runtime",
+      "target_role": "application"
+    },
+    {
+      "id": "data-import.integration-test.test-support",
+      "description": "Data import integration tests use hermetic database support (#2708).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "data-import",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "data-import.integration-test.orm-sql",
+      "description": "Data import integration tests arrange and verify PostgreSQL fixtures (#2708).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "data-import",
+      "source_role": "workflow-integration-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "data-import.application.ports",
+      "description": "Data import coordinates the owners through its consumer-owned ports (#2708).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "application",
+      "target_owner": "data-import",
+      "target_role": "port"
     },
     {
       "id": "domain.adapter-port",
