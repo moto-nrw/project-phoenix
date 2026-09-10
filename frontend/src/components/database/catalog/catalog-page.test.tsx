@@ -253,6 +253,21 @@ describe("CatalogPage", () => {
     await waitFor(() => expect(reorder).toHaveBeenCalledWith(["2", "1"]));
   });
 
+  it("carries no reorder arrows when a single entry has no order", () => {
+    const single = ITEMS[0];
+    if (!single) throw new Error("Beispieldaten fehlen");
+    renderPage({ items: [single] });
+
+    // Zwei dauerhaft graue Pfeile neben dem einzigen Eintrag sind
+    // Bedienelemente, die nie etwas tun.
+    expect(
+      screen.queryByRole("button", { name: /nach oben/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /nach unten/ }),
+    ).not.toBeInTheDocument();
+  });
+
   it("hides every write affordance without the permission", () => {
     renderPage({ selectedId: "1", canManage: false });
 

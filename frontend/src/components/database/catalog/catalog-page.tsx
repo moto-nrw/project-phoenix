@@ -303,7 +303,14 @@ export function CatalogPage<T extends CatalogItem>({
 
   const renderRow = (item: T, index: number, inActiveGroup: boolean) => {
     const row = config.toRow(item);
-    const canMove = inActiveGroup && config.reorder !== undefined && canManage;
+    // Ein einzelner Eintrag hat keine Reihenfolge: dann stünden dort zwei
+    // dauerhaft graue Pfeile, und ein Bedienelement, das nie etwas tut, ist
+    // keins (BAUARTEN-SPEC Bauart 2 Regel 7).
+    const canMove =
+      inActiveGroup &&
+      config.reorder !== undefined &&
+      canManage &&
+      active.length > 1;
     return (
       <div className="flex items-center gap-1 pr-2">
         <div className="min-w-0 flex-1">
