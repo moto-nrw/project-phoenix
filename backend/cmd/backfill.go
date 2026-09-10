@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -58,10 +59,10 @@ func (root backfillRoot) staffOwnerRun(cmd *cobra.Command, opts migrations.Staff
 	return root.run(cmd.Context(), func(ctx context.Context, db *bun.DB) error {
 		opts.Logger = slog.Default().With("backfill", migrations.StaffOwnerBackfillName)
 		report, err := migrations.RunStaffOwnerBackfill(ctx, db, opts)
-		if err != nil {
-			return err
+		if report != nil {
+			err = errors.Join(err, writeStaffOwnerReport(cmd.OutOrStdout(), report))
 		}
-		return writeStaffOwnerReport(cmd.OutOrStdout(), report)
+		return err
 	})
 }
 

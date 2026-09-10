@@ -92,7 +92,6 @@ var seedCoverageExemptions = map[string]string{
 	"platform.operator_mfa_trusted_devices": "cryptographically bound trusted-device state; never forge in demo data",
 	"platform.operator_passkey_credentials": "hardware/browser-bound WebAuthn credential; never forge in demo data",
 	"platform.operator_passkey_sessions":    "short-lived WebAuthn challenge state; fake challenges would be invalid",
-	"platform.storage_backfill_checkpoints": "Backfill #2752 runs at migration time before any school exists; `backfill staff-owner` fills it on demand and the seeder must not fake migration evidence",
 
 	"schedule.dateframes":                       "empty in prod too",
 	"schedule.grade_transition_roster_removals": "empty in prod too",

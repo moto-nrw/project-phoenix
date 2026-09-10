@@ -64,13 +64,18 @@ type presenceBatchObservation struct{ poolWait, lockWait time.Duration }
 // The monitor has its own connection so a blocked worker can still be sampled.
 // Fail rather than silently report zero when the pool cannot supply a monitor.
 func monitorPresenceLocks(ctx context.Context, db *bun.DB, pid int) (func() (time.Duration, error), time.Duration, error) {
+	return monitorBackfillLocks(ctx, db, pid)
+}
+
+// monitorBackfillLocks is shared by the Presence and Staff storage copies.
+func monitorBackfillLocks(ctx context.Context, db *bun.DB, pid int) (func() (time.Duration, error), time.Duration, error) {
 	acquireCtx, acquireCancel := context.WithTimeout(ctx, time.Second)
 	started := time.Now()
 	conn, err := db.Conn(acquireCtx)
 	acquireCancel()
 	poolWait := time.Since(started)
 	if err != nil {
-		return nil, poolWait, fmt.Errorf("presence backfill needs a second connection for lock sampling: %w", err)
+		return nil, poolWait, fmt.Errorf("backfill needs a separate connection for lock sampling: %w", err)
 	}
 	sampleCtx, cancel := context.WithCancel(ctx)
 	type sampleResult struct {
@@ -94,7 +99,7 @@ func monitorPresenceLocks(ctx context.Context, db *bun.DB, pid int) (func() (tim
 				err := conn.NewRaw(`SELECT coalesce(wait_event_type = 'Lock', false) FROM pg_stat_activity WHERE pid = ?`, pid).Scan(sampleCtx, &waiting)
 				if err != nil {
 					if sampleCtx.Err() == nil {
-						observed.err = fmt.Errorf("sample Presence lock waits: %w", err)
+						observed.err = fmt.Errorf("sample backfill lock waits: %w", err)
 					}
 					result <- observed
 					return

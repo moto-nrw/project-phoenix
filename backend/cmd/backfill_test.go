@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -122,3 +124,46 @@ func decodeStaffOwnerReport(t *testing.T, output string) migrations.StaffOwnerBa
 	require.NoError(t, json.Unmarshal([]byte(output[:end+2]), &report))
 	return report
 }
+
+func TestBackfillStaffOwnerReportsPartialFailure(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := t.Context()
+	tenantA := testpkg.Tenant(t)
+	tenantB := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, tenantA)
+	testpkg.EnsureTestTenant(t, db, tenantB)
+	failedTenant, healthyTenant := min(tenantA, tenantB), max(tenantA, tenantB)
+	testpkg.CreateTestStaffForTenant(t, db, failedTenant, "Backfill", "Failed")
+	testpkg.CreateTestStaffForTenant(t, db, healthyTenant, "Backfill", "Healthy")
+	_, err := db.ExecContext(ctx, fmt.Sprintf(`CREATE FUNCTION public.reject_backfill_fixture() RETURNS trigger
+		LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fixture batch failure' USING ERRCODE = '22023'; END $$;
+		CREATE TRIGGER reject_backfill_fixture BEFORE INSERT OR UPDATE ON users.staff_school_memberships
+		FOR EACH ROW WHEN (NEW.tenant_id = %d) EXECUTE FUNCTION public.reject_backfill_fixture();`, failedTenant))
+	require.NoError(t, err)
+	root := backfillRoot{openDatabase: func() (*testpkg.DB, func(), error) { return db, nil, nil }}
+	var out bytes.Buffer
+	cmd := &cobra.Command{}
+	cmd.SetContext(ctx)
+	cmd.SetOut(&out)
+	err = root.staffOwnerRun(cmd, migrations.StaffOwnerBackfillOptions{})
+	require.ErrorContains(t, err, "22023")
+	report := decodeStaffOwnerReport(t, out.String())
+	require.Equal(t, []int64{failedTenant}, report.Unstable())
+	var healthy bool
+	for _, cp := range report.Tenants {
+		if cp.TenantID == healthyTenant {
+			healthy = cp.Stable && cp.RowsCopied == 1
+		}
+	}
+	require.True(t, healthy, "the later school's successful checkpoint must be rendered")
+	outputErr := errors.New("fixture output failure")
+	cmd.SetOut(backfillFailingWriter{err: outputErr})
+	err = root.staffOwnerRun(cmd, migrations.StaffOwnerBackfillOptions{})
+	require.ErrorContains(t, err, "22023")
+	require.ErrorIs(t, err, outputErr, "preserve both operation and output errors")
+}
+
+type backfillFailingWriter struct{ err error }
+
+func (w backfillFailingWriter) Write([]byte) (int, error) { return 0, w.err }

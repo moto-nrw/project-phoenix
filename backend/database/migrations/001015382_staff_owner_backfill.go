@@ -9,7 +9,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const staffOwnerBackfillVersion = "1.15.381"
+const staffOwnerBackfillVersion = "1.15.382"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
@@ -57,6 +57,8 @@ func staffOwnerBackfillUp(ctx context.Context, db *bun.DB) error {
 				batch_p95_ms BIGINT NOT NULL DEFAULT 0,
 				batch_max_ms BIGINT NOT NULL DEFAULT 0,
 				pool_wait_ms BIGINT NOT NULL DEFAULT 0,
+				lock_wait_ms DOUBLE PRECISION NOT NULL DEFAULT 0,
+				verification_snapshot TEXT NOT NULL DEFAULT '',
 				verified_at TIMESTAMPTZ,
 				stable_at TIMESTAMPTZ,
 				updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -94,6 +96,11 @@ func staffOwnerBackfillUp(ctx context.Context, db *bun.DB) error {
 // refuses after Cutover, when users.staff is a compatibility view and the
 // targets hold the authoritative data.
 func staffOwnerBackfillDown(ctx context.Context, db *bun.DB) error {
+	release, err := lockStaffOwnerBackfill(ctx, db)
+	if err != nil {
+		return err
+	}
+	defer release()
 	if err := assertStaffSourceIsBaseTable(ctx, db); err != nil {
 		return err
 	}

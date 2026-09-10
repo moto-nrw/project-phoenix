@@ -1,6 +1,6 @@
 # Staff owner storage Backfill (#2752)
 
-Migration `1.15.381` creates `platform.storage_backfill_checkpoints` and runs
+Migration `1.15.382` creates `platform.storage_backfill_checkpoints` and runs
 the first copy of `users.staff` into `users.staff_school_memberships` and
 `users.staff_employment_profiles`. `users.staff` remains the only application
 authority: no caller switches, no trigger, view, or dual write exists, and the
@@ -13,6 +13,10 @@ old rows are never modified. The field mapping is unchanged from
   high-water mark (last copied `users.staff.id`), cumulative counters, and the
   last verification result. Superuser CLI and migrations are the only writers;
   the application roles hold no grants on the table.
+- One advisory session lock excludes simultaneous Staff backfill runs, reset,
+  and rollback. A competing command fails without changing data. The lock is
+  held on its own connection until the run and sequence alignment finish;
+  worker and lock sampler use two additional connections.
 - Each batch reads up to `--batch-size` rows (default 500) in `id` order after
   the high-water mark inside one `REPEATABLE READ` transaction with a 5 s lock
   timeout, upserts memberships and profiles by preserved identity
@@ -33,8 +37,10 @@ old rows are never modified. The field mapping is unchanged from
   unverified until the source is corrected.
 - After each full pass the tenant's orphaned target rows (source physically
   deleted) are removed, then counts, canonical checksums
-  (`md5(string_agg(to_jsonb(row) ORDER BY id))` over the same twelve columns on
-  both sides) and a row-wise mismatch count are stored. A tenant is stable when
+  (SHA-256 over ordered SHA-256 canonical JSON row digests on both sides) and
+  a row-wise mismatch count are stored. All verification queries and their
+  checkpoint update share one `REPEATABLE READ` transaction with local UTC;
+  `verification_snapshot` identifies that snapshot. A tenant is stable when
   a pass changed nothing and verification matches. Unstable tenants get another
   pass, up to `--max-passes` (default 5) per run; at the limit the completed
   pass and its high-water mark are kept.
@@ -73,16 +79,27 @@ created after the last run). Missing schools count as unstable. Fields:
 | `rows_scanned`, `rows_copied`, `rows_skipped`, `rows_rejected`, `rows_removed` | Cumulative source rows read, written (insert or changed update), unchanged, refused (foreign work-time model), and orphaned target rows deleted |
 | `batches_completed`, `batches_retried`, `deadlocks`, `serialization_failures`, `lock_timeouts` | Cumulative batch outcomes and the SQLSTATE class of each retry |
 | `pass`, `high_water_id`, `pass_writes`, `stable`, `stable_at` | Progress of the current pass and the final-delta checkpoint for Cutover |
-| `source_count`, `target_count`, `source_checksum`, `target_checksum`, `mismatch_count`, `verified_at` | Last verification |
+| `source_count`, `target_count`, `source_checksum`, `target_checksum`, `mismatch_count`, `verified_at`, `verification_snapshot` | Last coherent UTC verification and its PostgreSQL snapshot |
 | `oldest_unmigrated_at` | `updated_at` of the oldest source row still differing from the targets at the last verification; `null` when none |
 | `batch_p95_ms`, `batch_max_ms` | p95 of the last run's batch transactions and the maximum across runs |
 | `pool_wait_ms` | Pool-wide connection wait observed while the tenant's batches ran; the process pool is shared, so concurrent users of the same pool are included |
+| `lock_wait_ms` | Cumulative sampled worker lock-wait time, including failed attempts; 10 ms sampling resolution |
 
-Lock waits are bounded by the 5 s statement-level `lock_timeout` and reported
-as `lock_timeouts` (a count, not a duration); the observer SQL in the Expand
-runbook measures blocked sessions and wait time from the outside. Deadlocks
-are counted from the backfill's own `40P01` retries, not from
-`pg_stat_database`.
+The worker's `pg_stat_activity.wait_event_type` is sampled every 10 ms through
+an independent connection. A successful wait below the 5 s `lock_timeout`
+therefore still contributes to `lock_wait_ms`; sampling is approximate, not
+statement duration. Missing or failed sampling fails the batch, not silently
+recording zero. Batch statements also have a 60 s timeout. External observer
+SQL remains useful for corroborating contention.
+
+Deadlock, serialization-failure and timeout counts include the final failed
+attempt; `batches_retried` counts only retries actually started. A successful
+batch commits accumulated telemetry with its data checkpoint. Terminal errors
+flush pending telemetry separately with a 5 s bound, without advancing row or
+pass progress, including on graceful cancellation. SIGKILL or an unavailable
+database can prevent that flush; the command reports persistence errors.
+Partial failures still print the available per-tenant JSON report and return
+the original error with a non-zero exit status.
 
 ## Rollback
 
@@ -101,9 +118,14 @@ own write lock using the same runner and re-verifies before switching callers.
 
 ## Staging acceptance record
 
-**Not yet executed.** Run the migration through the normal deployment path on
-the agreed staging environment while the previous image serves staff traffic,
-then run `backfill staff-owner` until stable and attach the JSON report.
+**Not yet executed for this revision.** Normal deployment stops the application
+before running the migration. Record that stopped-application migration path
+on staging, then run `backfill staff-owner` until stable and attach the report.
+Separately use an isolated staging copy: while the previous image serves
+genuine Staff HTTP reads and create/edit/offboard/rejoin writes, run the new
+backfill command against that copy; repeat the same reads/writes afterward.
+Use dedicated synthetic identities and captured mail. Record source parity,
+all-school checkpoints, interrupt/resume and reset/rerun on that isolated copy.
 
 | Evidence | Result |
 | --- | --- |
@@ -119,6 +141,13 @@ then run `backfill staff-owner` until stable and attach the JSON report.
 | `reset` on an isolated clone followed by a full rerun | Pending |
 
 ## Local verification (2026-09-10)
+
+The integration adds regression cases for concurrent source edits during UTC
+verification, concurrent run/reset/down exclusion, measured successful lock
+waits, durable terminal failure counters, and partial CLI report/output errors.
+Focused test results and final integration checks are recorded in the PR
+evidence; the historical checks below describe the original pre-integration
+head and do not certify the revised head.
 
 Migration tests cover interrupt and resume after every batch boundary, rerun
 of completed batches, injected deadlock, serialization and lock-timeout

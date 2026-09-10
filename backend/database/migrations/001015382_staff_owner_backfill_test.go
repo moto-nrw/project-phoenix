@@ -13,6 +13,170 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestStaffOwnerVerificationUsesOneUTCSnapshot(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	tenantID := testpkg.Tenant(t)
+	ids := staffOwnerFixture(t, db, tenantID, 1)
+	report, err := RunStaffOwnerBackfill(ctx, db, StaffOwnerBackfillOptions{})
+	require.NoError(t, err)
+	cp := staffOwnerCheckpoint(t, report, tenantID)
+	previousChecksum := cp.SourceChecksum
+	run := staffOwnerTenantRun{db: db, tenantID: tenantID, opts: StaffOwnerBackfillOptions{
+		afterSourceVerification: func(ctx context.Context, tx testpkg.Tx) error {
+			var zone string
+			if err := tx.NewRaw(`SHOW TIME ZONE`).Scan(ctx, &zone); err != nil {
+				return err
+			}
+			require.Equal(t, "UTC", zone)
+			_, err := db.ExecContext(ctx, `UPDATE users.staff SET staff_notes = 'changed between verification queries' WHERE id = ?`, ids[0])
+			return err
+		},
+	}.withDefaults()}
+	require.NoError(t, run.verify(ctx, &cp))
+	require.True(t, cp.Verified(), "source and target evidence must describe the same pre-edit snapshot")
+	require.Equal(t, previousChecksum, cp.SourceChecksum)
+	require.NotEmpty(t, cp.VerificationSnapshot)
+	var mismatches int64
+	require.NoError(t, db.NewRaw(staffOwnerMismatch, tenantID, tenantID).Scan(ctx, &mismatches, new(*time.Time)))
+	require.EqualValues(t, 1, mismatches, "the real source edit committed outside the verification snapshot")
+	report, err = RunStaffOwnerBackfill(ctx, db, StaffOwnerBackfillOptions{})
+	require.NoError(t, err)
+	updated := requireStaffOwnerTenantEqual(t, db, report, tenantID)
+	require.NotEqual(t, previousChecksum, updated.SourceChecksum)
+}
+
+func TestStaffOwnerTerminalFailuresPersistTelemetry(t *testing.T) {
+	t.Parallel()
+	for _, code := range []string{"40P01", "40001", "55P03"} {
+		t.Run(code, func(t *testing.T) {
+			ctx := testpkg.OwnCtx(t)
+			db := testpkg.SetupTestDB(t)
+			tenantID := testpkg.Tenant(t)
+			staffOwnerFixture(t, db, tenantID, 1)
+			report, err := RunStaffOwnerBackfill(ctx, db, StaffOwnerBackfillOptions{MaxAttempts: 2,
+				injectFault: func(ctx context.Context, tx testpkg.Tx, id int64, _ int) error {
+					if id != tenantID {
+						return nil
+					}
+					_, err := tx.ExecContext(ctx, fmt.Sprintf(`DO $$ BEGIN RAISE EXCEPTION 'injected' USING ERRCODE = '%s'; END $$`, code))
+					return err
+				},
+			})
+			require.ErrorContains(t, err, "gave up after 2 attempts")
+			cp := staffOwnerCheckpoint(t, report, tenantID)
+			require.Zero(t, cp.HighWaterID)
+			require.Zero(t, cp.RowsCopied)
+			require.EqualValues(t, 1, cp.BatchesRetried)
+			require.EqualValues(t, 2, cp.Deadlocks+cp.SerializationFailures+cp.LockTimeouts)
+			switch code {
+			case "40P01":
+				require.EqualValues(t, 2, cp.Deadlocks)
+			case "40001":
+				require.EqualValues(t, 2, cp.SerializationFailures)
+			case "55P03":
+				require.EqualValues(t, 2, cp.LockTimeouts)
+			}
+			report, err = RunStaffOwnerBackfill(ctx, db, StaffOwnerBackfillOptions{})
+			require.NoError(t, err)
+			resumed := requireStaffOwnerTenantEqual(t, db, report, tenantID)
+			require.Equal(t, cp.BatchesRetried, resumed.BatchesRetried)
+			require.Equal(t, cp.Deadlocks, resumed.Deadlocks)
+			require.Equal(t, cp.SerializationFailures, resumed.SerializationFailures)
+			require.Equal(t, cp.LockTimeouts, resumed.LockTimeouts)
+		})
+	}
+}
+
+func TestStaffOwnerRunExcludesOtherWriters(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	tenantID := testpkg.Tenant(t)
+	staffOwnerFixture(t, db, tenantID, 1)
+	checked := false
+	report, err := RunStaffOwnerBackfill(ctx, db, StaffOwnerBackfillOptions{afterBatch: func(id int64, _ staffOwnerBatch) error {
+		if id != tenantID || checked {
+			return nil
+		}
+		checked = true
+		_, runErr := RunStaffOwnerBackfill(ctx, db, StaffOwnerBackfillOptions{})
+		require.ErrorContains(t, runErr, "another run, reset or rollback is active")
+		require.ErrorContains(t, ResetStaffOwnerBackfill(ctx, db), "another run, reset or rollback is active")
+		require.ErrorContains(t, staffOwnerBackfillDown(ctx, db), "another run, reset or rollback is active")
+		return nil
+	}})
+	require.NoError(t, err)
+	require.True(t, checked)
+	requireStaffOwnerTenantEqual(t, db, report, tenantID)
+	require.NoError(t, ResetStaffOwnerBackfill(ctx, db), "lock must be released after the completed run")
+}
+
+func TestStaffOwnerCancellationFlushesFailedAttempt(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	tenantID := testpkg.Tenant(t)
+	staffOwnerFixture(t, db, tenantID, 1)
+	ctx, cancel := context.WithCancel(testpkg.Ctx(t))
+	defer cancel()
+	_, err := RunStaffOwnerBackfill(ctx, db, StaffOwnerBackfillOptions{injectFault: func(ctx context.Context, tx testpkg.Tx, id int64, _ int) error {
+		if id != tenantID {
+			return nil
+		}
+		_, err := tx.ExecContext(ctx, `DO $$ BEGIN RAISE EXCEPTION 'injected cancellation' USING ERRCODE = '40P01'; END $$`)
+		cancel()
+		return err
+	}})
+	require.ErrorIs(t, err, context.Canceled)
+	report, err := StaffOwnerBackfillStatus(t.Context(), db)
+	require.NoError(t, err)
+	cp := staffOwnerCheckpoint(t, report, tenantID)
+	require.EqualValues(t, 1, cp.Deadlocks)
+	require.Zero(t, cp.BatchesRetried, "cancellation prevented another attempt from starting")
+	require.Zero(t, cp.HighWaterID)
+	require.Zero(t, cp.RowsCopied)
+	require.NoError(t, ResetStaffOwnerBackfill(t.Context(), db), "cancelled run must release exclusion lock")
+}
+
+func TestStaffOwnerMeasuresSuccessfulLockWait(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	tenantID := testpkg.Tenant(t)
+	ids := staffOwnerFixture(t, db, tenantID, 1)
+	_, err := RunStaffOwnerBackfill(ctx, db, StaffOwnerBackfillOptions{})
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `UPDATE users.staff SET staff_notes = 'requires target update' WHERE id = ?`, ids[0])
+	require.NoError(t, err)
+	tx, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+	_, err = tx.ExecContext(ctx, `SELECT membership_id FROM users.staff_employment_profiles WHERE membership_id = ? FOR UPDATE`, ids[0])
+	require.NoError(t, err)
+	done := make(chan error, 1)
+	go func() { _, runErr := RunStaffOwnerBackfill(ctx, db, StaffOwnerBackfillOptions{}); done <- runErr }()
+	require.Eventually(t, func() bool {
+		var blocked bool
+		err := db.NewRaw(`SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE datname = current_database()
+			AND wait_event_type = 'Lock' AND query LIKE '%eligible AS%')`).Scan(ctx, &blocked)
+		return err == nil && blocked
+	}, 3*time.Second, 10*time.Millisecond)
+	time.Sleep(150 * time.Millisecond)
+	require.NoError(t, tx.Commit())
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("backfill did not finish after releasing the lock")
+	}
+	report, err := StaffOwnerBackfillStatus(ctx, db)
+	require.NoError(t, err)
+	cp := requireStaffOwnerTenantEqual(t, db, report, tenantID)
+	require.Greater(t, cp.LockWaitMs, float64(50))
+	require.Zero(t, cp.LockTimeouts, "a real lock wait need not time out")
+}
+
 // staffOwnerFixture populates one tenant with staff rows covering every
 // copied column, including a soft-deleted row and a tenant-owned work-time
 // model. It returns the staff IDs in insertion order.
