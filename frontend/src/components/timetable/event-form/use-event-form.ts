@@ -72,6 +72,11 @@ import {
   sourceScopesOverlap,
   targetCohortActionLabel,
 } from "./form-model";
+import {
+  withUnavailableCurrentCategory,
+  type CategoryOption,
+  type RoomOption,
+} from "./category-option";
 import type {
   EventFormState,
   PersonOption,
@@ -95,11 +100,7 @@ import type {
   WeekdayAssignmentBody,
 } from "~/lib/timetable-types";
 
-export interface RoomOption {
-  id: number;
-  name: string;
-  building?: string;
-}
+export type { CategoryOption, RoomOption } from "./category-option";
 
 export interface GroupOption {
   id: string;
@@ -285,7 +286,7 @@ export function useEventForm({
       initialPrimaryStaffID(initialInstance, initialSeries, convertInstance),
     );
   const [rooms, setRooms] = useState<RoomOption[]>([]);
-  const [categories, setCategories] = useState<ActivityCategory[]>([]);
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [planningTracks, setPlanningTracks] = useState<PlanningTrack[]>([]);
   const [groups, setGroups] = useState<GroupOption[]>([]);
   const [students, setStudents] = useState<PersonOption[]>([]);
@@ -641,7 +642,16 @@ export function useEventForm({
             setPlanningTracks(planningTrackData);
           }
           if (categoryLoadSeq.current === categorySeq) {
-            setCategories(sortedCategories);
+            setCategories(
+              initialSeries
+                ? withUnavailableCurrentCategory(
+                    sortedCategories,
+                    nextForm.categoryId,
+                    [],
+                    initialSeries.categoryName,
+                  )
+                : sortedCategories,
+            );
             setForm((prev) =>
               prev.categoryId || sortedCategories.length === 0
                 ? prev
@@ -3664,7 +3674,16 @@ export function useEventForm({
           a.name.localeCompare(b.name, "de"),
         );
         if (categoryLoadSeq.current !== categorySeq) return;
-        setCategories(sorted);
+        setCategories(
+          initialSeries && !selectId
+            ? withUnavailableCurrentCategory(
+                sorted,
+                form.categoryId,
+                categories,
+                initialSeries.categoryName,
+              )
+            : sorted,
+        );
         setForm((prev) => {
           const categoryId = reconcileCategoryId(
             prev.categoryId,
@@ -3682,7 +3701,7 @@ export function useEventForm({
         });
       }
     },
-    [initialSeries],
+    [categories, form.categoryId, initialSeries],
   );
 
   const refreshPlanningTracks = useCallback(async (selectId?: string) => {

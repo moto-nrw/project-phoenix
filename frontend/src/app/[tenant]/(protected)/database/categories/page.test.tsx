@@ -2,9 +2,11 @@ import { render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import CategoriesPage from "./page";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 
 interface CapturedConfig {
   isReadOnly: (item: { isSystem?: boolean; archivedAt?: string }) => boolean;
+  update: (item: { id: string }, values: Record<string, unknown>) => unknown;
 }
 
 const captured = vi.hoisted(() => ({
@@ -23,14 +25,15 @@ vi.mock("~/components/database/catalog/catalog-page", () => ({
   CATALOG_SELECTION_PARAM: "eintrag",
 }));
 
+const categoryService = vi.hoisted(() => ({
+  getManagedCategories: vi.fn(),
+  createCategory: vi.fn(),
+  updateCategory: vi.fn(),
+  archiveCategory: vi.fn(),
+  restoreCategory: vi.fn(),
+}));
 vi.mock("~/lib/category-api", () => ({
-  categoryService: {
-    getManagedCategories: vi.fn(),
-    createCategory: vi.fn(),
-    updateCategory: vi.fn(),
-    archiveCategory: vi.fn(),
-    restoreCategory: vi.fn(),
-  },
+  categoryService,
 }));
 
 vi.mock("~/lib/swr", () => ({
@@ -41,6 +44,7 @@ vi.mock("~/lib/swr", () => ({
 describe("Terminkategorien", () => {
   beforeEach(() => {
     captured.config = undefined;
+    vi.clearAllMocks();
   });
 
   it("treats system categories as read-only", () => {
@@ -51,5 +55,20 @@ describe("Terminkategorien", () => {
         isSystem: true,
       }),
     ).toBe(true);
+  });
+
+  it("submits the default color after resetting an existing category", () => {
+    render(<CategoriesPage />);
+
+    captured.config?.update(
+      { id: "7" },
+      { name: "Essen", description: "Mittagessen", color: null },
+    );
+
+    expect(categoryService.updateCategory).toHaveBeenCalledWith("7", {
+      name: "Essen",
+      description: "Mittagessen",
+      color: LOCATION_COLORS.GROUP_ROOM,
+    });
   });
 });

@@ -843,6 +843,15 @@ describe("useEventForm category loading", () => {
     });
 
     expect(result.current.form.categoryId).toBe("2");
+    expect(result.current.categories).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "2",
+          name: "Archiviert",
+          disabled: true,
+        }),
+      ]),
+    );
   });
 
   it("does not let the initial request overwrite a newer refresh", async () => {

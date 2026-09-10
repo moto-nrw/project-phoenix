@@ -6,7 +6,7 @@ import { CatalogManageLink } from "~/components/database/catalog/catalog-manage-
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
-import type { ActivityCategory } from "~/lib/activity-helpers";
+import { categorySelectProps } from "./category-option";
 import type { PlanningTrack } from "~/lib/planning-track-api";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { getActivityColor } from "~/lib/timetable-helpers";
@@ -17,7 +17,7 @@ import {
 import { Field } from "./field";
 import { isoWeekday } from "./form-model";
 import type { EventFormState } from "./form-model";
-import type { RoomOption } from "./use-event-form";
+import type { CategoryOption, RoomOption } from "./use-event-form";
 import type { ActivityType, TimetableListKind } from "~/lib/timetable-types";
 import { PlanningTrackSelect } from "../planning-track-select";
 
@@ -51,7 +51,7 @@ export interface StepTerminProps {
   ) => void;
   fieldErrors: Record<string, string>;
   rooms: RoomOption[];
-  categories: ActivityCategory[];
+  categories: CategoryOption[];
   planningTracks?: PlanningTrack[];
   loadingRefs: boolean;
   expanded: boolean;
@@ -193,7 +193,7 @@ export function StepTermin({
                 },
                 ...categories.map((category) => ({
                   value: category.id,
-                  label: category.name,
+                  ...categorySelectProps(category),
                 })),
               ]}
               onChange={(next) => update("categoryId", next)}

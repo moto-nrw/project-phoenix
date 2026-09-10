@@ -97,6 +97,33 @@ describe("StepTermin — Kategorie (#2131, #3114)", () => {
       screen.getByText("Bitte eine Kategorie auswählen."),
     ).toBeInTheDocument();
   });
+
+  it("shows an archived current category as unavailable", () => {
+    renderStep({
+      form: {
+        ...emptyForm("2026-08-03"),
+        type: "care",
+        categoryId: "9",
+      },
+      categories: [
+        {
+          id: "9",
+          name: "Frühstück",
+          disabled: true,
+        },
+      ],
+    });
+
+    expect(
+      screen.getByRole("combobox", { name: "Kategorie" }),
+    ).toHaveTextContent("Frühstück (nicht mehr angeboten)");
+    fireEvent.click(screen.getByRole("combobox", { name: "Kategorie" }));
+    expect(
+      screen.getByRole("option", {
+        name: "Frühstück (nicht mehr angeboten)",
+      }),
+    ).toBeDisabled();
+  });
 });
 
 describe("StepTermin — Planungsspur (#3114)", () => {
