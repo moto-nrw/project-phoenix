@@ -23,6 +23,10 @@ old rows are never modified. The field mapping is unchanged from
   (`membership_id = staff.id`), and advances the checkpoint in the same commit.
   Rows whose content already matches are counted as skipped, so a rerun of a
   completed batch writes nothing.
+  Within each membership upsert, retired rows are applied before active rows,
+  with source ID as the tie-breaker. This lets an offboarded membership release
+  the active-person unique key before its same-batch replacement is inserted,
+  even if the replacement has a lower reserved source ID.
 - Deadlocks (`40P01`), serialization failures (`40001`), and lock timeouts
   (`55P03`) retry the batch up to five times. A unique-index conflict
   (`23505`) rewinds the tenant's pass to zero, persisting the rewind first: it

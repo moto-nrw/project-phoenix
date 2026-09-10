@@ -199,6 +199,9 @@ const staffOwnerCopyBatch = `
 		INSERT INTO users.staff_school_memberships AS m
 			(id, tenant_id, person_id, created_at, updated_at, deleted_at)
 		SELECT id, tenant_id, person_id, created_at, updated_at, deleted_at FROM eligible
+		-- The active-person unique index is immediate: retire memberships
+		-- before inserting their replacements, even when the new ID is lower.
+		ORDER BY (deleted_at IS NULL), id
 		ON CONFLICT (id) DO UPDATE SET
 			tenant_id = EXCLUDED.tenant_id,
 			person_id = EXCLUDED.person_id,

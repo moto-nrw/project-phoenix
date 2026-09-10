@@ -564,6 +564,36 @@ func TestStaffOwnerBackfillRestartsPassWhenPersonRejoinsMidPass(t *testing.T) {
 	require.EqualValues(t, 1, active)
 }
 
+func TestStaffOwnerBackfillRetiresBeforeSameBatchRejoin(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	tenantID := testpkg.Tenant(t)
+	// Reserve a real sequence value before the old Staff exists. The new
+	// active row will sort first by ID, so ID ordering alone cannot fix this.
+	var replacementID int64
+	require.NoError(t, db.NewRaw(`SELECT nextval(pg_get_serial_sequence('users.staff', 'id'))`).Scan(ctx, &replacementID))
+	first := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Same batch", "Rejoin")
+	_, err := RunStaffOwnerBackfill(ctx, db, StaffOwnerBackfillOptions{})
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `UPDATE users.staff SET deleted_at = now() WHERE tenant_id = ? AND id = ?`, tenantID, first.ID)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `INSERT INTO users.staff (id, tenant_id, person_id) VALUES (?, ?, ?)`, replacementID, tenantID, first.PersonID)
+	require.NoError(t, err)
+	require.Less(t, replacementID, first.ID)
+	sourceBefore := staffSourceRows(t, db, tenantID)
+	report, err := RunStaffOwnerBackfill(ctx, db, StaffOwnerBackfillOptions{BatchSize: 10, MaxAttempts: 2})
+	require.NoError(t, err)
+	cp := requireStaffOwnerTenantEqual(t, db, report, tenantID)
+	require.EqualValues(t, 2, cp.SourceCount)
+	require.Zero(t, cp.BatchesRetried, "retire the old membership before inserting its replacement in the same statement")
+	require.Zero(t, cp.RowsRemoved, "soft-deleted memberships are retained")
+	var activeID int64
+	require.NoError(t, db.NewRaw(`SELECT id FROM users.staff_school_memberships WHERE tenant_id = ? AND person_id = ? AND deleted_at IS NULL`, tenantID, first.PersonID).Scan(ctx, &activeID))
+	require.Equal(t, replacementID, activeID)
+	require.Equal(t, sourceBefore, staffSourceRows(t, db, tenantID))
+}
+
 func TestStaffOwnerBackfillRestartsAfterDeletedPersonRejoins(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
