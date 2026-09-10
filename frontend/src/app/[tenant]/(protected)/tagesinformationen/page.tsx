@@ -1,9 +1,13 @@
 "use client";
 
-import { Megaphone, Pencil, Trash2 } from "lucide-react";
+import { Megaphone, Pencil, Trash2, Users } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useState } from "react";
 
+import {
+  OverflowMenu,
+  type OverflowMenuEntry,
+} from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { StaffNoticeAcknowledgementsModal } from "~/components/staff-notices/staff-notice-acknowledgements-modal";
@@ -85,6 +89,41 @@ export default function TagesinformationenPage() {
 
   const todayNotices = todayData ?? [];
   const notices = data ?? [];
+
+  const buildNoticeMenu = (notice: StaffNotice): OverflowMenuEntry[] => {
+    const acknowledged = notice.acknowledged_count ?? 0;
+    return [
+      {
+        label: "Bearbeiten",
+        icon: <Pencil className="h-4 w-4" aria-hidden />,
+        onClick: () => {
+          setEditing(notice);
+          setModalOpen(true);
+        },
+      },
+      ...(notice.requires_acknowledgement && acknowledged > 0
+        ? [
+            {
+              label: "Wer hat bestätigt?",
+              icon: <Users className="h-4 w-4" aria-hidden />,
+              badge: acknowledged,
+              onClick: () => setShowingAcks(notice),
+            },
+          ]
+        : []),
+      { kind: "separator" },
+      {
+        label: "Löschen",
+        icon: <Trash2 className="h-4 w-4" aria-hidden />,
+        destructive: true,
+        onClick: () => {
+          setDeleting(notice);
+          setDeleteError("");
+        },
+      },
+    ];
+  };
+
   const visibleListError =
     listError ||
     (noticesError
@@ -266,53 +305,22 @@ export default function TagesinformationenPage() {
                           : " (unbefristet)"}
                       </p>
                       {notice.requires_acknowledgement && (
-                        <p className="mt-1 flex flex-wrap items-center gap-x-2 text-sm text-gray-500">
-                          <span>
-                            Kenntnisnahme verlangt ·{" "}
-                            {notice.acknowledged_count === 1
-                              ? "1 Person hat bestätigt"
-                              : `${notice.acknowledged_count} Personen haben bestätigt`}
-                          </span>
-                          {(notice.acknowledged_count ?? 0) > 0 && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="compact"
-                              onClick={() => setShowingAcks(notice)}
-                            >
-                              Wer hat bestätigt?
-                            </Button>
-                          )}
+                        <p className="mt-1 text-sm text-gray-500">
+                          Kenntnisnahme verlangt ·{" "}
+                          {notice.acknowledged_count === 1
+                            ? "1 Person hat bestätigt"
+                            : `${notice.acknowledged_count} Personen haben bestätigt`}
                         </p>
                       )}
                     </div>
 
-                    <div className="flex flex-shrink-0 items-center gap-1">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label="Bearbeiten"
-                        onClick={() => {
-                          setEditing(notice);
-                          setModalOpen(true);
-                        }}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label="Löschen"
-                        onClick={() => {
-                          setDeleting(notice);
-                          setDeleteError("");
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    {/* Zeilenaktionen nur im Kebab (BAUARTEN-SPEC Bauart 1
+                        Regel 4): Bearbeiten, die Namensliste der
+                        Bestätigungen und Löschen. */}
+                    <OverflowMenu
+                      ariaLabel={`Aktionen für ${notice.title}`}
+                      items={buildNoticeMenu(notice)}
+                    />
                   </div>
                 </li>
               ))}

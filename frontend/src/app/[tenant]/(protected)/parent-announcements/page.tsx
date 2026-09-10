@@ -565,30 +565,14 @@ function ParentAnnouncementsContent() {
       header: "",
       align: "right",
       render: (row) => (
-        // stopPropagation keeps button/menu clicks from also triggering the
-        // row click (which opens the detail view).
+        // stopPropagation keeps menu clicks from also triggering the row
+        // click (which opens the detail view).
         <div
-          className="flex items-center justify-end gap-1"
+          className="flex items-center justify-end"
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => e.stopPropagation()}
           role="presentation"
         >
-          {row.status === "draft" && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="compact"
-              disabled={pendingActionId === row.id}
-              onClick={() => {
-                setPublishError("");
-                setPublishTarget(row);
-              }}
-              className="text-moto-green-vivid hover:text-moto-green-strong gap-1.5"
-            >
-              <Send className="size-4" aria-hidden />
-              Veröffentlichen
-            </Button>
-          )}
           <OverflowMenu
             items={buildMenuItems(row)}
             ariaLabel={`Aktionen für ${row.title}`}
@@ -598,17 +582,28 @@ function ParentAnnouncementsContent() {
     },
   ];
 
-  // One clear inline action per row (publish a draft); details open via row/
-  // card click. Editing is draft-only — published announcements are immutable
+  // Every row action lives in the kebab (BAUARTEN-SPEC Bauart 1 Regel 4,
+  // #3111): publishing a draft is its first entry. Details open via row/card
+  // click. Editing is draft-only — published announcements are immutable
   // (Zurückziehen first, then edit the draft).
   function buildMenuItems(row: Announcement): OverflowMenuItem[] {
-    const menuItems: OverflowMenuItem[] = [
-      {
-        label: "Anzeigen",
-        icon: <MotoConceptIcon concept="reports" size={16} />,
-        onClick: () => setDetailFor(row),
-      },
-    ];
+    const menuItems: OverflowMenuItem[] = [];
+    if (row.status === "draft") {
+      menuItems.push({
+        label: "Veröffentlichen",
+        icon: <Send className="size-4" aria-hidden />,
+        disabled: pendingActionId === row.id,
+        onClick: () => {
+          setPublishError("");
+          setPublishTarget(row);
+        },
+      });
+    }
+    menuItems.push({
+      label: "Anzeigen",
+      icon: <MotoConceptIcon concept="reports" size={16} />,
+      onClick: () => setDetailFor(row),
+    });
     if (!row.system_kind && row.status === "draft") {
       menuItems.push({
         label: "Bearbeiten",

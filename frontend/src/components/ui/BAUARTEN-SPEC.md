@@ -54,7 +54,13 @@ Aktivitäten, Gruppen, Rollen, Geräte, Dateien, Nachrichten, Anfragen.
    es an anderer Stelle anlegbar ist.
 4. **Zeilenaktionen ausschließlich im Kebab der Zeile.** Keine Icon-Reihe,
    keine Aktion, die nur beim Überfahren erscheint. Was das Objekt betrifft
-   und nicht die Liste, gehört in die Objektansicht.
+   und nicht die Liste, gehört in die Objektansicht. Auch die eine „wichtige"
+   Aktion („Veröffentlichen" eines Entwurfs, „Elternlink kopieren") ist ein
+   Menüeintrag und kein Knopf neben dem Kebab; sie steht dann oben im Menü,
+   und ein Ergebnis, das der Knopf sonst anzeigen würde (Häkchen „kopiert"),
+   meldet ein Toast (#3111). Umsortieren (Pfeile ↑/↓) ist eine Listenaktion
+   und bleibt sichtbar; das X an einem Chip in einem Formular entfernt einen
+   Eingabewert und ist keine Zeilenaktion.
 5. **Mehrfachauswahl ist eine Eigenschaft der Bauart, nicht der Seite.** Wo
    sie fachlich sinnvoll ist, wird sie überall gleich ausgelöst
    (Kopf-Aktion „Auswählen" schaltet den Auswahlmodus). Sie fehlt nicht auf
@@ -205,19 +211,29 @@ bekommt eine shrink-only Baseline analog zum bestehenden
    Klick, der nur den Dialog öffnet (`setDeleteTarget(x)`), passiert. Ein
    per Namen übergebener Handler (`onClick={handleDelete}`) liegt außerhalb
    der Ratsche und gehört ins Review.
-9. `bauart/no-autosave` — kein Schreiben aus `onBlur` und keines aus dem
-   Change-Handler eines Formularfelds ohne Speichern darunter. **Umgesetzt**
-   (`scripts/oxlint-plugin-bauart.mjs`, #3112): jeder Inline-`onBlur`, der
-   einen asynchronen Aufruf feuert (`void save(x)`, `await update(x)`,
-   `.then(`), und jeder Inline-Change-Handler an einem Kit-Feld
-   (`Input`, `Textarea`, `Checkbox`, `CustomSelect`, `ListboxDropdown`,
-   `SegmentedControl`, …), dessen gefeuerter Aufruf wie ein Schreiben heißt
-   (save, update, persist, patch, set…, submit, store, assign, link, mutate).
-   Lesen aus dem Change-Handler (`void search(q)`) passiert. Ausgenommen sind
-   die Einstellungen (Bauart 4), das Operator-Portal, das Kit, Tests und
-   Stories; die benannte Baseline im Plugin ist shrink-only und trägt nur
-   Flächen, die ihr Sofort-Speichern auf dem Schirm benennen (Abrechnung,
-   Elternportal-Stammdaten, Sprachwahl).
+9. `bauart/no-row-action-buttons` — Zeilenaktionen nur im Kebab (Bauart 1
+   Regel 4). **Umgesetzt** (`scripts/oxlint-plugin-bauart.mjs`, #3111): ein
+   `Button`/`<button>` je Listeneintrag (in einem `.map(…)` oder dem
+   `render` einer Tabellenspalte), dessen zugänglicher Name eine
+   Objektaktion ist (bearbeiten, löschen, entfernen, archivieren,
+   wiederherstellen, duplizieren, umbenennen, veröffentlichen, kopieren),
+   fällt durch. Pfeile zum Umsortieren und das reine Icon-X „… entfernen"
+   eines Formular-Chips sind ausgenommen. Shrink-only Baseline je Datei für
+   den Bestand, den #3111 auf Folge-PRs verteilt; Operator-, Eltern- und
+   Schul-Portal sind nicht im Scope.
+10. `bauart/no-autosave` — kein Schreiben aus `onBlur` und keines aus dem
+    Change-Handler eines Formularfelds ohne Speichern darunter. **Umgesetzt**
+    (`scripts/oxlint-plugin-bauart.mjs`, #3112): jeder Inline-`onBlur`, der
+    einen asynchronen Aufruf feuert (`void save(x)`, `await update(x)`,
+    `.then(`), und jeder Inline-Change-Handler an einem Kit-Feld
+    (`Input`, `Textarea`, `Checkbox`, `CustomSelect`, `ListboxDropdown`,
+    `SegmentedControl`, …), dessen gefeuerter Aufruf wie ein Schreiben heißt
+    (save, update, persist, patch, set…, submit, store, assign, link, mutate).
+    Lesen aus dem Change-Handler (`void search(q)`) passiert. Ausgenommen sind
+    die Einstellungen (Bauart 4), das Operator-Portal, das Kit, Tests und
+    Stories; die benannte Baseline im Plugin ist shrink-only und trägt nur
+    Flächen, die ihr Sofort-Speichern auf dem Schirm benennen (Abrechnung,
+    Elternportal-Stammdaten, Sprachwahl).
 
 ## Reihenfolge der Umsetzung
 

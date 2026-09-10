@@ -1,10 +1,14 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
 import { OverflowMenu } from "./OverflowMenu";
 
 describe("OverflowMenu", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("renders nothing when items are empty", () => {
     const { container } = render(<OverflowMenu items={[]} />);
     expect(container.firstChild).toBeNull();
@@ -64,6 +68,73 @@ describe("OverflowMenu", () => {
     expect(
       screen.getByRole("menuitem", { name: /Import/i }),
     ).toBeInTheDocument();
+  });
+
+  it("keeps a nested menu in its overlay scope", () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      function (this: HTMLElement) {
+        if (this.matches('[data-date-picker-focus-trap="true"]')) {
+          return {
+            left: 200,
+            right: 800,
+            top: 100,
+            bottom: 900,
+            width: 600,
+            height: 800,
+            x: 200,
+            y: 100,
+            toJSON: () => ({}),
+          } as DOMRect;
+        }
+        return {
+          left: 600,
+          right: 640,
+          top: 100,
+          bottom: 140,
+          width: 40,
+          height: 40,
+          x: 600,
+          y: 100,
+          toJSON: () => ({}),
+        } as DOMRect;
+      },
+    );
+    render(
+      <div data-date-picker-focus-trap="true">
+        <OverflowMenu items={[{ label: "Export", onClick: () => undefined }]} />
+      </div>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Weitere Aktionen/i }));
+
+    expect(screen.getByRole("menu").parentElement).toHaveAttribute(
+      "data-date-picker-focus-trap",
+      "true",
+    );
+    expect(screen.getByRole("menu")).toHaveStyle({ position: "absolute" });
+    expect(screen.getByRole("menu")).toHaveStyle({
+      left: "220px",
+      top: "44px",
+    });
+  });
+
+  it("escapes a scrollable popover while retaining its owner", () => {
+    render(
+      <div data-overflow-menu-scope="true">
+        <OverflowMenu
+          items={[{ label: "Bearbeiten", onClick: () => undefined }]}
+          portalOwnerId="planning-tracks"
+          portalZIndex={10001}
+        />
+      </div>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Weitere Aktionen/i }));
+
+    const menu = screen.getByRole("menu");
+    expect(menu.parentElement).toBe(document.body);
+    expect(menu).toHaveAttribute("data-overflow-menu-owner", "planning-tracks");
+    expect(menu).toHaveStyle({ position: "fixed", zIndex: "10001" });
   });
 
   it("calls the item onClick and closes the menu", () => {

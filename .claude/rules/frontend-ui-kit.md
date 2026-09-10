@@ -132,7 +132,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | API error message text | `getApiErrorMessage` | `~/lib/api-error-message` |
 | List/search page header | `PageHeaderWithSearch` | `~/components/ui/page-header/PageHeaderWithSearch` |
 | Header nav tabs (sliding indicator, mobile dropdown) | `NavigationTabs` | `~/components/ui/page-header/NavigationTabs` |
-| Kebab / overflow action menu | `OverflowMenu` | `~/components/ui/page-header/OverflowMenu` |
+| Kebab / overflow action menu (every row action of a list item goes here; `bauart/no-row-action-buttons` fails a per-row `Button` named Bearbeiten/Löschen/Archivieren/…) | `OverflowMenu` | `~/components/ui/page-header/OverflowMenu` |
 | Filter toggle button | `FilterButton` | `~/components/ui/page-header/FilterButton` |
 
 If none fits, see **Kit gaps** below — extend the kit, don't inline a one-off.

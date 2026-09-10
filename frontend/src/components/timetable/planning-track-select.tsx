@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Archive,
   ArchiveRestore,
   Check,
   ChevronDown,
@@ -23,6 +24,7 @@ import { ColorPickerField } from "~/components/ui/color-picker-field";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { useToast } from "~/contexts/ToastContext";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import {
@@ -408,7 +410,10 @@ export function PlanningTrackSelect({
     </div>
   );
 
-  const renderManageView = () => (
+  const renderManageView = (overflowMenuPortal: {
+    ownerId: string;
+    zIndex: number;
+  }) => (
     <div className="p-3">
       <div className="mb-3 flex items-center justify-between gap-3">
         <h3 className="text-sm font-semibold text-gray-900">
@@ -475,26 +480,29 @@ export function PlanningTrackSelect({
               >
                 <ChevronDown className="size-4" aria-hidden="true" />
               </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={`${track.name} bearbeiten`}
-                disabled={busy}
-                onClick={() => beginEdit(track)}
-              >
-                <Pencil className="size-4" aria-hidden="true" />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="compact"
-                aria-label={`${track.name} archivieren`}
-                disabled={busy}
-                onClick={() => beginArchive(track)}
-              >
-                Archivieren
-              </Button>
+              {/* Umsortieren ist eine Listenaktion und bleibt sichtbar;
+                  Bearbeiten und Archivieren betreffen die Spur und liegen
+                  im Kebab (BAUARTEN-SPEC Bauart 1 Regel 4). */}
+              <OverflowMenu
+                ariaLabel={`Aktionen für ${track.name}`}
+                triggerSize="sm"
+                portalOwnerId={overflowMenuPortal.ownerId}
+                portalZIndex={overflowMenuPortal.zIndex}
+                items={[
+                  {
+                    label: "Bearbeiten",
+                    icon: <Pencil className="size-4" aria-hidden="true" />,
+                    disabled: busy,
+                    onClick: () => beginEdit(track),
+                  },
+                  {
+                    label: "Archivieren",
+                    icon: <Archive className="size-4" aria-hidden="true" />,
+                    disabled: busy,
+                    onClick: () => beginArchive(track),
+                  },
+                ]}
+              />
             </li>
           ))}
         </ul>
@@ -513,16 +521,22 @@ export function PlanningTrackSelect({
                 <span className="min-w-0 flex-1 truncate text-sm">
                   {track.name}
                 </span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="compact"
-                  disabled={busy}
-                  onClick={() => void restoreTrack(track)}
-                >
-                  <ArchiveRestore className="size-4" aria-hidden="true" />
-                  Wiederherstellen
-                </Button>
+                <OverflowMenu
+                  ariaLabel={`Aktionen für ${track.name}`}
+                  triggerSize="sm"
+                  portalOwnerId={overflowMenuPortal.ownerId}
+                  portalZIndex={overflowMenuPortal.zIndex}
+                  items={[
+                    {
+                      label: "Wiederherstellen",
+                      icon: (
+                        <ArchiveRestore className="size-4" aria-hidden="true" />
+                      ),
+                      disabled: busy,
+                      onClick: () => void restoreTrack(track),
+                    },
+                  ]}
+                />
               </li>
             ))}
           </ul>
@@ -640,8 +654,8 @@ export function PlanningTrackSelect({
           </button>
         )}
       >
-        {({ close }) => {
-          if (view === "manage") return renderManageView();
+        {({ close, overflowMenuPortal }) => {
+          if (view === "manage") return renderManageView(overflowMenuPortal);
           if (view === "form") return renderFormView();
           return renderSelectView(close);
         }}

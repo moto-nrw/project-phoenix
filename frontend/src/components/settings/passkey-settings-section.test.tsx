@@ -165,9 +165,10 @@ describe("PasskeySettingsSection", () => {
 
     render(<PasskeySettingsSection scope="operator" />);
 
-    // #3109: the trash icon opens the ConfirmDeleteModal; the passkey is
-    // only revoked after the two-step confirmation inside the dialog.
-    fireEvent.click(await screen.findByLabelText("Passkey entfernen"));
+    // #3109: the row menu opens the ConfirmDeleteModal; the passkey is only
+    // revoked after the two-step confirmation inside the dialog.
+    fireEvent.click(await screen.findByLabelText("Aktionen für Old phone"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Entfernen" }));
     expect(mockRevokePasskey).not.toHaveBeenCalled();
     expect(
       within(
@@ -203,7 +204,8 @@ describe("PasskeySettingsSection", () => {
     ]);
     render(<PasskeySettingsSection />);
 
-    fireEvent.click(await screen.findByLabelText("Passkey entfernen"));
+    fireEvent.click(await screen.findByLabelText("Aktionen für Old phone"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Entfernen" }));
     fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
 
     expect(mockRevokePasskey).not.toHaveBeenCalled();
@@ -221,7 +223,8 @@ describe("PasskeySettingsSection", () => {
     mockRevokePasskey.mockRejectedValueOnce(new Error("Nicht erlaubt"));
     render(<PasskeySettingsSection />);
 
-    fireEvent.click(await screen.findByLabelText("Passkey entfernen"));
+    fireEvent.click(await screen.findByLabelText("Aktionen für Old phone"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Entfernen" }));
     fireEvent.click(screen.getByRole("button", { name: "Ja, entfernen" }));
     fireEvent.click(
       screen.getByRole("button", { name: "Endgültig entfernen" }),

@@ -46,6 +46,14 @@ function shiftType(id: string, name: string): ShiftType {
   return { id, name, color: "#83CD2D", description: "", isActive: true };
 }
 
+/** Zeilenaktionen liegen im Kebab der Zeile (#3111). */
+function openRowAction(rowName: string, item: string) {
+  fireEvent.click(
+    screen.getByRole("button", { name: `Aktionen für ${rowName}` }),
+  );
+  fireEvent.click(screen.getByRole("menuitem", { name: item }));
+}
+
 function renderModal(shiftTypes: ShiftType[] = []) {
   return render(
     <ShiftTypeManageModal
@@ -73,9 +81,7 @@ describe("ShiftTypeManageModal — category mapping safety (#1837)", () => {
     renderModal([shiftType("99", "Betreuung")]);
     await waitFor(() => expect(mockGetCategories).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Betreuung bearbeiten" }),
-    );
+    openRowAction("Betreuung", "Bearbeiten");
     fireEvent.change(screen.getByLabelText("Name*"), {
       target: { value: "Betreuung X" },
     });
@@ -128,9 +134,7 @@ describe("ShiftTypeManageModal — category mapping safety (#1837)", () => {
     await waitFor(() => expect(mockGetCategories).toHaveBeenCalledTimes(1));
 
     // First edit + save → triggers the post-save reload, which rejects.
-    fireEvent.click(
-      screen.getByRole("button", { name: "Betreuung bearbeiten" }),
-    );
+    openRowAction("Betreuung", "Bearbeiten");
     fireEvent.change(screen.getByLabelText("Name*"), {
       target: { value: "Betreuung A" },
     });
@@ -143,12 +147,10 @@ describe("ShiftTypeManageModal — category mapping safety (#1837)", () => {
     // Second edit in the same open modal + save.
     await waitFor(() =>
       expect(
-        screen.getByRole("button", { name: "Betreuung bearbeiten" }),
+        screen.getByRole("button", { name: "Aktionen für Betreuung" }),
       ).toBeInTheDocument(),
     );
-    fireEvent.click(
-      screen.getByRole("button", { name: "Betreuung bearbeiten" }),
-    );
+    openRowAction("Betreuung", "Bearbeiten");
     fireEvent.change(screen.getByLabelText("Name*"), {
       target: { value: "Betreuung B" },
     });
@@ -182,9 +184,7 @@ describe("ShiftTypeManageModal — category mapping safety (#1837)", () => {
 
     // Edit + save while the initial load is still pending → post-save refresh
     // (call 2) resolves fresh.
-    fireEvent.click(
-      screen.getByRole("button", { name: "Betreuung bearbeiten" }),
-    );
+    openRowAction("Betreuung", "Bearbeiten");
     fireEvent.change(screen.getByLabelText("Name*"), {
       target: { value: "Betreuung A" },
     });
@@ -199,12 +199,10 @@ describe("ShiftTypeManageModal — category mapping safety (#1837)", () => {
     // A follow-up edit must preselect from the FRESH snapshot (cat1 → 99).
     await waitFor(() =>
       expect(
-        screen.getByRole("button", { name: "Betreuung bearbeiten" }),
+        screen.getByRole("button", { name: "Aktionen für Betreuung" }),
       ).toBeInTheDocument(),
     );
-    fireEvent.click(
-      screen.getByRole("button", { name: "Betreuung bearbeiten" }),
-    );
+    openRowAction("Betreuung", "Bearbeiten");
     fireEvent.change(screen.getByLabelText("Name*"), {
       target: { value: "Betreuung B" },
     });
@@ -229,9 +227,7 @@ describe("ShiftTypeManageModal — category mapping safety (#1837)", () => {
     );
 
     renderModal([shiftType("99", "Betreuung")]);
-    fireEvent.click(
-      screen.getByRole("button", { name: "Betreuung bearbeiten" }),
-    );
+    openRowAction("Betreuung", "Bearbeiten");
 
     const trigger = screen.getByRole("button", {
       name: "Timetable-Kategorien",
