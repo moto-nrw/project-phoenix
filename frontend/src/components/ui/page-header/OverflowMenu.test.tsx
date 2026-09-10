@@ -1,10 +1,14 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
 import { OverflowMenu } from "./OverflowMenu";
 
 describe("OverflowMenu", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("renders nothing when items are empty", () => {
     const { container } = render(<OverflowMenu items={[]} />);
     expect(container.firstChild).toBeNull();
@@ -67,6 +71,34 @@ describe("OverflowMenu", () => {
   });
 
   it("keeps a nested menu in its overlay scope", () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      function (this: HTMLElement) {
+        if (this.matches('[data-date-picker-focus-trap="true"]')) {
+          return {
+            left: 200,
+            right: 800,
+            top: 100,
+            bottom: 900,
+            width: 600,
+            height: 800,
+            x: 200,
+            y: 100,
+            toJSON: () => ({}),
+          } as DOMRect;
+        }
+        return {
+          left: 600,
+          right: 640,
+          top: 100,
+          bottom: 140,
+          width: 40,
+          height: 40,
+          x: 600,
+          y: 100,
+          toJSON: () => ({}),
+        } as DOMRect;
+      },
+    );
     render(
       <div data-date-picker-focus-trap="true">
         <OverflowMenu items={[{ label: "Export", onClick: () => undefined }]} />
@@ -80,6 +112,10 @@ describe("OverflowMenu", () => {
       "true",
     );
     expect(screen.getByRole("menu")).toHaveStyle({ position: "absolute" });
+    expect(screen.getByRole("menu")).toHaveStyle({
+      left: "220px",
+      top: "44px",
+    });
   });
 
   it("calls the item onClick and closes the menu", () => {

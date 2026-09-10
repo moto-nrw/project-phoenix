@@ -153,16 +153,9 @@ export function OverflowMenu({
   // Keep nested menus inside the overlay that owns their trigger. This lets a
   // slide-over's focus scope include its menu and makes an AnchoredPopover see
   // menu clicks as inside clicks. At page level, the body remains the portal.
-  const portalContainer =
-    typeof document === "undefined"
-      ? null
-      : (triggerRef.current?.closest(
-          '[data-overflow-menu-scope="true"], [data-date-picker-focus-trap="true"]',
-        ) ?? document.body);
-  const scopeRect =
-    portalContainer != null && portalContainer !== document.body
-      ? portalContainer.getBoundingClientRect()
-      : null;
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(
+    null,
+  );
 
   // Close on outside click + Escape. Because the menu is fixed-positioned, also
   // close on scroll/resize so it never lingers detached from its trigger. Only
@@ -220,8 +213,22 @@ export function OverflowMenu({
   // - If neither side fits, use the side with more room and clamp to the
   //   viewport inset.
   const handleOpen = () => {
-    const rect = triggerRef.current?.getBoundingClientRect();
-    if (rect != null) {
+    const trigger = triggerRef.current;
+    if (isOpen) {
+      setIsOpen(false);
+      return;
+    }
+    if (trigger != null && typeof document !== "undefined") {
+      const scope = trigger.closest(
+        '[data-overflow-menu-scope="true"], [data-date-picker-focus-trap="true"]',
+      );
+      const nextPortalContainer =
+        scope instanceof HTMLElement ? scope : document.body;
+      const scopeRect =
+        nextPortalContainer === document.body
+          ? null
+          : nextPortalContainer.getBoundingClientRect();
+      const rect = trigger.getBoundingClientRect();
       const gap = 4; // matches the old mt-1
       const viewportInset = 8;
       // Vertical anchoring: below the trigger by default, flipped ABOVE it when
@@ -253,7 +260,7 @@ export function OverflowMenu({
       // a narrow container instead of poking out the side. The trigger only
       // contributes the vertical position here.
       const container = matchContainerSelector
-        ? triggerRef.current?.closest(matchContainerSelector)
+        ? trigger.closest(matchContainerSelector)
         : null;
       if (container != null) {
         const cr = container.getBoundingClientRect();
@@ -296,9 +303,10 @@ export function OverflowMenu({
         const style: CSSProperties = { ...vertical, ...size, ...horizontal };
         setMenuStyle(style);
       }
+      setPortalContainer(nextPortalContainer);
     }
-    if (!isOpen) onOpen?.();
-    setIsOpen((prev) => !prev);
+    onOpen?.();
+    setIsOpen(true);
   };
 
   const onItemKey =
@@ -348,7 +356,8 @@ export function OverflowMenu({
               aria-label={ariaLabel}
               style={{
                 ...menuStyle,
-                position: scopeRect ? "absolute" : "fixed",
+                position:
+                  portalContainer !== document.body ? "absolute" : "fixed",
               }}
               // Surface mirrors DesktopFilters dropdown so menu / filter
               // popovers read as one component family — same border, radius,
