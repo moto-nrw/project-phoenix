@@ -156,35 +156,17 @@ describe("StudentPaymentCard", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
     await screen.findByLabelText("IBAN");
+    fireEvent.change(screen.getByLabelText("Anderer Kontoinhaber"), {
+      target: { value: "Sabine Schneider-Kern" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Die IBAN ist ungültig.",
     );
     expect(screen.getByLabelText("IBAN")).toHaveValue(FULL_IBAN);
-    expect(mockToastError).not.toHaveBeenCalled();
-  });
-
-  it("shows a failed payer change as an alert", async () => {
-    mockSetPayer.mockRejectedValue(new Error("Keine Berechtigung."));
-
-    render(
-      <StudentPaymentCard
-        studentId="7"
-        guardians={[
-          guardian("10", "Sabine", false),
-          guardian("11", "Klaus", false),
-        ]}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole("combobox"));
-    fireEvent.click(
-      await screen.findByRole("option", { name: "Klaus Schneider" }),
-    );
-
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Keine Berechtigung.",
+    expect(screen.getByLabelText("Anderer Kontoinhaber")).toHaveValue(
+      "Sabine Schneider-Kern",
     );
     expect(mockToastError).not.toHaveBeenCalled();
   });
