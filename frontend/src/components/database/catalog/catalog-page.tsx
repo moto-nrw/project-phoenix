@@ -52,7 +52,7 @@ export interface CatalogItem {
 }
 
 /** Die Zeile, die ein Eintrag in der Sammlung wirft. */
-export interface CatalogRow {
+interface CatalogRow {
   readonly name: string;
   /** Zweite Zeile: was den Eintrag von seinen Nachbarn unterscheidet. */
   readonly subtitle?: string;
@@ -63,7 +63,7 @@ export interface CatalogRow {
 }
 
 /** Umkehrbarer Rückzug aus der Auswahl: archivieren bzw. deaktivieren. */
-export interface CatalogRetire<T> {
+interface CatalogRetire<T> {
   readonly menuLabel: string;
   readonly confirmTitle: string;
   readonly confirmLabel: string;
@@ -72,14 +72,14 @@ export interface CatalogRetire<T> {
   readonly toast: (item: T) => string;
 }
 
-export interface CatalogRestore<T> {
+interface CatalogRestore<T> {
   readonly menuLabel: string;
   readonly run: (item: T) => Promise<unknown>;
   readonly toast: (item: T) => string;
 }
 
 /** Endgültiges Löschen. Nur für Kataloge, deren Backend das kennt. */
-export interface CatalogRemove<T> {
+interface CatalogRemove<T> {
   readonly menuLabel: string;
   readonly confirmTitle: string;
   readonly describe: (item: T) => React.ReactNode;
