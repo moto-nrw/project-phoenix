@@ -185,7 +185,14 @@ export function CatalogPage<T extends CatalogItem>({
     );
   }, [all, searchTerm, config]);
 
+  // Die API erwartet bei der Umsortierung immer die vollständige aktive
+  // Reihenfolge. Die Suche bestimmt nur, welche Zeilen sichtbar sind, nie
+  // welche IDs die Reihenfolge speichert.
   const active = useMemo(
+    () => all.filter((item) => !config.toRow(item).retired),
+    [all, config],
+  );
+  const visibleActive = useMemo(
     () => visible.filter((item) => !config.toRow(item).retired),
     [visible, config],
   );
@@ -282,23 +289,32 @@ export function CatalogPage<T extends CatalogItem>({
   }, [config, removeTarget, runWrite, select, toast]);
 
   const handleMove = useCallback(
-    async (index: number, offset: -1 | 1) => {
+    async (item: T, offset: -1 | 1) => {
       const reorder = config.reorder;
-      const target = index + offset;
-      if (!reorder || target < 0 || target >= active.length) return;
+      const visibleIndex = visibleActive.indexOf(item);
+      const visibleTarget = visibleIndex + offset;
+      if (
+        !reorder ||
+        visibleIndex < 0 ||
+        visibleTarget < 0 ||
+        visibleTarget >= visibleActive.length
+      ) {
+        return;
+      }
       const ordered = [...active];
-      const moved = ordered[index];
-      const displaced = ordered[target];
-      if (!moved || !displaced) return;
-      ordered[index] = displaced;
-      ordered[target] = moved;
+      const movedIndex = ordered.indexOf(item);
+      const displaced = visibleActive[visibleTarget];
+      const displacedIndex = displaced ? ordered.indexOf(displaced) : -1;
+      if (movedIndex < 0 || displacedIndex < 0 || !displaced) return;
+      ordered[movedIndex] = displaced;
+      ordered[displacedIndex] = item;
       await runWrite(
         "catalog_reorder_failed",
         "Die Reihenfolge konnte nicht gespeichert werden.",
         () => reorder(ordered.map((item) => item.id)),
       );
     },
-    [active, config, runWrite],
+    [active, config, runWrite, visibleActive],
   );
 
   const renderRow = (item: T, index: number, inActiveGroup: boolean) => {
@@ -310,7 +326,7 @@ export function CatalogPage<T extends CatalogItem>({
       inActiveGroup &&
       config.reorder !== undefined &&
       canManage &&
-      active.length > 1;
+      visibleActive.length > 1;
     return (
       <div className="flex items-center gap-1 pr-2">
         <div className="min-w-0 flex-1">
@@ -341,7 +357,7 @@ export function CatalogPage<T extends CatalogItem>({
               size="icon"
               aria-label={`${row.name} nach oben`}
               disabled={busy || index === 0}
-              onClick={() => void handleMove(index, -1)}
+              onClick={() => void handleMove(item, -1)}
             >
               <ChevronUp className="size-4" aria-hidden="true" />
             </Button>
@@ -350,8 +366,8 @@ export function CatalogPage<T extends CatalogItem>({
               variant="ghost"
               size="icon"
               aria-label={`${row.name} nach unten`}
-              disabled={busy || index === active.length - 1}
-              onClick={() => void handleMove(index, 1)}
+              disabled={busy || index === visibleActive.length - 1}
+              onClick={() => void handleMove(item, 1)}
             >
               <ChevronDown className="size-4" aria-hidden="true" />
             </Button>
@@ -364,12 +380,12 @@ export function CatalogPage<T extends CatalogItem>({
   const entrySuffix = (count: number) => (count === 1 ? "Eintrag" : "Einträge");
 
   const groups: GroupDefinition<T>[] = [];
-  if (active.length > 0 || retired.length === 0) {
+  if (visibleActive.length > 0 || retired.length === 0) {
     groups.push({
       id: "aktiv",
       title: config.title,
-      items: [...active],
-      countSuffix: entrySuffix(active.length),
+      items: [...visibleActive],
+      countSuffix: entrySuffix(visibleActive.length),
     });
   }
   if (retired.length > 0) {
@@ -629,19 +645,24 @@ export function CatalogPage<T extends CatalogItem>({
       <div className="min-h-0 flex-1 pb-4">
         <MasterDetailLayout
           list={
-            <GroupedList
-              groups={groups}
-              keyFor={(item) => item.id}
-              renderItem={(item) => {
-                const index = active.indexOf(item);
-                return renderRow(item, index, index >= 0);
-              }}
-              emptyState={
-                <p className="text-center text-sm text-gray-500">
-                  Nichts gefunden.
-                </p>
-              }
-            />
+            <div className="flex h-full flex-col">
+              <p className="border-b border-gray-100 px-4 py-3 text-sm text-gray-600">
+                {config.purpose}
+              </p>
+              <GroupedList
+                groups={groups}
+                keyFor={(item) => item.id}
+                renderItem={(item) => {
+                  const index = visibleActive.indexOf(item);
+                  return renderRow(item, index, index >= 0);
+                }}
+                emptyState={
+                  <p className="text-center text-sm text-gray-500">
+                    Nichts gefunden.
+                  </p>
+                }
+              />
+            </div>
           }
           detail={detail}
           selectedId={selectedId}

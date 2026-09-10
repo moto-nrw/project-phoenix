@@ -196,6 +196,12 @@ describe("CatalogPage", () => {
     expect(row("Lernzeit")).toBeInTheDocument();
   });
 
+  it("shows the catalog's purpose above its collection", () => {
+    renderPage();
+
+    expect(screen.getByText("Kategorien ordnen Termine ein.")).toBeVisible();
+  });
+
   it("keeps the open entry while the search hides its row", () => {
     renderPage({ selectedId: "1" });
 
@@ -251,6 +257,23 @@ describe("CatalogPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Lernzeit nach oben" }));
 
     await waitFor(() => expect(reorder).toHaveBeenCalledWith(["2", "1"]));
+  });
+
+  it("keeps hidden active entries in the reorder payload", async () => {
+    const { reorder } = renderPage({
+      items: [
+        { id: "1", name: "Essen", archived: false, sortOrder: 0 },
+        { id: "2", name: "Lernzeit A", archived: false, sortOrder: 1 },
+        { id: "3", name: "Lernzeit B", archived: false, sortOrder: 2 },
+      ],
+    });
+
+    fireEvent.change(search(), { target: { value: "lernzeit" } });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Lernzeit B nach oben" }),
+    );
+
+    await waitFor(() => expect(reorder).toHaveBeenCalledWith(["1", "3", "2"]));
   });
 
   it("carries no reorder arrows when a single entry has no order", () => {

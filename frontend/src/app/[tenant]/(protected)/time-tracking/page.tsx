@@ -80,7 +80,11 @@ import {
   usePeriodMetrics,
   type PeriodMetrics,
 } from "~/lib/hooks/use-period-metrics";
-import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
+import {
+  useSWRAuth,
+  useTenantMutate,
+  useTenantMutateMatching,
+} from "~/lib/swr";
 import { staffScheduleService } from "~/lib/staff-api";
 import {
   adaptAbsenceForMetrics,
@@ -112,7 +116,10 @@ import {
   indexWorkSessionMinutesByBerlinDate,
   OPEN_MONTH_REFRESH_MS,
 } from "~/lib/time-tracking-helpers";
-import { CatalogManageLink } from "~/components/database/catalog/catalog-manage-link";
+import {
+  CatalogManageLink,
+  useCatalogRefreshOnFocus,
+} from "~/components/database/catalog/catalog-manage-link";
 import { useAbsenceTypeSelect } from "~/components/staff/use-absence-type-select";
 import { absenceRequestFor, selectValueFor } from "~/lib/absence-type-select";
 import { formatWeekLabel } from "~/lib/timetable-helpers";
@@ -1332,11 +1339,11 @@ function InlineStat({
   return (
     <div className="text-center">
       <div className="flex items-baseline justify-center gap-2">
-        <span className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase sm:text-[11px]">
+        <span className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
           {label}
         </span>
         {progressPct !== undefined && (
-          <span className="text-[10px] text-gray-400">
+          <span className="text-sm text-gray-400">
             {Math.round(progressPct)}%
           </span>
         )}
@@ -1344,11 +1351,7 @@ function InlineStat({
       <p className={`mt-1 text-base font-bold sm:text-lg ${STATUS_TEXT[tone]}`}>
         {primary}
       </p>
-      {secondary && (
-        <p className="mt-0.5 text-[10px] text-gray-500 sm:text-[11px]">
-          {secondary}
-        </p>
-      )}
+      {secondary && <p className="mt-0.5 text-sm text-gray-500">{secondary}</p>}
       {progressPct !== undefined && (
         <div className="mx-auto mt-1.5 h-1 max-w-[180px] overflow-hidden rounded-full bg-gray-100">
           <div
@@ -2188,6 +2191,11 @@ function EditSessionModal({
     onChange: setAbsType,
     canManage,
   });
+  const tenantMutate = useTenantMutate();
+  const refreshAbsenceTypes = useCallback(async () => {
+    await tenantMutate("staff-absence-types");
+  }, [tenantMutate]);
+  useCatalogRefreshOnFocus(refreshAbsenceTypes, isOpen && canManage);
 
   const [activeTab, setActiveTab] = useState<"session" | "absence">("session");
   const router = useTenantRouter();
@@ -2825,6 +2833,14 @@ function CreateAbsenceModal({
     onChange: setAbsenceType,
     canManage: canManageAbsenceTypes,
   });
+  const tenantMutate = useTenantMutate();
+  const refreshAbsenceTypes = useCallback(async () => {
+    await tenantMutate("staff-absence-types");
+  }, [tenantMutate]);
+  useCatalogRefreshOnFocus(
+    refreshAbsenceTypes,
+    isOpen && canManageAbsenceTypes,
+  );
 
   // Reset form when modal opens
   useEffect(() => {

@@ -43,7 +43,8 @@ export function CatalogManageLink({ href, label }: CatalogManageLinkProps) {
 /**
  * Lädt die Auswahl nach, sobald das Fenster wieder im Vordergrund ist: der
  * Eintrag, den jemand nebenan angelegt hat, steht dann ohne Zutun in der
- * Liste. SWR-gestützte Auswahlen brauchen den Haken nicht, sie tun das schon.
+ * Liste. Die Auswahl übergibt ihre eigene Aktualisierung, damit auch SWR-Caches
+ * mit ausgeschalteter Fokus-Aktualisierung neu laden.
  */
 export function useCatalogRefreshOnFocus(
   refresh: () => void | Promise<void>,

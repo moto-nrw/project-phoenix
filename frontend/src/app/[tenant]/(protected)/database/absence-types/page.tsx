@@ -95,19 +95,17 @@ const config: CatalogConfig<AbsenceType> = {
     allowanceEnabled: false,
     overrunPolicy: "warn",
   },
-  // Das Anlegen kennt nur den Namen; Kontingent und Verhalten schreibt der
-  // gleiche Vorgang direkt hinterher, damit der Dialog eine Sache bleibt.
+  // Der POST nimmt die vollständige Konfiguration an und speichert sie in
+  // einem Vorgang. Ein fehlgeschlagener Nachtrag kann so keinen Eintrag mit
+  // unvollständigem Kontingent zurücklassen.
   create: async (values) => {
-    const created = await absenceTypeService.createAbsenceType(
+    return absenceTypeService.createAbsenceType(
       String(values.name ?? "").trim(),
+      {
+        allowanceEnabled: Boolean(values.allowanceEnabled),
+        overrunPolicy: policyOf(values),
+      },
     );
-    const allowanceEnabled = Boolean(values.allowanceEnabled);
-    const overrunPolicy = policyOf(values);
-    if (!allowanceEnabled && overrunPolicy === "warn") return created;
-    return absenceTypeService.updateAbsenceType(created.id, {
-      allowanceEnabled,
-      overrunPolicy,
-    });
   },
   update: (type, values) =>
     absenceTypeService.updateAbsenceType(type.id, {

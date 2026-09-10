@@ -1141,6 +1141,7 @@ export const appChapters: readonly GuideChapter[] = [
         },
         screenshot:
           "Terminkategorien in der Datenverwaltung: Liste links, Stammdaten des gewählten Eintrags rechts.",
+        image: "/help/screens/terminkategorien.webp",
       },
       {
         id: "raeume",
