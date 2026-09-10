@@ -1,207 +1,73 @@
 package iot
 
 import (
-	"cmp"
-	"log/slog"
+	"context"
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	checkinAPI "github.com/moto-nrw/project-phoenix/api/iot/checkin"
-	dataAPI "github.com/moto-nrw/project-phoenix/api/iot/data"
-	sessionsAPI "github.com/moto-nrw/project-phoenix/api/iot/sessions"
-	staffclockAPI "github.com/moto-nrw/project-phoenix/api/iot/staffclock"
-	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
-	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
-	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
-	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
-	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/moto-nrw/project-phoenix/workflows/sessionend"
-	"github.com/uptrace/bun"
 )
 
-// delegateHandler creates an http.HandlerFunc that delegates to a subrouter.
-// This avoids Chi's "Mount() on existing path" error while keeping routes organized.
-func delegateHandler(router chi.Router) http.HandlerFunc {
-	return func(w http.ResponseWriter, req *http.Request) {
-		router.ServeHTTP(w, req)
-	}
+// Runtime supplies the authentication and response envelope of device-info
+// routes. The composition package mounts them under device-only authentication.
+type Runtime struct {
+	Authenticated func(context.Context) bool
+	Success       func(http.ResponseWriter, *http.Request, int, any, string)
+	Failure       func(http.ResponseWriter, *http.Request, int, error, string)
 }
 
-// ServiceDependencies groups all service dependencies for the IoT resource
-type ServiceDependencies struct {
-	IoTService iotSvc.Service
-	// DeviceScan is the public device-scan workflow the kiosk scans, pickup
-	// queries, heartbeats and attendance toggles go through (#2698).
-	DeviceScan devicescan.DeviceScan
-	// StaffClock is the public device-scan staff clock the kiosk stamps
-	// through (#2690).
-	StaffClock               devicescan.StaffClock
-	UsersService             usersSvc.PersonService
-	ActiveService            activeSvc.Service
-	ActivitiesService        activitiesSvc.ActivityService
-	SettingsService          configSvc.SettingsService
-	FacilityService          facilitiesSvc.Service
-	EducationService         educationSvc.Service
-	FeedbackService          dataAPI.Feedback
-	FeedbackResponseObserver func(int, string)
-	SchoolService            platformSvc.SchoolService
-	TimetableDataService     *scheduleSvc.TimetableDataService
-	// SessionEnd is the application workflow behind POST /session/end
-	// (#2697): one UnitOfWork over the Presence and Timetable commands.
-	SessionEnd  sessionend.Command
-	Broadcaster realtime.Broadcaster
-	Logger      *slog.Logger
-	DB          *bun.DB
-	// DeviceAuthenticator and DeviceOnlyAuthenticator guard the kiosk route
-	// groups. The Device Fleet composition builds them over one shared
-	// last-seen debouncer; this resource only mounts them.
-	DeviceAuthenticator     common.Middleware
-	DeviceOnlyAuthenticator common.Middleware
-}
-
-// Resource defines the IoT API resource
 type Resource struct {
-	ServiceDependencies
+	configuration devicescan.ConfigurationQuery
+	school        devicescan.SchoolNameQuery
+	runtime       Runtime
 }
 
-// NewResource creates a new IoT resource
-func NewResource(deps ServiceDependencies) *Resource {
-	return &Resource{ServiceDependencies: deps}
+func NewResource(configuration devicescan.ConfigurationQuery, school devicescan.SchoolNameQuery, runtime Runtime) *Resource {
+	return &Resource{configuration: configuration, school: school, runtime: runtime}
 }
 
-// getLogger returns the resource's logger, falling back to slog.Default() if nil.
-func (rs *Resource) getLogger() *slog.Logger {
-	return cmp.Or(rs.Logger, slog.Default())
-}
-
-// Router returns a configured router for IoT endpoints
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
-
-	// Protected routes that require authentication and permissions
-	common.ProtectedTenantGroup(r, rs.DB, func(r chi.Router, withTx common.Middleware) {
-
-		// Mount devices sub-router (handles device CRUD and admin operations)
-		// All device routes require JWT authentication with IOT permissions
-		devicesResource := NewDevicesResource(rs.IoTService)
-		r.With(withTx).Mount("/", devicesResource.Router())
-	})
-
-	// Device-only authenticated routes (API key only, no PIN required)
-	// DeviceOnlyAuthenticator sets tenant context from device.TenantID,
-	// then TenantTxMiddleware wraps the handler in a tenant-scoped transaction
-	// so downstream queries run as phoenix_tenant with RLS enforced.
-	r.Group(func(r chi.Router) {
-		r.Use(device.Required("DeviceOnlyAuthenticator", rs.DeviceOnlyAuthenticator))
-		r.Use(iotMetricsMiddleware)
-		r.Use(common.TenantTxMiddleware)
-
-		// Mount data sub-router for teachers endpoint (device-only auth)
-		dataResource := dataAPI.NewResource(rs.IoTService, rs.UsersService, rs.ActivitiesService, rs.FacilityService, rs.getLogger().With(slog.String("sub", "data")))
-		r.Mount("/teachers", dataResource.TeachersRouter())
-
-		// School name endpoint (device API key → school name)
-		r.Get("/school-name", rs.getSchoolName)
-
-		// Device configuration endpoint (checkout buttons, feedback settings)
-		r.Get("/config", rs.getDeviceConfig)
-	})
-
-	// Device-authenticated routes for RFID devices.
-	// DeviceAuthenticator validates the device credentials and, when supplied,
-	// binds staff identity to a verified account PIN. TenantTxMiddleware then
-	// wraps each handler in a tenant-scoped transaction.
-	r.Group(func(r chi.Router) {
-		r.Use(device.Required("DeviceAuthenticator", rs.DeviceAuthenticator))
-		r.Use(iotMetricsMiddleware)
-		r.Use(common.TenantTxMiddleware)
-
-		// Feedback endpoint (device-based feedback submission)
-		feedbackResource := dataAPI.NewFeedbackResource(rs.UsersService, rs.FeedbackService, rs.FeedbackResponseObserver, rs.getLogger().With(slog.String("sub", "feedback")))
-		r.Post("/feedback", delegateHandler(feedbackResource.Router()))
-
-		// Check-in endpoints (student RFID check-in/checkout workflow)
-		checkinResource := checkinAPI.NewResource(rs.DeviceScan, checkinRuntime(), rs.getLogger().With(slog.String("sub", "checkin")))
-		// Register routes directly instead of mounting at "/" to avoid Chi conflict
-		checkinHandler := delegateHandler(checkinResource.Router())
-		r.Post("/checkin", checkinHandler)
-		r.Post("/pickup-query", checkinHandler)
-		r.Post("/ping", checkinHandler)
-		r.Get("/status", checkinHandler)
-
-		// Pure staff time tracking, independent of activities or groups.
-		staffClockResource := staffclockAPI.NewResource(rs.StaffClock, staffClockRuntime())
-		staffClockHandler := delegateHandler(staffClockResource.Router())
-		r.Post("/staff-clock", staffClockHandler)
-		r.Post("/staff-clock/state", staffClockHandler)
-
-		// Data query endpoints (device + PIN auth)
-		dataResourceAuth := dataAPI.NewResource(rs.IoTService, rs.UsersService, rs.ActivitiesService, rs.FacilityService, rs.getLogger().With(slog.String("sub", "data")))
-		dataHandler := delegateHandler(dataResourceAuth.Router())
-		r.Get("/students", dataHandler)
-		r.Get("/activities", dataHandler)
-		r.Get("/rooms/available", dataHandler)
-		r.Get("/rfid/{tagId}", dataHandler)
-
-		// Mount attendance sub-router (handles daily attendance tracking)
-		attendanceResource := checkinAPI.NewAttendanceResource(rs.DeviceScan, checkinRuntime(), rs.getLogger().With(slog.String("sub", "attendance")))
-		r.Mount("/attendance", attendanceResource.Router())
-
-		// Mount sessions sub-router (handles activity session management and timeout)
-		sessionsResource := sessionsAPI.NewResource(
-			rs.IoTService,
-			rs.UsersService,
-			rs.ActiveService,
-			rs.ActivitiesService,
-			rs.FacilityService,
-			rs.EducationService,
-			rs.SessionEnd,
-		)
-		sessionsResource.ConfigureTimetableMirror(
-			rs.TimetableDataService,
-			rs.Broadcaster,
-		)
-		r.Mount("/session", sessionsResource.Router())
-
-		// Mount RFID sub-router (handles RFID tag assignment/unassignment for staff)
-		rfidResource := dataAPI.NewRFIDResource(rs.UsersService)
-		r.Mount("/staff", rfidResource.Router())
-	})
-
+	r.Get("/config", rs.getDeviceConfig)
+	r.Get("/school-name", rs.getSchoolName)
 	return r
 }
 
-// schoolNameResponse is the payload for GET /school-name.
+func (rs *Resource) requireDevice(w http.ResponseWriter, r *http.Request) bool {
+	if rs.runtime.Authenticated(r.Context()) {
+		return true
+	}
+	rs.runtime.Failure(w, r, http.StatusUnauthorized, errors.New(devicescan.MessageDeviceAPIKeyRequired), "")
+	return false
+}
+
 type schoolNameResponse struct {
 	Name string `json:"name"`
 }
 
-// getSchoolName returns the school name for the authenticated device.
 func (rs *Resource) getSchoolName(w http.ResponseWriter, r *http.Request) {
-	deviceCtx := device.DeviceFromCtx(r.Context())
-	if deviceCtx == nil {
-		slog.WarnContext(r.Context(), "device auth missing API key", slog.String("path", r.URL.Path))
-		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
-			slog.Error("failed to render device auth error", slog.String("error", err.Error()))
-		}
+	if !rs.requireDevice(w, r) {
 		return
 	}
-
-	school, err := rs.SchoolService.GetSchoolByID(r.Context(), deviceCtx.TenantID)
+	name, err := rs.school.DeviceSchoolName(r.Context())
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		rs.runtime.Failure(w, r, http.StatusInternalServerError, err, "")
 		return
 	}
+	rs.runtime.Success(w, r, http.StatusOK, schoolNameResponse{Name: name}, "School name retrieved")
+}
 
-	common.Respond(w, r, http.StatusOK, schoolNameResponse{Name: school.Name}, "School name retrieved")
+func (rs *Resource) getDeviceConfig(w http.ResponseWriter, r *http.Request) {
+	if !rs.requireDevice(w, r) {
+		return
+	}
+	response, err := rs.configuration.DeviceConfiguration(r.Context())
+	if err != nil {
+		rs.runtime.Failure(w, r, http.StatusInternalServerError, err, "failed to resolve device configuration")
+		return
+	}
+	rs.runtime.Success(w, r, http.StatusOK, response, "Device configuration retrieved")
 }

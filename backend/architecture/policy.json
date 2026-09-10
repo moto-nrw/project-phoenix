@@ -729,6 +729,20 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "api/iot/compose",
+      "owner": "inbound-iot",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "api/iot/devices",
+      "owner": "device-fleet",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
       "path": "api/iot/data",
       "owner": "inbound-iot-data",
       "role": "http",
@@ -17855,6 +17869,244 @@
       "source_role": "compose",
       "target_owner": "inbound-emergency",
       "target_role": "http"
+    },
+    {
+      "id": "inbound-iot.compose.inbound-common.http",
+      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-iot",
+      "source_role": "compose",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "inbound-iot.compose.inbound-iot.http",
+      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-iot",
+      "source_role": "compose",
+      "target_owner": "inbound-iot",
+      "target_role": "http"
+    },
+    {
+      "id": "inbound-iot.compose.inbound-iot-checkin.http",
+      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-iot",
+      "source_role": "compose",
+      "target_owner": "inbound-iot-checkin",
+      "target_role": "http"
+    },
+    {
+      "id": "inbound-iot.compose.inbound-iot-data.http",
+      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-iot",
+      "source_role": "compose",
+      "target_owner": "inbound-iot-data",
+      "target_role": "http"
+    },
+    {
+      "id": "inbound-iot.compose.inbound-iot-sessions.http",
+      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-iot",
+      "source_role": "compose",
+      "target_owner": "inbound-iot-sessions",
+      "target_role": "http"
+    },
+    {
+      "id": "inbound-iot.compose.inbound-iot-staffclock.http",
+      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-iot",
+      "source_role": "compose",
+      "target_owner": "inbound-iot-staffclock",
+      "target_role": "http"
+    },
+    {
+      "id": "inbound-iot.compose.device-fleet.http",
+      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-iot",
+      "source_role": "compose",
+      "target_owner": "device-fleet",
+      "target_role": "http"
+    },
+    {
+      "id": "inbound-iot.compose.device-fleet.adapter",
+      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-iot",
+      "source_role": "compose",
+      "target_owner": "device-fleet",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-iot.compose.device-fleet.public",
+      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-iot",
+      "source_role": "compose",
+      "target_owner": "device-fleet",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-iot.compose.process-device-scan.public",
+      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-iot",
+      "source_role": "compose",
+      "target_owner": "process-device-scan",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-iot.compose.session-end.public",
+      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-iot",
+      "source_role": "compose",
+      "target_owner": "session-end",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-iot.compose.tenant-runtime.public",
+      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-iot",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-iot.compose.observability.public",
+      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-iot",
+      "source_role": "compose",
+      "target_owner": "observability",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-iot.compose.orm-sql",
+      "description": "IoT composition binds the HTTP router and ambient database runtime (#2739).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-iot",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "inbound-iot.compose.http-router",
+      "description": "IoT composition binds the HTTP router and ambient database runtime (#2739).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-iot",
+      "source_role": "compose",
+      "target_class": "http-router"
+    },
+    {
+      "id": "root-composition.iot-compose",
+      "description": "The API root mounts the IoT composition over native capabilities (#2739).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "inbound-iot",
+      "target_role": "compose"
+    },
+    {
+      "id": "inbound-iot.compose-test.http-router",
+      "description": "IoT composition tests exercise the assembled route and middleware graph (#2739).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-iot",
+      "source_role": "module-internal-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "inbound-iot.compose-test.device-fleet",
+      "description": "IoT composition tests supply native owner capabilities (#2739).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-iot",
+      "source_role": "module-internal-test",
+      "target_owner": "device-fleet",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-iot.compose-test.process-device-scan",
+      "description": "IoT composition tests supply native owner capabilities (#2739).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-iot",
+      "source_role": "module-internal-test",
+      "target_owner": "process-device-scan",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-iot.compose-test.feedback",
+      "description": "IoT composition tests supply native owner capabilities (#2739).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-iot",
+      "source_role": "module-internal-test",
+      "target_owner": "feedback",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-iot.compose-test.device-scan-compose",
+      "description": "The kiosk composition regression test verifies persisted timetable mirror tenant and wall-clock mapping through the native session lifecycle (#2739).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-iot",
+      "source_role": "module-internal-test",
+      "target_owner": "process-device-scan",
+      "target_role": "compose"
+    },
+    {
+      "id": "inbound-iot.compose.logger-default",
+      "description": "IoT composition uses cmp.Or for the shared logger default; cmp is classified with the test dependency class (#2739).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-iot",
+      "source_role": "compose",
+      "target_class": "test"
     }
   ]
 }

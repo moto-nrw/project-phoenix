@@ -7,17 +7,14 @@ package data_test
 import (
 	"bytes"
 	"encoding/json"
-	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
 	dataAPI "github.com/moto-nrw/project-phoenix/api/iot/data"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -25,7 +22,7 @@ const feedbackEnabledSetting = "feedback.enabled"
 
 // feedbackTestContext holds shared test dependencies.
 type feedbackTestContext struct {
-	db         *bun.DB
+	db         *testpkg.DB
 	resource   *dataAPI.FeedbackResource
 	setEnabled func(bool)
 }
@@ -42,9 +39,10 @@ func setupFeedbackModule(t *testing.T) *feedbackTestContext {
 
 	// Create feedback resource
 	resource := dataAPI.NewFeedbackResource(
-		svc.Users,
+		svc.FeedbackStudents,
 		svc.Feedback,
 		func(int, string) {},
+		testRuntime(),
 		nil,
 	)
 
@@ -75,7 +73,7 @@ func TestSubmitFeedback_NoDevice(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for missing device authentication")
+	assert.Equal(t, 401, rr.Code, "Expected 401 for missing device authentication")
 }
 
 func TestSubmitFeedback_InvalidJSON(t *testing.T) {
@@ -198,7 +196,7 @@ func TestSubmitFeedback_Alumnus(t *testing.T) {
 
 	_, err := ctx.db.NewUpdate().
 		TableExpr(`users.students`).
-		Set("status = ?", string(usersModel.StudentStatusAlumnus)).
+		Set("status = ?", "alumnus").
 		Where("id = ?", student.ID).
 		Exec(t.Context())
 	require.NoError(t, err)
@@ -246,7 +244,7 @@ func TestSubmitFeedback_Success(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
+	testutil.AssertSuccessResponse(t, rr, 201)
 }
 
 func TestSubmitFeedback_NeutralValue(t *testing.T) {
@@ -269,7 +267,7 @@ func TestSubmitFeedback_NeutralValue(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
+	testutil.AssertSuccessResponse(t, rr, 201)
 }
 
 func TestSubmitFeedback_NegativeValue(t *testing.T) {
@@ -292,7 +290,7 @@ func TestSubmitFeedback_NegativeValue(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
+	testutil.AssertSuccessResponse(t, rr, 201)
 }
 
 func TestSubmitFeedback_InvalidValue(t *testing.T) {
@@ -316,7 +314,7 @@ func TestSubmitFeedback_InvalidValue(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	// Should return error for invalid value (validation happens in service)
-	assert.Contains(t, []int{http.StatusBadRequest, http.StatusUnprocessableEntity}, rr.Code)
+	assert.Contains(t, []int{400, 422}, rr.Code)
 }
 
 // =============================================================================
@@ -345,7 +343,7 @@ func TestSubmitFeedback_FeedbackDisabled(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	// Should return 200 with status "skipped"
-	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, 200, rr.Code)
 
 	var response struct {
 		Status string `json:"status"`
@@ -381,5 +379,5 @@ func TestSubmitFeedback_FeedbackEnabled(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	// Should proceed normally and create the entry
-	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
+	testutil.AssertSuccessResponse(t, rr, 201)
 }

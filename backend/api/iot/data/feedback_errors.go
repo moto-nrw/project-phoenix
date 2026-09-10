@@ -2,23 +2,27 @@ package data
 
 import (
 	"errors"
+	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
 	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
 )
 
-// feedbackErrorRenderer maps the Feedback capability errors of the kiosk
-// feedback route to the responses PyrePortal expects. It replaces the part
-// of the retired shared IoT error mapper this route used (#2698).
-var feedbackErrorRenderer = common.RulesRenderer([]common.ErrorRule{
-	{Match: isInvalidEntryData, Render: common.ErrorInvalidRequest},
-	{Target: feedbackModule.ErrEntryNotFound, Render: common.ErrorNotFound},
-	{Target: feedbackModule.ErrInvalidEntryData, Render: common.ErrorInvalidRequest},
-	{Target: feedbackModule.ErrStudentNotFound, Render: common.ErrorNotFound},
-	{Target: feedbackModule.ErrInvalidDateRange, Render: common.ErrorInvalidRequest},
-}, common.ErrorInternalServer)
-
-func isInvalidEntryData(err error) bool {
+// feedbackErrorStatus preserves the ordered Feedback error classification.
+// Rendering the shared envelope belongs to the injected HTTP runtime.
+func feedbackErrorStatus(err error) int {
 	var invalid *feedbackModule.InvalidEntryDataError
-	return errors.As(err, &invalid)
+	switch {
+	case errors.As(err, &invalid):
+		return http.StatusBadRequest
+	case errors.Is(err, feedbackModule.ErrEntryNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, feedbackModule.ErrInvalidEntryData):
+		return http.StatusBadRequest
+	case errors.Is(err, feedbackModule.ErrStudentNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, feedbackModule.ErrInvalidDateRange):
+		return http.StatusBadRequest
+	default:
+		return http.StatusInternalServerError
+	}
 }

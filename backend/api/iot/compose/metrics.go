@@ -1,4 +1,4 @@
-package iot
+package compose
 
 import (
 	"net/http"

@@ -1,7 +1,6 @@
 package sessions_test
 
 import (
-	"net/http"
 	"testing"
 	"time"
 
@@ -33,7 +32,7 @@ func TestEndSession_ClosesPresenceAndMirroredInstance(t *testing.T) {
 		"room_id":        room.ID,
 		"supervisor_ids": []int64{staff.ID},
 	}, testutil.WithDeviceContext(testDevice)))
-	require.Equal(t, http.StatusOK, startRR.Code, startRR.Body.String())
+	require.Equal(t, 200, startRR.Code, startRR.Body.String())
 	startData, ok := testutil.ParseJSONResponse(t, startRR.Body.Bytes())["data"].(map[string]interface{})
 	require.True(t, ok, "start response carries the session")
 	groupID := int64(startData["active_group_id"].(float64))
@@ -67,14 +66,14 @@ func TestEndSession_ClosesPresenceAndMirroredInstance(t *testing.T) {
 	})
 
 	endRR := testutil.ExecuteRequest(router, testutil.NewAuthenticatedRequest(t, "POST", "/end", nil, testutil.WithDeviceContext(testDevice)))
-	testutil.AssertSuccessResponse(t, endRR, http.StatusOK)
+	testutil.AssertSuccessResponse(t, endRR, 200)
 	endData, ok := testutil.ParseJSONResponse(t, endRR.Body.Bytes())["data"].(map[string]interface{})
 	require.True(t, ok, "end response carries the session summary")
 	assert.Equal(t, float64(groupID), endData["active_group_id"])
 	assert.Equal(t, "ended", endData["status"])
 
 	currentRR := testutil.ExecuteRequest(router, testutil.NewAuthenticatedRequest(t, "GET", "/current", nil, testutil.WithDeviceContext(testDevice)))
-	testutil.AssertSuccessResponse(t, currentRR, http.StatusOK)
+	testutil.AssertSuccessResponse(t, currentRR, 200)
 	currentData, ok := testutil.ParseJSONResponse(t, currentRR.Body.Bytes())["data"].(map[string]interface{})
 	require.True(t, ok, "current response carries the device state")
 	assert.Equal(t, false, currentData["is_active"], "the device has no running session any more")

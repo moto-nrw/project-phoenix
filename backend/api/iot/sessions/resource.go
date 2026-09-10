@@ -3,63 +3,22 @@ package sessions
 import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
-	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
-	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
-	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
-	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	"github.com/moto-nrw/project-phoenix/workflows/sessionend"
 )
 
-// Resource defines the Sessions API resource for activity session management
+// Resource is the HTTP adapter for manual kiosk session controls.
 type Resource struct {
-	IoTService        iotSvc.Service
-	UsersService      usersSvc.PersonService
-	ActiveService     activeSvc.Service
-	ActivitiesService activitiesSvc.ActivityService
-	FacilityService   facilitiesSvc.Service
-	EducationService  educationSvc.Service
-	// SessionEnd is the one facade behind POST /end: it closes the presence
-	// session and the mirrored timetable instance in one UnitOfWork (#2697).
-	SessionEnd    sessionend.Command
-	TimetableData *scheduleSvc.TimetableDataService
-	Broadcaster   realtime.Broadcaster
+	Lifecycle  devicescan.SessionLifecycle
+	SessionEnd sessionend.Command
+	runtime    Runtime
 }
 
-// NewResource creates a new Sessions resource
-func NewResource(
-	iotService iotSvc.Service,
-	usersService usersSvc.PersonService,
-	activeService activeSvc.Service,
-	activitiesService activitiesSvc.ActivityService,
-	facilityService facilitiesSvc.Service,
-	educationService educationSvc.Service,
-	sessionEnd sessionend.Command,
-) *Resource {
-	return &Resource{
-		IoTService:        iotService,
-		UsersService:      usersService,
-		ActiveService:     activeService,
-		ActivitiesService: activitiesService,
-		FacilityService:   facilityService,
-		EducationService:  educationService,
-		SessionEnd:        sessionEnd,
+func NewResource(lifecycle devicescan.SessionLifecycle, end sessionend.Command, runtime Runtime) *Resource {
+	if runtime.ParseID == nil || runtime.Authenticated == nil || runtime.Success == nil || runtime.Failure == nil || runtime.MarkRollback == nil {
+		panic("IoT sessions: runtime is required")
 	}
-}
-
-// ConfigureTimetableMirror wires the optional data service used to mirror a
-// starting PyrePortal/RFID session into the timetable instance layer. The
-// session end needs nothing here: the session end workflow owns the
-// completion of the mirrored instance.
-func (rs *Resource) ConfigureTimetableMirror(
-	timetableData *scheduleSvc.TimetableDataService,
-	broadcaster realtime.Broadcaster,
-) {
-	rs.TimetableData = timetableData
-	rs.Broadcaster = broadcaster
+	return &Resource{Lifecycle: lifecycle, SessionEnd: end, runtime: runtime}
 }
 
 // Router returns a configured router for session management endpoints

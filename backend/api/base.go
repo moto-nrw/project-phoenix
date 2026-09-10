@@ -38,7 +38,7 @@ import (
 	calendarAPI "github.com/moto-nrw/project-phoenix/modules/staffcalendar/http"
 
 	importAPI "github.com/moto-nrw/project-phoenix/api/import"
-	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
+	iotAPI "github.com/moto-nrw/project-phoenix/api/iot/compose"
 	remindersAPI "github.com/moto-nrw/project-phoenix/api/reminders"
 	shifttypesAPI "github.com/moto-nrw/project-phoenix/api/shift-types"
 	staffshiftsAPI "github.com/moto-nrw/project-phoenix/api/staff-shifts"
@@ -76,6 +76,7 @@ import (
 	requestFeedHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/http"
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
+	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	displayHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/httpadapter"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
@@ -1304,23 +1305,27 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		Logger:     logger.With("service", "device-scan"),
 	})
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
-		IoTService:        api.Services.IoT,
-		DeviceScan:        deviceScan,
-		StaffClock:        api.Services.StaffClock,
-		UsersService:      api.Services.Users,
-		ActiveService:     api.Services.Active,
-		ActivitiesService: api.Services.Activities,
-		SettingsService:   api.Services.Settings,
-		FacilityService:   api.Services.Facilities,
-		EducationService:  api.Services.Education,
-		FeedbackService:   api.feedback,
+		Administration:   devicefleetCompose.NewAdministration(api.Services.IoT.Fleet()),
+		DeviceScan:       deviceScan,
+		StaffClock:       api.Services.StaffClock,
+		Configuration:    devicescanCompose.NewConfiguration(api.Services.Settings),
+		Rooms:            devicescanCompose.NewRoomAvailability(api.Services.Facilities),
+		Directory:        devicescanCompose.NewDirectory(api.Services.Users, api.Services.Activities, logger),
+		TagAssignments:   devicescanCompose.NewTagAssignments(api.Services.Users, logger),
+		FeedbackStudents: devicescanCompose.NewFeedbackStudents(api.Services.Users),
+		FeedbackService:  api.feedback,
 		FeedbackResponseObserver: func(status int, code string) {
 			observability.ObserveFeedbackHTTPResponse("iot", status, code)
 		},
-		SchoolService:           api.Services.Schools,
-		TimetableDataService:    api.Services.TimetableData,
+		SchoolName: devicescanCompose.NewSchoolName(func(ctx context.Context, id int64) (string, error) {
+			school, err := api.Services.Schools.GetSchoolByID(ctx, id)
+			if err != nil {
+				return "", err
+			}
+			return school.Name, nil
+		}),
 		SessionEnd:              sessionEnd,
-		Broadcaster:             api.Services.RealtimeHub,
+		SessionLifecycle:        devicescanCompose.NewSessionLifecycle(api.Services.Active, api.Services.Users, api.Services.IoT, devicescanCompose.NewSessionMirror(api.Services.TimetableData, api.Services.Activities, services.KioskMirrorPublisher(api.Services.RealtimeHub, logger), logger), logger),
 		Logger:                  logger.With("handler", "iot"),
 		DB:                      db,
 		DeviceAuthenticator:     deviceAuth.Device(),

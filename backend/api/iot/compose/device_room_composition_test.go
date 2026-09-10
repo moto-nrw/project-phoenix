@@ -1,9 +1,11 @@
-package iot
+package compose
 
 import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -20,16 +22,14 @@ func TestAvailableRoomsUsesDeviceTenantComposition(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, db, "tenant-room-device")
 	deviceAuth := testutil.NewDeviceAuthenticators(data.IoT.Fleet(), auth.Schools, auth.StaffPINAuth.AuthenticateStaffPIN, auth.Settings, "1234")
 	resource := NewResource(ServiceDependencies{
-		IoTService:               data.IoT,
-		UsersService:             data.Users,
-		ActivitiesService:        data.Activities,
-		SettingsService:          auth.Settings,
-		FacilityService:          data.Facilities,
+		Administration:           devicefleet.NewAdministration(data.IoT.Fleet()),
+		Configuration:            data.Configuration,
+		Rooms:                    data.RoomAvailability,
 		FeedbackService:          feedback.Feedback,
+		FeedbackStudents:         feedback.FeedbackStudents,
 		FeedbackResponseObserver: func(int, string) {},
 		DeviceScan:               routerDeviceScan{},
 		StaffClock:               routerStaffClock{},
-		SchoolService:            auth.Schools,
 		DB:                       db,
 		DeviceAuthenticator:      deviceAuth.Device(),
 		DeviceOnlyAuthenticator:  deviceAuth.DeviceOnly(),
