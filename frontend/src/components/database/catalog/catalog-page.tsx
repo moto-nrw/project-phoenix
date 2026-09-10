@@ -120,6 +120,8 @@ export interface CatalogConfig<T extends CatalogItem> {
   readonly isReadOnly?: (item: T) => boolean;
   /** Ein Satz, warum dieser Eintrag nicht bearbeitet werden kann. */
   readonly readOnlyHint?: string;
+  /** Neue Auswahlwerte ergänzen den offenen Entwurf, statt ihn zurückzusetzen. */
+  readonly preserveDraftOnSectionsChange?: boolean;
 }
 
 interface CatalogPageProps<T extends CatalogItem> {
@@ -201,25 +203,43 @@ export function CatalogPage<T extends CatalogItem>({
     [visible, config],
   );
 
+  /**
+   * Das Nachladen folgt erst auf einen bereits erfolgreichen Schreibvorgang.
+   * Ein Fehler dabei darf dem Formular nicht vorgaukeln, die Änderung sei
+   * fehlgeschlagen: Sie liegt bereits im Backend und kann nach einem Neuladen
+   * angezeigt werden.
+   */
+  const refreshAfterWrite = useCallback(async () => {
+    try {
+      await onChanged();
+      return true;
+    } catch (err: unknown) {
+      logger.error("catalog_refresh_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      toast.warning("Die Änderung wurde gespeichert. Laden Sie die Seite neu.");
+      return false;
+    }
+  }, [onChanged, toast]);
+
   /** Ein Schreibvorgang mit gemeinsamem Busy-, Fehler- und Nachlade-Vertrag. */
   const runWrite = useCallback(
     async (event: string, fallback: string, write: () => Promise<unknown>) => {
       setBusy(true);
       try {
         await write();
-        await onChanged();
-        return true;
+        return { saved: true, refreshed: await refreshAfterWrite() };
       } catch (err: unknown) {
         logger.error(event, {
           error: err instanceof Error ? err.message : String(err),
         });
         toast.error(messageOf(err, fallback));
-        return false;
+        return { saved: false, refreshed: false };
       } finally {
         setBusy(false);
       }
     },
-    [onChanged, toast],
+    [refreshAfterWrite, toast],
   );
 
   const handleCreate = useCallback(
@@ -228,46 +248,48 @@ export function CatalogPage<T extends CatalogItem>({
       // `DatabaseForm` fängt ihn und zeigt ihn im Alert über den Feldern.
       await config.create(values);
       setCreateOpen(false);
-      await onChanged();
-      toast.success(`${config.singular} angelegt`);
+      if (await refreshAfterWrite()) {
+        toast.success(`${config.singular} angelegt`);
+      }
     },
-    [config, onChanged, toast],
+    [config, refreshAfterWrite, toast],
   );
 
   const handleUpdate = useCallback(
     async (values: Record<string, unknown>) => {
       if (!selected) return;
       await config.update(selected, values);
-      await onChanged();
-      setFormGeneration((generation) => generation + 1);
-      toast.success("Änderungen gespeichert");
+      if (await refreshAfterWrite()) {
+        setFormGeneration((generation) => generation + 1);
+        toast.success("Änderungen gespeichert");
+      }
     },
-    [config, onChanged, selected, toast],
+    [config, refreshAfterWrite, selected, toast],
   );
 
   const handleRetire = useCallback(async () => {
     const target = retireTarget;
     const retire = config.retire;
     if (!target || !retire) return;
-    const ok = await runWrite(
+    const result = await runWrite(
       "catalog_retire_failed",
       `${config.singular} konnte nicht geändert werden.`,
       () => retire.run(target),
     );
     setRetireTarget(null);
-    if (ok) toast.success(retire.toast(target));
+    if (result.saved && result.refreshed) toast.success(retire.toast(target));
   }, [config, retireTarget, runWrite, toast]);
 
   const handleRestore = useCallback(
     async (item: T) => {
       const restore = config.restore;
       if (!restore) return;
-      const ok = await runWrite(
+      const result = await runWrite(
         "catalog_restore_failed",
         `${config.singular} konnte nicht wiederhergestellt werden.`,
         () => restore.run(item),
       );
-      if (ok) toast.success(restore.toast(item));
+      if (result.saved && result.refreshed) toast.success(restore.toast(item));
     },
     [config, runWrite, toast],
   );
@@ -276,15 +298,15 @@ export function CatalogPage<T extends CatalogItem>({
     const target = removeTarget;
     const remove = config.remove;
     if (!target || !remove) return;
-    const ok = await runWrite(
+    const result = await runWrite(
       "catalog_remove_failed",
       `${config.singular} konnte nicht gelöscht werden.`,
       () => remove.run(target),
     );
     setRemoveTarget(null);
-    if (ok) {
+    if (result.saved) {
       select(null);
-      toast.success(remove.toast(target));
+      if (result.refreshed) toast.success(remove.toast(target));
     }
   }, [config, removeTarget, runWrite, select, toast]);
 
@@ -488,6 +510,9 @@ export function CatalogPage<T extends CatalogItem>({
                 }
                 submitLabel="Speichern"
                 stickyActions
+                preserveDraftOnSectionsChange={
+                  config.preserveDraftOnSectionsChange
+                }
               />
             ) : (
               <p className="text-sm text-gray-600">

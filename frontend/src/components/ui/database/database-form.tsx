@@ -270,6 +270,11 @@ interface DatabaseFormProps<T = Record<string, unknown>> {
   readonly submitLabel: string;
   readonly stickyActions?: boolean; // Render sticky action bar like other entity forms
   /**
+   * Ergänzt nachgeladene Felder mit ihren aktuellen Werten, ohne andere Werte
+   * eines offenen Entwurfs zu überschreiben.
+   */
+  readonly preserveDraftOnSectionsChange?: boolean;
+  /**
    * Ueberschriftenebene der Abschnittstitel. Default 2 fuer die
    * Master-Detail-Ansicht, wo das Formular direkt im Inhaltsbereich steht.
    * DatabaseFormModal setzt 4, weil Modal seinen Titel als h3 rendert und die
@@ -287,6 +292,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
   error: externalError,
   submitLabel,
   stickyActions = false,
+  preserveDraftOnSectionsChange = false,
   sectionLevel = 2,
 }: DatabaseFormProps<T>) {
   const privacyStudentId =
@@ -316,6 +322,8 @@ export function DatabaseForm<T = Record<string, unknown>>({
   );
   const loadedFieldsRef = useRef<Set<string>>(new Set());
   const dirtyPrivacyFieldsRef = useRef<Set<string>>(new Set());
+  const hasInitializedFormRef = useRef(false);
+  const renderedFieldNamesRef = useRef<Set<string>>(new Set());
   // Track mount state to avoid setState on unmounted component
   const isMountedRef = useRef(true);
 
@@ -342,9 +350,36 @@ export function DatabaseForm<T = Record<string, unknown>>({
       applyInitialData(initialFormData, initialData, sections);
     }
 
+    if (preserveDraftOnSectionsChange && hasInitializedFormRef.current) {
+      const fieldNames = new Set(
+        sections.flatMap((section) =>
+          section.fields.map((field) => field.name),
+        ),
+      );
+      const previousFieldNames = renderedFieldNamesRef.current;
+      setFormData((currentFormData) => {
+        const nextFormData = { ...currentFormData };
+        for (const [name, value] of Object.entries(initialFormData)) {
+          // Ein Feld, das vorher nicht sichtbar war, konnte noch nicht
+          // geändert werden. Sein frischer Anfangswert ist deshalb sicherer
+          // als ein eventuell schon im Hintergrund vorhandener Wert.
+          if (!previousFieldNames.has(name) || !(name in nextFormData)) {
+            nextFormData[name] = value;
+          }
+        }
+        return nextFormData;
+      });
+      renderedFieldNamesRef.current = fieldNames;
+      return;
+    }
+
     dirtyPrivacyFieldsRef.current.clear();
     setFormData(initialFormData);
-  }, [initialData, sections]);
+    hasInitializedFormRef.current = true;
+    renderedFieldNamesRef.current = new Set(
+      sections.flatMap((section) => section.fields.map((field) => field.name)),
+    );
+  }, [initialData, preserveDraftOnSectionsChange, sections]);
 
   // Apply separately fetched consent without resetting unrelated form edits.
   // Preserve consent fields too once the user has changed them locally.

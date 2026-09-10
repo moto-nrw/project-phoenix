@@ -176,6 +176,7 @@ function ShiftTypesPageContent() {
       searchPlaceholder: "Schichtart suchen…",
       emptyDescription:
         "Legen Sie eine Schichtart an oder fügen Sie die Beispiele hinzu, damit der Dienstplan Schichten benennen kann.",
+      preserveDraftOnSectionsChange: true,
       stats: (types) => {
         const inactive = types.filter((type) => !type.isActive).length;
         const active = types.length - inactive;

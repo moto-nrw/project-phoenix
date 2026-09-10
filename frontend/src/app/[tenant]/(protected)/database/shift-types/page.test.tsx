@@ -166,6 +166,21 @@ describe("Schichtarten — Kategorie-Zuordnung (#1837, #3114)", () => {
     );
   });
 
+  it("keeps an in-progress draft when categories finish loading", async () => {
+    setCategories({ data: undefined, isLoading: true });
+    const { rerender } = render(<ShiftTypesPage />);
+
+    fireEvent.change(screen.getByDisplayValue("Betreuung"), {
+      target: { value: "Neue Betreuung" },
+    });
+
+    setCategories({ data: CATEGORIES });
+    rerender(<ShiftTypesPage />);
+
+    expect(screen.getByDisplayValue("Neue Betreuung")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Essen")).toBeInTheDocument());
+  });
+
   it("omits the mapping while the categories are still loading", async () => {
     setCategories({ data: undefined, isLoading: true });
     render(<ShiftTypesPage />);

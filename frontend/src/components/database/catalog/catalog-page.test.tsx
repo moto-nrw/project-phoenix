@@ -22,11 +22,12 @@ vi.mock("next/navigation", () => ({
 
 const toastSuccess = vi.hoisted(() => vi.fn());
 const toastError = vi.hoisted(() => vi.fn());
+const toastWarning = vi.hoisted(() => vi.fn());
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => ({
     success: toastSuccess,
     error: toastError,
-    warning: vi.fn(),
+    warning: toastWarning,
     info: vi.fn(),
     remove: vi.fn(),
   }),
@@ -115,10 +116,11 @@ function renderPage(
     items?: Sorte[];
     configOverrides?: Partial<CatalogConfig<Sorte>>;
     canManage?: boolean;
+    onChanged?: () => Promise<unknown>;
   } = {},
 ) {
   const built = buildConfig(options.configOverrides);
-  const onChanged = vi.fn().mockResolvedValue(undefined);
+  const onChanged = options.onChanged ?? vi.fn().mockResolvedValue(undefined);
   render(
     <CatalogPage
       config={built.config}
@@ -228,6 +230,22 @@ describe("CatalogPage", () => {
     expect(onChanged).toHaveBeenCalled();
   });
 
+  it("keeps a saved edit successful when the refresh fails", async () => {
+    const onChanged = vi.fn().mockRejectedValue(new Error("nicht erreichbar"));
+    const { update } = renderPage({ selectedId: "1", onChanged });
+
+    fireEvent.change(screen.getByDisplayValue("Essen"), {
+      target: { value: "Mittagessen" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => expect(update).toHaveBeenCalled());
+    expect(toastError).not.toHaveBeenCalled();
+    expect(toastWarning).toHaveBeenCalledWith(
+      "Die Änderung wurde gespeichert. Laden Sie die Seite neu.",
+    );
+  });
+
   it("asks before taking an entry out of the selection", async () => {
     const { retire } = renderPage({ selectedId: "1" });
 
@@ -240,6 +258,21 @@ describe("CatalogPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Archivieren" }));
 
     await waitFor(() => expect(retire).toHaveBeenCalledWith(ITEMS[0]));
+  });
+
+  it("keeps a completed archive successful when the refresh fails", async () => {
+    const onChanged = vi.fn().mockRejectedValue(new Error("nicht erreichbar"));
+    const { retire } = renderPage({ selectedId: "1", onChanged });
+
+    fireEvent.click(screen.getByRole("button", { name: /Aktionen für Essen/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Archivieren" }));
+    fireEvent.click(screen.getByRole("button", { name: "Archivieren" }));
+
+    await waitFor(() => expect(retire).toHaveBeenCalledWith(ITEMS[0]));
+    expect(toastError).not.toHaveBeenCalled();
+    expect(toastWarning).toHaveBeenCalledWith(
+      "Die Änderung wurde gespeichert. Laden Sie die Seite neu.",
+    );
   });
 
   it("offers a retired entry back", async () => {
