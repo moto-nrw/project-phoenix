@@ -954,8 +954,6 @@ export const appChapters: readonly GuideChapter[] = [
         steps: [
           "`Aktuelle Aufsicht` öffnen und Raum oder Aktivität wählen. Welche Räume hier stehen, entscheidet Ihre Schule: entweder nur die Räume, die Sie selbst übernommen haben, oder alle Räume der Schule.",
           "Eigene laufende Aufsichten erkennen Sie am Hinweis `Eigene Aufsicht`.",
-          "Dort können Sie `Betreuer hinzufügen` wählen. Schon eingetragene Personen stehen nicht noch einmal zur Auswahl.",
-          "Person auswählen und mit `Hinzufügen` bestätigen. Die Person betreut diese Aufsicht ab sofort mit.",
           "Bereich `Erwartet` prüfen.",
           "Kinder mit späterer Ankunft stehen unter `Kommt später`. Dort steht die Uhrzeit, zum Beispiel `Kommt um 13:45 Uhr`.",
           "`Erwartete bestätigen` checkt alle Kinder unter `Erwartet` ein. Kinder unter `Kommt später` sind nicht dabei.",
@@ -980,7 +978,7 @@ export const appChapters: readonly GuideChapter[] = [
           body: "Wird einer Aktivität eine ganze Gruppe, Klasse oder Jahrgangsstufe zugewiesen, gehören alle Kinder dauerhaft dazu. Wer laut seinen `Betreuungszeiten` an diesem Wochentag gar nicht in der OGS ist, erscheint deshalb grau als `Nicht eingeplant` und zählt nicht zu `Erwartet`. Das Kind bleibt trotzdem in der Liste: Kommt es doch, checken Sie es ganz normal ein. Kinder ohne hinterlegte Betreuungszeiten gelten weiterhin als erwartet.",
         },
         screenshot:
-          "Dialog Betreuer hinzufügen mit der schon eingetragenen Aufsicht und einer ausgewählten weiteren Person.",
+          "Dialog `Kind ungeplant hinzufügen` mit Suchfeld und mehreren Kindern zur Auswahl.",
         image: "/help/screens/aktuelle-aufsicht.webp",
       },
       {
