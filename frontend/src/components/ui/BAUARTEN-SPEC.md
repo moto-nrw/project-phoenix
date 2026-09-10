@@ -94,6 +94,14 @@ keine zweite Ansicht.
    nicht.
 5. **Fehler stehen im `Alert` oben im Bearbeiten-Bereich und, wo zuordenbar,
    am Feld.** Kein Toast als einzige Fehlermeldung, kein roter Absatz.
+   Der Platz dafür ist fest: `error` an `FormModal`, `error` an
+   `SlideOverBody`, sonst `FormErrorAlert` als erstes Element des
+   Formulars; das Feld trägt seinen Fehler über das `error`-Prop des
+   Kit-Felds. Der Alert scrollt sich beim Erscheinen in den sichtbaren
+   Bereich, weil ein langes Formular beim Speichern meist am Fuß steht.
+   Ein Fehler-Toast aus dem Speichern-Handler entfällt ganz, auch neben
+   einem Alert: eine Meldung, an einem Ort (#3113). Erfolgs-Toasts und
+   Toasts für Aktionen ohne Formular (Löschen, Umschalten, Laden) bleiben.
 6. **Löschen ist portalweit ein Muster:** `ConfirmDeleteModal`. Die
    Texteingabe-Bestätigung ist die Stufe für Unwiderrufliches mit
    Datenverlust, sonst reicht die einfache Rückfrage. Kein `window.confirm`,
@@ -214,6 +222,17 @@ bekommt eine shrink-only Baseline analog zum bestehenden
    eines Formular-Chips sind ausgenommen. Shrink-only Baseline je Datei für
    den Bestand, den #3111 auf Folge-PRs verteilt; Operator-, Eltern- und
    Schul-Portal sind nicht im Scope.
+10. `bauart/no-toast-form-error` — kein Fehler-Toast aus dem
+    Speichern-Handler eines Formulars (Bauart 2 Regel 5). **Umgesetzt**
+    (`scripts/oxlint-plugin-bauart.mjs`, hard-zero, #3113): ein
+    `toast.error`/`toast.warning` (auch die Aliasse `toastError`,
+    `toastWarning`) innerhalb einer Funktion, die ein Formular speichert,
+    fällt durch. Als Speichern-Handler gilt eine Funktion, die
+    `handleSave`, `handleSubmit`, `onSubmit`, `save…` oder `submit…` heißt,
+    einen `FormEvent`-Parameter hat oder selbst `preventDefault()` ruft;
+    Rückrufe darin (`.catch(() => toast.error(…))`) zählen mit. Erfolgs-
+    Toasts und Toasts außerhalb solcher Handler sind frei. Operator-,
+    Eltern- und Schul-Portal sind nicht im Scope.
 
 ## Reihenfolge der Umsetzung
 
