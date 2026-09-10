@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -14,6 +15,10 @@ import (
 )
 
 type IoTDataTestModule struct {
+	RoomAvailability devicescanCompose.RoomAvailability
+	Configuration    devicescanCompose.ConfigurationQuery
+	Directory        devicescanCompose.Directory
+	TagAssignments   devicescanCompose.TagAssignments
 	ActivitiesTestModule
 	DeviceTestModule
 	Facilities facilities.Service
@@ -79,5 +84,5 @@ func NewIoTDataTestModule(db *bun.DB, unit tenant.UnitOfWork) (IoTDataTestModule
 		return IoTDataTestModule{}, err
 	}
 	activities.Users = identity.Users
-	return IoTDataTestModule{ActivitiesTestModule: activities, DeviceTestModule: devices, Facilities: facility}, nil
+	return IoTDataTestModule{ActivitiesTestModule: activities, DeviceTestModule: devices, Facilities: facility, Configuration: devicescanCompose.NewConfiguration(settings.Settings), RoomAvailability: devicescanCompose.NewRoomAvailability(facility), Directory: devicescanCompose.NewDirectory(identity.Users, activities.Activities, nil), TagAssignments: identity.TagAssignments}, nil
 }

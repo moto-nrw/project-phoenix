@@ -19,6 +19,7 @@ import (
 // Device is the authenticated kiosk of a request.
 type Device struct {
 	ID         int64
+	TenantID   int64
 	DeviceID   string
 	DeviceType string
 	Name       *string
@@ -42,20 +43,22 @@ type Person struct {
 	FirstName string
 	LastName  string
 	HasTag    bool
+	TagID     *string
 }
 
 // Student is the school membership of a person. Alumnus marks a graduated
 // child the kiosk must treat like an unknown card.
 type Student struct {
-	ID          int64
-	PersonID    int64
-	GroupID     *int64
-	SchoolClass string
-	Alumnus     bool
+	ID            int64
+	PersonID      int64
+	GroupID       *int64
+	SchoolClass   string
+	Alumnus       bool
+	EnrolledUntil *timezone.Date
 }
 
 // StaffMember is the staff record of a person.
-type StaffMember struct{ ID int64 }
+type StaffMember struct{ ID, PersonID int64 }
 
 // ErrPersonNotFound reports a card that belongs to nobody.
 var ErrPersonNotFound = errors.New("person not found")

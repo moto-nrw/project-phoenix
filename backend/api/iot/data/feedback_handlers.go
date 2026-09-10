@@ -1,34 +1,26 @@
 package data
 
 import (
-	"database/sql"
 	"errors"
 	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/device"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
 )
 
 // deviceSubmitFeedback handles feedback submission from RFID devices
 func (rs *FeedbackResource) deviceSubmitFeedback(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device from context
-	deviceCtx := device.DeviceFromCtx(r.Context())
-
-	if deviceCtx == nil {
-		slog.WarnContext(r.Context(), "device auth missing API key", slog.String("path", r.URL.Path))
-		if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		}
+	deviceCtx, ok := rs.runtime.requireDevice(w, r)
+	if !ok {
 		rs.ObserveResponse(http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
-	rs.getLogger().InfoContext(r.Context(), "starting feedback submission",
+	rs.Logger.InfoContext(r.Context(), "starting feedback submission",
 		slog.String("device_id", deviceCtx.DeviceID),
 		slog.Int64("device_db_id", deviceCtx.ID),
 	)
@@ -37,13 +29,13 @@ func (rs *FeedbackResource) deviceSubmitFeedback(w http.ResponseWriter, r *http.
 	// Resolution failures are operational failures, not permission to write.
 	enabled, err := rs.FeedbackService.Available(r.Context())
 	if err != nil {
-		rs.getLogger().ErrorContext(r.Context(), "failed to resolve feedback availability", slog.String("error", err.Error()))
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		rs.Logger.ErrorContext(r.Context(), "failed to resolve feedback availability", slog.String("error", err.Error()))
+		rs.runtime.Failure(w, r, http.StatusInternalServerError, err, "")
 		rs.ObserveResponse(http.StatusInternalServerError, "internal_error")
 		return
 	}
 	if !enabled {
-		common.Respond(w, r, http.StatusOK, map[string]interface{}{
+		rs.runtime.Success(w, r, http.StatusOK, map[string]interface{}{
 			"status": "skipped",
 			"reason": "feedback_disabled",
 		}, "Feedback is disabled for this tenant")
@@ -54,16 +46,16 @@ func (rs *FeedbackResource) deviceSubmitFeedback(w http.ResponseWriter, r *http.
 	// Parse request
 	req := &IoTFeedbackRequest{}
 	if err := render.Bind(r, req); err != nil {
-		rs.getLogger().ErrorContext(r.Context(), "invalid feedback request",
+		rs.Logger.ErrorContext(r.Context(), "invalid feedback request",
 			slog.String("device_id", deviceCtx.DeviceID),
 			slog.String("error", err.Error()),
 		)
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		rs.runtime.Failure(w, r, http.StatusBadRequest, err, "")
 		rs.ObserveResponse(http.StatusBadRequest, "invalid_parameters")
 		return
 	}
 
-	rs.getLogger().DebugContext(r.Context(), "received feedback",
+	rs.Logger.DebugContext(r.Context(), "received feedback",
 		slog.Int64("student_id", req.StudentID),
 		slog.String("value", req.Value),
 	)
@@ -78,22 +70,22 @@ func (rs *FeedbackResource) deviceSubmitFeedback(w http.ResponseWriter, r *http.
 	// would catch it. Under the lock the two serialize — either graduation
 	// commits first and we see the alumnus status, or we hold the row and it
 	// waits for our entry to be visible to its own pass (#405 review).
-	student, err := rs.UsersService.GetStudentByIDForUpdate(r.Context(), req.StudentID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		rs.getLogger().ErrorContext(r.Context(), "failed to lookup student",
+	student, err := rs.Students.LockFeedbackStudent(r.Context(), req.StudentID)
+	if err != nil && !errors.Is(err, devicescan.ErrFeedbackStudentNotFound) {
+		rs.Logger.ErrorContext(r.Context(), "failed to lookup student",
 			slog.Int64("student_id", req.StudentID),
 			slog.String("error", err.Error()),
 		)
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		rs.runtime.Failure(w, r, http.StatusInternalServerError, err, "")
 		rs.ObserveResponse(http.StatusInternalServerError, "internal_error")
 		return
 	}
 
-	if errors.Is(err, sql.ErrNoRows) {
-		rs.getLogger().WarnContext(r.Context(), "student not found",
+	if errors.Is(err, devicescan.ErrFeedbackStudentNotFound) {
+		rs.Logger.WarnContext(r.Context(), "student not found",
 			slog.Int64("student_id", req.StudentID),
 		)
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("student not found")))
+		rs.runtime.Failure(w, r, http.StatusNotFound, errors.New("student not found"), "")
 		rs.ObserveResponse(http.StatusNotFound, "student_not_found")
 		return
 	}
@@ -105,22 +97,22 @@ func (rs *FeedbackResource) deviceSubmitFeedback(w http.ResponseWriter, r *http.
 	// read above. Answered with the same "student not found" 404 the
 	// unknown-student branch above returns, so PyrePortal needs no new error
 	// mapping (#405).
-	if student.IsAlumnus() {
-		rs.getLogger().InfoContext(r.Context(), "feedback rejected: student graduated",
+	if student.Alumnus {
+		rs.Logger.InfoContext(r.Context(), "feedback rejected: student graduated",
 			slog.Int64("student_id", req.StudentID),
 		)
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("student not found")))
+		rs.runtime.Failure(w, r, http.StatusNotFound, errors.New("student not found"), "")
 		rs.ObserveResponse(http.StatusNotFound, "student_not_found")
 		return
 	}
 
-	rs.getLogger().DebugContext(r.Context(), "student validated",
+	rs.Logger.DebugContext(r.Context(), "student validated",
 		slog.Int64("student_id", student.ID),
 	)
 
 	// Create feedback entry with server-side timestamps
 	now := time.Now()
-	day, feedbackTime := feedbackTimestamp(now)
+	day, feedbackTime := feedbackModule.TimestampParts(now)
 	input := feedbackModule.CreateEntry{
 		StudentID:       req.StudentID,
 		Value:           req.Value,
@@ -132,20 +124,16 @@ func (rs *FeedbackResource) deviceSubmitFeedback(w http.ResponseWriter, r *http.
 	// Create feedback entry (validation happens in service layer)
 	entry, err := rs.FeedbackService.Submit(r.Context(), input)
 	if err != nil {
-		rs.getLogger().ErrorContext(r.Context(), "failed to create feedback entry",
+		rs.Logger.ErrorContext(r.Context(), "failed to create feedback entry",
 			slog.String("error", err.Error()),
 		)
-		renderer := feedbackErrorRenderer(err)
-		status := http.StatusInternalServerError
-		if response, ok := renderer.(*common.ErrResponse); ok {
-			status = response.HTTPStatusCode
-		}
-		common.RenderError(w, r, renderer)
+		status := feedbackErrorStatus(err)
+		rs.runtime.Failure(w, r, status, err, "")
 		rs.ObserveResponse(status, feedbackModule.ErrorCode(err))
 		return
 	}
 
-	rs.getLogger().InfoContext(r.Context(), "created feedback entry",
+	rs.Logger.InfoContext(r.Context(), "created feedback entry",
 		slog.Int64("entry_id", entry.ID),
 		slog.Int64("student_id", req.StudentID),
 	)
@@ -160,11 +148,6 @@ func (rs *FeedbackResource) deviceSubmitFeedback(w http.ResponseWriter, r *http.
 		"created_at": entry.CreatedAt,
 	}
 
-	common.Respond(w, r, http.StatusCreated, response, "Feedback submitted successfully")
+	rs.runtime.Success(w, r, http.StatusCreated, response, "Feedback submitted successfully")
 	rs.ObserveResponse(http.StatusCreated, "none")
-}
-
-func feedbackTimestamp(now time.Time) (feedbackModule.Date, string) {
-	now = now.In(timezone.Berlin)
-	return feedbackModule.Date(timezone.DateFromTime(now).String()), now.Format("15:04:05")
 }

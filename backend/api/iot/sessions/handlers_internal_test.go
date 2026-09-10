@@ -3,32 +3,29 @@ package sessions
 import (
 	"context"
 	"errors"
-	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/devicescan"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/device"
-	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/iot"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/sessionend"
 )
 
 // endSessionActiveServiceStub answers the one read the session-end handler
 // still makes: which session runs on the calling device.
 type endSessionActiveServiceStub struct {
-	activeSvc.Service
-	session *active.Group
+	devicescan.SessionLifecycle
+	session devicescan.SessionToEnd
 	err     error
 }
 
-func (s *endSessionActiveServiceStub) GetDeviceCurrentSession(context.Context, int64) (*active.Group, error) {
+func (s *endSessionActiveServiceStub) SessionToEnd(context.Context) (devicescan.SessionToEnd, error) {
 	return s.session, s.err
 }
 
@@ -45,13 +42,11 @@ func (s *sessionEndStub) EndSession(_ context.Context, activeGroupID int64) (ses
 	return s.result, s.err
 }
 
-func endSessionRequest(t *testing.T) *http.Request {
+func endSessionRequest(t *testing.T) *testpkg.HTTPRequest {
 	t.Helper()
-	dev := &iot.Device{}
-	dev.ID = 9
-	req := httptest.NewRequest(http.MethodPost, "/end", nil)
-	req = req.WithContext(context.WithValue(req.Context(), device.CtxDevice, testutil.DevicePrincipal(dev)))
-	return req.WithContext(tenant.WithRollbackMarker(req.Context()))
+	req := httptest.NewRequest("POST", "/end", nil)
+	testutil.WithDeviceIdentity(9, "end-device")(req)
+	return req.WithContext(testutil.WithRollbackMarker(req.Context()))
 }
 
 // The handler resolves the device's session and hands exactly that session to
@@ -61,21 +56,22 @@ func TestEndActivitySessionDelegatesToTheSessionEndWorkflow(t *testing.T) {
 
 	startedAt := time.Now().Add(-90 * time.Minute)
 	endedAt := time.Now()
-	session := &active.Group{StartTime: startedAt}
+	session := devicescan.SessionToEnd{StartTime: startedAt}
 	session.ID = 66
 	workflow := &sessionEndStub{result: sessionend.Result{ActiveGroupID: 66, EndedAt: endedAt, StudentsCheckedOut: 2}}
 	rs := &Resource{
-		ActiveService: &endSessionActiveServiceStub{session: session},
-		SessionEnd:    workflow,
+		Lifecycle:  &endSessionActiveServiceStub{session: session},
+		runtime:    testRuntime(),
+		SessionEnd: workflow,
 	}
 	req := endSessionRequest(t)
 	rr := httptest.NewRecorder()
 
 	rs.endActivitySession(rr, req)
 
-	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	require.Equal(t, 200, rr.Code, rr.Body.String())
 	assert.Equal(t, []int64{66}, workflow.ended)
-	assert.False(t, tenant.RollbackRequested(req.Context()))
+	assert.False(t, testutil.RollbackRequested(req.Context()))
 	body := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 	data, ok := body["data"].(map[string]interface{})
 	require.True(t, ok, "response carries the session summary: %v", body)
@@ -94,18 +90,19 @@ func TestEndActivitySessionMapsWorkflowErrorsAndRollsBack(t *testing.T) {
 		err    error
 		status int
 	}{
-		"already ended": {err: sessionend.ErrSessionAlreadyEnded, status: http.StatusBadRequest},
-		"not found":     {err: sessionend.ErrSessionNotFound, status: http.StatusNotFound},
-		"owner failure": {err: errors.New("attendance finalization failed"), status: http.StatusInternalServerError},
+		"already ended": {err: sessionend.ErrSessionAlreadyEnded, status: 400},
+		"not found":     {err: sessionend.ErrSessionNotFound, status: 404},
+		"owner failure": {err: errors.New("attendance finalization failed"), status: 500},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			session := &active.Group{StartTime: time.Now()}
+			session := devicescan.SessionToEnd{StartTime: time.Now()}
 			session.ID = 66
 			rs := &Resource{
-				ActiveService: &endSessionActiveServiceStub{session: session},
-				SessionEnd:    &sessionEndStub{err: tc.err},
+				Lifecycle:  &endSessionActiveServiceStub{session: session},
+				runtime:    testRuntime(),
+				SessionEnd: &sessionEndStub{err: tc.err},
 			}
 			req := endSessionRequest(t)
 			rr := httptest.NewRecorder()
@@ -113,7 +110,7 @@ func TestEndActivitySessionMapsWorkflowErrorsAndRollsBack(t *testing.T) {
 			rs.endActivitySession(rr, req)
 
 			assert.Equal(t, tc.status, rr.Code, rr.Body.String())
-			assert.True(t, tenant.RollbackRequested(req.Context()), "a failed close must not commit")
+			assert.True(t, testutil.RollbackRequested(req.Context()), "a failed close must not commit")
 		})
 	}
 }
@@ -124,13 +121,14 @@ func TestEndActivitySessionWithoutSessionSkipsTheWorkflow(t *testing.T) {
 
 	workflow := &sessionEndStub{}
 	rs := &Resource{
-		ActiveService: &endSessionActiveServiceStub{err: &activeSvc.ActiveError{Op: "GetDeviceCurrentSession", Err: activeSvc.ErrNoActiveSession}},
-		SessionEnd:    workflow,
+		Lifecycle:  &endSessionActiveServiceStub{err: devicescan.InvalidRequest("no active session to end")},
+		runtime:    testRuntime(),
+		SessionEnd: workflow,
 	}
 	rr := httptest.NewRecorder()
 
 	rs.endActivitySession(rr, endSessionRequest(t))
 
-	assert.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+	assert.Equal(t, 400, rr.Code, rr.Body.String())
 	assert.Empty(t, workflow.ended)
 }

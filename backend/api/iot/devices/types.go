@@ -1,4 +1,4 @@
-package iot
+package devices
 
 import (
 	"context"
@@ -7,24 +7,22 @@ import (
 	"time"
 
 	validation "github.com/go-ozzo/ozzo-validation"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/models/iot"
-	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
+	devicefleet "github.com/moto-nrw/project-phoenix/modules/devicefleet"
 )
 
 // DeviceResponse represents a device API response
 type DeviceResponse struct {
-	ID             int64        `json:"id"`
-	DeviceID       string       `json:"device_id"`
-	DeviceType     string       `json:"device_type"`
-	Name           *string      `json:"name,omitempty"`
-	Status         string       `json:"status"`
-	LastSeen       *common.Time `json:"last_seen,omitempty"`
-	RegisteredByID *int64       `json:"registered_by_id,omitempty"`
-	RoomName       *string      `json:"room_name,omitempty"`
-	IsOnline       bool         `json:"is_online"`
-	CreatedAt      common.Time  `json:"created_at"`
-	UpdatedAt      common.Time  `json:"updated_at"`
+	ID             int64     `json:"id"`
+	DeviceID       string    `json:"device_id"`
+	DeviceType     string    `json:"device_type"`
+	Name           *string   `json:"name,omitempty"`
+	Status         string    `json:"status"`
+	LastSeen       *wireTime `json:"last_seen,omitempty"`
+	RegisteredByID *int64    `json:"registered_by_id,omitempty"`
+	RoomName       *string   `json:"room_name,omitempty"`
+	IsOnline       bool      `json:"is_online"`
+	CreatedAt      wireTime  `json:"created_at"`
+	UpdatedAt      wireTime  `json:"updated_at"`
 }
 
 // DeviceCreationResponse represents a device creation response with API key
@@ -53,7 +51,7 @@ func (req *DeviceRequest) Bind(_ *http.Request) error {
 
 	// Validate status only if provided
 	if req.Status != "" {
-		if !isValidDeviceStatus(iot.DeviceStatus(req.Status)) {
+		if !isValidDeviceStatus(devicefleet.DeviceStatus(req.Status)) {
 			return errors.New("invalid device status")
 		}
 	}
@@ -70,10 +68,10 @@ type DeviceStatusRequest struct {
 func (req *DeviceStatusRequest) Bind(_ *http.Request) error {
 	return validation.ValidateStruct(req,
 		validation.Field(&req.Status, validation.Required, validation.In(
-			string(iot.DeviceStatusActive),
-			string(iot.DeviceStatusInactive),
-			string(iot.DeviceStatusMaintenance),
-			string(iot.DeviceStatusOffline),
+			string(devicefleet.DeviceStatusActive),
+			string(devicefleet.DeviceStatusInactive),
+			string(devicefleet.DeviceStatusMaintenance),
+			string(devicefleet.DeviceStatusOffline),
 		)),
 	)
 }
@@ -97,7 +95,7 @@ type NetworkScanResponse struct {
 // newDeviceResponse converts a device model to a response object. The
 // online/offline decision is resolved by the IoT service (issue #586, Rule 12)
 // rather than the model.
-func newDeviceResponse(ctx context.Context, svc iotSvc.Service, device *iot.Device) DeviceResponse {
+func newDeviceResponse(ctx context.Context, svc devicefleet.Administration, device *devicefleet.Device) DeviceResponse {
 	response := DeviceResponse{
 		ID:             device.ID,
 		DeviceID:       device.DeviceID,
@@ -107,12 +105,12 @@ func newDeviceResponse(ctx context.Context, svc iotSvc.Service, device *iot.Devi
 		RegisteredByID: device.RegisteredByID,
 		RoomName:       device.RoomName,
 		IsOnline:       svc.IsDeviceOnline(ctx, device),
-		CreatedAt:      common.Time(device.CreatedAt),
-		UpdatedAt:      common.Time(device.UpdatedAt),
+		CreatedAt:      wireTime(device.CreatedAt),
+		UpdatedAt:      wireTime(device.UpdatedAt),
 	}
 
 	if device.LastSeen != nil {
-		lastSeen := common.Time(*device.LastSeen)
+		lastSeen := wireTime(*device.LastSeen)
 		response.LastSeen = &lastSeen
 	}
 
@@ -120,7 +118,7 @@ func newDeviceResponse(ctx context.Context, svc iotSvc.Service, device *iot.Devi
 }
 
 // newDeviceResponses converts a slice of device models to response objects
-func newDeviceResponses(ctx context.Context, svc iotSvc.Service, devices []*iot.Device) []DeviceResponse {
+func newDeviceResponses(ctx context.Context, svc devicefleet.Administration, devices []*devicefleet.Device) []DeviceResponse {
 	responses := make([]DeviceResponse, 0, len(devices))
 	for _, device := range devices {
 		responses = append(responses, newDeviceResponse(ctx, svc, device))
@@ -129,7 +127,7 @@ func newDeviceResponses(ctx context.Context, svc iotSvc.Service, devices []*iot.
 }
 
 // newDeviceCreationResponse converts a device model to a creation response object with API key
-func newDeviceCreationResponse(ctx context.Context, svc iotSvc.Service, device *iot.Device) DeviceCreationResponse {
+func newDeviceCreationResponse(ctx context.Context, svc devicefleet.Administration, device *devicefleet.Device) DeviceCreationResponse {
 	response := DeviceCreationResponse{
 		DeviceResponse: newDeviceResponse(ctx, svc, device),
 	}
@@ -143,9 +141,9 @@ func newDeviceCreationResponse(ctx context.Context, svc iotSvc.Service, device *
 }
 
 // isValidDeviceStatus validates a device status value
-func isValidDeviceStatus(status iot.DeviceStatus) bool {
+func isValidDeviceStatus(status devicefleet.DeviceStatus) bool {
 	switch status {
-	case iot.DeviceStatusActive, iot.DeviceStatusInactive, iot.DeviceStatusMaintenance, iot.DeviceStatusOffline:
+	case devicefleet.DeviceStatusActive, devicefleet.DeviceStatusInactive, devicefleet.DeviceStatusMaintenance, devicefleet.DeviceStatusOffline:
 		return true
 	}
 	return false

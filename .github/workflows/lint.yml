@@ -67,7 +67,9 @@ jobs:
         run: go test ./database/migrations/ -run TestNoDuplicateMigrationVersions -v
 
       - name: Run dead code detection
-        run: scripts/check-deadcode.sh
+        run: |
+          bash scripts/check-deadcode_test.sh
+          scripts/check-deadcode.sh
 
       - name: Check Go dependency licenses
         working-directory: backend

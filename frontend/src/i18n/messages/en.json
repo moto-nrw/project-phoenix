@@ -1281,6 +1281,13 @@
     "saved": "Saved",
     "saveError": "The change could not be saved.",
     "editableHint": "Changes are saved automatically.",
+    "unsaved": {
+      "title": "Unsaved changes",
+      "body": "A change could not be saved. If you leave this page, it will be lost.",
+      "leave": "Leave anyway",
+      "stay": "Stay here",
+      "retry": "Try again"
+    },
     "healthDirectHint": "Changes are saved directly. The OGS team sees the information immediately.",
     "healthPlaceholder": "For example allergies, intolerances or important medication.",
     "dataDescription": "Personal details, class and important health information.",

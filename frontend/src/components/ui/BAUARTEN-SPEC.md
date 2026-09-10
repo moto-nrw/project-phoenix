@@ -91,7 +91,14 @@ keine zweite Ansicht.
    das ganze Objekt, kein Modal über einem Modal.
 4. **Ein Speichern-Knopf pro Bearbeiten-Zustand**, unten, mit dem Wort
    „Speichern". Automatisches Speichern gibt es außerhalb der Einstellungen
-   nicht.
+   nicht. Der Fuß des Bearbeiten-Zustands ist `ui/EditActions` (Abbrechen +
+   Speichern, in dieser Reihenfolge, mit Speichert-Zustand); ein Formular
+   ohne dieses Bauteil hat kein Speichern (#3112). Ein Feld, das bei Blur
+   oder im Change-Handler schreibt, ist Auto-Save, auch wenn daneben ein
+   Speichern für ein anderes Feld steht (Zahlungskonto vor #3112). Das
+   Nachtragen eines Objekts in eine Liste (Kind in die Aufsicht, Person an
+   ein Kind) ist eine Kopf-Aktion mit `FormModal`, kein Formular im
+   Listenkörper.
 5. **Fehler stehen im `Alert` oben im Bearbeiten-Bereich und, wo zuordenbar,
    am Feld.** Kein Toast als einzige Fehlermeldung, kein roter Absatz.
    Der Platz dafür ist fest: `error` an `FormModal`, `error` an
@@ -224,7 +231,20 @@ bekommt eine shrink-only Baseline analog zum bestehenden
    eines Formular-Chips sind ausgenommen. Shrink-only Baseline je Datei für
    den Bestand, den #3111 auf Folge-PRs verteilt; Operator-, Eltern- und
    Schul-Portal sind nicht im Scope.
-10. `bauart/no-toast-form-error` — kein Fehler-Toast aus dem
+10. `bauart/no-autosave` — kein Schreiben aus `onBlur` und keines aus dem
+    Change-Handler eines Formularfelds ohne Speichern darunter. **Umgesetzt**
+    (`scripts/oxlint-plugin-bauart.mjs`, #3112): jeder Inline-`onBlur`, der
+    einen asynchronen Aufruf feuert (`void save(x)`, `await update(x)`,
+    `.then(`), und jeder Inline-Change-Handler an einem Kit-Feld
+    (`Input`, `Textarea`, `Checkbox`, `CustomSelect`, `ListboxDropdown`,
+    `SegmentedControl`, …), dessen gefeuerter Aufruf wie ein Schreiben heißt
+    (save, update, persist, patch, set…, submit, store, assign, link, mutate).
+    Lesen aus dem Change-Handler (`void search(q)`) passiert. Ausgenommen sind
+    die Einstellungen (Bauart 4), das Operator-Portal, das Kit, Tests und
+    Stories; die benannte Baseline im Plugin ist shrink-only und trägt nur
+    Flächen, die ihr Sofort-Speichern auf dem Schirm benennen (Abrechnung,
+    Elternportal-Stammdaten, Sprachwahl).
+11. `bauart/no-toast-form-error` — kein Fehler-Toast aus dem
     Speichern-Handler eines Formulars (Bauart 2 Regel 5). **Umgesetzt**
     (`scripts/oxlint-plugin-bauart.mjs`, hard-zero, #3113): ein
     `toast.error`/`toast.warning` (auch die Aliasse `toastError`,

@@ -17,10 +17,14 @@ import (
 
 	dataAPI "github.com/moto-nrw/project-phoenix/api/iot/data"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	usersModel "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services/users/userstest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
+
+type feedbackStudentReaderFunc func(context.Context, int64) (dataAPI.FeedbackStudent, error)
+
+func (f feedbackStudentReaderFunc) LockFeedbackStudent(ctx context.Context, id int64) (dataAPI.FeedbackStudent, error) {
+	return f(ctx, id)
+}
 
 func TestSubmitFeedback_GraduatedAfterUnlockedRead(t *testing.T) {
 	t.Parallel()
@@ -32,27 +36,23 @@ func TestSubmitFeedback_GraduatedAfterUnlockedRead(t *testing.T) {
 
 	// What an unlocked read returned before the transition committed.
 	snapshot := *student
-	require.NotEqual(t, usersModel.StudentStatusAlumnus, snapshot.Status)
+	require.False(t, snapshot.IsAlumnus())
 
 	_, err := ctx.db.NewUpdate().
 		TableExpr(`users.students`).
-		Set("status = ?", string(usersModel.StudentStatusAlumnus)).
+		Set("status = ?", "alumnus").
 		Where("id = ?", student.ID).
 		Exec(t.Context())
 	require.NoError(t, err)
 
-	// The mock answers the unlocked lookup with the stale "active" snapshot and
-	// delegates the locked one to the real service, which reads the committed
-	// row. A handler that decides from the unlocked read writes the entry.
-	realUsers := ctx.resource.UsersService
-	racingUsers := &userstest.PersonServiceMock{
-		GetStudentByIDFn: func(context.Context, int64) (*usersModel.Student, error) {
-			return &snapshot, nil
-		},
-		GetStudentByIDForUpdateFn: realUsers.GetStudentByIDForUpdate,
-	}
-
-	resource := dataAPI.NewFeedbackResource(racingUsers, ctx.resource.FeedbackService, ctx.resource.ObserveResponse, nil)
+	// The public reader offers only the locked lookup. Verify the handler
+	// uses it after graduation instead of deciding from the stale snapshot.
+	locked := false
+	racingReader := feedbackStudentReaderFunc(func(callCtx context.Context, id int64) (dataAPI.FeedbackStudent, error) {
+		locked = true
+		return ctx.resource.Students.LockFeedbackStudent(callCtx, id)
+	})
+	resource := dataAPI.NewFeedbackResource(racingReader, ctx.resource.FeedbackService, ctx.resource.ObserveResponse, testRuntime(), nil)
 
 	body := map[string]interface{}{
 		"student_id": student.ID,
@@ -64,6 +64,7 @@ func TestSubmitFeedback_GraduatedAfterUnlockedRead(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(resource.Router(), req)
 
+	assert.True(t, locked, "feedback must read through the locked student interface")
 	testutil.AssertNotFound(t, rr)
 
 	count, err := ctx.db.NewSelect().
@@ -74,13 +75,10 @@ func TestSubmitFeedback_GraduatedAfterUnlockedRead(t *testing.T) {
 	assert.Zero(t, count, "no feedback entry may be written for a child graduated mid-request")
 }
 
-// TestSubmitFeedback_LockedLookupFallsBackToPlainStub pins the PersonServiceMock
-// contract the test above relies on: a mock that stubs only the plain lookup
-// must answer the locked one from the same stub. Without that fallback every
-// existing test stubbing GetStudentByIDFn would silently start receiving a nil
-// student from the locked read, and the handler's alumnus refusal would look
-// like it had stopped working when in fact nothing was ever asked.
-func TestSubmitFeedback_LockedLookupFallsBackToPlainStub(t *testing.T) {
+// The kiosk rejects the graduated status returned by its locked reader.
+// PersonServiceMock fallback behavior is tested in its own package.
+
+func TestSubmitFeedback_LockedReaderRejectsGraduate(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupFeedbackModule(t)
@@ -88,19 +86,10 @@ func TestSubmitFeedback_LockedLookupFallsBackToPlainStub(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-fallback")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "FallbackGraduate", "4a")
 
-	graduated := *student
-	graduated.Status = usersModel.StudentStatusAlumnus
-
-	// Only the plain lookup is stubbed. The handler reads through
-	// GetStudentByIDForUpdate, so the refusal below can only happen if the mock
-	// routed that call to this stub.
-	stubbedUsers := &userstest.PersonServiceMock{
-		GetStudentByIDFn: func(context.Context, int64) (*usersModel.Student, error) {
-			return &graduated, nil
-		},
-	}
-
-	resource := dataAPI.NewFeedbackResource(stubbedUsers, ctx.resource.FeedbackService, ctx.resource.ObserveResponse, nil)
+	reader := feedbackStudentReaderFunc(func(context.Context, int64) (dataAPI.FeedbackStudent, error) {
+		return dataAPI.FeedbackStudent{ID: student.ID, Alumnus: true}, nil
+	})
+	resource := dataAPI.NewFeedbackResource(reader, ctx.resource.FeedbackService, ctx.resource.ObserveResponse, testRuntime(), nil)
 
 	body := map[string]interface{}{
 		"student_id": student.ID,

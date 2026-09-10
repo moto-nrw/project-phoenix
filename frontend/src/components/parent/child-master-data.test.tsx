@@ -7,6 +7,7 @@ import {
   within,
 } from "@testing-library/react";
 import type React from "react";
+import Link from "next/link";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { releaseFakeTimers } from "~/test/clock";
 
@@ -32,6 +33,13 @@ vi.mock("~/components/ui/date-picker", async (importOriginal) => {
 
 vi.mock("~/lib/breadcrumb-context", () => ({
   useSetBreadcrumb: vi.fn(),
+}));
+
+// Der Navigations-Guard (#3112) holt sich den App-Router; ohne Router-Kontext
+// wirft next/navigation in jsdom.
+const mockRouterReplace = vi.fn();
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: mockRouterReplace, push: vi.fn() }),
 }));
 
 vi.mock("next/link", () => ({
@@ -200,6 +208,246 @@ describe("ChildMasterDataView", () => {
     expect(screen.getByLabelText("Mi Wird abgeholt")).not.toBeChecked();
   });
 
+  it("offers Erneut versuchen after a failed auto-save and retries the latest value", async () => {
+    mockUpdateField.mockRejectedValueOnce(new Error("write failed"));
+
+    render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
+    const health = await screen.findByDisplayValue("Allergie");
+    fireEvent.change(health, { target: { value: "Neue Info" } });
+    fireEvent.blur(health);
+
+    const retry = await screen.findByRole("button", {
+      name: "Erneut versuchen",
+    });
+    expect(mockUpdateField).toHaveBeenCalledTimes(1);
+    expect(health).toHaveValue("Neue Info");
+
+    fireEvent.click(retry);
+
+    await waitFor(() => expect(mockUpdateField).toHaveBeenCalledTimes(2));
+    expect(mockUpdateField).toHaveBeenLastCalledWith(
+      "42",
+      "student",
+      "health_info",
+      "Neue Info",
+    );
+    expect(await screen.findByText("Gespeichert")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Erneut versuchen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("ignores a failed auto-save after reverting a text field", async () => {
+    let rejectSave: ((reason?: unknown) => void) | undefined;
+    mockUpdateField.mockImplementationOnce(
+      () =>
+        new Promise<ChildMasterData>((_resolve, reject) => {
+          rejectSave = reject;
+        }),
+    );
+
+    render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
+    const health = await screen.findByDisplayValue("Allergie");
+
+    fireEvent.change(health, { target: { value: "Neue Info" } });
+    fireEvent.blur(health);
+    await waitFor(() => expect(mockUpdateField).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(health, { target: { value: "Allergie" } });
+    await act(async () => {
+      rejectSave?.(new Error("write failed"));
+    });
+
+    expect(
+      screen.queryByRole("button", { name: "Erneut versuchen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("warns before a hard unload while an auto-save is still pending", async () => {
+    let resolveSave: ((value: ChildMasterData) => void) | undefined;
+    mockUpdateField.mockImplementationOnce(
+      () =>
+        new Promise<ChildMasterData>((resolve) => {
+          resolveSave = resolve;
+        }),
+    );
+    const fire = () => {
+      const event = new Event("beforeunload", { cancelable: true });
+      window.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+
+    render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
+    const health = await screen.findByDisplayValue("Allergie");
+    expect(fire()).toBe(false);
+
+    fireEvent.change(health, { target: { value: "Neue Info" } });
+    // Eingabe wartet auf den Debounce: ein Tab-Schließen würde sie verlieren.
+    expect(fire()).toBe(true);
+
+    fireEvent.blur(health);
+    await waitFor(() => expect(mockUpdateField).toHaveBeenCalledTimes(1));
+    // Speichern läuft noch.
+    expect(fire()).toBe(true);
+
+    await act(async () => {
+      resolveSave?.(masterData({ health_info: "Neue Info" }));
+    });
+    expect(await screen.findByText("Gespeichert")).toBeInTheDocument();
+    expect(fire()).toBe(false);
+  });
+
+  it("asks before an in-app navigation only while a save has failed", async () => {
+    mockUpdateField.mockRejectedValueOnce(new Error("write failed"));
+
+    render(
+      <>
+        <Link href="/parents/other">Weiter</Link>
+        <ChildMasterDataView studentId="42" childName="Lina Muster" />
+      </>,
+    );
+    const health = await screen.findByDisplayValue("Allergie");
+    const link = screen.getByRole("link", { name: "Weiter" });
+
+    fireEvent.change(health, { target: { value: "Neue Info" } });
+    fireEvent.blur(health);
+    await screen.findByRole("button", { name: "Erneut versuchen" });
+    // Der Guard hängt sich erst nach dem Fehler-Report ein (ein Effect-Tick).
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    fireEvent.click(link);
+    expect(
+      await screen.findByText("Nicht gespeicherte Änderungen"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hierbleiben" }));
+    await waitFor(() =>
+      expect(
+        screen.queryByText("Nicht gespeicherte Änderungen"),
+      ).not.toBeInTheDocument(),
+    );
+    expect(mockRouterReplace).not.toHaveBeenCalled();
+
+    fireEvent.click(link);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Trotzdem verlassen" }),
+    );
+    await waitFor(() =>
+      expect(mockRouterReplace).toHaveBeenCalledWith("/parents/other"),
+    );
+  });
+
+  it("asks before an in-app navigation while an auto-save is pending", async () => {
+    let resolveSave: ((value: ChildMasterData) => void) | undefined;
+    mockUpdateField.mockImplementationOnce(
+      () =>
+        new Promise<ChildMasterData>((resolve) => {
+          resolveSave = resolve;
+        }),
+    );
+
+    render(
+      <>
+        <Link href="/parents/pending">Weiter</Link>
+        <ChildMasterDataView studentId="42" childName="Lina Muster" />
+      </>,
+    );
+    const health = await screen.findByDisplayValue("Allergie");
+
+    fireEvent.change(health, { target: { value: "Neue Info" } });
+    fireEvent.blur(health);
+    await waitFor(() => expect(mockUpdateField).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    fireEvent.click(screen.getByRole("link", { name: "Weiter" }));
+    expect(
+      await screen.findByText("Nicht gespeicherte Änderungen"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hierbleiben" }));
+    await act(async () => {
+      resolveSave?.(masterData({ health_info: "Neue Info" }));
+    });
+  });
+
+  it("asks before leaving after a departure request has failed", async () => {
+    mockSubmit.mockRejectedValueOnce(new Error("request failed"));
+
+    render(
+      <>
+        <Link href="/parents/other">Weiter</Link>
+        <ChildMasterDataView
+          studentId="42"
+          childName="Lina Muster"
+          area="departure"
+        />
+      </>,
+    );
+
+    const departureSection = await screen.findByRole("heading", {
+      name: "So geht Lina Muster nach Hause",
+    });
+    const section = departureSection.closest("section");
+    if (!section) throw new Error("departure section not found");
+
+    fireEvent.click(screen.getByLabelText("Mi Wird abgeholt"));
+    fireEvent.click(
+      within(section).getByRole("button", { name: "Änderung anfragen" }),
+    );
+    await screen.findByText("Die Anfrage konnte nicht gesendet werden.");
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    fireEvent.click(screen.getByRole("link", { name: "Weiter" }));
+    expect(
+      await screen.findByText("Nicht gespeicherte Änderungen"),
+    ).toBeInTheDocument();
+  });
+
+  it("does not block navigation after reverting a failed departure request", async () => {
+    mockSubmit.mockRejectedValueOnce(new Error("request failed"));
+
+    render(
+      <>
+        <Link href="/parents/other">Weiter</Link>
+        <ChildMasterDataView
+          studentId="42"
+          childName="Lina Muster"
+          area="departure"
+        />
+      </>,
+    );
+
+    const departureSection = await screen.findByRole("heading", {
+      name: "So geht Lina Muster nach Hause",
+    });
+    const section = departureSection.closest("section");
+    if (!section) throw new Error("departure section not found");
+
+    const departureCheckbox = screen.getByLabelText("Mi Wird abgeholt");
+    fireEvent.click(departureCheckbox);
+    fireEvent.click(
+      within(section).getByRole("button", { name: "Änderung anfragen" }),
+    );
+    await screen.findByText("Die Anfrage konnte nicht gesendet werden.");
+
+    fireEvent.click(departureCheckbox);
+    await waitFor(() =>
+      expect(
+        screen.queryByText("Die Anfrage konnte nicht gesendet werden."),
+      ).not.toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("link", { name: "Weiter" }));
+    expect(
+      screen.queryByText("Nicht gespeicherte Änderungen"),
+    ).not.toBeInTheDocument();
+  });
+
   it("auto-saves direct-edit fields on blur", async () => {
     render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
 
@@ -289,6 +537,41 @@ describe("ChildMasterDataView", () => {
         "en",
       ),
     );
+  });
+
+  it("ignores a failed auto-save after reverting a selection", async () => {
+    let rejectSave: ((reason?: unknown) => void) | undefined;
+    mockUpdateField.mockImplementationOnce(
+      () =>
+        new Promise<ChildMasterData>((_resolve, reject) => {
+          rejectSave = reject;
+        }),
+    );
+
+    render(
+      <ChildMasterDataView
+        studentId="42"
+        childName="Lina Muster"
+        area="contact"
+      />,
+    );
+    const method = await screen.findByRole("combobox", {
+      name: "Bevorzugter Kontaktweg",
+    });
+
+    fireEvent.click(method);
+    fireEvent.click(screen.getByRole("option", { name: "Telefon" }));
+    await waitFor(() => expect(mockUpdateField).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(method);
+    fireEvent.click(screen.getByRole("option", { name: "E-Mail" }));
+    await act(async () => {
+      rejectSave?.(new Error("write failed"));
+    });
+
+    expect(
+      screen.queryByRole("button", { name: "Erneut versuchen" }),
+    ).not.toBeInTheDocument();
   });
 
   it("merges direct-save snapshots without rolling back other saved fields", async () => {

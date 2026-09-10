@@ -83,7 +83,7 @@ retry behavior, and authentication when changing real-time updates.
 ## TypeScript & Linting
 
 - `tsconfig`: `strict`, `noUncheckedIndexedAccess`, paths `~/*` and `@/*` → `./src/*`, target ES2022
-- Linting: **oxlint** (`.oxlintrc.json` — plugins react/nextjs/jsx-a11y/import/promise; correctness+perf = error). Disabled rules and their rationale live in `.oxlintrc.json`; custom plugins live in `scripts/oxlint-plugin-date-safety.mjs`, `scripts/oxlint-plugin-ui-kit.mjs` (UI-kit drift ratchet — five hard-zero rules, see `.claude/rules/frontend-ui-kit.md`) and `scripts/oxlint-plugin-bauart.mjs` (Bauarten ratchet — `bauart/one-delete-confirm`, `bauart/no-unconfirmed-destructive-click` and `bauart/no-toast-form-error` hard-zero, `bauart/no-row-action-buttons` with a shrink-only per-file baseline; see `src/components/ui/BAUARTEN-SPEC.md`)
+- Linting: **oxlint** (`.oxlintrc.json` — plugins react/nextjs/jsx-a11y/import/promise; correctness+perf = error). Disabled rules and their rationale live in `.oxlintrc.json`; custom plugins live in `scripts/oxlint-plugin-date-safety.mjs`, `scripts/oxlint-plugin-ui-kit.mjs` (UI-kit drift ratchet — five hard-zero rules, see `.claude/rules/frontend-ui-kit.md`) and `scripts/oxlint-plugin-bauart.mjs` (Bauarten ratchet — `bauart/one-delete-confirm`, `bauart/no-unconfirmed-destructive-click`, `bauart/no-autosave` and `bauart/no-toast-form-error` hard-zero, `bauart/no-row-action-buttons` with a shrink-only per-file baseline; see `src/components/ui/BAUARTEN-SPEC.md`)
 - Conventions: `??` over `||` for ordinary data defaults (not required infrastructure configuration), `import type` for types, `_` prefix for unused vars, `useSearchParams` needs a Suspense boundary, only server components may be async
 
 ## Performance

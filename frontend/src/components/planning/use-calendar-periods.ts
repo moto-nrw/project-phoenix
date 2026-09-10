@@ -108,7 +108,7 @@ export function useCalendarPeriods(): CalendarPeriodsState {
   const [editing, setEditing] = useState<CalendarPeriod | null>(null);
   const [createDefaults, setCreateDefaults] =
     useState<Partial<SemesterDefaults>>();
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess } = useToast();
 
   // silent: neu laden ohne den Ladezustand der ganzen Fläche — nach dem
   // Verknüpfen einer Anmeldephase, damit der offene Dialog stehen bleibt.
@@ -185,12 +185,12 @@ export function useCalendarPeriods(): CalendarPeriodsState {
           phase_id: phase.id,
           error: message,
         });
-        toastError(message);
+        throw err;
       } finally {
         await reload({ silent: true });
       }
     },
-    [editing, phases, reload, toastSuccess, toastError],
+    [editing, phases, reload, toastSuccess],
   );
 
   const editingUsage = useMemo(() => {

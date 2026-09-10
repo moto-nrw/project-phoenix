@@ -157,6 +157,9 @@ var extraGuardSources = []string{
 	// not-found strings (formerly in api/iot/checkin/workflow.go) now live
 	// in this file's message constants; keep it in the guard corpus.
 	"modules/devicescan/scan.go",
+	// Staff bracelet errors moved behind the kiosk capability in #2739.
+	"modules/devicescan/internal/application/tag_commands.go",
+	"modules/devicescan/internal/application/session_lifecycle.go",
 }
 
 // TestPyrePortalErrorStringsGuard asserts every PyrePortal-mapped substring

@@ -274,13 +274,120 @@ describe("CalendarPeriodModal", () => {
     expect(checkboxes[1]).toBeChecked();
     expect(checkboxes[2]).not.toBeChecked();
 
+    // Die Checkbox ändert nur den Entwurf; geschrieben wird mit „Speichern“
+    // (#3112, Bauart 2 Regel 4).
     fireEvent.click(checkboxes[1]!);
+    expect(checkboxes[1]).not.toBeChecked();
+    expect(onToggle).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
     await waitFor(() =>
       expect(onToggle).toHaveBeenCalledWith(
         expect.objectContaining({ id: "7" }),
         false,
       ),
     );
+    expect(onToggle).toHaveBeenCalledTimes(1);
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps only failed phase links in the draft after saving the period", async () => {
+    const onClose = vi.fn();
+    const onSaved = vi.fn();
+    const onToggle = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("Zweite Verknüpfung fehlgeschlagen"))
+      .mockResolvedValueOnce(undefined);
+    render(
+      <CalendarPeriodModal
+        isOpen
+        onClose={onClose}
+        onSaved={onSaved}
+        initial={period}
+        phaseLink={{
+          phases: [
+            {
+              id: "7",
+              name: "Demo Anmeldung",
+              calendar_period_id: period.id,
+              is_active: true,
+            },
+            {
+              id: "8",
+              name: "Ferienbetreuung",
+              calendar_period_id: period.id,
+              is_active: true,
+            },
+          ],
+          onToggle,
+        }}
+      />,
+    );
+
+    const checkboxes = screen.getAllByRole("checkbox");
+    fireEvent.click(checkboxes[1]!);
+    fireEvent.click(checkboxes[2]!);
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Zweite Verknüpfung fehlgeschlagen",
+    );
+    expect(onSaved).toHaveBeenCalledWith(period);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(onToggle).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ id: "7" }),
+      false,
+    );
+    expect(onToggle).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ id: "8" }),
+      false,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+    expect(onToggle).toHaveBeenCalledTimes(3);
+    expect(onToggle).toHaveBeenLastCalledWith(
+      expect.objectContaining({ id: "8" }),
+      false,
+    );
+    expect(onSaved).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not write a phase link that was toggled back before Speichern", async () => {
+    const onToggle = vi.fn().mockResolvedValue(undefined);
+    render(
+      <CalendarPeriodModal
+        isOpen
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+        initial={period}
+        phaseLink={{
+          phases: [
+            {
+              id: "7",
+              name: "Demo Anmeldung",
+              calendar_period_id: period.id,
+              is_active: true,
+            },
+          ],
+          onToggle,
+        }}
+      />,
+    );
+
+    const checkbox = screen.getAllByRole("checkbox")[1]!;
+    fireEvent.click(checkbox);
+    fireEvent.click(checkbox);
+    expect(checkbox).toBeChecked();
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
+    expect(onToggle).not.toHaveBeenCalled();
   });
 
   it("hides the phase link section in create mode", () => {

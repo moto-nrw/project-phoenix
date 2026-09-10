@@ -49,6 +49,9 @@ interface GuardianPickerPanelProps {
   // Guardian profile ids already added to / linked with this child. Shown
   // greyed-out so the same person can't be added twice.
   readonly excludeProfileIds?: readonly string[];
+  // Inside a FormModal the dialog carries title and close button; the panel
+  // then renders only its body (#3112).
+  readonly embedded?: boolean;
 }
 
 // Stable empty default so the prop keeps referential equality across renders.
@@ -74,6 +77,7 @@ export default function GuardianPickerPanel({
   onSelect,
   onCancel,
   excludeProfileIds = EMPTY_PROFILE_IDS,
+  embedded = false,
 }: GuardianPickerPanelProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Guardian[]>([]);
@@ -159,23 +163,29 @@ export default function GuardianPickerPanel({
   return (
     <div
       data-testid="guardian-picker-panel"
-      className="border-moto-blue/40 bg-moto-blue-soft/40 space-y-3 rounded-xl border p-3 md:p-4"
+      className={
+        embedded
+          ? "space-y-3"
+          : "border-moto-blue/40 bg-moto-blue-soft/40 space-y-3 rounded-xl border p-3 md:p-4"
+      }
     >
-      {/* Panel header */}
-      <div className="flex items-center justify-between">
-        <h4 className="flex items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
-          <Search className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4" />
-          Vorhandene/n suchen
-        </h4>
-        <button
-          type="button"
-          onClick={onCancel}
-          aria-label="Suche schließen"
-          className="rounded-lg p-1 text-gray-400 transition-colors hover:bg-white/60 hover:text-gray-600"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
+      {/* Panel header; im Dialog trägt ihn der Dialog selbst. */}
+      {!embedded && (
+        <div className="flex items-center justify-between">
+          <h4 className="flex items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
+            <Search className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4" />
+            Vorhandene/n suchen
+          </h4>
+          <button
+            type="button"
+            onClick={onCancel}
+            aria-label="Suche schließen"
+            className="rounded-lg p-1 text-gray-400 transition-colors hover:bg-white/60 hover:text-gray-600"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {selected ? (
         <div className="space-y-3">
