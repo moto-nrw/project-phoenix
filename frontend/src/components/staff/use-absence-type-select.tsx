@@ -16,6 +16,7 @@ import { ChevronDown } from "lucide-react";
 import { useEffect, useMemo, useState, type ComponentProps } from "react";
 
 import {
+  STANDARD_ABSENCE_OPTIONS,
   useAbsenceTypeOptions,
   type AbsenceTypeOption,
 } from "./use-absence-type-options";
@@ -64,7 +65,11 @@ export function useAbsenceTypeSelect({
   canManage,
   disabled = false,
 }: UseAbsenceTypeSelectArgs): ListboxProps {
-  const { options } = useAbsenceTypeOptions(canManage);
+  const { options } = useAbsenceTypeOptions(
+    canManage,
+    STANDARD_ABSENCE_OPTIONS,
+    value,
+  );
 
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");

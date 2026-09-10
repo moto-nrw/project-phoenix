@@ -12,6 +12,7 @@ import {
   CATALOG_SELECTION_PARAM,
   type CatalogConfig,
 } from "~/components/database/catalog/catalog-page";
+import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { Button } from "~/components/ui/button";
 import { CatalogColorField } from "~/components/ui/database/catalog-color-field";
 import { useToast } from "~/contexts/ToastContext";
@@ -24,6 +25,7 @@ import { createLogger } from "~/lib/logger";
 import { shiftTypeService } from "~/lib/shift-type-api";
 import type { ShiftType } from "~/lib/shift-type-helpers";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
+import { useTimetableEnabled } from "~/lib/tenant-context";
 
 const logger = createLogger({ component: "DatabaseShiftTypesPage" });
 
@@ -46,13 +48,14 @@ function ShiftTypesPageContent() {
   const searchParams = useSearchParams();
   const tenantMutate = useTenantMutate();
   const toast = useToast();
+  const timetableEnabled = useTimetableEnabled();
   const [seeding, setSeeding] = useState(false);
 
   const {
     data,
     isLoading,
     error: loadError,
-  } = useSWRAuth<ShiftType[]>(CACHE_KEY, () =>
+  } = useSWRAuth<ShiftType[]>(timetableEnabled ? CACHE_KEY : null, () =>
     shiftTypeService.getShiftTypes(),
   );
 
@@ -62,7 +65,9 @@ function ShiftTypesPageContent() {
   // Liste würde bestehende Zuordnungen löschen (#1837).
   const { data: categories, error: categoriesError } = useSWRAuth<
     ActivityCategory[]
-  >(CATEGORY_CACHE_KEY, () => categoryService.getManagedCategories());
+  >(timetableEnabled ? CATEGORY_CACHE_KEY : null, () =>
+    categoryService.getManagedCategories(),
+  );
   const categoriesReady = categories !== undefined && !categoriesError;
 
   const onChanged = useCallback(
@@ -266,6 +271,17 @@ function ShiftTypesPageContent() {
       setSeeding(false);
     }
   }, [onChanged, toast]);
+
+  if (!timetableEnabled) {
+    return (
+      <PlanningDisabledState
+        pageTitle="Schichtarten"
+        heading="Schichtarten sind nicht verfügbar"
+        description="Der Betreuungsplan ist für diese Schule ausgeschaltet."
+        testId="shift-types-disabled-state"
+      />
+    );
+  }
 
   return (
     <CatalogPage

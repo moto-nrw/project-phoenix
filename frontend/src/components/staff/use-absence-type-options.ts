@@ -60,6 +60,7 @@ export interface UseAbsenceTypeOptionsResult {
 export function useAbsenceTypeOptions(
   canManage: boolean,
   standardOptions: readonly AbsenceTypeOption[] = STANDARD_ABSENCE_OPTIONS,
+  currentValue?: string,
 ): UseAbsenceTypeOptionsResult {
   const { data: custom = [] } = useSWRAuth<AbsenceType[]>(
     "staff-absence-types",
@@ -79,7 +80,12 @@ export function useAbsenceTypeOptions(
     () => [
       ...standardOptions,
       ...custom
-        .filter((type) => canManage || !type.allowanceEnabled)
+        .filter(
+          (type) =>
+            canManage ||
+            !type.allowanceEnabled ||
+            customOptionValue(type.id) === currentValue,
+        )
         .map((type) => ({
           value: customOptionValue(type.id),
           label: type.name,
@@ -88,7 +94,7 @@ export function useAbsenceTypeOptions(
           overrunPolicy: type.overrunPolicy,
         })),
     ],
-    [standardOptions, custom, canManage],
+    [standardOptions, custom, canManage, currentValue],
   );
 
   return { options };

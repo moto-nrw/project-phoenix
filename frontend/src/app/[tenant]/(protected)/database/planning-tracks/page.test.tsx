@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import PlanningTracksPage from "./page";
+import { useTimetableEnabled } from "~/lib/tenant-context";
 
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
@@ -39,6 +40,11 @@ const planningTrackService = vi.hoisted(() => ({
 }));
 vi.mock("~/lib/planning-track-api", () => ({ planningTrackService }));
 
+vi.mock("~/lib/tenant-context", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/tenant-context")>()),
+  useTimetableEnabled: vi.fn(),
+}));
+
 const swrState = vi.hoisted(() => ({
   data: undefined as unknown,
   error: undefined as unknown,
@@ -50,6 +56,7 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 beforeEach(() => {
+  vi.mocked(useTimetableEnabled).mockReturnValue(true);
   swrState.data = undefined;
   swrState.error = undefined;
   swrState.isLoading = true;
@@ -70,6 +77,19 @@ afterEach(() => {
 });
 
 describe("Planungsspuren", () => {
+  it("shows an unavailable state when the care plan is switched off", () => {
+    vi.mocked(useTimetableEnabled).mockReturnValue(false);
+
+    render(<PlanningTracksPage />);
+
+    expect(
+      screen.getByTestId("planning-tracks-disabled-state"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Planungsspur anlegen" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("keeps creating unavailable until the current order has loaded", () => {
     const { rerender } = render(<PlanningTracksPage />);
 

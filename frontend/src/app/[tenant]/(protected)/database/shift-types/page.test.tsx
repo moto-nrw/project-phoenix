@@ -9,6 +9,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import ShiftTypesPage from "./page";
+import { useTimetableEnabled } from "~/lib/tenant-context";
 
 const mockUpdateUrlParams = vi.hoisted(() => vi.fn());
 vi.mock("~/hooks/useUpdateUrlParams", () => ({
@@ -48,6 +49,11 @@ vi.mock("~/lib/shift-type-api", () => ({ shiftTypeService }));
 
 const categoryService = vi.hoisted(() => ({ getManagedCategories: vi.fn() }));
 vi.mock("~/lib/category-api", () => ({ categoryService }));
+
+vi.mock("~/lib/tenant-context", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/tenant-context")>()),
+  useTimetableEnabled: vi.fn(),
+}));
 
 const mockTenantMutate = vi.hoisted(() => vi.fn(() => Promise.resolve()));
 type SWRState = { data: unknown; error: unknown; isLoading: boolean };
@@ -89,6 +95,7 @@ function setCategories(state: Partial<SWRState>) {
 }
 
 beforeEach(() => {
+  vi.mocked(useTimetableEnabled).mockReturnValue(true);
   currentSearch = new URLSearchParams("eintrag=10");
   swrState.current = {
     "database-shift-types": {
@@ -124,6 +131,19 @@ function save() {
 // löschen, also darf `category_ids` nur mitgehen, wenn die Kategorien
 // wirklich geladen sind.
 describe("Schichtarten — Kategorie-Zuordnung (#1837, #3114)", () => {
+  it("shows an unavailable state when the care plan is switched off", () => {
+    vi.mocked(useTimetableEnabled).mockReturnValue(false);
+
+    render(<ShiftTypesPage />);
+
+    expect(
+      screen.getByTestId("shift-types-disabled-state"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Schichtart anlegen" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("preselects the categories currently mapped to the shift type", () => {
     render(<ShiftTypesPage />);
 

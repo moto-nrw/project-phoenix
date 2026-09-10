@@ -14,6 +14,7 @@ import {
   CATALOG_SELECTION_PARAM,
   type CatalogConfig,
 } from "~/components/database/catalog/catalog-page";
+import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { CatalogColorField } from "~/components/ui/database/catalog-color-field";
 import type { SectionConfig } from "~/lib/database/types";
 import { formatCount } from "~/lib/format-utils";
@@ -23,6 +24,7 @@ import {
   type PlanningTrack,
 } from "~/lib/planning-track-api";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
+import { useTimetableEnabled } from "~/lib/tenant-context";
 
 const CACHE_KEY = "database-planning-tracks";
 const DEFAULT_COLOR: string = LOCATION_COLORS.OTHER_ROOM;
@@ -58,12 +60,15 @@ function sections(): SectionConfig[] {
 function PlanningTracksPageContent() {
   const searchParams = useSearchParams();
   const tenantMutate = useTenantMutate();
+  const timetableEnabled = useTimetableEnabled();
 
   const {
     data,
     isLoading,
     error: loadError,
-  } = useSWRAuth<PlanningTrack[]>(CACHE_KEY, () => planningTrackService.list());
+  } = useSWRAuth<PlanningTrack[]>(timetableEnabled ? CACHE_KEY : null, () =>
+    planningTrackService.list(),
+  );
 
   const onChanged = useCallback(() => tenantMutate(CACHE_KEY), [tenantMutate]);
 
@@ -142,6 +147,17 @@ function PlanningTracksPageContent() {
       },
     };
   }, [items]);
+
+  if (!timetableEnabled) {
+    return (
+      <PlanningDisabledState
+        pageTitle="Planungsspuren"
+        heading="Planungsspuren sind nicht verfügbar"
+        description="Der Betreuungsplan ist für diese Schule ausgeschaltet."
+        testId="planning-tracks-disabled-state"
+      />
+    );
+  }
 
   return (
     <CatalogPage

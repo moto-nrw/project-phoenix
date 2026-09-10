@@ -8,6 +8,7 @@ const typeOptions = vi.hoisted(() => ({
 }));
 
 vi.mock("./use-absence-type-options", () => ({
+  STANDARD_ABSENCE_OPTIONS: [],
   useAbsenceTypeOptions: () => typeOptions.current,
 }));
 
