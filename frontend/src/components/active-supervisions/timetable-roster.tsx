@@ -610,12 +610,15 @@ function AddUnplannedStudentModal({
     results.find((student) => student.id.toString() === selectedId) ?? null;
   const targetStudent =
     selectedStudent ?? (results.length === 1 ? (results[0] ?? null) : null);
+  const handleClose = () => {
+    setSelectedId(null);
+    onClose();
+  };
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (targetStudent && !isAddingStudent) {
       if (await onAdd(targetStudent.id.toString())) {
-        setSelectedId(null);
-        onClose();
+        handleClose();
       }
     }
   };
@@ -623,7 +626,7 @@ function AddUnplannedStudentModal({
   return (
     <FormModal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleClose}
       title="Kind ungeplant hinzufügen"
       size="md"
       closeDisabled={isAddingStudent}
@@ -633,7 +636,7 @@ function AddUnplannedStudentModal({
             type="button"
             variant="outline"
             size="md"
-            onClick={onClose}
+            onClick={handleClose}
             disabled={isAddingStudent}
           >
             Abbrechen

@@ -46,4 +46,16 @@ describe("EditActions", () => {
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
+
+  it("submits the surrounding form without an onSave callback", () => {
+    const onSubmit = vi.fn((event: React.FormEvent) => event.preventDefault());
+    render(
+      <form onSubmit={onSubmit}>
+        <EditActions onCancel={vi.fn()} />
+      </form>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
 });

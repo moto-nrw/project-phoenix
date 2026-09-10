@@ -19,7 +19,7 @@ export function EditActions({
   saveLabel = "Speichern",
   savingLabel = "Speichert…",
   cancelLabel = "Abbrechen",
-  saveType = "button",
+  saveType,
   className,
 }: Readonly<{
   onCancel: () => void;
@@ -46,7 +46,7 @@ export function EditActions({
         {cancelLabel}
       </Button>
       <Button
-        type={saveType}
+        type={saveType ?? (onSave ? "button" : "submit")}
         variant="primary"
         size="md"
         onClick={onSave}
