@@ -120,16 +120,16 @@ const config: CatalogConfig<AbsenceType> = {
     confirmTitle: "Abwesenheitsart nicht mehr anbieten?",
     confirmLabel: "Nicht mehr anbieten",
     describe: (type) =>
-      `„${type.name}" steht bei neuen Abwesenheiten nicht mehr zur Auswahl. Bereits eingetragene Abwesenheiten behalten den Namen.`,
+      `„${type.name}“ steht bei neuen Abwesenheiten nicht mehr zur Auswahl. Bereits eingetragene Abwesenheiten behalten den Namen.`,
     run: (type) =>
       absenceTypeService.updateAbsenceType(type.id, { isActive: false }),
-    toast: (type) => `„${type.name}" wird nicht mehr angeboten`,
+    toast: (type) => `„${type.name}“ wird nicht mehr angeboten`,
   },
   restore: {
     menuLabel: "Wieder anbieten",
     run: (type) =>
       absenceTypeService.updateAbsenceType(type.id, { isActive: true }),
-    toast: (type) => `„${type.name}" wird wieder angeboten`,
+    toast: (type) => `„${type.name}“ wird wieder angeboten`,
   },
 };
 

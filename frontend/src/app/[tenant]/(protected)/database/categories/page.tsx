@@ -1,6 +1,7 @@
 "use client";
 
-// Kategorien der Schule (#2131) als eigene Route der Datenverwaltung (#3114).
+// Terminkategorien der Schule (#2131) als eigene Route der Datenverwaltung
+// (#3114).
 // Vorher lagen Liste und Formular in einem Slide-over, das der Termin-Assistent
 // über sich selbst öffnete; die Fläche ist jetzt eine Sammlung wie Räume und
 // Gruppen, und das Termin-Formular verlinkt nur noch hierher.
@@ -37,7 +38,7 @@ function usageLabel(category: ActivityCategory): string {
 function sections(): SectionConfig[] {
   return [
     {
-      title: "Kategorie",
+      title: "Terminkategorie",
       fields: [
         {
           name: "name",
@@ -79,19 +80,24 @@ function payloadOf(values: Record<string, unknown>) {
 
 const config: CatalogConfig<ActivityCategory> = {
   concept: "activities",
-  title: "Kategorien",
-  singular: "Kategorie",
+  // „Terminkategorien", nicht „Kategorien": im Portal heißen vier
+  // verschiedene Dinge sichtbar „Kategorie" (Raum, Termin, Lohnart,
+  // Personal-Dokument), und es gibt eine Terminkategorie „Gruppenraum"
+  // neben der gleichnamigen Raumkategorie. Als Name in der Seitenleiste
+  // sagt die Gattung allein nicht, was eingeordnet wird (#3114).
+  title: "Terminkategorien",
+  singular: "Terminkategorie",
   purpose:
-    "Kategorien ordnen Termine und Aktivitäten ein, zum Beispiel Essen, Lernzeit oder Freispiel.",
-  searchPlaceholder: "Kategorie suchen…",
+    "Terminkategorien ordnen Termine und Aktivitäten ein, zum Beispiel Essen, Lernzeit oder Freispiel.",
+  searchPlaceholder: "Terminkategorie suchen…",
   emptyDescription:
-    "Legen Sie eine Kategorie an, damit Termine und Aktivitäten sich einordnen lassen.",
+    "Legen Sie eine Terminkategorie an, damit Termine und Aktivitäten sich einordnen lassen.",
   stats: (items) => {
     const archived = items.filter((item) => item.archivedAt).length;
     const active = items.length - archived;
     return archived > 0
       ? `${formatCount(active)} in der Auswahl · ${formatCount(archived)} archiviert`
-      : `${formatCount(active)} ${active === 1 ? "Kategorie" : "Kategorien"}`;
+      : `${formatCount(active)} ${active === 1 ? "Terminkategorie" : "Terminkategorien"}`;
   },
   toRow: (item) => ({
     name: item.name,
@@ -111,17 +117,17 @@ const config: CatalogConfig<ActivityCategory> = {
     categoryService.updateCategory(item.id, payloadOf(values)),
   retire: {
     menuLabel: "Archivieren",
-    confirmTitle: "Kategorie archivieren?",
+    confirmTitle: "Terminkategorie archivieren?",
     confirmLabel: "Archivieren",
     describe: (item) =>
-      `Die Kategorie „${item.name}" wird für neue Termine und Aktivitäten nicht mehr angeboten. Bestehende Einträge behalten sie und bleiben gültig.`,
+      `Die Terminkategorie „${item.name}“ wird für neue Termine und Aktivitäten nicht mehr angeboten. Bestehende Einträge behalten sie und bleiben gültig.`,
     run: (item) => categoryService.archiveCategory(item.id),
-    toast: (item) => `Kategorie „${item.name}" archiviert`,
+    toast: (item) => `Terminkategorie „${item.name}“ archiviert`,
   },
   restore: {
     menuLabel: "Wieder anbieten",
     run: (item) => categoryService.restoreCategory(item.id),
-    toast: (item) => `Kategorie „${item.name}" wird wieder angeboten`,
+    toast: (item) => `Terminkategorie „${item.name}“ wird wieder angeboten`,
   },
 };
 
@@ -154,7 +160,7 @@ function CategoriesPageContent() {
       isLoading={isLoading && data === undefined}
       error={
         loadError
-          ? "Die Kategorien konnten nicht geladen werden. Bitte laden Sie die Seite neu."
+          ? "Die Terminkategorien konnten nicht geladen werden. Bitte laden Sie die Seite neu."
           : null
       }
       onChanged={onChanged}

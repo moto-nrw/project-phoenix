@@ -204,7 +204,7 @@ function ShiftTypesPageContent() {
         confirmTitle: "Schichtart nicht mehr anbieten?",
         confirmLabel: "Nicht mehr anbieten",
         describe: (type) =>
-          `Die Schichtart „${type.name}" steht bei neuen Schichten nicht mehr zur Auswahl. Geplante Schichten behalten sie.`,
+          `Die Schichtart „${type.name}“ steht bei neuen Schichten nicht mehr zur Auswahl. Geplante Schichten behalten sie.`,
         run: (type) =>
           shiftTypeService.updateShiftType(type.id, {
             name: type.name,
@@ -212,7 +212,7 @@ function ShiftTypesPageContent() {
             description: type.description,
             isActive: false,
           }),
-        toast: (type) => `Schichtart „${type.name}" wird nicht mehr angeboten`,
+        toast: (type) => `Schichtart „${type.name}“ wird nicht mehr angeboten`,
       },
       restore: {
         menuLabel: "Wieder anbieten",
@@ -223,14 +223,14 @@ function ShiftTypesPageContent() {
             description: type.description,
             isActive: true,
           }),
-        toast: (type) => `Schichtart „${type.name}" wird wieder angeboten`,
+        toast: (type) => `Schichtart „${type.name}“ wird wieder angeboten`,
       },
       remove: {
         menuLabel: "Löschen",
         confirmTitle: "Schichtart löschen",
         describe: describeDeletion,
         run: (type) => shiftTypeService.deleteShiftType(type.id),
-        toast: (type) => `Schichtart „${type.name}" gelöscht`,
+        toast: (type) => `Schichtart „${type.name}“ gelöscht`,
       },
     };
   }, [categories, categoriesReady]);

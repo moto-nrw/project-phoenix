@@ -16,7 +16,8 @@ import { useTenantAwarePath } from "~/lib/tenant-path";
 interface CatalogManageLinkProps {
   /** Pfad ohne Mandantenteil, z. B. „/database/categories". */
   readonly href: string;
-  /** „Kategorien verwalten" — nennt die Stammdaten, nicht den Weg dorthin. */
+  /** „Terminkategorien verwalten" — nennt die Stammdaten, nicht den Weg
+   *  dorthin, und benennt sie so, wie die Seitenleiste sie führt. */
   readonly label: string;
 }
 

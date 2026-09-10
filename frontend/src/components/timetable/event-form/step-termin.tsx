@@ -172,7 +172,7 @@ export function StepTermin({
               canManageCategories ? (
                 <CatalogManageLink
                   href="/database/categories"
-                  label="Kategorien verwalten"
+                  label="Terminkategorien verwalten"
                 />
               ) : undefined
             }

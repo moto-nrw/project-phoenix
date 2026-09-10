@@ -90,9 +90,9 @@ export interface CatalogRemove<T> {
 export interface CatalogConfig<T extends CatalogItem> {
   /** Symbol und Farbton der Fläche, aus `MOTO_CONCEPTS`. */
   readonly concept: MotoConceptKey;
-  /** Seitentitel, Mehrzahl: „Kategorien". */
+  /** Seitentitel, Mehrzahl: „Terminkategorien". */
   readonly title: string;
-  /** Einzahl für Knöpfe und Rückfragen: „Kategorie". */
+  /** Einzahl für Knöpfe und Rückfragen: „Terminkategorie". */
   readonly singular: string;
   /** Ein Satz, wofür die Liste da ist (Verständlichkeit-Check). */
   readonly purpose: string;

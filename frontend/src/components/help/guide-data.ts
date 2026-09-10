@@ -1123,24 +1123,24 @@ export const appChapters: readonly GuideChapter[] = [
       },
       {
         id: "kategorien",
-        title: "Kategorien",
+        title: "Terminkategorien",
         icon: Tags,
         summary:
-          "Jeder Regeltermin braucht eine Kategorie. Angelegt und gepflegt werden Kategorien unter `Datenverwaltung` -> `Kategorien`.",
+          "Jeder Regeltermin braucht eine Kategorie. Angelegt und gepflegt werden sie unter `Datenverwaltung` -> `Terminkategorien`.",
         steps: [
-          "`Datenverwaltung` öffnen und `Kategorien` wählen.",
-          "`Kategorie anlegen` klicken, Name eintragen, optional Farbe und Beschreibung, dann `Erstellen`.",
-          "Eine Kategorie ändern: links in der Liste anklicken, rechts Name, Farbe oder Beschreibung anpassen und `Speichern`.",
-          "Nicht mehr benötigte Kategorien über das Menü mit den drei Punkten oben rechts `Archivieren`; unter `Nicht mehr in der Auswahl` holt `Wieder anbieten` sie zurück.",
-          "Fehlt beim Anlegen eines Regeltermins die passende Kategorie: neben dem Feld `Kategorie` auf `Kategorien verwalten` klicken. Die Verwaltung öffnet sich in einem neuen Fenster, Ihr angefangener Termin bleibt stehen. Zurück im Termin steht die neue Kategorie sofort in der Auswahl.",
+          "`Datenverwaltung` öffnen und `Terminkategorien` wählen.",
+          "`Terminkategorie anlegen` klicken, Name eintragen, optional Farbe und Beschreibung, dann `Erstellen`.",
+          "Eine Terminkategorie ändern: links in der Liste anklicken, rechts Name, Farbe oder Beschreibung anpassen und `Speichern`.",
+          "Nicht mehr benötigte Terminkategorien über das Menü mit den drei Punkten oben rechts `Archivieren`; unter `Nicht mehr in der Auswahl` holt `Wieder anbieten` sie zurück.",
+          "Fehlt beim Anlegen eines Regeltermins die passende Kategorie: neben dem Feld `Kategorie` auf `Terminkategorien verwalten` klicken. Die Verwaltung öffnet sich in einem neuen Fenster, Ihr angefangener Termin bleibt stehen. Zurück im Termin steht die neue Kategorie sofort in der Auswahl.",
         ],
         callout: {
           title: "Archivieren löscht nichts",
-          body: "Eine archivierte Kategorie wird für neue Termine und Aktivitäten nicht mehr angeboten. Bestehende Einträge behalten sie und bleiben unverändert gültig. Die Kategorien `WC` und `Schulhof` gehören zum System und können nicht bearbeitet werden.",
+          body: "Eine archivierte Terminkategorie wird für neue Termine und Aktivitäten nicht mehr angeboten. Bestehende Einträge behalten sie und bleiben unverändert gültig. `WC` und `Schulhof` gehören zum System und können nicht bearbeitet werden.",
           tone: "blue",
         },
         screenshot:
-          "Kategorien in der Datenverwaltung: Liste links, Stammdaten des gewählten Eintrags rechts.",
+          "Terminkategorien in der Datenverwaltung: Liste links, Stammdaten des gewählten Eintrags rechts.",
       },
       {
         id: "raeume",
@@ -1791,7 +1791,7 @@ export const appChapters: readonly GuideChapter[] = [
           "`Datenverwaltung` öffnen.",
           "Den gewünschten Bereich wählen: `Kinderdaten`, `Personal`, `Räume`, `Gruppen`, `Rollen`, `Berechtigungen` oder `Jahrgangswechsel`.",
           "Wenn NFC oder Tablets genutzt werden, zusätzlich `Aktivitäten` und `Geräte` öffnen.",
-          "Die kurzen Listen, aus denen andere Seiten auswählen, liegen ebenfalls hier: `Kategorien` (ordnen Termine und Aktivitäten ein), `Planungsspuren` (bündeln Regeltermine farblich), `Schichtarten` (benennen die Aufgabe einer Schicht) und `Abwesenheitsarten` (eigene Namen für Abwesenheiten).",
+          "Die kurzen Listen, aus denen andere Seiten auswählen, liegen ebenfalls hier: `Terminkategorien` (ordnen Termine und Aktivitäten ein), `Planungsspuren` (bündeln Regeltermine farblich), `Schichtarten` (benennen die Aufgabe einer Schicht) und `Abwesenheitsarten` (eigene Namen für Abwesenheiten).",
           "Einträge anlegen, bearbeiten oder prüfen. `Berechtigungen` können Sie nur ansehen.",
           "Unter `Exporte` liegen alle Listen der Schule gebündelt, siehe nächster Abschnitt.",
         ],

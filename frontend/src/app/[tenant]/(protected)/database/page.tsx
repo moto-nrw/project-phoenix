@@ -175,7 +175,7 @@ const baseDataSections: DataSection[] = [
     // Die kurzen Stammdaten-Listen der Schule (#3114). Sie lagen vorher in
     // Slide-overs und Auswahlfeldern der Flächen, die sie benutzen.
     id: "categories",
-    title: "Kategorien",
+    title: "Terminkategorien",
     description: "Termine und Aktivitäten einordnen, zum Beispiel Essen",
     href: "/database/categories",
     concept: "activities",

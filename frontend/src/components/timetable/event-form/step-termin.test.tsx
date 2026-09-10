@@ -67,7 +67,9 @@ describe("StepTermin — Kategorie (#2131, #3114)", () => {
   it("links to the catalogue in a second window so the draft survives", () => {
     renderStep();
 
-    const link = screen.getByRole("link", { name: /Kategorien verwalten/ });
+    const link = screen.getByRole("link", {
+      name: /Terminkategorien verwalten/,
+    });
 
     // Der Pfad trägt den Mandanten, wie jeder interne Link.
     expect(link).toHaveAttribute(

@@ -127,14 +127,14 @@ function PlanningTracksPageContent() {
         confirmTitle: "Planungsspur archivieren?",
         confirmLabel: "Archivieren",
         describe: (track) =>
-          `Die Planungsspur „${track.name}" wird für neue Termine nicht mehr angeboten. Bestehende Termine behalten sie. Sie können die Spur jederzeit wiederherstellen.`,
+          `Die Planungsspur „${track.name}“ wird für neue Termine nicht mehr angeboten. Bestehende Termine behalten sie. Sie können die Spur jederzeit wiederherstellen.`,
         run: (track) => planningTrackService.archive(track.id),
-        toast: (track) => `Planungsspur „${track.name}" archiviert`,
+        toast: (track) => `Planungsspur „${track.name}“ archiviert`,
       },
       restore: {
         menuLabel: "Wieder anbieten",
         run: (track) => planningTrackService.restore(track.id),
-        toast: (track) => `Planungsspur „${track.name}" wird wieder angeboten`,
+        toast: (track) => `Planungsspur „${track.name}“ wird wieder angeboten`,
       },
     };
   }, [items]);
