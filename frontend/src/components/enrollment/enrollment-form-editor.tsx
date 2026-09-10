@@ -1846,6 +1846,7 @@ function RenameSchemaDialog({
           type="text"
           value={value}
           onChange={(event) => setValue(event.target.value)}
+          error={error?.message}
           placeholder="z. B. Ferienbetreuung Sommer 2026"
           autoFocus
         />
@@ -2509,16 +2510,18 @@ function LegalBlocksSection({
                     disabled={disabled}
                     ariaLabel={`${block.title} in dieser Vorlage anzeigen`}
                   />
-                  <button
-                    type="button"
-                    aria-label={`${block.title} abweichend bearbeiten`}
-                    title="Abweichend bearbeiten"
-                    onClick={() => editStandardBlock(block.key)}
-                    disabled={disabled}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-                  </button>
+                  <OverflowMenu
+                    ariaLabel={`Aktionen für ${block.title}`}
+                    triggerSize="sm"
+                    items={[
+                      {
+                        label: "Abweichend bearbeiten",
+                        icon: <Pencil className="h-4 w-4" aria-hidden="true" />,
+                        onClick: () => editStandardBlock(block.key),
+                        disabled,
+                      },
+                    ]}
+                  />
                 </div>
               </div>
             </div>
@@ -2988,7 +2991,7 @@ function TargetSuggestions({
                 <span className="mt-1 block text-xs leading-5 text-gray-500">
                   {targetSuggestionDescriptions[target]}
                 </span>
-                <span className="mt-2 inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+                <span className="mt-2 inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-sm font-medium text-gray-600">
                   {selected ? "Ist drin" : "Hinzufügen"}
                 </span>
               </span>
@@ -3180,17 +3183,17 @@ function FieldEditorRow({
                   {isInfo ? "Infotext" : "Frage"} {index + 1}
                 </p>
                 {isInfo ? (
-                  <span className="bg-moto-blue/10 text-moto-blue-hover inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium">
+                  <span className="bg-moto-blue/10 text-moto-blue-hover inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-sm font-medium">
                     <Info className="h-3 w-3" aria-hidden="true" />
                     Hinweis
                   </span>
                 ) : isTargetField ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-sm font-medium text-gray-600">
                     <Lock className="h-3 w-3" aria-hidden="true" />
                     Fester Vorschlag
                   </span>
                 ) : (
-                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-sm font-medium text-gray-600">
                     Freie Zusatzfrage
                   </span>
                 )}
@@ -3344,7 +3347,7 @@ function FieldEditorRow({
                   <span className="text-xs font-medium text-gray-700">
                     Typ
                     {isTargetField ? (
-                      <span className="ml-1 text-[11px] font-normal text-gray-500">
+                      <span className="ml-1 text-sm font-normal text-gray-500">
                         (automatisch festgelegt)
                       </span>
                     ) : null}
@@ -3433,15 +3436,24 @@ function FieldEditorRow({
                             aria-label={`Auswahlzeit ${index + 1}`}
                             className="h-10 w-full min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                           />
-                          <button
-                            type="button"
-                            onClick={() => removeAllowedTime(index)}
-                            disabled={disabled}
-                            className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red/10 focus-visible:ring-moto-red/30 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border bg-white shadow-sm transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
-                            aria-label={`Auswahlzeit ${index + 1} entfernen`}
-                          >
-                            <Trash2 className="h-4 w-4" aria-hidden="true" />
-                          </button>
+                          <OverflowMenu
+                            ariaLabel={`Aktionen für Auswahlzeit ${index + 1}`}
+                            triggerSize="sm"
+                            items={[
+                              {
+                                label: "Auswahlzeit entfernen",
+                                icon: (
+                                  <Trash2
+                                    className="h-4 w-4"
+                                    aria-hidden="true"
+                                  />
+                                ),
+                                onClick: () => removeAllowedTime(index),
+                                destructive: true,
+                                disabled,
+                              },
+                            ]}
+                          />
                         </li>
                       ))}
                     </ul>
@@ -3936,7 +3948,7 @@ function ConditionOfferingControls({
         disabled={disabled}
         className={conditionInputClass}
       />
-      <span className="mt-1 block text-[11px] leading-4 text-gray-500">
+      <span className="mt-1 block text-sm leading-5 text-gray-500">
         Sichtbar, wenn ein gewähltes Betreuungsangebot diesen Namen trägt.
       </span>
     </label>
@@ -4153,7 +4165,7 @@ function FormPreview({
                             <span className="text-sm font-medium text-gray-900">
                               {block.title.trim() || block.label}
                             </span>
-                            <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
+                            <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-sm font-medium text-gray-600">
                               {block.kind === "notice"
                                 ? "Hinweis"
                                 : block.required
@@ -4165,7 +4177,7 @@ function FormPreview({
                             {block.label}
                           </p>
                           {previewText.trim() !== "" ? (
-                            <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-gray-400">
+                            <p className="mt-1 line-clamp-2 text-sm leading-5 text-gray-400">
                               {previewText}
                             </p>
                           ) : null}
@@ -4200,7 +4212,7 @@ function PreviewSection({
             key={field}
             className="rounded-lg border border-gray-200 bg-white px-3 py-2"
           >
-            <span className="block text-[11px] font-medium text-gray-500">
+            <span className="block text-sm font-medium text-gray-500">
               {field}
             </span>
             <span className="mt-1 block h-2 w-2/3 rounded-full bg-gray-100" />
@@ -4214,7 +4226,7 @@ function PreviewSection({
 function ConditionalBadge({ field }: Readonly<{ field: FormField }>) {
   if (!field.visible_when) return null;
   return (
-    <span className="bg-moto-blue/10 text-moto-blue-hover inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium">
+    <span className="bg-moto-blue/10 text-moto-blue-hover inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-sm font-medium">
       bedingt
     </span>
   );
@@ -4258,7 +4270,7 @@ function PreviewCustomField({ field }: Readonly<{ field: FormField }>) {
         <div className="flex shrink-0 items-center gap-1.5">
           <ConditionalBadge field={field} />
           {field.required ? (
-            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
+            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-sm font-medium text-gray-600">
               Pflicht
             </span>
           ) : null}

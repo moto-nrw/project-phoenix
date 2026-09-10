@@ -2,7 +2,11 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { PlannedStatusDaysModal } from "./planned-status-days-modal";
 import type { StudentPartialAbsence } from "~/lib/student-partial-absences-api";
-import type { StudentStatusDay } from "~/lib/student-status-days-api";
+import {
+  StudentStatusDayConflictError,
+  StudentStatusDayPartialAbsenceConflictError,
+  type StudentStatusDay,
+} from "~/lib/student-status-days-api";
 
 // Das Panel laeuft als SlideOver (Vaul). Vaul rendert in jsdom nicht, deshalb
 // steht hier dieselbe Struktur ohne Animationsschicht.
@@ -847,6 +851,81 @@ describe("PlannedStatusDaysModal", () => {
     );
   });
 
+  it("keeps the partial-absence conflict message after a failed submission", async () => {
+    const onSubmit = vi
+      .fn()
+      .mockRejectedValue(new StudentStatusDayPartialAbsenceConflictError());
+
+    render(
+      <PlannedStatusDaysModal
+        isOpen
+        status="sick"
+        studentName="Kevin Anders"
+        isSubmitting={false}
+        existingDays={[]}
+        onClose={vi.fn()}
+        loadExistingDays={loadNoExistingDays}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Zeitraum" }));
+    fireEvent.change(screen.getByLabelText("Von"), {
+      target: { value: "2026-08-17" },
+    });
+    fireEvent.change(screen.getByLabelText("Bis"), {
+      target: { value: "2026-08-17" },
+    });
+
+    await clickEnabledButton("Krankmelden");
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Für diesen Tag liegt bereits eine Abmeldung ab einer Uhrzeit vor. Bitte zuerst die Teilabwesenheit entfernen.",
+      );
+    });
+  });
+
+  it("keeps status-day conflict details after a failed submission", async () => {
+    const conflict: StudentStatusDay = {
+      ...existingDays[0]!,
+      date: "2026-08-17",
+      status: "excused",
+    };
+    const onSubmit = vi
+      .fn()
+      .mockRejectedValue(new StudentStatusDayConflictError([conflict]));
+
+    render(
+      <PlannedStatusDaysModal
+        isOpen
+        status="sick"
+        studentName="Kevin Anders"
+        isSubmitting={false}
+        existingDays={[]}
+        onClose={vi.fn()}
+        loadExistingDays={loadNoExistingDays}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Zeitraum" }));
+    fireEvent.change(screen.getByLabelText("Von"), {
+      target: { value: "2026-08-17" },
+    });
+    fireEvent.change(screen.getByLabelText("Bis"), {
+      target: { value: "2026-08-17" },
+    });
+
+    await clickEnabledButton("Krankmelden");
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "17.08.2026 (entschuldigt) wurde zwischenzeitlich eingetragen und nicht überschrieben. Bitte Auswahl prüfen.",
+      );
+    });
+  });
+
   it("refreshes and shows a conflict that appears during submission", async () => {
     const raceConflict: StudentStatusDay = {
       ...existingDays[1]!,
@@ -983,6 +1062,35 @@ describe("PlannedStatusDaysModal", () => {
       screen.getByText("Wähle einen Zeitraum ohne bestehenden Status aus."),
     ).toBeInTheDocument();
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("clears an existing-day selection error after a valid selection", async () => {
+    render(
+      <PlannedStatusDaysModal
+        isOpen
+        status="sick"
+        studentName="Kevin Anders"
+        isSubmitting={false}
+        existingDays={existingDays}
+        onClose={vi.fn()}
+        loadExistingDays={loadKnownExistingDays}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Auswahl mit Konflikt"));
+    await waitFor(() => {
+      expect(
+        screen.getByText("Dienstag, 26. Mai 2026 ist bereits entschuldigt."),
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Einzeltag auswählen"));
+    await waitFor(() => {
+      expect(
+        screen.queryByText("Dienstag, 26. Mai 2026 ist bereits entschuldigt."),
+      ).not.toBeInTheDocument();
+    });
   });
 
   it("clears a stale conflict after an existing status day is deleted", async () => {

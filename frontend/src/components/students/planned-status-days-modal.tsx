@@ -38,9 +38,11 @@ import {
   parseISODate,
   toISODate,
 } from "~/lib/date-helpers";
-import type {
-  StudentStatusDay,
-  StudentStatusKind,
+import {
+  StudentStatusDayConflictError,
+  StudentStatusDayPartialAbsenceConflictError,
+  type StudentStatusDay,
+  type StudentStatusKind,
 } from "~/lib/student-status-days-api";
 import type { CarePlanDay } from "~/lib/student-care-plan-api";
 import type { StudentPartialAbsence } from "~/lib/student-partial-absences-api";
@@ -480,10 +482,12 @@ export function PlannedStatusDaysModal({
   const setSortedDates = (dates: Date[]) => {
     const sourceDates = isPartialExcusal ? dates.slice(-1) : dates;
     const unique = new Map<string, Date>();
+    let containsExistingDay = false;
     for (const date of sourceDates) {
       const key = toISODate(date);
       const existingDay = activeExistingDayByDate.get(key);
       if (existingDay) {
+        containsExistingDay = true;
         setSubmitError(
           `${formatDateLabel(existingDay.date)} ist ${getExistingStatusLabel(
             existingDay.status,
@@ -492,6 +496,9 @@ export function PlannedStatusDaysModal({
       } else {
         unique.set(key, date);
       }
+    }
+    if (!containsExistingDay) {
+      setSubmitError(null);
     }
     if (isPartialExcusal) {
       // While editing an existing partial excusal the date is fixed: clearing
@@ -668,14 +675,20 @@ export function PlannedStatusDaysModal({
       } else {
         await onSubmit(dateKeys);
       }
-    } catch {
-      setSubmitError(
-        isSick
-          ? "Die Krankmeldung konnte nicht gespeichert werden. Bitte erneut versuchen."
-          : isClassTrip
-            ? "Die Klassenfahrt konnte nicht gespeichert werden. Bitte erneut versuchen."
-            : "Die Entschuldigung konnte nicht gespeichert werden. Bitte erneut versuchen.",
-      );
+    } catch (err) {
+      if (err instanceof StudentStatusDayPartialAbsenceConflictError) {
+        setSubmitError(err.message);
+      } else if (err instanceof StudentStatusDayConflictError) {
+        setSubmitError(getSaveConflictMessage(err.conflicts));
+      } else {
+        setSubmitError(
+          isSick
+            ? "Die Krankmeldung konnte nicht gespeichert werden. Bitte erneut versuchen."
+            : isClassTrip
+              ? "Die Klassenfahrt konnte nicht gespeichert werden. Bitte erneut versuchen."
+              : "Die Entschuldigung konnte nicht gespeichert werden. Bitte erneut versuchen.",
+        );
+      }
       // Keep every input intact and refresh conflicts in case the write lost
       // a concurrent race.
       setConflictCheckRevision((current) => current + 1);
@@ -1324,4 +1337,17 @@ function getConflictMessage(
   }
 
   return `${details}: ${conflictCount} von ${totalCount} Tagen ${conflictCount === 1 ? "hat" : "haben"} bereits einen Status und ${conflictCount === 1 ? "wird" : "werden"} nicht überschrieben. ${selectableCount} ${selectableCount === 1 ? "Tag wird" : "Tage werden"} gespeichert.`;
+}
+
+function getSaveConflictMessage(conflicts: StudentStatusDay[]): string {
+  if (conflicts.length === 0) {
+    return "Vorhandene Status-Tage wurden nicht überschrieben. Bitte Auswahl prüfen.";
+  }
+  const details = conflicts
+    .map(
+      (day) =>
+        `${formatCalendarDate(day.date)} (${getStatusLabel(day.status).toLowerCase()})`,
+    )
+    .join(", ");
+  return `${details} ${conflicts.length === 1 ? "wurde" : "wurden"} zwischenzeitlich eingetragen und nicht überschrieben. Bitte Auswahl prüfen.`;
 }

@@ -24,8 +24,9 @@ describe("FormErrorAlert", () => {
   });
 
   it("scrolls into view when the message appears or changes", () => {
-    const scrollIntoView = vi.fn();
-    Element.prototype.scrollIntoView = scrollIntoView;
+    const scrollIntoView = vi
+      .spyOn(Element.prototype, "scrollIntoView")
+      .mockImplementation(() => {});
 
     const { rerender } = render(<FormErrorAlert message={null} />);
     expect(scrollIntoView).not.toHaveBeenCalled();
@@ -41,8 +42,9 @@ describe("FormErrorAlert", () => {
   });
 
   it("scrolls again for a repeated attempt with the same message", () => {
-    const scrollIntoView = vi.fn();
-    Element.prototype.scrollIntoView = scrollIntoView;
+    const scrollIntoView = vi
+      .spyOn(Element.prototype, "scrollIntoView")
+      .mockImplementation(() => {});
 
     const { rerender } = render(
       <FormErrorAlert message={{ message: "Gleicher Fehler", attempt: 1 }} />,
