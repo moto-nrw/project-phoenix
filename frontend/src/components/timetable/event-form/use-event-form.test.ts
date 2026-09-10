@@ -3,7 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ActivityCategory } from "~/lib/activity-helpers";
 import type { PlanningTrack } from "~/lib/planning-track-api";
-import type { TimetableTemplate } from "~/lib/timetable-types";
+import type {
+  EnrichedInstance,
+  TimetableTemplate,
+} from "~/lib/timetable-types";
 import * as plannerReferenceApi from "~/lib/planner-reference-api";
 import { planningTrackService } from "~/lib/planning-track-api";
 import { staffService } from "~/lib/staff-api";
@@ -852,6 +855,110 @@ describe("useEventForm category loading", () => {
         }),
       ]),
     );
+  });
+
+  it("keeps an archived category after an instance switches to its series", async () => {
+    const initialInstance: EnrichedInstance = {
+      id: "42",
+      date: "2026-08-03",
+      startTime: "12:00",
+      endTime: "13:00",
+      title: "Basteln",
+      status: "planned",
+      isSpontaneous: false,
+      isLive: false,
+      activityGroupId: "9",
+      activityType: "care",
+      roomId: "7",
+      roomName: "Mensa",
+      staff: [],
+      students: [],
+      studentIds: [],
+      staffCount: 0,
+      absentStaffCount: 0,
+      expectedStudentsCount: 0,
+      notScheduledStudentsCount: 0,
+      presentStudentsCount: 0,
+      requiredStaffCount: 0,
+      assignedStaffCount: 0,
+      conflictWarnings: [],
+    };
+    const archivedSeries: TimetableTemplate = {
+      id: "9",
+      name: "Basteln",
+      type: "care",
+      categoryId: "2",
+      categoryName: "Archiviert",
+      roomId: "7",
+      isOpen: true,
+      maxParticipants: 20,
+      targetGroupType: "angebot",
+      enrollmentCount: 0,
+      supervisorCount: 0,
+      requiredStaffCount: 0,
+      assignedStaffCount: 0,
+      studentIds: [],
+      staffIds: [],
+      weekdayAssignments: [],
+      schedules: [
+        {
+          id: "1",
+          weekday: 1,
+          startTime: "12:00",
+          endTime: "13:00",
+          weekPattern: 0,
+          calendarPeriodId: "5",
+        },
+      ],
+    };
+    const timestamp = new Date("2026-08-03T10:00:00Z");
+    vi.spyOn(plannerReferenceApi, "fetchPlannerRooms").mockResolvedValue([]);
+    vi.spyOn(plannerReferenceApi, "fetchPlannerGroups").mockResolvedValue([]);
+    vi.spyOn(plannerReferenceApi, "fetchPlannerActivityCategories")
+      .mockResolvedValueOnce([
+        {
+          id: "2",
+          name: "Archiviert",
+          created_at: timestamp,
+          updated_at: timestamp,
+        },
+      ])
+      .mockResolvedValueOnce([]);
+    vi.spyOn(formModel, "fetchAllStudentOptions").mockResolvedValue([]);
+    vi.spyOn(staffService, "getAllStaff").mockResolvedValue([]);
+    vi.spyOn(timetableService, "getTemplate").mockResolvedValue(archivedSeries);
+
+    const { result } = renderHook(() =>
+      useEventForm({
+        isOpen: true,
+        onClose: vi.fn(),
+        onSaved: vi.fn(),
+        defaultDate: "2026-08-03",
+        calendarPeriods: [],
+        defaultCalendarPeriodId: null,
+        planningPeriods: null,
+        initialInstance,
+        initialSeries: null,
+        convertInstance: null,
+        defaultRepeat: "none",
+        variant: "full",
+        canCheckShiftCoverage: false,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.categories).toHaveLength(1));
+    await act(async () => {
+      await result.current.handleInitialScopeSelect("all");
+    });
+    await waitFor(() => expect(result.current.form.categoryId).toBe("2"));
+    await act(async () => {
+      await result.current.refreshCategories();
+    });
+
+    expect(result.current.form.categoryId).toBe("2");
+    expect(result.current.categories).toEqual([
+      { id: "2", name: "Archiviert", disabled: true },
+    ]);
   });
 
   it("does not let the initial request overwrite a newer refresh", async () => {

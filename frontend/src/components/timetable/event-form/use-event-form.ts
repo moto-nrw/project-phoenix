@@ -3675,12 +3675,12 @@ export function useEventForm({
         );
         if (categoryLoadSeq.current !== categorySeq) return;
         setCategories(
-          initialSeries && !selectId
+          effectiveSeries && !selectId
             ? withUnavailableCurrentCategory(
                 sorted,
                 form.categoryId,
                 categories,
-                initialSeries.categoryName,
+                effectiveSeries.categoryName,
               )
             : sorted,
         );
@@ -3689,7 +3689,7 @@ export function useEventForm({
             prev.categoryId,
             sorted,
             selectId,
-            initialSeries !== null,
+            effectiveSeries !== null,
           );
           return categoryId === prev.categoryId
             ? prev
@@ -3701,7 +3701,7 @@ export function useEventForm({
         });
       }
     },
-    [categories, form.categoryId, initialSeries],
+    [categories, effectiveSeries, form.categoryId],
   );
 
   const refreshPlanningTracks = useCallback(async (selectId?: string) => {
