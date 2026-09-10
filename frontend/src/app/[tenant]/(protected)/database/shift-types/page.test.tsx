@@ -192,6 +192,56 @@ describe("Schichtarten — Kategorie-Zuordnung (#1837, #3114)", () => {
     );
   });
 
+  it("hides system categories while preserving an existing mapping", async () => {
+    setCategories({
+      data: [
+        ...CATEGORIES,
+        {
+          id: "3",
+          name: "WC",
+          isSystem: true,
+          shiftTypeId: "10",
+        },
+      ],
+    });
+    render(<ShiftTypesPage />);
+
+    expect(screen.queryByText("WC")).not.toBeInTheDocument();
+
+    save();
+
+    await waitFor(() =>
+      expect(shiftTypeService.updateShiftType).toHaveBeenCalledWith(
+        "10",
+        expect.objectContaining({ categoryIds: ["1", "3"] }),
+      ),
+    );
+  });
+
+  it("does not offer an unassigned system category", () => {
+    setCategories({
+      data: [
+        ...CATEGORIES,
+        {
+          id: "3",
+          name: "Schulhof",
+          isSystem: true,
+        },
+      ],
+    });
+    render(<ShiftTypesPage />);
+
+    fireEvent.click(
+      screen.getByRole("combobox", {
+        name: "Kategorien des Betreuungsplans",
+      }),
+    );
+
+    expect(
+      screen.queryByRole("option", { name: "Schulhof" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("keeps an in-progress draft when categories finish loading", async () => {
     setCategories({ data: undefined, isLoading: true });
     const { rerender } = render(<ShiftTypesPage />);

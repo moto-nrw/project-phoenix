@@ -39,11 +39,6 @@ vi.mock("~/components/ui/hooks/useIsMobile", () => ({
   useIsMobile: vi.fn(() => false),
 }));
 
-const mockUseSettingsSchema = vi.hoisted(() => vi.fn());
-vi.mock("~/lib/hooks/use-settings-schema", () => ({
-  useSettingsSchema: mockUseSettingsSchema,
-}));
-
 const mockCountsResponse = {
   success: true,
   message: "Counts fetched",
@@ -78,6 +73,14 @@ global.fetch = vi.fn(() =>
 
 import { useSession } from "next-auth/react";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
+import { useTimetableEnabled } from "~/lib/tenant-context";
+
+vi.mock("~/lib/tenant-context", () => ({
+  useNFCEnabled: () => true,
+  useTenantSlugSafe: () => "test-tenant",
+  useTenantRoutingModeSafe: () => "path",
+  useTimetableEnabled: vi.fn(),
+}));
 
 function mockCounts(
   data: unknown = mockCountsResponse.data,
@@ -102,7 +105,7 @@ describe("DatabasePage", () => {
       update: vi.fn(),
     });
     vi.mocked(useIsMobile).mockReturnValue(false);
-    mockUseSettingsSchema.mockReturnValue({ data: undefined });
+    vi.mocked(useTimetableEnabled).mockReturnValue(true);
     mockCounts();
     vi.mocked(global.fetch).mockResolvedValue({
       ok: true,
@@ -250,7 +253,7 @@ describe("DatabasePage", () => {
     });
   });
 
-  it("loads the planning setting for an administrator without config:read", () => {
+  it("uses the tenant planning state for administrators without config:read", () => {
     const administrator = {
       ...mockSession,
       user: {
@@ -264,32 +267,32 @@ describe("DatabasePage", () => {
       status: "authenticated",
       update: vi.fn(),
     } as never);
-    mockUseSettingsSchema.mockImplementation((enabled: boolean) => ({
-      data: enabled
-        ? {
-            tabs: [
-              {
-                key: "planung",
-                label: "Planung",
-                categories: [
-                  {
-                    key: "allgemein",
-                    label: "Allgemein",
-                    items: [{ key: "timetable.enabled", value: false }],
-                  },
-                ],
-              },
-            ],
-          }
-        : undefined,
-    }));
+    vi.mocked(useTimetableEnabled).mockReturnValue(false);
 
     render(<DatabasePage />);
 
-    expect(mockUseSettingsSchema).toHaveBeenCalledWith(
-      true,
-      expect.any(Object),
-    );
+    expect(screen.queryByText("Planungsspuren")).not.toBeInTheDocument();
+    expect(screen.queryByText("Schichtarten")).not.toBeInTheDocument();
+  });
+
+  it("hides planning catalogs for delegated users when planning is switched off", () => {
+    const scheduleManager = {
+      ...mockSession,
+      user: {
+        ...mockSession.user,
+        roles: [],
+        permissions: ["schedules:manage"],
+      },
+    };
+    vi.mocked(useSession).mockReturnValue({
+      data: scheduleManager,
+      status: "authenticated",
+      update: vi.fn(),
+    } as never);
+    vi.mocked(useTimetableEnabled).mockReturnValue(false);
+
+    render(<DatabasePage />);
+
     expect(screen.queryByText("Planungsspuren")).not.toBeInTheDocument();
     expect(screen.queryByText("Schichtarten")).not.toBeInTheDocument();
   });

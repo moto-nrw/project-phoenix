@@ -17,9 +17,7 @@ import { DatabaseCardGridSkeleton } from "./page-skeleton";
 import { formatCount } from "~/lib/format-utils";
 
 import { hasEffectiveAdminScope, hasPermission } from "~/lib/auth-utils";
-import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
-import { getSettingValue } from "~/lib/settings-api";
-import { useNFCEnabled } from "~/lib/tenant-context";
+import { useNFCEnabled, useTimetableEnabled } from "~/lib/tenant-context";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 
 interface DataSection {
@@ -261,19 +259,9 @@ function buildDatabaseStatusLine(counts: DatabaseCounts): string {
 function DatabaseContent() {
   const { data: session } = useSession();
   const nfcEnabled = useNFCEnabled();
-  // Planungsspuren und Schichtarten gehören zum Planungsbereich; ist er
-  // ausgeschaltet, gibt es nichts zu ordnen. `!== false` wie in der
-  // Seitenleiste, damit die Kacheln beim Laden des Schemas nicht flackern.
-  const { data: settingsSchema } = useSettingsSchema(
-    hasEffectiveAdminScope(session) || hasPermission(session, "config:read"),
-    {
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-      shouldRetryOnError: false,
-    },
-  );
-  const timetableEnabled =
-    getSettingValue(settingsSchema, "timetable.enabled") !== false;
+  // Der Wert kommt aus den Tenant-Metadaten und steht damit auch delegierten
+  // Personen ohne config:read zur Verfügung.
+  const timetableEnabled = useTimetableEnabled();
   const tenantPath = useTenantAwarePath();
   const { data, isLoading: countsLoading } = useSWR(
     session?.user ? "/api/database/counts" : null,

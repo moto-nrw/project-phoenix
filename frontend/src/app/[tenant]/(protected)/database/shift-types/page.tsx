@@ -136,8 +136,9 @@ function ShiftTypesPageContent() {
                   options: categoryList
                     .filter(
                       (category) =>
-                        !category.archivedAt ||
-                        category.shiftTypeId === type?.id,
+                        !category.isSystem &&
+                        (!category.archivedAt ||
+                          category.shiftTypeId === type?.id),
                     )
                     .map((category) => ({
                       value: category.id,

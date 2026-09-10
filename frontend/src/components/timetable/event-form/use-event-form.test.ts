@@ -781,6 +781,70 @@ describe("useEventForm Quellenfilter-Modus (#2482)", () => {
 });
 
 describe("useEventForm category loading", () => {
+  it("keeps an archived category while refreshing an existing series", async () => {
+    const initialSeries: TimetableTemplate = {
+      id: "9",
+      name: "Basteln",
+      type: "care",
+      categoryId: "2",
+      categoryName: "Archiviert",
+      roomId: "7",
+      isOpen: true,
+      maxParticipants: 20,
+      targetGroupType: "angebot",
+      enrollmentCount: 0,
+      supervisorCount: 0,
+      requiredStaffCount: 0,
+      assignedStaffCount: 0,
+      studentIds: [],
+      staffIds: [],
+      weekdayAssignments: [],
+      schedules: [
+        {
+          id: "1",
+          weekday: 1,
+          startTime: "12:00",
+          endTime: "13:00",
+          weekPattern: 0,
+          calendarPeriodId: "5",
+        },
+      ],
+    };
+    vi.spyOn(plannerReferenceApi, "fetchPlannerRooms").mockResolvedValue([]);
+    vi.spyOn(plannerReferenceApi, "fetchPlannerGroups").mockResolvedValue([]);
+    vi.spyOn(
+      plannerReferenceApi,
+      "fetchPlannerActivityCategories",
+    ).mockResolvedValue([]);
+    vi.spyOn(formModel, "fetchAllStudentOptions").mockResolvedValue([]);
+    vi.spyOn(staffService, "getAllStaff").mockResolvedValue([]);
+
+    const { result } = renderHook(() =>
+      useEventForm({
+        isOpen: true,
+        onClose: vi.fn(),
+        onSaved: vi.fn(),
+        defaultDate: "2026-08-03",
+        calendarPeriods: [],
+        defaultCalendarPeriodId: null,
+        planningPeriods: null,
+        initialInstance: null,
+        initialSeries,
+        convertInstance: null,
+        defaultRepeat: "none",
+        variant: "full",
+        canCheckShiftCoverage: false,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.form.categoryId).toBe("2"));
+    await act(async () => {
+      await result.current.refreshCategories();
+    });
+
+    expect(result.current.form.categoryId).toBe("2");
+  });
+
   it("does not let the initial request overwrite a newer refresh", async () => {
     let resolveInitialCategories: (value: ActivityCategory[]) => void = () =>
       undefined;

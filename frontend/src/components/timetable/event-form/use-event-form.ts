@@ -149,15 +149,21 @@ export const WEEKDAYS = [1, 2, 3, 4, 5] as const;
 /**
  * Keeps a category selection only while the refreshed picker still offers it.
  * A newly created category is authoritative even if the following refetch is
- * stale; an archived category is cleared so saving cannot submit its old ID.
+ * stale. A category on an existing series remains selectable after archiving
+ * so that refreshing the picker cannot discard the stored association.
  */
 export function reconcileCategoryId(
   currentId: string,
   categories: readonly Pick<ActivityCategory, "id">[],
   createdId?: string,
+  preserveMissing = false,
 ): string {
   if (createdId) return createdId;
-  if (currentId && !categories.some((category) => category.id === currentId)) {
+  if (
+    !preserveMissing &&
+    currentId &&
+    !categories.some((category) => category.id === currentId)
+  ) {
     return "";
   }
   return currentId;
@@ -3646,32 +3652,38 @@ export function useEventForm({
    * something (#2131). When a category was just created, it is selected right
    * away — the user opened the dialog because the one they needed was missing.
    */
-  const refreshCategories = useCallback(async (selectId?: string) => {
-    const categorySeq = ++categoryLoadSeq.current;
-    if (selectId) {
-      setForm((prev) => ({ ...prev, categoryId: selectId }));
-    }
-    try {
-      const data = await fetchPlannerActivityCategories();
-      const sorted = [...data].sort((a, b) =>
-        a.name.localeCompare(b.name, "de"),
-      );
-      if (categoryLoadSeq.current !== categorySeq) return;
-      setCategories(sorted);
-      setForm((prev) => {
-        const categoryId = reconcileCategoryId(
-          prev.categoryId,
-          sorted,
-          selectId,
+  const refreshCategories = useCallback(
+    async (selectId?: string) => {
+      const categorySeq = ++categoryLoadSeq.current;
+      if (selectId) {
+        setForm((prev) => ({ ...prev, categoryId: selectId }));
+      }
+      try {
+        const data = await fetchPlannerActivityCategories();
+        const sorted = [...data].sort((a, b) =>
+          a.name.localeCompare(b.name, "de"),
         );
-        return categoryId === prev.categoryId ? prev : { ...prev, categoryId };
-      });
-    } catch (err: unknown) {
-      logger.error("categories_refresh_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-  }, []);
+        if (categoryLoadSeq.current !== categorySeq) return;
+        setCategories(sorted);
+        setForm((prev) => {
+          const categoryId = reconcileCategoryId(
+            prev.categoryId,
+            sorted,
+            selectId,
+            initialSeries !== null,
+          );
+          return categoryId === prev.categoryId
+            ? prev
+            : { ...prev, categoryId };
+        });
+      } catch (err: unknown) {
+        logger.error("categories_refresh_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    },
+    [initialSeries],
+  );
 
   const refreshPlanningTracks = useCallback(async (selectId?: string) => {
     const planningTrackSeq = ++planningTrackLoadSeq.current;
