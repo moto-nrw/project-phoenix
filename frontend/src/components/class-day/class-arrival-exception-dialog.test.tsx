@@ -23,17 +23,19 @@ vi.mock("~/lib/school-class-day-api", () => ({
 vi.mock("~/components/ui/form-modal", () => ({
   FormModal: ({
     isOpen,
+    suspended = false,
     title,
     children,
     footer,
   }: {
     isOpen: boolean;
+    suspended?: boolean;
     title: string;
     children: React.ReactNode;
     footer: React.ReactNode;
   }) =>
     isOpen ? (
-      <div role="dialog" aria-label={title}>
+      <div role="dialog" aria-label={title} data-suspended={suspended}>
         <div>{children}</div>
         <div>{footer}</div>
       </div>
@@ -190,7 +192,19 @@ describe("ClassArrivalExceptionDialog", () => {
     expect(
       await screen.findByText("Eingetragen von der OGS"),
     ).toBeInTheDocument();
+    // #3109: the row button opens the ConfirmDeleteModal; the day is only
+    // removed after the two-step confirmation inside the dialog.
     fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
+    expect(mockRemove).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("dialog", {
+        name: "Ankunftszeit an einem Tag für Klasse 4a",
+      }),
+    ).toHaveAttribute("data-suspended", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Ja, entfernen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Endgültig entfernen" }),
+    );
 
     await waitFor(() => {
       expect(mockRemove).toHaveBeenCalledWith("4a", "2099-03-02");
@@ -198,5 +212,10 @@ describe("ClassArrivalExceptionDialog", () => {
     expect(
       await screen.findByText("Abweichung am 02.03.2099 entfernt"),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", {
+        name: "Ankunftszeit an einem Tag für Klasse 4a",
+      }),
+    ).toHaveAttribute("data-suspended", "false");
   });
 });

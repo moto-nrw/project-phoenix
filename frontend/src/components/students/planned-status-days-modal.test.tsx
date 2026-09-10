@@ -551,11 +551,29 @@ describe("PlannedStatusDaysModal", () => {
     );
     expect(screen.getAllByText(/bereits/i).length).toBeGreaterThan(0);
 
+    // #3109: the row's menu entry opens the ConfirmDeleteModal; the day is
+    // only removed after the two-step confirmation inside the dialog.
     fireEvent.click(screen.getByRole("button", { name: /^Aktionen für/ }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Entfernen" }));
+    expect(onDeleteStatusDay).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("heading", { name: "Geplanten Tag entfernen?" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Entschuldigung planen" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Entfernen bestätigen" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Eintrag entfernen" }));
 
     await waitFor(() => {
       expect(onDeleteStatusDay).toHaveBeenCalledWith("1");
+    });
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("heading", { name: "Geplanten Tag entfernen?" }),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -1023,6 +1041,10 @@ describe("PlannedStatusDaysModal", () => {
     expect(screen.getByText("Bereits vorhanden")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /^Aktionen für/ }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Entfernen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Entfernen bestätigen" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Eintrag entfernen" }));
     await waitFor(() => {
       expect(onDeleteStatusDay).toHaveBeenCalledWith("3");
       expect(screen.queryByRole("alert")).not.toBeInTheDocument();
@@ -1080,8 +1102,17 @@ describe("PlannedStatusDaysModal", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /^Aktionen für/ }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Entfernen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Entfernen bestätigen" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Eintrag entfernen" }));
     await waitFor(() => {
       expect(onDeleteStatusDay).toHaveBeenCalledWith("3");
+    });
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("heading", { name: "Geplanten Tag entfernen?" }),
+      ).not.toBeInTheDocument();
     });
 
     expect(screen.getByRole("alert")).toHaveTextContent(

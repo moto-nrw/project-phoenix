@@ -169,3 +169,26 @@ export const Interactive: Story = {
     return <InteractiveDemo />;
   },
 };
+
+/**
+ * Eltern-Portal (#3109): jede Beschriftung kommt übersetzt aus dem Aufrufer,
+ * und das Sheet folgt dem Dialog, aus dem die Rückfrage geöffnet wurde.
+ */
+export const ParentsPortal: Story = {
+  args: {
+    isOpen: true,
+    title: "Undo the change?",
+    description:
+      "The different pick-up time for 12.09.2026 will be removed. The regular weekly plan applies again.",
+    gate: { mode: "twoStep", firstStepLabel: "Yes, undo" },
+    confirmLabel: "Undo permanently",
+    loadingLabel: "Undoing…",
+    cancelLabel: "Cancel",
+    closeLabel: "Close",
+    mobileSheet: true,
+    onConfirm: () => {},
+    onClose: () => {},
+    loading: false,
+    error: "",
+  },
+};

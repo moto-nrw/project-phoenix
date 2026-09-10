@@ -78,6 +78,11 @@ export function CaregiverCapabilityModal({
   // Zwei Schritte in EINEM Dialog: Übersicht und das Auflösen der offenen
   // Zuordnungen. Ein zweiter Dialog darüber ist portalweit verboten.
   const [step, setStep] = useState<"overview" | "resolve">("overview");
+  const [blockerConfirmationOpen, setBlockerConfirmationOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) setBlockerConfirmationOpen(false);
+  }, [isOpen]);
 
   const needsSchoolId = scope === "operator";
   const operatorSchoolId = scope === "operator" ? schoolId : undefined;
@@ -268,6 +273,7 @@ export function CaregiverCapabilityModal({
           ? `Zuordnungen auflösen: ${accountLabel}`
           : `Betreuung verwalten: ${accountLabel}`
       }
+      suspended={blockerConfirmationOpen}
       size="lg"
       footer={
         step === "resolve" ? (
@@ -315,7 +321,11 @@ export function CaregiverCapabilityModal({
       }
     >
       {step === "resolve" && state ? (
-        <CaregiverBlockerResolutionPanel active state={state} />
+        <CaregiverBlockerResolutionPanel
+          active
+          state={state}
+          onConfirmationVisibilityChange={setBlockerConfirmationOpen}
+        />
       ) : loading ? (
         <div className="py-8 text-sm text-gray-500">Wird geladen...</div>
       ) : state ? (

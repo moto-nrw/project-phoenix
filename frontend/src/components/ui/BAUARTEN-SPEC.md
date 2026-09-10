@@ -104,7 +104,14 @@ keine zweite Ansicht.
    `ChoiceModal`; die Wahl ist dann der erste Schritt der Rückfrage.
    Zustandswechsel mit Entfernen-Folge (Stornieren, Widerrufen, Abmelden,
    Archivieren, „Änderung speichern“) sind keine Löschung und bleiben auf
-   `ConfirmationModal` (#3110).
+   `ConfirmationModal` (#3110). **Die Rückfrage kommt immer vor der
+   Aktion:** ein Knopf oder Menüeintrag, der etwas löscht, entfernt,
+   archiviert, zurücknimmt, widerruft oder storniert, öffnet den Dialog;
+   die API läuft in dessen `onConfirm`, nie direkt aus dem Klick (#3109).
+   Ein Rückgängig-Toast ersetzt die Rückfrage nicht. Dieser Absatz gilt
+   abweichend vom Kopf dieses Dokuments in allen Portalen; im Eltern-Portal
+   trägt `ConfirmDeleteModal` übersetzte Beschriftungen (`cancelLabel`,
+   `confirmLabel`, `closeLabel`) und `mobileSheet`.
 7. **Keine deaktivierten Platzhalter-Aktionen.** Was es nicht gibt, steht
    nicht im Menü.
 8. **Zurück** immer über den Kopf der `TenantPage` (`back`/`backHref`).
@@ -188,7 +195,16 @@ bekommt eine shrink-only Baseline analog zum bestehenden
    Menüeinträge.
 7. Erweiterung von `tenant-page-scaffold.test.ts`: jede Seite deklariert ihre
    Bauart, und die Zuordnung ist vollständig.
-8. `bauart/no-row-action-buttons` — Zeilenaktionen nur im Kebab (Bauart 1
+8. `bauart/no-unconfirmed-destructive-click` — kein Löschen, Entfernen,
+   Archivieren, Zurücknehmen, Widerrufen oder Stornieren direkt aus dem
+   Klick. **Umgesetzt** (`scripts/oxlint-plugin-bauart.mjs`, hard-zero,
+   #3109): prüft `Button`/`button` und Menüeinträge (`label` + `onClick`)
+   mit einer solchen Beschriftung darauf, ob der Inline-Handler selbst eine
+   asynchrone Aktion auslöst (`void f()`, `await f()`, `.then(`); ein
+   Klick, der nur den Dialog öffnet (`setDeleteTarget(x)`), passiert. Ein
+   per Namen übergebener Handler (`onClick={handleDelete}`) liegt außerhalb
+   der Ratsche und gehört ins Review.
+9. `bauart/no-row-action-buttons` — Zeilenaktionen nur im Kebab (Bauart 1
    Regel 4). **Umgesetzt** (`scripts/oxlint-plugin-bauart.mjs`, #3111): ein
    `Button`/`<button>` je Listeneintrag (in einem `.map(…)` oder dem
    `render` einer Tabellenspalte), dessen zugänglicher Name eine
