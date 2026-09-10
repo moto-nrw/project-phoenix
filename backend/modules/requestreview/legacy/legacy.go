@@ -13,7 +13,6 @@ package legacy
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
@@ -50,8 +49,9 @@ type Sources struct {
 	FamilyProtection userService.FamilyProtectionManager
 	// ReviewPolicy is optional; without it the page omits review_access.
 	ReviewPolicy ReviewPolicy
-	Logger       *slog.Logger
-	Now          func() time.Time
+	// Now is the clock the projection and the row facts (urgency, past
+	// scope) share; optional, defaults to time.Now.
+	Now func() time.Time
 }
 
 // ErrIncompleteSources reports a missing retained queue. Missing wiring is a
@@ -77,7 +77,7 @@ func New(sources Sources) (requestreview.Query, error) {
 			DirectCorrections: correctionLog{service: sources.Offering},
 		},
 		Access: access{policy: sources.ReviewPolicy},
-		Logger: sources.Logger,
+		Today:  func() requestreview.Date { return requestreview.Date(today()) },
 	}
 	if sources.People != nil && sources.Education != nil {
 		deps.Students = students{people: sources.People, education: sources.Education}

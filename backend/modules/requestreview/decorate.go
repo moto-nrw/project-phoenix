@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"strconv"
 )
 
 // decorateOpenPage adds everything only the working list needs: the caller's
@@ -37,8 +36,7 @@ func (s *service) decorateStudentGroups(ctx context.Context, page *Page) error {
 		return fmt.Errorf("load students for request queue groups: %w", err)
 	}
 	for i := range page.Items {
-		id, _ := strconv.ParseInt(page.Items[i].StudentID, 10, 64)
-		page.Items[i].GroupName = names[id]
+		page.Items[i].GroupName = names[page.Items[i].studentID]
 	}
 	return nil
 }
@@ -49,22 +47,22 @@ func (s *service) decorateFamilyProtection(ctx context.Context, page *Page) erro
 		return fmt.Errorf("load family protection for request queue: %w", err)
 	}
 	for i := range page.Items {
-		id, _ := strconv.ParseInt(page.Items[i].StudentID, 10, 64)
-		page.Items[i].FamilyProtected = protected[id]
+		page.Items[i].FamilyProtected = protected[page.Items[i].studentID]
 	}
 	return nil
 }
 
+// studentIDs are the children on this page, each once, in page order.
 func studentIDs(items []Item) []int64 {
 	ids := make([]int64, 0, len(items))
 	seen := make(map[int64]struct{}, len(items))
 	for _, item := range items {
-		id, err := strconv.ParseInt(item.StudentID, 10, 64)
-		if err == nil && id > 0 {
-			if _, ok := seen[id]; !ok {
-				seen[id] = struct{}{}
-				ids = append(ids, id)
-			}
+		if item.studentID <= 0 {
+			continue
+		}
+		if _, ok := seen[item.studentID]; !ok {
+			seen[item.studentID] = struct{}{}
+			ids = append(ids, item.studentID)
 		}
 	}
 	return ids
@@ -113,9 +111,8 @@ func (s *service) decorateConflicts(ctx context.Context, page *Page, types []str
 		return err
 	}
 	for i := range page.Items {
-		studentID, _ := strconv.ParseInt(page.Items[i].StudentID, 10, 64)
 		page.Items[i].ConflictKey, page.Items[i].ConflictGroupSize =
-			largestConflictGroup(keyed[studentID], page.Items[i].ConflictKeys)
+			largestConflictGroup(keyed[page.Items[i].studentID], page.Items[i].ConflictKeys)
 	}
 	return nil
 }

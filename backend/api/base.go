@@ -1190,7 +1190,6 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		Education:        api.Services.Education,
 		FamilyProtection: api.Services.FamilyProtection,
 		ReviewPolicy:     api.Services.RequestReviewPolicy,
-		Logger:           logger.With("module", "request-review"),
 	})
 	if err != nil {
 		return fmt.Errorf("request review projection: %w", err)

@@ -51,6 +51,9 @@ type ListQuery struct {
 
 	cursor     pageCursor
 	urgentOnly *bool
+	// today is the calendar day the urgency phase is judged against,
+	// resolved once per call by the projection.
+	today Date
 }
 
 // ParseListQuery reads the wire query of the list route.
@@ -227,7 +230,7 @@ func (q *ListQuery) matches(row *Row) bool {
 func (q *ListQuery) queueFilter() QueueFilter {
 	return QueueFilter{
 		StudentID: q.StudentID, Search: q.Search,
-		UrgentOnly: q.urgentOnly, UrgentDate: timezone.TodayDate().String(),
+		UrgentOnly: q.urgentOnly, UrgentDate: q.today.String(),
 	}
 }
 

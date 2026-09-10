@@ -299,6 +299,48 @@ func TestListServesUrgentRequestsBeforeTheRest(t *testing.T) {
 	assert.Empty(t, rest.NextCursor)
 }
 
+func TestListJudgesUrgencyAgainstTheInjectedDay(t *testing.T) {
+	t.Parallel()
+	f := newFixture()
+	f.excused.open = []Row{openRow(TypeExcused, 1, 1, "Anna", base)}
+	deps := Dependencies{
+		Queues: Queues{MasterData: f.master, CareSchedule: f.care, Offering: f.offering, Excused: f.excused, DirectCorrections: f.corrections},
+		Access: f.access,
+		Today:  func() Date { return "2026-08-24" },
+	}
+	_, err := New(deps).ListRequests(context.Background(), parse(t, ""))
+	require.NoError(t, err)
+	phases := 0
+	for _, call := range f.excused.openCalls {
+		if call.UrgentOnly == nil {
+			assert.Empty(t, call.UrgentDate, "the conflict scan spans both phases and judges no urgency")
+			continue
+		}
+		phases++
+		assert.Equal(t, "2026-08-24", call.UrgentDate, "both phases judge urgency against the same injected day")
+	}
+	assert.Equal(t, 2, phases, "the urgent phase and the normal phase both ran")
+
+	// Without an injected clock the projection falls back to the wall clock,
+	// and both phases still agree on one day.
+	f = newFixture()
+	f.excused.open = []Row{openRow(TypeExcused, 1, 1, "Anna", base)}
+	_, err = f.query().ListRequests(context.Background(), parse(t, ""))
+	require.NoError(t, err)
+	var fallback string
+	for _, call := range f.excused.openCalls {
+		if call.UrgentOnly == nil {
+			continue
+		}
+		assert.Regexp(t, `^\d{4}-\d{2}-\d{2}$`, call.UrgentDate)
+		if fallback == "" {
+			fallback = call.UrgentDate
+		}
+		assert.Equal(t, fallback, call.UrgentDate, "both phases share one day")
+	}
+	assert.NotEmpty(t, fallback)
+}
+
 func TestListNarrowsCallersWithoutTheWriteQueuesToExcused(t *testing.T) {
 	t.Parallel()
 	f := newFixture()

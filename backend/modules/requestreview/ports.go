@@ -5,6 +5,12 @@ import (
 	"time"
 )
 
+// Date is a calendar day (YYYY-MM-DD) without clock or zone, the same shape
+// the owner contracts the ports adapt use.
+type Date string
+
+func (d Date) String() string { return string(d) }
+
 // Cursor is the keyset position after one page of a queue: the instant the
 // page sorted on (created_at on the open queue, updated_at in the history,
 // changed_at for a correction) and the row ID. A nil cursor means the page

@@ -40,6 +40,7 @@ func newItem(row *Row) Item {
 		RequestType:          row.Type,
 		OccurredAt:           row.SortTime,
 		StudentID:            strconv.FormatInt(row.StudentID, 10),
+		studentID:            row.StudentID,
 		StudentName:          row.StudentName,
 		ExpectedVersion:      row.Version,
 		UrgentToday:          row.UrgentToday,

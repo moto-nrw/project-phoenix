@@ -12,8 +12,9 @@ package requestreview
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 // ErrNotConfigured reports a missing queue or access port.
@@ -32,13 +33,15 @@ type Query interface {
 // Dependencies are the consumer-owned ports the projection reads through.
 // Queues and Access are required. Students and FamilyProtection are
 // optional: without them the open page omits group names and reports no
-// Familienschutz. Logger defaults to slog.Default.
+// Familienschutz. Today defaults to the Berlin calendar day of the wall
+// clock; it is resolved once per call so the queues' urgency phase and the
+// rows' urgency and past flags never straddle midnight.
 type Dependencies struct {
 	Queues           Queues
 	Access           Access
 	Students         StudentDirectory
 	FamilyProtection FamilyProtection
-	Logger           *slog.Logger
+	Today            func() Date
 }
 
 type service struct{ deps Dependencies }
@@ -46,8 +49,8 @@ type service struct{ deps Dependencies }
 // New builds the projection. Missing wiring surfaces as ErrNotConfigured on
 // the first call, never as a partial list.
 func New(deps Dependencies) Query {
-	if deps.Logger == nil {
-		deps.Logger = slog.Default()
+	if deps.Today == nil {
+		deps.Today = func() Date { return Date(timezone.TodayDate()) }
 	}
 	return &service{deps: deps}
 }
@@ -126,6 +129,10 @@ type Item struct {
 	CanCorrect      bool `json:"can_correct,omitempty"`
 	FamilyProtected bool `json:"family_protected"`
 	Data            any  `json:"data"`
+	// studentID is StudentID as the owner queues report it. The wire carries
+	// the string (backend int64 IDs map to frontend strings); the decorations
+	// key on this instead of parsing the string back.
+	studentID int64
 }
 
 // Page is the cursor envelope of the list.
@@ -167,6 +174,7 @@ func (s *service) ListRequests(ctx context.Context, query ListQuery) (Page, erro
 	if !caller.ReviewsWriteQueues {
 		query.Types = intersectTypes(query.Types, TypeExcused)
 	}
+	query.today = s.deps.Today()
 
 	page, err := s.page(ctx, &query)
 	if err != nil {
