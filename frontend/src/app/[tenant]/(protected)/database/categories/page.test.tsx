@@ -2,8 +2,6 @@ import { render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import CategoriesPage from "./page";
-import { LOCATION_COLORS } from "~/lib/location-helper";
-
 interface CapturedConfig {
   isReadOnly: (item: { isSystem?: boolean; archivedAt?: string }) => boolean;
   update: (item: { id: string }, values: Record<string, unknown>) => unknown;
@@ -57,7 +55,7 @@ describe("Terminkategorien", () => {
     ).toBe(true);
   });
 
-  it("submits the default color after resetting an existing category", () => {
+  it("clears the stored color after resetting an existing category", () => {
     render(<CategoriesPage />);
 
     captured.config?.update(
@@ -68,7 +66,7 @@ describe("Terminkategorien", () => {
     expect(categoryService.updateCategory).toHaveBeenCalledWith("7", {
       name: "Essen",
       description: "Mittagessen",
-      color: LOCATION_COLORS.GROUP_ROOM,
+      color: "",
     });
   });
 });

@@ -74,10 +74,7 @@ function payloadOf(values: Record<string, unknown>) {
   return {
     name: String(values.name ?? "").trim(),
     description: String(values.description ?? "").trim(),
-    color:
-      typeof values.color === "string" && values.color.length > 0
-        ? values.color
-        : DEFAULT_COLOR,
+    color: typeof values.color === "string" ? values.color : "",
   };
 }
 
