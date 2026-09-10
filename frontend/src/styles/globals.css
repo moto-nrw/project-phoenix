@@ -618,6 +618,12 @@
   box-shadow: var(--shadow-lg);
 }
 
+/* Ein Inhalt, der in seiner Karte scrollt, wird am unteren Rand hart
+   abgeschnitten — bei einer halb sichtbaren Zeile liest sich das nicht als
+   "hier geht es weiter", sondern als kaputte Karte. Die Maske blendet die
+   letzten Pixel weich aus, statt sie zu zerschneiden. Endet der Inhalt vorher,
+   ist nichts zu sehen: es gibt dann nichts auszublenden. Ohne JavaScript und
+   deshalb auch beim ersten Bild richtig, nicht erst nach dem Scrollen. */
 /* Print rules reset unlayered page styles that Tailwind print utilities cannot
    override, then add a dedicated guide background for PDF exports. */
 @media print {

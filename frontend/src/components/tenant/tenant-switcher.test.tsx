@@ -325,9 +325,7 @@ describe("BrandTenantSwitcher", () => {
     });
 
     // Should redirect to the new tenant subdomain
-    expect(window.location.href).toBe(
-      "http://school-b.localhost:3000/dashboard",
-    );
+    expect(window.location.href).toBe("http://school-b.localhost:3000/home");
   });
 
   it("handles switch error gracefully", async () => {
@@ -454,9 +452,7 @@ describe("BrandTenantSwitcher", () => {
       );
     });
 
-    expect(window.location.href).toBe(
-      "http://school-b.localhost:3000/dashboard",
-    );
+    expect(window.location.href).toBe("http://school-b.localhost:3000/home");
   });
 
   it("matches the current tenant by subdomain when slug differs (#1975)", async () => {

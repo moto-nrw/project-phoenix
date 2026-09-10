@@ -27,6 +27,11 @@ interface FormModalProps {
   // Blocks every dismissal path (close icon, backdrop, Escape): for modals
   // whose in-flight request must not look cancelled while it still commits.
   readonly closeDisabled?: boolean;
+  /**
+   * Temporarily removes this surface while a child confirmation is shown,
+   * without unmounting the child and losing its pending state.
+   */
+  readonly suspended?: boolean;
 }
 
 export function FormModal({
@@ -38,6 +43,7 @@ export function FormModal({
   size = "lg",
   mobilePosition = "bottom",
   closeDisabled = false,
+  suspended = false,
 }: FormModalProps) {
   const [isAnimating, setIsAnimating] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
@@ -49,7 +55,8 @@ export function FormModal({
   const closeModalRef = useLatest(closeModal);
 
   // Use scroll lock hook (handles overflow:hidden and event blocking)
-  useScrollLock(isOpen);
+  const visible = isOpen && !suspended;
+  useScrollLock(visible);
 
   // Map size to max-width classes
   const sizeClasses = {
@@ -109,7 +116,7 @@ export function FormModal({
 
   // Handle modal context state for blur overlay
   useEffect(() => {
-    if (isOpen) {
+    if (visible) {
       const openModal = openModalRef.current;
       const closeModal = closeModalRef.current;
       openModal();
@@ -117,18 +124,18 @@ export function FormModal({
         closeModal();
       };
     }
-  }, [closeModalRef, isOpen, openModalRef]);
+  }, [closeModalRef, openModalRef, visible]);
 
   // Close on escape key press and handle animations
   useEffect(() => {
     let animationTimer: ReturnType<typeof setTimeout> | undefined;
     const handleEscKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && isOpen) {
+      if (event.key === "Escape" && visible) {
         handleClose();
       }
     };
 
-    if (isOpen) {
+    if (visible) {
       document.addEventListener("keydown", handleEscKey);
       globalThis.dispatchEvent(new CustomEvent("mobile-modal-open"));
 
@@ -142,12 +149,12 @@ export function FormModal({
     return () => {
       document.removeEventListener("keydown", handleEscKey);
       if (animationTimer) clearTimeout(animationTimer);
-      if (!isOpen) {
+      if (!visible) {
         setIsAnimating(false);
         setIsExiting(false);
       }
     };
-  }, [isOpen, handleClose]);
+  }, [visible, handleClose]);
 
   if (!isOpen) return null;
 
@@ -161,10 +168,11 @@ export function FormModal({
     // trap). Without this, taps on inputs inside this modal are stolen back
     // by the drawer because the modal is portaled to document.body and counts
     // as "outside" the drawer's scope.
-    <FocusScope asChild loop trapped>
+    <FocusScope asChild loop={!suspended} trapped={!suspended}>
       <div
         data-modal-focus-scope="true"
-        className={`fixed inset-0 z-[9999] flex ${mobilePosition === "bottom" ? "items-end" : "items-center"} justify-center md:items-center md:p-6`}
+        className={`fixed inset-0 z-[9999] ${suspended ? "hidden" : "flex"} ${mobilePosition === "bottom" ? "items-end" : "items-center"} justify-center md:items-center md:p-6`}
+        aria-hidden={suspended}
         // pointerEvents: 'auto' is required when this modal is rendered while
         // a Radix/Vaul dialog (e.g. the mobile master/detail drawer) has set
         // `document.body { pointer-events: none }`. Without this, the modal

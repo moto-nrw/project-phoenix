@@ -22,7 +22,7 @@ export function OpenWithdrawalCard({
   position,
   total,
   finish,
-  remove,
+  remove: openDeletionDialog,
 }: Readonly<{
   row: CareWithdrawalCompletion;
   grouped?: boolean;
@@ -67,7 +67,7 @@ export function OpenWithdrawalCard({
             variant="outline_danger"
             size="md"
             className="max-sm:min-h-11"
-            onClick={() => remove(row)}
+            onClick={() => openDeletionDialog(row)}
           >
             Kind sofort löschen
           </Button>

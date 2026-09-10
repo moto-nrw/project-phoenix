@@ -4,7 +4,11 @@ import { useEffect } from "react";
 import useSWR from "swr";
 import { useSession } from "next-auth/react";
 
-import type { HomeBlockPolicies, HomeLayoutOverrides } from "~/lib/home-blocks";
+import type {
+  HomeBlockPlacement,
+  HomeBlockPolicies,
+  HomeLayoutOverrides,
+} from "~/lib/home-blocks";
 import {
   fetchHomeLayout,
   homeLayoutSWRKey,
@@ -16,6 +20,7 @@ import {
 import { useTenantSlugSafe } from "~/lib/tenant-context";
 
 const EMPTY: HomeLayoutState = {
+  blocks: [],
   overrides: {},
   policies: {},
   canManagePolicies: false,
@@ -45,7 +50,11 @@ function homeLayoutAccountChanged(accountID: string): string {
 export function useHomeLayout(): {
   state: HomeLayoutState;
   isLoading: boolean;
-  save: (overrides: HomeLayoutOverrides) => Promise<void>;
+  isReady: boolean;
+  save: (
+    overrides: HomeLayoutOverrides,
+    blocks: readonly HomeBlockPlacement[],
+  ) => Promise<void>;
   reset: () => Promise<void>;
   savePolicies: (policies: HomeBlockPolicies) => Promise<void>;
 } {
@@ -87,18 +96,22 @@ export function useHomeLayout(): {
     };
   }, [accountID, cacheKey, mutate]);
 
-  const save = async (overrides: HomeLayoutOverrides) => {
-    await saveHomeLayout(overrides);
-    await mutate((current) => ({ ...(current ?? EMPTY), overrides }), {
+  const save = async (
+    overrides: HomeLayoutOverrides,
+    blocks: readonly HomeBlockPlacement[],
+  ) => {
+    await saveHomeLayout(overrides, blocks);
+    await mutate((current) => ({ ...(current ?? EMPTY), overrides, blocks }), {
       revalidate: true,
     });
   };
 
   const reset = async () => {
     await resetHomeLayout();
-    await mutate((current) => ({ ...(current ?? EMPTY), overrides: {} }), {
-      revalidate: true,
-    });
+    await mutate(
+      (current) => ({ ...(current ?? EMPTY), overrides: {}, blocks: [] }),
+      { revalidate: true },
+    );
   };
 
   const savePolicies = async (policies: HomeBlockPolicies) => {
@@ -108,5 +121,16 @@ export function useHomeLayout(): {
     });
   };
 
-  return { state: data ?? EMPTY, isLoading, save, reset, savePolicies };
+  // Ein leerer Zustand ist erst nach einer erfolgreichen Antwort eine sichere
+  // Grundlage zum Speichern. Während Laden oder nach einem Fehler bliebe eine
+  // Bearbeitung sonst fälschlich bei der Standardansicht stehen und könnte
+  // die persönliche Anordnung überschreiben.
+  return {
+    state: data ?? EMPTY,
+    isLoading,
+    isReady: data !== undefined,
+    save,
+    reset,
+    savePolicies,
+  };
 }

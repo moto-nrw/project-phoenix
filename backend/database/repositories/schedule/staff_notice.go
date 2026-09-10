@@ -130,6 +130,12 @@ func (r *StaffNoticeRepository) AcknowledgedAtFor(ctx context.Context, accountID
 
 // AcknowledgedCounts gibt je Hinweis-Id die Zahl der Kenntnisnahmen zurück —
 // die Antwort auf "ist der Hinweis angekommen".
+//
+// Die Verfasserin zählt nicht mit. Ihre Kenntnisnahme wird beim Anlegen
+// gestempelt, damit der eigene Hinweis sie nicht nach einer Bestätigung fragt;
+// als Leserin des Hinweises ist sie damit aber nicht gemeint. Ohne diesen
+// Ausschluss stünde bei einem frisch geschriebenen Hinweis „1 Person hat
+// bestätigt", und die Leitung liest darin ein Teammitglied.
 func (r *StaffNoticeRepository) AcknowledgedCounts(ctx context.Context, noticeIDs []int64) (map[int64]int, error) {
 	result := make(map[int64]int, len(noticeIDs))
 	if len(noticeIDs) == 0 {
@@ -144,7 +150,9 @@ func (r *StaffNoticeRepository) AcknowledgedCounts(ctx context.Context, noticeID
 		ModelTableExpr(`users.staff_notice_acks AS "sna"`).
 		ColumnExpr(`"sna".notice_id AS notice_id`).
 		ColumnExpr("COUNT(*) AS count").
+		Join(`JOIN users.staff_notices AS "n" ON "n".id = "sna".notice_id`).
 		Where(`"sna".notice_id IN (?)`, bun.List(noticeIDs)).
+		Where(`"sna".account_id <> "n".created_by`).
 		GroupExpr(`"sna".notice_id`)
 	query = base.WithTenantFilter(ctx, query, "sna")
 	if err := query.Scan(ctx, &rows); err != nil {
@@ -159,12 +167,18 @@ func (r *StaffNoticeRepository) AcknowledgedCounts(ctx context.Context, noticeID
 // Acknowledgements gibt alle Kenntnisnahmen eines Hinweises zurück, neueste
 // zuerst — die Bestätigungsliste der Leitung (#2208). Nur Konto und Zeitpunkt:
 // die Namen gehören dem Personenverzeichnis, der Service holt sie dort.
+//
+// Die Verfasserin fehlt in der Liste aus demselben Grund wie im Zähler
+// (AcknowledgedCounts): ihre Kenntnisnahme ist beim Anlegen gestempelt, damit
+// der eigene Hinweis sie nicht fragt, aber gelesen hat sie ihn nicht.
 func (r *StaffNoticeRepository) Acknowledgements(ctx context.Context, noticeID int64) ([]*users.StaffNoticeAck, error) {
 	var rows []*users.StaffNoticeAck
 	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(&rows).
 		ModelTableExpr(`users.staff_notice_acks AS "sna"`).
+		Join(`JOIN users.staff_notices AS "n" ON "n".id = "sna".notice_id`).
 		Where(`"sna".notice_id = ?`, noticeID).
+		Where(`"sna".account_id <> "n".created_by`).
 		OrderExpr(`"sna".acknowledged_at DESC, "sna".account_id ASC`)
 	query = base.WithTenantFilter(ctx, query, "sna")
 	if err := query.Scan(ctx); err != nil {

@@ -2280,18 +2280,16 @@ describe("PhasesEditor", () => {
 
     render(<PhasesEditor />);
 
-    // The row-level copy-link button is gone: the plain /anmeldung/{id} URL is
-    // rejected by the backend without a late-invite token, so copying it would
-    // hand out a 404.
-    await screen.findByRole("button", { name: "Aktionen für Nur Konto" });
-    expect(
-      screen.queryByRole("button", { name: "Elternlink kopieren" }),
-    ).not.toBeInTheDocument();
-
     fireEvent.click(
-      screen.getByRole("button", { name: "Aktionen für Nur Konto" }),
+      await screen.findByRole("button", { name: "Aktionen für Nur Konto" }),
     );
 
+    // The copy-link entry is gone: the plain /anmeldung/{id} URL is rejected
+    // by the backend without a late-invite token, so copying it would hand
+    // out a 404.
+    expect(
+      screen.queryByRole("menuitem", { name: "Elternlink kopieren" }),
+    ).not.toBeInTheDocument();
     // "Formular ansehen" (the untokenized public form) is hidden...
     expect(
       screen.queryByRole("menuitem", { name: "Formular ansehen" }),
@@ -2312,15 +2310,14 @@ describe("PhasesEditor", () => {
 
     render(<PhasesEditor />);
 
-    expect(
-      await screen.findByRole("button", { name: "Elternlink kopieren" }),
-    ).toBeInTheDocument();
-
     fireEvent.click(
-      screen.getByRole("button", { name: "Aktionen für Offene Phase" }),
+      await screen.findByRole("button", { name: "Aktionen für Offene Phase" }),
     );
     expect(
       await screen.findByRole("menuitem", { name: "Formular ansehen" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: "Elternlink kopieren" }),
     ).toBeInTheDocument();
   });
 

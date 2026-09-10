@@ -54,7 +54,13 @@ Aktivitäten, Gruppen, Rollen, Geräte, Dateien, Nachrichten, Anfragen.
    es an anderer Stelle anlegbar ist.
 4. **Zeilenaktionen ausschließlich im Kebab der Zeile.** Keine Icon-Reihe,
    keine Aktion, die nur beim Überfahren erscheint. Was das Objekt betrifft
-   und nicht die Liste, gehört in die Objektansicht.
+   und nicht die Liste, gehört in die Objektansicht. Auch die eine „wichtige"
+   Aktion („Veröffentlichen" eines Entwurfs, „Elternlink kopieren") ist ein
+   Menüeintrag und kein Knopf neben dem Kebab; sie steht dann oben im Menü,
+   und ein Ergebnis, das der Knopf sonst anzeigen würde (Häkchen „kopiert"),
+   meldet ein Toast (#3111). Umsortieren (Pfeile ↑/↓) ist eine Listenaktion
+   und bleibt sichtbar; das X an einem Chip in einem Formular entfernt einen
+   Eingabewert und ist keine Zeilenaktion.
 5. **Mehrfachauswahl ist eine Eigenschaft der Bauart, nicht der Seite.** Wo
    sie fachlich sinnvoll ist, wird sie überall gleich ausgelöst
    (Kopf-Aktion „Auswählen" schaltet den Auswahlmodus). Sie fehlt nicht auf
@@ -98,7 +104,14 @@ keine zweite Ansicht.
    `ChoiceModal`; die Wahl ist dann der erste Schritt der Rückfrage.
    Zustandswechsel mit Entfernen-Folge (Stornieren, Widerrufen, Abmelden,
    Archivieren, „Änderung speichern“) sind keine Löschung und bleiben auf
-   `ConfirmationModal` (#3110).
+   `ConfirmationModal` (#3110). **Die Rückfrage kommt immer vor der
+   Aktion:** ein Knopf oder Menüeintrag, der etwas löscht, entfernt,
+   archiviert, zurücknimmt, widerruft oder storniert, öffnet den Dialog;
+   die API läuft in dessen `onConfirm`, nie direkt aus dem Klick (#3109).
+   Ein Rückgängig-Toast ersetzt die Rückfrage nicht. Dieser Absatz gilt
+   abweichend vom Kopf dieses Dokuments in allen Portalen; im Eltern-Portal
+   trägt `ConfirmDeleteModal` übersetzte Beschriftungen (`cancelLabel`,
+   `confirmLabel`, `closeLabel`) und `mobileSheet`.
 7. **Keine deaktivierten Platzhalter-Aktionen.** Was es nicht gibt, steht
    nicht im Menü.
 8. **Zurück** immer über den Kopf der `TenantPage` (`back`/`backHref`).
@@ -182,6 +195,25 @@ bekommt eine shrink-only Baseline analog zum bestehenden
    Menüeinträge.
 7. Erweiterung von `tenant-page-scaffold.test.ts`: jede Seite deklariert ihre
    Bauart, und die Zuordnung ist vollständig.
+8. `bauart/no-unconfirmed-destructive-click` — kein Löschen, Entfernen,
+   Archivieren, Zurücknehmen, Widerrufen oder Stornieren direkt aus dem
+   Klick. **Umgesetzt** (`scripts/oxlint-plugin-bauart.mjs`, hard-zero,
+   #3109): prüft `Button`/`button` und Menüeinträge (`label` + `onClick`)
+   mit einer solchen Beschriftung darauf, ob der Inline-Handler selbst eine
+   asynchrone Aktion auslöst (`void f()`, `await f()`, `.then(`); ein
+   Klick, der nur den Dialog öffnet (`setDeleteTarget(x)`), passiert. Ein
+   per Namen übergebener Handler (`onClick={handleDelete}`) liegt außerhalb
+   der Ratsche und gehört ins Review.
+9. `bauart/no-row-action-buttons` — Zeilenaktionen nur im Kebab (Bauart 1
+   Regel 4). **Umgesetzt** (`scripts/oxlint-plugin-bauart.mjs`, #3111): ein
+   `Button`/`<button>` je Listeneintrag (in einem `.map(…)` oder dem
+   `render` einer Tabellenspalte), dessen zugänglicher Name eine
+   Objektaktion ist (bearbeiten, löschen, entfernen, archivieren,
+   wiederherstellen, duplizieren, umbenennen, veröffentlichen, kopieren),
+   fällt durch. Pfeile zum Umsortieren und das reine Icon-X „… entfernen"
+   eines Formular-Chips sind ausgenommen. Shrink-only Baseline je Datei für
+   den Bestand, den #3111 auf Folge-PRs verteilt; Operator-, Eltern- und
+   Schul-Portal sind nicht im Scope.
 
 ## Reihenfolge der Umsetzung
 

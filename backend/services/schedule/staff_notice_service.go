@@ -287,6 +287,16 @@ func (s *staffNoticeService) Create(ctx context.Context, createdBy int64, in Sta
 	if err := s.repo.Create(ctx, notice); err != nil {
 		return nil, fmt.Errorf("staffnotice: create: %w", err)
 	}
+	// Wer den Hinweis schreibt, kennt ihn. Ohne diese Zeile fragt die eigene
+	// Tagesinformation die Leitung nach einer Kenntnisnahme und zählt so lange
+	// im Badge mit — eine Aufgabe, die niemand erledigen kann, weil sie keine
+	// ist. Die Kenntnisnahme hier zu stempeln hält jeden Leseweg (Startseite,
+	// Liste, Badge, Zähler) ohne Sonderfall richtig.
+	if notice.RequiresAcknowledgement {
+		if err := s.repo.Acknowledge(ctx, notice.ID, createdBy); err != nil {
+			return nil, fmt.Errorf("staffnotice: acknowledge author: %w", err)
+		}
+	}
 	s.logger.Info("staff_notice_created",
 		slog.Int64("notice_id", notice.ID),
 		slog.Int64("created_by", createdBy),
@@ -307,6 +317,13 @@ func (s *staffNoticeService) Update(ctx context.Context, id int64, in StaffNotic
 	}
 	if err := s.repo.Update(ctx, notice); err != nil {
 		return nil, fmt.Errorf("staffnotice: update: %w", err)
+	}
+	// Wird die Kenntnisnahme erst nachträglich verlangt, gilt dasselbe wie beim
+	// Anlegen: die Verfasserin muss ihren eigenen Hinweis nicht bestätigen.
+	if notice.RequiresAcknowledgement {
+		if err := s.repo.Acknowledge(ctx, notice.ID, notice.CreatedBy); err != nil {
+			return nil, fmt.Errorf("staffnotice: acknowledge author: %w", err)
+		}
 	}
 	s.logger.Info("staff_notice_updated", slog.Int64("notice_id", notice.ID))
 	return notice, nil

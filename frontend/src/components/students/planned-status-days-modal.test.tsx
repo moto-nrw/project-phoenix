@@ -298,9 +298,10 @@ describe("PlannedStatusDaysModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Ab Uhrzeit" }));
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Teilentschuldigung vom Mittwoch, 27. Mai 2026 entfernen",
+        name: "Aktionen für Teilentschuldigung vom Mittwoch, 27. Mai 2026",
       }),
     );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Entfernen" }));
     expect(onDeletePartialAbsence).not.toHaveBeenCalled();
     fireEvent.click(
       screen.getByRole("button", { name: "Entfernen bestätigen" }),
@@ -313,9 +314,10 @@ describe("PlannedStatusDaysModal", () => {
     );
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Teilentschuldigung vom Mittwoch, 27. Mai 2026 bearbeiten",
+        name: "Aktionen für Teilentschuldigung vom Mittwoch, 27. Mai 2026",
       }),
     );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Bearbeiten" }));
     expect(screen.getByLabelText("Entschuldigt ab")).toHaveValue("13:30");
     fireEvent.change(screen.getByLabelText("Entschuldigt ab"), {
       target: { value: "14:00" },
@@ -358,9 +360,10 @@ describe("PlannedStatusDaysModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Ab Uhrzeit" }));
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Teilentschuldigung vom Mittwoch, 27. Mai 2026 bearbeiten",
+        name: "Aktionen für Teilentschuldigung vom Mittwoch, 27. Mai 2026",
       }),
     );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Bearbeiten" }));
     expect(screen.getByLabelText("Entschuldigt ab")).toHaveValue("13:30");
 
     // Selecting another day must not drop edit mode into a create-on-new-date.
@@ -400,9 +403,10 @@ describe("PlannedStatusDaysModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Ab Uhrzeit" }));
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Teilentschuldigung vom Mittwoch, 27. Mai 2026 entfernen",
+        name: "Aktionen für Teilentschuldigung vom Mittwoch, 27. Mai 2026",
       }),
     );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Entfernen" }));
     fireEvent.click(
       screen.getByRole("button", { name: "Entfernen bestätigen" }),
     );
@@ -547,10 +551,29 @@ describe("PlannedStatusDaysModal", () => {
     );
     expect(screen.getAllByText(/bereits/i).length).toBeGreaterThan(0);
 
-    fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
+    // #3109: the row's menu entry opens the ConfirmDeleteModal; the day is
+    // only removed after the two-step confirmation inside the dialog.
+    fireEvent.click(screen.getByRole("button", { name: /^Aktionen für/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Entfernen" }));
+    expect(onDeleteStatusDay).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("heading", { name: "Geplanten Tag entfernen?" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Entschuldigung planen" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Entfernen bestätigen" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Eintrag entfernen" }));
 
     await waitFor(() => {
       expect(onDeleteStatusDay).toHaveBeenCalledWith("1");
+    });
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("heading", { name: "Geplanten Tag entfernen?" }),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -1016,7 +1039,12 @@ describe("PlannedStatusDaysModal", () => {
     });
 
     expect(screen.getByText("Bereits vorhanden")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Aktionen für/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Entfernen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Entfernen bestätigen" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Eintrag entfernen" }));
     await waitFor(() => {
       expect(onDeleteStatusDay).toHaveBeenCalledWith("3");
       expect(screen.queryByRole("alert")).not.toBeInTheDocument();
@@ -1072,9 +1100,19 @@ describe("PlannedStatusDaysModal", () => {
       );
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Aktionen für/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Entfernen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Entfernen bestätigen" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Eintrag entfernen" }));
     await waitFor(() => {
       expect(onDeleteStatusDay).toHaveBeenCalledWith("3");
+    });
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("heading", { name: "Geplanten Tag entfernen?" }),
+      ).not.toBeInTheDocument();
     });
 
     expect(screen.getByRole("alert")).toHaveTextContent(
@@ -1118,7 +1156,7 @@ describe("PlannedStatusDaysModal", () => {
 
     expect(screen.queryByText("Bereits vorhanden")).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Entfernen" }),
+      screen.queryByRole("button", { name: /^Aktionen für/ }),
     ).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });

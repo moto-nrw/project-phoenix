@@ -362,7 +362,7 @@ export default function AnfragenPage() {
     sessionStatus === "loading" || requestAccess.isLoading;
 
   if (!isAccessLoading && !requestAccess.canOpenRequestsPage) {
-    redirect(tenantPath("/dashboard"));
+    redirect(tenantPath("/home"));
   }
 
   // Der Ladezustand kommt aus dem Gerüst (`loading` an TenantPage); bis der
