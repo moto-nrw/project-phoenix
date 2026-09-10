@@ -38,6 +38,12 @@ type PlanningTrackSource interface {
 	ListAll(ctx context.Context) ([]*scheduleModel.PlanningTrack, error)
 }
 
+// InstanceStudentCountSource is the slice of the retained instance-student
+// repository the adapter reads.
+type InstanceStudentCountSource interface {
+	CountNonAbsentByInstanceIDs(ctx context.Context, instanceIDs []int64) (map[int64]int, error)
+}
+
 // Sources are the retained readers the root binds. Every optional source may
 // be nil, in which case the matching port stays unbound and the capability
 // prints without that detail — the same contract the retained service had.
@@ -46,7 +52,7 @@ type Sources struct {
 	ShiftTypes     ShiftTypeSource
 	Instances      scheduleSvc.ActivityInstanceRangeReader
 	InstanceStaff  scheduleSvc.InstanceStaffBatchReader
-	Students       planexport.InstanceStudentCountReader
+	Students       InstanceStudentCountSource
 	Rooms          scheduleSvc.RoomBatchReader
 	Staff          scheduleSvc.StaffOverviewReader
 	ActivityGroups ActivityGroupSource
@@ -61,8 +67,10 @@ type Sources struct {
 // public capability.
 func New(sources Sources) planexport.Service {
 	deps := planexport.Dependencies{
-		Students: sources.Students,
 		Renderer: sources.Renderer,
+	}
+	if sources.Students != nil {
+		deps.Students = studentCountAdapter{source: sources.Students}
 	}
 	if sources.Overview != nil {
 		deps.Overview = overviewAdapter{source: sources.Overview}
@@ -167,7 +175,7 @@ func (a overviewAdapter) StaffScheduleOverview(ctx context.Context, from, to pla
 		}
 		out.Assignments = append(out.Assignments, planexport.Assignment{
 			StaffID:            assignment.StaffID,
-			Date:               planexport.Date(assignment.Date.String()),
+			Date:               planexport.Date(assignment.Date),
 			StartTime:          assignment.StartTime,
 			EndTime:            assignment.EndTime,
 			ActivityTitle:      assignment.ActivityTitle,
@@ -233,6 +241,16 @@ func (a instanceAdapter) InstancesInRange(ctx context.Context, from, to planexpo
 		})
 	}
 	return out, nil
+}
+
+// studentCountAdapter names the binding of the head-count read so a renamed
+// retained method fails here instead of silently unbinding the port.
+type studentCountAdapter struct {
+	source InstanceStudentCountSource
+}
+
+func (a studentCountAdapter) CountNonAbsentByInstanceIDs(ctx context.Context, instanceIDs []int64) (map[int64]int, error) {
+	return a.source.CountNonAbsentByInstanceIDs(ctx, instanceIDs)
 }
 
 type instanceStaffAdapter struct {
@@ -385,7 +403,7 @@ func (a holidayAdapter) HolidaysInRange(ctx context.Context, from, to planexport
 	}
 	out := make([]planexport.Holiday, 0, len(holidays))
 	for _, holiday := range holidays {
-		out = append(out, planexport.Holiday{Date: planexport.Date(holiday.Date.String()), Name: holiday.Name})
+		out = append(out, planexport.Holiday{Date: planexport.Date(holiday.Date), Name: holiday.Name})
 	}
 	return out, nil
 }
