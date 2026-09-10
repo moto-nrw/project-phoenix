@@ -772,8 +772,9 @@ export function TimetableRosterContent({
   const [addStudentOpen, setAddStudentOpen] = useState(false);
   const closeAddStudent = () => {
     setAddStudentOpen(false);
-    // Der nächste Dialog startet leer; die Suche gehört zum Dialog.
-    if (addStudentSearch !== "") onSearchChange("");
+    // Der nächste Dialog startet ohne Suche und ohne Fehlermeldung; beides
+    // wird vom gemeinsamen Such-Handler zurückgesetzt.
+    onSearchChange("");
   };
   const present = roster.rows.filter(
     (row) => row.currentlyPresent && row.planned,

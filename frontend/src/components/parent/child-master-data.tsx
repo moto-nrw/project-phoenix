@@ -653,14 +653,21 @@ function DepartureSection({
     ? [...DEPARTURE_REQUEST_MODES, "accompanied"]
     : DEPARTURE_REQUEST_MODES;
   useReportFieldState(
-    status === "saving"
-      ? "saving"
-      : status === "error"
-        ? "error"
-        : changed && !requestSaved
-          ? "dirty"
-          : "clean",
+    !changed || requestSaved
+      ? "clean"
+      : status === "saving"
+        ? "saving"
+        : status === "error"
+          ? "error"
+          : "dirty",
   );
+
+  useEffect(() => {
+    if (!changed && status === "error") {
+      setStatus("idle");
+      setMessage(null);
+    }
+  }, [changed, status]);
 
   useEffect(() => {
     const previous = departureBase.current;

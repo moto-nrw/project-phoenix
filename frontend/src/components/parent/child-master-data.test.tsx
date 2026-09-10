@@ -348,6 +348,45 @@ describe("ChildMasterDataView", () => {
     ).toBeInTheDocument();
   });
 
+  it("does not block navigation after reverting a failed departure request", async () => {
+    mockSubmit.mockRejectedValueOnce(new Error("request failed"));
+
+    render(
+      <>
+        <Link href="/parents/other">Weiter</Link>
+        <ChildMasterDataView
+          studentId="42"
+          childName="Lina Muster"
+          area="departure"
+        />
+      </>,
+    );
+
+    const departureSection = await screen.findByRole("heading", {
+      name: "So geht Lina Muster nach Hause",
+    });
+    const section = departureSection.closest("section");
+    if (!section) throw new Error("departure section not found");
+
+    const departureCheckbox = screen.getByLabelText("Mi Wird abgeholt");
+    fireEvent.click(departureCheckbox);
+    fireEvent.click(
+      within(section).getByRole("button", { name: "Änderung anfragen" }),
+    );
+    await screen.findByText("Die Anfrage konnte nicht gesendet werden.");
+
+    fireEvent.click(departureCheckbox);
+    await waitFor(() =>
+      expect(
+        screen.queryByText("Die Anfrage konnte nicht gesendet werden."),
+      ).not.toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("link", { name: "Weiter" }));
+    expect(
+      screen.queryByText("Nicht gespeicherte Änderungen"),
+    ).not.toBeInTheDocument();
+  });
+
   it("auto-saves direct-edit fields on blur", async () => {
     render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
 
