@@ -28,7 +28,7 @@
 //                               („nach oben“) are list actions and pass; an
 //                               icon-only „… entfernen“ button is the chip
 //                               remover of a form value list and passes.
-//                               Shrink-only per-file baseline
+//                               Shrink-only location baseline
 //                               (ROW_ACTION_BASELINE) for the remainder the
 //                               issue defers to follow-up PRs. Scope is the
 //                               tenant portal: operator, parents and school
@@ -216,37 +216,75 @@ const ROW_ACTION_LABEL_RE =
   /(?:^|\P{L})(?:bearbeiten|löschen|entfernen|archivieren|wiederherstellen|duplizieren|umbenennen|veröffentlichen|kopieren)(?:\P{L}|$)/iu;
 const CHIP_REMOVE_RE = /(?:^|\P{L})entfernen(?:\P{L}|$)/iu;
 
-// Shrink-only per-file tolerance: matches that were on the books when the
-// rule landed and that issue #3111 defers to follow-up PRs, plus the
-// form-internal text buttons the rule cannot tell apart from a row action
-// („Entfernen“ on a pending upload, on a guardian entry of the create form).
-// A file may only ever go DOWN here; a new match in a file without an entry
-// fails the check. Keys are repo-relative posix paths under src/.
+// Shrink-only per-match tolerance. Each key identifies the exact location of
+// a known remainder, so moving or replacing it cannot preserve a file's
+// tolerance accidentally. Keys are repo-relative posix paths under src/.
 const ROW_ACTION_BASELINE = new Map(
   Object.entries({
     // Noch umzuziehen (#3111, Folge-PRs): Objektaktionen je Zeile.
-    "src/app/[tenant]/(protected)/database/students/class-list/page.tsx": 2,
-    "src/app/[tenant]/(protected)/database/students/ended-care/page.tsx": 1,
-    "src/components/admin/pending-invitations-list.tsx": 1,
-    "src/components/database/grade-transitions/grade-transitions-manager.tsx": 2,
-    "src/components/groups/group-transfer-modal.tsx": 1,
-    "src/components/guardians/guardian-list.tsx": 1,
-    "src/components/planning/calendar-periods-editor.tsx": 1,
-    "src/components/settings/trusted-devices-section.tsx": 1,
-    "src/components/staff/staff-session-table.tsx": 2,
-    "src/components/staff/stundenkonto-panel.tsx": 1,
-    "src/components/students/class-arrival-exception-panel.tsx": 1,
-    "src/components/teachers/caregiver-blocker-resolution-panel.tsx": 3,
-    "src/components/timetable/period-switcher-dropdown.tsx": 1,
+    "src/app/[tenant]/(protected)/database/students/class-list/page.tsx": [
+      "Bearbeiten@466",
+      "Löschen@476",
+    ],
+    "src/app/[tenant]/(protected)/database/students/ended-care/page.tsx": [
+      "Endgültig löschen@157",
+    ],
+    "src/components/admin/pending-invitations-list.tsx": ["Löschen@251"],
+    "src/components/database/grade-transitions/grade-transitions-manager.tsx": [
+      "Bearbeiten@416",
+      "Löschen@436",
+    ],
+    "src/components/guardians/guardian-list.tsx": ["Bearbeiten@165"],
+    "src/components/planning/calendar-periods-editor.tsx": ["Bearbeiten@225"],
+    "src/components/settings/trusted-devices-section.tsx": ["Entfernen@158"],
+    "src/components/staff/staff-session-table.tsx": [
+      "Eintrag nachtragen Block nachtragen Eintrag bearbeiten@850",
+      "Block bearbeiten@960",
+    ],
+    "src/components/staff/stundenkonto-panel.tsx": [
+      "Buchung vom löschen@186",
+    ],
+    "src/components/students/class-arrival-exception-panel.tsx": [
+      "Entfernen@529",
+    ],
+    "src/components/teachers/caregiver-blocker-resolution-panel.tsx": [
+      "Übertragen Entfernen@566",
+      "Übertragen Entfernen@630",
+    ],
+    "src/components/timetable/period-switcher-dropdown.tsx": ["bearbeiten@310"],
     // Formular-intern (Eintrag eines Formularwerts, kein gespeichertes
-    // Objekt): bleibt, die Regel kann Textknöpfe nicht von Zeilenaktionen
-    // unterscheiden.
-    "src/app/[tenant]/(protected)/parent-announcements/page.tsx": 1,
-    "src/components/enrollment/care-offerings-editor.tsx": 1,
-    "src/components/enrollment/enrollment-form-editor.tsx": 1,
-    "src/components/guardians/guardian-form-modal.tsx": 1,
-    "src/components/staff/shift-edit-modal.tsx": 1,
-    "src/components/timetable/substitution-slide-over.tsx": 1,
+    // Objekt): fest an die bestehende Stelle gebunden, damit keine neue
+    // Zeilenaktion dieselbe Ausnahme nutzen kann.
+    "src/app/[tenant]/(protected)/calendar/page.tsx": ["entfernen@1147"],
+    "src/app/[tenant]/(protected)/meal-plan/page.tsx": [
+      "Gericht entfernen@729",
+    ],
+    "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
+      "Antwort entfernen@1431",
+      "Entfernen@1703",
+    ],
+    "src/components/enrollment/care-offerings-editor.tsx": [
+      "Bedingung löschen@1980",
+    ],
+    "src/components/enrollment/enrollment-form-editor.tsx": [
+      "abweichend bearbeiten@2511",
+      "Auswahlzeit entfernen@3435",
+    ],
+    "src/components/guardians/guardian-form-modal.tsx": [
+      "Entfernen@585",
+      "Telefonnummer entfernen@844",
+    ],
+    "src/components/staff/shift-edit-modal.tsx": ["Entfernen@1338"],
+    "src/components/staff/stammdaten-section-forms.tsx": [
+      "Qualifikation entfernen@415",
+    ],
+    "src/components/students/companion-picker.tsx": ["entfernen@274"],
+    "src/components/students/student-create-modal.tsx": [
+      "Erziehungsberechtigte/n entfernen@691",
+    ],
+    "src/components/timetable/substitution-slide-over.tsx": [
+      "Rückgängig Entfernen@765",
+    ],
   }),
 );
 
@@ -304,53 +342,10 @@ function accessibleName(openingElement) {
   return { text: staticText(jsxAttribute(openingElement, "title")?.value) };
 }
 
-function nearestMapCallback(node) {
-  let current = node.parent;
-  while (current) {
-    if (
-      (current.type === "ArrowFunctionExpression" ||
-        current.type === "FunctionExpression") &&
-      current.parent?.type === "CallExpression" &&
-      current.parent.callee?.type === "MemberExpression" &&
-      current.parent.callee.property?.type === "Identifier" &&
-      current.parent.callee.property.name === "map" &&
-      current.parent.arguments.includes(current)
-    ) {
-      return current;
-    }
-    current = current.parent;
-  }
-  return null;
-}
-
-function containsFormField(node, seen = new WeakSet()) {
-  if (!node || typeof node !== "object" || seen.has(node)) return false;
-  seen.add(node);
-  if (
-    node.type === "JSXOpeningElement" &&
-    [
-      "input",
-      "textarea",
-      "select",
-      "Input",
-      "Textarea",
-      "ISODatePicker",
-      "Checkbox",
-    ].includes(jsxName(node.name))
-  ) {
-    return true;
-  }
-  return Object.entries(node).some(([key, value]) => {
-    if (key === "parent") return false;
-    if (Array.isArray(value))
-      return value.some((child) => containsFormField(child, seen));
-    return containsFormField(value, seen);
-  });
-}
-
-/** A form-value remover is either an inline chip with X icon, or removes an
- * editable local field. Stored object rows have neither signal and remain
- * subject to the kebab rule. */
+/** A form-value remover is an inline chip with its conventional X icon.
+ * A surrounding form or a field elsewhere in a mapped row does not establish
+ * that this button removes that local value: persisted object rows can have
+ * both, and must still use the kebab. */
 function isFormValueRemover(openingElement) {
   const button = openingElement.parent;
   const hasXIcon = button?.children?.some(
@@ -371,11 +366,10 @@ function isFormValueRemover(openingElement) {
       ) {
         return true;
       }
-      if (jsxName(current.openingElement.name) === "form") return true;
     }
     current = current.parent;
   }
-  return containsFormField(nearestMapCallback(openingElement));
+  return false;
 }
 
 /** True when the node sits inside a callback rendered once per list item:
@@ -427,8 +421,7 @@ const noRowActionButtons = {
     if (isExempt(context)) return {};
     const key = fileKey(context);
     if (OTHER_PORTAL_RE.test(key)) return {};
-    const tolerated = ROW_ACTION_BASELINE.get(key) ?? 0;
-    let seen = 0;
+    const tolerated = new Set(ROW_ACTION_BASELINE.get(key) ?? []);
 
     return {
       JSXOpeningElement(node) {
@@ -441,8 +434,7 @@ const noRowActionButtons = {
         if (CHIP_REMOVE_RE.test(text) && isFormValueRemover(node)) {
           return;
         }
-        seen += 1;
-        if (seen <= tolerated) return;
+        if (tolerated.delete(`${text}@${node.loc.start.line}`)) return;
         context.report({ node, messageId: "rowAction", data: { label: text } });
       },
     };

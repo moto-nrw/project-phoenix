@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
@@ -259,15 +265,15 @@ describe("bauart/no-row-action-buttons", () => {
     expect(output).toContain(ROW_ACTION);
   });
 
-  it("accepts removal of an editable form value", () => {
-    const { output } = lintSource(
+  it("rejects removal of an object beside an editable field", () => {
+    const { status, output } = lintSource(
       `import { Button } from "~/components/ui/button";
       import { Trash2 } from "lucide-react";
       export function Probe({ rows }: { rows: { id: string; name: string }[] }) {
         return rows.map((row) => (
           <div key={row.id}>
             <input value={row.name} onChange={() => {}} />
-            <Button type="button" variant="ghost" size="icon" aria-label={\`\${row.name} entfernen\`}>
+            <Button type="button" variant="ghost" size="icon" aria-label={\`\${row.name} entfernen\`} onClick={() => remove(row.id)}>
               <Trash2 className="size-4" />
             </Button>
           </div>
@@ -275,7 +281,8 @@ describe("bauart/no-row-action-buttons", () => {
       }`,
     );
 
-    expect(output).not.toContain(ROW_ACTION);
+    expect(status).toBe(1);
+    expect(output).toContain(ROW_ACTION);
   });
 
   it("ignores buttons outside a per-item render", () => {
@@ -317,20 +324,20 @@ describe("bauart/no-row-action-buttons", () => {
     ).toContain(ROW_ACTION);
   });
 
-  it("tolerates a baselined file only up to its count", () => {
-    const button = `<Button key={row} type="button">Löschen</Button>`;
-    const probe = (
-      count: number,
-    ) => `import { Button } from "~/components/ui/button";
-      export function Probe({ rows }: { rows: string[] }) {
-        return rows.map((row) => (
-          <>${button.repeat(count)}</>
-        ));
-      }`;
-    const path = "src/components/admin/pending-invitations-list.tsx";
+  it("tolerates only the baselined row action at its recorded location", () => {
+    const path = "src/components/planning/calendar-periods-editor.tsx";
+    const source = readFileSync(resolve(path), "utf8");
 
-    expect(lintSource(probe(1), path).output).not.toContain(ROW_ACTION);
-    expect(lintSource(probe(2), path).output).toContain(ROW_ACTION);
+    expect(lintSource(source, path).output).not.toContain(ROW_ACTION);
+    expect(
+      lintSource(
+        source.replace(
+          />\s*Bearbeiten\s*<\//,
+          ">\\n            Archivieren\\n          </",
+        ),
+        path,
+      ).output,
+    ).toContain(ROW_ACTION);
   });
 });
 
