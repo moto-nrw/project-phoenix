@@ -155,6 +155,7 @@ export function AnchoredPopover({
         id={panelId}
         role="dialog"
         aria-label={ariaLabel}
+        data-overflow-menu-scope="true"
         onKeyDown={(event) => {
           if (event.key !== "Escape") return;
           event.preventDefault();

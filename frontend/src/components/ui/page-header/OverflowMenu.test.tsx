@@ -66,6 +66,21 @@ describe("OverflowMenu", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps a nested menu in its overlay scope", () => {
+    render(
+      <div data-date-picker-focus-trap="true">
+        <OverflowMenu items={[{ label: "Export", onClick: () => undefined }]} />
+      </div>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Weitere Aktionen/i }));
+
+    expect(screen.getByRole("menu").parentElement).toHaveAttribute(
+      "data-date-picker-focus-trap",
+      "true",
+    );
+  });
+
   it("calls the item onClick and closes the menu", () => {
     const onClick = vi.fn();
     render(<OverflowMenu items={[{ label: "Export", onClick }]} />);

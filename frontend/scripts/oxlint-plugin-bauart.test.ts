@@ -217,9 +217,11 @@ describe("bauart/no-row-action-buttons", () => {
                 <Button type="button" variant="ghost" size="icon" aria-label={\`\${row.name} nach oben\`}>
                   <ChevronUp className="size-4" />
                 </Button>
-                <Button type="button" variant="ghost" size="icon" aria-label={\`\${row.name} entfernen\`}>
-                  <X className="size-4" />
-                </Button>
+                <span className="inline-flex rounded-full">
+                  <Button type="button" variant="ghost" size="icon" aria-label={\`\${row.name} entfernen\`}>
+                    <X className="size-4" />
+                  </Button>
+                </span>
                 <OverflowMenu
                   ariaLabel={\`Aktionen für \${row.name}\`}
                   items={[
@@ -231,6 +233,45 @@ describe("bauart/no-row-action-buttons", () => {
             ))}
           </ul>
         );
+      }`,
+    );
+
+    expect(output).not.toContain(ROW_ACTION);
+  });
+
+  it("rejects an icon-only object removal outside a form chip", () => {
+    const { status, output } = lintSource(
+      `import { Button } from "~/components/ui/button";
+      import { Trash2 } from "lucide-react";
+      export function Probe({ rows }: { rows: { id: string; name: string }[] }) {
+        return rows.map((row) => (
+          <div key={row.id}>
+            <span>{row.name}</span>
+            <Button type="button" variant="ghost" size="icon" aria-label={\`\${row.name} entfernen\`}>
+              <Trash2 className="size-4" />
+            </Button>
+          </div>
+        ));
+      }`,
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain(ROW_ACTION);
+  });
+
+  it("accepts removal of an editable form value", () => {
+    const { output } = lintSource(
+      `import { Button } from "~/components/ui/button";
+      import { Trash2 } from "lucide-react";
+      export function Probe({ rows }: { rows: { id: string; name: string }[] }) {
+        return rows.map((row) => (
+          <div key={row.id}>
+            <input value={row.name} onChange={() => {}} />
+            <Button type="button" variant="ghost" size="icon" aria-label={\`\${row.name} entfernen\`}>
+              <Trash2 className="size-4" />
+            </Button>
+          </div>
+        ));
       }`,
     );
 

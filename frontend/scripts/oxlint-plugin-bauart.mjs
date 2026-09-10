@@ -293,20 +293,89 @@ function staticText(node) {
 }
 
 /** Text the browser would use as the accessible name, in WAI order:
- *  aria-label, then text content, then title. `iconOnly` says whether the
- *  button renders any static text of its own. */
+ * aria-label, then text content, then title. */
 function accessibleName(openingElement) {
   const chunks = [];
   collectChildText(openingElement.parent, chunks);
   const childText = chunks.join(" ").replaceAll(/\s+/g, " ").trim();
-  const iconOnly = childText === "";
   const aria = staticText(jsxAttribute(openingElement, "aria-label")?.value);
-  if (aria) return { text: aria, iconOnly };
-  if (childText) return { text: childText, iconOnly };
-  return {
-    text: staticText(jsxAttribute(openingElement, "title")?.value),
-    iconOnly,
-  };
+  if (aria) return { text: aria };
+  if (childText) return { text: childText };
+  return { text: staticText(jsxAttribute(openingElement, "title")?.value) };
+}
+
+function nearestMapCallback(node) {
+  let current = node.parent;
+  while (current) {
+    if (
+      (current.type === "ArrowFunctionExpression" ||
+        current.type === "FunctionExpression") &&
+      current.parent?.type === "CallExpression" &&
+      current.parent.callee?.type === "MemberExpression" &&
+      current.parent.callee.property?.type === "Identifier" &&
+      current.parent.callee.property.name === "map" &&
+      current.parent.arguments.includes(current)
+    ) {
+      return current;
+    }
+    current = current.parent;
+  }
+  return null;
+}
+
+function containsFormField(node, seen = new WeakSet()) {
+  if (!node || typeof node !== "object" || seen.has(node)) return false;
+  seen.add(node);
+  if (
+    node.type === "JSXOpeningElement" &&
+    [
+      "input",
+      "textarea",
+      "select",
+      "Input",
+      "Textarea",
+      "ISODatePicker",
+      "Checkbox",
+    ].includes(jsxName(node.name))
+  ) {
+    return true;
+  }
+  return Object.entries(node).some(([key, value]) => {
+    if (key === "parent") return false;
+    if (Array.isArray(value))
+      return value.some((child) => containsFormField(child, seen));
+    return containsFormField(value, seen);
+  });
+}
+
+/** A form-value remover is either an inline chip with X icon, or removes an
+ * editable local field. Stored object rows have neither signal and remain
+ * subject to the kebab rule. */
+function isFormValueRemover(openingElement) {
+  const button = openingElement.parent;
+  const hasXIcon = button?.children?.some(
+    (child) =>
+      child.type === "JSXElement" && jsxName(child.openingElement.name) === "X",
+  );
+
+  let current = button?.parent;
+  while (current) {
+    if (current.type === "JSXElement") {
+      const className = staticText(
+        jsxAttribute(current.openingElement, "className")?.value,
+      );
+      if (
+        hasXIcon &&
+        /\binline-flex\b/.test(className) &&
+        /\brounded-/.test(className)
+      ) {
+        return true;
+      }
+      if (jsxName(current.openingElement.name) === "form") return true;
+    }
+    current = current.parent;
+  }
+  return containsFormField(nearestMapCallback(openingElement));
 }
 
 /** True when the node sits inside a callback rendered once per list item:
@@ -366,10 +435,12 @@ const noRowActionButtons = {
         const name = jsxName(node.name);
         if (name !== "Button" && name !== "button") return;
         if (!isPerItemRender(node)) return;
-        const { text, iconOnly } = accessibleName(node);
+        const { text } = accessibleName(node);
         if (!ROW_ACTION_LABEL_RE.test(text)) return;
-        // Icon-only „… entfernen“ = chip remover of a form value list.
-        if (iconOnly && CHIP_REMOVE_RE.test(text)) return;
+        // Form values may be removed inline; stored objects use the kebab.
+        if (CHIP_REMOVE_RE.test(text) && isFormValueRemover(node)) {
+          return;
+        }
         seen += 1;
         if (seen <= tolerated) return;
         context.report({ node, messageId: "rowAction", data: { label: text } });

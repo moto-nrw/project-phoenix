@@ -3,6 +3,7 @@ import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AnchoredPopover } from "./anchored-popover";
+import { OverflowMenu } from "./page-header/OverflowMenu";
 
 function TestPopover({
   scoped = false,
@@ -71,6 +72,37 @@ describe("AnchoredPopover", () => {
     expect(screen.getByRole("dialog", { name: "Testauswahl" })).toHaveStyle({
       position: "fixed",
     });
+  });
+
+  it("keeps an overflow menu click inside the popover", () => {
+    const onOpenChange = vi.fn();
+    const onAction = vi.fn();
+    render(
+      <AnchoredPopover
+        open
+        onOpenChange={onOpenChange}
+        ariaLabel="Testauswahl"
+        renderTrigger={({ ref }) => (
+          <button ref={ref} type="button">
+            Öffnen
+          </button>
+        )}
+      >
+        {() => (
+          <OverflowMenu items={[{ label: "Bearbeiten", onClick: onAction }]} />
+        )}
+      </AnchoredPopover>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    const action = screen.getByRole("menuitem", { name: "Bearbeiten" });
+    expect(action.closest('[data-overflow-menu-scope="true"]')).not.toBeNull();
+
+    fireEvent.mouseDown(action);
+    fireEvent.click(action);
+
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(onAction).toHaveBeenCalledOnce();
   });
 
   it("uses a preferred panel width independently from the trigger", () => {

@@ -150,6 +150,15 @@ export function OverflowMenu({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
+  // Keep nested menus inside the overlay that owns their trigger. This lets a
+  // slide-over's focus scope include its menu and makes an AnchoredPopover see
+  // menu clicks as inside clicks. At page level, the body remains the portal.
+  const portalContainer =
+    typeof document === "undefined"
+      ? null
+      : (triggerRef.current?.closest(
+          '[data-overflow-menu-scope="true"], [data-date-picker-focus-trap="true"]',
+        ) ?? document.body);
 
   // Close on outside click + Escape. Because the menu is fixed-positioned, also
   // close on scroll/resize so it never lingers detached from its trigger. Only
@@ -316,7 +325,7 @@ export function OverflowMenu({
         )}
       </button>
 
-      {isOpen
+      {isOpen && portalContainer
         ? createPortal(
             <div
               ref={menuRef}
@@ -468,7 +477,7 @@ export function OverflowMenu({
                 );
               })}
             </div>,
-            document.body,
+            portalContainer,
           )
         : null}
     </div>
