@@ -118,6 +118,25 @@ describe("OverflowMenu", () => {
     });
   });
 
+  it("escapes a scrollable popover while retaining its owner", () => {
+    render(
+      <div data-overflow-menu-scope="true">
+        <OverflowMenu
+          items={[{ label: "Bearbeiten", onClick: () => undefined }]}
+          portalOwnerId="planning-tracks"
+          portalZIndex={10001}
+        />
+      </div>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Weitere Aktionen/i }));
+
+    const menu = screen.getByRole("menu");
+    expect(menu.parentElement).toBe(document.body);
+    expect(menu).toHaveAttribute("data-overflow-menu-owner", "planning-tracks");
+    expect(menu).toHaveStyle({ position: "fixed", zIndex: "10001" });
+  });
+
   it("calls the item onClick and closes the menu", () => {
     const onClick = vi.fn();
     render(<OverflowMenu items={[{ label: "Export", onClick }]} />);

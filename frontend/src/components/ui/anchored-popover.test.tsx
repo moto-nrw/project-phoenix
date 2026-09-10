@@ -88,15 +88,22 @@ describe("AnchoredPopover", () => {
           </button>
         )}
       >
-        {() => (
-          <OverflowMenu items={[{ label: "Bearbeiten", onClick: onAction }]} />
+        {({ overflowMenuPortal }) => (
+          <OverflowMenu
+            items={[{ label: "Bearbeiten", onClick: onAction }]}
+            portalOwnerId={overflowMenuPortal.ownerId}
+            portalZIndex={overflowMenuPortal.zIndex}
+          />
         )}
       </AnchoredPopover>,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
     const action = screen.getByRole("menuitem", { name: "Bearbeiten" });
-    expect(action.closest('[data-overflow-menu-scope="true"]')).not.toBeNull();
+    expect(action.closest("[data-overflow-menu-owner]")).toHaveAttribute(
+      "data-overflow-menu-owner",
+      screen.getByRole("dialog", { name: "Testauswahl" }).id,
+    );
 
     fireEvent.mouseDown(action);
     fireEvent.click(action);

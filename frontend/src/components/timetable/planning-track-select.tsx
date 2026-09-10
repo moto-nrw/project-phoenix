@@ -410,7 +410,10 @@ export function PlanningTrackSelect({
     </div>
   );
 
-  const renderManageView = () => (
+  const renderManageView = (overflowMenuPortal: {
+    ownerId: string;
+    zIndex: number;
+  }) => (
     <div className="p-3">
       <div className="mb-3 flex items-center justify-between gap-3">
         <h3 className="text-sm font-semibold text-gray-900">
@@ -483,6 +486,8 @@ export function PlanningTrackSelect({
               <OverflowMenu
                 ariaLabel={`Aktionen für ${track.name}`}
                 triggerSize="sm"
+                portalOwnerId={overflowMenuPortal.ownerId}
+                portalZIndex={overflowMenuPortal.zIndex}
                 items={[
                   {
                     label: "Bearbeiten",
@@ -519,6 +524,8 @@ export function PlanningTrackSelect({
                 <OverflowMenu
                   ariaLabel={`Aktionen für ${track.name}`}
                   triggerSize="sm"
+                  portalOwnerId={overflowMenuPortal.ownerId}
+                  portalZIndex={overflowMenuPortal.zIndex}
                   items={[
                     {
                       label: "Wiederherstellen",
@@ -647,8 +654,8 @@ export function PlanningTrackSelect({
           </button>
         )}
       >
-        {({ close }) => {
-          if (view === "manage") return renderManageView();
+        {({ close, overflowMenuPortal }) => {
+          if (view === "manage") return renderManageView(overflowMenuPortal);
           if (view === "form") return renderFormView();
           return renderSelectView(close);
         }}

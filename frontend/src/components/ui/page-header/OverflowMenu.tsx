@@ -101,6 +101,14 @@ interface OverflowMenuProps {
    * fixed-width popover would poke out the side and read as misaligned.
    */
   readonly matchContainerSelector?: string;
+  /**
+   * Identifies an overlay which owns this menu while the menu itself is
+   * rendered at the document level. This lets a scrollable overlay treat menu
+   * interactions as internal without clipping the menu at its scroll edge.
+   */
+  readonly portalOwnerId?: string;
+  /** Stacking level for a document-level menu owned by an overlay. */
+  readonly portalZIndex?: number;
 }
 
 /**
@@ -123,6 +131,8 @@ export function OverflowMenu({
   triggerClassName = "",
   triggerContent,
   matchContainerSelector,
+  portalOwnerId,
+  portalZIndex,
 }: OverflowMenuProps) {
   // Size variant: the "default" values are byte-for-byte the previous hardcoded
   // ones, so unchanged callers keep the exact 36px trigger + 20px icon +
@@ -150,9 +160,9 @@ export function OverflowMenu({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
-  // Keep nested menus inside the overlay that owns their trigger. This lets a
-  // slide-over's focus scope include its menu and makes an AnchoredPopover see
-  // menu clicks as inside clicks. At page level, the body remains the portal.
+  // Menus normally stay inside a slide-over's focus scope. A scrollable
+  // AnchoredPopover instead passes an owner ID, so its menu can escape the
+  // clipped panel while the popover still recognizes the interaction.
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(
     null,
   );
@@ -219,9 +229,11 @@ export function OverflowMenu({
       return;
     }
     if (trigger != null && typeof document !== "undefined") {
-      const scope = trigger.closest(
-        '[data-overflow-menu-scope="true"], [data-date-picker-focus-trap="true"]',
-      );
+      const scope = portalOwnerId
+        ? null
+        : trigger.closest(
+            '[data-overflow-menu-scope="true"], [data-date-picker-focus-trap="true"]',
+          );
       const nextPortalContainer =
         scope instanceof HTMLElement ? scope : document.body;
       const scopeRect =
@@ -354,10 +366,12 @@ export function OverflowMenu({
               id={menuId}
               role="menu"
               aria-label={ariaLabel}
+              data-overflow-menu-owner={portalOwnerId}
               style={{
                 ...menuStyle,
                 position:
                   portalContainer !== document.body ? "absolute" : "fixed",
+                zIndex: portalZIndex,
               }}
               // Surface mirrors DesktopFilters dropdown so menu / filter
               // popovers read as one component family — same border, radius,
