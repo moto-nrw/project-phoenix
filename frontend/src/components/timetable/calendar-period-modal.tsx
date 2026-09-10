@@ -150,6 +150,7 @@ export function CalendarPeriodModal({
   // that period — otherwise a corrected re-submit after an advisory warning
   // would create a duplicate in create mode.
   const [savedPeriod, setSavedPeriod] = useState<CalendarPeriod | null>(null);
+  const [periodSaveNotified, setPeriodSaveNotified] = useState(false);
 
   const isEdit = Boolean(initial);
   const persisted = initial ?? savedPeriod;
@@ -190,6 +191,7 @@ export function CalendarPeriodModal({
     setDeleteConfirmOpen(false);
     setSaveWarnings([]);
     setSavedPeriod(null);
+    setPeriodSaveNotified(false);
     setPhaseDraft({});
   }, [isOpen, initial, createDefaults]);
 
@@ -199,6 +201,7 @@ export function CalendarPeriodModal({
     // Editing after a warning-bearing save dismisses the warning state so the
     // footer returns to Abbrechen + Speichern and the correction can be saved.
     setSaveWarnings([]);
+    setPeriodSaveNotified(false);
   };
 
   const cycleLength = useMemo(() => {
@@ -234,39 +237,24 @@ export function CalendarPeriodModal({
     }
 
     setSubmitting(true);
+    const body = {
+      name: form.name.trim(),
+      period_type: form.periodType,
+      start_date: form.startDate,
+      end_date: form.endDate,
+      week_cycle_length: cycleLength,
+      is_active: form.isActive,
+      ...(form.weekCycleAnchor
+        ? { week_cycle_anchor: form.weekCycleAnchor }
+        : {}),
+    };
+
+    let period: CalendarPeriod;
+    let warnings: CalendarPeriodWarning[];
     try {
-      const body = {
-        name: form.name.trim(),
-        period_type: form.periodType,
-        start_date: form.startDate,
-        end_date: form.endDate,
-        week_cycle_length: cycleLength,
-        is_active: form.isActive,
-        ...(form.weekCycleAnchor
-          ? { week_cycle_anchor: form.weekCycleAnchor }
-          : {}),
-      };
-
-      const { period, warnings } = persisted
+      ({ period, warnings } = persisted
         ? await calendarPeriodService.update(persisted.id, body)
-        : await calendarPeriodService.create(body);
-
-      toastSuccess(
-        persisted
-          ? `Kalenderzeitraum "${period.name}" aktualisiert`
-          : `Kalenderzeitraum "${period.name}" angelegt`,
-      );
-      setSavedPeriod(period);
-      await applyPhaseDraft();
-      onSaved(period);
-      if (warnings.length === 0) {
-        onClose();
-      } else {
-        // Advisory only: the save succeeded. Keep the modal open so the
-        // user reads the overlap warning, then closes it explicitly (or
-        // edits the form, which re-enables saving).
-        setSaveWarnings(warnings);
-      }
+        : await calendarPeriodService.create(body));
     } catch (err) {
       logger.error("period_save_failed", {
         mode: isEdit ? "edit" : "create",
@@ -278,9 +266,46 @@ export function CalendarPeriodModal({
           : "Kalenderzeitraum konnte nicht gespeichert werden";
       setValidationError(msg);
       toastError(msg);
-    } finally {
       setSubmitting(false);
+      return;
     }
+
+    setSavedPeriod(period);
+    if (!periodSaveNotified) {
+      onSaved(period);
+      setPeriodSaveNotified(true);
+    }
+    try {
+      await applyPhaseDraft();
+    } catch (err) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Verknüpfung konnte nicht gespeichert werden";
+      logger.error("period_phase_link_save_failed", {
+        period_id: period.id,
+        error: msg,
+      });
+      setValidationError(msg);
+      toastError(msg);
+      setSubmitting(false);
+      return;
+    }
+
+    toastSuccess(
+      persisted
+        ? `Kalenderzeitraum "${period.name}" aktualisiert`
+        : `Kalenderzeitraum "${period.name}" angelegt`,
+    );
+    if (warnings.length === 0) {
+      onClose();
+    } else {
+      // Advisory only: the save succeeded. Keep the modal open so the
+      // user reads the overlap warning, then closes it explicitly (or
+      // edits the form, which re-enables saving).
+      setSaveWarnings(warnings);
+    }
+    setSubmitting(false);
   };
 
   const isPhaseLinked = (phase: LinkablePhase) =>
@@ -309,8 +334,12 @@ export function CalendarPeriodModal({
       const wanted = phaseDraft[phase.id];
       if (wanted === undefined) continue;
       await phaseLink.onToggle(phase, wanted);
+      setPhaseDraft((prev) => {
+        const next = { ...prev };
+        delete next[phase.id];
+        return next;
+      });
     }
-    setPhaseDraft({});
   };
 
   const handleDelete = async () => {

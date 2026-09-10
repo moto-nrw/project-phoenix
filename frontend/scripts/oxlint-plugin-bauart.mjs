@@ -837,7 +837,7 @@ const noAutosave = {
         const onBlur = jsxAttribute(opening, "onBlur");
         const blurBody = inlineHandlerBody(onBlur);
         if (blurBody) {
-          const call = findFiredCall(blurBody, () => true);
+          const call = findFiredCall(blurBody, isWriteCall);
           if (call) {
             context.report({
               node: onBlur,

@@ -55,6 +55,18 @@ describe("bauart/no-autosave", () => {
     expect(output).toContain("onBlur schreibt sofort (save)");
   });
 
+  it("lets validation from onBlur pass", () => {
+    const { status, output } = lintSource(
+      `import { Input } from "~/components/ui/input";
+      export function Probe({ validate, value }: { validate: (v: string) => Promise<void>; value: string }) {
+        return <Input value={value} onChange={() => {}} onBlur={() => void validate(value)} />;
+      }`,
+    );
+
+    expect(output).not.toContain("bauart(no-autosave)");
+    expect(status).toBe(0);
+  });
+
   it("rejects a kit select whose change handler writes", () => {
     const { status, output } = lintSource(
       `import { CustomSelect } from "~/components/ui/custom-select";

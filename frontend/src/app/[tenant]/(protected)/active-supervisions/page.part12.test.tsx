@@ -481,7 +481,7 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
       ],
     });
 
-    render(<MeinRaumPage />);
+    const { rerender } = render(<MeinRaumPage />);
     await searchFor("Marie");
 
     const beierCard = await screen.findByRole("button", {
@@ -524,12 +524,35 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: /Marie Garschagen/ }),
     );
+    vi.mocked(timetableOperationsApi.checkIn).mockRejectedValueOnce(
+      new Error("check-in failed"),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
 
+    await screen.findByText(
+      "Kind konnte nicht zur Aktivität hinzugefügt werden.",
+    );
+    currentRosterData = {
+      ...rosterData,
+      instance: { ...rosterData.instance, id: "100", title: "Sport" },
+    };
+    rerender(<MeinRaumPage />);
+    await waitFor(() =>
+      expect(
+        screen.queryByText(
+          "Kind konnte nicht zur Aktivität hinzugefügt werden.",
+        ),
+      ).not.toBeInTheDocument(),
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Marie Garschagen/ }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
     await waitFor(() => {
-      expect(timetableOperationsApi.checkIn).toHaveBeenCalledTimes(2);
+      expect(timetableOperationsApi.checkIn).toHaveBeenCalledTimes(3);
       expect(timetableOperationsApi.checkIn).toHaveBeenLastCalledWith(
-        "99",
+        "100",
         "202",
       );
     });

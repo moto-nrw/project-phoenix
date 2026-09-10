@@ -138,10 +138,11 @@ export function useTimetableActions(
       ? addStudentResult.students
       : [];
 
-  // The move notice belongs to the session it happened in — drop it when the
-  // supervisor switches to another session tab.
+  // Hinweise und Fehler gehören zur aktiven Sitzung und dürfen nicht in eine
+  // andere Aufsicht übernommen werden.
   useEffect(() => {
     setMoveNotice(null);
+    setAddStudentError(null);
   }, [activeTimetableInstanceId]);
 
   useEffect(() => {
