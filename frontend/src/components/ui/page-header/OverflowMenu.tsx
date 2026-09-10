@@ -159,6 +159,10 @@ export function OverflowMenu({
       : (triggerRef.current?.closest(
           '[data-overflow-menu-scope="true"], [data-date-picker-focus-trap="true"]',
         ) ?? document.body);
+  const scopeRect =
+    portalContainer != null && portalContainer !== document.body
+      ? portalContainer.getBoundingClientRect()
+      : null;
 
   // Close on outside click + Escape. Because the menu is fixed-positioned, also
   // close on scroll/resize so it never lingers detached from its trigger. Only
@@ -235,10 +239,15 @@ export function OverflowMenu({
       const flipUp = roomBelow < estimatedMenuHeight && roomAbove > roomBelow;
       const vertical: CSSProperties = flipUp
         ? {
-            bottom: window.innerHeight - rect.top + gap,
+            bottom: scopeRect
+              ? scopeRect.bottom - rect.top + gap
+              : window.innerHeight - rect.top + gap,
             maxHeight: roomAbove,
           }
-        : { top: rect.bottom + gap, maxHeight: roomBelow };
+        : {
+            top: rect.bottom + gap - (scopeRect?.top ?? 0),
+            maxHeight: roomBelow,
+          };
       // Container-stretch mode: when an ancestor selector is given, size the
       // menu to that ancestor (8px inset both sides) so it sits cleanly INSIDE
       // a narrow container instead of poking out the side. The trigger only
@@ -251,7 +260,7 @@ export function OverflowMenu({
         const inset = 8;
         setMenuStyle({
           ...vertical,
-          left: cr.left + inset,
+          left: cr.left + inset - (scopeRect?.left ?? 0),
           width: cr.width - inset * 2,
         });
       } else {
@@ -276,9 +285,14 @@ export function OverflowMenu({
         const alignRight =
           roomLeft >= renderedWidth ||
           (roomRight < renderedWidth && roomLeft >= roomRight);
-        const horizontal: CSSProperties = alignRight
-          ? { right: clampOffset(window.innerWidth - rect.right) }
-          : { left: clampOffset(rect.left) };
+        const left = alignRight
+          ? clampOffset(rect.right - renderedWidth)
+          : clampOffset(rect.left);
+        const horizontal: CSSProperties = scopeRect
+          ? { left: left - scopeRect.left }
+          : alignRight
+            ? { right: clampOffset(window.innerWidth - rect.right) }
+            : { left };
         const style: CSSProperties = { ...vertical, ...size, ...horizontal };
         setMenuStyle(style);
       }
@@ -332,7 +346,10 @@ export function OverflowMenu({
               id={menuId}
               role="menu"
               aria-label={ariaLabel}
-              style={menuStyle}
+              style={{
+                ...menuStyle,
+                position: scopeRect ? "absolute" : "fixed",
+              }}
               // Surface mirrors DesktopFilters dropdown so menu / filter
               // popovers read as one component family — same border, radius,
               // and shadow elevation across the page. Fixed + portaled so it

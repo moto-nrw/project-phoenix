@@ -79,6 +79,7 @@ describe("OverflowMenu", () => {
       "data-date-picker-focus-trap",
       "true",
     );
+    expect(screen.getByRole("menu")).toHaveStyle({ position: "absolute" });
   });
 
   it("calls the item onClick and closes the menu", () => {
