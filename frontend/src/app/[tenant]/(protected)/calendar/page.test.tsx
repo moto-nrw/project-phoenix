@@ -352,9 +352,80 @@ describe("StaffCalendarPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Termin speichern" }));
 
     expect(mockCreateStaffAppointment).not.toHaveBeenCalled();
-    expect(mockToastWarning).toHaveBeenCalledWith(
+    // Bauart 2 Regel 5 (#3113): der Fehler steht im Alert oben im Panel,
+    // nicht als Toast.
+    expect(await screen.findByRole("alert")).toHaveTextContent(
       "Bitte mindestens ein Ziel auswählen.",
     );
+    expect(mockToastWarning).not.toHaveBeenCalled();
+  });
+
+  it("scrolls the alert into view on every failed attempt, even with the same message", async () => {
+    const scrollIntoView = vi.fn();
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scrollIntoView;
+    try {
+      render(<StaffCalendarPage />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Neuer Termin" }));
+      fireEvent.change(screen.getByLabelText("Titel"), {
+        target: { value: "Ohne Ziel" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Termin speichern" }));
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Bitte mindestens ein Ziel auswählen.",
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Termin speichern" }));
+
+      await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(2));
+      expect(mockCreateStaffAppointment).not.toHaveBeenCalled();
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
+  });
+
+  it("marks a missing title at the field and in the alert", async () => {
+    render(<StaffCalendarPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Neuer Termin" }));
+    // Leerzeichen kommen an `required` vorbei, nicht am Handler.
+    fireEvent.change(screen.getByLabelText("Titel"), {
+      target: { value: "   " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Termin speichern" }));
+
+    expect(mockCreateStaffAppointment).not.toHaveBeenCalled();
+    // Zwei Alerts: der Panel-Alert oben und die Feldmeldung am Titel.
+    const alerts = await screen.findAllByRole("alert");
+    expect(alerts).toHaveLength(2);
+    for (const alert of alerts) {
+      expect(alert).toHaveTextContent("Bitte einen Titel eintragen.");
+    }
+    expect(screen.getByLabelText("Titel")).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+    expect(mockToastWarning).not.toHaveBeenCalled();
+  });
+
+  it("keeps a failed save in the panel with the reason on top", async () => {
+    mockCreateStaffAppointment.mockRejectedValueOnce(
+      new Error("Der Termin überschneidet sich."),
+    );
+    render(<StaffCalendarPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Neuer Termin" }));
+    fireEvent.change(screen.getByLabelText("Titel"), {
+      target: { value: "Teamsitzung" },
+    });
+    fireEvent.click(screen.getByLabelText("Anna Mitarbeiterin"));
+    fireEvent.click(screen.getByRole("button", { name: "Termin speichern" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Der Termin überschneidet sich.",
+    );
+    expect(screen.getByLabelText("Titel")).toHaveValue("Teamsitzung");
+    expect(mockToastError).not.toHaveBeenCalled();
   });
 
   it("requires both dates before creating an appointment", async () => {
@@ -371,9 +442,10 @@ describe("StaffCalendarPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Termin speichern" }));
 
     expect(mockCreateStaffAppointment).not.toHaveBeenCalled();
-    expect(mockToastWarning).toHaveBeenCalledWith(
+    expect(await screen.findByRole("alert")).toHaveTextContent(
       "Bitte Start- und Enddatum angeben.",
     );
+    expect(mockToastWarning).not.toHaveBeenCalled();
   });
 
   // Eine Kalenderfläche (#2283): Nicht-Admins mit schedules:read bekommen

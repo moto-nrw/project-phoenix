@@ -714,6 +714,46 @@ describe("SupervisionProvider school-wide overview paths", () => {
     expect(fetchCalls).toContain("/api/active/supervisors/all");
   });
 
+  it("keeps an admin's own regular-room supervision while loading the overview", async () => {
+    setupFetchMock({
+      adminAll: {
+        success: true,
+        data: [
+          {
+            id: 10,
+            room_id: 100,
+            group_id: 50,
+            room: { id: 100, name: "Fremder Raum" },
+          },
+        ],
+      },
+      supervised: {
+        data: [
+          {
+            id: 11,
+            room_id: 101,
+            group_id: 51,
+            room: { id: 101, name: "Eigener Raum" },
+          },
+        ],
+      },
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token", ["admin"]),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingSupervision).toBe(false);
+    });
+
+    expect(result.current.overviewEnabled).toBe(true);
+    expect(result.current.ownSupervision).toBe(true);
+    expect(mockFetch.mock.calls.map((call) => call[0])).toContain(
+      "/api/me/groups/supervised",
+    );
+  });
+
   it("should fall back to staff endpoint when admin gets 403", async () => {
     setOverviewScope("admins");
     setupFetchMock({

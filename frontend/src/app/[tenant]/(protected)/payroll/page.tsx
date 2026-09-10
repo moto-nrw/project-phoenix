@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -184,62 +185,40 @@ function LohnartenCard({
       title="Lohnarten"
       description="Mandantenspezifische Lohnartnummern aus dem Lohnsystem des Trägers (1 bis 4 Ziffern). Für Krank, Urlaub und Fortbildung zusätzlich die Einheit, die die Lohnart erwartet. Änderungen werden sofort gespeichert."
     >
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[28rem] text-sm">
-          <thead>
-            <tr className="border-b border-gray-100 text-left text-xs font-medium text-gray-500">
-              <th className="py-2 pr-4">Kategorie</th>
-              <th className="py-2 pr-4">Lohnartnummer</th>
-              <th className="py-2">Einheit</th>
-            </tr>
-          </thead>
-          <tbody>
-            {status.categories.map((cat) => (
-              <LohnartRow key={cat.id} cat={cat} onSave={onSave} />
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        columns={lohnartColumns(onSave)}
+        rows={status.categories}
+        getRowKey={(cat) => cat.id}
+        rowHasInteractiveControls
+        caption="Lohnartnummern je Kategorie"
+      />
     </SectionCard>
   );
 }
 
-function LohnartRow({
-  cat,
-  onSave,
-}: {
-  readonly cat: PayrollStatus["categories"][number];
-  readonly onSave: (key: string, value: string) => Promise<void>;
-}) {
-  const [number, setNumber] = useState(cat.number);
-  useEffect(() => setNumber(cat.number), [cat.number]);
+type LohnartCategory = PayrollStatus["categories"][number];
 
-  const valid = number.trim() === "" || /^\d{1,4}$/.test(number.trim());
-
-  return (
-    <tr className="border-b border-gray-100 last:border-0">
-      <td className="py-2 pr-4 font-medium text-gray-800">{cat.label}</td>
-      <td className="py-2 pr-4">
-        <Input
-          aria-label={`Lohnartnummer ${cat.label}`}
-          value={number}
-          onChange={(e) => setNumber(e.target.value)}
-          onBlur={() => {
-            const trimmed = number.trim();
-            if (valid && trimmed !== cat.number) {
-              void onSave(cat.settingKey, trimmed);
-            }
-          }}
-          placeholder="Nicht konfiguriert"
-          inputMode="numeric"
-          className="h-9 max-w-[10rem] py-1 text-sm tabular-nums"
-        />
-        {!valid && (
-          <p className="text-moto-red mt-1 text-xs">1 bis 4 Ziffern.</p>
-        )}
-      </td>
-      <td className="py-2">
-        {cat.unitRequired && cat.unitSettingKey ? (
+function lohnartColumns(
+  onSave: (key: string, value: string) => Promise<void>,
+): DataTableColumn<LohnartCategory>[] {
+  return [
+    {
+      key: "label",
+      header: "Kategorie",
+      stacked: "title",
+      className: "font-medium text-gray-800",
+      render: (cat) => cat.label,
+    },
+    {
+      key: "number",
+      header: "Lohnartnummer",
+      render: (cat) => <LohnartNumberCell cat={cat} onSave={onSave} />,
+    },
+    {
+      key: "unit",
+      header: "Einheit",
+      render: (cat) =>
+        cat.unitRequired && cat.unitSettingKey ? (
           <CustomSelect
             ariaLabel={`Einheit ${cat.label}`}
             value={cat.unit}
@@ -253,9 +232,41 @@ function LohnartRow({
           />
         ) : (
           <span className="text-xs text-gray-400">Stunden (fest)</span>
-        )}
-      </td>
-    </tr>
+        ),
+    },
+  ];
+}
+
+function LohnartNumberCell({
+  cat,
+  onSave,
+}: {
+  readonly cat: LohnartCategory;
+  readonly onSave: (key: string, value: string) => Promise<void>;
+}) {
+  const [number, setNumber] = useState(cat.number);
+  useEffect(() => setNumber(cat.number), [cat.number]);
+
+  const valid = number.trim() === "" || /^\d{1,4}$/.test(number.trim());
+
+  return (
+    <div className="max-w-[10rem]">
+      <Input
+        aria-label={`Lohnartnummer ${cat.label}`}
+        value={number}
+        onChange={(e) => setNumber(e.target.value)}
+        onBlur={() => {
+          const trimmed = number.trim();
+          if (valid && trimmed !== cat.number) {
+            void onSave(cat.settingKey, trimmed);
+          }
+        }}
+        placeholder="Nicht konfiguriert"
+        inputMode="numeric"
+        className="h-9 py-1 text-sm tabular-nums"
+        error={valid ? undefined : "1 bis 4 Ziffern."}
+      />
+    </div>
   );
 }
 
@@ -312,30 +323,21 @@ function DatevNumberField({
     new RegExp(String.raw`^\d{1,${maxDigits}}$`).test(value.trim());
 
   return (
-    <div>
-      <label
-        htmlFor={`datev-${settingKey}`}
-        className="mb-1 block text-sm font-medium text-gray-700"
-      >
-        {label}
-      </label>
-      <Input
-        id={`datev-${settingKey}`}
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onBlur={() => {
-          const trimmed = value.trim();
-          if (valid && trimmed !== current) {
-            void onSave(settingKey, trimmed);
-          }
-        }}
-        placeholder="Nicht konfiguriert"
-        inputMode="numeric"
-        className="h-9 py-1 text-sm tabular-nums"
-      />
-      {!valid && (
-        <p className="text-moto-red mt-1 text-xs">1 bis {maxDigits} Ziffern.</p>
-      )}
-    </div>
+    <Input
+      id={`datev-${settingKey}`}
+      label={label}
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={() => {
+        const trimmed = value.trim();
+        if (valid && trimmed !== current) {
+          void onSave(settingKey, trimmed);
+        }
+      }}
+      placeholder="Nicht konfiguriert"
+      inputMode="numeric"
+      className="h-9 py-1 text-sm tabular-nums"
+      error={valid ? undefined : `1 bis ${maxDigits} Ziffern.`}
+    />
   );
 }

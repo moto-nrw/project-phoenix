@@ -10,6 +10,7 @@ import { ColorPickerField } from "~/components/ui/color-picker-field";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Input } from "~/components/ui/input";
 import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import {
   SlideOver,
   SlideOverCloseButton,
@@ -372,24 +373,27 @@ export function ShiftTypeManageModal({
                               </p>
                             )}
                           </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`${type.name} bearbeiten`}
-                            onClick={() => openEdit(type)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`${type.name} löschen`}
-                            onClick={() => setDeleteTarget(type)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <OverflowMenu
+                            ariaLabel={`Aktionen für ${type.name}`}
+                            items={[
+                              {
+                                label: "Bearbeiten",
+                                icon: (
+                                  <Pencil className="h-4 w-4" aria-hidden />
+                                ),
+                                onClick: () => openEdit(type),
+                              },
+                              { kind: "separator" },
+                              {
+                                label: "Löschen",
+                                icon: (
+                                  <Trash2 className="h-4 w-4" aria-hidden />
+                                ),
+                                destructive: true,
+                                onClick: () => setDeleteTarget(type),
+                              },
+                            ]}
+                          />
                         </li>
                       ))}
                     </ul>

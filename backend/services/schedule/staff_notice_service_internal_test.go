@@ -23,6 +23,7 @@ type fakeNoticeRepo struct {
 	counts      map[int64]int
 	countsCalls int
 	acked       []int64
+	ackedBy     []int64
 	ackRows     []*usersModels.StaffNoticeAck
 	createdWith *usersModels.StaffNotice
 }
@@ -52,8 +53,9 @@ func (f *fakeNoticeRepo) ListValidOn(context.Context, timezone.Date, string) ([]
 	// prüfen, siehe TestStaffNoticeTodayFiltersByReader.
 	return f.notices, nil
 }
-func (f *fakeNoticeRepo) Acknowledge(_ context.Context, noticeID, _ int64) error {
+func (f *fakeNoticeRepo) Acknowledge(_ context.Context, noticeID, accountID int64) error {
 	f.acked = append(f.acked, noticeID)
+	f.ackedBy = append(f.ackedBy, accountID)
 	return nil
 }
 func (f *fakeNoticeRepo) AcknowledgedAtFor(context.Context, int64, []int64) (map[int64]time.Time, error) {
@@ -392,6 +394,57 @@ func TestStaffNoticeCreateRejectsUnknownWeekday(t *testing.T) {
 		Active:    true,
 	})
 	assert.ErrorIs(t, err, ErrStaffNoticeInvalid, "ein unbekannter Wochentag darf nicht stumm verschwinden")
+}
+
+// Wer den Hinweis schreibt, kennt ihn: sonst fragt die eigene
+// Tagesinformation die Leitung nach einer Kenntnisnahme und zählt so lange im
+// Badge mit.
+func TestStaffNoticeCreateAcknowledgesForTheAuthor(t *testing.T) {
+	t.Parallel()
+	repo := &fakeNoticeRepo{}
+	svc := NewStaffNoticeService(StaffNoticeServiceConfig{Repo: repo})
+
+	_, err := svc.Create(context.Background(), 42, StaffNoticeInput{
+		Title:                   "Räumungsübung",
+		ValidFrom:               noticeMustDate(t, "2026-08-01"),
+		RequiresAcknowledgement: true,
+		Active:                  true,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []int64{42}, repo.ackedBy)
+}
+
+// Ohne verlangte Kenntnisnahme gibt es nichts zu stempeln.
+func TestStaffNoticeCreateWithoutAcknowledgementStampsNothing(t *testing.T) {
+	t.Parallel()
+	repo := &fakeNoticeRepo{}
+	svc := NewStaffNoticeService(StaffNoticeServiceConfig{Repo: repo})
+
+	_, err := svc.Create(context.Background(), 42, StaffNoticeInput{
+		Title:     "Nur zur Information",
+		ValidFrom: noticeMustDate(t, "2026-08-01"),
+		Active:    true,
+	})
+	require.NoError(t, err)
+	assert.Empty(t, repo.ackedBy)
+}
+
+// Wird die Kenntnisnahme erst nachträglich verlangt, gilt dasselbe.
+func TestStaffNoticeUpdateAcknowledgesForTheAuthor(t *testing.T) {
+	t.Parallel()
+	notice := newNotice(t, 61, nil, 0)
+	notice.CreatedBy = 7
+	repo := &fakeNoticeRepo{notices: []*usersModels.StaffNotice{notice}}
+	svc := NewStaffNoticeService(StaffNoticeServiceConfig{Repo: repo})
+
+	_, err := svc.Update(context.Background(), 61, StaffNoticeInput{
+		Title:                   "Hinweis",
+		ValidFrom:               noticeMustDate(t, "2026-08-01"),
+		RequiresAcknowledgement: true,
+		Active:                  true,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []int64{7}, repo.ackedBy)
 }
 
 // --- Zielgruppe und Bestätigungsliste (#2208) ---

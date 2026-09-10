@@ -65,6 +65,7 @@ const SupervisionContext = createContext<SupervisionContextType | undefined>(
 
 const EMPTY_SUPERVISION_STATE: DerivedSupervision = {
   isSupervising: false,
+  ownSupervision: false,
   supervisedRoomId: undefined,
   supervisedRoomName: undefined,
   supervisedRooms: [],
@@ -90,6 +91,7 @@ function initialState(initial: SupervisionSnapshot | null): SupervisionState {
       initial.supervised,
       initial.openRooms,
       initial.overviewOk,
+      initial.ownSupervised,
     ),
     isLoadingSupervision: false,
   };
@@ -250,31 +252,47 @@ export function SupervisionProvider({
       // own supervisions instead of an empty sidebar.
       // The endpoint is gated on `groups:read`, so accounts without it skip
       // straight to the permission-less /me endpoint.
-      const fetchSupervisedGroups = async (): Promise<Response> => {
-        if (!canReadGroupsRef.current || !mayHaveOverviewRef.current) {
-          return fetch("/api/me/groups/supervised", {
-            headers: { "Content-Type": "application/json" },
-            cache: "no-store",
-          });
-        }
-        const overviewResponse = await fetch("/api/active/supervisors/all", {
+      const fetchOwnSupervisedGroups = () =>
+        fetch("/api/me/groups/supervised", {
           headers: { "Content-Type": "application/json" },
           cache: "no-store",
         });
-        if (!overviewResponse.ok) {
-          return fetch("/api/me/groups/supervised", {
+
+      const fetchSupervisedGroups = async (): Promise<{
+        response: Response;
+        ownResponse: Response | null;
+      }> => {
+        if (!canReadGroupsRef.current || !mayHaveOverviewRef.current) {
+          return {
+            response: await fetchOwnSupervisedGroups(),
+            ownResponse: null,
+          };
+        }
+
+        // Die Übersicht zeigt alle laufenden Räume, kann die eigene Aufsicht
+        // aber nicht kennzeichnen. Die eigene Abfrage läuft parallel und
+        // liefert ausschließlich das Signal für „Aufsicht fortsetzen“.
+        const [overviewResponse, ownResponse] = await Promise.all([
+          fetch("/api/active/supervisors/all", {
             headers: { "Content-Type": "application/json" },
             cache: "no-store",
-          });
+          }),
+          fetchOwnSupervisedGroups().catch(() => null),
+        ]);
+        if (!overviewResponse.ok) {
+          return {
+            response: ownResponse ?? overviewResponse,
+            ownResponse: null,
+          };
         }
         overviewOk = true;
-        return overviewResponse;
+        return { response: overviewResponse, ownResponse };
       };
 
       // Own supervisions and the permanently released rooms in parallel. The
       // room list needs rooms:read, which every caregiver already holds for
       // the rest of the navigation, so there is no extra permission gate.
-      const [response, openRoomsResponse] = await Promise.all([
+      const [{ response, ownResponse }, openRoomsResponse] = await Promise.all([
         fetchSupervisedGroups(),
         fetch("/api/rooms?is_open_room=true", {
           headers: { "Content-Type": "application/json" },
@@ -302,9 +320,19 @@ export function SupervisionProvider({
         supervised = responseData.data ?? [];
       }
 
-      applySupervision(deriveSupervision(supervised, openRooms, overviewOk));
+      let ownSupervised: SupervisedGroupPayload[] | null = null;
+      if (overviewOk && ownResponse?.ok) {
+        const responseData = (await ownResponse.json()) as {
+          data: SupervisedGroupPayload[] | null;
+        };
+        ownSupervised = responseData.data ?? [];
+      }
+
+      applySupervision(
+        deriveSupervision(supervised, openRooms, overviewOk, ownSupervised),
+      );
     } catch {
-      // On error, we can't fetch Schulhof either, so just clear
+      // On error the open-room list is unreachable too, so just clear.
       applySupervision(EMPTY_SUPERVISION_STATE);
     }
   }, [applySupervision, canReadGroupsRef, mayHaveOverviewRef, tokenRef]);
@@ -489,6 +517,7 @@ const EMPTY_SUPERVISION: SupervisionContextType = {
   isLoadingGroups: false,
   groups: [],
   isSupervising: false,
+  ownSupervision: false,
   supervisedRooms: [],
   isLoadingSupervision: false,
   overviewEnabled: false,

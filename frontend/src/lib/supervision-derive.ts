@@ -1,8 +1,8 @@
 import type { NavigationEducationalGroup } from "~/lib/usercontext-helpers";
 
 /**
- * Pure derivation of the supervision navigation state from the three backend
- * payloads (group navigation, supervised groups, Schulhof status). Shared by
+ * Pure derivation of the supervision navigation state from the backend
+ * payloads (group navigation, supervised groups, released rooms). Shared by
  * SupervisionProvider (browser fetches through the Next API routes) and the
  * server-side shell bootstrap (#2973), so both sides produce the same rooms.
  */
@@ -48,6 +48,8 @@ export interface SupervisedGroupPayload {
 export interface SupervisionSnapshot {
   groups: NavigationEducationalGroup[] | null;
   supervised: SupervisedGroupPayload[] | null;
+  /** Eigene laufende Aufsichten zusätzlich zur schulweiten Übersicht. */
+  ownSupervised?: SupervisedGroupPayload[] | null;
   /** Released rooms, or null when the request did not succeed. */
   openRooms: OpenRoomPayload[] | null;
   /** True when `supervised` came from the school-wide overview endpoint. */
@@ -55,7 +57,23 @@ export interface SupervisionSnapshot {
 }
 
 export interface DerivedSupervision {
+  /**
+   * Es gibt laufende Aufsichten: eigene Räume oder die schulweite Übersicht.
+   * Steuert die Sichtbarkeit von „Aufsicht" in der Navigation — NICHT, ob die
+   * Person selbst gerade Aufsicht führt. Offene Räume zählen hier nicht: sie
+   * sind für alle erreichbar, auch wenn dort nichts läuft.
+   */
   isSupervising: boolean;
+  /**
+   * Die Person führt gerade selbst eine Aufsicht — in einem eigenen Raum oder
+   * in einem offenen Raum, dem sie sich angeschlossen hat. Mit der schulweiten
+   * Übersicht sind eigene Aufsichten nicht von fremden zu unterscheiden; dann
+   * liefert die zusätzliche eigene Abfrage das Signal. Steuert „Aufsicht
+   * fortsetzen" auf der Startseite.
+   * Optional, damit die vielen Test-Fixturen des Kontexts unverändert bleiben;
+   * `deriveSupervision` setzt es immer, fehlend heißt „nein".
+   */
+  ownSupervision?: boolean;
   supervisedRoomId?: string;
   supervisedRoomName?: string;
   supervisedRooms: SupervisedRoom[];
@@ -66,6 +84,18 @@ export function sortNavigationGroups(
   groups: readonly NavigationEducationalGroup[],
 ): NavigationEducationalGroup[] {
   return [...groups].sort((a, b) => a.name.localeCompare(b.name, "de"));
+}
+
+/**
+ * Own running supervision — the signal behind „Aufsicht fortsetzen" (#2180).
+ * A released room counts only when the caller actually supervises a session in
+ * it; being able to reach a shared room is not supervising it. The answer
+ * therefore comes from the supervised-groups payload, never from the room list.
+ */
+function hasOwnSupervision(
+  groups: SupervisedGroupPayload[] | null | undefined,
+): boolean {
+  return groups?.some((group) => group.room_id !== undefined) === true;
 }
 
 /**
@@ -109,10 +139,17 @@ export function deriveSupervision(
   supervised: SupervisedGroupPayload[] | null,
   openRooms: OpenRoomPayload[] | null,
   overviewOk: boolean,
+  ownSupervised: SupervisedGroupPayload[] | null = null,
 ): DerivedSupervision {
   const openEntries = openRoomEntries(openRooms, supervised);
   const openRoomIDs = new Set(openEntries.map((room) => room.id));
   const first = supervised?.[0];
+  // Ohne Übersicht stammt jede Zeile aus /api/me/groups/supervised und ist
+  // eine eigene Aufsicht. Mit Übersicht liefert die zusätzliche eigene
+  // Abfrage das Signal für „Aufsicht fortsetzen".
+  const ownSupervision = overviewOk
+    ? hasOwnSupervision(ownSupervised)
+    : hasOwnSupervision(supervised);
 
   if (!supervised || !first) {
     // No own supervision (or that request failed). Released rooms are still
@@ -121,6 +158,7 @@ export function deriveSupervision(
     // preselected as "mine".
     return {
       isSupervising: false,
+      ownSupervision,
       supervisedRooms: openEntries,
       overviewEnabled: supervised !== null && overviewOk,
     };
@@ -157,6 +195,7 @@ export function deriveSupervision(
 
   return {
     isSupervising: true,
+    ownSupervision,
     supervisedRoomId: first.room_id?.toString(),
     supervisedRoomName:
       first.room?.name ?? (first.room_id ? `Room ${first.room_id}` : undefined),
@@ -180,6 +219,7 @@ export function sameSupervision(
       .join(",");
   return (
     prev.isSupervising === next.isSupervising &&
+    prev.ownSupervision === next.ownSupervision &&
     prev.supervisedRoomId === next.supervisedRoomId &&
     prev.supervisedRoomName === next.supervisedRoomName &&
     prev.overviewEnabled === next.overviewEnabled &&

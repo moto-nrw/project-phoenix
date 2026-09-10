@@ -5,12 +5,19 @@
 // das Ersetzen des Sets im Backend users:manage (Admin-Write mit Audit).
 // Klassen bleiben Freitext (users.students.school_class); die Vorschläge
 // kommen aus den vorhandenen Klassen der Kinder.
+//
+// Bearbeitet wird am Objekt (Bauart 2, Regel 4): „Bearbeiten“ öffnet einen
+// Entwurf, Hinzufügen und Entfernen ändern nur den Entwurf, und erst
+// „Speichern“ schreibt das ganze Set einmal per PUT (#3112). Vorher schrieb
+// jeder Chip-Klick sofort, ohne Abbrechen und ohne Hinweis.
 
 import { Plus, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { EditActions } from "~/components/ui/edit-actions";
 import { Input } from "~/components/ui/input";
+import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { authFetch } from "~/lib/api-helpers";
 import { createLogger } from "~/lib/logger";
@@ -58,15 +65,22 @@ async function fetchKnownClasses(): Promise<string[]> {
   return response.data ?? [];
 }
 
+function sameClassSet(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((klass, index) => klass === b[index]);
+}
+
 export function KlassenTab({
   staffId,
   canEdit,
 }: Readonly<{ staffId: string; canEdit: boolean }>) {
   const [assigned, setAssigned] = useState<string[] | null>(null);
   const [known, setKnown] = useState<string[]>([]);
-  const [draft, setDraft] = useState("");
+  // Entwurf des Bearbeiten-Zustands; null heißt: nicht im Bearbeiten.
+  const [draft, setDraft] = useState<string[] | null>(null);
+  const [newClass, setNewClass] = useState("");
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   // Zählt die Ladeversuche: ein fehlgeschlagener Initial-Load (transienter
   // 500) darf die Zuweisungs-UI nicht dauerhaft sperren — "Erneut versuchen"
   // stößt den Effect neu an, statt einen Full Reload zu erzwingen.
@@ -80,7 +94,7 @@ export function KlassenTab({
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setError("Die Klassen-Zuweisung konnte nicht geladen werden.");
+        setLoadError("Die Klassen-Zuweisung konnte nicht geladen werden.");
         logger.error("staff_school_classes_fetch_failed", {
           staff_id: staffId,
           error: err instanceof Error ? err.message : String(err),
@@ -99,72 +113,92 @@ export function KlassenTab({
   }, [staffId, loadAttempt]);
 
   const retryLoad = useCallback(() => {
-    setError(null);
+    setLoadError(null);
     setLoadAttempt((attempt) => attempt + 1);
   }, []);
 
-  const persist = useCallback(
-    async (next: string[]) => {
-      const previous = assigned ?? [];
-      setAssigned(next);
-      setSaving(true);
-      setError(null);
-      try {
-        const stored = await saveAssignedClasses(staffId, next);
-        setAssigned(stored);
-      } catch (err) {
-        setAssigned(previous);
-        setError("Die Klassen-Zuweisung konnte nicht gespeichert werden.");
-        logger.error("staff_school_classes_save_failed", {
-          staff_id: staffId,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      } finally {
-        setSaving(false);
-      }
-    },
-    [assigned, staffId],
-  );
+  const startEditing = useCallback(() => {
+    if (!assigned) return;
+    setDraft([...assigned]);
+    setNewClass("");
+    setSaveError(null);
+  }, [assigned]);
+
+  const cancelEditing = useCallback(() => {
+    setDraft(null);
+    setNewClass("");
+    setSaveError(null);
+  }, []);
 
   const addClass = useCallback(() => {
-    const value = draft.trim();
-    if (!value || !assigned) return;
-    const exists = assigned.some(
+    const value = newClass.trim();
+    if (!value || !draft) return;
+    setNewClass("");
+    const exists = draft.some(
       (klass) => klass.trim().toLowerCase() === value.toLowerCase(),
     );
-    setDraft("");
     if (exists) return;
-    void persist([...assigned, value]);
-  }, [draft, assigned, persist]);
+    setDraft([...draft, value]);
+  }, [newClass, draft]);
 
-  const removeClass = useCallback(
-    (klass: string) => {
-      if (!assigned) return;
-      void persist(assigned.filter((entry) => entry !== klass));
-    },
-    [assigned, persist],
-  );
+  const removeClass = useCallback((klass: string) => {
+    setDraft((current) =>
+      current ? current.filter((entry) => entry !== klass) : current,
+    );
+  }, []);
+
+  const handleSave = useCallback(async () => {
+    if (!draft) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const stored = await saveAssignedClasses(staffId, draft);
+      setAssigned(stored);
+      setDraft(null);
+      setNewClass("");
+    } catch (err) {
+      setSaveError("Die Klassen-Zuweisung konnte nicht gespeichert werden.");
+      logger.error("staff_school_classes_save_failed", {
+        staff_id: staffId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setSaving(false);
+    }
+  }, [draft, staffId]);
 
   const suggestions = useMemo(() => {
-    if (!assigned) return [];
-    const taken = new Set(assigned.map((klass) => klass.trim().toLowerCase()));
+    const base = draft ?? assigned ?? [];
+    const taken = new Set(base.map((klass) => klass.trim().toLowerCase()));
     return known.filter((klass) => !taken.has(klass.trim().toLowerCase()));
-  }, [known, assigned]);
+  }, [known, draft, assigned]);
+
+  const editing = draft !== null;
+  const shown = draft ?? assigned;
+  const dirty =
+    draft !== null && assigned !== null && !sameClassSet(draft, assigned);
 
   return (
-    <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
-      <h2 className="text-base font-semibold text-gray-900">
-        Zugewiesene Schulklassen
-      </h2>
-      <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-        Eine Lehrkraft sieht in ihrer Klassenansicht genau die Kinder dieser
-        Klassen – wer nach dem Unterricht in der Betreuung bleibt und wer nach
-        Hause geht. Kontaktdaten der Sorgeberechtigten sind dort nicht sichtbar.
-      </p>
-
-      {error && (
-        <div className="mt-4 space-y-3">
-          <Alert type="error" message={error} />
+    <SectionCard
+      title="Zugewiesene Schulklassen"
+      description="Eine Lehrkraft sieht in ihrer Klassenansicht genau die Kinder dieser Klassen – wer nach dem Unterricht in der Betreuung bleibt und wer nach Hause geht. Kontaktdaten der Sorgeberechtigten sind dort nicht sichtbar."
+      action={
+        canEdit && assigned !== null && !editing ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            className="bg-white"
+            onClick={startEditing}
+          >
+            Bearbeiten
+          </Button>
+        ) : undefined
+      }
+    >
+      {loadError && (
+        <div className="space-y-3">
+          <Alert type="error" message={loadError} />
           {assigned === null && (
             <Button
               type="button"
@@ -178,30 +212,32 @@ export function KlassenTab({
         </div>
       )}
 
-      {assigned === null && !error ? (
-        <div className="mt-4 space-y-2">
+      {assigned === null && !loadError ? (
+        <div className="space-y-2">
           <Skeleton className="h-9 w-64" />
           <Skeleton className="h-9 w-40" />
         </div>
       ) : null}
 
-      {assigned !== null && (
-        <>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {assigned.length === 0 && (
+      {shown !== null && (
+        <div className="space-y-4">
+          {editing && saveError && <Alert type="error" message={saveError} />}
+
+          <div className="flex flex-wrap gap-2">
+            {shown.length === 0 && (
               <p className="text-sm text-gray-500">
                 Noch keine Klasse zugewiesen.
               </p>
             )}
-            {assigned.map((klass) => (
+            {shown.map((klass) => (
               <span
                 key={klass}
                 // min-h-8 hält die Chip-Höhe konstant, egal ob der
                 // Entfernen-Button (h-8) daneben steht.
-                className={`inline-flex min-h-8 items-center gap-1 rounded-lg border border-gray-200 bg-white pl-3 text-sm font-medium text-gray-900 shadow-sm ${canEdit ? "pr-1" : "pr-3"}`}
+                className={`inline-flex min-h-8 items-center gap-1 rounded-lg border border-gray-200 bg-white pl-3 text-sm font-medium text-gray-900 shadow-sm ${editing ? "pr-1" : "pr-3"}`}
               >
                 {classLabel(klass)}
-                {canEdit && (
+                {editing && (
                   <Button
                     type="button"
                     variant="ghost"
@@ -218,46 +254,54 @@ export function KlassenTab({
             ))}
           </div>
 
-          {canEdit && (
-            <div className="mt-4 flex items-center gap-2">
-              <div className="w-40">
-                <Input
-                  type="text"
-                  value={draft}
-                  onChange={(event) => setDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      addClass();
-                    }
-                  }}
-                  list="staff-known-classes"
-                  placeholder="z. B. 1a"
-                  aria-label="Klassenname"
-                  disabled={saving}
-                  controlSize="compact"
-                />
+          {editing && (
+            <>
+              <div className="flex items-center gap-2">
+                <div className="w-40">
+                  <Input
+                    type="text"
+                    value={newClass}
+                    onChange={(event) => setNewClass(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        addClass();
+                      }
+                    }}
+                    list="staff-known-classes"
+                    placeholder="z. B. 1a"
+                    aria-label="Klassenname"
+                    disabled={saving}
+                    controlSize="compact"
+                  />
+                </div>
+                <datalist id="staff-known-classes">
+                  {suggestions.map((klass) => (
+                    <option key={klass} value={klass} />
+                  ))}
+                </datalist>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  onClick={addClass}
+                  disabled={saving || newClass.trim() === ""}
+                  className="gap-1.5 bg-white"
+                >
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  Hinzufügen
+                </Button>
               </div>
-              <datalist id="staff-known-classes">
-                {suggestions.map((klass) => (
-                  <option key={klass} value={klass} />
-                ))}
-              </datalist>
-              <Button
-                type="button"
-                variant="primary"
-                size="md"
-                onClick={addClass}
-                disabled={saving || draft.trim() === ""}
-                className="gap-1.5"
-              >
-                <Plus className="h-4 w-4" aria-hidden="true" />
-                Hinzufügen
-              </Button>
-            </div>
+              <EditActions
+                onCancel={cancelEditing}
+                onSave={() => void handleSave()}
+                saving={saving}
+                disabled={!dirty}
+              />
+            </>
           )}
-        </>
+        </div>
       )}
-    </section>
+    </SectionCard>
   );
 }

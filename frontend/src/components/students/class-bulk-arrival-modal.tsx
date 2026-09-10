@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useFormError } from "~/components/ui/form-error";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { FormModal } from "~/components/ui/form-modal";
@@ -82,9 +83,12 @@ export function FilteredBulkArrivalModal({
   studentsInFilter,
   onSuccess,
 }: FilteredBulkArrivalModalProps) {
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess } = useToast();
   const [draft, setDraft] = useState<DraftState>(initialDraft);
   const [saving, setSaving] = useState(false);
+  // Validation and save errors of the form (Bauart 2 Regel 5): shown in the
+  // FormModal error slot, not as a toast.
+  const [formError, setFormError] = useFormError();
   const [
     arrivalExceptionConfirmationOpen,
     setArrivalExceptionConfirmationOpen,
@@ -190,12 +194,13 @@ export function FilteredBulkArrivalModal({
 
   const handleSubmit = async () => {
     if (isClassTimetable && (classTimesLoading || classTimesError)) return;
+    setFormError(null);
     if (!hasAnyTime) {
-      toastError("Mindestens eine Zeit angeben");
+      setFormError("Mindestens eine Zeit angeben");
       return;
     }
     if (hasInvalidEntry) {
-      toastError("Ungültige Uhrzeit. Format HH:MM.");
+      setFormError("Ungültige Uhrzeit. Format HH:MM.");
       return;
     }
 
@@ -222,21 +227,25 @@ export function FilteredBulkArrivalModal({
         filter_type: filter.type,
         error: message,
       });
-      toastError(`Fehler beim Speichern: ${message}`);
+      setFormError(`Fehler beim Speichern: ${message}`);
     } finally {
       setSaving(false);
     }
   };
 
   useEffect(() => {
-    if (!isOpen) setArrivalExceptionConfirmationOpen(false);
-  }, [isOpen]);
+    if (!isOpen) {
+      setArrivalExceptionConfirmationOpen(false);
+      setFormError(null);
+    }
+  }, [isOpen, setFormError]);
 
   return (
     <FormModal
       isOpen={isOpen}
       suspended={arrivalExceptionConfirmationOpen}
       onClose={onClose}
+      error={formError}
       title={
         showDayView
           ? `Ankunftszeit an einem Tag für ${targetTitle}`

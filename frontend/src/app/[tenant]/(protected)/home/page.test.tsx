@@ -1,0 +1,688 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { createElement, type ReactNode } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import HomePage from "./page";
+import type {
+  HomeBlockPlacement,
+  HomeBlockPolicies,
+  HomeLayoutOverrides,
+} from "~/lib/home-blocks";
+
+/**
+ * Die Startseite als Brett (#2180): Standardansicht je Rolle, alles
+ * verschiebbar, und nichts, was die Person nicht abrufen darf.
+ *
+ * Was IN einer Karte steht, prüft home-block-content.test.tsx; welche
+ * Abfragen die Fläche auslöst, page.home-layout.test.tsx.
+ */
+
+const mockRedirect = vi.fn();
+const { schoolPortalLoginUrl } = vi.hoisted(() => ({
+  schoolPortalLoginUrl: vi.fn(() => "https://schule.example.test/login"),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  redirect: (url: string) => mockRedirect(url),
+}));
+
+const mockSession = {
+  user: {
+    id: "1",
+    name: "Anna Müller",
+    email: "admin@test.com",
+    token: "test-token",
+    isAdmin: true,
+    firstName: "Anna",
+  },
+  expires: "2099-12-31",
+};
+
+vi.mock("next-auth/react", () => ({
+  useSession: vi.fn(() => ({ data: mockSession, status: "authenticated" })),
+}));
+
+vi.mock("~/lib/school-url", () => ({ schoolPortalLoginUrl }));
+
+vi.mock("~/lib/auth-utils", () => ({
+  isAdmin: vi.fn((session) => session?.user?.isAdmin ?? false),
+  hasEffectiveAdminScope: vi.fn((session) => session?.user?.isAdmin ?? false),
+  hasPermission: vi.fn((session) => session?.user?.isAdmin ?? false),
+  hasRole: vi.fn(() => false),
+  isCaregiver: vi.fn(() => false),
+}));
+
+vi.mock("~/lib/change-request-access", () => ({
+  canOpenRequestsPage: vi.fn((session) => session?.user?.isAdmin ?? false),
+}));
+
+vi.mock("~/lib/breadcrumb-context", () => ({
+  useSetBreadcrumb: vi.fn(),
+  useBreadcrumb: vi.fn(() => ({ breadcrumb: {}, setBreadcrumb: vi.fn() })),
+  BreadcrumbProvider: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
+}));
+
+vi.mock("~/lib/usercontext-context", () => ({
+  UserContextProvider: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="user-context-provider">{children}</div>
+  ),
+}));
+
+vi.mock("~/components/enrollment/phase-expiry-warnings", () => ({
+  PhaseExpiryWarnings: () => <div data-testid="phase-expiry-warnings" />,
+}));
+
+// Die Testumgebung ist ein breiter Bildschirm: nur dort zeichnet das Brett
+// die vier Spalten der Anordnung, und nur dort lässt sich ziehen.
+vi.mock("~/lib/hooks/use-media-query", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("~/lib/hooks/use-media-query")>();
+  return {
+    ...actual,
+    useMediaQuery: (query: string) => query === "(min-width: 1280px)",
+  };
+});
+
+vi.mock("~/components/home/staff-notices-block", () => ({
+  StaffNoticesBlock: () => <div data-testid="staff-notices-block" />,
+}));
+vi.mock("~/components/home/day-flow-block", () => ({
+  DayFlowBlock: () => <div data-testid="day-flow-block" />,
+}));
+vi.mock("~/components/home/open-requests-block", () => ({
+  OpenRequestsBlock: () => <div data-testid="open-requests-block" />,
+}));
+vi.mock("~/components/home/my-day-block", () => ({
+  MyDayBlock: () => <div data-testid="my-day-block" />,
+}));
+vi.mock("~/components/home/my-group-block", () => ({
+  MyGroupBlock: () => <div data-testid="my-group-block" />,
+}));
+vi.mock("~/components/home/staff-today-block", () => ({
+  StaffTodayBlock: () => <div data-testid="staff-today-block" />,
+}));
+vi.mock("~/components/home/messages-block", () => ({
+  MessagesBlock: () => <div data-testid="messages-block" />,
+}));
+// Die Jetzt-Zone hat eigene Quellen und einen eigenen Test.
+vi.mock("~/components/home/now-strip", () => ({
+  NowStrip: () => <div data-testid="home-now" />,
+}));
+
+// Die Bewegung der Kacheln animiert framer-motion; hier zählt nur, wo sie
+// landen. `motion.li` wird zum echten `li`, die Animationsprops fallen weg.
+vi.mock("framer-motion", () => ({
+  motion: new Proxy(
+    {},
+    {
+      get:
+        (_target, tag: string) =>
+        ({
+          children,
+          layout,
+          transition,
+          style,
+          ...rest
+        }: {
+          children?: ReactNode;
+          layout?: unknown;
+          transition?: unknown;
+          style?: Record<string, unknown>;
+        } & Record<string, unknown>) => {
+          void layout;
+          void transition;
+          void style;
+          return createElement(tag, rest, children);
+        },
+    },
+  ),
+  useReducedMotion: () => true,
+  useMotionValue: (initial: number) => {
+    let value = initial;
+    return {
+      get: () => value,
+      set: (next: number) => {
+        value = next;
+      },
+    };
+  },
+  animate: () => ({ stop: () => undefined }),
+}));
+
+vi.mock("~/lib/tenant-context", () => ({
+  useNFCEnabled: vi.fn(() => true),
+  useOpenCareGroupMode: vi.fn(() => false),
+  usePresenceMode: vi.fn(() => "detailed"),
+  useTenantSafe: vi.fn(() => ({
+    tenant: { messagingEnabled: true, staffMessagingEnabled: false },
+  })),
+  useTenantSlugSafe: vi.fn(() => "test-tenant"),
+  useTenantRoutingModeSafe: vi.fn(() => "path"),
+  useTimetableEnabled: vi.fn(() => true),
+}));
+
+vi.mock("~/lib/dashboard-helpers", () => ({
+  formatRecentActivityTime: vi.fn(() => "14:05"),
+  getActivityStatusColor: vi.fn(() => "bg-moto-green"),
+  getGroupStatusColor: vi.fn(() => "bg-moto-green"),
+}));
+
+vi.mock("~/lib/swr/hooks", () => ({ useSWRAuth: vi.fn() }));
+
+const layoutState = {
+  blocks: [] as readonly HomeBlockPlacement[],
+  overrides: {} as HomeLayoutOverrides,
+  policies: {} as HomeBlockPolicies,
+};
+const save = vi.fn().mockResolvedValue(undefined);
+const reset = vi.fn().mockResolvedValue(undefined);
+
+vi.mock("~/lib/hooks/use-home-layout", () => ({
+  useHomeLayout: () => ({
+    state: { ...layoutState, canManagePolicies: true },
+    isLoading: false,
+    isReady: true,
+    save,
+    reset,
+  }),
+}));
+
+import { useSession } from "next-auth/react";
+import { hasEffectiveAdminScope, isAdmin, isCaregiver } from "~/lib/auth-utils";
+import { useSWRAuth } from "~/lib/swr/hooks";
+
+const analytics = {
+  studentsPresent: 150,
+  studentsInRooms: 120,
+  studentsInTransit: 20,
+  studentsOnPlayground: 10,
+  studentsSick: 4,
+  studentsExcused: 3,
+  studentsHome: 33,
+  activeOGSGroups: 8,
+  activeActivities: 5,
+  capacityUtilization: 0.75,
+  supervisorsToday: 10,
+  recentActivity: [],
+  currentActivities: [],
+  activeGroupsSummary: [],
+};
+
+function mockSWR(data: unknown, error?: Error) {
+  return {
+    data,
+    isLoading: false,
+    error,
+    mutate: vi.fn(),
+    isValidating: false,
+  } as unknown as ReturnType<typeof useSWRAuth>;
+}
+
+describe("Startseite", () => {
+  let originalLocation: Location;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    originalLocation = window.location;
+    Object.defineProperty(window, "location", {
+      writable: true,
+      value: { ...originalLocation, href: "" },
+    });
+    layoutState.blocks = [];
+    layoutState.overrides = {};
+    layoutState.policies = {};
+    vi.mocked(useSession).mockReturnValue({
+      data: mockSession,
+      status: "authenticated",
+      update: vi.fn(),
+    });
+    vi.mocked(isAdmin).mockReturnValue(true);
+    vi.mocked(hasEffectiveAdminScope).mockReturnValue(true);
+    vi.mocked(isCaregiver).mockReturnValue(false);
+    vi.mocked(useSWRAuth).mockReturnValue(mockSWR(analytics));
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, "location", {
+      writable: true,
+      value: originalLocation,
+    });
+  });
+
+  it("begrüßt mit dem Vornamen", async () => {
+    render(<HomePage />);
+
+    await waitFor(() =>
+      expect(screen.getByText(/Guten .*, Anna/)).toBeInTheDocument(),
+    );
+  });
+
+  it("zeigt der Leitung ihre Standardansicht", async () => {
+    render(<HomePage />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("home-board")).toBeInTheDocument(),
+    );
+    expect(
+      screen.getByTestId("home-block-tile.students_present"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("home-block-section.open_requests"),
+    ).toBeInTheDocument();
+    // Der eigene Tag gehört in die Betreuungsansicht, nicht in die der Leitung.
+    expect(
+      screen.queryByTestId("home-block-section.my_day"),
+    ).not.toBeInTheDocument();
+  });
+
+  // Die Jetzt-Zone steht fest über dem Brett, egal was darunter angeordnet
+  // ist — und tritt im Anpassen-Modus zurück.
+  it("stellt die Jetzt-Zone über das Brett und nimmt sie beim Anpassen weg", async () => {
+    render(<HomePage />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("home-now")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Anpassen" }));
+
+    expect(screen.queryByTestId("home-now")).not.toBeInTheDocument();
+  });
+
+  // Das Issue verlangt für Mischrollen die Vereinigung: die Leitung, die
+  // selbst betreut, behält ihren eigenen Tag vor der Lage der Schule.
+  it("gibt der Leitung, die selbst betreut, den eigenen Tag dazu", async () => {
+    vi.mocked(isCaregiver).mockReturnValue(true);
+
+    render(<HomePage />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("home-board")).toBeInTheDocument(),
+    );
+    expect(screen.getByTestId("home-block-section.my_day")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("home-block-section.open_requests"),
+    ).toBeInTheDocument();
+  });
+
+  // Seit #2180 ist die Startseite für jede Rolle offen: nicht die Rolle
+  // entscheidet, was zu sehen ist, sondern das Recht hinter jedem Baustein.
+  it("öffnet sich für eine Betreuungskraft mit deren Standardansicht", async () => {
+    vi.mocked(isAdmin).mockReturnValue(false);
+    vi.mocked(hasEffectiveAdminScope).mockReturnValue(false);
+    vi.mocked(useSession).mockReturnValue({
+      data: { ...mockSession, user: { ...mockSession.user, isAdmin: false } },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<HomePage />);
+
+    await waitFor(() =>
+      expect(screen.queryByText("Kein Zugriff")).not.toBeInTheDocument(),
+    );
+    // Ohne Rechte auf die Betriebszahlen bleiben die Kennzahlen weg; die
+    // Bausteine mit eigener Quelle stehen da, sobald ihr Recht reicht.
+    expect(screen.queryByText("Kinder anwesend")).not.toBeInTheDocument();
+    expect(screen.getByText("Ihre Startseite ist leer")).toBeInTheDocument();
+  });
+
+  it("zeigt die Skelettfläche, solange die Sitzung lädt", () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: null,
+      status: "loading",
+      update: vi.fn(),
+    });
+
+    render(<HomePage />);
+
+    expect(screen.getByTestId("dashboard-skeleton")).toBeInTheDocument();
+  });
+
+  it("übergibt reine Lehrkraft-Sitzungen an moto schule", async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        ...mockSession,
+        user: { ...mockSession.user, roles: ["lehrkraft"] },
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<HomePage />);
+
+    await waitFor(() =>
+      expect(window.location.href).toBe("https://schule.example.test/login"),
+    );
+    expect(screen.getByTestId("dashboard-skeleton")).toBeInTheDocument();
+    expect(useSWRAuth).not.toHaveBeenCalled();
+  });
+
+  it("lädt die Ablaufwarnungen der Anmeldephasen nur mit Adminzuschnitt", () => {
+    vi.mocked(hasEffectiveAdminScope).mockReturnValue(false);
+
+    render(<HomePage />);
+
+    expect(
+      screen.queryByTestId("phase-expiry-warnings"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("behält die Zahlen, wenn eine spätere Abfrage fehlschlägt", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue(
+      mockSWR(analytics, new Error("fetch failed")),
+    );
+
+    render(<HomePage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Fehler beim Laden der Dashboard-Daten"),
+      ).toBeInTheDocument();
+      expect(screen.getByText("150")).toBeInTheDocument();
+    });
+  });
+
+  it("leitet zur Anmeldung, wenn die Sitzung abgelaufen ist", async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: { ...mockSession, error: "RefreshTokenExpired" },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<HomePage />);
+
+    await waitFor(() =>
+      expect(mockRedirect).toHaveBeenCalledWith("/test-tenant/"),
+    );
+  });
+
+  it("leitet zur Anmeldung, wenn das Token fehlt", async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: { ...mockSession, user: { ...mockSession.user, token: undefined } },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<HomePage />);
+
+    await waitFor(() =>
+      expect(mockRedirect).toHaveBeenCalledWith("/test-tenant/"),
+    );
+  });
+});
+
+/** Die übrigen Bausteine der Leitungsansicht, damit die Fläche klein bleibt. */
+const HIDDEN_DEFAULTS: HomeLayoutOverrides = {
+  "tile.students_sick": false,
+  "tile.students_excused": false,
+  "tile.students_home": false,
+  "section.open_requests": false,
+  "section.active_groups": false,
+  "section.day_flow": false,
+  "section.birthdays": false,
+  "section.staff_today": false,
+  "section.messages": false,
+};
+describe("Startseite anpassen", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    layoutState.blocks = [
+      { key: "tile.students_present", span: 1, col: 0, row: 0 },
+      { key: "section.staff_notices", span: 2, col: 1, row: 0 },
+    ];
+    // Der Rest der Standardansicht ist bereits entfernt, damit diese Fläche
+    // genau zwei Karten hat und die Erwartungen unten lesbar bleiben.
+    layoutState.overrides = { ...HIDDEN_DEFAULTS };
+    layoutState.policies = {};
+    vi.mocked(useSession).mockReturnValue({
+      data: mockSession,
+      status: "authenticated",
+      update: vi.fn(),
+    });
+    vi.mocked(isAdmin).mockReturnValue(true);
+    vi.mocked(hasEffectiveAdminScope).mockReturnValue(true);
+    vi.mocked(isCaregiver).mockReturnValue(false);
+    vi.mocked(useSWRAuth).mockReturnValue(mockSWR(analytics));
+    save.mockResolvedValue(undefined);
+    reset.mockResolvedValue(undefined);
+  });
+
+  const startEditing = () => {
+    render(<HomePage />);
+    fireEvent.click(screen.getByRole("button", { name: "Anpassen" }));
+  };
+
+  const select = (label: string) =>
+    fireEvent.click(
+      screen.getByRole("button", { name: new RegExp(`^${label} auswählen`) }),
+    );
+
+  it("zeigt im Anpassen-Modus die Anordnung statt der Inhalte", () => {
+    render(<HomePage />);
+    expect(screen.getByTestId("staff-notices-block")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Anpassen" }));
+
+    // Die Karten weichen Platzhaltern mit Name und Breite; gearbeitet wird
+    // hier an der Anordnung, nicht am Inhalt.
+    expect(screen.queryByTestId("staff-notices-block")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: /^Tagesinformationen auswählen, Spalte 2, Zeile 1, Breit/,
+      }),
+    ).toBeInTheDocument();
+    // Der Weg zu allen weiteren Bausteinen steht in der Leiste, nicht unter
+    // der Fläche: dort wäre er bei acht Karten außerhalb des Bildes.
+    expect(
+      screen.getByRole("button", { name: "Bausteine" }),
+    ).toBeInTheDocument();
+  });
+
+  // Ohne Auswahl steht keine Werkzeugleiste da, sondern der Satz, wie man eine
+  // Karte trifft.
+  it("nennt ohne Auswahl den Weg zur Auswahl", () => {
+    startEditing();
+
+    expect(
+      screen.getByText(/Anklicken, um die Breite zu ändern/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Entfernen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("ändert die Breite der ausgewählten Karte und speichert sie", async () => {
+    startEditing();
+    select("Tagesinformationen");
+
+    fireEvent.click(screen.getByRole("button", { name: "Volle Breite" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fertig" }));
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    // Über die volle Breite passt die Karte nur ab Spalte 1; die Kennzahl,
+    // die dort lag, rückt unter sie.
+    expect(save.mock.calls[0]?.[1]).toEqual([
+      { key: "section.staff_notices", span: 4, col: 0, row: 0 },
+      { key: "tile.students_present", span: 1, col: 0, row: 2 },
+    ]);
+  });
+
+  // Eine Kennzahl hat nur eine Breite; dann steht der Umschalter gar nicht da.
+  it("bietet einer Kennzahl keine Breitenwahl an", () => {
+    startEditing();
+    select("Kinder anwesend");
+
+    expect(
+      screen.queryByRole("button", { name: "Volle Breite" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Entfernen" }),
+    ).toBeInTheDocument();
+  });
+
+  it("erklärt verpflichtende Bausteine statt ein wirkungsloses Entfernen anzubieten", () => {
+    layoutState.policies = { "tile.students_present": "required" };
+    startEditing();
+    select("Kinder anwesend");
+
+    expect(
+      screen.getByText("Die Schule zeigt diesen Baustein immer."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Entfernen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  // Gezogen wird mit Zeigerereignissen, nicht mit dem nativen HTML5-Ziehen:
+  // das kennt kein Tablet und lässt sich nicht prüfen.
+  it("sortiert eine gezogene Karte an den Platz um, auf dem sie landet", async () => {
+    startEditing();
+
+    const source = screen.getByTestId("home-block-section.staff_notices");
+    const target = screen.getByTestId("home-block-tile.students_present");
+    // Wo eine Kachel hingehört, entscheidet die Zelle unter ihrer linken
+    // oberen Ecke, gerechnet aus dem Weg des Zeigers. Die Testumgebung kennt
+    // kein Layout, also bekommen die Zellen ihre Lage hier: die Kennzahl in
+    // Spalte 1, die Tagesinformationen daneben (eine Zelle ist 300 breit,
+    // die Lücke 16).
+    const cell = (
+      element: HTMLElement,
+      box: { left: number; top: number; width: number; height: number },
+    ) => {
+      Object.defineProperty(element, "offsetLeft", { value: box.left });
+      Object.defineProperty(element, "offsetTop", { value: box.top });
+      Object.defineProperty(element, "offsetWidth", { value: box.width });
+      Object.defineProperty(element, "offsetHeight", { value: box.height });
+    };
+    cell(target, { left: 0, top: 0, width: 300, height: 100 });
+    cell(source, { left: 316, top: 0, width: 616, height: 216 });
+
+    fireEvent.pointerDown(source, {
+      pointerType: "mouse",
+      button: 0,
+      pointerId: 1,
+      clientX: 400,
+      clientY: 50,
+    });
+    fireEvent.pointerMove(source, {
+      pointerType: "mouse",
+      pointerId: 1,
+      clientX: 90,
+      clientY: 50,
+    });
+    fireEvent.pointerUp(source, { pointerType: "mouse", pointerId: 1 });
+
+    fireEvent.click(screen.getByRole("button", { name: "Fertig" }));
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    // Die Karte liegt jetzt auf der Zelle der Kennzahl; die rückt unter sie.
+    expect(save.mock.calls[0]?.[1]).toEqual([
+      { key: "section.staff_notices", span: 2, col: 0, row: 0 },
+      { key: "tile.students_present", span: 1, col: 0, row: 2 },
+    ]);
+  });
+
+  // Verschoben wird durch Ziehen; ohne Maus übernehmen die Pfeiltasten auf
+  // der Kachel — Knöpfe in der Leiste gibt es dafür nicht mehr.
+  it("verschiebt eine Karte mit den Pfeiltasten nach vorne", async () => {
+    startEditing();
+
+    fireEvent.keyDown(
+      screen.getByRole("button", { name: /^Tagesinformationen auswählen/ }),
+      { key: "ArrowLeft" },
+    );
+    expect(
+      screen.queryByRole("button", { name: "Nach vorne" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Fertig" }));
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    // Pfeil links tauscht mit dem Nachbarn davor; der findet neben der
+    // breiten Karte keinen Platz mehr und rückt unter sie.
+    expect(save.mock.calls[0]?.[1]).toEqual([
+      { key: "section.staff_notices", span: 2, col: 0, row: 0 },
+      { key: "tile.students_present", span: 1, col: 0, row: 2 },
+    ]);
+  });
+
+  // Entfernt muss entfernt bleiben, sonst holt die Standardansicht den
+  // Baustein beim nächsten Aufruf zurück.
+  it("merkt sich einen entfernten Baustein als Abweichung", async () => {
+    startEditing();
+    select("Kinder anwesend");
+
+    fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fertig" }));
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(save.mock.calls[0]?.[0]).toEqual({
+      ...HIDDEN_DEFAULTS,
+      "tile.students_present": false,
+    });
+    // Die Karte rückt in die Lücke, die die Kennzahl lässt.
+    expect(save.mock.calls[0]?.[1]).toEqual([
+      { key: "section.staff_notices", span: 2, col: 0, row: 0 },
+    ]);
+  });
+
+  it("bewahrt vorübergehend nicht verfügbare gespeicherte Bausteine", async () => {
+    layoutState.policies = { "section.staff_notices": "disabled" };
+    startEditing();
+    select("Kinder anwesend");
+
+    fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fertig" }));
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(save.mock.calls[0]?.[1]).toEqual([
+      { key: "section.staff_notices", span: 2, col: 1, row: 0 },
+    ]);
+  });
+
+  it("nimmt einen Baustein aus dem Hinzufügen-Menü ans Ende auf", async () => {
+    startEditing();
+
+    fireEvent.click(screen.getByRole("button", { name: "Bausteine" }));
+    fireEvent.click(screen.getByRole("button", { name: /Geburtstage/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Fertig" }));
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    // Ans Ende heißt: in die freien Zellen der untersten Zeilen, sonst in
+    // eine neue Zeile darunter — hier ist neben den Tagesinformationen kein
+    // Platz für eine breite Karte.
+    expect(save.mock.calls[0]?.[1]?.at(-1)).toEqual({
+      key: "section.birthdays",
+      span: 2,
+      col: 0,
+      row: 2,
+    });
+  });
+
+  it("verwirft die Änderungen bei Abbrechen", () => {
+    startEditing();
+    select("Kinder anwesend");
+
+    fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+
+    expect(save).not.toHaveBeenCalled();
+    expect(
+      screen.getByTestId("home-block-tile.students_present"),
+    ).toBeInTheDocument();
+  });
+
+  it("stellt die Standardansicht wieder her", async () => {
+    startEditing();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Standardansicht wiederherstellen" }),
+    );
+
+    await waitFor(() => expect(reset).toHaveBeenCalledTimes(1));
+    expect(save).not.toHaveBeenCalled();
+  });
+});

@@ -184,7 +184,9 @@ export const PARENT_SUB_PAGES: readonly ParentSubPage[] = [
  * mobile Pfad einen Kopfzeilen-Titel bekommt.
  */
 export const STAFF_FLAT_PAGES = {
-  dashboard: { href: "/dashboard", label: "Home" },
+  // Startseite aller Rollen (#2180). Der Schlüssel heißt weiter `dashboard`,
+  // weil ihn ein Dutzend Stellen als Anker der obersten Zeile kennen.
+  dashboard: { href: "/home", label: "Startseite" },
   studentSearch: { href: "/students/search", label: "Alle Kinder" },
   activities: { href: "/activities", label: "Aktivitäten" },
   rooms: { href: "/rooms", label: "Räume" },

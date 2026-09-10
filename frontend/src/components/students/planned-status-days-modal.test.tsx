@@ -2,7 +2,11 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { PlannedStatusDaysModal } from "./planned-status-days-modal";
 import type { StudentPartialAbsence } from "~/lib/student-partial-absences-api";
-import type { StudentStatusDay } from "~/lib/student-status-days-api";
+import {
+  StudentStatusDayConflictError,
+  StudentStatusDayPartialAbsenceConflictError,
+  type StudentStatusDay,
+} from "~/lib/student-status-days-api";
 
 // Das Panel laeuft als SlideOver (Vaul). Vaul rendert in jsdom nicht, deshalb
 // steht hier dieselbe Struktur ohne Animationsschicht.
@@ -29,6 +33,22 @@ vi.mock("~/components/ui/slide-over", () => ({
   ),
   SlideOverHeader: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
+  ),
+  SlideOverBody: ({
+    error,
+    children,
+  }: {
+    error?: string | { message: string } | null;
+    children: React.ReactNode;
+  }) => (
+    <div>
+      {error ? (
+        <div role="alert">
+          {typeof error === "string" ? error : error.message}
+        </div>
+      ) : null}
+      {children}
+    </div>
   ),
   SlideOverFooter: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
@@ -298,9 +318,10 @@ describe("PlannedStatusDaysModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Ab Uhrzeit" }));
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Teilentschuldigung vom Mittwoch, 27. Mai 2026 entfernen",
+        name: "Aktionen für Teilentschuldigung vom Mittwoch, 27. Mai 2026",
       }),
     );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Entfernen" }));
     expect(onDeletePartialAbsence).not.toHaveBeenCalled();
     fireEvent.click(
       screen.getByRole("button", { name: "Entfernen bestätigen" }),
@@ -313,9 +334,10 @@ describe("PlannedStatusDaysModal", () => {
     );
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Teilentschuldigung vom Mittwoch, 27. Mai 2026 bearbeiten",
+        name: "Aktionen für Teilentschuldigung vom Mittwoch, 27. Mai 2026",
       }),
     );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Bearbeiten" }));
     expect(screen.getByLabelText("Entschuldigt ab")).toHaveValue("13:30");
     fireEvent.change(screen.getByLabelText("Entschuldigt ab"), {
       target: { value: "14:00" },
@@ -358,9 +380,10 @@ describe("PlannedStatusDaysModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Ab Uhrzeit" }));
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Teilentschuldigung vom Mittwoch, 27. Mai 2026 bearbeiten",
+        name: "Aktionen für Teilentschuldigung vom Mittwoch, 27. Mai 2026",
       }),
     );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Bearbeiten" }));
     expect(screen.getByLabelText("Entschuldigt ab")).toHaveValue("13:30");
 
     // Selecting another day must not drop edit mode into a create-on-new-date.
@@ -400,9 +423,10 @@ describe("PlannedStatusDaysModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Ab Uhrzeit" }));
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Teilentschuldigung vom Mittwoch, 27. Mai 2026 entfernen",
+        name: "Aktionen für Teilentschuldigung vom Mittwoch, 27. Mai 2026",
       }),
     );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Entfernen" }));
     fireEvent.click(
       screen.getByRole("button", { name: "Entfernen bestätigen" }),
     );
@@ -547,9 +571,10 @@ describe("PlannedStatusDaysModal", () => {
     );
     expect(screen.getAllByText(/bereits/i).length).toBeGreaterThan(0);
 
-    // #3109: the row button opens the ConfirmDeleteModal; the day is only
-    // removed after the two-step confirmation inside the dialog.
-    fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
+    // #3109: the row's menu entry opens the ConfirmDeleteModal; the day is
+    // only removed after the two-step confirmation inside the dialog.
+    fireEvent.click(screen.getByRole("button", { name: /^Aktionen für/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Entfernen" }));
     expect(onDeleteStatusDay).not.toHaveBeenCalled();
     expect(
       screen.getByRole("heading", { name: "Geplanten Tag entfernen?" }),
@@ -821,6 +846,84 @@ describe("PlannedStatusDaysModal", () => {
       screen.getByText("17.08.2026 bis 19.08.2026 · 3 Tage"),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Grund (optional)")).toHaveValue("Arzttermin");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Die Krankmeldung konnte nicht gespeichert werden. Bitte erneut versuchen.",
+    );
+  });
+
+  it("keeps the partial-absence conflict message after a failed submission", async () => {
+    const onSubmit = vi
+      .fn()
+      .mockRejectedValue(new StudentStatusDayPartialAbsenceConflictError());
+
+    render(
+      <PlannedStatusDaysModal
+        isOpen
+        status="sick"
+        studentName="Kevin Anders"
+        isSubmitting={false}
+        existingDays={[]}
+        onClose={vi.fn()}
+        loadExistingDays={loadNoExistingDays}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Zeitraum" }));
+    fireEvent.change(screen.getByLabelText("Von"), {
+      target: { value: "2026-08-17" },
+    });
+    fireEvent.change(screen.getByLabelText("Bis"), {
+      target: { value: "2026-08-17" },
+    });
+
+    await clickEnabledButton("Krankmelden");
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Für diesen Tag liegt bereits eine Abmeldung ab einer Uhrzeit vor. Bitte zuerst die Teilabwesenheit entfernen.",
+      );
+    });
+  });
+
+  it("keeps status-day conflict details after a failed submission", async () => {
+    const conflict: StudentStatusDay = {
+      ...existingDays[0]!,
+      date: "2026-08-17",
+      status: "excused",
+    };
+    const onSubmit = vi
+      .fn()
+      .mockRejectedValue(new StudentStatusDayConflictError([conflict]));
+
+    render(
+      <PlannedStatusDaysModal
+        isOpen
+        status="sick"
+        studentName="Kevin Anders"
+        isSubmitting={false}
+        existingDays={[]}
+        onClose={vi.fn()}
+        loadExistingDays={loadNoExistingDays}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Zeitraum" }));
+    fireEvent.change(screen.getByLabelText("Von"), {
+      target: { value: "2026-08-17" },
+    });
+    fireEvent.change(screen.getByLabelText("Bis"), {
+      target: { value: "2026-08-17" },
+    });
+
+    await clickEnabledButton("Krankmelden");
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "17.08.2026 (entschuldigt) wurde zwischenzeitlich eingetragen und nicht überschrieben. Bitte Auswahl prüfen.",
+      );
+    });
   });
 
   it("refreshes and shows a conflict that appears during submission", async () => {
@@ -858,9 +961,11 @@ describe("PlannedStatusDaysModal", () => {
     await clickEnabledButton("Entschuldigen");
 
     await waitFor(() => {
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "18.08.2026 (krank): 1 von 3 Tagen hat bereits einen Status",
-      );
+      expect(
+        screen.getByText(
+          /18\.08\.2026 \(krank\): 1 von 3 Tagen hat bereits einen Status/,
+        ),
+      ).toBeInTheDocument();
     });
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
@@ -920,6 +1025,71 @@ describe("PlannedStatusDaysModal", () => {
 
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledWith(["2026-05-25", "2026-05-27"]);
+    });
+  });
+
+  it("shows a form error when every selected date already has a status", async () => {
+    const existingDay: StudentStatusDay = {
+      ...existingDays[0]!,
+      date: "2026-08-17",
+    };
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <PlannedStatusDaysModal
+        isOpen
+        status="sick"
+        studentName="Kevin Anders"
+        isSubmitting={false}
+        existingDays={[]}
+        onClose={vi.fn()}
+        loadExistingDays={vi.fn().mockResolvedValue([existingDay])}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Zeitraum" }));
+    fireEvent.change(screen.getByLabelText("Von"), {
+      target: { value: "2026-08-17" },
+    });
+    fireEvent.change(screen.getByLabelText("Bis"), {
+      target: { value: "2026-08-17" },
+    });
+
+    await clickEnabledButton("Krankmelden");
+
+    expect(
+      screen.getByText("Wähle einen Zeitraum ohne bestehenden Status aus."),
+    ).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("clears an existing-day selection error after a valid selection", async () => {
+    render(
+      <PlannedStatusDaysModal
+        isOpen
+        status="sick"
+        studentName="Kevin Anders"
+        isSubmitting={false}
+        existingDays={existingDays}
+        onClose={vi.fn()}
+        loadExistingDays={loadKnownExistingDays}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Auswahl mit Konflikt"));
+    await waitFor(() => {
+      expect(
+        screen.getByText("Dienstag, 26. Mai 2026 ist bereits entschuldigt."),
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Einzeltag auswählen"));
+    await waitFor(() => {
+      expect(
+        screen.queryByText("Dienstag, 26. Mai 2026 ist bereits entschuldigt."),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -1034,7 +1204,8 @@ describe("PlannedStatusDaysModal", () => {
     });
 
     expect(screen.getByText("Bereits vorhanden")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Aktionen für/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Entfernen" }));
     fireEvent.click(
       screen.getByRole("button", { name: "Entfernen bestätigen" }),
     );
@@ -1094,7 +1265,8 @@ describe("PlannedStatusDaysModal", () => {
       );
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Aktionen für/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Entfernen" }));
     fireEvent.click(
       screen.getByRole("button", { name: "Entfernen bestätigen" }),
     );
@@ -1149,7 +1321,7 @@ describe("PlannedStatusDaysModal", () => {
 
     expect(screen.queryByText("Bereits vorhanden")).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Entfernen" }),
+      screen.queryByRole("button", { name: /^Aktionen für/ }),
     ).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });

@@ -120,6 +120,7 @@ vi.mock("~/components/ui/alert", () => ({
 
 // Mock Modal and ConfirmationModal
 vi.mock("~/components/ui/modal", () => ({
+  dialogAriaProps: { role: "dialog" as const, "aria-modal": true },
   Modal: ({
     isOpen,
     children,

@@ -66,6 +66,13 @@ export function HomeBlocksTab() {
       // Die Geburtstagskarte hängt an einer eigenen Einstellung; die Vorgabe
       // soll sie trotzdem regeln können, deshalb hier immer verfügbar.
       birthdaysEnabled: true,
+      // Dasselbe für den Betreuungsplan und die Erinnerungen: die Leitung
+      // entscheidet hier für die ganze Schule, nicht für den eigenen
+      // Bildschirm.
+      timetableEnabled: true,
+      remindersEnabled: true,
+      messagingEnabled: true,
+      staffMessagingEnabled: true,
     };
     return HOME_BLOCKS.filter((block) => block.available(ctx));
   }, [presenceMode, openCareGroupMode, nfcEnabled]);

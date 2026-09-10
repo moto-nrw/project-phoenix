@@ -8,6 +8,7 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Input } from "~/components/ui/input";
 import { EmptyState } from "~/components/ui/empty-state";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { suggestCurrentDeviceLabel } from "~/lib/device-label";
 import {
   isPasskeySupported,
@@ -39,9 +40,8 @@ export function PasskeySettingsSection({
   const [name, setName] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // Ein Passkey ist ein Zugangsmittel: der Klick auf das Papierkorb-Symbol
-  // öffnet erst die Rückfrage (BAUARTEN-SPEC Bauart 2 Regel 6, #3109);
-  // entfernt wird im Dialog.
+  // Ein Passkey ist ein Zugangsmittel: die Zeilenaktion öffnet erst die
+  // Rückfrage (BAUARTEN-SPEC Bauart 2 Regel 6, #3109); entfernt wird im Dialog.
   const [revokeTarget, setRevokeTarget] =
     useState<PasskeyCredentialSummary | null>(null);
   const [revokeError, setRevokeError] = useState("");
@@ -318,16 +318,18 @@ export function PasskeySettingsSection({
                     : `Erstellt: ${formatDate(credential.created_at)}`}
                 </p>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                aria-label="Passkey entfernen"
-                disabled={busy}
-                onClick={() => beginRevoke(credential)}
-              >
-                <Trash2 className="h-4 w-4" aria-hidden="true" />
-              </Button>
+              <OverflowMenu
+                ariaLabel={`Aktionen für ${credential.name || "Passkey"}`}
+                items={[
+                  {
+                    label: "Entfernen",
+                    icon: <Trash2 className="h-4 w-4" aria-hidden="true" />,
+                    destructive: true,
+                    disabled: busy,
+                    onClick: () => beginRevoke(credential),
+                  },
+                ]}
+              />
             </div>
           ))}
         </div>

@@ -404,7 +404,6 @@ const TINY_TEXT_BASELINE_FILES = new Set([
   "src/app/help/nfc/erste-schritte/page.tsx",
   "src/app/operator/provisioning/soft-delete-shared.tsx",
   "src/components/active-supervisions/planned-now-section.tsx",
-  "src/components/active-supervisions/timetable-roster.tsx",
   "src/components/activities/activity-management-modal.tsx",
   "src/components/auth/role-permission-management-modal.tsx",
   "src/components/calendar/personal-calendar.tsx",
@@ -470,16 +469,14 @@ src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198
 src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@235 text-[11px]@276
 src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@213
 src/components/active-supervisions/planned-now-section.tsx|text-[11px]@425
-src/components/active-supervisions/timetable-roster.tsx|text-[11px]@92
 src/components/activities/activity-management-modal.tsx|text-[10px]@330 text-[10px]@359 text-[10px]@396
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
 src/components/calendar/personal-calendar.tsx|text-[11px]@786 text-[11px]@814 text-[11px]@901 text-[11px]@962 text-[11px]@966 text-[11px]@972 text-[11px]@1018 text-[11px]@1024 text-[10px]@1044 text-[11px]@1097 text-[11px]@1177 text-[11px]@1183 text-[11px]@1188
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@40 text-[10px]@94
-src/components/dashboard/sidebar.tsx|text-[10px]@1321
 src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@920 text-[11px]@939
-src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1305 text-[11px]@2990 text-[11px]@3182 text-[11px]@3187 text-[11px]@3192 text-[11px]@3346 text-[11px]@3938 text-[10px]@4155 text-[11px]@4167 text-[11px]@4202 text-[10px]@4216 text-[10px]@4260
+src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1306 text-[11px]@2991 text-[11px]@3183 text-[11px]@3188 text-[11px]@3193 text-[11px]@3347 text-[11px]@3939 text-[10px]@4156 text-[11px]@4168 text-[11px]@4203 text-[10px]@4217 text-[10px]@4261
 src/components/enrollment/enrollment-form.tsx|text-[11px]@2090
-src/components/enrollment/phases-editor.tsx|text-[11px]@663 text-[11px]@668
+src/components/enrollment/phases-editor.tsx|text-[11px]@668 text-[11px]@673
 src/components/files/files-page.tsx|text-[11px]@158 text-[11px]@275
 src/components/guardians/guardian-contact-actions.tsx|text-[10px]@141
 src/components/guardians/guardian-list.tsx|text-[10px]@334
@@ -489,16 +486,16 @@ src/components/parent/parent-enroll-picker.tsx|text-[11px]@205 text-[11px]@209
 src/components/parent/parent-meal-plan-page.tsx|text-[11px]@461 text-[11px]@546
 src/components/planning/closing-day-marker.tsx|text-[10px]@53
 src/components/staff/absence-request-row.tsx|text-[11px]@107
-src/components/staff/arbeitszeitmodell-tab.tsx|text-[10px]@227 text-[10px]@240 text-[10px]@322 text-[11px]@1011
+src/components/staff/arbeitszeitmodell-tab.tsx|text-[10px]@229 text-[10px]@242 text-[10px]@324 text-[11px]@1015
 src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@468 text-[11px]@564 text-[11px]@573 text-[11px]@580 text-[10px]@714
 src/components/staff/staff-session-table.tsx|text-[11px]@1178
 src/components/students/care-schedule-manager.tsx|text-[10px]@1126 text-[11px]@1281 text-[11px]@1370 text-[11px]@1380 text-[11px]@1410
-src/components/students/planned-status-days-modal.tsx|text-[10px]@913 text-[11px]@913
+src/components/students/planned-status-days-modal.tsx|text-[10px]@927 text-[11px]@927
 src/components/students/school-checkin-fab.tsx|text-[10px]@198
 src/components/time-tracking/edit-history-accordion.tsx|text-[10px]@118 text-[10px]@139 text-[10px]@150
-src/components/time-tracking/leave-requests-card.tsx|text-[10px]@475
-src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@375
-src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@429 text-[11px]@471
+src/components/time-tracking/leave-requests-card.tsx|text-[10px]@488
+src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@377
+src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@437 text-[11px]@479
 src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-[10px]@295 text-[11px]@301
 src/components/timetable/event-form/step-termin.tsx|text-[10px]@167 text-[11px]@247 text-[11px]@280 text-[11px]@341 text-[11px]@347 text-[11px]@395
 src/components/timetable/gap-jump-list.tsx|text-[10px]@108 text-[11px]@131 text-[11px]@146
@@ -521,7 +518,7 @@ src/components/ui/multi-checkbox-select.tsx|text-[11px]@246
 src/components/ui/notification-badge.tsx|text-[10px]@15
 src/components/ui/origin-chip.tsx|text-[11px]@24
 src/components/ui/page-header/FilterButton.tsx|text-[10px]@61
-src/components/ui/page-header/OverflowMenu.tsx|text-[10px]@344 text-[11px]@407
+src/components/ui/page-header/OverflowMenu.tsx|text-[10px]@393 text-[11px]@456
 src/components/ui/parent-visible-badge.tsx|text-[11px]@44
 src/components/ui/plan-block.tsx|text-[11px]@126 text-[11px]@133
 src/components/ui/plan-legend.tsx|text-[11px]@106

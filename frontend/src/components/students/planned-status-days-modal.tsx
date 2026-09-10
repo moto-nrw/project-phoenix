@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useFormError } from "~/components/ui/form-error";
 import {
   addDays,
   differenceInCalendarDays,
@@ -9,15 +10,17 @@ import {
   startOfWeek,
 } from "date-fns";
 import { de } from "date-fns/locale";
-import { X } from "lucide-react";
+import { Pencil, Trash2, X } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { DatePicker, ISODatePicker } from "~/components/ui/date-picker";
 import {
   SlideOver,
+  SlideOverBody,
   SlideOverCloseButton,
   SlideOverContent,
   SlideOverFooter,
@@ -35,9 +38,11 @@ import {
   parseISODate,
   toISODate,
 } from "~/lib/date-helpers";
-import type {
-  StudentStatusDay,
-  StudentStatusKind,
+import {
+  StudentStatusDayConflictError,
+  StudentStatusDayPartialAbsenceConflictError,
+  type StudentStatusDay,
+  type StudentStatusKind,
 } from "~/lib/student-status-days-api";
 import type { CarePlanDay } from "~/lib/student-care-plan-api";
 import type { StudentPartialAbsence } from "~/lib/student-partial-absences-api";
@@ -115,7 +120,9 @@ export function PlannedStatusDaysModal({
   const [selectedDates, setSelectedDates] = useState<Date[]>([]);
   const [rangeStart, setRangeStart] = useState("");
   const [rangeEnd, setRangeEnd] = useState("");
-  const [selectionHint, setSelectionHint] = useState<string | null>(null);
+  // Save error of the form (Bauart 2 Regel 5): shown in the body's error
+  // slot, not as a toast by the caller.
+  const [submitError, setSubmitError] = useFormError();
   const [checkedExistingDays, setCheckedExistingDays] = useState<
     StudentStatusDay[]
   >([]);
@@ -347,7 +354,7 @@ export function PlannedStatusDaysModal({
       const today = new Date();
       const todayKey = toISODate(today);
       setSelectionMode("individual");
-      setSelectionHint(null);
+      setSubmitError(null);
       setRangeStart(prefillClassTrip && isClassTrip ? todayKey : "");
       setRangeEnd(prefillClassTrip && isClassTrip ? todayKey : "");
       setSelectedDates([]);
@@ -363,7 +370,7 @@ export function PlannedStatusDaysModal({
       setStatusDayPendingDeletion(null);
       setCarePlanDay(null);
     },
-    [isClassTrip],
+    [isClassTrip, setSubmitError],
   );
 
   useEffect(() => {
@@ -475,11 +482,13 @@ export function PlannedStatusDaysModal({
   const setSortedDates = (dates: Date[]) => {
     const sourceDates = isPartialExcusal ? dates.slice(-1) : dates;
     const unique = new Map<string, Date>();
+    let containsExistingDay = false;
     for (const date of sourceDates) {
       const key = toISODate(date);
       const existingDay = activeExistingDayByDate.get(key);
       if (existingDay) {
-        setSelectionHint(
+        containsExistingDay = true;
+        setSubmitError(
           `${formatDateLabel(existingDay.date)} ist ${getExistingStatusLabel(
             existingDay.status,
           )}.`,
@@ -488,8 +497,8 @@ export function PlannedStatusDaysModal({
         unique.set(key, date);
       }
     }
-    if (unique.size === sourceDates.length) {
-      setSelectionHint(null);
+    if (!containsExistingDay) {
+      setSubmitError(null);
     }
     if (isPartialExcusal) {
       // While editing an existing partial excusal the date is fixed: clearing
@@ -503,7 +512,7 @@ export function PlannedStatusDaysModal({
         if (editing) {
           const editDate = parseISODate(editing.date);
           setSelectedDates([editDate]);
-          setSelectionHint(
+          setSubmitError(
             "Beim Bearbeiten bleibt das Datum fest. Abbrechen, um einen anderen Tag zu wählen.",
           );
           return;
@@ -556,7 +565,7 @@ export function PlannedStatusDaysModal({
 
   const handleSelectionModeChange = (next: SelectionMode) => {
     setSelectionMode(next);
-    setSelectionHint(null);
+    setSubmitError(null);
     setCheckedExistingDays([]);
     setCheckedSelectionKey("");
     setConflictCheckError(null);
@@ -618,9 +627,10 @@ export function PlannedStatusDaysModal({
 
   const handleSubmit = async () => {
     if (!checkedCurrentSelection || conflictCheckError) return;
+    setSubmitError(null);
     const dateKeys = selectableDateKeys;
     if (dateKeys.length === 0) {
-      setSelectionHint(
+      setSubmitError(
         usesRangeSelection
           ? "Wähle einen Zeitraum ohne bestehenden Status aus."
           : "Wähle mindestens einen Tag ohne Krankmeldung oder Entschuldigung aus.",
@@ -645,6 +655,12 @@ export function PlannedStatusDaysModal({
           trimmedReason || undefined,
         );
       } catch {
+        // The caller logs the failure; the person reads it here, at the form.
+        setSubmitError(
+          editingPartialAbsenceId
+            ? "Die Entschuldigung konnte nicht aktualisiert werden. Bitte erneut versuchen."
+            : "Die Entschuldigung konnte nicht gespeichert werden. Bitte erneut versuchen.",
+        );
         setConflictCheckRevision((current) => current + 1);
         return;
       }
@@ -659,9 +675,22 @@ export function PlannedStatusDaysModal({
       } else {
         await onSubmit(dateKeys);
       }
-    } catch {
-      // The caller owns the user-facing error toast. Keep every input intact
-      // and refresh conflicts in case the write lost a concurrent race.
+    } catch (err) {
+      if (err instanceof StudentStatusDayPartialAbsenceConflictError) {
+        setSubmitError(err.message);
+      } else if (err instanceof StudentStatusDayConflictError) {
+        setSubmitError(getSaveConflictMessage(err.conflicts));
+      } else {
+        setSubmitError(
+          isSick
+            ? "Die Krankmeldung konnte nicht gespeichert werden. Bitte erneut versuchen."
+            : isClassTrip
+              ? "Die Klassenfahrt konnte nicht gespeichert werden. Bitte erneut versuchen."
+              : "Die Entschuldigung konnte nicht gespeichert werden. Bitte erneut versuchen.",
+        );
+      }
+      // Keep every input intact and refresh conflicts in case the write lost
+      // a concurrent race.
       setConflictCheckRevision((current) => current + 1);
       return;
     }
@@ -688,7 +717,6 @@ export function PlannedStatusDaysModal({
           isCheckingConflicts ||
           !checkedCurrentSelection ||
           conflictCheckError !== null ||
-          selectableDateKeys.length === 0 ||
           hasInvalidRangeOrder ||
           hasSelectionTooWide ||
           (isPartialExcusal &&
@@ -728,7 +756,7 @@ export function PlannedStatusDaysModal({
             </div>
             <SlideOverCloseButton aria-label="Fenster schließen" />
           </SlideOverHeader>
-          <div className="flex-1 overflow-y-auto px-5 py-4">
+          <SlideOverBody error={submitError}>
             <div className="space-y-5">
               <div className="flex items-start gap-3">
                 <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gray-100">
@@ -827,11 +855,6 @@ export function PlannedStatusDaysModal({
                         : `${formatCalendarDate(rangeStart)} bis ${formatCalendarDate(rangeEnd)} · ${rangeDateKeys.length} Tage`}
                     </p>
                   ) : null}
-                  {selectionHint ? (
-                    <p className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong mt-2 rounded-lg border px-3 py-2 text-sm">
-                      {selectionHint}
-                    </p>
-                  ) : null}
                 </div>
               ) : (
                 <>
@@ -866,11 +889,6 @@ export function PlannedStatusDaysModal({
                         calendarLayout="inline"
                       />
                     )}
-                    {selectionHint ? (
-                      <p className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong mt-2 rounded-lg border px-3 py-2 text-sm">
-                        {selectionHint}
-                      </p>
-                    ) : null}
                   </div>
 
                   <div>
@@ -910,7 +928,7 @@ export function PlannedStatusDaysModal({
                               {format(date, "dd.MM.", { locale: de })}
                             </span>
                             {existingDay ? (
-                              <span className="mt-1 block text-[10px] leading-tight font-medium sm:text-[11px]">
+                              <span className="mt-1 block text-sm leading-tight font-medium">
                                 <span className="block">bereits</span>
                                 <span className="block">
                                   {getStatusLabel(
@@ -1047,23 +1065,32 @@ export function PlannedStatusDaysModal({
                           ) : null}
                         </span>
                         {onDeleteStatusDay ? (
-                          <Button
-                            type="button"
-                            variant="outline_danger"
-                            size="compact"
-                            onClick={() =>
-                              setStatusDayPendingDeletion({
-                                id: day.id,
-                                date: day.date,
-                                status: day.status,
-                              })
-                            }
-                            disabled={isSubmitting}
-                            isLoading={deletingStatusDayId === day.id}
-                            loadingText="Wird entfernt…"
-                          >
-                            Entfernen
-                          </Button>
+                          <OverflowMenu
+                            ariaLabel={`Aktionen für ${formatDateLabel(day.date)}`}
+                            items={[
+                              {
+                                label:
+                                  deletingStatusDayId === day.id
+                                    ? "Wird entfernt…"
+                                    : "Entfernen",
+                                icon: (
+                                  <Trash2 className="h-4 w-4" aria-hidden />
+                                ),
+                                destructive: true,
+                                disabled:
+                                  isSubmitting ||
+                                  deletingStatusDayId === day.id,
+                                // Entfernen läuft erst nach der Rückfrage
+                                // (Bauart 2 Regel 6, #3109).
+                                onClick: () =>
+                                  setStatusDayPendingDeletion({
+                                    id: day.id,
+                                    date: day.date,
+                                    status: day.status,
+                                  }),
+                              },
+                            ]}
+                          />
                         ) : null}
                       </div>
                     ))}
@@ -1108,32 +1135,43 @@ export function PlannedStatusDaysModal({
                             </span>
                           ) : null}
                         </span>
-                        <span className="flex flex-wrap gap-2 sm:shrink-0">
-                          <Button
-                            type="button"
-                            size="compact"
-                            variant="outline"
-                            onClick={() => handleEditPartialAbsence(absence)}
-                            disabled={isSubmitting}
-                            aria-label={`Teilentschuldigung vom ${formatDateLabel(absence.date)} bearbeiten`}
-                          >
-                            Bearbeiten
-                          </Button>
-                          {onDeletePartialAbsence && !absence.auto ? (
-                            <Button
-                              type="button"
-                              size="compact"
-                              variant="outline_danger"
-                              onClick={() => {
-                                setPartialAbsenceDeleteError("");
-                                setPartialAbsencePendingDeletion(absence);
-                              }}
-                              disabled={isSubmitting}
-                              aria-label={`Teilentschuldigung vom ${formatDateLabel(absence.date)} entfernen`}
-                            >
-                              Entfernen
-                            </Button>
-                          ) : null}
+                        <span className="flex justify-end sm:shrink-0">
+                          <OverflowMenu
+                            ariaLabel={`Aktionen für Teilentschuldigung vom ${formatDateLabel(absence.date)}`}
+                            items={[
+                              {
+                                label: "Bearbeiten",
+                                icon: (
+                                  <Pencil className="h-4 w-4" aria-hidden />
+                                ),
+                                disabled: isSubmitting,
+                                onClick: () =>
+                                  handleEditPartialAbsence(absence),
+                              },
+                              ...(onDeletePartialAbsence && !absence.auto
+                                ? [
+                                    { kind: "separator" } as const,
+                                    {
+                                      label: "Entfernen",
+                                      icon: (
+                                        <Trash2
+                                          className="h-4 w-4"
+                                          aria-hidden
+                                        />
+                                      ),
+                                      destructive: true,
+                                      disabled: isSubmitting,
+                                      onClick: () => {
+                                        setPartialAbsenceDeleteError("");
+                                        setPartialAbsencePendingDeletion(
+                                          absence,
+                                        );
+                                      },
+                                    },
+                                  ]
+                                : []),
+                            ]}
+                          />
                         </span>
                       </div>
                     ))}
@@ -1165,7 +1203,7 @@ export function PlannedStatusDaysModal({
                 </div>
               )}
             </div>
-          </div>
+          </SlideOverBody>
           <SlideOverFooter className="flex-row justify-end gap-2">
             {footer}
           </SlideOverFooter>
@@ -1299,4 +1337,17 @@ function getConflictMessage(
   }
 
   return `${details}: ${conflictCount} von ${totalCount} Tagen ${conflictCount === 1 ? "hat" : "haben"} bereits einen Status und ${conflictCount === 1 ? "wird" : "werden"} nicht überschrieben. ${selectableCount} ${selectableCount === 1 ? "Tag wird" : "Tage werden"} gespeichert.`;
+}
+
+function getSaveConflictMessage(conflicts: StudentStatusDay[]): string {
+  if (conflicts.length === 0) {
+    return "Vorhandene Status-Tage wurden nicht überschrieben. Bitte Auswahl prüfen.";
+  }
+  const details = conflicts
+    .map(
+      (day) =>
+        `${formatCalendarDate(day.date)} (${getStatusLabel(day.status).toLowerCase()})`,
+    )
+    .join(", ");
+  return `${details} ${conflicts.length === 1 ? "wurde" : "wurden"} zwischenzeitlich eingetragen und nicht überschrieben. Bitte Auswahl prüfen.`;
 }

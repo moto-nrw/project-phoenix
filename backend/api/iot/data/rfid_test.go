@@ -6,24 +6,20 @@ package data_test
 
 import (
 	"bytes"
-	"context"
 	"fmt"
-	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uptrace/bun"
 
 	dataAPI "github.com/moto-nrw/project-phoenix/api/iot/data"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/device"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // rfidTestContext holds shared test dependencies.
 type rfidTestContext struct {
-	db       *bun.DB
+	db       *testpkg.DB
 	resource *dataAPI.RFIDResource
 }
 
@@ -34,7 +30,7 @@ func setupRFIDModule(t *testing.T) *rfidTestContext {
 	db, svc := testutil.SetupRFIDModule(t)
 
 	// Create RFID resource
-	resource := dataAPI.NewRFIDResource(svc.Users)
+	resource := dataAPI.NewRFIDResource(svc.TagAssignments, testRuntime())
 
 	return &rfidTestContext{
 		db:       db,
@@ -61,7 +57,7 @@ func TestAssignRFIDTag_NoDevice(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for missing device authentication")
+	assert.Equal(t, 401, rr.Code, "Expected 401 for missing device authentication")
 }
 
 func TestAssignRFIDTag_InvalidStaffID(t *testing.T) {
@@ -97,8 +93,7 @@ func TestAssignRFIDTag_InvalidJSON(t *testing.T) {
 	req := httptest.NewRequest("POST", "/1/rfid", bytes.NewBufferString("invalid json"))
 	req.Header.Set("Content-Type", "application/json")
 	// Add device context
-	reqCtx := context.WithValue(req.Context(), device.CtxDevice, testutil.DevicePrincipal(testDevice))
-	req = req.WithContext(reqCtx)
+	testutil.WithDeviceContext(testDevice)(req)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -187,7 +182,7 @@ func TestAssignRFIDTag_Success(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	testutil.AssertSuccessResponse(t, rr, 200)
 }
 
 // =============================================================================
@@ -205,7 +200,7 @@ func TestUnassignRFIDTag_NoDevice(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for missing device authentication")
+	assert.Equal(t, 401, rr.Code, "Expected 401 for missing device authentication")
 }
 
 func TestUnassignRFIDTag_InvalidStaffID(t *testing.T) {
@@ -278,5 +273,5 @@ func TestUnassignRFIDTag_Success(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	testutil.AssertSuccessResponse(t, rr, 200)
 }

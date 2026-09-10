@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArchiveRestore, Pencil, Plus } from "lucide-react";
+import { Archive, ArchiveRestore, Pencil, Plus } from "lucide-react";
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ColorPickerField } from "~/components/ui/color-picker-field";
 import { Input } from "~/components/ui/input";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import {
   SlideOver,
   SlideOverCloseButton,
@@ -364,23 +365,25 @@ export function CategoryManageModal({
                       <ul className={categoryListClass}>
                         {active.map((category) => (
                           <CategoryRow key={category.id} category={category}>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              aria-label={`${category.name} bearbeiten`}
-                              onClick={() => openEdit(category)}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="compact"
-                              onClick={() => setArchiveTarget(category)}
-                            >
-                              Archivieren
-                            </Button>
+                            <OverflowMenu
+                              ariaLabel={`Aktionen für ${category.name}`}
+                              items={[
+                                {
+                                  label: "Bearbeiten",
+                                  icon: (
+                                    <Pencil className="h-4 w-4" aria-hidden />
+                                  ),
+                                  onClick: () => openEdit(category),
+                                },
+                                {
+                                  label: "Archivieren",
+                                  icon: (
+                                    <Archive className="h-4 w-4" aria-hidden />
+                                  ),
+                                  onClick: () => setArchiveTarget(category),
+                                },
+                              ]}
+                            />
                           </CategoryRow>
                         ))}
                       </ul>
@@ -398,16 +401,22 @@ export function CategoryManageModal({
                               category={category}
                               archived
                             >
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="compact"
-                                disabled={busy}
-                                onClick={() => void handleRestore(category)}
-                              >
-                                <ArchiveRestore className="mr-1.5 h-4 w-4" />
-                                Wiederherstellen
-                              </Button>
+                              <OverflowMenu
+                                ariaLabel={`Aktionen für ${category.name}`}
+                                items={[
+                                  {
+                                    label: "Wiederherstellen",
+                                    icon: (
+                                      <ArchiveRestore
+                                        className="h-4 w-4"
+                                        aria-hidden
+                                      />
+                                    ),
+                                    disabled: busy,
+                                    onClick: () => void handleRestore(category),
+                                  },
+                                ]}
+                              />
                             </CategoryRow>
                           ))}
                         </ul>

@@ -67,6 +67,28 @@ describe("useHomeLayout", () => {
     );
   });
 
+  it("wird erst mit einer erfolgreichen Antwort bearbeitbar", () => {
+    const { result, rerender } = renderHook(() => useHomeLayout());
+
+    expect(result.current.isReady).toBe(false);
+
+    vi.mocked(useSWR).mockReturnValue({
+      data: {
+        blocks: [],
+        overrides: {},
+        policies: {},
+        canManagePolicies: false,
+      },
+      error: undefined,
+      isLoading: false,
+      isValidating: false,
+      mutate: vi.fn(),
+    });
+    rerender();
+
+    expect(result.current.isReady).toBe(true);
+  });
+
   it("revalidates only the changed account or a school-wide prescription", () => {
     const mutate = vi.fn();
     vi.mocked(useSWR).mockReturnValue({

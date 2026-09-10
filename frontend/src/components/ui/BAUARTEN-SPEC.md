@@ -54,7 +54,13 @@ Aktivitäten, Gruppen, Rollen, Geräte, Dateien, Nachrichten, Anfragen.
    es an anderer Stelle anlegbar ist.
 4. **Zeilenaktionen ausschließlich im Kebab der Zeile.** Keine Icon-Reihe,
    keine Aktion, die nur beim Überfahren erscheint. Was das Objekt betrifft
-   und nicht die Liste, gehört in die Objektansicht.
+   und nicht die Liste, gehört in die Objektansicht. Auch die eine „wichtige"
+   Aktion („Veröffentlichen" eines Entwurfs, „Elternlink kopieren") ist ein
+   Menüeintrag und kein Knopf neben dem Kebab; sie steht dann oben im Menü,
+   und ein Ergebnis, das der Knopf sonst anzeigen würde (Häkchen „kopiert"),
+   meldet ein Toast (#3111). Umsortieren (Pfeile ↑/↓) ist eine Listenaktion
+   und bleibt sichtbar; das X an einem Chip in einem Formular entfernt einen
+   Eingabewert und ist keine Zeilenaktion.
 5. **Mehrfachauswahl ist eine Eigenschaft der Bauart, nicht der Seite.** Wo
    sie fachlich sinnvoll ist, wird sie überall gleich ausgelöst
    (Kopf-Aktion „Auswählen" schaltet den Auswahlmodus). Sie fehlt nicht auf
@@ -85,9 +91,26 @@ keine zweite Ansicht.
    das ganze Objekt, kein Modal über einem Modal.
 4. **Ein Speichern-Knopf pro Bearbeiten-Zustand**, unten, mit dem Wort
    „Speichern". Automatisches Speichern gibt es außerhalb der Einstellungen
-   nicht.
+   nicht. Der Fuß des Bearbeiten-Zustands ist `ui/EditActions` (Abbrechen +
+   Speichern, in dieser Reihenfolge, mit Speichert-Zustand); ein Formular
+   ohne dieses Bauteil hat kein Speichern (#3112). Ein Feld, das bei Blur
+   oder im Change-Handler schreibt, ist Auto-Save, auch wenn daneben ein
+   Speichern für ein anderes Feld steht (Zahlungskonto vor #3112). Das
+   Nachtragen eines Objekts in eine Liste (Kind in die Aufsicht, Person an
+   ein Kind) ist eine Kopf-Aktion mit `FormModal`, kein Formular im
+   Listenkörper.
 5. **Fehler stehen im `Alert` oben im Bearbeiten-Bereich und, wo zuordenbar,
    am Feld.** Kein Toast als einzige Fehlermeldung, kein roter Absatz.
+   Der Platz dafür ist fest: `error` an `FormModal`, `error` an
+   `SlideOverBody`, sonst `FormErrorAlert` als erstes Element des
+   Formulars; das Feld trägt seinen Fehler über das `error`-Prop des
+   Kit-Felds. Der Fehler-Zustand kommt aus `useFormError()`: der Alert
+   scrollt sich bei jedem fehlgeschlagenen Speichern in den sichtbaren
+   Bereich, auch beim zweiten Klick mit gleichem Text, weil ein langes
+   Formular beim Speichern meist am Fuß steht.
+   Ein Fehler-Toast aus dem Speichern-Handler entfällt ganz, auch neben
+   einem Alert: eine Meldung, an einem Ort (#3113). Erfolgs-Toasts und
+   Toasts für Aktionen ohne Formular (Löschen, Umschalten, Laden) bleiben.
 6. **Löschen ist portalweit ein Muster:** `ConfirmDeleteModal`. Die
    Texteingabe-Bestätigung ist die Stufe für Unwiderrufliches mit
    Datenverlust, sonst reicht die einfache Rückfrage. Kein `window.confirm`,
@@ -198,6 +221,40 @@ bekommt eine shrink-only Baseline analog zum bestehenden
    Klick, der nur den Dialog öffnet (`setDeleteTarget(x)`), passiert. Ein
    per Namen übergebener Handler (`onClick={handleDelete}`) liegt außerhalb
    der Ratsche und gehört ins Review.
+9. `bauart/no-row-action-buttons` — Zeilenaktionen nur im Kebab (Bauart 1
+   Regel 4). **Umgesetzt** (`scripts/oxlint-plugin-bauart.mjs`, #3111): ein
+   `Button`/`<button>` je Listeneintrag (in einem `.map(…)` oder dem
+   `render` einer Tabellenspalte), dessen zugänglicher Name eine
+   Objektaktion ist (bearbeiten, löschen, entfernen, archivieren,
+   wiederherstellen, duplizieren, umbenennen, veröffentlichen, kopieren),
+   fällt durch. Pfeile zum Umsortieren und das reine Icon-X „… entfernen"
+   eines Formular-Chips sind ausgenommen. Shrink-only Baseline je Datei für
+   den Bestand, den #3111 auf Folge-PRs verteilt; Operator-, Eltern- und
+   Schul-Portal sind nicht im Scope.
+10. `bauart/no-autosave` — kein Schreiben aus `onBlur` und keines aus dem
+    Change-Handler eines Formularfelds ohne Speichern darunter. **Umgesetzt**
+    (`scripts/oxlint-plugin-bauart.mjs`, #3112): jeder Inline-`onBlur`, der
+    einen asynchronen Aufruf feuert (`void save(x)`, `await update(x)`,
+    `.then(`), und jeder Inline-Change-Handler an einem Kit-Feld
+    (`Input`, `Textarea`, `Checkbox`, `CustomSelect`, `ListboxDropdown`,
+    `SegmentedControl`, …), dessen gefeuerter Aufruf wie ein Schreiben heißt
+    (save, update, persist, patch, set…, submit, store, assign, link, mutate).
+    Lesen aus dem Change-Handler (`void search(q)`) passiert. Ausgenommen sind
+    die Einstellungen (Bauart 4), das Operator-Portal, das Kit, Tests und
+    Stories; die benannte Baseline im Plugin ist shrink-only und trägt nur
+    Flächen, die ihr Sofort-Speichern auf dem Schirm benennen (Abrechnung,
+    Elternportal-Stammdaten, Sprachwahl).
+11. `bauart/no-toast-form-error` — kein Fehler-Toast aus dem
+    Speichern-Handler eines Formulars (Bauart 2 Regel 5). **Umgesetzt**
+    (`scripts/oxlint-plugin-bauart.mjs`, hard-zero, #3113): ein
+    `toast.error`/`toast.warning` (auch die Aliasse `toastError`,
+    `toastWarning`) innerhalb einer Funktion, die ein Formular speichert,
+    fällt durch. Als Speichern-Handler gilt eine Funktion, die
+    `handleSave`, `handleSubmit`, `onSubmit`, `save…` oder `submit…` heißt,
+    einen `FormEvent`-Parameter hat oder selbst `preventDefault()` ruft;
+    Rückrufe darin (`.catch(() => toast.error(…))`) zählen mit. Erfolgs-
+    Toasts und Toasts außerhalb solcher Handler sind frei. Operator-,
+    Eltern- und Schul-Portal sind nicht im Scope.
 
 ## Reihenfolge der Umsetzung
 

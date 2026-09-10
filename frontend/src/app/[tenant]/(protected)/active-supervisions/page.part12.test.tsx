@@ -96,6 +96,7 @@ vi.mock("~/components/ui/alert", () => ({
 
 // Mock Modal and ConfirmationModal
 vi.mock("~/components/ui/modal", () => ({
+  dialogAriaProps: { role: "dialog" as const, "aria-modal": true },
   Modal: ({
     isOpen,
     children,
@@ -420,7 +421,14 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     cleanup();
   });
 
+  // Die Suche steht im Dialog hinter der Kopf-Aktion „Kind hinzufügen“
+  // (#3112); ist er schon offen, bleibt er offen.
   const searchFor = async (value: string) => {
+    if (!screen.queryByRole("searchbox", { name: "Kind ungeplant suchen" })) {
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Kind hinzufügen" }),
+      );
+    }
     const input = await screen.findByRole("searchbox", {
       name: "Kind ungeplant suchen",
     });
@@ -487,7 +495,7 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
       ],
     });
 
-    render(<MeinRaumPage />);
+    const { rerender } = render(<MeinRaumPage />);
     await searchFor("Marie");
 
     const beierCard = await screen.findByRole("button", {
@@ -515,12 +523,50 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     expect(garschagenCard).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeEnabled();
 
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("searchbox", { name: "Kind ungeplant suchen" }),
+      ).not.toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Kind hinzufügen" }));
+    expect(
+      screen.queryByText("Kind konnte nicht zur Aktivität hinzugefügt werden."),
+    ).not.toBeInTheDocument();
+
+    await searchFor("Marie");
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Marie Garschagen/ }),
+    );
+    vi.mocked(timetableOperationsApi.checkIn).mockRejectedValueOnce(
+      new Error("check-in failed"),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
 
+    await screen.findByText(
+      "Kind konnte nicht zur Aktivität hinzugefügt werden.",
+    );
+    currentRosterData = {
+      ...rosterData,
+      instance: { ...rosterData.instance, id: "100", title: "Sport" },
+    };
+    rerender(<MeinRaumPage />);
+    await waitFor(() =>
+      expect(
+        screen.queryByText(
+          "Kind konnte nicht zur Aktivität hinzugefügt werden.",
+        ),
+      ).not.toBeInTheDocument(),
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Marie Garschagen/ }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
     await waitFor(() => {
-      expect(timetableOperationsApi.checkIn).toHaveBeenCalledTimes(2);
+      expect(timetableOperationsApi.checkIn).toHaveBeenCalledTimes(3);
       expect(timetableOperationsApi.checkIn).toHaveBeenLastCalledWith(
-        "99",
+        "100",
         "202",
       );
     });

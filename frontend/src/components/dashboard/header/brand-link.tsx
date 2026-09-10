@@ -68,7 +68,7 @@ interface BrandLinkProps {
 
 export function BrandLink({
   isScrolled = false,
-  href = "/dashboard",
+  href = "/home",
   label,
   hideLabelBelow,
 }: BrandLinkProps) {

@@ -161,6 +161,51 @@ describe("deriveSupervision with released rooms", () => {
     ]);
   });
 
+  // „Aufsicht fortsetzen" auf der Startseite darf nur erscheinen, wenn die
+  // Person selbst gerade Aufsicht führt — nicht, weil es einen offenen Raum
+  // gibt, den sie betreten könnte (#2180).
+  it("unterscheidet die eigene Aufsicht von der bloßen Möglichkeit dazu", () => {
+    // Ein offener Raum steht bereit, die Person führt dort nichts: nichts
+    // fortzusetzen.
+    expect(
+      deriveSupervision([], [openRoom(7, "Turnhalle")], true).ownSupervision,
+    ).toBe(false);
+    // Eigener Raum aus /api/me/groups/supervised (keine Übersicht).
+    expect(
+      deriveSupervision([supervision(1, 5, "Zebra")], [], false).ownSupervision,
+    ).toBe(true);
+    // Dieselbe Zeile aus der schulweiten Übersicht kann fremd sein; erst die
+    // zusätzliche eigene Abfrage entscheidet.
+    expect(
+      deriveSupervision([supervision(1, 5, "Zebra")], [], true).ownSupervision,
+    ).toBe(false);
+    expect(
+      deriveSupervision([supervision(1, 5, "Zebra")], [], true, [
+        supervision(1, 5, "Zebra"),
+      ]).ownSupervision,
+    ).toBe(true);
+  });
+
+  it("counts an own supervision inside a released room as own supervision", () => {
+    // Der offene Raum ersetzt den Schulhof: wer sich dort angeschlossen hat,
+    // führt Aufsicht und muss sie fortsetzen können.
+    expect(
+      deriveSupervision(
+        [supervision(1, 7, "Turnhalle")],
+        [openRoom(7, "Turnhalle")],
+        false,
+      ).ownSupervision,
+    ).toBe(true);
+    expect(
+      deriveSupervision(
+        [supervision(1, 7, "Turnhalle")],
+        [openRoom(7, "Turnhalle")],
+        true,
+        [supervision(1, 7, "Turnhalle")],
+      ).ownSupervision,
+    ).toBe(true);
+  });
+
   it("reports overviewEnabled only when the overview endpoint answered", () => {
     expect(deriveSupervision([], [], true).overviewEnabled).toBe(true);
     expect(deriveSupervision([], [], false).overviewEnabled).toBe(false);

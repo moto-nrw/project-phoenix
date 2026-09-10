@@ -46,6 +46,7 @@ go run . cleanup preview|stats      # visit-retention dry-run / statistics
 go run . cleanup visits             # REAL deletion — there is no `cleanup visits preview`; extra args are silently ignored
 go run . cleanup timetable|time-tracking [preview|stats]      # nested dry-runs exist only for these two
 go run . cleanup tokens|invitations|rate-limits|attendance|sessions|supervisors
+go run . backfill staff-owner [status|reset]   # resumable users.staff → Membership/Workforce copy (#2752); exits 1 while unstable
 go run . gendoc                     # Generates routes.md + docs/openapi.yaml
 ```
 

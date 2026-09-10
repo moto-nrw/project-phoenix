@@ -30,6 +30,7 @@ import type { DataTableColumn } from "~/components/ui/data-table";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
   SlideOver,
+  SlideOverBody,
   SlideOverCloseButton,
   SlideOverContent,
   SlideOverFooter,
@@ -44,6 +45,7 @@ import {
 } from "~/components/ui/detail-modal-components";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
+import { useFormError } from "~/components/ui/form-error";
 import { Input } from "~/components/ui/input";
 import { Checkbox } from "~/components/ui/checkbox";
 import { DatePicker } from "~/components/ui/date-picker";
@@ -565,30 +567,14 @@ function ParentAnnouncementsContent() {
       header: "",
       align: "right",
       render: (row) => (
-        // stopPropagation keeps button/menu clicks from also triggering the
-        // row click (which opens the detail view).
+        // stopPropagation keeps menu clicks from also triggering the row
+        // click (which opens the detail view).
         <div
-          className="flex items-center justify-end gap-1"
+          className="flex items-center justify-end"
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => e.stopPropagation()}
           role="presentation"
         >
-          {row.status === "draft" && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="compact"
-              disabled={pendingActionId === row.id}
-              onClick={() => {
-                setPublishError("");
-                setPublishTarget(row);
-              }}
-              className="text-moto-green-vivid hover:text-moto-green-strong gap-1.5"
-            >
-              <Send className="size-4" aria-hidden />
-              Veröffentlichen
-            </Button>
-          )}
           <OverflowMenu
             items={buildMenuItems(row)}
             ariaLabel={`Aktionen für ${row.title}`}
@@ -598,17 +584,28 @@ function ParentAnnouncementsContent() {
     },
   ];
 
-  // One clear inline action per row (publish a draft); details open via row/
-  // card click. Editing is draft-only — published announcements are immutable
+  // Every row action lives in the kebab (BAUARTEN-SPEC Bauart 1 Regel 4,
+  // #3111): publishing a draft is its first entry. Details open via row/card
+  // click. Editing is draft-only — published announcements are immutable
   // (Zurückziehen first, then edit the draft).
   function buildMenuItems(row: Announcement): OverflowMenuItem[] {
-    const menuItems: OverflowMenuItem[] = [
-      {
-        label: "Anzeigen",
-        icon: <MotoConceptIcon concept="reports" size={16} />,
-        onClick: () => setDetailFor(row),
-      },
-    ];
+    const menuItems: OverflowMenuItem[] = [];
+    if (row.status === "draft") {
+      menuItems.push({
+        label: "Veröffentlichen",
+        icon: <Send className="size-4" aria-hidden />,
+        disabled: pendingActionId === row.id,
+        onClick: () => {
+          setPublishError("");
+          setPublishTarget(row);
+        },
+      });
+    }
+    menuItems.push({
+      label: "Anzeigen",
+      icon: <MotoConceptIcon concept="reports" size={16} />,
+      onClick: () => setDetailFor(row),
+    });
     if (!row.system_kind && row.status === "draft") {
       menuItems.push({
         label: "Bearbeiten",
@@ -791,11 +788,7 @@ function ParentAnnouncementsContent() {
                   Nach dem Veröffentlichen kann die Mitteilung nicht mehr
                   bearbeitet werden.
                 </p>
-                {publishError && (
-                  <p role="alert" className="text-moto-red-strong text-sm">
-                    {publishError}
-                  </p>
-                )}
+                {publishError && <Alert type="error" message={publishError} />}
               </div>
             </ConfirmationModal>
           )}
@@ -823,9 +816,7 @@ function ParentAnnouncementsContent() {
                   abgebrochen.
                 </p>
                 {unpublishError && (
-                  <p role="alert" className="text-moto-red-strong text-sm">
-                    {unpublishError}
-                  </p>
+                  <Alert type="error" message={unpublishError} />
                 )}
               </div>
             </ConfirmationModal>
@@ -1058,7 +1049,7 @@ function AnnouncementFormModal({
   const [submitting, setSubmitting] = useState<"draft" | "publish" | null>(
     null,
   );
-  const [formError, setFormError] = useState("");
+  const [formError, setFormError] = useFormError();
 
   const validateContent = (): boolean => {
     if (!title.trim()) {
@@ -1356,7 +1347,9 @@ function AnnouncementFormModal({
           </div>
           <SlideOverCloseButton />
         </SlideOverHeader>
-        <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+        {/* Der Fehler des Formulars steht oben im Rumpf, nicht unten über
+            dem Footer (Bauart 2 Regel 5, #3113). */}
+        <SlideOverBody error={formError} className="space-y-4">
           <WizardStepper steps={WIZARD_STEPS} current={step} />
 
           {step === 0 ? (
@@ -1759,9 +1752,7 @@ function AnnouncementFormModal({
                 )}
 
                 {attachmentError && (
-                  <p role="alert" className="text-moto-red-strong text-sm">
-                    {attachmentError}
-                  </p>
+                  <Alert type="error" message={attachmentError} />
                 )}
               </section>
             </div>
@@ -1786,13 +1777,7 @@ function AnnouncementFormModal({
               allowPendingEnrollment={!isPollForm && !isLetterForm}
             />
           )}
-
-          {formError && (
-            <p role="alert" className="text-moto-red-strong text-sm">
-              {formError}
-            </p>
-          )}
-        </div>
+        </SlideOverBody>
         <SlideOverFooter className="flex-row flex-wrap justify-end gap-2">
           {footer}
         </SlideOverFooter>
@@ -2576,7 +2561,7 @@ function DetailModal({
           </div>
           <SlideOverCloseButton />
         </SlideOverHeader>
-        <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
+        <SlideOverBody className="space-y-5">
           {/* Identitätskopf: Titel trägt der Modalkopf, hier stehen Status und
             Zeitpunkte des Objekts. */}
           <div className="flex flex-wrap items-center gap-2">
@@ -2731,7 +2716,7 @@ function DetailModal({
               )}
             </InfoSection>
           )}
-        </div>
+        </SlideOverBody>
       </SlideOverContent>
     </SlideOver>
   );

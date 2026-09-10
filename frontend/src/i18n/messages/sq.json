@@ -1281,6 +1281,13 @@
     "saved": "U ruajt",
     "saveError": "Ndryshimi nuk mund të ruhej.",
     "editableHint": "Ndryshimet ruhen automatikisht.",
+    "unsaved": {
+      "title": "Ndryshime të paruajtura",
+      "body": "Një ndryshim nuk u ruajt dot. Nëse e lini faqen, ai do të humbasë.",
+      "leave": "Largohu gjithsesi",
+      "stay": "Qëndro këtu",
+      "retry": "Provo përsëri"
+    },
     "healthDirectHint": "Ndryshimet ruhen menjëherë. Ekipi i OGS-së i sheh menjëherë të dhënat.",
     "healthPlaceholder": "Për shembull alergji, intoleranca ose ilaçe të rëndësishme.",
     "dataDescription": "Të dhënat personale, klasa dhe informacioni i rëndësishëm shëndetësor.",

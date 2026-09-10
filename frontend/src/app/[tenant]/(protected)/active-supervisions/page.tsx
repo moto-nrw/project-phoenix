@@ -404,6 +404,7 @@ function MeinRaumPageContent() {
           <TimetableRosterContent
             addStudentResults={actions.addStudentResults}
             addStudentSearch={actions.addStudentSearch}
+            addStudentError={actions.addStudentError}
             attendanceWebEnabled={attendanceWebEnabled}
             isAddingStudent={actions.isAddingStudent}
             isCompletingInstance={actions.isCompletingInstance}

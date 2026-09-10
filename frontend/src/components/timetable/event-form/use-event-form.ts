@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
+import { useFormError } from "~/components/ui/form-error";
 import { useToast } from "~/contexts/ToastContext";
 import type { ActivityCategory } from "~/lib/activity-helpers";
 import {
@@ -289,7 +290,7 @@ export function useEventForm({
   const [loadingStaff, setLoadingStaff] = useState(false);
   const [staffLoadError, setStaffLoadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [validationError, setValidationError] = useState<string | null>(null);
+  const [validationError, setValidationError] = useFormError();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteEffectiveDate, setDeleteEffectiveDate] = useState("");
@@ -697,6 +698,7 @@ export function useEventForm({
     initialSeries,
     invalidateReferenceLoads,
     isOpen,
+    setValidationError,
     variant,
   ]);
 
@@ -2198,6 +2200,7 @@ export function useEventForm({
           if (followUpOk) {
             toastSuccess("Regeltermin gespeichert");
           } else {
+            // oxlint-disable-next-line bauart/no-toast-form-error -- Kein Formularfehler: der Regeltermin ist gespeichert und das Panel schließt; der Hinweis auf die Folgetermine hat keine andere Fläche.
             toastWarning(FOLLOW_UP_WARNING);
           }
           onSaved({ kind: "series", seriesId });
@@ -2271,6 +2274,7 @@ export function useEventForm({
               : "Termin als Serie gespeichert",
           );
         } else {
+          // oxlint-disable-next-line bauart/no-toast-form-error -- Kein Formularfehler: die Serie ist gespeichert und das Panel schließt; der Hinweis auf die Folgetermine hat keine andere Fläche.
           toastWarning(FOLLOW_UP_WARNING);
         }
         onSaved({
@@ -2290,6 +2294,7 @@ export function useEventForm({
               : "Regeltermin angelegt",
           );
         } else {
+          // oxlint-disable-next-line bauart/no-toast-form-error -- Kein Formularfehler: der Regeltermin ist angelegt und das Panel schließt; der Hinweis auf die Folgetermine hat keine andere Fläche.
           toastWarning(FOLLOW_UP_WARNING);
         }
         onSaved({ kind: "series", seriesId: templateId });
@@ -2303,8 +2308,9 @@ export function useEventForm({
         err instanceof Error
           ? err.message
           : "Termin konnte nicht gespeichert werden";
+      // Steht oben im Panel (SlideOverBody `error`), nicht als Toast:
+      // Bauart 2 Regel 5.
       setValidationError(msg);
-      toastError(msg);
     } finally {
       submitLock.current = false;
       setSubmitting(false);
@@ -2441,8 +2447,8 @@ export function useEventForm({
     setPendingSeriesEdit(null);
     setScopeClosingDayWarning(null);
     setLostEdits(null);
+    // Speicherfehler des Serienumfangs: oben im Panel, nicht als Toast.
     setValidationError(msg);
-    toastError(msg);
   };
 
   /**

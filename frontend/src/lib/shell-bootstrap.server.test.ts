@@ -94,6 +94,11 @@ describe("loadShellBootstrap", () => {
           { id: 1, group_id: 1, room_id: 5, room: { id: 5, name: "Aula" } },
         ],
       },
+      "/api/me/groups/supervised": {
+        data: [
+          { id: 1, group_id: 1, room_id: 5, room: { id: 5, name: "Aula" } },
+        ],
+      },
       "/api/rooms?is_open_room=true": {
         data: [{ id: 8, name: "Kreativraum" }],
       },
@@ -137,6 +142,9 @@ describe("loadShellBootstrap", () => {
     expect(shell.supervision).toEqual({
       groups: [{ id: "2", name: "Zebra" }],
       supervised: [
+        { id: 1, group_id: 1, room_id: 5, room: { id: 5, name: "Aula" } },
+      ],
+      ownSupervised: [
         { id: 1, group_id: 1, room_id: 5, room: { id: 5, name: "Aula" } },
       ],
       openRooms: [{ id: 8, name: "Kreativraum" }],
@@ -207,7 +215,7 @@ describe("loadShellBootstrap", () => {
       "/api/me/groups/supervised": {
         data: [{ id: 3, group_id: 3, room_id: 2, room: { id: 2, name: "B" } }],
       },
-      "/api/active/schulhof/status": new Error("500"),
+      "/api/rooms?is_open_room=true": new Error("500"),
       "/api/staff/absences/pending": new Error("500"),
       "/api/messages/unread-count": new Error("500"),
       "/api/staff-notices/today": new Error("500"),
@@ -231,6 +239,31 @@ describe("loadShellBootstrap", () => {
     expect(Object.values(shell.counts).every((v) => v === undefined)).toBe(
       true,
     );
+  });
+
+  it("keeps a successful overview when the ownership request fails", async () => {
+    routeBackend({
+      "/api/students/ogs-group-navigation": { data: [] },
+      "/api/active/supervisors/all": {
+        data: [
+          { id: 1, group_id: 1, room_id: 5, room: { id: 5, name: "Aula" } },
+        ],
+      },
+      "/api/me/groups/supervised": new Error("500"),
+      "/api/rooms?is_open_room=true": { data: [] },
+    });
+
+    const shell = await loadShellBootstrap(session(), tenant);
+
+    expect(shell.supervision).toEqual({
+      groups: [],
+      supervised: [
+        { id: 1, group_id: 1, room_id: 5, room: { id: 5, name: "Aula" } },
+      ],
+      ownSupervised: null,
+      openRooms: [],
+      overviewOk: true,
+    });
   });
 
   it("leaves an incomplete navigation projection to the browser", async () => {

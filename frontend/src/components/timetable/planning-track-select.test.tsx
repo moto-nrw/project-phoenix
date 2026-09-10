@@ -138,8 +138,9 @@ describe("PlanningTrackSelect", () => {
     // der Rückfrage. Das Popover weicht dem Dialog und kommt danach in der
     // Verwaltung zurück.
     fireEvent.click(
-      screen.getByRole("button", { name: "Jahrgang 1 archivieren" }),
+      screen.getByRole("button", { name: "Aktionen für Jahrgang 1" }),
     );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Archivieren" }));
     expect(archive).not.toHaveBeenCalled();
     expect(
       screen.getByRole("heading", { name: "Planungsspur archivieren?" }),
@@ -170,8 +171,9 @@ describe("PlanningTrackSelect", () => {
       screen.getByRole("button", { name: "Planungsspuren verwalten" }),
     );
     fireEvent.click(
-      screen.getByRole("button", { name: "Jahrgang 1 archivieren" }),
+      screen.getByRole("button", { name: "Aktionen für Jahrgang 1" }),
     );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Archivieren" }));
     fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
 
     expect(archive).not.toHaveBeenCalled();
@@ -179,7 +181,7 @@ describe("PlanningTrackSelect", () => {
       screen.queryByRole("heading", { name: "Planungsspur archivieren?" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Jahrgang 1 archivieren" }),
+      screen.getByRole("button", { name: "Aktionen für Jahrgang 1" }),
     ).toBeInTheDocument();
   });
 
@@ -192,15 +194,16 @@ describe("PlanningTrackSelect", () => {
       screen.getByRole("button", { name: "Planungsspuren verwalten" }),
     );
     fireEvent.click(
-      screen.getByRole("button", { name: "Jahrgang 1 archivieren" }),
+      screen.getByRole("button", { name: "Aktionen für Jahrgang 1" }),
     );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Archivieren" }));
     fireEvent.click(screen.getByRole("button", { name: "Archivieren" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Archivieren fehlgeschlagen",
     );
     expect(
-      screen.getByRole("button", { name: "Jahrgang 1 archivieren" }),
+      screen.getByRole("button", { name: "Aktionen für Jahrgang 1" }),
     ).toBeInTheDocument();
   });
 
@@ -215,7 +218,10 @@ describe("PlanningTrackSelect", () => {
       screen.getByRole("button", { name: "Planungsspuren verwalten" }),
     );
     fireEvent.click(screen.getByText("Archivierte Planungsspuren (1)"));
-    fireEvent.click(screen.getByRole("button", { name: "Wiederherstellen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Archiv" }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Wiederherstellen" }));
 
     await waitFor(() => expect(restore).toHaveBeenCalledWith("3"));
   });

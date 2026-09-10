@@ -110,7 +110,7 @@ describe("ClosingDaysEditor", () => {
     // Die Aktionsspalte bekommt nur ihre Mindestbreite, den Rest der
     // Tabellenbreite behält der Grund.
     const actionCell = screen
-      .getByRole("button", { name: "Bearbeiten" })
+      .getByRole("button", { name: "Aktionen für Weihnachtsschließung" })
       .closest("td");
     expect(actionCell).toHaveClass("w-px");
   });
@@ -153,7 +153,10 @@ describe("ClosingDaysEditor", () => {
 
     render(<ClosingDaysEditor />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Bearbeiten" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: /^Aktionen für/ }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Bearbeiten" }));
 
     expect(screen.getByTestId("closing-day-modal")).toHaveAttribute(
       "data-initial-reason",
@@ -183,7 +186,10 @@ describe("ClosingDaysEditor", () => {
 
     render(<ClosingDaysEditor />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Löschen" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: /^Aktionen für/ }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Löschen" }));
     // Zweistufige Löschbestätigung (ConfirmDeleteModal, #3110).
     fireEvent.click(screen.getByRole("button", { name: "Ja, löschen" }));
     fireEvent.click(screen.getByRole("button", { name: "Endgültig löschen" }));

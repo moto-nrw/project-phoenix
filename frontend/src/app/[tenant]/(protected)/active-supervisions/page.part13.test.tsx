@@ -116,6 +116,7 @@ vi.mock("~/components/ui/alert", () => ({
 
 // Mock Modal and ConfirmationModal
 vi.mock("~/components/ui/modal", () => ({
+  dialogAriaProps: { role: "dialog" as const, "aria-modal": true },
   Modal: ({
     isOpen,
     children,
@@ -627,6 +628,9 @@ describe("MeinRaumPage roster actions", () => {
 
     render(<MeinRaumPage />);
 
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Kind hinzufügen" }),
+    );
     const search = await screen.findByRole("searchbox", {
       name: "Kind ungeplant suchen",
     });
@@ -702,6 +706,9 @@ describe("MeinRaumPage roster actions", () => {
           }),
         );
       } else {
+        fireEvent.click(
+          await screen.findByRole("button", { name: "Kind hinzufügen" }),
+        );
         fireEvent.change(
           await screen.findByRole("searchbox", {
             name: "Kind ungeplant suchen",

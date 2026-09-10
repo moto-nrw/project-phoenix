@@ -594,8 +594,8 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Alle Bereiche der App stehen links in fünf Gruppen: `Tagesbetrieb`, `Eltern`, `Team`, `Planung` und `Verwaltung`. Am Handy zeigt das `Mehr`-Menü dieselben Gruppen.",
         steps: [
-          "Ganz oben steht Ihre Startseite: `Home` für Admins, `Tagesplan` für Betreuungskräfte.",
-          "`Tagesbetrieb` ist beim ersten Besuch geöffnet. Dort stehen `Meine Gruppen`, `Aktuelle Aufsicht`, `Alle Kinder`, `Räume`, `Aktivitäten`, `Vertretungen` und `Anfragen`.",
+          "Ganz oben steht `Startseite`. Sie ist für alle gleich erreichbar; was darauf steht, hängt von Ihren Rechten ab.",
+          "`Tagesbetrieb` ist beim ersten Besuch geöffnet. Dort stehen `Tagesplan`, `Meine Gruppen`, `Aktuelle Aufsicht`, `Alle Kinder`, `Räume`, `Aktivitäten`, `Vertretungen` und `Anfragen`.",
           "Auf den Namen einer Gruppe tippen, um sie auf- oder zuzuklappen. moto merkt sich, welche Gruppen offen sind. Öffnen Sie eine Seite, klappt ihre Gruppe von selbst auf.",
           "`Eltern` bündelt Nachrichten, Mitteilungen, Elternzugänge, Bankverbindungen, Essensplan und die Anmeldungen. `Team` enthält Zeiterfassung, Mein Kalender, Mitarbeiter, Team-Chat und Tagesinformationen.",
           "`Planung` enthält je nach Ihren Rechten Betreuungsplan, Dienstplan, Vertretungsplan, Tageslisten, Schuljahr und Ferien sowie Abrechnung. `Verwaltung` enthält Datenverwaltung, Tagesauswertung, Statistik, Dateien und Info-Displays.",
@@ -613,26 +613,27 @@ export const appChapters: readonly GuideChapter[] = [
       },
       {
         id: "home",
-        title: "Home",
+        title: "Startseite",
         icon: LayoutDashboard,
         summary:
-          "Die Startseite für Admins zeigt die Kacheln, die Sie ausgewählt haben. Fast jede Zahl führt direkt in den passenden Bereich.",
+          "Nach dem Anmelden landen alle auf der Startseite. Ganz oben steht, was jetzt ansteht; darunter liegen Bausteine, die Sie selbst anordnen. Womit Sie starten, hängt von Ihrer Aufgabe ab.",
         steps: [
-          "In der Seitenleiste ganz oben `Home` öffnen. Admin-Konten ohne Betreuungsrolle landen nach dem Login automatisch hier; Admins mit Betreuungsrolle starten in ihrem Betreuungsbereich.",
-          "Die sichtbaren Kacheln ablesen: `Kinder anwesend`, `Schulhof`, `Krank`, `Entschuldigt`, `Zuhause` und `Aktive Aktivitäten`. Bei detaillierter Anwesenheit kommen `In Räumen`, `Unterwegs` und `Auslastung` hinzu.",
-          "Ein Klick auf fast jede Kachel springt in den passenden Bereich, zum Beispiel von `Krank` in den bereits gefilterten Bereich `Alle Kinder`. `Auslastung` zeigt nur den aktuellen Wert.",
-          "Bei detaillierter Anwesenheit zeigt `Letzte Bewegungen` bis zu fünf laufende Gruppen, die in den vergangenen 30 Minuten gestartet wurden, mit Raum und Kinderzahl. Einzelne Check-ins, Check-outs oder Raumwechsel von Kindern sind dort nicht sichtbar.",
-          "`Laufende Aktivitäten` daneben listet die Angebote, die gerade laufen. Gibt es keine, steht dort `Keine laufenden Aktivitäten`.",
-          "Die Karte `Geburtstage` nennt die Kinder, die heute Geburtstag haben, mit Gruppe, Klasse und dem Alter, das sie erreichen. Rechts steht bei jedem Eintrag, wann der Geburtstag war: `Heute` oder der Tag mit Datum, zum Beispiel `Sa, 01.08.`. Montags stehen so auch die Geburtstage vom Wochenende mit dabei. Geburtstage von Mitarbeitenden erscheinen, sofern eingeschaltet, in einem eigenen Abschnitt `Team`. Hat niemand Geburtstag, steht dort `Heute keine Geburtstage`. Die Karte lässt sich unter `Einstellungen` -> `Betrieb` -> `Geburtstage` ausschalten; dort wird auch entschieden, ob die Geburtstage der Mitarbeitenden mit erscheinen.",
-          "Oben rechts `Startseite anpassen` öffnen. Dort die Kacheln auswählen, die Sie sehen möchten. Der Dialog ist im Abschnitt `Startseite anpassen` erklärt.",
+          "In der Seitenleiste ganz oben `Startseite` öffnen. Nach dem Anmelden landen Sie automatisch hier, unabhängig von Ihrer Rolle. Am Handy ist es der Reiter `Start` unten links.",
+          "Die Zeile unter der Begrüßung zeigt die Uhrzeit und den Moment: Betreuungskräfte sehen den Einsatz, der gerade läuft (`Läuft`), oder den nächsten mit der Zeit bis dahin. Die Leitung sieht, wie viele Blöcke laufen, wie viele nicht gestartet wurden, wie viele Kinder da sind und wie viele vom Team Aufsicht führen. Rechts daneben führt ein Knopf dorthin, wo Sie jetzt am ehesten hinwollen, zum Beispiel `Aufsicht fortsetzen` oder `Meine Gruppe`. Der Tag selbst steht direkt darunter im Baustein `Mein Tag`.",
+          "Betreuungskräfte starten mit `Mein Tag` (Ihr ganzer Betreuungstag: alle Blöcke, für die Sie eingeteilt sind, mit Raum, Kinderzahl und Kolleginnen, die Jetzt-Linie und der Knopf `Starten` am eigenen Block), `Meine Gruppe heute` (wie viele Kinder da sind, wer längst da sein sollte, die nächsten Abholungen mit den Hinweisen der Eltern, wer heute fehlt), den `Tagesinformationen` der Leitung und den `Erinnerungen` (anstehende Abholungen und Aktivitäten).",
+          "Die Leitung startet mit vier Kennzahlen (`Kinder anwesend`, `Krank`, `Entschuldigt`, `Zuhause`), den `Offenen Anfragen`, `Personal heute`, den `Tagesinformationen`, dem `Ablauf des Tages`, den `Ungelesenen Nachrichten` und der `Laufenden Betreuung`. Wer die Einrichtung leitet und selbst betreut, bekommt beides: den eigenen Tag vorneweg, die Lage der Schule dahinter.",
+          "Ein Klick auf eine Kennzahl springt in den passenden Bereich, zum Beispiel von `Krank` in den bereits gefilterten Bereich `Alle Kinder`. Jede Zeile in einer Karte führt dorthin, wo Sie damit arbeiten.",
+          "Verlangt eine Tagesinformation eine Kenntnisnahme, bestätigen Sie sie direkt auf der Karte.",
+          "Passt in eine Karte nicht alles hinein, steht darunter `Noch 3 ansehen` mit dem Weg zum Rest. Die Startseite selbst bleibt einen Bildschirm lang.",
+          "Oben rechts `Anpassen` öffnen, um Bausteine zu tauschen, zu verschieben oder in der Breite zu ändern. Wie das geht, steht im Abschnitt `Startseite anpassen`.",
         ],
         callout: {
-          title: "Kacheln passen sich der Einrichtung an",
-          body: "`Aktive Gruppen` entfällt bei offener Betreuung ohne feste Gruppen. `In Räumen`, `Unterwegs`, `Auslastung` und `Letzte Bewegungen` gibt es nur bei detaillierter Anwesenheit. `Aktive Aktivitäten` und `Laufende Aktivitäten` erscheinen, wenn NFC aktiviert ist und die Einrichtung mit detaillierter Anwesenheit arbeitet, auch wenn noch keine Aktivitäten eingerichtet oder gerade keine aktiv sind. Die Karte `Geburtstage` erscheint, solange die Anzeige in den Einstellungen aktiv ist. Fehlt eine Kachel, ist das kein Fehler: entweder passt sie nicht zu Ihrer Einrichtung, oder sie ist über `Startseite anpassen` ausgeblendet.",
+          title: "Bausteine passen sich an Rechte und Einrichtung an",
+          body: "`Laufende Betreuung` und `Meine Gruppe heute` entfallen bei offener Betreuung ohne feste Gruppen. `In Räumen`, `Unterwegs`, `Auslastung`, `Letzte Bewegungen` und der `Ablauf des Tages` gibt es nur bei detaillierter Anwesenheit. `Aktive Aktivitäten` und `Laufende Aktivitäten` erscheinen, wenn NFC eingeschaltet ist. `Mein Tag` und der `Ablauf des Tages` brauchen einen gepflegten Betreuungsplan, die `Ungelesenen Nachrichten` einen eingeschalteten Posteingang. Fehlt ein Baustein ganz, ist das kein Fehler: entweder passt er nicht zu Ihrer Einrichtung, oder Ihnen fehlt das Recht für die Daten dahinter. Ihre Leitung kann es freischalten.",
           tone: "blue",
         },
         screenshot:
-          "Startseite mit Begrüßung, ausgewählten Status-Kacheln und dem Knopf `Startseite anpassen` oben rechts.",
+          "Startseite mit Begrüßung, der Zeile mit Uhrzeit und laufendem Einsatz, den Bausteinen der eigenen Rolle und dem Knopf `Anpassen` oben rechts.",
         image: "/help/screens/startseite.webp",
       },
       {
@@ -641,25 +642,29 @@ export const appChapters: readonly GuideChapter[] = [
         searchTerms: [
           "Kacheln ausblenden",
           "Startseite anpassen",
+          "Bausteine",
           "Zurücksetzen",
         ],
         icon: SlidersHorizontal,
         summary:
-          "Jede Person entscheidet selbst, was ihre Startseite zeigt. Die Auswahl gilt auf allen Geräten.",
+          "Jede Person stellt sich ihre Startseite selbst zusammen: welche Bausteine, an welcher Stelle, wie breit. Die Anordnung gilt auf allen Geräten.",
         steps: [
-          "Auf `Home` oben rechts `Startseite anpassen` öffnen.",
-          "Unter `Kennzahlen` und `Bereiche` die Haken setzen oder entfernen. Was Sie abwählen, verschwindet von Ihrer Startseite.",
-          "`Speichern` klicken. Die Auswahl gilt sofort, auch am Handy und auf dem Tablet.",
-          "`Zurücksetzen` stellt die empfohlene Ansicht wieder her. Der Knopf ist nur aktiv, wenn Sie etwas geändert haben.",
-          "Haben Sie alles ausgeblendet, steht auf der Startseite `Ihre Startseite ist leer` mit dem Knopf `Kacheln einblenden`.",
+          "Auf der `Startseite` oben rechts `Anpassen` klicken. Statt der Inhalte zeigt die Fläche jetzt die Anordnung: jede Karte als Kachel mit Name und Breite.",
+          "Eine Kachel an ihren neuen Platz ziehen. Sie bleibt dort, wo Sie sie loslassen; was darunter lag, rückt nach unten, und alles andere rutscht nach oben und nach links in freie Zellen, wie auf einem Startbildschirm. Verschieben geht am großen Bildschirm; am Tablet und am Handy ändern Sie Breite und Auswahl.",
+          "Eine Kachel anklicken, um sie auszuwählen. Über der Fläche erscheint eine Leiste mit Breite und `Entfernen`; sie bleibt beim Scrollen stehen.",
+          "In der Leiste die `Breite` wählen: `Schmal`, `Breit` oder `Volle Breite`. Kennzahlen haben nur eine Breite, dann fehlt die Auswahl.",
+          "Ohne Maus: die Kachel mit der Tabulatortaste ansteuern. Pfeil links und rechts tauschen sie mit dem Nachbarn, Pfeil oben setzt sie auf die Kachel darüber, Pfeil unten unter die Kachel darunter. `Entfernen` nimmt den Baustein von Ihrer Startseite.",
+          "Über `Bausteine` in der Leiste holen Sie einen Baustein zurück oder einen neuen dazu; er erscheint am Ende.",
+          "`Fertig` speichert die Anordnung. `Abbrechen` verwirft die Änderungen, `Standardansicht wiederherstellen` in der Leiste bringt die Ansicht Ihrer Rolle zurück.",
+          "Zur Auswahl steht nur, was Sie auch sehen dürfen. Fehlt ein Baustein ganz, fehlt Ihnen das Recht für die Daten dahinter. Die Zeile mit Uhrzeit und laufendem Einsatz bleibt immer stehen; sie ist kein Baustein.",
         ],
         callout: {
           title: "Manches gibt die Schule vor",
-          body: "Unter `Einstellungen` -> `Startseite für alle` legt die Leitung fest, was für alle gilt: `Frei wählbar`, `Immer anzeigen` oder `Aus`. Was dort fest eingestellt ist, steht im Dialog `Startseite anpassen` nicht zur Auswahl. Ein Hinweis im Dialog nennt, wie viele Kacheln das betrifft.",
+          body: "Unter `Einstellungen` -> `Startseite für alle` legt die Leitung fest, was für alle gilt: `Frei wählbar`, `Immer anzeigen` oder `Aus`. Ein Baustein auf `Immer anzeigen` steht auf jeder Startseite und lässt sich nicht entfernen; einer auf `Aus` erscheint bei niemandem und steht auch nicht zum Hinzufügen bereit.",
           tone: "blue",
         },
         screenshot:
-          "Dialog Startseite anpassen mit den Gruppen Kennzahlen und Bereiche und je Eintrag einem Haken.",
+          "Startseite im Anpassen-Modus: oben die Leiste mit Breite, Verschieben, Entfernen und `Bausteine`, darunter die Bausteine als Kacheln mit einer ausgewählten.",
         image: "/help/screens/startseite-anpassen.webp",
       },
       {
@@ -922,7 +927,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Der Einstieg in den Betreuungstag: alle Betreuungsblöcke von heute in zeitlicher Reihenfolge – vergangene, laufende und kommende. Von hier aus öffnen Sie mit einem Tipp die Kinderliste des laufenden Blocks.",
         steps: [
-          "Nach dem Anmelden landen Betreuungskräfte direkt auf dem Tagesplan. Er ist Ihre Startseite: `Tagesplan` steht ganz oben in der Seitenleiste, am Handy ist es der erste Reiter unten. Auch ein Tipp auf das Schul-Logo führt hierher.",
+          "Nach dem Anmelden landen Sie auf der `Startseite`. Von dort führt `Zum Tagesplan` hierher. In der Seitenleiste steht `Tagesplan` ganz oben im `Tagesbetrieb`, am Handy ist es der zweite Reiter unten, gleich neben `Start`.",
           "Jeder Block zeigt Zeit, Namen, Raum, Zielgruppe und das eingeteilte Personal. Die Farbe am Rand ist die Farbe aus der Planung.",
           "Die grüne Linie `Jetzt` markiert die aktuelle Uhrzeit. Laufende Blöcke tragen das Etikett `Läuft`.",
           "Einen laufenden Block antippen: Sie landen in seiner Kinderliste in `Aktuelle Aufsicht` und können dort Kinder an-, ab- und ummelden.",
@@ -949,8 +954,6 @@ export const appChapters: readonly GuideChapter[] = [
         steps: [
           "`Aktuelle Aufsicht` öffnen und Raum oder Aktivität wählen. Welche Räume hier stehen, entscheidet Ihre Schule: entweder nur die Räume, die Sie selbst übernommen haben, oder alle Räume der Schule.",
           "Eigene laufende Aufsichten erkennen Sie am Hinweis `Eigene Aufsicht`.",
-          "Dort können Sie `Betreuer hinzufügen` wählen. Schon eingetragene Personen stehen nicht noch einmal zur Auswahl.",
-          "Person auswählen und mit `Hinzufügen` bestätigen. Die Person betreut diese Aufsicht ab sofort mit.",
           "Bereich `Erwartet` prüfen.",
           "Kinder mit späterer Ankunft stehen unter `Kommt später`. Dort steht die Uhrzeit, zum Beispiel `Kommt um 13:45 Uhr`.",
           "`Erwartete bestätigen` checkt alle Kinder unter `Erwartet` ein. Kinder unter `Kommt später` sind nicht dabei.",
@@ -958,7 +961,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Bei anwesendem Kind auf `Einchecken` klicken.",
           "Bei bekannter Abwesenheit `Entschuldigt` wählen.",
           "Falsche Markierung mit `Zurück auf erwartet` korrigieren.",
-          "Ungeplantes Kind über `Weiteres Kind suchen...` finden.",
+          "Ungeplantes Kind über `Kind hinzufügen` in der Kopfzeile der Liste nachtragen. Im Fenster das Kind über `Weiteres Kind suchen...` finden.",
           "Bei mehreren Treffern ein Kind antippen. Danach `Hinzufügen` wählen. Bei einem Treffer direkt `Hinzufügen` wählen.",
           "Im Bereich `Kinder unterwegs` Kinder ohne Raum auswählen, einen Zielraum wählen und mit `In Raum setzen` zuweisen.",
           "Offene Räume stehen in der Seitenleiste unter `Aktuelle Aufsicht`, hinter Ihren eigenen Aufsichten. Ein offener Raum ist immer erreichbar, auch wenn dort gerade niemand ist.",
@@ -978,7 +981,7 @@ export const appChapters: readonly GuideChapter[] = [
           body: "Wird einer Aktivität eine ganze Gruppe, Klasse oder Jahrgangsstufe zugewiesen, gehören alle Kinder dauerhaft dazu. Wer laut seinen `Betreuungszeiten` an diesem Wochentag gar nicht in der OGS ist, erscheint deshalb grau als `Nicht eingeplant` und zählt nicht zu `Erwartet`. Das Kind bleibt trotzdem in der Liste: Kommt es doch, checken Sie es ganz normal ein. Kinder ohne hinterlegte Betreuungszeiten gelten weiterhin als erwartet.",
         },
         screenshot:
-          "Dialog Betreuer hinzufügen mit der schon eingetragenen Aufsicht und einer ausgewählten weiteren Person.",
+          "Dialog `Kind ungeplant hinzufügen` mit Suchfeld und mehreren Kindern zur Auswahl.",
         image: "/help/screens/aktuelle-aufsicht.webp",
       },
       {
@@ -1131,8 +1134,8 @@ export const appChapters: readonly GuideChapter[] = [
           "Im `Betreuungsplan` einen Regeltermin anlegen.",
           "Beim Pflichtfeld `Kategorie` die Auswahl öffnen und ganz unten `+ Neue Kategorie anlegen` wählen.",
           "Name eintragen, optional Farbe und Beschreibung, dann `Anlegen und auswählen`. Die neue Kategorie ist sofort im Termin gesetzt.",
-          "Bestehende Kategorien ändern: neben `Kategorie` auf `Verwalten` klicken, dann das Stiftsymbol der gewünschten Zeile.",
-          "Nicht mehr benötigte Kategorien im selben Dialog über `Archivieren` aus der Auswahl nehmen; unter `Archiviert` holt `Wiederherstellen` sie zurück.",
+          "Bestehende Kategorien ändern: neben `Kategorie` auf `Verwalten` klicken, dann in der gewünschten Zeile das Menü mit den drei Punkten öffnen und `Bearbeiten` wählen.",
+          "Nicht mehr benötigte Kategorien im selben Menü über `Archivieren` aus der Auswahl nehmen; unter `Archiviert` holt das Menü der Zeile sie mit `Wiederherstellen` zurück.",
         ],
         callout: {
           title: "Archivieren löscht nichts",
@@ -1230,9 +1233,9 @@ export const appChapters: readonly GuideChapter[] = [
           "Den Zeitraum festlegen: `Gilt ab` ist Pflicht, `Gilt bis` bleibt leer, wenn der Hinweis unbefristet gilt.",
           "Für einen wiederkehrenden Hinweis die `Wochentage` anhaken, zum Beispiel nur `Di` für „Jeden Dienstag ist die Turnhalle bis 15 Uhr belegt“. Ohne Auswahl gilt der Hinweis an jedem Tag des Zeitraums.",
           "Arbeitet die Einrichtung mit einem Wochenrhythmus, unter `Woche` zwischen `Jede Woche`, `Nur Woche A` und `Nur Woche B` wählen. Die Wochen sind dieselben wie im Stundenplan und im Dienstplan.",
-          "`Kenntnisnahme verlangen` anhaken, wenn das Team den Hinweis bestätigen soll. In der Liste steht dann, wie viele Personen bestätigt haben; `Wer hat bestätigt?` öffnet die Liste mit Namen und Zeitpunkt.",
+          "`Kenntnisnahme verlangen` anhaken, wenn das Team den Hinweis bestätigen soll. In der Liste steht dann, wie viele Personen bestätigt haben; im Menü der Zeile (drei Punkte) öffnet `Wer hat bestätigt?` die Liste mit Namen und Zeitpunkt.",
           "Über `Speichern` sichern. Der Hinweis erscheint ab sofort an den passenden Tagen unter `Team` -> `Tagesinformationen`; steht eine Kenntnisnahme aus, zeigt die Seitenleiste dort eine Zahl.",
-          "Einen Hinweis, der vorübergehend nicht gelten soll, über das Stift-Symbol öffnen und den Haken bei `Aktiv` entfernen — so bleibt der Text erhalten und muss nicht neu getippt werden.",
+          "Einen Hinweis, der vorübergehend nicht gelten soll, im Menü der Zeile über `Bearbeiten` öffnen und den Haken bei `Aktiv` entfernen — so bleibt der Text erhalten und muss nicht neu getippt werden. `Löschen` steht im selben Menü.",
         ],
         callout: {
           title: "Ein Hinweis, nicht ein Eintrag pro Tag",
@@ -1240,7 +1243,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Verwaltung der Tagesinformationen mit der Liste bestehender Hinweise (Titel, Zielgruppe, Wiederholung, Zeitraum, Zahl der Kenntnisnahmen mit Schaltfläche zur Namensliste) und dem Formular zum Anlegen mit Zielgruppe und Wochentagsauswahl.",
+          "Verwaltung der Tagesinformationen mit der Liste bestehender Hinweise (Titel, Zielgruppe, Wiederholung, Zeitraum, Zahl der Kenntnisnahmen; Bearbeiten, Namensliste und Löschen im Menü der Zeile) und dem Formular zum Anlegen mit Zielgruppe und Wochentagsauswahl.",
         gallery: [
           {
             image: "/help/screens/tagesinformationen-anlegen.webp",

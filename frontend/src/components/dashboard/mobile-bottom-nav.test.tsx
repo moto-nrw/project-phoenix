@@ -91,7 +91,7 @@ vi.mock("~/lib/shell-auth-context", () => ({
     isSessionExpired: false,
     logout: vi.fn(),
     mode: "teacher",
-    homeUrl: "/dashboard",
+    homeUrl: "/home",
 
     profileUrl: "/profile",
   })),
@@ -200,12 +200,12 @@ describe("MobileBottomNav", () => {
       isSessionExpired: false,
       logout: vi.fn(),
       mode: "teacher",
-      homeUrl: "/dashboard",
+      homeUrl: "/home",
 
       profileUrl: "/profile",
       canStartStaffPreview: false,
     });
-    mockUsePathname.mockReturnValue("/dashboard");
+    mockUsePathname.mockReturnValue("/home");
     mockUseSearchParams.mockReturnValue(createMockSearchParams());
     mockUseSession.mockReturnValue(createMockSession(false));
     mockUseSupervision.mockReturnValue({
@@ -273,7 +273,7 @@ describe("MobileBottomNav", () => {
       const hrefs = screen
         .getAllByRole("link")
         .map((link) => link.getAttribute("href"));
-      expect(hrefs).toContain("/dashboard");
+      expect(hrefs).toContain("/home");
       expect(hrefs).toContain("/students/search");
 
       fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
@@ -336,7 +336,7 @@ describe("MobileBottomNav", () => {
         isSessionExpired: true,
         logout: vi.fn(),
         mode: "teacher",
-        homeUrl: "/dashboard",
+        homeUrl: "/home",
         profileUrl: "/profile",
         canStartStaffPreview: true,
       });
@@ -405,7 +405,7 @@ describe("MobileBottomNav", () => {
 
   describe("active route detection", () => {
     it("highlights dashboard link when on dashboard", () => {
-      mockUsePathname.mockReturnValue("/dashboard");
+      mockUsePathname.mockReturnValue("/home");
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
 
@@ -414,9 +414,9 @@ describe("MobileBottomNav", () => {
       // The active link should have the bg-gray-100 class and show label
       const dashboardLink = screen
         .getAllByRole("link")
-        .find((link) => link.getAttribute("href") === "/dashboard");
+        .find((link) => link.getAttribute("href") === "/home");
       expect(dashboardLink).toHaveClass("bg-gray-100");
-      expect(screen.getByText("Home")).toBeInTheDocument();
+      expect(screen.getByText("Start")).toBeInTheDocument();
     });
 
     it("highlights dashboard for root path", () => {
@@ -426,8 +426,8 @@ describe("MobileBottomNav", () => {
 
       render(<MobileBottomNav />);
 
-      // Should show "Home" label since dashboard is active
-      expect(screen.getByText("Home")).toBeInTheDocument();
+      // Should show the "Start" label since the start page is active
+      expect(screen.getByText("Start")).toBeInTheDocument();
     });
 
     it("detects active route from search params 'from' parameter", () => {
@@ -471,24 +471,31 @@ describe("MobileBottomNav", () => {
       render(<MobileBottomNav />);
 
       // Home must NOT be active (its label only renders when active)…
-      expect(screen.queryByText("Home")).not.toBeInTheDocument();
+      expect(screen.queryByText("Start")).not.toBeInTheDocument();
       // …and the Eltern group ("Mehr") is active via its /messages activePath.
       expect(screen.getByRole("button", { name: "Mehr" })).toHaveClass(
         "bg-gray-100",
       );
     });
 
-    it("highlights the canonical activities route", () => {
+    // Seit #2180 steht die Startseite als erster Reiter; die Aktivitäten
+    // wohnen für Betreuungskräfte im Mehr-Menü.
+    it("lists the activities route in the overflow menu", () => {
       mockUsePathname.mockReturnValue("/activities");
 
       render(<MobileBottomNav />);
 
-      // Activities should be highlighted
-      const links = screen.getAllByRole("link");
-      const activitiesLink = links.find(
-        (link) => link.getAttribute("href") === "/activities",
+      const hrefs = screen
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href"));
+      expect(hrefs).toContain("/home");
+      expect(hrefs).not.toContain("/activities");
+
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+      expect(screen.getByRole("link", { name: "Aktivitäten" })).toHaveAttribute(
+        "href",
+        "/test-tenant/activities",
       );
-      expect(activitiesLink).toBeDefined();
     });
   });
 
@@ -502,7 +509,7 @@ describe("MobileBottomNav", () => {
       render(<MobileBottomNav />);
 
       // Admin main items include Home, Suchen, Aktivitäten, Räume
-      expect(screen.getByText("Home")).toBeInTheDocument();
+      expect(screen.getByText("Start")).toBeInTheDocument();
     });
 
     it("shows admin-only items in overflow menu", () => {
@@ -1438,7 +1445,7 @@ describe("MobileBottomNav", () => {
     });
 
     it.each([
-      ["/dashboard", true],
+      ["/home", true],
       ["/ogs-groups", false],
       ["/settings", true],
     ])(

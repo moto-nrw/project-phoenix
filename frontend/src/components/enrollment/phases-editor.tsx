@@ -8,6 +8,7 @@ import {
 } from "~/components/ui/page-header/OverflowMenu";
 import {
   Check,
+  Copy,
   ExternalLink,
   Link2,
   Pencil,
@@ -53,13 +54,14 @@ import { isSupportedGradeLevelMax } from "~/lib/grade-level";
 import { useToast } from "~/contexts/ToastContext";
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
 import { useTenantAwarePath } from "~/lib/tenant-path";
-import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
+import { useClipboardCopy } from "~/lib/use-clipboard-copy";
 import { EnrollmentStatTile } from "~/components/enrollment/enrollment-stat-tile";
 import { Button } from "~/components/ui/button";
 import { ToggleChip } from "~/components/ui/toggle-chip";
 import { Input } from "~/components/ui/input";
 import {
   SlideOver,
+  SlideOverBody,
   SlideOverContent,
   SlideOverHeader,
   SlideOverTitle,
@@ -67,6 +69,7 @@ import {
 import { TenantPage } from "~/components/ui/tenant-page";
 import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
 import { Alert } from "~/components/ui/alert";
+import { useFormError } from "~/components/ui/form-error";
 import { formatChatDateTime, formatDate } from "~/lib/date-helpers";
 import {
   DataTable,
@@ -233,7 +236,7 @@ export function PhasesEditor() {
   const [schemas, setSchemas] = useState<FormSchema[]>([]);
   const [periods, setPeriods] = useState<CalendarPeriod[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useFormError();
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<PhaseInput | null>(null);
@@ -317,7 +320,7 @@ export function PhasesEditor() {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [setError, toast]);
 
   useEffect(() => {
     void loadAll();
@@ -349,7 +352,7 @@ export function PhasesEditor() {
     setSchemaSource(assignSchema ? "reuse" : "base");
     setHighlightFormSection(Boolean(assignSchema));
     setError(null);
-  }, [assignSchema]);
+  }, [assignSchema, setError]);
 
   const startEdit = useCallback(
     (phase: Phase, forceFormHighlight = false) => {
@@ -362,7 +365,7 @@ export function PhasesEditor() {
       setHighlightFormSection(Boolean(assignSchema) || forceFormHighlight);
       setError(null);
     },
-    [assignSchema],
+    [assignSchema, setError],
   );
 
   const cancelEdit = () => {
@@ -470,7 +473,6 @@ export function PhasesEditor() {
       const message = err instanceof Error ? err.message : "Unbekannter Fehler";
       logger.error("phase_save_failed", { error: message });
       setError(message);
-      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -547,12 +549,15 @@ export function PhasesEditor() {
     toast,
   ]);
 
-  const startRollover = useCallback((phase: Phase) => {
-    setRolloverSource(phase);
-    setEditingId(null);
-    setDraft(null);
-    setError(null);
-  }, []);
+  const startRollover = useCallback(
+    (phase: Phase) => {
+      setRolloverSource(phase);
+      setEditingId(null);
+      setDraft(null);
+      setError(null);
+    },
+    [setError],
+  );
 
   const startRolloverByID = useCallback(
     (sourcePhaseID: string) => {
@@ -565,7 +570,7 @@ export function PhasesEditor() {
       }
       startRollover(source);
     },
-    [phases, startRollover],
+    [phases, setError, startRollover],
   );
 
   useEffect(() => {
@@ -640,7 +645,7 @@ export function PhasesEditor() {
         setSaving(false);
       }
     },
-    [loadAll, refreshPhaseExpiryWarnings, toast],
+    [loadAll, refreshPhaseExpiryWarnings, setError, toast],
   );
 
   const activePhaseCount = phases.filter((phase) => phase.is_active).length;
@@ -853,7 +858,7 @@ export function PhasesEditor() {
                       : "Anmeldephase bearbeiten"}
                 </SlideOverTitle>
               </SlideOverHeader>
-              <div className="flex-1 overflow-y-auto px-5 py-4">
+              <SlideOverBody error={rolloverSource ? null : error}>
                 {rolloverSource ? (
                   <RolloverForm
                     source={rolloverSource}
@@ -876,7 +881,7 @@ export function PhasesEditor() {
                     onCancel={cancelEdit}
                   />
                 ) : null}
-              </div>
+              </SlideOverBody>
             </SlideOverContent>
           </SlideOver>
 
@@ -954,9 +959,13 @@ export function PhasesEditor() {
       {/* Flex-Spalte statt Block: so wächst die Tabelle als letzte Fläche
           bis zur Unterkante des Bildschirms (`.moto-tenant-body`). */}
       <div className="hidden space-y-4 lg:flex lg:flex-col">
-        {/* Speicher- und Aktivierungsfehler stehen über der Liste; sie dürfen
-            das gerade bearbeitete Formular nicht ersetzen. */}
-        {error ? <Alert type="error" message={error} /> : null}
+        {/* Fehler einer Listenaktion (Aktivieren, Laden) stehen über der
+            Liste. Ist das Bearbeiten-Panel offen, trägt dessen Rumpf den
+            Speicherfehler (Bauart 2 Regel 5); hier stünde er sonst hinter dem
+            Panel und doppelt. */}
+        {error && !(editingId && draft) ? (
+          <Alert type="error" message={error.message} />
+        ) : null}
         <div className="grid gap-2 sm:grid-cols-3">
           <EnrollmentStatTile
             leading={
@@ -1083,6 +1092,17 @@ function PhaseActions({
 }: PhaseActionsProps) {
   const [lateInviteOpen, setLateInviteOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
+  const toast = useToast();
+  const { copy } = useClipboardCopy(`PhaseActions:${phase.id}`);
+  const copyPhaseUrl = async (url: string) => {
+    if (await copy(url)) {
+      toast.success("Elternlink kopiert.");
+    } else {
+      toast.error(
+        "Der Link konnte nicht kopiert werden. Bitte versuchen Sie es noch einmal.",
+      );
+    }
+  };
   const hasReviewList = tenantSlug && phase.rollover_source_phase_id;
   // Audience-restricted phases are never publicly reachable: the anonymous form
   // gate refuses BOTH linked_parents and existing_students, so the plain
@@ -1117,6 +1137,18 @@ function PhaseActions({
             external: true,
             onClick: () => undefined,
           },
+          // Menüeintrag statt Icon neben dem Kebab (BAUARTEN-SPEC Bauart 1
+          // Regel 4, #3111). Das Menü schließt beim Klick, deshalb meldet
+          // ein Toast den Erfolg statt eines Häkchens am Knopf.
+          ...(phaseUrl
+            ? [
+                {
+                  label: "Elternlink kopieren",
+                  icon: <Copy className="h-4 w-4" aria-hidden />,
+                  onClick: () => void copyPhaseUrl(phaseUrl),
+                },
+              ]
+            : []),
         ]),
     {
       label: "Nachzügler-Link erstellen",
@@ -1182,13 +1214,7 @@ function PhaseActions({
 
   return (
     <>
-      <div className="flex justify-end gap-1.5">
-        {phaseUrl && !hasNoPublicForm ? (
-          <PublicLinkCopyButton
-            url={phaseUrl}
-            componentId={`PhaseActions:${phase.id}`}
-          />
-        ) : null}
+      <div className="flex justify-end">
         <OverflowMenu
           ariaLabel={`Aktionen für ${phase.name}`}
           items={menuEntries}

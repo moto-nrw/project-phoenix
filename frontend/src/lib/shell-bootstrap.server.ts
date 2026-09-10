@@ -89,31 +89,55 @@ async function loadSupervision(
   const mayHaveOverview =
     adminScope || tenant.operationalOverviewScope === "all_staff";
 
-  let overviewOk = false;
   const loadSupervised = async (
     signal: AbortSignal,
-  ): Promise<SupervisedGroupPayload[]> => {
+  ): Promise<{
+    supervised: SupervisedGroupPayload[];
+    ownSupervised: SupervisedGroupPayload[] | null;
+    overviewOk: boolean;
+  }> => {
+    const loadOwn = () =>
+      apiGet<Envelope<SupervisedGroupPayload[] | null>>(
+        "/api/me/groups/supervised",
+        token,
+        { signal },
+      );
     if (canReadGroups && mayHaveOverview) {
-      try {
-        const overview = await apiGet<
-          Envelope<SupervisedGroupPayload[] | null>
-        >("/api/active/supervisors/all", token, { signal });
-        overviewOk = true;
-        return overview.data ?? [];
-      } catch (error) {
-        if (signal.aborted) throw error;
-        // 403 = this school keeps the caller on their own supervisions.
+      const [overview, own] = await Promise.allSettled([
+        apiGet<Envelope<SupervisedGroupPayload[] | null>>(
+          "/api/active/supervisors/all",
+          token,
+          { signal },
+        ),
+        loadOwn(),
+      ]);
+      if (overview.status === "fulfilled") {
+        return {
+          supervised: overview.value.data ?? [],
+          ownSupervised:
+            own.status === "fulfilled" ? (own.value.data ?? []) : null,
+          overviewOk: true,
+        };
       }
+      if (own.status === "fulfilled") {
+        return {
+          supervised: own.value.data ?? [],
+          ownSupervised: null,
+          overviewOk: false,
+        };
+      }
+      if (overview.status === "rejected") throw overview.reason;
+      throw own.reason;
     }
-    const own = await apiGet<Envelope<SupervisedGroupPayload[] | null>>(
-      "/api/me/groups/supervised",
-      token,
-      { signal },
-    );
-    return own.data ?? [];
+    const own = await loadOwn();
+    return {
+      supervised: own.data ?? [],
+      ownSupervised: null,
+      overviewOk: false,
+    };
   };
 
-  const [groups, supervised, openRooms] = await Promise.all([
+  const [groups, supervision, openRooms] = await Promise.all([
     optional("groups", async (signal) => {
       const response = await apiGet<Envelope<NavigationEducationalGroup[]>>(
         "/api/students/ogs-group-navigation",
@@ -140,7 +164,7 @@ async function loadSupervision(
   // not seed partial data: its ordinary browser request is the recovery path.
   if (
     groups === undefined ||
-    supervised === undefined ||
+    supervision === undefined ||
     openRooms === undefined
   ) {
     return null;
@@ -148,9 +172,10 @@ async function loadSupervision(
 
   return {
     groups,
-    supervised,
+    supervised: supervision.supervised,
+    ownSupervised: supervision.ownSupervised,
     openRooms: openRooms ?? null,
-    overviewOk,
+    overviewOk: supervision.overviewOk,
   };
 }
 

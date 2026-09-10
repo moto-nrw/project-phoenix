@@ -10,7 +10,13 @@
  * describes render cheaply and are packed together. All files share the identical mock header
  * below. When adding a heavy full-dashboard render test, keep it to its own small file.
  */
-import { render, screen, waitFor, cleanup } from "@testing-library/react";
+import {
+  render,
+  screen,
+  waitFor,
+  cleanup,
+  fireEvent,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const navigationMockState = vi.hoisted(() => ({
@@ -93,6 +99,7 @@ vi.mock("~/components/ui/alert", () => ({
 
 // Mock Modal and ConfirmationModal
 vi.mock("~/components/ui/modal", () => ({
+  dialogAriaProps: { role: "dialog" as const, "aria-modal": true },
   Modal: ({
     isOpen,
     children,
@@ -595,6 +602,12 @@ describe("MeinRaumPage (Active Supervisions) (4/5)", () => {
       expect(
         screen.getAllByRole("button", { name: "Raum verlassen" }),
       ).toHaveLength(2);
+      // Das Nachtragen ist eine Kopf-Aktion mit Dialog (#3112): die Suche
+      // erscheint erst nach „Kind hinzufügen“.
+      expect(
+        screen.queryByRole("searchbox", { name: "Kind ungeplant suchen" }),
+      ).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Kind hinzufügen" }));
       expect(
         screen.getByRole("searchbox", { name: "Kind ungeplant suchen" }),
       ).toHaveAttribute("name", "unplanned-student-search");
@@ -702,7 +715,7 @@ describe("MeinRaumPage (Active Supervisions) (4/5)", () => {
       screen.queryByRole("button", { name: "Beenden" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("searchbox", { name: "Kind ungeplant suchen" }),
+      screen.queryByRole("button", { name: "Kind hinzufügen" }),
     ).not.toBeInTheDocument();
   });
 });

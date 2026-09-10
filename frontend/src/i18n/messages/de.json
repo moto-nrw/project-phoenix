@@ -1281,6 +1281,13 @@
     "saved": "Gespeichert",
     "saveError": "Die Änderung konnte nicht gespeichert werden.",
     "editableHint": "Änderungen werden automatisch gespeichert.",
+    "unsaved": {
+      "title": "Nicht gespeicherte Änderungen",
+      "body": "Eine Änderung konnte nicht gespeichert werden. Wenn Sie die Seite verlassen, geht sie verloren.",
+      "leave": "Trotzdem verlassen",
+      "stay": "Hierbleiben",
+      "retry": "Erneut versuchen"
+    },
     "healthDirectHint": "Änderungen werden direkt gespeichert. Das OGS-Team sieht die Hinweise sofort.",
     "healthPlaceholder": "Zum Beispiel Allergien, Unverträglichkeiten oder wichtige Medikamente.",
     "dataDescription": "Persönliche Angaben, Klasse und wichtige Gesundheitshinweise.",
