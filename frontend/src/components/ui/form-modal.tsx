@@ -7,6 +7,7 @@ import { FocusScope } from "@radix-ui/react-focus-scope";
 import { useModal } from "../dashboard/modal-context";
 import { useScrollLock } from "~/components/ui/hooks/useScrollLock";
 import { dialogAriaProps } from "./modal";
+import { FormErrorAlert } from "./form-error-alert";
 import { useLatest } from "~/lib/hooks/use-latest";
 import {
   OVERLAY_BACKDROP_CLASS,
@@ -32,6 +33,13 @@ interface FormModalProps {
    * without unmounting the child and losing its pending state.
    */
   readonly suspended?: boolean;
+  /**
+   * The form's validation or save error. Rendered as an `Alert` at the top
+   * of the content area and scrolled into view when it changes, so every
+   * form reports failure in the same place (BAUARTEN-SPEC, Bauart 2 Regel 5).
+   * Field-level problems additionally go to the field (`Input` `error`).
+   */
+  readonly error?: string | null;
 }
 
 export function FormModal({
@@ -44,6 +52,7 @@ export function FormModal({
   mobilePosition = "bottom",
   closeDisabled = false,
   suspended = false,
+  error,
 }: FormModalProps) {
   const [isAnimating, setIsAnimating] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
@@ -282,6 +291,7 @@ export function FormModal({
                   : "opacity-0"
               }`}
             >
+              <FormErrorAlert message={error} className="mb-4" />
               {children}
             </div>
           </div>
