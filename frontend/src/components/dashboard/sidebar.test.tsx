@@ -406,6 +406,23 @@ describe("Sidebar", () => {
       expect(screen.queryByText("Kinderdaten")).not.toBeInTheDocument();
     });
 
+    it.each(["staff:manage", "staff:stammdaten"])(
+      "shows personnel data for the delegated %s permission",
+      (permission) => {
+        mockIsAdmin.mockReturnValue(false);
+        mockUseSession.mockReturnValue(createMockSession(false));
+        mockHasEffectiveAdminScope.mockReturnValue(false);
+        mockHasPermission.mockImplementation(
+          (_session, requiredPermission) => requiredPermission === permission,
+        );
+
+        render(<Sidebar />);
+
+        expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
+        expect(screen.getByText("Personal")).toBeInTheDocument();
+      },
+    );
+
     it("shows all children with the children concept icon for admins", () => {
       mockUsePathname.mockReturnValue("/students/search");
       render(<Sidebar />);

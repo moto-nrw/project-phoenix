@@ -385,6 +385,12 @@ const DATABASE_CATALOG_PERMISSIONS: Readonly<Record<string, string>> = {
   "/database/absence-types": "time_tracking:manage",
 };
 
+/** Rechte, die den Personalbereich auch ohne Leitungsrolle öffnen. */
+const PERSONNEL_PAGE_PERMISSIONS = [
+  "staff:manage",
+  "staff:stammdaten",
+] as const;
+
 /** Kataloge, die ohne den Planungsbereich nichts zu ordnen haben. */
 const PLANNING_CATALOG_HREFS = new Set<string>([
   "/database/planning-tracks",
@@ -695,6 +701,14 @@ function SidebarContent({
             hasPermission(session, "grade_transitions:read")
           );
         }
+        if (page.href === "/database/personal") {
+          return (
+            userHasEffectiveAdminScope ||
+            PERSONNEL_PAGE_PERMISSIONS.some((permission) =>
+              hasPermission(session, permission),
+            )
+          );
+        }
         // Die Stammdaten-Kataloge (#3114) tragen dasselbe Recht wie ihre
         // Schreibzugriffe; ohne es führt der Eintrag nur auf ein 403.
         const catalogPermission = DATABASE_CATALOG_PERMISSIONS[page.href];
@@ -711,8 +725,6 @@ function SidebarContent({
           return true;
         }
         // Alle übrigen Datenverwaltungsseiten bleiben der Leitungsbereich.
-        // Delegierte Katalogrechte zeigen ausschließlich den Katalog, den sie
-        // tatsächlich öffnen dürfen.
         return userHasEffectiveAdminScope;
       }),
     [nfcEnabled, userHasEffectiveAdminScope, session, timetableEnabled],
