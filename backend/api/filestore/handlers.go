@@ -10,9 +10,9 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	apiDocuments "github.com/moto-nrw/project-phoenix/api/common/documents"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/filestore"
+	apiDocuments "github.com/moto-nrw/project-phoenix/modules/filestorage/documents"
 	filestoreSvc "github.com/moto-nrw/project-phoenix/services/filestore"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )

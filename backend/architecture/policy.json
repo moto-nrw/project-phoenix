@@ -163,10 +163,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-common-documents",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-config",
       "kind": "inbound"
     },
@@ -624,7 +620,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/birthdays",
+      "path": "modules/birthdays/http",
       "owner": "inbound-birthdays",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -652,11 +648,11 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/common/documents",
-      "owner": "inbound-common-documents",
-      "role": "http",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
+      "path": "modules/filestorage/documents",
+      "owner": "file-storage",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
     },
     {
       "path": "api/config",
@@ -2185,10 +2181,17 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/planexport",
+      "path": "modules/planexport",
       "owner": "document-rendering",
-      "role": "application",
-      "internal_test_role": "module-internal-test",
+      "role": "public",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/planexport/legacy",
+      "owner": "document-rendering",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
       "external_test_role": "module-behavior-test"
     },
     {
@@ -6946,17 +6949,6 @@
       "source_owner": "inbound-classlistentries",
       "source_role": "http",
       "target_owner": "school-membership",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-common-documents.to.delivery-platform",
-      "description": "inbound-common-documents calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-common-documents",
-      "source_role": "http",
-      "target_owner": "delivery-platform",
       "target_role": "public"
     },
     {
@@ -18107,6 +18099,431 @@
       "source_owner": "inbound-iot",
       "source_role": "compose",
       "target_class": "test"
+    },
+    {
+      "id": "document-rendering.public.calendar-date",
+      "description": "The public plan export capability resolves request and record days with the repository calendar-date value type (#2706).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "public",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "document-rendering.adapter.public",
+      "description": "The plan export compatibility adapter implements the capability's consumer-owned ports and returns its public service (#2706).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter",
+      "target_owner": "document-rendering",
+      "target_role": "public"
+    },
+    {
+      "id": "document-rendering.adapter.timetable-application",
+      "description": "Compatibility binding (#2706): the plan export adapter reads the staff schedule overview, the materialized blocks, their staff, the rooms, the closing days and the holidays from the retained schedule services until Timetable & Activities exposes them publicly.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "document-rendering.adapter.timetable-domain",
+      "description": "Compatibility binding (#2706): the plan export adapter maps the retained shift-type, planning-track, instance and activity-group rows and their calendar-date column type.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "document-rendering.adapter.calendar-date",
+      "description": "The plan export adapter translates the port's day strings into the retained calendar-date signatures (#2706).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "document-rendering.decision-test.public",
+      "description": "Plan export rendering tests drive the public capability with in-memory port records (#2706).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "workflow-decision-test",
+      "target_owner": "document-rendering",
+      "target_role": "public"
+    },
+    {
+      "id": "document-rendering.decision-test.application",
+      "description": "Plan export rendering tests inspect the rendered Document Rendering document field by field (#2706).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "workflow-decision-test",
+      "target_owner": "document-rendering",
+      "target_role": "application"
+    },
+    {
+      "id": "document-rendering.decision-test.calendar-date",
+      "description": "Plan export rendering tests pin calendar weeks with the repository calendar-date value type (#2706).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "workflow-decision-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "document-rendering.adapter-test.adapter",
+      "description": "Plan export adapter tests construct the compatibility bindings under test (#2706).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter-test",
+      "target_owner": "document-rendering",
+      "target_role": "adapter"
+    },
+    {
+      "id": "document-rendering.adapter-test.timetable-application",
+      "description": "Plan export adapter tests build the retained staff schedule overview and holiday rows (#2706).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter-test",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "document-rendering.adapter-test.timetable-domain",
+      "description": "Plan export adapter tests build retained shift, instance, shift-type, planning-track, closing-day and activity-group rows (#2706).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter-test",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "document-rendering.adapter-test.people-directory-domain",
+      "description": "Plan export adapter tests build retained staff rows with and without a person record (#2706).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter-test",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "document-rendering.adapter-test.facilities-domain",
+      "description": "Plan export adapter tests build retained room rows (#2706).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter-test",
+      "target_owner": "facilities",
+      "target_role": "domain"
+    },
+    {
+      "id": "document-rendering.adapter-test.document-rendering-application",
+      "description": "Plan export adapter tests inspect the rendered Document Rendering document and render the runtime evidence through the real renderer (#2706).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter-test",
+      "target_owner": "document-rendering",
+      "target_role": "application"
+    },
+    {
+      "id": "document-rendering.adapter-test.timetable-postgres",
+      "description": "Plan export adapter tests construct the retained instance and instance-staff repositories for the two-tenant RLS proof and the runtime evidence (#2706).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter-test",
+      "target_owner": "timetable-activities",
+      "target_role": "postgres"
+    },
+    {
+      "id": "document-rendering.adapter-test.facilities-compose",
+      "description": "Plan export adapter tests construct the Facilities facade for the real room names (#2706).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter-test",
+      "target_owner": "facilities",
+      "target_role": "compose"
+    },
+    {
+      "id": "document-rendering.adapter-test.orm-sql",
+      "description": "Plan export adapter tests seed shift-type and planning-track rows and open tenant transactions through the Bun database (#2706).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "document-rendering.adapter-test.calendar-date",
+      "description": "Plan export adapter tests pin calendar days with the repository calendar-date value type (#2706).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-timetable.to.document-rendering",
+      "description": "The timetable Betreuungsplan export calls the public plan export capability (#2706).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "http",
+      "target_owner": "document-rendering",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.http.document-rendering-public",
+      "description": "The Workforce shift-planning composition renders the printable Dienstplan through the public plan export capability (#2706).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "http",
+      "target_owner": "document-rendering",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.compose.to.document-rendering.public",
+      "description": "The legacy root names the public plan export capability it composes (#2706).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "document-rendering",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.compose.to.document-rendering.adapter",
+      "description": "The legacy root constructs the plan export compatibility adapter over the retained schedule services (#2706).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "document-rendering",
+      "target_role": "adapter"
+    },
+    {
+      "id": "file-storage.adapter.delivery-adapter",
+      "description": "Compatibility binding (#2706): the File Storage object-store adapter writes, streams and removes document bytes through the retained storage backend until Delivery exposes it publicly.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "file-storage",
+      "source_role": "adapter",
+      "target_owner": "delivery-platform",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-filestore.to.file-storage-adapter",
+      "description": "Compatibility binding (#2706): the file store handlers move document bytes through the File Storage object-store adapter until File Storage exposes the upload lifecycle publicly (#2707).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-filestore",
+      "source_role": "http",
+      "target_owner": "file-storage",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-students.to.file-storage-adapter",
+      "description": "Compatibility binding (#2706): the student document handlers move document bytes through the File Storage object-store adapter until File Storage exposes the upload lifecycle publicly (#2707).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "http",
+      "target_owner": "file-storage",
+      "target_role": "adapter"
+    },
+    {
+      "id": "root-composition.to.inbound-birthdays-http",
+      "description": "The production root constructs the birthdays HTTP adapter (#2706).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "inbound-birthdays",
+      "target_role": "http"
+    },
+    {
+      "id": "inbound-birthdays.http-common",
+      "description": "Birthday handlers reuse common HTTP rendering, the tenant middleware chain, the permission gates and the student access scope (#2706).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-birthdays",
+      "source_role": "http",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "inbound-birthdays.security-contract",
+      "description": "Birthday handlers name the users and time-tracking permissions (#2706).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-birthdays",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "inbound-birthdays.identity-adapter",
+      "description": "Birthday handlers read the acting account from the JWT claims for the personal opt-out (#2706).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-birthdays",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-birthdays.identity-application",
+      "description": "Compatibility binding (#2706): the birthday handlers resolve the caller's student data scope through the retained user context service.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-birthdays",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-birthdays.people-directory-application",
+      "description": "Compatibility binding (#2706): the birthday handlers call the retained birthday service until People Directory exposes the birthday display publicly.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-birthdays",
+      "source_role": "http",
+      "target_owner": "people-directory",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-birthdays.people-directory-domain",
+      "description": "Compatibility binding (#2706): the staff Geburtstagsliste export lays out the retained birthday entry rows.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-birthdays",
+      "source_role": "http",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-birthdays.document-rendering",
+      "description": "The staff Geburtstagsliste renders through the Document Rendering renderer (#2706).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-birthdays",
+      "source_role": "http",
+      "target_owner": "document-rendering",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-birthdays.orm-sql",
+      "description": "Birthday HTTP composition passes the concrete Bun database to the shared tenant middleware (#2706).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-birthdays",
+      "source_role": "http",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "inbound-birthdays.adapter-test.http-router",
+      "description": "Birthday handler tests exercise HTTP requests and responses (#2706).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-birthdays",
+      "source_role": "adapter-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "inbound-birthdays.adapter-test.orm-sql",
+      "description": "Birthday handler tests stamp birth dates on fixture rows through the Bun database (#2706).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-birthdays",
+      "source_role": "adapter-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "inbound-birthdays.adapter-test.identity-adapter",
+      "description": "Birthday handler tests construct tenant claims (#2706).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-birthdays",
+      "source_role": "adapter-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-birthdays.adapter-test.calendar-date",
+      "description": "Birthday handler tests pin birth dates with the repository calendar-date value type (#2706).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-birthdays",
+      "source_role": "adapter-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-birthdays.adapter-test.settings-domain",
+      "description": "Birthday handler tests name the two birthday setting keys (#2706).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-birthdays",
+      "source_role": "adapter-test",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
     }
   ]
 }

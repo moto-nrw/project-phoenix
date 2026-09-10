@@ -440,6 +440,34 @@ to the emergency HTTP adapter (`modules/emergencysnapshot/http`,
 and the Bun database the shared tenant middleware takes) and its
 `inbound-emergency.adapter-test.*` permission.
 
+The plan export capability (`modules/planexport`, `document-rendering`/`public`,
+#2706) renders the printable Dienstplan and Betreuungsplan from plain records
+through consumer-owned ports declared in the same package; it owns no table
+and never writes. Its compatibility adapter (`modules/planexport/legacy`,
+`document-rendering`/`adapter`) binds those ports to the retained schedule
+services and repositories and maps their rows field by field. Every
+`document-rendering.adapter.*`, `document-rendering.adapter-test.*` and
+`document-rendering.decision-test.*` rule, the `document-rendering.public.calendar-date`
+binding, the `inbound-timetable.to.document-rendering` and
+`workforce.http.document-rendering-public` consumer edges and the
+`legacy-composition.compose.to.document-rendering.*` root edges are
+compatibility permissions that exist only because PR mode cannot record debt
+for a package the candidate creates: convert them to exact debt with the rule
+above once the packages exist at a base SHA, rebind each port to its owner's
+public capability as it appears, and delete the adapter with the last legacy
+source. The retained `services/listexport` renderer keeps its
+`module-internal-test` seam, so the capability's rendering tests declare the
+`workflow-decision-test` seam and the adapter tests the `adapter-test` seam.
+The same change moves the birthday routes to `modules/birthdays/http`
+(`inbound-birthdays`/`http`, `inbound-birthdays.*` permissions) and the
+document upload coordinator to `modules/filestorage/documents`
+(`file-storage`/`adapter`; `file-storage.adapter.delivery-adapter` and the
+`inbound-filestore.to.file-storage-adapter` / `inbound-students.to.file-storage-adapter`
+consumer bindings), under the same conversion rule. The generic file-metadata
+repository (`database/repositories/documents`) and model (`models/documents`)
+keep their five `document-rendering` debt entries under #2706: their tables
+belong to File Storage (ADR 0010) and move with #2707.
+
 The Device Fleet authentication composition (`modules/devicefleet/deviceauth`)
 is classified as `device-fleet`/`http`. Its `device-fleet.device-auth.*`
 permissions for the retained `models/platform` school row, the

@@ -1,6 +1,7 @@
-// Package documents owns the part of a document upload that is neither
-// business logic nor persistence: getting bytes onto (and off) the storage
-// backend without ever leaving an orphan behind.
+// Package documents is the File Storage object-store adapter (#2706): it owns
+// the part of a document upload that is neither business logic nor
+// persistence — getting bytes onto (and off) the storage backend without ever
+// leaving an orphan behind — for every domain that stores documents.
 //
 // The order is forced by HTTP, not by preference. Multipart input cannot be
 // replayed after a transaction commits, so the file must be written before

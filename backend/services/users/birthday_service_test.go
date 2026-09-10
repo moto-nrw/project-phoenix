@@ -20,7 +20,7 @@ import (
 )
 
 // Birthday service against real repositories (#1542). The HTTP tests in
-// api/birthdays pin the route contract; this file pins the rules the service
+// modules/birthdays/http pin the route contract; this file pins the rules the service
 // itself owns: which days a view speaks for, who may appear, and what the
 // staff list contains.
 

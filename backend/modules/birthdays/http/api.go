@@ -1,11 +1,14 @@
-// Package birthdays serves the dashboard birthday display and the personal
-// opt-out behind it (#1542).
+// Package http is the HTTP adapter of the birthday display (#1542, migrated
+// under #2706): it serves the dashboard birthday list, the personal opt-out
+// behind it and the staff Geburtstagsliste export.
 //
 // It is a resource of its own rather than another route group on students or
 // staff because it deliberately spans both populations and is governed by the
 // school's birthday settings — mounting it under either domain would have made
-// one of the two look like the owner of a rule that belongs to neither.
-package birthdays
+// one of the two look like the owner of a rule that belongs to neither. The
+// birthday facts come from the retained People Directory birthday service;
+// the printed list renders through the Document Rendering renderer.
+package http
 
 import (
 	"encoding/json"
@@ -18,7 +21,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -30,17 +32,17 @@ type Resource struct {
 	BirthdayService    usersSvc.BirthdayService
 	ListExportService  *listexport.RendererService
 	UserContextService usercontext.UserContextService
-	SettingsService    configSvc.SettingsService
 	db                 *bun.DB
 	logger             *slog.Logger
 }
 
-// NewResource creates the birthdays resource.
+// NewResource creates the birthdays resource. The birthday settings are
+// applied inside the birthday service, so the resource takes no settings
+// dependency of its own.
 func NewResource(
 	birthdayService usersSvc.BirthdayService,
 	listExportService *listexport.RendererService,
 	userContextService usercontext.UserContextService,
-	settingsService configSvc.SettingsService,
 	db *bun.DB,
 	logger *slog.Logger,
 ) *Resource {
@@ -48,7 +50,6 @@ func NewResource(
 		BirthdayService:    birthdayService,
 		ListExportService:  listExportService,
 		UserContextService: userContextService,
-		SettingsService:    settingsService,
 		db:                 db,
 		logger:             logger,
 	}

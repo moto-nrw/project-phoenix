@@ -86,10 +86,10 @@ func expandWeeks(from, to timezone.Date) ([]week, error) {
 // weekend entry widens every week of the export. That is the right trade:
 // the alternative is either printing two empty columns on every ordinary
 // week, or dropping a rostered weekend Dienst from the plan without a trace.
-func narrowWeeks(weeks []week, planned map[timezone.Date]bool) []week {
+func narrowWeeks(weeks []week, planned map[Date]bool) []week {
 	for _, w := range weeks {
 		for _, day := range w.days[workweekDays:] {
-			if planned[day] {
+			if planned[dayKey(day)] {
 				return weeks
 			}
 		}

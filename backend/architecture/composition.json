@@ -27398,12 +27398,12 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 440,
+          "line": 441,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 478,
+          "line": 479,
           "declaration": "newFactory"
         },
         {

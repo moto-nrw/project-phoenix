@@ -1,4 +1,4 @@
-package birthdays
+package http
 
 import (
 	"encoding/json"

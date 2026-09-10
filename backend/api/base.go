@@ -27,11 +27,11 @@ import (
 	activeAPI "github.com/moto-nrw/project-phoenix/api/active"
 	adminAPI "github.com/moto-nrw/project-phoenix/api/admin"
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
-	birthdaysAPI "github.com/moto-nrw/project-phoenix/api/birthdays"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	groupsAPI "github.com/moto-nrw/project-phoenix/api/groups"
+	birthdaysAPI "github.com/moto-nrw/project-phoenix/modules/birthdays/http"
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	classdayHTTP "github.com/moto-nrw/project-phoenix/modules/classday/http"
 	emergencyAPI "github.com/moto-nrw/project-phoenix/modules/emergencysnapshot/http"
@@ -1333,7 +1333,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	})
 	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.UserContext, db, logger.With("handler", "sse"))
 	api.SSE.SetSchoolAccess(api.Services.Auth)
-	api.Birthdays = birthdaysAPI.NewResource(api.Services.Birthdays, api.Services.ListExport, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "birthdays"))
+	api.Birthdays = birthdaysAPI.NewResource(api.Services.Birthdays, api.Services.ListExport, api.Services.UserContext, db, logger.With("handler", "birthdays"))
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, db)
 	// The school portal's class-day surface reads the class-day projection
 	// (#2701); the projection binds the retained enrollment report and the
