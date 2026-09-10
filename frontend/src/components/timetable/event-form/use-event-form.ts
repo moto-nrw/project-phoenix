@@ -343,11 +343,13 @@ export function useEventForm({
   // newer modal state.
   const referenceLoadSeq = useRef(0);
   const categoryLoadSeq = useRef(0);
+  const planningTrackLoadSeq = useRef(0);
   const studentLoadSeq = useRef(0);
   const staffLoadSeq = useRef(0);
   const invalidateReferenceLoads = useCallback(() => {
     referenceLoadSeq.current++;
     categoryLoadSeq.current++;
+    planningTrackLoadSeq.current++;
     studentLoadSeq.current++;
     staffLoadSeq.current++;
   }, []);
@@ -520,6 +522,7 @@ export function useEventForm({
     }
     const referenceSeq = ++referenceLoadSeq.current;
     const categorySeq = ++categoryLoadSeq.current;
+    const planningTrackSeq = ++planningTrackLoadSeq.current;
     const studentSeq = ++studentLoadSeq.current;
     const staffSeq = ++staffLoadSeq.current;
     const isCurrentReferenceLoad = () =>
@@ -628,7 +631,9 @@ export function useEventForm({
         if (isCurrentReferenceLoad()) {
           setRooms(sortedRooms);
           setGroups(sortedGroups);
-          setPlanningTracks(planningTrackData);
+          if (planningTrackLoadSeq.current === planningTrackSeq) {
+            setPlanningTracks(planningTrackData);
+          }
           if (categoryLoadSeq.current === categorySeq) {
             setCategories(sortedCategories);
             setForm((prev) =>
@@ -3669,11 +3674,15 @@ export function useEventForm({
   }, []);
 
   const refreshPlanningTracks = useCallback(async (selectId?: string) => {
+    const planningTrackSeq = ++planningTrackLoadSeq.current;
     if (selectId) {
       setForm((prev) => ({ ...prev, planningTrackId: selectId }));
     }
     try {
-      setPlanningTracks(await planningTrackService.list());
+      const planningTracks = await planningTrackService.list();
+      if (planningTrackLoadSeq.current === planningTrackSeq) {
+        setPlanningTracks(planningTracks);
+      }
     } catch (err: unknown) {
       logger.error("planning_tracks_refresh_failed", {
         error: err instanceof Error ? err.message : String(err),

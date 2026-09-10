@@ -2,6 +2,7 @@ import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ActivityCategory } from "~/lib/activity-helpers";
+import type { PlanningTrack } from "~/lib/planning-track-api";
 import type { TimetableTemplate } from "~/lib/timetable-types";
 import * as plannerReferenceApi from "~/lib/planner-reference-api";
 import { planningTrackService } from "~/lib/planning-track-api";
@@ -47,6 +48,62 @@ describe("reconcileCategoryId", () => {
 
   it("keeps a newly created selection even if the refetch is stale", () => {
     expect(reconcileCategoryId("1", categories, "3")).toBe("3");
+  });
+});
+
+describe("useEventForm planning-track refresh", () => {
+  it("keeps a newer planning-track refresh when the initial load finishes later", async () => {
+    let resolveInitialTracks: (tracks: PlanningTrack[]) => void;
+    const initialTracks = new Promise<PlanningTrack[]>((resolve) => {
+      resolveInitialTracks = resolve;
+    });
+    const freshTracks: PlanningTrack[] = [
+      { id: "2", name: "Neu", color: "#83CD2D", sortOrder: 0 },
+    ];
+    vi.spyOn(planningTrackService, "list")
+      .mockReturnValueOnce(initialTracks)
+      .mockResolvedValueOnce(freshTracks);
+    vi.spyOn(plannerReferenceApi, "fetchPlannerRooms").mockResolvedValue([]);
+    vi.spyOn(plannerReferenceApi, "fetchPlannerGroups").mockResolvedValue([]);
+    vi.spyOn(
+      plannerReferenceApi,
+      "fetchPlannerActivityCategories",
+    ).mockResolvedValue([]);
+    vi.spyOn(formModel, "fetchAllStudentOptions").mockResolvedValue([]);
+    vi.spyOn(staffService, "getAllStaff").mockResolvedValue([]);
+
+    const { result } = renderHook(() =>
+      useEventForm({
+        isOpen: true,
+        onClose: vi.fn(),
+        onSaved: vi.fn(),
+        defaultDate: "2026-08-03",
+        calendarPeriods: [],
+        defaultCalendarPeriodId: null,
+        planningPeriods: null,
+        initialInstance: null,
+        initialSeries: null,
+        convertInstance: null,
+        defaultRepeat: "none",
+        variant: "full",
+        canCheckShiftCoverage: false,
+      }),
+    );
+
+    await waitFor(() => expect(planningTrackService.list).toHaveBeenCalled());
+    await act(async () => {
+      await result.current.refreshPlanningTracks();
+    });
+    expect(result.current.planningTracks).toEqual(freshTracks);
+
+    await act(async () => {
+      resolveInitialTracks!([
+        { id: "1", name: "Alt", color: "#5080D8", sortOrder: 0 },
+      ]);
+      await initialTracks;
+    });
+
+    expect(result.current.planningTracks).toEqual(freshTracks);
   });
 });
 

@@ -381,6 +381,16 @@ describe("Sidebar", () => {
       expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
     });
 
+    it("shows data management for an effective admin", () => {
+      mockIsAdmin.mockReturnValue(false);
+      mockUseSession.mockReturnValue(createMockSession(false));
+      mockHasEffectiveAdminScope.mockReturnValue(true);
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
+    });
+
     it("shows all children with the children concept icon for admins", () => {
       mockUsePathname.mockReturnValue("/students/search");
       render(<Sidebar />);

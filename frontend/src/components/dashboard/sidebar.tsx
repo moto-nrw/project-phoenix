@@ -691,14 +691,18 @@ function SidebarContent({
         // it isn't sent to a page that only 403s.
         if (page.href === "/database/grade-transitions") {
           return (
-            userIsAdmin || hasPermission(session, "grade_transitions:read")
+            userHasEffectiveAdminScope ||
+            hasPermission(session, "grade_transitions:read")
           );
         }
         // Die Stammdaten-Kataloge (#3114) tragen dasselbe Recht wie ihre
         // Schreibzugriffe; ohne es führt der Eintrag nur auf ein 403.
         const catalogPermission = DATABASE_CATALOG_PERMISSIONS[page.href];
         if (catalogPermission !== undefined) {
-          if (!userIsAdmin && !hasPermission(session, catalogPermission)) {
+          if (
+            !userHasEffectiveAdminScope &&
+            !hasPermission(session, catalogPermission)
+          ) {
             return false;
           }
           // Planungsspuren und Schichtarten gehören zum Planungsbereich; ist
@@ -707,7 +711,7 @@ function SidebarContent({
         }
         return true;
       }),
-    [nfcEnabled, userIsAdmin, session, timetableEnabled],
+    [nfcEnabled, userHasEffectiveAdminScope, session, timetableEnabled],
   );
 
   // Visible "Eltern" accordion sub-pages. Same per-item gating the flat
@@ -1337,7 +1341,7 @@ function SidebarContent({
                     erhalten und die Icons darunter springen beim Klappen
                     nicht nach oben. */}
                 <p
-                  className={`mb-1.5 truncate px-3 text-[10px] font-semibold tracking-wider text-gray-400 uppercase motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-100" : "opacity-0"}`}
+                  className={`mb-1.5 truncate px-3 text-xs font-semibold tracking-wider text-gray-400 uppercase motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-100" : "opacity-0"}`}
                   aria-hidden={collapsed}
                 >
                   {section.label}
@@ -1535,9 +1539,9 @@ function SidebarContent({
       </SidebarAccordionSection>
     ) : null;
 
-  // Datenverwaltung (admin only): Hub-Seite plus feste Unterseiten.
+  // Datenverwaltung: Hub-Seite plus feste Unterseiten für Admin-Bereiche.
   const renderDatabaseSection = () =>
-    userIsAdmin ? (
+    userHasEffectiveAdminScope ? (
       <SidebarAccordionSection
         icon={DATABASE_NAV_ICON}
         concept="database"

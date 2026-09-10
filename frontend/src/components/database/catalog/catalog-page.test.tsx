@@ -230,6 +230,17 @@ describe("CatalogPage", () => {
     expect(onChanged).toHaveBeenCalled();
   });
 
+  it("keeps an edit while the catalog page rerenders", () => {
+    renderPage({ selectedId: "1" });
+
+    fireEvent.change(screen.getByDisplayValue("Essen"), {
+      target: { value: "Mittagessen" },
+    });
+    fireEvent.change(search(), { target: { value: "lernzeit" } });
+
+    expect(screen.getByDisplayValue("Mittagessen")).toBeInTheDocument();
+  });
+
   it("keeps a saved edit successful when the refresh fails", async () => {
     const onChanged = vi.fn().mockRejectedValue(new Error("nicht erreichbar"));
     const { update } = renderPage({ selectedId: "1", onChanged });

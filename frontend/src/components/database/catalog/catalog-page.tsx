@@ -463,6 +463,13 @@ export function CatalogPage<T extends CatalogItem>({
     () => (selected ? config.sections(selected).map(configToFormSection) : []),
     [config, selected],
   );
+  // `toFormValues` erzeugt bewusst ein neues Objekt. Für einen unveränderten
+  // Eintrag darf eine Suche oder eine andere lokale Aktion den Entwurf aber
+  // nicht wieder auf diese Anfangswerte setzen.
+  const detailInitialData = useMemo(
+    () => (selected ? config.toFormValues(selected) : undefined),
+    [config, selected],
+  );
 
   const concept = MOTO_CONCEPTS[config.concept];
 
@@ -503,7 +510,7 @@ export function CatalogPage<T extends CatalogItem>({
               <DatabaseForm
                 key={`${selected.id}:${formGeneration}`}
                 sections={detailSections}
-                initialData={config.toFormValues(selected)}
+                initialData={detailInitialData}
                 onSubmit={handleUpdate}
                 onCancel={() =>
                   setFormGeneration((generation) => generation + 1)
