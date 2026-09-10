@@ -708,8 +708,12 @@ function SidebarContent({
           // Planungsspuren und Schichtarten gehören zum Planungsbereich; ist
           // er ausgeschaltet, gibt es nichts zu ordnen.
           if (PLANNING_CATALOG_HREFS.has(page.href)) return timetableEnabled;
+          return true;
         }
-        return true;
+        // Alle übrigen Datenverwaltungsseiten bleiben der Leitungsbereich.
+        // Delegierte Katalogrechte zeigen ausschließlich den Katalog, den sie
+        // tatsächlich öffnen dürfen.
+        return userHasEffectiveAdminScope;
       }),
     [nfcEnabled, userHasEffectiveAdminScope, session, timetableEnabled],
   );
@@ -1539,9 +1543,9 @@ function SidebarContent({
       </SidebarAccordionSection>
     ) : null;
 
-  // Datenverwaltung: Hub-Seite plus feste Unterseiten für Admin-Bereiche.
+  // Datenverwaltung: Hub-Seite plus Unterseiten für berechtigte Personen.
   const renderDatabaseSection = () =>
-    userHasEffectiveAdminScope ? (
+    databaseSubPages.length > 0 ? (
       <SidebarAccordionSection
         icon={DATABASE_NAV_ICON}
         concept="database"

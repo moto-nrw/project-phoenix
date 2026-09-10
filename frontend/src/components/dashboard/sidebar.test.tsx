@@ -391,6 +391,21 @@ describe("Sidebar", () => {
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
     });
 
+    it("shows data management for a catalog permission", () => {
+      mockIsAdmin.mockReturnValue(false);
+      mockUseSession.mockReturnValue(createMockSession(false));
+      mockHasEffectiveAdminScope.mockReturnValue(false);
+      mockHasPermission.mockImplementation(
+        (_session, permission) => permission === "activities:manage_categories",
+      );
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
+      expect(screen.getByText("Terminkategorien")).toBeInTheDocument();
+      expect(screen.queryByText("Kinderdaten")).not.toBeInTheDocument();
+    });
+
     it("shows all children with the children concept icon for admins", () => {
       mockUsePathname.mockReturnValue("/students/search");
       render(<Sidebar />);
