@@ -219,6 +219,31 @@ describe("DatabasePage", () => {
     });
   });
 
+  it("shows catalog cards to administrators without explicit catalog permissions", async () => {
+    const administrator = {
+      ...mockSession,
+      user: {
+        ...mockSession.user,
+        roles: ["admin"],
+        permissions: [],
+      },
+    };
+    vi.mocked(useSession).mockReturnValue({
+      data: administrator,
+      status: "authenticated",
+      update: vi.fn(),
+    } as never);
+
+    render(<DatabasePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Terminkategorien")).toBeInTheDocument();
+      expect(screen.getByText("Planungsspuren")).toBeInTheDocument();
+      expect(screen.getByText("Schichtarten")).toBeInTheDocument();
+      expect(screen.getByText("Abwesenheitsarten")).toBeInTheDocument();
+    });
+  });
+
   it("handles 401 unauthorized response gracefully", async () => {
     mockCounts(null);
 

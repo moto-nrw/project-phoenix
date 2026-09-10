@@ -403,7 +403,7 @@ export function CatalogPage<T extends CatalogItem>({
     : false;
 
   const detailMenu: OverflowMenuEntry[] =
-    selected && canManage && !selectedReadOnly
+    selected && canManage
       ? [
           ...(config.restore && selectedRow?.retired
             ? [
@@ -414,7 +414,7 @@ export function CatalogPage<T extends CatalogItem>({
                 },
               ]
             : []),
-          ...(config.retire && !selectedRow?.retired
+          ...(!selectedReadOnly && config.retire && !selectedRow?.retired
             ? [
                 {
                   label: config.retire.menuLabel,
@@ -423,7 +423,7 @@ export function CatalogPage<T extends CatalogItem>({
                 },
               ]
             : []),
-          ...(config.remove
+          ...(!selectedReadOnly && config.remove
             ? [
                 { kind: "separator" as const },
                 {

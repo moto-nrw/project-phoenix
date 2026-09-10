@@ -40,8 +40,8 @@ const shiftTypeService = vi.hoisted(() => ({
 }));
 vi.mock("~/lib/shift-type-api", () => ({ shiftTypeService }));
 
-const getCategories = vi.hoisted(() => vi.fn());
-vi.mock("~/lib/activity-api", () => ({ getCategories }));
+const categoryService = vi.hoisted(() => ({ getManagedCategories: vi.fn() }));
+vi.mock("~/lib/category-api", () => ({ categoryService }));
 
 const mockTenantMutate = vi.hoisted(() => vi.fn(() => Promise.resolve()));
 type SWRState = { data: unknown; error: unknown; isLoading: boolean };
@@ -134,6 +134,34 @@ describe("Schichtarten — Kategorie-Zuordnung (#1837, #3114)", () => {
       expect(shiftTypeService.updateShiftType).toHaveBeenCalledWith(
         "10",
         expect.objectContaining({ categoryIds: ["1"] }),
+      ),
+    );
+  });
+
+  it("keeps an assigned archived category in the mapping", async () => {
+    setCategories({
+      data: [
+        ...CATEGORIES,
+        {
+          id: "3",
+          name: "Frühstück",
+          shiftTypeId: "10",
+          archivedAt: "2026-09-01T00:00:00Z",
+        },
+      ],
+    });
+    render(<ShiftTypesPage />);
+
+    expect(
+      screen.getByText("Frühstück (nicht mehr angeboten)"),
+    ).toBeInTheDocument();
+
+    save();
+
+    await waitFor(() =>
+      expect(shiftTypeService.updateShiftType).toHaveBeenCalledWith(
+        "10",
+        expect.objectContaining({ categoryIds: ["1", "3"] }),
       ),
     );
   });

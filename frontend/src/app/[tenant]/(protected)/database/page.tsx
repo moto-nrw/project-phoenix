@@ -16,7 +16,7 @@ import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 import { DatabaseCardGridSkeleton } from "./page-skeleton";
 import { formatCount } from "~/lib/format-utils";
 
-import { hasPermission } from "~/lib/auth-utils";
+import { hasEffectiveAdminScope, hasPermission } from "~/lib/auth-utils";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { getSettingValue } from "~/lib/settings-api";
 import { useNFCEnabled } from "~/lib/tenant-context";
@@ -333,7 +333,10 @@ function DatabaseContent() {
             if (section.sessionPermission !== undefined) {
               // Stammdaten-Katalog: das Recht der Route entscheidet, nicht ein
               // Flag aus den Zählern (#3114).
-              if (!hasPermission(session, section.sessionPermission)) {
+              if (
+                !hasEffectiveAdminScope(session) &&
+                !hasPermission(session, section.sessionPermission)
+              ) {
                 return null;
               }
             } else {

@@ -251,6 +251,29 @@ describe("CatalogPage", () => {
     await waitFor(() => expect(restore).toHaveBeenCalledWith(ITEMS[2]));
   });
 
+  it("requires restoration before an archived read-only entry can be edited", async () => {
+    const { restore } = renderPage({
+      selectedId: "3",
+      configOverrides: {
+        isReadOnly: (item) => item.archived,
+        readOnlyHint:
+          "Bieten Sie die Kategorie wieder an. Dann können Sie sie ändern.",
+      },
+    });
+
+    expect(screen.queryByDisplayValue("Altes")).not.toBeInTheDocument();
+    expect(
+      screen.getAllByText(
+        "Bieten Sie die Kategorie wieder an. Dann können Sie sie ändern.",
+      ),
+    ).not.toHaveLength(0);
+
+    fireEvent.click(screen.getByRole("button", { name: /Aktionen für Altes/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Wieder anbieten" }));
+
+    await waitFor(() => expect(restore).toHaveBeenCalledWith(ITEMS[2]));
+  });
+
   it("reorders through the visible arrows", async () => {
     const { reorder } = renderPage();
 

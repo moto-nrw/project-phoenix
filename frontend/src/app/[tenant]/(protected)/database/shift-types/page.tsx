@@ -15,8 +15,8 @@ import {
 import { Button } from "~/components/ui/button";
 import { CatalogColorField } from "~/components/ui/database/catalog-color-field";
 import { useToast } from "~/contexts/ToastContext";
-import { getCategories } from "~/lib/activity-api";
 import type { ActivityCategory } from "~/lib/activity-helpers";
+import { categoryService } from "~/lib/category-api";
 import type { SectionConfig } from "~/lib/database/types";
 import { formatCount } from "~/lib/format-utils";
 import { LOCATION_COLORS } from "~/lib/location-helper";
@@ -62,7 +62,7 @@ function ShiftTypesPageContent() {
   // Liste würde bestehende Zuordnungen löschen (#1837).
   const { data: categories, error: categoriesError } = useSWRAuth<
     ActivityCategory[]
-  >(CATEGORY_CACHE_KEY, () => getCategories());
+  >(CATEGORY_CACHE_KEY, () => categoryService.getManagedCategories());
   const categoriesReady = categories !== undefined && !categoriesError;
 
   const onChanged = useCallback(
@@ -82,7 +82,7 @@ function ShiftTypesPageContent() {
   const config = useMemo<CatalogConfig<ShiftType>>(() => {
     const categoryList = categoriesReady ? (categories ?? []) : [];
 
-    const sections = (): SectionConfig[] => [
+    const sections = (type: ShiftType | null): SectionConfig[] => [
       {
         title: "Schichtart",
         fields: [
@@ -125,10 +125,21 @@ function ShiftTypesPageContent() {
                   type: "multiselect" as const,
                   colSpan: 2 as const,
                   placeholder: "Kategorie hinzufügen…",
-                  options: categoryList.map((category) => ({
-                    value: category.id,
-                    label: category.name,
-                  })),
+                  // Archivierte Kategorien dürfen nicht neu zugeordnet werden.
+                  // Eine vorhandene Zuordnung bleibt aber sichtbar und damit
+                  // beim Speichern erhalten, bis sie bewusst entfernt wird.
+                  options: categoryList
+                    .filter(
+                      (category) =>
+                        !category.archivedAt ||
+                        category.shiftTypeId === type?.id,
+                    )
+                    .map((category) => ({
+                      value: category.id,
+                      label: category.archivedAt
+                        ? `${category.name} (nicht mehr angeboten)`
+                        : category.name,
+                    })),
                   helperText:
                     "Betreuungsblöcke dieser Kategorien gehören zu dieser Schichtart. Eine Kategorie kann nur zu einer Schichtart gehören.",
                 },
