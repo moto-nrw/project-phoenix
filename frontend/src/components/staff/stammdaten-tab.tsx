@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Eye, EyeOff, Lock } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
+import { EditActions } from "~/components/ui/edit-actions";
 import { Input } from "~/components/ui/input";
 import {
   DataField,
@@ -835,26 +836,12 @@ export function StammdatenTab({
               onChange={(e) => setNote(e.target.value)}
               placeholder="Erscheint im Änderungsprotokoll"
             />
-            <div className="flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                onClick={cancelEditing}
-                disabled={saving}
-              >
-                Abbrechen
-              </Button>
-              <Button
-                type="button"
-                variant="primary"
-                size="md"
-                onClick={() => void handleSave()}
-                disabled={saving || !draftValid}
-              >
-                {saving ? "Speichert…" : "Speichern"}
-              </Button>
-            </div>
+            <EditActions
+              onCancel={cancelEditing}
+              onSave={() => void handleSave()}
+              saving={saving}
+              disabled={!draftValid}
+            />
           </div>
         </SectionCard>
       )}

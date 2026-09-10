@@ -19,6 +19,7 @@ import {
   getGuardianFullName,
   GUARDIAN_ROLE_OPTIONS,
 } from "@/lib/guardian-helpers";
+import { FormModal } from "~/components/ui/form-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import type { RelationshipFormData } from "./guardian-form-modal";
 import {
@@ -636,11 +637,18 @@ export default function StudentGuardianManager({
         }
       />
 
-      {/* Existing-guardian picker (sibling case) — inline, not a modal, since a
-          search is a light lookup. "Hinzufügen" opens the heavy form modal. */}
-      {isPickerOpen && (
-        <div className="mb-3">
+      {/* Existing-guardian picker (sibling case): eine Kopf-Aktion mit
+          Dialog, kein Formular über der Liste (#3112). Der Dialog schließt,
+          sobald die Person gewählt ist; die Verknüpfung läuft dahinter. */}
+      <FormModal
+        isOpen={isPickerOpen}
+        onClose={() => setIsPickerOpen(false)}
+        title="Vorhandene Person suchen"
+        size="md"
+      >
+        {isPickerOpen && (
           <GuardianPickerPanel
+            embedded
             onSelect={(guardian, relationship) => {
               setIsPickerOpen(false);
               void handleSelectExistingGuardian(guardian, relationship);
@@ -648,8 +656,8 @@ export default function StudentGuardianManager({
             onCancel={() => setIsPickerOpen(false)}
             excludeProfileIds={guardians.map((g) => g.id)}
           />
-        </div>
-      )}
+        )}
+      </FormModal>
 
       {/* Guardian List */}
       <div className="space-y-3">

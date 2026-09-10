@@ -661,18 +661,311 @@ const noUnconfirmedDestructiveClick = {
   },
 };
 
-export default {
+// ---------------------------------------------------------------------------
+// bauart/no-autosave — automatic saving exists only where it is named
+// (Bauart 4, Bauart 2 Regel 4, issue #3112). A form control that persists on
+// blur or on change, without a „Speichern“ below it, is the pattern: the
+// inline handler fires an async call (`void save(x)`, `await update(x)`, a
+// direct Promise-returning call, `.then(`) straight out of `onBlur`, or out
+// of a change handler on a kit
+// control when the callee reads like a write (save, update, persist, patch,
+// set…, submit, store, assign, link, mutate). Reads out of a change handler
+// (`void search(q)`) pass; the search field of a list is not a save.
+//
+// Exempt: the settings page (the one Bauart that auto-saves, and says so), the
+// portals outside the spec (operator), the UI kit itself, tests and stories.
+// The remaining named files are the shrink-only baseline: flächen that name
+// their auto-save on screen and are documented in issue #3112. New entries
+// need the same sentence on the surface and a reviewer's approval.
 
-  meta: { name: "bauart" },
+const AUTOSAVE_EXEMPT_DIR_RE =
+  /(?:^|\/)src\/(?:components\/settings\/|components\/operator\/|app\/operator\/)/;
 
-  rules: {
+const AUTOSAVE_BASELINE = new Set([
+  // Bauart 4 by decision (#3112): Lohnarten are configuration. Both cards
+  // carry „Änderungen werden sofort gespeichert.“
+  "src/app/[tenant]/(protected)/payroll/page.tsx",
+  // Parents portal (outside the spec); names it as „Änderungen werden
+  // automatisch gespeichert.“ and guards unsaved input (#3112).
+  "src/components/parent/child-master-data.tsx",
+  // Language switch: applies immediately by nature, persisted as a courtesy.
+  "src/components/parent/language-switcher.tsx",
+]);
 
-    "one-delete-confirm": oneDeleteConfirm,
+const CHANGE_HANDLER_ATTRIBUTES = new Set([
+  "onChange",
+  "onValueChange",
+  "onCheckedChange",
+  "onSelect",
+]);
 
-    "no-row-action-buttons": noRowActionButtons,
+const FORM_CONTROL_ELEMENTS = new Set([
+  "input",
+  "select",
+  "textarea",
+  "Input",
+  "Textarea",
+  "Checkbox",
+  "Radio",
+  "CustomSelect",
+  "ListboxDropdown",
+  "SegmentedControl",
+  "MultiSelect",
+  "MultiCheckboxSelect",
+  "DatePicker",
+  "TimeField",
+  "ToggleChip",
+]);
 
-    "no-unconfirmed-destructive-click": noUnconfirmedDestructiveClick,
+// `toggle…`/`change…` stay out on purpose: they name UI state and previews far
+// more often than writes (a `toggleExcluded` that only re-runs a preview).
+// The header comment above still lists them as examples of the shape; the
+// regex is the contract.
+const WRITE_VERB_RE =
+  /^(?:save|update|persist|patch|put|submit|store|assign|link|unlink|mutate|write|set[A-Z]|create|remove|delete)/;
 
+function relativeFileName(context) {
+  const name = fileName(context);
+  const index = name.indexOf("/src/");
+  return index === -1 ? name : name.slice(index + 1);
+}
+
+function isAutosaveExempt(context) {
+  if (isExempt(context)) return true;
+  const name = fileName(context);
+  if (AUTOSAVE_EXEMPT_DIR_RE.test(name)) return true;
+  return AUTOSAVE_BASELINE.has(relativeFileName(context));
+}
+
+/** `void call()`, `await call()`, a direct call, or a `.then(`/`.catch(` chain
+ *  from the handler. Returns the fired call and whether it is direct. */
+function firedCall(expression) {
+  if (!expression) return null;
+  if (
+    (expression.type === "UnaryExpression" && expression.operator === "void") ||
+    expression.type === "AwaitExpression"
+  ) {
+    return isCall(expression.argument)
+      ? { call: expression.argument, direct: false }
+      : null;
+  }
+  if (
+    isCall(expression) &&
+    expression.callee?.type === "MemberExpression" &&
+    expression.callee.property?.type === "Identifier" &&
+    (expression.callee.property.name === "then" ||
+      expression.callee.property.name === "catch")
+  ) {
+    let inner = expression.callee.object;
+    while (
+      isCall(inner) &&
+      inner.callee?.type === "MemberExpression" &&
+      inner.callee.property?.type === "Identifier" &&
+      (inner.callee.property.name === "then" ||
+        inner.callee.property.name === "catch")
+    ) {
+      inner = inner.callee.object;
+    }
+    return { call: isCall(inner) ? inner : expression, direct: false };
+  }
+  if (isCall(expression)) return { call: expression, direct: true };
+  return null;
+}
+
+/** First fired call anywhere in the handler body (nested functions skipped,
+ *  like containsFiredAsyncCall) that satisfies `accept`. */
+function findFiredCall(node, accept, seen = new WeakSet()) {
+  if (!node || typeof node !== "object" || seen.has(node)) return null;
+  seen.add(node);
+  const fired = firedCall(node);
+  if (fired && accept(fired.call, fired.direct)) return fired.call;
+  if (
+    node.type === "ArrowFunctionExpression" ||
+    node.type === "FunctionExpression"
+  ) {
+    return null;
+  }
+  for (const [key, value] of Object.entries(node)) {
+    if (key === "parent") continue;
+    if (Array.isArray(value)) {
+      for (const child of value) {
+        const found = findFiredCall(child, accept, seen);
+        if (found) return found;
+      }
+    } else {
+      const found = findFiredCall(value, accept, seen);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+function inlineHandlerBody(attribute) {
+  if (attribute?.value?.type !== "JSXExpressionContainer") return null;
+  const handler = attribute.value.expression;
+  if (
+    handler?.type !== "ArrowFunctionExpression" &&
+    handler?.type !== "FunctionExpression"
+  ) {
+    return null;
+  }
+  return handler.body;
+}
+
+function isWriteCall(call, reactStateSetters) {
+  const name = calledFunctionName(call);
+  return (
+    name !== null &&
+    !reactStateSetters.has(name) &&
+    WRITE_VERB_RE.test(name)
+  );
+}
+
+function isPromiseReturningFunctionType(annotation) {
+  const type = annotation?.typeAnnotation;
+  return (
+    type?.type === "TSFunctionType" &&
+    type.returnType?.typeAnnotation?.type === "TSTypeReference" &&
+    type.returnType.typeAnnotation.typeName?.type === "Identifier" &&
+    type.returnType.typeAnnotation.typeName.name === "Promise"
+  );
+}
+
+function addPromiseReturningParameterNames(params, asyncFunctions) {
+  for (const parameter of params ?? []) {
+    if (
+      parameter?.type === "Identifier" &&
+      isPromiseReturningFunctionType(parameter.typeAnnotation)
+    ) {
+      asyncFunctions.add(parameter.name);
+      continue;
+    }
+    const members = parameter?.typeAnnotation?.typeAnnotation?.members;
+    if (!Array.isArray(members)) continue;
+    for (const member of members) {
+      if (
+        member?.type === "TSPropertySignature" &&
+        member.key?.type === "Identifier" &&
+        isPromiseReturningFunctionType(member.typeAnnotation)
+      ) {
+        asyncFunctions.add(member.key.name);
+      }
+    }
+  }
+}
+
+const noAutosave = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Automatisches Speichern gibt es nur in den Einstellungen (Bauart 4): kein Schreiben aus onBlur oder aus dem Change-Handler eines Formularfelds ohne „Speichern“ darunter (#3112).",
+    },
+    messages: {
+      blur: "onBlur schreibt sofort ({{ call }}). Bearbeiten-Zustand mit „Speichern“ unten (ui/EditActions) statt Auto-Save; Auto-Save nur in den Einstellungen und dort benannt (BAUARTEN-SPEC, Bauart 2 Regel 4, #3112).",
+      change:
+        "{{ element }} speichert im {{ attribute }} sofort ({{ call }}). Entwurf im Bearbeiten-Zustand halten und mit „Speichern“ schreiben; Auto-Save nur in den Einstellungen und dort benannt (BAUARTEN-SPEC, Bauart 2 Regel 4, #3112).",
+    },
   },
+  create(context) {
+    if (isAutosaveExempt(context)) return {};
+    const reactStateSetters = new Set();
+    const asyncFunctions = new Set();
+    const importedFunctions = new Set();
 
+    return {
+      ImportDeclaration(node) {
+        if (node.importKind === "type") return;
+        for (const specifier of node.specifiers ?? []) {
+          if (
+            specifier.type !== "ImportNamespaceSpecifier" &&
+            specifier.importKind !== "type" &&
+            specifier.local?.type === "Identifier"
+          ) {
+            importedFunctions.add(specifier.local.name);
+          }
+        }
+      },
+      FunctionDeclaration(node) {
+        if (node.async && node.id?.type === "Identifier") {
+          asyncFunctions.add(node.id.name);
+        }
+        addPromiseReturningParameterNames(node.params, asyncFunctions);
+      },
+      VariableDeclarator(node) {
+        const setter = node.id?.elements?.[1];
+        if (
+          setter?.type === "Identifier" &&
+          isCall(node.init) &&
+          calledFunctionName(node.init) === "useState"
+        ) {
+          reactStateSetters.add(setter.name);
+        }
+        if (
+          node.init?.type === "ArrowFunctionExpression" ||
+          node.init?.type === "FunctionExpression"
+        ) {
+          addPromiseReturningParameterNames(node.init.params, asyncFunctions);
+          if (node.id?.type === "Identifier" && node.init.async) {
+            asyncFunctions.add(node.id.name);
+          }
+        }
+      },
+      JSXElement(node) {
+        const opening = node.openingElement;
+        const element = jsxName(opening.name);
+
+        const onBlur = jsxAttribute(opening, "onBlur");
+        const blurBody = inlineHandlerBody(onBlur);
+        if (blurBody) {
+          const call = findFiredCall(blurBody, (fired, direct) =>
+            isWriteCall(fired, reactStateSetters) &&
+            (!direct ||
+              asyncFunctions.has(calledFunctionName(fired)) ||
+              importedFunctions.has(calledFunctionName(fired))),
+          );
+          if (call) {
+            context.report({
+              node: onBlur,
+              messageId: "blur",
+              data: { call: calledFunctionName(call) ?? "…" },
+            });
+          }
+        }
+
+        if (!FORM_CONTROL_ELEMENTS.has(element)) return;
+        for (const attributeName of CHANGE_HANDLER_ATTRIBUTES) {
+          const attribute = jsxAttribute(opening, attributeName);
+          const body = inlineHandlerBody(attribute);
+          if (!body) continue;
+          const call = findFiredCall(body, (fired, direct) =>
+            isWriteCall(fired, reactStateSetters) &&
+            (!direct ||
+              asyncFunctions.has(calledFunctionName(fired)) ||
+              importedFunctions.has(calledFunctionName(fired))),
+          );
+          if (!call) continue;
+          context.report({
+            node: attribute,
+            messageId: "change",
+            data: {
+              element,
+              attribute: attributeName,
+              call: calledFunctionName(call) ?? "…",
+            },
+          });
+        }
+      },
+    };
+  },
+};
+
+export default {
+  meta: { name: "bauart" },
+  rules: {
+    "one-delete-confirm": oneDeleteConfirm,
+    "no-row-action-buttons": noRowActionButtons,
+    "no-unconfirmed-destructive-click": noUnconfirmedDestructiveClick,
+    "no-autosave": noAutosave,
+  },
 };

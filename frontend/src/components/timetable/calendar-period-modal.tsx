@@ -68,9 +68,11 @@ interface CalendarPeriodModalProps {
   /**
    * Enables the "Verknüpfte Anmeldephasen" section (edit mode only) so the
    * link can be managed from the period side too. The FK lives on the
-   * phase, so toggling writes through the phase API — onToggle persists
-   * immediately, independent of the period form's save button. Kept as a
-   * prop so the timetable page (which shares this modal) stays unchanged.
+   * phase, so the link writes through the phase API — but only with the
+   * modal's „Speichern“ (#3112, Bauart 2 Regel 4): the checkboxes edit a
+   * draft, and after the period itself saved, onToggle runs once per phase
+   * whose link changed. Kept as a prop so the timetable page (which shares
+   * this modal) stays unchanged.
    */
   phaseLink?: {
     phases: LinkablePhase[];
@@ -139,13 +141,16 @@ export function CalendarPeriodModal({
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [togglingPhaseId, setTogglingPhaseId] = useState<string | null>(null);
+  // Entwurf der Phasen-Verknüpfungen: phase.id → gewünscht verknüpft. Leer
+  // heißt: keine Abweichung vom gespeicherten Stand.
+  const [phaseDraft, setPhaseDraft] = useState<Record<string, boolean>>({});
   const [validationError, setValidationError] = useState<string | null>(null);
   const [saveWarnings, setSaveWarnings] = useState<CalendarPeriodWarning[]>([]);
   // Once a save succeeded in this modal session, further submits must update
   // that period — otherwise a corrected re-submit after an advisory warning
   // would create a duplicate in create mode.
   const [savedPeriod, setSavedPeriod] = useState<CalendarPeriod | null>(null);
+  const [periodSaveNotified, setPeriodSaveNotified] = useState(false);
 
   const isEdit = Boolean(initial);
   const persisted = initial ?? savedPeriod;
@@ -186,6 +191,8 @@ export function CalendarPeriodModal({
     setDeleteConfirmOpen(false);
     setSaveWarnings([]);
     setSavedPeriod(null);
+    setPeriodSaveNotified(false);
+    setPhaseDraft({});
   }, [isOpen, initial, createDefaults]);
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
@@ -194,6 +201,7 @@ export function CalendarPeriodModal({
     // Editing after a warning-bearing save dismisses the warning state so the
     // footer returns to Abbrechen + Speichern and the correction can be saved.
     setSaveWarnings([]);
+    setPeriodSaveNotified(false);
   };
 
   const cycleLength = useMemo(() => {
@@ -229,38 +237,24 @@ export function CalendarPeriodModal({
     }
 
     setSubmitting(true);
+    const body = {
+      name: form.name.trim(),
+      period_type: form.periodType,
+      start_date: form.startDate,
+      end_date: form.endDate,
+      week_cycle_length: cycleLength,
+      is_active: form.isActive,
+      ...(form.weekCycleAnchor
+        ? { week_cycle_anchor: form.weekCycleAnchor }
+        : {}),
+    };
+
+    let period: CalendarPeriod;
+    let warnings: CalendarPeriodWarning[];
     try {
-      const body = {
-        name: form.name.trim(),
-        period_type: form.periodType,
-        start_date: form.startDate,
-        end_date: form.endDate,
-        week_cycle_length: cycleLength,
-        is_active: form.isActive,
-        ...(form.weekCycleAnchor
-          ? { week_cycle_anchor: form.weekCycleAnchor }
-          : {}),
-      };
-
-      const { period, warnings } = persisted
+      ({ period, warnings } = persisted
         ? await calendarPeriodService.update(persisted.id, body)
-        : await calendarPeriodService.create(body);
-
-      toastSuccess(
-        persisted
-          ? `Kalenderzeitraum "${period.name}" aktualisiert`
-          : `Kalenderzeitraum "${period.name}" angelegt`,
-      );
-      setSavedPeriod(period);
-      onSaved(period);
-      if (warnings.length === 0) {
-        onClose();
-      } else {
-        // Advisory only: the save succeeded. Keep the modal open so the
-        // user reads the overlap warning, then closes it explicitly (or
-        // edits the form, which re-enables saving).
-        setSaveWarnings(warnings);
-      }
+        : await calendarPeriodService.create(body));
     } catch (err) {
       logger.error("period_save_failed", {
         mode: isEdit ? "edit" : "create",
@@ -272,20 +266,79 @@ export function CalendarPeriodModal({
           : "Kalenderzeitraum konnte nicht gespeichert werden";
       setValidationError(msg);
       toastError(msg);
-    } finally {
       setSubmitting(false);
+      return;
     }
+
+    setSavedPeriod(period);
+    if (!periodSaveNotified) {
+      onSaved(period);
+      setPeriodSaveNotified(true);
+    }
+    try {
+      await applyPhaseDraft();
+    } catch (err) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Verknüpfung konnte nicht gespeichert werden";
+      logger.error("period_phase_link_save_failed", {
+        period_id: period.id,
+        error: msg,
+      });
+      setValidationError(msg);
+      toastError(msg);
+      setSubmitting(false);
+      return;
+    }
+
+    toastSuccess(
+      persisted
+        ? `Kalenderzeitraum "${period.name}" aktualisiert`
+        : `Kalenderzeitraum "${period.name}" angelegt`,
+    );
+    if (warnings.length === 0) {
+      onClose();
+    } else {
+      // Advisory only: the save succeeded. Keep the modal open so the
+      // user reads the overlap warning, then closes it explicitly (or
+      // edits the form, which re-enables saving).
+      setSaveWarnings(warnings);
+    }
+    setSubmitting(false);
   };
 
-  const handlePhaseToggle = async (phase: LinkablePhase, link: boolean) => {
+  const isPhaseLinked = (phase: LinkablePhase) =>
+    initial != null && phase.calendar_period_id === initial.id;
+
+  const handlePhaseToggle = (phase: LinkablePhase, link: boolean) => {
+    setPhaseDraft((prev) => {
+      const next = { ...prev };
+      if (link === isPhaseLinked(phase)) {
+        delete next[phase.id];
+      } else {
+        next[phase.id] = link;
+      }
+      return next;
+    });
+    setValidationError(null);
+    setSaveWarnings([]);
+  };
+
+  // Schreibt die geänderten Verknüpfungen nach dem Speichern des Zeitraums,
+  // eine nach der anderen. Der Aufrufer lädt danach neu; Fehler bleiben hier
+  // im Modal, damit die betroffene Änderung erneut versucht werden kann.
+  const applyPhaseDraft = async () => {
     if (!phaseLink) return;
-    setTogglingPhaseId(phase.id);
-    try {
-      // Error handling (toast + reload) lives in the caller — the modal
-      // only tracks the busy state so checkboxes can't race each other.
-      await phaseLink.onToggle(phase, link);
-    } finally {
-      setTogglingPhaseId(null);
+    for (const phase of phaseLink.phases) {
+      const wanted = phaseDraft[phase.id];
+      if (wanted === undefined) continue;
+      await phaseLink.onToggle(phase, wanted);
+      setPhaseDraft((prev) => {
+        const next = { ...prev };
+        delete next[phase.id];
+        return next;
+      });
     }
   };
 
@@ -444,9 +497,11 @@ export function CalendarPeriodModal({
                 </legend>
                 <div className="flex flex-col">
                   {phaseLink.phases.map((phase) => {
-                    const linked = phase.calendar_period_id === initial.id;
+                    const linked = phaseDraft[phase.id] ?? isPhaseLinked(phase);
                     const linkedElsewhere =
-                      !linked && !!phase.calendar_period_id;
+                      !linked &&
+                      !!phase.calendar_period_id &&
+                      phase.calendar_period_id !== initial.id;
                     return (
                       <label
                         key={phase.id}
@@ -454,9 +509,9 @@ export function CalendarPeriodModal({
                       >
                         <Checkbox
                           checked={linked}
-                          disabled={togglingPhaseId !== null}
+                          disabled={submitting}
                           onChange={(e) =>
-                            void handlePhaseToggle(phase, e.target.checked)
+                            handlePhaseToggle(phase, e.target.checked)
                           }
                         />
                         <span className="min-w-0 flex-1 truncate text-gray-800">
