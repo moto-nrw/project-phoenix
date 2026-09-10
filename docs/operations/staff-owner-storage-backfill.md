@@ -28,6 +28,10 @@ old rows are never modified. The field mapping is unchanged from
   (`23505`) rewinds the tenant's pass to zero, persisting the rewind first: it
   happens when a person is offboarded and rejoins between two batches of the
   same pass. Rewinds have their own budget of five per batch.
+  Before rewinding, the same transaction removes tenant memberships whose
+  source row was physically deleted and records their removal count. This
+  clears an orphaned active membership that would otherwise block the person's
+  new Staff ID forever; soft-deleted source rows are preserved and re-read.
 - A school whose batch fails with any other error is reported and skipped for
   this run; the remaining schools still run, and the command exits non-zero.
 - Rows that reference a work-time model of another school are rejected, not

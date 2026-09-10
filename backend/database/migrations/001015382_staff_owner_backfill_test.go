@@ -564,6 +564,58 @@ func TestStaffOwnerBackfillRestartsPassWhenPersonRejoinsMidPass(t *testing.T) {
 	require.EqualValues(t, 1, active)
 }
 
+func TestStaffOwnerBackfillRestartsAfterDeletedPersonRejoins(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	tenantID := testpkg.Tenant(t)
+	first := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Deleted", "Rejoin")
+	otherTenant := staffOwnerSecondTenant(t, db)
+	staffOwnerFixture(t, db, otherTenant, 1)
+	otherSource := staffSourceRows(t, db, otherTenant)
+	rejoined, recovered := false, false
+	var replacementID int64
+	var sourceAfterRejoin string
+	opts := StaffOwnerBackfillOptions{BatchSize: 1, MaxAttempts: 2,
+		afterBatch: func(id int64, batch staffOwnerBatch) error {
+			if id != tenantID || rejoined || batch.LastID != first.ID {
+				return nil
+			}
+			rejoined = true
+			_, err := db.ExecContext(ctx, `DELETE FROM users.staff WHERE tenant_id = ? AND id = ?`, tenantID, first.ID)
+			require.NoError(t, err)
+			require.NoError(t, db.NewRaw(`INSERT INTO users.staff (tenant_id, person_id) VALUES (?, ?) RETURNING id`, tenantID, first.PersonID).Scan(ctx, &replacementID))
+			sourceAfterRejoin = staffSourceRows(t, db, tenantID)
+			return nil
+		},
+		injectFault: func(ctx context.Context, _ testpkg.Tx, id int64, _ int) error {
+			if id != tenantID || !rejoined || recovered {
+				return nil
+			}
+			var persisted int64
+			require.NoError(t, db.NewRaw(`SELECT high_water_id FROM platform.storage_backfill_checkpoints WHERE backfill = ? AND tenant_id = ?`, StaffOwnerBackfillName, id).Scan(ctx, &persisted))
+			if persisted == 0 {
+				var orphanRows int64
+				require.NoError(t, db.NewRaw(`SELECT count(*) FROM users.staff_school_memberships WHERE tenant_id = ? AND id = ?`, tenantID, first.ID).Scan(ctx, &orphanRows))
+				require.Zero(t, orphanRows, "blocking orphan must be removed before the rewound copy commits")
+				recovered = true
+			}
+			return nil
+		},
+	}
+	report, err := RunStaffOwnerBackfill(ctx, db, opts)
+	require.NoError(t, err)
+	cp := requireStaffOwnerTenantEqual(t, db, report, tenantID)
+	require.True(t, recovered, "orphan cleanup and rewind must be durable before retry")
+	require.Greater(t, replacementID, first.ID)
+	require.EqualValues(t, 1, cp.SourceCount)
+	require.EqualValues(t, 1, cp.RowsRemoved)
+	require.EqualValues(t, 1, cp.BatchesRetried)
+	require.Equal(t, sourceAfterRejoin, staffSourceRows(t, db, tenantID), "recovery must not modify authoritative source rows")
+	require.Equal(t, otherSource, staffSourceRows(t, db, otherTenant))
+	requireStaffOwnerTenantEqual(t, db, report, otherTenant)
+}
+
 func TestStaffOwnerBackfillTenantIsolation(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

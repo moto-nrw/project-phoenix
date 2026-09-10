@@ -530,13 +530,9 @@ func (p *staffOwnerRetries) record(code string) bool {
 }
 
 func (r *staffOwnerTenantRun) rewindPass(ctx context.Context, cp *StaffOwnerBackfillCheckpoint) error {
-	cp.HighWaterID = 0
-	if _, err := r.db.ExecContext(ctx, `
-		UPDATE platform.storage_backfill_checkpoints SET high_water_id = 0, updated_at = now()
-		WHERE backfill = ? AND tenant_id = ?`, StaffOwnerBackfillName, r.tenantID); err != nil {
-		return fmt.Errorf("staff owner backfill: tenant %d rewind pass: %w", r.tenantID, err)
-	}
-	return nil
+	// A physically deleted row cannot be re-read on the next pass. Remove
+	// its blocking membership before retrying a replacement for that person.
+	return r.reconcileOrphans(ctx, cp, true)
 }
 
 func (r *staffOwnerTenantRun) tryCopyBatch(ctx context.Context, cp *StaffOwnerBackfillCheckpoint, attempt int, pending *staffOwnerRetries) (staffOwnerBatch, error) {
@@ -618,9 +614,16 @@ func (r *staffOwnerTenantRun) tryCopyBatch(ctx context.Context, cp *StaffOwnerBa
 // deleted. Profiles follow through the membership cascade. Soft-deleted source
 // rows are copied, not removed, because the membership owns that lifecycle.
 func (r *staffOwnerTenantRun) removeOrphans(ctx context.Context, cp *StaffOwnerBackfillCheckpoint) error {
+	return r.reconcileOrphans(ctx, cp, false)
+}
+
+// Cleanup and any conflict rewind commit together with their counters. The
+// tenant predicate and source-existence check preserve live and soft-deleted
+// memberships; only genuinely orphaned copies are removed.
+func (r *staffOwnerTenantRun) reconcileOrphans(ctx context.Context, cp *StaffOwnerBackfillCheckpoint, rewind bool) error {
 	var removed int64
 	err := r.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		if _, err := tx.ExecContext(ctx, `SET LOCAL lock_timeout = '5s'`); err != nil {
+		if _, err := tx.ExecContext(ctx, `SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '60s'`); err != nil {
 			return err
 		}
 		if err := tx.NewRaw(`
@@ -635,8 +638,9 @@ func (r *staffOwnerTenantRun) removeOrphans(ctx context.Context, cp *StaffOwnerB
 		}
 		_, err := tx.ExecContext(ctx, `
 			UPDATE platform.storage_backfill_checkpoints SET
+				high_water_id = CASE WHEN ? THEN 0 ELSE high_water_id END,
 				rows_removed = rows_removed + ?, pass_writes = pass_writes + ?, updated_at = now()
-			WHERE backfill = ? AND tenant_id = ?`, removed, removed, StaffOwnerBackfillName, r.tenantID)
+			WHERE backfill = ? AND tenant_id = ?`, rewind, removed, removed, StaffOwnerBackfillName, r.tenantID)
 		return err
 	})
 	if err != nil {
@@ -644,6 +648,9 @@ func (r *staffOwnerTenantRun) removeOrphans(ctx context.Context, cp *StaffOwnerB
 	}
 	cp.RowsRemoved += removed
 	cp.PassWrites += removed
+	if rewind {
+		cp.HighWaterID = 0
+	}
 	return nil
 }
 
