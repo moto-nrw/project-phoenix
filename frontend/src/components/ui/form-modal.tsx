@@ -8,6 +8,7 @@ import { useModal } from "../dashboard/modal-context";
 import { useScrollLock } from "~/components/ui/hooks/useScrollLock";
 import { dialogAriaProps } from "./modal";
 import { FormErrorAlert } from "./form-error-alert";
+import type { FormErrorInput } from "./form-error";
 import { useLatest } from "~/lib/hooks/use-latest";
 import {
   OVERLAY_BACKDROP_CLASS,
@@ -39,7 +40,7 @@ interface FormModalProps {
    * form reports failure in the same place (BAUARTEN-SPEC, Bauart 2 Regel 5).
    * Field-level problems additionally go to the field (`Input` `error`).
    */
-  readonly error?: string | null;
+  readonly error?: FormErrorInput;
 }
 
 export function FormModal({

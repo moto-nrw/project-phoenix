@@ -43,6 +43,7 @@ import { X } from "lucide-react";
 import { BELOW_SM } from "~/lib/hooks/use-media-query";
 import { cn } from "~/lib/utils";
 import { FormErrorAlert } from "./form-error-alert";
+import type { FormErrorInput } from "./form-error";
 import {
   OVERLAY_BACKDROP_CLASS,
   OVERLAY_BACKDROP_TINT_CLASS,
@@ -233,7 +234,7 @@ type SlideOverBodyProps = React.HTMLAttributes<HTMLDivElement> & {
    * of the body and scrolled into view when it changes. Field-level problems
    * additionally go to the field (`Input` `error`).
    */
-  error?: string | null;
+  error?: FormErrorInput;
 };
 
 /**

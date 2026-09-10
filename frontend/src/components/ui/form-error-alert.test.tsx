@@ -39,4 +39,20 @@ describe("FormErrorAlert", () => {
     rerender(<FormErrorAlert message="Zweiter Fehler" />);
     expect(scrollIntoView).toHaveBeenCalledTimes(2);
   });
+
+  it("scrolls again for a repeated attempt with the same message", () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+
+    const { rerender } = render(
+      <FormErrorAlert message={{ message: "Gleicher Fehler", attempt: 1 }} />,
+    );
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <FormErrorAlert message={{ message: "Gleicher Fehler", attempt: 2 }} />,
+    );
+    expect(scrollIntoView).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("alert")).toHaveTextContent("Gleicher Fehler");
+  });
 });

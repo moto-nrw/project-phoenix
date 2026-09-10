@@ -3,10 +3,17 @@
 import { useEffect, useRef } from "react";
 
 import { Alert } from "./alert";
+import {
+  formErrorAttempt,
+  formErrorMessage,
+  type FormErrorInput,
+} from "./form-error";
 
 interface FormErrorAlertProps {
-  /** The form's current error. Nothing renders while it is empty. */
-  readonly message: string | null | undefined;
+  /** The form's current error. Nothing renders while it is empty. A value
+   *  from `useFormError` carries the attempt counter; a plain string works
+   *  for a one-shot message. */
+  readonly message: FormErrorInput;
   readonly className?: string;
 }
 
@@ -18,24 +25,26 @@ interface FormErrorAlertProps {
  *
  * Why not just `<Alert>`: a long form is usually scrolled to its Speichern
  * button when the error arrives. The alert scrolls itself into view whenever
- * the message changes, so the person reads the reason instead of wondering
- * why nothing happened. A toast cannot do that job: it fades before anyone
- * has found the field it names.
+ * the message changes or a new attempt fails with the same message, so the
+ * person reads the reason instead of wondering why nothing happened. A toast
+ * cannot do that job: it fades before anyone has found the field it names.
  */
 export function FormErrorAlert({ message, className }: FormErrorAlertProps) {
   const ref = useRef<HTMLDivElement>(null);
+  const text = formErrorMessage(message);
+  const attempt = formErrorAttempt(message);
 
   useEffect(() => {
-    if (!message) return;
+    if (!text) return;
     // happy-dom and older WebKit builds ship no scrollIntoView on divs.
     ref.current?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
-  }, [message]);
+  }, [text, attempt]);
 
-  if (!message) return null;
+  if (!text) return null;
 
   return (
     <div ref={ref} className={className}>
-      <Alert type="error" message={message} />
+      <Alert type="error" message={text} />
     </div>
   );
 }
