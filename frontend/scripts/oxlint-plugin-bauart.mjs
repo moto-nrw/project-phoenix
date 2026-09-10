@@ -871,8 +871,21 @@ const noAutosave = {
     if (isAutosaveExempt(context)) return {};
     const reactStateSetters = new Set();
     const asyncFunctions = new Set();
+    const importedFunctions = new Set();
 
     return {
+      ImportDeclaration(node) {
+        if (node.importKind === "type") return;
+        for (const specifier of node.specifiers ?? []) {
+          if (
+            specifier.type !== "ImportNamespaceSpecifier" &&
+            specifier.importKind !== "type" &&
+            specifier.local?.type === "Identifier"
+          ) {
+            importedFunctions.add(specifier.local.name);
+          }
+        }
+      },
       FunctionDeclaration(node) {
         if (node.async && node.id?.type === "Identifier") {
           asyncFunctions.add(node.id.name);
@@ -906,7 +919,9 @@ const noAutosave = {
         if (blurBody) {
           const call = findFiredCall(blurBody, (fired, direct) =>
             isWriteCall(fired, reactStateSetters) &&
-            (!direct || asyncFunctions.has(calledFunctionName(fired))),
+            (!direct ||
+              asyncFunctions.has(calledFunctionName(fired)) ||
+              importedFunctions.has(calledFunctionName(fired))),
           );
           if (call) {
             context.report({
@@ -924,7 +939,9 @@ const noAutosave = {
           if (!body) continue;
           const call = findFiredCall(body, (fired, direct) =>
             isWriteCall(fired, reactStateSetters) &&
-            (!direct || asyncFunctions.has(calledFunctionName(fired))),
+            (!direct ||
+              asyncFunctions.has(calledFunctionName(fired)) ||
+              importedFunctions.has(calledFunctionName(fired))),
           );
           if (!call) continue;
           context.report({

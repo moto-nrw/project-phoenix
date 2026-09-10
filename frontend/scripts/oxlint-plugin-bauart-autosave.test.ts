@@ -67,6 +67,19 @@ describe("bauart/no-autosave", () => {
     expect(output).toContain("onBlur schreibt sofort (save)");
   });
 
+  it("rejects a direct imported write out of onBlur", () => {
+    const { status, output } = lintSource(
+      `import { Input } from "~/components/ui/input";
+      import { updateMasterDataField as savePayment } from "~/lib/parent-api";
+      export function Probe({ value }: { value: string }) {
+        return <Input value={value} onChange={() => {}} onBlur={() => savePayment(value)} />;
+      }`,
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain("onBlur schreibt sofort (savePayment)");
+  });
+
   it("lets validation from onBlur pass", () => {
     const { status, output } = lintSource(
       `import { Input } from "~/components/ui/input";
@@ -109,6 +122,21 @@ describe("bauart/no-autosave", () => {
 
     expect(status).toBe(1);
     expect(output).toContain("Input speichert im onChange sofort (update)");
+  });
+
+  it("rejects a direct imported write from a kit field change handler", () => {
+    const { status, output } = lintSource(
+      `import { CustomSelect } from "~/components/ui/custom-select";
+      import { updateMasterDataField as updatePayment } from "~/lib/parent-api";
+      export function Probe() {
+        return <CustomSelect value="" options={[]} onChange={(value) => updatePayment(value)} />;
+      }`,
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain(
+      "CustomSelect speichert im onChange sofort (updatePayment)",
+    );
   });
 
   it("sees a promise chain as a fired write", () => {
