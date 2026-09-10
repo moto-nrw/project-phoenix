@@ -19,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
+	requestreviewlegacy "github.com/moto-nrw/project-phoenix/modules/requestreview/legacy"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
@@ -74,6 +75,19 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
+	// The shared request-review projection over the same retained queues the
+	// production root binds (#2705).
+	requestReview, err := requestreviewlegacy.New(requestreviewlegacy.Sources{
+		MasterData:       svc.MasterDataReview,
+		CareSchedule:     svc.CareRequests,
+		Offering:         svc.OfferingChanges,
+		Excused:          svc.ExcusedRequests,
+		People:           svc.Users,
+		Education:        svc.Education,
+		FamilyProtection: svc.FamilyProtection,
+		Now:              firstClock(clocks),
+	})
+	require.NoError(t, err)
 	resource := studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PersonService:          svc.Users,
 		PeopleDirectory:        svc.PeopleDirectory,
@@ -117,6 +131,7 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		PickupAdjustmentService:  svc.PickupAdjustments,
 		ParentRequestBulkService: svc.ParentRequests,
 		FamilyProtectionService:  svc.FamilyProtection,
+		RequestReview:            requestReview,
 		Broadcaster:              broadcaster,
 		ParentEventEmitter:       parentEventEmitter,
 		StudentPhotos:            studentPhotos,
