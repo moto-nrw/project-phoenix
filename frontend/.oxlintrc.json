@@ -16,6 +16,7 @@
   "rules": {
     "bauart/one-delete-confirm": "error",
     "bauart/no-unconfirmed-destructive-click": "error",
+    "bauart/no-autosave": "error",
     "date-safety/no-utc-date-extraction": "error",
     "logging-safety/no-serialized-context": "error",
     "test-clock/no-real-clock": "error",
