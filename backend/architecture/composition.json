@@ -1,6 +1,10 @@
 {
   "commands": [
     "phoenix",
+    "phoenix backfill",
+    "phoenix backfill staff-owner",
+    "phoenix backfill staff-owner reset",
+    "phoenix backfill staff-owner status",
     "phoenix cleanup",
     "phoenix cleanup attendance",
     "phoenix cleanup invitations",

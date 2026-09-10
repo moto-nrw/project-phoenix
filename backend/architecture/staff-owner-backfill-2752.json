@@ -1,0 +1,31 @@
+{
+  "schema_version": 2,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": ["#2715"],
+  "owner_and_capability": "Required ownership splits — Backfill Membership and Workforce data from users.staff; School Membership owns users.staff_school_memberships, Workforce owns users.staff_employment_profiles, migrations own platform.storage_backfill_checkpoints",
+  "affected_packages": ["database/migrations", "cmd"],
+  "affected_tables": ["users.staff", "users.staff_school_memberships", "users.staff_employment_profiles", "platform.storage_backfill_checkpoints"],
+  "exact_ratchet_keys": [],
+  "atomic_cutover": "No caller switch. Migration 1.15.381 creates the checkpoint table and copies users.staff per school in id-ordered batches of 500 with a persisted high-water mark; each batch is one REPEATABLE READ transaction that upserts memberships and profiles by preserved identity and commits independently. Changed old rows are re-read in further passes until a pass changes nothing and per-tenant counts, checksums and row-wise mismatches agree; the stable checkpoint is the final-delta input for Cutover #2753. No application or database dual write is introduced.",
+  "tests": ["database/migrations: interrupt and resume after every batch boundary, rerun of completed batches, injected 40P01/40001/55P03 with retry accounting and give-up, changed-row re-read plus orphan removal, foreign work-time model rejection, mid-pass rejoin unique-conflict restart, two-tenant RLS reads and checkpoint grant denial, index validity and index-backed batch plan with sequential scans disabled, reset, guarded down/up with the Expand rollback and post-Cutover view guard. cmd: run, status, reset and the unstable non-zero exit against an isolated clone."],
+  "runtime_evidence": {
+    "source": "docs/operations/staff-owner-storage-backfill.md (local 2026-09-10 migration and CLI test runs; staging record pending)",
+    "workload": "Local isolated PostgreSQL clones per test with two schools, up to seven staff rows per school covering every copied column, batch sizes 1 to 10, passes until stable. Staging run with the previous image serving staff traffic is pending.",
+    "thresholds": "No latency SLO. Acceptance is per tenant: source_count = target_count, equal canonical checksums, mismatch_count 0, rows_rejected explained, stable = true. The command exits non-zero otherwise.",
+    "query_count": "Per batch: one SET LOCAL, one combined CTE statement that reads the batch and upserts both targets, one checkpoint update. Per pass end: one orphan delete transaction, two checksum queries, one mismatch query, one checkpoint update. Per run: one school listing and one sequence alignment.",
+    "errors": "Zero errors in the local suites. Non-transient SQLSTATEs abort the run immediately with the committed checkpoint intact; transient classes retry up to five attempts and then fail with the attempt count.",
+    "failure": "Injected deadlock, serialization failure and lock timeout roll back the batch without double counting rows; the attempt cap surfaces 'gave up after N attempts'. A foreign work-time model reference is rejected, reported as mismatch with oldest_unmigrated_at, and keeps the tenant unstable.",
+    "rollback": "Each interrupted batch rolls back to its previous checkpoint; resume continues exactly one batch further per run in the interrupt test. Reset and the migration down step truncate only target rows and checkpoints; users.staff row JSON is byte-identical before and after. Both refuse when users.staff is a view.",
+    "smoke": "Migration package tests including the Expand suite, cmd package tests, migrate validate, architecture check and golangci-lint are run before completion; see the PR for the recorded commands.",
+    "affected_rows": "Local: rows_copied equals the source count on the first pass, zero on the stabilising pass; rows_removed equals physically deleted source rows. Staging per-tenant totals pending.",
+    "lock_wait": "Batches run under SET LOCAL lock_timeout = '5s'; timeouts are counted per tenant as lock_timeouts (zero locally). External blocked-session sampling uses the Expand observer SQL on staging (pending).",
+    "deadlocks": "Counted per tenant from the backfill's own 40P01 retries (zero locally outside the injected case).",
+    "pool_wait": "Cumulative sql.DBStats wait duration attributed to each tenant's batches is persisted as pool_wait_ms (zero locally).",
+    "job_duration": "batch_p95_ms and batch_max_ms are persisted per tenant; local batches complete in single-digit milliseconds. Staging migration wall time pending.",
+    "job_retries": "batches_retried, deadlocks, serialization_failures and lock_timeouts are persisted per tenant.",
+    "job_backlog": "oldest_unmigrated_at records the oldest differing source row at verification; null once stable."
+  },
+  "rollback_and_cleanup": "Stop the run and keep the checkpoint. Before Cutover, `backfill staff-owner reset` or migration down truncates only the target rows and checkpoints and restarts from zero; the old authoritative rows are never mutated or deleted. Contract of users.staff happens after the Cutover rollback window, not here.",
+  "exit_criterion": "Every school reports stable = true with equal counts and checksums, zero mismatches and orphans, and a complete checkpoint while users.staff remains authoritative. scripts/backend-architecture.sh check introduces no key and leaves policy ownership unchanged; the new checkpoint table is owned by migrations."
+}

@@ -3493,6 +3493,10 @@
       "write_owner": "organization-tenancy"
     },
     {
+      "name": "platform.storage_backfill_checkpoints",
+      "write_owner": "migrations"
+    },
+    {
       "name": "schedule.activity_exceptions",
       "write_owner": "timetable-activities"
     },
