@@ -13,6 +13,7 @@ import { ISODatePicker } from "~/components/ui/date-picker";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
   SlideOver,
+  SlideOverBody,
   SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
@@ -445,7 +446,7 @@ export function TimetableEventModal({
         isOpen={isOpen && choiceDialogOpen}
         onClose={onClose}
         title="Wiederholenden Termin ändern"
-        description={`Der Termin am ${formatDate(initialInstance.date)} gehört zu einem Regeltermin. Wählen Sie zuerst, welchen Umfang Sie bearbeiten möchten.${validationError ? ` ${validationError}` : ""}`}
+        description={`Der Termin am ${formatDate(initialInstance.date)} gehört zu einem Regeltermin. Wählen Sie zuerst, welchen Umfang Sie bearbeiten möchten.${validationError ? ` ${validationError.message}` : ""}`}
         options={[
           {
             value: "single",
@@ -516,55 +517,58 @@ export function TimetableEventModal({
           <WizardStepper steps={[...WIZARD_STEPS]} current={step} />
         </div>
 
-        <form
-          id="timetable-event-form"
-          ref={formRef}
-          noValidate
-          onSubmit={(event) => {
-            // Before the last step the submit button is "Weiter", so every
-            // submit — the click and the implicit one Enter triggers in a
-            // field — advances the wizard instead of saving. (#2025)
-            if (step < LAST_STEP) {
-              event.preventDefault();
-              goNext();
-              return;
-            }
-            if (closingDaysLoading) {
-              event.preventDefault();
-              return;
-            }
-            // Schließtag: erst nachfragen, dann speichern (#2032). Die Frage
-            // kommt erst, wenn das Formular auch wirklich speichern würde —
-            // sonst stünde sie vor den Pflichtfeld-Fehlern.
-            if (
-              closingDayConflict !== null &&
-              !isScopedSeriesEdit &&
-              closingDayConfirmationKey !== null &&
-              confirmedClosingConflict.current !== closingDayConfirmationKey &&
-              !submitting &&
-              validateForm()
-            ) {
-              event.preventDefault();
-              setClosingDayPrompt({
-                conflict: closingDayConflict,
-                confirmationKey: closingDayConfirmationKey,
-              });
-              return;
-            }
-            // Mirror handleSubmit's early-return guards: on those paths no
-            // validation runs, so the flag would stay set and a later,
-            // unrelated fieldErrors change could trigger a spurious step jump.
-            if (
-              !submitting &&
-              !(isEditingInstance && initialInstance?.status !== "planned")
-            ) {
-              submitAttempted.current = true;
-            }
-            void handleSubmit(event);
-          }}
-          className="flex-1 overflow-y-auto px-5 py-4"
-        >
-          <div className="flex flex-col gap-5">
+        {/* Prüf- und Speicherfehler stehen oben im Rumpf (Bauart 2 Regel 5);
+            Feldfehler zusätzlich am Feld. */}
+        <SlideOverBody error={validationError}>
+          <form
+            id="timetable-event-form"
+            ref={formRef}
+            noValidate
+            onSubmit={(event) => {
+              // Before the last step the submit button is "Weiter", so every
+              // submit — the click and the implicit one Enter triggers in a
+              // field — advances the wizard instead of saving. (#2025)
+              if (step < LAST_STEP) {
+                event.preventDefault();
+                goNext();
+                return;
+              }
+              if (closingDaysLoading) {
+                event.preventDefault();
+                return;
+              }
+              // Schließtag: erst nachfragen, dann speichern (#2032). Die Frage
+              // kommt erst, wenn das Formular auch wirklich speichern würde —
+              // sonst stünde sie vor den Pflichtfeld-Fehlern.
+              if (
+                closingDayConflict !== null &&
+                !isScopedSeriesEdit &&
+                closingDayConfirmationKey !== null &&
+                confirmedClosingConflict.current !==
+                  closingDayConfirmationKey &&
+                !submitting &&
+                validateForm()
+              ) {
+                event.preventDefault();
+                setClosingDayPrompt({
+                  conflict: closingDayConflict,
+                  confirmationKey: closingDayConfirmationKey,
+                });
+                return;
+              }
+              // Mirror handleSubmit's early-return guards: on those paths no
+              // validation runs, so the flag would stay set and a later,
+              // unrelated fieldErrors change could trigger a spurious step jump.
+              if (
+                !submitting &&
+                !(isEditingInstance && initialInstance?.status !== "planned")
+              ) {
+                submitAttempted.current = true;
+              }
+              void handleSubmit(event);
+            }}
+            className="flex flex-col gap-5"
+          >
             {initialInstance && initialInstance.status !== "planned" && (
               <Alert
                 type="error"
@@ -746,12 +750,8 @@ export function TimetableEventModal({
                 announce="off"
               />
             )}
-
-            {validationError && (
-              <Alert type="error" message={validationError} />
-            )}
-          </div>
-        </form>
+          </form>
+        </SlideOverBody>
 
         <SlideOverFooter className="items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="order-2 sm:order-1">

@@ -13,6 +13,8 @@ import { useProfile } from "~/lib/profile-context";
 import { compressAvatar } from "~/lib/image-utils";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { useFormError } from "~/components/ui/form-error";
 import { PasswordChangeModal } from "~/components/ui/password-change-modal";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -50,6 +52,9 @@ function ProfileContent() {
 
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  // Speicherfehler stehen oben im Bearbeiten-Bereich der Karte, nicht als
+  // Toast: Bauart 2 Regel 5.
+  const [saveError, setSaveError] = useFormError();
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [formData, setFormData] = useState({
     firstName: "",
@@ -75,6 +80,7 @@ function ProfileContent() {
     if (!session?.user?.token || !profile) return;
 
     setIsSaving(true);
+    setSaveError(null);
     try {
       const updateData: ProfileUpdateRequest = {
         firstName: formData.firstName,
@@ -100,7 +106,7 @@ function ProfileContent() {
       logger.error("profile_save_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      toastError("Fehler beim Speichern des Profils");
+      setSaveError("Fehler beim Speichern des Profils");
     } finally {
       setIsSaving(false);
     }
@@ -208,6 +214,7 @@ function ProfileContent() {
       >
         {isEditing ? (
           <div className="space-y-4">
+            <FormErrorAlert message={saveError} />
             <Input
               label="Vorname"
               name="profile-firstname"
@@ -241,6 +248,7 @@ function ProfileContent() {
                 size="md"
                 onClick={() => {
                   setIsEditing(false);
+                  setSaveError(null);
                   resetFormFromProfile();
                 }}
               >

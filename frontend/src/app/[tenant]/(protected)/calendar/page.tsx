@@ -28,6 +28,7 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import {
   SlideOver,
+  SlideOverBody,
   SlideOverCloseButton,
   SlideOverContent,
   SlideOverHeader,
@@ -40,6 +41,7 @@ import {
   TableSkeleton,
 } from "~/components/ui/page-skeletons";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { useFormError } from "~/components/ui/form-error";
 import { useToast } from "~/contexts/ToastContext";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { berlinTodayISO, toISODate } from "~/lib/date-helpers";
@@ -422,6 +424,16 @@ function StaffCalendarPageInner() {
   const [monthDays, setMonthDays] = useState<number[]>([]);
   const [occurrenceCount, setOccurrenceCount] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // Fehler des Terminformulars: Alert oben im Panel, Titel zusätzlich am
+  // Feld (Bauart 2 Regel 5). Kein Toast: der verblasst, bevor jemand bei
+  // fünfzehn Feldern das fehlende gefunden hat.
+  const [formError, setFormError] = useFormError();
+  const [titleError, setTitleError] = useState<string | undefined>(undefined);
+  // Fehler von Aktionen ohne eigene Fläche (Laden, Antworten, Teilnehmer,
+  // Absagen): Alert über dem Raster, bis die nächste Aktion startet.
+  const [actionError, setActionError] = useState<string | null>(null);
+  // Fehler beim Löschen bleibt im geöffneten Dialog stehen.
+  const [deleteError, setDeleteError] = useState("");
   const [respondingRecipientId, setRespondingRecipientId] = useState<
     string | null
   >(null);
@@ -497,6 +509,8 @@ function StaffCalendarPageInner() {
     setDeliveryMode("rsvp_required");
     setSendEmail(false);
     setEditingId(null);
+    setFormError(null);
+    setTitleError(undefined);
     setFormOpen(false);
   };
 
@@ -513,6 +527,7 @@ function StaffCalendarPageInner() {
   const handleEdit = async (event: CalendarEvent) => {
     if (!event.appointment_id) return;
     setBusyAppointmentId(event.appointment_id);
+    setActionError(null);
     try {
       // Editing is series-scoped (UpdateStaffAppointment rewrites the whole
       // appointment), so prefill from the persisted appointment DETAIL — its
@@ -552,7 +567,7 @@ function StaffCalendarPageInner() {
       setEditingId(event.appointment_id);
       setFormOpen(true);
     } catch (err) {
-      toast.error(errorMessage(err, "Termin konnte nicht geladen werden."));
+      setActionError(errorMessage(err, "Termin konnte nicht geladen werden."));
     } finally {
       setBusyAppointmentId(null);
     }
@@ -566,6 +581,8 @@ function StaffCalendarPageInner() {
     if (!event.appointment_id) return;
     const appointmentId = event.appointment_id;
     setBusyAppointmentId(appointmentId);
+    setActionError(null);
+    setDeleteError("");
     try {
       if (scope === "occurrence") {
         await cancelStaffAppointmentOccurrence(
@@ -581,18 +598,31 @@ function StaffCalendarPageInner() {
         toast.success("Termin wurde gelöscht.");
       }
       await mutate();
-    } catch (err) {
-      toast.error(errorMessage(err, "Aktion konnte nicht ausgeführt werden."));
-    } finally {
-      setBusyAppointmentId(null);
       setDeleteTarget(null);
       setCancelTarget(null);
+    } catch (err) {
+      const message = errorMessage(
+        err,
+        "Aktion konnte nicht ausgeführt werden.",
+      );
+      if (mode === "delete") {
+        // Der Löschdialog bleibt offen und zeigt den Grund.
+        setDeleteError(message);
+      } else {
+        // Die Absage-Dialoge haben keinen Fehler-Slot: schließen, Grund
+        // über dem Raster.
+        setActionError(message);
+        setCancelTarget(null);
+      }
+    } finally {
+      setBusyAppointmentId(null);
     }
   };
 
   const handleCancel = (event: CalendarEvent) => setCancelTarget(event);
   const handleDelete = (event: CalendarEvent) => {
     setDeleteScope(event.recurring ? null : "series");
+    setDeleteError("");
     setDeleteTarget(event);
   };
 
@@ -601,11 +631,12 @@ function StaffCalendarPageInner() {
     // can't leave the old overview visible under a different appointment.
     setOverview(null);
     setOverviewLoading(true);
+    setActionError(null);
     try {
       setOverview(await getStaffAppointmentOverview(appointmentId));
     } catch (err) {
       setOverview(null);
-      toast.error(
+      setActionError(
         errorMessage(err, "Teilnehmerübersicht konnte nicht geladen werden."),
       );
     } finally {
@@ -618,6 +649,7 @@ function StaffCalendarPageInner() {
     status: "accepted" | "declined",
   ) => {
     setRespondingRecipientId(recipientId);
+    setActionError(null);
     try {
       await respondStaffCalendar(recipientId, status);
       await mutate();
@@ -625,7 +657,7 @@ function StaffCalendarPageInner() {
         status === "accepted" ? "Termin zugesagt." : "Termin abgesagt.",
       );
     } catch (err) {
-      toast.error(
+      setActionError(
         errorMessage(err, "Antwort konnte nicht gespeichert werden."),
       );
     } finally {
@@ -635,16 +667,21 @@ function StaffCalendarPageInner() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    // Den Formularfehler erst nach bestandener Prüfung löschen: ein
+    // vorheriges `setFormError(null)` würde den Versuchszähler zurücksetzen,
+    // und der Alert scrollt beim zweiten gleichen Fehler nicht mehr.
+    setTitleError(undefined);
     if (!title.trim()) {
-      toast.warning("Bitte einen Titel eintragen.");
+      setTitleError("Bitte einen Titel eintragen.");
+      setFormError("Bitte einen Titel eintragen.");
       return;
     }
     if (!editingId && targets.length === 0) {
-      toast.warning("Bitte mindestens ein Ziel auswählen.");
+      setFormError("Bitte mindestens ein Ziel auswählen.");
       return;
     }
     if (!startDate || !endDate) {
-      toast.warning("Bitte Start- und Enddatum angeben.");
+      setFormError("Bitte Start- und Enddatum angeben.");
       return;
     }
 
@@ -673,6 +710,7 @@ function StaffCalendarPageInner() {
               !endsOn && occurrenceCount ? occurrenceCount : undefined,
           };
 
+    setFormError(null);
     setSubmitting(true);
     try {
       if (editingId) {
@@ -713,7 +751,7 @@ function StaffCalendarPageInner() {
       resetForm();
       await mutate();
     } catch (err) {
-      toast.error(
+      setFormError(
         errorMessage(
           err,
           editingId
@@ -735,6 +773,7 @@ function StaffCalendarPageInner() {
       // On a load error SWR may still hold the previous range's data; don't
       // render stale appointments under the new date label.
       events={calendarEvents}
+      error={actionError}
       referenceDate={referenceDate}
       viewMode={viewMode}
       showWeekend={showWeekend}
@@ -882,7 +921,7 @@ function StaffCalendarPageInner() {
                 </div>
                 <SlideOverCloseButton disabled={submitting} />
               </SlideOverHeader>
-              <div className="flex-1 overflow-y-auto px-5 py-4">
+              <SlideOverBody error={formError}>
                 <form className="space-y-5" onSubmit={handleSubmit}>
                   <div className="flex items-center gap-2">
                     <MotoConceptIcon concept="calendarPeriods" size={20} />
@@ -898,7 +937,11 @@ function StaffCalendarPageInner() {
                       label="Titel"
                       name="calendar-title"
                       value={title}
-                      onChange={(event) => setTitle(event.target.value)}
+                      onChange={(event) => {
+                        setTitle(event.target.value);
+                        setTitleError(undefined);
+                      }}
+                      error={titleError}
                       disabled={submitting}
                       required
                     />
@@ -1253,7 +1296,7 @@ function StaffCalendarPageInner() {
                     </Button>
                   </div>
                 </form>
-              </div>
+              </SlideOverBody>
             </SlideOverContent>
           </SlideOver>
 
@@ -1320,10 +1363,13 @@ function StaffCalendarPageInner() {
               }
             }}
             onClose={() => {
-              if (!busyAppointmentId) setDeleteTarget(null);
+              if (!busyAppointmentId) {
+                setDeleteTarget(null);
+                setDeleteError("");
+              }
             }}
             loading={Boolean(busyAppointmentId)}
-            error=""
+            error={deleteError}
           />
 
           <ChoiceModal

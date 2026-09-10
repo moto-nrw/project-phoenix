@@ -618,4 +618,46 @@ describe("FormModal", () => {
 
     globalThis.removeEventListener("mobile-modal-close", eventSpy);
   });
+
+  it("renders the error slot as an alert above the content", async () => {
+    render(
+      <TestWrapper>
+        <FormModal
+          isOpen={true}
+          onClose={vi.fn()}
+          title="Test Modal"
+          error="Bitte einen Namen eintragen."
+        >
+          <p>Modal content</p>
+        </FormModal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("Bitte einen Namen eintragen.");
+    expect(
+      alert.compareDocumentPosition(screen.getByText("Modal content")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("renders no alert without an error", async () => {
+    render(
+      <TestWrapper>
+        <FormModal isOpen={true} onClose={vi.fn()} title="Test Modal">
+          <p>Modal content</p>
+        </FormModal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
 });
