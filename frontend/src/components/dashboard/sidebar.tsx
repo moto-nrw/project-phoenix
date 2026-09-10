@@ -1261,18 +1261,29 @@ function SidebarContent({
   }, [toggle, pathname, supervisedRooms, router]);
 
   const handleDatabaseToggle = useCallback(() => {
+    // Der Hub ist dem Leitungsbereich vorbehalten. Delegierte Personen haben
+    // nur einen oder mehrere Kataloge und starten deshalb beim ersten
+    // erreichbaren Unterpunkt statt auf einer gesperrten Hub-Seite.
+    const databaseLandingPath = userHasEffectiveAdminScope
+      ? "/database"
+      : databaseSubPages[0]?.href;
     if (!pathname.startsWith("/database")) {
-      // Not on any database page, expand accordion and navigate to hub
+      // Not on any database page, expand accordion and navigate to its
+      // reachable landing page.
       toggle("database");
-      router.push("/database");
+      if (databaseLandingPath) router.push(databaseLandingPath);
     } else if (pathname === "/database") {
       // On hub page, just toggle collapse or expand
+      toggle("database");
+    } else if (!userHasEffectiveAdminScope) {
+      // Delegated users have no hub to return to; keep them on their allowed
+      // catalog and let the control act as the accordion toggle.
       toggle("database");
     } else {
       // On a sub-page like /database/rooms, navigate back to hub
       router.push("/database");
     }
-  }, [toggle, pathname, router]);
+  }, [databaseSubPages, toggle, pathname, router, userHasEffectiveAdminScope]);
 
   const activeEnrollmentSubPageHref = getActiveEnrollmentSubPageHref(pathname);
   const isOnEnrollmentsPage = activeEnrollmentSubPageHref !== null;

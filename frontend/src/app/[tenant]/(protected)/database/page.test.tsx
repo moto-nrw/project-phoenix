@@ -39,6 +39,11 @@ vi.mock("~/components/ui/hooks/useIsMobile", () => ({
   useIsMobile: vi.fn(() => false),
 }));
 
+const mockUseSettingsSchema = vi.hoisted(() => vi.fn());
+vi.mock("~/lib/hooks/use-settings-schema", () => ({
+  useSettingsSchema: mockUseSettingsSchema,
+}));
+
 const mockCountsResponse = {
   success: true,
   message: "Counts fetched",
@@ -97,6 +102,7 @@ describe("DatabasePage", () => {
       update: vi.fn(),
     });
     vi.mocked(useIsMobile).mockReturnValue(false);
+    mockUseSettingsSchema.mockReturnValue({ data: undefined });
     mockCounts();
     vi.mocked(global.fetch).mockResolvedValue({
       ok: true,
@@ -242,6 +248,50 @@ describe("DatabasePage", () => {
       expect(screen.getByText("Schichtarten")).toBeInTheDocument();
       expect(screen.getByText("Abwesenheitsarten")).toBeInTheDocument();
     });
+  });
+
+  it("loads the planning setting for an administrator without config:read", () => {
+    const administrator = {
+      ...mockSession,
+      user: {
+        ...mockSession.user,
+        roles: ["admin"],
+        permissions: [],
+      },
+    };
+    vi.mocked(useSession).mockReturnValue({
+      data: administrator,
+      status: "authenticated",
+      update: vi.fn(),
+    } as never);
+    mockUseSettingsSchema.mockImplementation((enabled: boolean) => ({
+      data: enabled
+        ? {
+            tabs: [
+              {
+                key: "planung",
+                label: "Planung",
+                categories: [
+                  {
+                    key: "allgemein",
+                    label: "Allgemein",
+                    items: [{ key: "timetable.enabled", value: false }],
+                  },
+                ],
+              },
+            ],
+          }
+        : undefined,
+    }));
+
+    render(<DatabasePage />);
+
+    expect(mockUseSettingsSchema).toHaveBeenCalledWith(
+      true,
+      expect.any(Object),
+    );
+    expect(screen.queryByText("Planungsspuren")).not.toBeInTheDocument();
+    expect(screen.queryByText("Schichtarten")).not.toBeInTheDocument();
   });
 
   it("handles 401 unauthorized response gracefully", async () => {

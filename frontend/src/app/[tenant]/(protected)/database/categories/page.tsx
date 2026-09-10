@@ -105,9 +105,9 @@ const config: CatalogConfig<ActivityCategory> = {
     color: item.color ?? null,
     retired: Boolean(item.archivedAt),
   }),
-  isReadOnly: (item) => Boolean(item.archivedAt),
+  isReadOnly: (item) => Boolean(item.archivedAt || item.isSystem),
   readOnlyHint:
-    "Bieten Sie die Terminkategorie wieder an. Dann können Sie sie ändern.",
+    "Diese Kategorie können Sie nicht ändern. Archivierte Kategorien können Sie wieder anbieten.",
   sections,
   toFormValues: (item) => ({
     name: item.name,

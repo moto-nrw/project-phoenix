@@ -265,7 +265,7 @@ function DatabaseContent() {
   // ausgeschaltet, gibt es nichts zu ordnen. `!== false` wie in der
   // Seitenleiste, damit die Kacheln beim Laden des Schemas nicht flackern.
   const { data: settingsSchema } = useSettingsSchema(
-    hasPermission(session, "config:read"),
+    hasEffectiveAdminScope(session) || hasPermission(session, "config:read"),
     {
       revalidateOnFocus: false,
       revalidateOnReconnect: false,

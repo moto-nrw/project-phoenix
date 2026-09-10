@@ -1207,6 +1207,24 @@ describe("Sidebar", () => {
       expect(mockRouterPush).toHaveBeenCalledWith("/test-tenant/database");
     });
 
+    it("opens an allowed catalog instead of the forbidden hub for delegated users", () => {
+      mockIsAdmin.mockReturnValue(false);
+      mockHasEffectiveAdminScope.mockReturnValue(false);
+      mockUseSession.mockReturnValue(createMockSession(false));
+      mockHasPermission.mockImplementation(
+        (_session, permission) => permission === "activities:manage_categories",
+      );
+      mockUsePathname.mockReturnValue("/activities");
+
+      render(<Sidebar />);
+
+      fireEvent.click(screen.getByText("Datenverwaltung"));
+
+      expect(mockRouterPush).toHaveBeenCalledWith(
+        "/test-tenant/database/categories",
+      );
+    });
+
     it("navigates back to database hub when on a database sub-page", () => {
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
