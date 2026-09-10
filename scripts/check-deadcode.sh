@@ -10,9 +10,9 @@ run_deadcode() {
 
   set +e
   if [[ "$mode" == "tests" ]]; then
-    output=$(go tool deadcode -test ./... 2>&1)
+    output=$(go tool deadcode -test ./...)
   else
-    output=$(go tool deadcode ./... 2>&1)
+    output=$(go tool deadcode ./...)
   fi
   status=$?
   set -e
@@ -50,10 +50,16 @@ if [[ -n "$production_findings" ]]; then
   exit 1
 fi
 
-deadcode_binary=$(go tool -n deadcode)
+# The architecture command has its own module. Build the backend-pinned tool
+# to an owned path: `go tool -n` may name a temporary executable that is removed
+# when the Go command exits, particularly with an external cache plugin.
+tool_directory=$(mktemp -d)
+trap 'rm -rf -- "$tool_directory"' EXIT
+deadcode_binary="$tool_directory/deadcode"
+go build -o "$deadcode_binary" golang.org/x/tools/cmd/deadcode
 tool_output=$(
   cd "$repo_root/scripts/backend-architecture"
-  "$deadcode_binary" ./... 2>&1
+  "$deadcode_binary" ./...
 )
 tool_findings=$(printf '%s\n' "$tool_output" | grep -v '^go: ' || true)
 if [[ -n "$tool_findings" ]]; then
