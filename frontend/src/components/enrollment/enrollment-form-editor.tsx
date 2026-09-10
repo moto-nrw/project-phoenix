@@ -32,6 +32,7 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useToast } from "~/contexts/ToastContext";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Modal } from "~/components/ui/modal";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -732,12 +733,10 @@ export function EnrollmentFormEditor({
       });
       if (validationMessage) {
         setError(validationMessage);
-        toast.error(validationMessage);
         return null;
       }
       if (hasPendingLegalDocumentUpload) {
         setError(LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE);
-        toast.error(LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE);
         return null;
       }
 
@@ -810,7 +809,6 @@ export function EnrollmentFormEditor({
       } else {
         logger.error("schema_save_failed", { error: message });
         setError(message);
-        toast.error(message);
       }
       return null;
     } finally {
@@ -994,6 +992,10 @@ export function EnrollmentFormEditor({
         </div>
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_430px]">
           <div className="space-y-6 p-5 sm:p-6">
+            {/* Speicher- und Prüffehler stehen oben im Bearbeiten-Bereich
+                (Bauart 2 Regel 5); der Alert holt sich selbst ins Bild. */}
+            <FormErrorAlert message={error} />
+
             <FormBuilderIntro />
 
             <BuilderTemplateSummary
@@ -1060,8 +1062,6 @@ export function EnrollmentFormEditor({
                   </Button>
                 </div>
               </div>
-
-              {error ? <Alert type="error" message={error} /> : null}
 
               <TargetSuggestions
                 fields={fields}
@@ -1807,6 +1807,7 @@ function RenameSchemaDialog({
       onClose={onClose}
       title="Formular umbenennen"
       size="sm"
+      error={error}
       footer={
         <div className="flex justify-end gap-2">
           <Button
@@ -1845,7 +1846,6 @@ function RenameSchemaDialog({
           value={value}
           onChange={(event) => setValue(event.target.value)}
           placeholder="z. B. Ferienbetreuung Sommer 2026"
-          error={error ?? undefined}
           autoFocus
         />
         <p className="text-xs leading-5 text-gray-500">

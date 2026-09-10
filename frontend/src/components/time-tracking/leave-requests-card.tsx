@@ -7,6 +7,7 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { Textarea } from "~/components/ui/textarea";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useToast } from "~/contexts/ToastContext";
 import {
   absenceStatusMeta,
@@ -397,11 +398,17 @@ function ResubmitAbsenceForm({
 }) {
   const [note, setNote] = useState(absence.note ?? "");
   const [submitting, setSubmitting] = useState(false);
+  // Fehler stehen am Formular (Alert oben, Feldfehler am Feld), nicht als
+  // Toast: Bauart 2 Regel 5.
+  const [noteError, setNoteError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const toast = useToast();
 
   const handleSubmit = async () => {
+    setNoteError(null);
+    setSubmitError(null);
     if (note.trim().length < 3) {
-      toast.error("Bitte gib eine kurze Antwort ein.");
+      setNoteError("Bitte gib eine kurze Antwort ein.");
       return;
     }
     setSubmitting(true);
@@ -410,7 +417,7 @@ function ResubmitAbsenceForm({
       toast.success("Antrag erneut eingereicht.");
       onResubmitted();
     } catch (err) {
-      toast.error(
+      setSubmitError(
         err instanceof Error
           ? err.message
           : "Antrag konnte nicht erneut eingereicht werden.",
@@ -422,6 +429,7 @@ function ResubmitAbsenceForm({
 
   return (
     <div className="mt-3 border-t border-gray-100 pt-3">
+      <FormErrorAlert message={submitError} className="mb-3" />
       <label
         htmlFor={`resubmit-note-${absence.id}`}
         className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
@@ -431,10 +439,14 @@ function ResubmitAbsenceForm({
       <Textarea
         id={`resubmit-note-${absence.id}`}
         value={note}
-        onChange={(e) => setNote(e.target.value)}
+        onChange={(e) => {
+          setNote(e.target.value);
+          setNoteError(null);
+        }}
         rows={2}
         maxLength={500}
         placeholder="Antwort auf die Rückfrage ergänzen…"
+        error={noteError ?? undefined}
       />
       <div className="mt-2 flex justify-end">
         <Button

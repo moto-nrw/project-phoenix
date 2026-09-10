@@ -30,6 +30,18 @@ vi.mock("~/components/ui/slide-over", () => ({
   SlideOverHeader: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
+  SlideOverBody: ({
+    error,
+    children,
+  }: {
+    error?: string | null;
+    children: React.ReactNode;
+  }) => (
+    <div>
+      {error ? <div role="alert">{error}</div> : null}
+      {children}
+    </div>
+  ),
   SlideOverFooter: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),

@@ -3,11 +3,11 @@
 import { useMemo, useState } from "react";
 import type { DateRange } from "react-day-picker";
 
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { RangeCalendarInline } from "~/components/ui/date-range-picker";
 import {
   SlideOver,
+  SlideOverBody,
   SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
@@ -202,7 +202,7 @@ export function VacationRequestModal({
   const [endHalf, setEndHalf] = useState(false);
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [serverError, setServerError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [confirmedOverBalance, setConfirmedOverBalance] = useState(false);
   const toast = useToast();
 
@@ -272,21 +272,23 @@ export function VacationRequestModal({
   const overBalanceDays = Math.max(0, workingDays - remainingDays);
 
   const handleSubmit = async () => {
+    // Prüf- und Speicherfehler stehen oben im Panel (SlideOverBody `error`),
+    // nicht als Toast: Bauart 2 Regel 5.
     if (!range?.from || !range.to) {
-      toast.error("Bitte Zeitraum auswählen.");
+      setFormError("Bitte Zeitraum auswählen.");
       return;
     }
     if (workingDays === 0) {
-      toast.error("Der gewählte Zeitraum enthält keine Werktage.");
+      setFormError("Der gewählte Zeitraum enthält keine Werktage.");
       return;
     }
     if (overlapMessage) {
-      setServerError(null);
+      setFormError(null);
       return;
     }
     if (exceedsBalance && !confirmedOverBalance) {
       setConfirmedOverBalance(true);
-      setServerError(null);
+      setFormError(null);
       return;
     }
     setSubmitting(true);
@@ -308,8 +310,7 @@ export function VacationRequestModal({
       logger.error("vacation_request_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setServerError(message);
-      toast.error(message);
+      setFormError(message);
     } finally {
       setSubmitting(false);
     }
@@ -320,7 +321,7 @@ export function VacationRequestModal({
     setStartHalf(false);
     setEndHalf(false);
     setNote("");
-    setServerError(null);
+    setFormError(null);
     setConfirmedOverBalance(false);
   };
 
@@ -344,7 +345,7 @@ export function VacationRequestModal({
           </div>
           <SlideOverCloseButton disabled={submitting} />
         </SlideOverHeader>
-        <div className="flex-1 overflow-y-auto px-5 py-4">
+        <SlideOverBody error={overlapMessage ?? formError}>
           <div className="space-y-5">
             <div>
               <p className="mb-2 text-xs font-semibold tracking-wider text-gray-500 uppercase">
@@ -355,7 +356,7 @@ export function VacationRequestModal({
                   value={range}
                   onChange={(nextRange) => {
                     setRange(nextRange);
-                    setServerError(null);
+                    setFormError(null);
                     setConfirmedOverBalance(false);
                   }}
                   fromMin={today}
@@ -487,15 +488,8 @@ export function VacationRequestModal({
                 {note.length}/500
               </p>
             </div>
-
-            {(overlapMessage || serverError) && (
-              <Alert
-                type="error"
-                message={overlapMessage ?? serverError ?? ""}
-              />
-            )}
           </div>
-        </div>
+        </SlideOverBody>
         <SlideOverFooter>
           <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-xs text-gray-500">

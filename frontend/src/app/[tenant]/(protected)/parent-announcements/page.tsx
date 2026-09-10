@@ -30,6 +30,7 @@ import type { DataTableColumn } from "~/components/ui/data-table";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
   SlideOver,
+  SlideOverBody,
   SlideOverCloseButton,
   SlideOverContent,
   SlideOverFooter,
@@ -786,11 +787,7 @@ function ParentAnnouncementsContent() {
                   Nach dem Veröffentlichen kann die Mitteilung nicht mehr
                   bearbeitet werden.
                 </p>
-                {publishError && (
-                  <p role="alert" className="text-moto-red-strong text-sm">
-                    {publishError}
-                  </p>
-                )}
+                {publishError && <Alert type="error" message={publishError} />}
               </div>
             </ConfirmationModal>
           )}
@@ -818,9 +815,7 @@ function ParentAnnouncementsContent() {
                   abgebrochen.
                 </p>
                 {unpublishError && (
-                  <p role="alert" className="text-moto-red-strong text-sm">
-                    {unpublishError}
-                  </p>
+                  <Alert type="error" message={unpublishError} />
                 )}
               </div>
             </ConfirmationModal>
@@ -1351,7 +1346,9 @@ function AnnouncementFormModal({
           </div>
           <SlideOverCloseButton />
         </SlideOverHeader>
-        <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+        {/* Der Fehler des Formulars steht oben im Rumpf, nicht unten über
+            dem Footer (Bauart 2 Regel 5, #3113). */}
+        <SlideOverBody error={formError} className="space-y-4">
           <WizardStepper steps={WIZARD_STEPS} current={step} />
 
           {step === 0 ? (
@@ -1754,9 +1751,7 @@ function AnnouncementFormModal({
                 )}
 
                 {attachmentError && (
-                  <p role="alert" className="text-moto-red-strong text-sm">
-                    {attachmentError}
-                  </p>
+                  <Alert type="error" message={attachmentError} />
                 )}
               </section>
             </div>
@@ -1781,13 +1776,7 @@ function AnnouncementFormModal({
               allowPendingEnrollment={!isPollForm && !isLetterForm}
             />
           )}
-
-          {formError && (
-            <p role="alert" className="text-moto-red-strong text-sm">
-              {formError}
-            </p>
-          )}
-        </div>
+        </SlideOverBody>
         <SlideOverFooter className="flex-row flex-wrap justify-end gap-2">
           {footer}
         </SlideOverFooter>
@@ -2571,7 +2560,7 @@ function DetailModal({
           </div>
           <SlideOverCloseButton />
         </SlideOverHeader>
-        <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
+        <SlideOverBody className="space-y-5">
           {/* Identitätskopf: Titel trägt der Modalkopf, hier stehen Status und
             Zeitpunkte des Objekts. */}
           <div className="flex flex-wrap items-center gap-2">
@@ -2726,7 +2715,7 @@ function DetailModal({
               )}
             </InfoSection>
           )}
-        </div>
+        </SlideOverBody>
       </SlideOverContent>
     </SlideOver>
   );

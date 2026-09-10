@@ -5,6 +5,7 @@ import { ChevronDown, Clock, Loader2, StickyNote } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   SlideOver,
+  SlideOverBody,
   SlideOverCloseButton,
   SlideOverContent,
   SlideOverFooter,
@@ -378,7 +379,6 @@ export function CarePlanEditorModal({
         ? err.message
         : "Hinweis konnte nicht gespeichert werden";
     setError(message);
-    toast.error(message);
   };
 
   const closeNoteDeleteConfirmation = () => {
@@ -409,7 +409,6 @@ export function CarePlanEditorModal({
       const message =
         "Die Abholung konnte nicht zurückgesetzt werden. Bitte versuchen Sie es noch einmal.";
       setError(message);
-      toast.error(message);
     } finally {
       setIsResettingPickup(false);
     }
@@ -454,7 +453,6 @@ export function CarePlanEditorModal({
         ? "Diese Zeit wurde von den Eltern gesetzt und kann nur von Mitarbeitenden mit Personalprofil geändert werden."
         : raw;
       setError(message);
-      toast.error(message);
       offeringPreviewRequestId.current++;
       weeklyExceptionPreview.current = null;
       setWeeklyAdjustment(null);
@@ -487,7 +485,6 @@ export function CarePlanEditorModal({
           ? err.message
           : "Dauerhafte Ausnahme konnte nicht gespeichert werden";
       setError(message);
-      toast.error(message);
       offeringPreviewRequestId.current++;
       weeklyExceptionPreview.current = null;
       setWeeklyAdjustment(null);
@@ -562,7 +559,6 @@ export function CarePlanEditorModal({
           ? err.message
           : "Angebot konnte nicht geprüft werden";
       setError(message);
-      toast.error(message);
       setOfferingSelections([]);
       setSelectedOfferingId(null);
       setOfferingConfirmed(false);
@@ -596,7 +592,6 @@ export function CarePlanEditorModal({
           ? err.message
           : "Angebot konnte nicht geändert werden";
       setError(message);
-      toast.error(message);
       offeringPreviewRequestId.current++;
       weeklyExceptionPreview.current = null;
       setWeeklyAdjustment(null);
@@ -668,7 +663,9 @@ export function CarePlanEditorModal({
             </div>
             <SlideOverCloseButton aria-label="Fenster schließen" />
           </SlideOverHeader>
-          <div className="flex-1 overflow-y-auto px-5 py-4">
+          {/* Speicher- und Hinweisfehler stehen im Fehler-Slot oben im Rumpf
+              (Bauart 2 Regel 5), nicht als Toast. */}
+          <SlideOverBody error={error}>
             {/* noValidate: a half-cleared <input type="time"> (e.g. backspacing the
             hour of "15:00") reports validity.badInput, which makes the browser
             refuse the submit — the Save button then does nothing beyond a native
@@ -680,12 +677,6 @@ export function CarePlanEditorModal({
               onSubmit={handleSubmit}
               className="space-y-5"
             >
-              {error ? (
-                <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-xl border px-4 py-3 text-sm">
-                  {error}
-                </div>
-              ) : null}
-
               {isException ? (
                 <>
                   <p className="text-sm leading-6 text-gray-600">
@@ -878,7 +869,7 @@ export function CarePlanEditorModal({
                 />
               )}
             </form>
-          </div>
+          </SlideOverBody>
           <SlideOverFooter className="flex-row justify-end gap-2">
             {footer}
           </SlideOverFooter>

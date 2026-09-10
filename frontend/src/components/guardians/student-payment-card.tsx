@@ -5,6 +5,7 @@ import { Eye, Landmark, Loader2 } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { useToast } from "~/contexts/ToastContext";
@@ -59,6 +60,9 @@ export function StudentPaymentCard({
   const [isEditing, setIsEditing] = useState(false);
   const [ibanDraft, setIbanDraft] = useState("");
   const [holderDraft, setHolderDraft] = useState("");
+  // Ein Fehler-Slot für die ganze Karte: Alert oben im Bearbeiten-Bereich
+  // (Bauart 2 Regel 5), gelöscht, sobald die nächste Aktion startet.
+  const [error, setError] = useState<string | null>(null);
 
   const payerId = payer?.id ?? null;
 
@@ -78,6 +82,7 @@ export function StudentPaymentCard({
     let cancelled = false;
     setIsLoading(true);
     setIsEditing(false);
+    setError(null);
     fetchGuardianPayment(payerId)
       .then((data) => {
         if (cancelled) return;
@@ -85,14 +90,15 @@ export function StudentPaymentCard({
         setAccountHolder(data.accountHolder);
         setRevealedIban(null);
       })
-      .catch((error: unknown) => {
+      .catch((loadError: unknown) => {
         if (cancelled) return;
         logger.error("load_guardian_payment_failed", {
-          error: error instanceof Error ? error.message : String(error),
+          error:
+            loadError instanceof Error ? loadError.message : String(loadError),
         });
-        toast.error(
-          error instanceof Error
-            ? error.message
+        setError(
+          loadError instanceof Error
+            ? loadError.message
             : "Die Bankverbindung konnte nicht geladen werden. Bitte noch einmal versuchen.",
         );
       })
@@ -107,14 +113,15 @@ export function StudentPaymentCard({
 
   const handleSelectPayer = async (value: string) => {
     const nextId = value === NO_PAYER ? null : value;
+    setError(null);
     try {
       await setStudentPayer(studentId, nextId);
       setIsEditing(false);
       onChanged?.();
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
           : "Das Zahlungskonto konnte nicht gespeichert werden. Bitte noch einmal versuchen.",
       );
     }
@@ -123,13 +130,14 @@ export function StudentPaymentCard({
   const handleReveal = async () => {
     if (!payerId) return;
     setIsRevealing(true);
+    setError(null);
     try {
       const data = await revealGuardianPayment(payerId);
       setRevealedIban(data.iban);
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
+    } catch (revealError) {
+      setError(
+        revealError instanceof Error
+          ? revealError.message
           : "Die IBAN konnte nicht angezeigt werden. Bitte noch einmal versuchen.",
       );
     } finally {
@@ -140,6 +148,7 @@ export function StudentPaymentCard({
   const handleStartEdit = async () => {
     if (!payerId) return;
     setIsRevealing(true);
+    setError(null);
     try {
       // Edit starts from the real value: a form prefilled with a masked string
       // would silently overwrite the stored IBAN with dots on save.
@@ -147,10 +156,10 @@ export function StudentPaymentCard({
       setIbanDraft(data.iban ?? "");
       setHolderDraft(data.accountHolder ?? "");
       setIsEditing(true);
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
+    } catch (openError) {
+      setError(
+        openError instanceof Error
+          ? openError.message
           : "Die Bankverbindung konnte nicht geöffnet werden. Bitte noch einmal versuchen.",
       );
     } finally {
@@ -161,6 +170,7 @@ export function StudentPaymentCard({
   const handleSave = async () => {
     if (!payerId) return;
     setIsSaving(true);
+    setError(null);
     try {
       await updateGuardianPayment(payerId, {
         iban: ibanDraft.trim() === "" ? null : ibanDraft.trim(),
@@ -169,10 +179,10 @@ export function StudentPaymentCard({
       setIsEditing(false);
       setReloadToken((token) => token + 1);
       toast.success("Bankverbindung gespeichert.");
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
           : "Die Bankverbindung konnte nicht gespeichert werden. Bitte noch einmal versuchen.",
       );
     } finally {
@@ -196,6 +206,7 @@ export function StudentPaymentCard({
       headingLevel={3}
     >
       <div className="space-y-4">
+        <FormErrorAlert message={error} />
         <div>
           <label
             htmlFor="payment-payer"

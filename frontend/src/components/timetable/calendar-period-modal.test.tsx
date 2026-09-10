@@ -462,6 +462,7 @@ describe("CalendarPeriodModal", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Periode ueberlappt",
     );
-    expect(mockToastError).toHaveBeenCalledWith("Periode ueberlappt");
+    // Der Alert oben im Panel ist die einzige Meldung (Bauart 2 Regel 5).
+    expect(mockToastError).not.toHaveBeenCalled();
   });
 });

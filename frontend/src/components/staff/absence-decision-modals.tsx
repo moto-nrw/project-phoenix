@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { Button } from "~/components/ui/button";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Modal } from "~/components/ui/modal";
 import { Textarea } from "~/components/ui/textarea";
 import { useToast } from "~/contexts/ToastContext";
@@ -50,11 +51,13 @@ function AbsenceNoteModal({
 }) {
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const toast = useToast();
 
   const handleSubmit = async () => {
+    setError(null);
     if (note.trim().length < 3) {
-      toast.error("Bitte gib eine kurze Begründung ein.");
+      setError("Bitte gib eine kurze Begründung ein.");
       return;
     }
     setSubmitting(true);
@@ -63,7 +66,7 @@ function AbsenceNoteModal({
       toast.success(successMessage);
       await onDone();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : errorMessage);
+      setError(err instanceof Error ? err.message : errorMessage);
     } finally {
       setSubmitting(false);
     }
@@ -98,6 +101,7 @@ function AbsenceNoteModal({
       }
     >
       <div className="space-y-3">
+        <FormErrorAlert message={error} />
         <p className="text-sm text-gray-700">
           Antrag {formatAbsenceRange(absence.date_start, absence.date_end)} (
           {absenceRowLabel(absence)})

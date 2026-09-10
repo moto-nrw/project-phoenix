@@ -8,6 +8,7 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
 import {
   SlideOver,
+  SlideOverBody,
   SlideOverCloseButton,
   SlideOverContent,
   SlideOverFooter,
@@ -362,6 +363,7 @@ function EditArbeitszeitmodellModal({
 }) {
   const toast = useToast();
 
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [mode, setMode] = useState<"template" | "custom">(schedule.mode);
   const [selectedModelId, setSelectedModelId] = useState<string>(
     schedule.model?.id ?? "",
@@ -440,16 +442,17 @@ function EditArbeitszeitmodellModal({
 
   const handleSave = async () => {
     setSaving(true);
+    setSaveError(null);
     try {
       if (mode === "template" && !selectedModelId) {
-        toast.error("Bitte eine Vorlage auswählen.");
+        setSaveError("Bitte eine Vorlage auswählen.");
         setSaving(false);
         return;
       }
 
       if (mode === "custom") {
         if (invalidDecimalHourInputs.size > 0) {
-          toast.error("Bitte die ungültigen Dezimalstunden korrigieren.");
+          setSaveError("Bitte die ungültigen Dezimalstunden korrigieren.");
           setSaving(false);
           return;
         }
@@ -463,7 +466,7 @@ function EditArbeitszeitmodellModal({
           0,
         );
         if (totalMinutes === 0) {
-          toast.error(
+          setSaveError(
             "Das Modell hat kein Wochensoll. Bitte mindestens einen Tag eintragen.",
           );
           setSaving(false);
@@ -477,7 +480,7 @@ function EditArbeitszeitmodellModal({
             .filter((e) => e.weekIndex === w)
             .reduce((sum, e) => sum + e.targetMinutes, 0);
           if (weekTotal === 0) {
-            toast.error(
+            setSaveError(
               `Woche ${WEEK_BADGE_LETTERS[w] ?? w + 1} hat kein Wochensoll. Bitte mindestens einen Tag eintragen.`,
             );
             setSaving(false);
@@ -514,7 +517,7 @@ function EditArbeitszeitmodellModal({
         error: error instanceof Error ? error.message : String(error),
         staff_id: staffId,
       });
-      toast.error("Fehler beim Speichern");
+      setSaveError("Fehler beim Speichern");
     } finally {
       setSaving(false);
     }
@@ -623,7 +626,7 @@ function EditArbeitszeitmodellModal({
           </div>
           <SlideOverCloseButton />
         </SlideOverHeader>
-        <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
+        <SlideOverBody error={saveError} className="space-y-5">
           <ModeRadioGroup mode={mode} onChange={setMode} />
 
           {mode === "template" ? (
@@ -649,7 +652,7 @@ function EditArbeitszeitmodellModal({
               onSaveAsTemplateNameChange={setSaveAsTemplateName}
             />
           )}
-        </div>
+        </SlideOverBody>
         <SlideOverFooter className="flex-row justify-end gap-2">
           {footer}
         </SlideOverFooter>

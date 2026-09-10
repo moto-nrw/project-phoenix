@@ -1,6 +1,6 @@
 // Bauarten ratchet (BAUARTEN-SPEC.md, Abschnitt „Ratschen“).
 //
-// Three rules; a production match beyond the tolerated remainder fails
+// Four rules; a production match beyond the tolerated remainder fails
 // `pnpm run check`:
 //
 //   bauart/one-delete-confirm — deletion is confirmed by ConfirmDeleteModal
@@ -49,6 +49,23 @@
 //                               handler inline, so a handler referenced by
 //                               name (`onClick={handleDelete}`) is out of
 //                               reach — the review covers that case.
+//
+//   bauart/no-toast-form-error — a form reports its validation and save
+//                               errors in the Alert at the top of the edit
+//                               area (`error` on FormModal / SlideOverBody,
+//                               `FormErrorAlert`), never in a toast (Bauart
+//                               2 Regel 5, issue #3113). The rule flags
+//                               `toast.error` / `toast.warning` (and the
+//                               aliases `toastError` / `toastWarning`)
+//                               inside a submit handler: a function named
+//                               handleSave / handleSubmit / onSubmit /
+//                               save… / submit…, one with a `FormEvent`
+//                               parameter, or one that calls
+//                               `preventDefault()` itself; callbacks inside
+//                               it (`.catch(() => toast.error(…))`) count.
+//                               Success toasts and toasts outside such
+//                               handlers (delete, toggle, load) pass.
+//                               Hard-zero; tenant portal only.
 //
 // Files under src/components/ui/ are exempt (ConfirmDeleteModal is itself
 // built on Modal and owns the final destructive button), as are tests and
@@ -242,7 +259,7 @@ const ROW_ACTION_BASELINE = new Map(
       "Block bearbeiten@960",
     ],
     "src/components/staff/stundenkonto-panel.tsx": [
-      "Buchung vom löschen@186",
+      "Buchung vom löschen@187",
     ],
     "src/components/students/class-arrival-exception-panel.tsx": [
       "Entfernen@529",
@@ -255,16 +272,16 @@ const ROW_ACTION_BASELINE = new Map(
     // Formular-intern (Eintrag eines Formularwerts, kein gespeichertes
     // Objekt): fest an die bestehende Stelle gebunden, damit keine neue
     // Zeilenaktion dieselbe Ausnahme nutzen kann.
-    "src/app/[tenant]/(protected)/calendar/page.tsx": ["entfernen@1147"],
+    "src/app/[tenant]/(protected)/calendar/page.tsx": ["entfernen@1186"],
     "src/app/[tenant]/(protected)/meal-plan/page.tsx": [
-      "Gericht entfernen@729",
+      "Gericht entfernen@737",
     ],
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
-      "Antwort entfernen@1431",
-      "Entfernen@1703",
+      "Antwort entfernen@1428",
+      "Entfernen@1700",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
-      "Bedingung löschen@1980",
+      "Bedingung löschen@1967",
     ],
     "src/components/enrollment/enrollment-form-editor.tsx": [
       "abweichend bearbeiten@2511",
@@ -661,6 +678,168 @@ const noUnconfirmedDestructiveClick = {
   },
 };
 
+// --- bauart/no-toast-form-error ----------------------------------------------
+
+// The toast API of ~/contexts/ToastContext (`toast.error`, `toast.warning`),
+// including the destructured aliases the code base uses
+// (`const { error: toastError } = useToast()`).
+const TOAST_LEVEL_RE = /^(?:error|warning|warn)$/;
+const TOAST_ALIAS_RE = /^toast(?:Error|Warning|Warn)$/;
+// A function that saves what a person typed. Matches handleSave, handleSubmit,
+// onSubmit, submitForm, saveDraft, handleSaveClick; not handleSelect or
+// handleToggle, whose toast is not a form's error report.
+const SUBMIT_HANDLER_NAME_RE = /^(?:handle|on)?(?:submit|save)/i;
+
+function isToastErrorCall(node) {
+  if (!isCall(node)) return false;
+  const { callee } = node;
+  if (
+    callee?.type === "MemberExpression" &&
+    callee.property?.type === "Identifier" &&
+    TOAST_LEVEL_RE.test(callee.property.name)
+  ) {
+    return (
+      callee.object?.type === "Identifier" && /toast/i.test(callee.object.name)
+    );
+  }
+  return callee?.type === "Identifier" && TOAST_ALIAS_RE.test(callee.name);
+}
+
+function isFunctionNode(node) {
+  return (
+    node?.type === "ArrowFunctionExpression" ||
+    node?.type === "FunctionExpression" ||
+    node?.type === "FunctionDeclaration"
+  );
+}
+
+/** `event.preventDefault()` in the function's own body (nested functions
+ *  skipped): the handler intercepts a form submission. */
+function callsPreventDefault(node, seen = new WeakSet()) {
+  if (!node || typeof node !== "object" || seen.has(node)) return false;
+  seen.add(node);
+  if (
+    isCall(node) &&
+    node.callee?.type === "MemberExpression" &&
+    node.callee.property?.type === "Identifier" &&
+    node.callee.property.name === "preventDefault"
+  ) {
+    return true;
+  }
+  if (isFunctionNode(node)) return false;
+  for (const [key, value] of Object.entries(node)) {
+    if (key === "parent") continue;
+    if (Array.isArray(value)) {
+      if (value.some((child) => callsPreventDefault(child, seen))) return true;
+    } else if (callsPreventDefault(value, seen)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** The name a function is bound to: `const handleSave = async () => {}`,
+ *  `const handleSave = useCallback(async () => {}, [])`,
+ *  `function handleSave() {}`, `{ onSubmit: () => {} }`. */
+function boundFunctionName(fn) {
+  if (fn.type === "FunctionDeclaration") return fn.id?.name ?? null;
+  let owner = fn.parent;
+  // useCallback(fn, deps) and similar wrappers sit between the arrow and its
+  // declarator.
+  if (isCall(owner) && owner.arguments.includes(fn)) owner = owner.parent;
+  if (owner?.type === "VariableDeclarator" && owner.id?.type === "Identifier") {
+    return owner.id.name;
+  }
+  if (owner?.type === "Property" && owner.key?.type === "Identifier") {
+    return owner.key.name;
+  }
+  if (owner?.type === "JSXExpressionContainer") {
+    const attribute = owner.parent;
+    if (
+      attribute?.type === "JSXAttribute" &&
+      attribute.name?.type === "JSXIdentifier"
+    ) {
+      return attribute.name.name;
+    }
+  }
+  return null;
+}
+
+function hasFormEventParameter(fn) {
+  return (fn.params ?? []).some((param) => {
+    const annotation = param.typeAnnotation?.typeAnnotation;
+    const chunks = [];
+    collectTypeNames(annotation, chunks);
+    return chunks.some((name) => /FormEvent$/.test(name));
+  });
+}
+
+function collectTypeNames(node, chunks, seen = new WeakSet()) {
+  if (!node || typeof node !== "object" || seen.has(node)) return;
+  seen.add(node);
+  if (node.type === "Identifier" && typeof node.name === "string") {
+    chunks.push(node.name);
+  }
+  for (const [key, value] of Object.entries(node)) {
+    if (key === "parent") continue;
+    if (Array.isArray(value)) {
+      for (const child of value) collectTypeNames(child, chunks, seen);
+    } else {
+      collectTypeNames(value, chunks, seen);
+    }
+  }
+}
+
+function isSubmitHandler(fn) {
+  const name = boundFunctionName(fn);
+  if (name && SUBMIT_HANDLER_NAME_RE.test(name)) return true;
+  if (hasFormEventParameter(fn)) return true;
+  return callsPreventDefault(fn.body);
+}
+
+/** The nearest enclosing submit handler, looking through callbacks such as
+ *  `.catch((err) => toast.error(…))` inside it. */
+function enclosingSubmitHandler(node) {
+  let current = node.parent;
+  while (current) {
+    if (isFunctionNode(current) && isSubmitHandler(current)) return current;
+    current = current.parent;
+  }
+  return null;
+}
+
+const noToastFormError = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "A form reports its validation and save errors in an Alert at the top of the edit area (and at the field), not in a toast.",
+    },
+    messages: {
+      toast:
+        "Fehler aus dem Speichern eines Formulars („{{handler}}“) stehen im Alert oben im Bearbeiten-Bereich und, wo zuordenbar, am Feld: `error` an FormModal oder SlideOverBody, `error` am Input. Ein Toast verblasst, bevor jemand das Feld gefunden hat (BAUARTEN-SPEC Bauart 2 Regel 5, #3113).",
+    },
+    schema: [],
+  },
+  create(context) {
+    if (isExempt(context)) return {};
+    if (OTHER_PORTAL_RE.test(fileKey(context))) return {};
+
+    return {
+      CallExpression(node) {
+        if (!isToastErrorCall(node)) return;
+        const handler = enclosingSubmitHandler(node);
+        if (!handler) return;
+        context.report({
+          node,
+          messageId: "toast",
+          data: { handler: boundFunctionName(handler) ?? "onSubmit" },
+        });
+      },
+    };
+  },
+};
+
 export default {
 
   meta: { name: "bauart" },
@@ -672,6 +851,8 @@ export default {
     "no-row-action-buttons": noRowActionButtons,
 
     "no-unconfirmed-destructive-click": noUnconfirmedDestructiveClick,
+
+    "no-toast-form-error": noToastFormError,
 
   },
 

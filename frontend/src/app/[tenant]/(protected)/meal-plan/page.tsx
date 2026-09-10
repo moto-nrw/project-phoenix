@@ -14,6 +14,7 @@ import {
 
 import { Button } from "~/components/ui/button";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -161,6 +162,7 @@ export default function MealPlanPage() {
   // meals based on a failed load, so we surface an error + retry instead.
   const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [copyingPrev, setCopyingPrev] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, DishDraft[]>>({});
   const [originals, setOriginals] = useState<Record<string, DishDraft[]>>({});
@@ -391,6 +393,7 @@ export default function MealPlanPage() {
 
   // --- Save / discard ---------------------------------------------------
   const discard = () => {
+    setSaveError(null);
     setDrafts((prev) => {
       const next = { ...prev };
       for (const date of weekDates) {
@@ -405,6 +408,7 @@ export default function MealPlanPage() {
 
   const handleSave = async () => {
     setSaving(true);
+    setSaveError(null);
     // Each setDay is its own backend transaction, so a mid-loop failure leaves
     // the already-sent days committed. Track what actually persisted and fold
     // it into originals on failure, so the dirty indicator and Verwerfen reflect
@@ -434,7 +438,9 @@ export default function MealPlanPage() {
       if (Object.keys(persisted).length > 0) {
         setOriginals((prev) => ({ ...prev, ...persisted }));
       }
-      toast.error("Speichern fehlgeschlagen.");
+      // Der Fehler steht über dem Wochenplan (Bauart 2 Regel 5), nicht als
+      // Toast: die noch ungespeicherten Tage bleiben sichtbar markiert.
+      setSaveError("Speichern fehlgeschlagen.");
     } finally {
       setSaving(false);
     }
@@ -628,6 +634,8 @@ export default function MealPlanPage() {
           </>
         }
       />
+
+      <FormErrorAlert message={saveError} />
 
       <SectionCard
         className={`transition-opacity duration-200 ${

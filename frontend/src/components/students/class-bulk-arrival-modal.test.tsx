@@ -43,15 +43,18 @@ vi.mock("~/components/ui/form-modal", () => ({
     title,
     children,
     footer,
+    error,
   }: {
     isOpen: boolean;
     title: string;
     children: React.ReactNode;
     footer: React.ReactNode;
+    error?: string | null;
   }) =>
     isOpen ? (
       <div role="dialog" aria-label={title}>
         <h2>{title}</h2>
+        {error ? <div role="alert">{error}</div> : null}
         <div>{children}</div>
         <div>{footer}</div>
       </div>
@@ -347,11 +350,8 @@ describe("FilteredBulkArrivalModal", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
-    await waitFor(() =>
-      expect(mockToastError).toHaveBeenCalledWith(
-        expect.stringContaining("Save failed"),
-      ),
-    );
+    expect(await screen.findByRole("alert")).toHaveTextContent("Save failed");
+    expect(mockToastError).not.toHaveBeenCalled();
   });
 
   it("cancel button calls onClose", () => {

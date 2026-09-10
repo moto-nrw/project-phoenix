@@ -489,16 +489,16 @@ src/components/parent/parent-enroll-picker.tsx|text-[11px]@205 text-[11px]@209
 src/components/parent/parent-meal-plan-page.tsx|text-[11px]@461 text-[11px]@546
 src/components/planning/closing-day-marker.tsx|text-[10px]@53
 src/components/staff/absence-request-row.tsx|text-[11px]@107
-src/components/staff/arbeitszeitmodell-tab.tsx|text-[10px]@227 text-[10px]@240 text-[10px]@322 text-[11px]@1011
+src/components/staff/arbeitszeitmodell-tab.tsx|text-[10px]@228 text-[10px]@241 text-[10px]@323 text-[11px]@1014
 src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@468 text-[11px]@564 text-[11px]@573 text-[11px]@580 text-[10px]@714
 src/components/staff/staff-session-table.tsx|text-[11px]@1178
 src/components/students/care-schedule-manager.tsx|text-[10px]@1126 text-[11px]@1281 text-[11px]@1370 text-[11px]@1380 text-[11px]@1410
-src/components/students/planned-status-days-modal.tsx|text-[10px]@914 text-[11px]@914
+src/components/students/planned-status-days-modal.tsx|text-[10px]@926 text-[11px]@926
 src/components/students/school-checkin-fab.tsx|text-[10px]@198
 src/components/time-tracking/edit-history-accordion.tsx|text-[10px]@118 text-[10px]@139 text-[10px]@150
-src/components/time-tracking/leave-requests-card.tsx|text-[10px]@475
-src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@375
-src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@429 text-[11px]@471
+src/components/time-tracking/leave-requests-card.tsx|text-[10px]@487
+src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@376
+src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@436 text-[11px]@478
 src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-[10px]@295 text-[11px]@301
 src/components/timetable/event-form/step-termin.tsx|text-[10px]@167 text-[11px]@247 text-[11px]@280 text-[11px]@341 text-[11px]@347 text-[11px]@395
 src/components/timetable/gap-jump-list.tsx|text-[10px]@108 text-[11px]@131 text-[11px]@146

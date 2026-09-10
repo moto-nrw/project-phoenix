@@ -48,6 +48,18 @@ vi.mock("~/components/ui/slide-over", () => ({
   SlideOverHeader: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
+  SlideOverBody: ({
+    error,
+    children,
+  }: {
+    error?: string | null;
+    children: React.ReactNode;
+  }) => (
+    <div>
+      {error ? <div role="alert">{error}</div> : null}
+      {children}
+    </div>
+  ),
   SlideOverFooter: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
@@ -1094,12 +1106,10 @@ describe("CarePlanEditorModal", () => {
     fireEvent.change(draft, { target: { value: "Bitte klingeln" } });
     fireEvent.click(draft.parentElement!.querySelector("button")!);
 
-    expect(
-      await screen.findByText("Hinweis konnte nicht gespeichert werden"),
-    ).toBeInTheDocument();
-    expect(toastError).toHaveBeenCalledWith(
+    expect(await screen.findByRole("alert")).toHaveTextContent(
       "Hinweis konnte nicht gespeichert werden",
     );
+    expect(toastError).not.toHaveBeenCalled();
     expect(draft).toHaveValue("Bitte klingeln");
   });
 
@@ -1214,8 +1224,8 @@ describe("CarePlanEditorModal", () => {
 
     const message =
       "Die Abholung konnte nicht zurückgesetzt werden. Bitte versuchen Sie es noch einmal.";
-    expect(await screen.findByText(message)).toBeInTheDocument();
-    expect(toastError).toHaveBeenCalledWith(message);
+    expect(await screen.findByRole("alert")).toHaveTextContent(message);
+    expect(toastError).not.toHaveBeenCalled();
   });
 
   it("limits day notes to the API-supported length", () => {

@@ -82,9 +82,12 @@ export function FilteredBulkArrivalModal({
   studentsInFilter,
   onSuccess,
 }: FilteredBulkArrivalModalProps) {
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess } = useToast();
   const [draft, setDraft] = useState<DraftState>(initialDraft);
   const [saving, setSaving] = useState(false);
+  // Validation and save errors of the form (Bauart 2 Regel 5): shown in the
+  // FormModal error slot, not as a toast.
+  const [formError, setFormError] = useState<string | null>(null);
   const [
     arrivalExceptionConfirmationOpen,
     setArrivalExceptionConfirmationOpen,
@@ -190,12 +193,13 @@ export function FilteredBulkArrivalModal({
 
   const handleSubmit = async () => {
     if (isClassTimetable && (classTimesLoading || classTimesError)) return;
+    setFormError(null);
     if (!hasAnyTime) {
-      toastError("Mindestens eine Zeit angeben");
+      setFormError("Mindestens eine Zeit angeben");
       return;
     }
     if (hasInvalidEntry) {
-      toastError("Ungültige Uhrzeit. Format HH:MM.");
+      setFormError("Ungültige Uhrzeit. Format HH:MM.");
       return;
     }
 
@@ -222,14 +226,17 @@ export function FilteredBulkArrivalModal({
         filter_type: filter.type,
         error: message,
       });
-      toastError(`Fehler beim Speichern: ${message}`);
+      setFormError(`Fehler beim Speichern: ${message}`);
     } finally {
       setSaving(false);
     }
   };
 
   useEffect(() => {
-    if (!isOpen) setArrivalExceptionConfirmationOpen(false);
+    if (!isOpen) {
+      setArrivalExceptionConfirmationOpen(false);
+      setFormError(null);
+    }
   }, [isOpen]);
 
   return (
@@ -237,6 +244,7 @@ export function FilteredBulkArrivalModal({
       isOpen={isOpen}
       suspended={arrivalExceptionConfirmationOpen}
       onClose={onClose}
+      error={formError}
       title={
         showDayView
           ? `Ankunftszeit an einem Tag für ${targetTitle}`

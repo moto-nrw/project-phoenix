@@ -48,6 +48,7 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import {
@@ -1028,6 +1029,7 @@ function VacationOpeningModal({
   const [remainingDays, setRemainingDays] = useState("");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const toast = useToast();
 
   const yearEndKey = `${year}-12-31`;
@@ -1043,16 +1045,17 @@ function VacationOpeningModal({
     remaining === null ? null : entitledTotal - remaining;
 
   const handleSubmit = async () => {
+    setError(null);
     if (!effectiveDate) {
-      toast.error("Stichtag fehlt.");
+      setError("Stichtag fehlt.");
       return;
     }
     if (remaining === null || remaining < -999 || remaining > 999) {
-      toast.error("Resturlaub ungültig (-999 bis 999).");
+      setError("Resturlaub ungültig (-999 bis 999).");
       return;
     }
     if (note.trim() === "") {
-      toast.error("Begründung fehlt.");
+      setError("Begründung fehlt.");
       return;
     }
     setSubmitting(true);
@@ -1065,7 +1068,7 @@ function VacationOpeningModal({
       toast.success("Urlaubs-Übernahme gespeichert.");
       await onSaved();
     } catch (err) {
-      toast.error(
+      setError(
         err instanceof Error ? err.message : "Übernahme fehlgeschlagen.",
       );
     } finally {
@@ -1167,6 +1170,7 @@ function VacationOpeningModal({
       }
     >
       <div className="space-y-4">
+        <FormErrorAlert message={error} />
         <p className="text-sm text-gray-500">
           moto errechnet daraus die vor der Einführung bereits genommenen Tage.
           Der Jahresanspruch bleibt unverändert.
@@ -1206,13 +1210,12 @@ function VacationOpeningModal({
             value={remainingDays}
             onChange={(e) => setRemainingDays(e.target.value)}
             placeholder="z. B. 12,5"
+            error={
+              remainingDays.trim() !== "" && !remainingValid
+                ? "Bitte eine Zahl zwischen -999 und 999 mit höchstens einer Nachkommastelle eingeben."
+                : undefined
+            }
           />
-          {remainingDays.trim() !== "" && !remainingValid && (
-            <p className="mt-1 text-xs text-[#FF3130]" role="alert">
-              Bitte eine Zahl zwischen -999 und 999 mit höchstens einer
-              Nachkommastelle eingeben.
-            </p>
-          )}
         </div>
         <div className="space-y-1 rounded-xl bg-gray-50 px-3 py-2 text-sm text-gray-700">
           <p>
@@ -1274,17 +1277,19 @@ function EditQuotaModal({
   const [entitled, setEntitled] = useState(String(quota.entitled_days));
   const [carryover, setCarryover] = useState(String(quota.carryover_days));
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const toast = useToast();
 
   const handleSubmit = async () => {
+    setError(null);
     const e = Number.parseFloat(entitled);
     const c = Number.parseFloat(carryover);
     if (Number.isNaN(e) || e < 0 || e > 366) {
-      toast.error("Anspruch ungültig (0-366).");
+      setError("Anspruch ungültig (0-366).");
       return;
     }
     if (Number.isNaN(c) || c < 0 || c > 366) {
-      toast.error("Übertrag ungültig (0-366).");
+      setError("Übertrag ungültig (0-366).");
       return;
     }
     setSubmitting(true);
@@ -1297,7 +1302,7 @@ function EditQuotaModal({
       toast.success("Urlaubsanspruch gespeichert.");
       await onSaved();
     } catch (err) {
-      toast.error(
+      setError(
         err instanceof Error ? err.message : "Speichern fehlgeschlagen.",
       );
     } finally {
@@ -1334,6 +1339,7 @@ function EditQuotaModal({
       }
     >
       <div className="space-y-4">
+        <FormErrorAlert message={error} />
         <div>
           <label
             htmlFor="quota-entitled"

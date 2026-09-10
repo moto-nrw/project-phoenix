@@ -19,6 +19,7 @@ import { StatusBadge } from "~/components/ui/status-badge";
 import { DatePicker, ISODatePicker } from "~/components/ui/date-picker";
 import {
   SlideOver,
+  SlideOverBody,
   SlideOverCloseButton,
   SlideOverContent,
   SlideOverFooter,
@@ -117,6 +118,9 @@ export function PlannedStatusDaysModal({
   const [rangeStart, setRangeStart] = useState("");
   const [rangeEnd, setRangeEnd] = useState("");
   const [selectionHint, setSelectionHint] = useState<string | null>(null);
+  // Save error of the form (Bauart 2 Regel 5): shown in the body's error
+  // slot, not as a toast by the caller.
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [checkedExistingDays, setCheckedExistingDays] = useState<
     StudentStatusDay[]
   >([]);
@@ -349,6 +353,7 @@ export function PlannedStatusDaysModal({
       const todayKey = toISODate(today);
       setSelectionMode("individual");
       setSelectionHint(null);
+      setSubmitError(null);
       setRangeStart(prefillClassTrip && isClassTrip ? todayKey : "");
       setRangeEnd(prefillClassTrip && isClassTrip ? todayKey : "");
       setSelectedDates([]);
@@ -619,6 +624,7 @@ export function PlannedStatusDaysModal({
 
   const handleSubmit = async () => {
     if (!checkedCurrentSelection || conflictCheckError) return;
+    setSubmitError(null);
     const dateKeys = selectableDateKeys;
     if (dateKeys.length === 0) {
       setSelectionHint(
@@ -646,6 +652,12 @@ export function PlannedStatusDaysModal({
           trimmedReason || undefined,
         );
       } catch {
+        // The caller logs the failure; the person reads it here, at the form.
+        setSubmitError(
+          editingPartialAbsenceId
+            ? "Die Entschuldigung konnte nicht aktualisiert werden. Bitte erneut versuchen."
+            : "Die Entschuldigung konnte nicht gespeichert werden. Bitte erneut versuchen.",
+        );
         setConflictCheckRevision((current) => current + 1);
         return;
       }
@@ -729,7 +741,7 @@ export function PlannedStatusDaysModal({
             </div>
             <SlideOverCloseButton aria-label="Fenster schließen" />
           </SlideOverHeader>
-          <div className="flex-1 overflow-y-auto px-5 py-4">
+          <SlideOverBody error={submitError}>
             <div className="space-y-5">
               <div className="flex items-start gap-3">
                 <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gray-100">
@@ -1186,7 +1198,7 @@ export function PlannedStatusDaysModal({
                 </div>
               )}
             </div>
-          </div>
+          </SlideOverBody>
           <SlideOverFooter className="flex-row justify-end gap-2">
             {footer}
           </SlideOverFooter>

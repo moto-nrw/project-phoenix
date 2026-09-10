@@ -61,6 +61,7 @@ import { ToggleChip } from "~/components/ui/toggle-chip";
 import { Input } from "~/components/ui/input";
 import {
   SlideOver,
+  SlideOverBody,
   SlideOverContent,
   SlideOverHeader,
   SlideOverTitle,
@@ -471,7 +472,6 @@ export function PhasesEditor() {
       const message = err instanceof Error ? err.message : "Unbekannter Fehler";
       logger.error("phase_save_failed", { error: message });
       setError(message);
-      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -854,7 +854,7 @@ export function PhasesEditor() {
                       : "Anmeldephase bearbeiten"}
                 </SlideOverTitle>
               </SlideOverHeader>
-              <div className="flex-1 overflow-y-auto px-5 py-4">
+              <SlideOverBody error={rolloverSource ? null : error}>
                 {rolloverSource ? (
                   <RolloverForm
                     source={rolloverSource}
@@ -877,7 +877,7 @@ export function PhasesEditor() {
                     onCancel={cancelEdit}
                   />
                 ) : null}
-              </div>
+              </SlideOverBody>
             </SlideOverContent>
           </SlideOver>
 
@@ -955,9 +955,13 @@ export function PhasesEditor() {
       {/* Flex-Spalte statt Block: so wächst die Tabelle als letzte Fläche
           bis zur Unterkante des Bildschirms (`.moto-tenant-body`). */}
       <div className="hidden space-y-4 lg:flex lg:flex-col">
-        {/* Speicher- und Aktivierungsfehler stehen über der Liste; sie dürfen
-            das gerade bearbeitete Formular nicht ersetzen. */}
-        {error ? <Alert type="error" message={error} /> : null}
+        {/* Fehler einer Listenaktion (Aktivieren, Laden) stehen über der
+            Liste. Ist das Bearbeiten-Panel offen, trägt dessen Rumpf den
+            Speicherfehler (Bauart 2 Regel 5); hier stünde er sonst hinter dem
+            Panel und doppelt. */}
+        {error && !(editingId && draft) ? (
+          <Alert type="error" message={error} />
+        ) : null}
         <div className="grid gap-2 sm:grid-cols-3">
           <EnrollmentStatTile
             leading={

@@ -193,7 +193,6 @@ export function CareWeeklyPlanModal({
           ? err.message
           : "Wochenplan konnte nicht gespeichert werden";
       setError(message);
-      toast.error(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -229,14 +228,9 @@ export function CareWeeklyPlanModal({
       footer={footer}
       size="xl"
       mobilePosition="bottom"
+      error={error}
     >
       <form id="care-weekly-plan-form" onSubmit={handleSubmit}>
-        {error ? (
-          <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong mb-4 rounded-xl border px-4 py-3 text-sm">
-            {error}
-          </div>
-        ) : null}
-
         <p className="mb-4 text-sm leading-6 text-gray-600">
           {careDaysSource === "bookings" ? (
             <>

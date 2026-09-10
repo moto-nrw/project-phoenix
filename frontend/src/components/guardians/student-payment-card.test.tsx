@@ -129,6 +129,59 @@ describe("StudentPaymentCard", () => {
     );
   });
 
+  // Bauart 2 Regel 5 (#3113): der Fehler steht als Alert oben in der Karte,
+  // das Formular bleibt mit der Eingabe offen; kein Toast.
+  it("keeps the edit form open and shows a failed save as an alert", async () => {
+    mockRevealPayment.mockResolvedValue({
+      guardianId: "10",
+      iban: FULL_IBAN,
+      accountHolder: null,
+    });
+    mockUpdatePayment.mockRejectedValue(new Error("Die IBAN ist ungültig."));
+
+    render(
+      <StudentPaymentCard
+        studentId="7"
+        guardians={[guardian("10", "Sabine", true)]}
+      />,
+    );
+    await waitFor(() => expect(mockFetchPayment).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    await screen.findByLabelText("IBAN");
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Die IBAN ist ungültig.",
+    );
+    expect(screen.getByLabelText("IBAN")).toHaveValue(FULL_IBAN);
+    expect(mockToastError).not.toHaveBeenCalled();
+  });
+
+  it("shows a failed payer change as an alert", async () => {
+    mockSetPayer.mockRejectedValue(new Error("Keine Berechtigung."));
+
+    render(
+      <StudentPaymentCard
+        studentId="7"
+        guardians={[
+          guardian("10", "Sabine", false),
+          guardian("11", "Klaus", false),
+        ]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("combobox"));
+    fireEvent.click(
+      await screen.findByRole("option", { name: "Klaus Schneider" }),
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Keine Berechtigung.",
+    );
+    expect(mockToastError).not.toHaveBeenCalled();
+  });
+
   it("assigns the payer and lets the parent refetch", async () => {
     mockSetPayer.mockResolvedValue(undefined);
     const onChanged = vi.fn();

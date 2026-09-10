@@ -1095,7 +1095,7 @@ function StudentDetailPageContent() {
         partial_absence_id: partialAbsenceId,
         error: err instanceof Error ? err.message : String(err),
       });
-      toast.error("Entschuldigung konnte nicht gespeichert werden");
+      // The modal shows the failure in its error slot (Bauart 2 Regel 5).
       throw err;
     } finally {
       setPlannedStatusLoading(false);

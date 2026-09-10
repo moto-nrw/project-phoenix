@@ -22,6 +22,7 @@ import { ISODatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
 import {
   SlideOver,
+  SlideOverBody,
   SlideOverCloseButton,
   SlideOverContent,
   SlideOverFooter,
@@ -271,7 +272,6 @@ export function CalendarPeriodModal({
           ? err.message
           : "Kalenderzeitraum konnte nicht gespeichert werden";
       setValidationError(msg);
-      toastError(msg);
     } finally {
       setSubmitting(false);
     }
@@ -332,7 +332,7 @@ export function CalendarPeriodModal({
           </div>
           <SlideOverCloseButton aria-label="Zeitraum schließen" />
         </SlideOverHeader>
-        <div className="flex-1 overflow-y-auto px-5 py-4">
+        <SlideOverBody error={validationError}>
           <form
             id="calendar-period-form"
             onSubmit={(e) => void handleSubmit(e)}
@@ -486,12 +486,8 @@ export function CalendarPeriodModal({
                 message={warning.message}
               />
             ))}
-
-            {validationError && (
-              <Alert type="error" message={validationError} />
-            )}
           </form>
-        </div>
+        </SlideOverBody>
         <SlideOverFooter className="flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="w-full sm:w-auto">
             {isEdit && (

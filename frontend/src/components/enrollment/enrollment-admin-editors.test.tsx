@@ -863,11 +863,10 @@ describe("CareOfferingsEditor", () => {
     }
     await chooseOption("Regeltermin", /Lernzeit/);
 
-    expect(
-      screen.getByText(
-        /Regeltermin deckt die ausgewählten Angebotstage Di, Mi, Do, Fr nicht ab/,
-      ),
-    ).toHaveAttribute("role", "alert");
+    // Der Hinweis steht als Kit-Alert am Feld (Bauart 2 Regel 5, #3113).
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      /Regeltermin deckt die ausgewählten Angebotstage Di, Mi, Do, Fr nicht ab/,
+    );
     expect(
       screen.getByText(
         "Der Regeltermin enthält Tage, die im Angebot nicht auswählbar sind.",
@@ -1506,15 +1505,15 @@ describe("CareOfferingsEditor", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
-    expect(
-      await screen.findByText(
-        "Betreuungsangebot konnte nicht gespeichert werden",
-      ),
-    ).toBeVisible();
-    expect(screen.queryByText(technicalError)).not.toBeInTheDocument();
-    expect(mocks.toast.error).toHaveBeenCalledWith(
+    const saveError = await screen.findByText(
       "Betreuungsangebot konnte nicht gespeichert werden",
     );
+    expect(saveError).toBeVisible();
+    // Der Speicherfehler steht im Alert oben im Panel, nicht im Toast
+    // (Bauart 2 Regel 5, #3113).
+    expect(saveError.closest('[role="alert"]')).not.toBeNull();
+    expect(screen.queryByText(technicalError)).not.toBeInTheDocument();
+    expect(mocks.toast.error).not.toHaveBeenCalled();
   });
 
   it("clears a linked Regeltermin when the phase change makes it incompatible", async () => {
@@ -2194,9 +2193,8 @@ describe("PhasesEditor", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Bitte gib einen Namen für die Anmeldephase ein.",
     );
-    expect(mocks.toast.error).toHaveBeenCalledWith(
-      "Bitte gib einen Namen für die Anmeldephase ein.",
-    );
+    // Kein Toast mehr neben dem Alert (Bauart 2 Regel 5, #3113).
+    expect(mocks.toast.error).not.toHaveBeenCalled();
     expect(mocks.createPhase).not.toHaveBeenCalled();
   });
 

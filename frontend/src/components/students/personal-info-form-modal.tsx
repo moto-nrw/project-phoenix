@@ -2,18 +2,19 @@
 
 import { useCallback, useMemo, useState, useEffect } from "react";
 import { Alert } from "~/components/ui/alert";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Button } from "~/components/ui/button";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import {
   SlideOver,
   SlideOverCloseButton,
   SlideOverContent,
+  SlideOverBody,
   SlideOverFooter,
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
 import { SectionCard } from "~/components/ui/section-card";
-import { useToast } from "~/contexts/ToastContext";
 import { todayISO } from "~/lib/date-helpers";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
 import { DepartureSection } from "./student-form-fields";
@@ -117,7 +118,6 @@ export function PersonalInfoFormModal({
   onSave,
   variant = "modal",
 }: PersonalInfoFormModalProps) {
-  const toast = useToast();
   const [editedStudent, setEditedStudent] = useState<ExtendedStudent>(student);
   const [isSaving, setIsSaving] = useState(false);
   // Ein Speicherfehler darf nicht nur als Kurzmeldung vorbeiziehen: er steht
@@ -280,7 +280,6 @@ export function PersonalInfoFormModal({
       const message =
         "Die Laufgemeinschaft wurde zwischenzeitlich an anderer Stelle geändert. Bitte neu laden und die Änderung wiederholen.";
       setSaveError(message);
-      toast.error(message);
       return;
     }
     setSaveError(null);
@@ -310,7 +309,6 @@ export function PersonalInfoFormModal({
       const message =
         "Bitte ein Kind verknüpfen oder angeben, mit welcher Person das Kind nach Hause geht";
       setDepartureError(message);
-      toast.error(message);
       return;
     }
     await submit(
@@ -426,7 +424,6 @@ export function PersonalInfoFormModal({
       // guessing what to change.
       if (isCompanionDepartureRefusal(err)) {
         setDepartureError(companionDepartureMessage(err));
-        toast.error(companionDepartureMessage(err));
         return;
       }
       // The backend saw what the announcement bus could not: another browser
@@ -436,11 +433,9 @@ export function PersonalInfoFormModal({
       if (isCompanionsChanged(err)) {
         markStale();
         setSaveError(companionsChangedMessage(err));
-        toast.error(companionsChangedMessage(err));
         return;
       }
       setSaveError("Fehler beim Speichern der persönlichen Informationen");
-      toast.error("Fehler beim Speichern der persönlichen Informationen");
     } finally {
       setIsSaving(false);
     }
@@ -478,7 +473,9 @@ export function PersonalInfoFormModal({
 
   const fields = (
     <div className="space-y-4">
-      {saveError && <Alert type="error" message={saveError} />}
+      {/* Speicherfehler oben im Bearbeiten-Bereich (Bauart 2 Regel 5), in
+          beiden Varianten: Reiterfläche und Panel. */}
+      <FormErrorAlert message={saveError} />
       {companionsStale ? (
         <div className="border-moto-orange bg-moto-orange/5 rounded-lg border p-3">
           <p className="text-sm text-gray-900">
@@ -724,7 +721,7 @@ export function PersonalInfoFormModal({
           </div>
           <SlideOverCloseButton aria-label="Fenster schließen" />
         </SlideOverHeader>
-        <div className="flex-1 overflow-y-auto px-5 py-4">{fields}</div>
+        <SlideOverBody>{fields}</SlideOverBody>
         <SlideOverFooter className="flex-row justify-end gap-2">
           {footer}
         </SlideOverFooter>

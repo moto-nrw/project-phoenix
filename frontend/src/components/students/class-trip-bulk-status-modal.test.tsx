@@ -30,12 +30,14 @@ vi.mock("~/components/ui/form-modal", () => ({
     children,
     footer,
     onClose,
+    error,
   }: {
     isOpen: boolean;
     title: string;
     children: React.ReactNode;
     footer?: React.ReactNode;
     onClose: () => void;
+    error?: string | null;
   }) =>
     isOpen ? (
       <div role="dialog" aria-label={title}>
@@ -43,6 +45,7 @@ vi.mock("~/components/ui/form-modal", () => ({
         <button type="button" onClick={onClose}>
           Modal schließen
         </button>
+        {error ? <div role="alert">{error}</div> : null}
         {children}
         <div>{footer}</div>
       </div>
@@ -162,14 +165,16 @@ describe("ClassTripBulkStatusModal", () => {
       screen.getByRole("button", { name: "Für 1 Schüler speichern" }),
     );
 
+    // Two alerts: the form error at the top of the modal says nothing was
+    // written, the warning below lists the conflicting days.
     await waitFor(() => {
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "Kevin Anders: 26.05.2026 (krank)",
+      const alerts = screen.getAllByRole("alert");
+      expect(alerts[0]).toHaveTextContent(
+        "Bestehende Status-Tage verhindern die Speicherung. Es wurde nichts überschrieben.",
       );
+      expect(alerts[1]).toHaveTextContent("Kevin Anders: 26.05.2026 (krank)");
     });
-    expect(toastError).toHaveBeenCalledWith(
-      "Bestehende Status-Tage verhindern die Speicherung. Es wurde nichts überschrieben.",
-    );
+    expect(toastError).not.toHaveBeenCalled();
   });
 
   it("caps bulk conflict details and falls back to student.name", async () => {
@@ -211,7 +216,8 @@ describe("ClassTripBulkStatusModal", () => {
     );
 
     await waitFor(() => {
-      const alert = screen.getByRole("alert");
+      // The conflict list is the warning below the form error.
+      const alert = screen.getAllByRole("alert").at(-1)!;
       expect(alert).toHaveTextContent("48 Konflikte");
       expect(alert).toHaveTextContent("Nur Name: 01.05.2026 (krank)");
       expect(alert).toHaveTextContent("und 40 weitere");

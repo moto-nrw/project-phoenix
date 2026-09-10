@@ -13,6 +13,7 @@ import { Banknote, Clock4, Flag, RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ISODatePicker } from "~/components/ui/date-picker";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
@@ -312,16 +313,18 @@ function AdjustmentModal({
   const maxEffectiveDateKey = toISODate(horizon);
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const toast = useToast();
 
   const handleSubmit = async () => {
+    setError(null);
     const h = Number.parseFloat(hours.replace(",", "."));
     if (Number.isNaN(h) || h <= 0 || h > 1000) {
-      toast.error("Stundenangabe ungültig.");
+      setError("Stundenangabe ungültig.");
       return;
     }
     if (!effectiveDate) {
-      toast.error("Datum fehlt.");
+      setError("Datum fehlt.");
       return;
     }
     setSubmitting(true);
@@ -335,9 +338,7 @@ function AdjustmentModal({
       toast.success(copy.success);
       await onSaved();
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Buchung fehlgeschlagen.",
-      );
+      setError(err instanceof Error ? err.message : "Buchung fehlgeschlagen.");
     } finally {
       setSubmitting(false);
     }
@@ -361,6 +362,7 @@ function AdjustmentModal({
       }
     >
       <div className="space-y-4">
+        <FormErrorAlert message={error} />
         <p className="text-sm text-gray-500">{copy.hint}</p>
         <div>
           <label
@@ -426,6 +428,7 @@ function ResetModal({
   const [carryoverHours, setCarryoverHours] = useState("0");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const toast = useToast();
 
   const carryover = Number.parseFloat(carryoverHours.replace(",", "."));
@@ -433,12 +436,13 @@ function ResetModal({
     !Number.isNaN(carryover) && carryover >= 0 && carryover <= 10_000;
 
   const handleSubmit = async () => {
+    setError(null);
     if (!carryoverValid) {
-      toast.error("Übertrag ungültig.");
+      setError("Übertrag ungültig.");
       return;
     }
     if (!effectiveDate) {
-      toast.error("Datum fehlt.");
+      setError("Datum fehlt.");
       return;
     }
     setSubmitting(true);
@@ -451,7 +455,7 @@ function ResetModal({
       toast.success("Stundenkonto zurückgesetzt.");
       await onSaved();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Reset fehlgeschlagen.");
+      setError(err instanceof Error ? err.message : "Reset fehlgeschlagen.");
     } finally {
       setSubmitting(false);
     }
@@ -475,6 +479,7 @@ function ResetModal({
       }
     >
       <div className="space-y-4">
+        <FormErrorAlert message={error} />
         <p className="text-sm text-gray-500">
           Setzt das Stundenkonto zum gewählten Stichtag auf den angegebenen
           Übertrag zurück (Schuljahresende: 31.07.). Der Server berechnet den
@@ -565,6 +570,7 @@ function OpeningModal({
   const [openingHours, setOpeningHours] = useState("0");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const toast = useToast();
 
   const opening = parseDecimalInput(openingHours);
@@ -572,12 +578,13 @@ function OpeningModal({
     opening !== null && opening >= -10_000 && opening <= 10_000;
 
   const handleSubmit = async () => {
+    setError(null);
     if (opening === null || opening < -10_000 || opening > 10_000) {
-      toast.error("Eröffnungssaldo ungültig.");
+      setError("Eröffnungssaldo ungültig.");
       return;
     }
     if (!effectiveDate) {
-      toast.error("Datum fehlt.");
+      setError("Datum fehlt.");
       return;
     }
     setSubmitting(true);
@@ -590,9 +597,7 @@ function OpeningModal({
       toast.success("Eröffnungssaldo gebucht.");
       await onSaved();
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Buchung fehlgeschlagen.",
-      );
+      setError(err instanceof Error ? err.message : "Buchung fehlgeschlagen.");
     } finally {
       setSubmitting(false);
     }
@@ -616,6 +621,7 @@ function OpeningModal({
       }
     >
       <div className="space-y-4">
+        <FormErrorAlert message={error} />
         <p className="text-sm text-gray-500">
           Der Eröffnungssaldo setzt den Übernahme-Stand aus dem Altsystem. Das
           Stundenkonto steht zum Stichtag danach exakt auf dem eingetragenen

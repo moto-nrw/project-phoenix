@@ -40,13 +40,16 @@ export function ClassTripBulkStatusModal({
   students,
   onSuccess,
 }: ClassTripBulkStatusModalProps) {
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess } = useToast();
   const [from, setFrom] = useState(todayKey);
   const [to, setTo] = useState(todayKey);
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
   const [conflicts, setConflicts] = useState<StudentStatusDay[]>([]);
   const [conflictTotal, setConflictTotal] = useState(0);
+  // Validation and save errors of the form (Bauart 2 Regel 5): shown in the
+  // FormModal error slot, not as a toast.
+  const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) {
@@ -59,11 +62,13 @@ export function ClassTripBulkStatusModal({
     setReason("");
     setConflicts([]);
     setConflictTotal(0);
+    setFormError(null);
   }, [isOpen]);
 
   const handleSubmit = async () => {
+    setFormError(null);
     if (!from || !to || to < from) {
-      toastError("Bitte einen gültigen Zeitraum wählen");
+      setFormError("Bitte einen gültigen Zeitraum wählen");
       return;
     }
 
@@ -83,13 +88,13 @@ export function ClassTripBulkStatusModal({
       onClose();
     } catch (err) {
       if (err instanceof StudentStatusDayPartialAbsenceConflictError) {
-        toastError(err.message);
+        setFormError(err.message);
         return;
       }
       if (err instanceof StudentStatusDayConflictError) {
         setConflicts(err.conflicts);
         setConflictTotal(err.totalCount);
-        toastError(
+        setFormError(
           "Bestehende Status-Tage verhindern die Speicherung. Es wurde nichts überschrieben.",
         );
         return;
@@ -99,7 +104,7 @@ export function ClassTripBulkStatusModal({
         targetLabel,
         error: message,
       });
-      toastError(`Fehler beim Speichern: ${message}`);
+      setFormError(`Fehler beim Speichern: ${message}`);
     } finally {
       setSaving(false);
     }
@@ -109,6 +114,7 @@ export function ClassTripBulkStatusModal({
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
+      error={formError}
       title={`Klassenfahrt planen: ${targetLabel}`}
       size="md"
       mobilePosition="bottom"

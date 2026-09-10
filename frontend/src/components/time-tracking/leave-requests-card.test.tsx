@@ -181,4 +181,35 @@ describe("LeaveRequestsCard resubmitted requests", () => {
     expect(screen.queryByText("Neuer Antrag 1")).not.toBeInTheDocument();
     expect(screen.getByText("Neuer Antrag 9")).toBeInTheDocument();
   });
+
+  it("reports a too short answer at the field and a failed resubmit above it, never as a toast", async () => {
+    const question: StaffAbsence = {
+      ...resubmittedVacation(),
+      id: "question-1",
+      note: "",
+      status: "question",
+    };
+    mocks.getAbsences.mockResolvedValue([]);
+    mocks.getQuestionedAbsences.mockResolvedValue([question]);
+    mocks.resubmitAbsence.mockRejectedValue(new Error("Server weg"));
+
+    render(<LeaveRequestsCard />);
+
+    const submit = await screen.findByRole("button", {
+      name: "Antwort senden & erneut einreichen",
+    });
+    fireEvent.click(submit);
+    expect(
+      await screen.findByText("Bitte gib eine kurze Antwort ein."),
+    ).toBeInTheDocument();
+    expect(mocks.resubmitAbsence).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText("Deine Antwort"), {
+      target: { value: "Vertretung ist geklärt." },
+    });
+    fireEvent.click(submit);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Server weg");
+    expect(mocks.toastError).not.toHaveBeenCalled();
+  });
 });

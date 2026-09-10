@@ -56,6 +56,18 @@ vi.mock("~/components/ui/slide-over", () => ({
   SlideOverHeader: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
+  SlideOverBody: ({
+    error,
+    children,
+  }: {
+    error?: string | null;
+    children: React.ReactNode;
+  }) => (
+    <div>
+      {error ? <div role="alert">{error}</div> : null}
+      {children}
+    </div>
+  ),
   SlideOverFooter: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="modal-footer">{children}</div>
   ),
@@ -328,11 +340,10 @@ describe("PersonalInfoFormModal", () => {
       const saveButton = screen.getByText("Speichern");
       fireEvent.click(saveButton);
 
-      await waitFor(() => {
-        expect(mockToast.error).toHaveBeenCalledWith(
-          "Fehler beim Speichern der persönlichen Informationen",
-        );
-      });
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Fehler beim Speichern der persönlichen Informationen",
+      );
+      expect(mockToast.error).not.toHaveBeenCalled();
     });
 
     // The stranded-companion refusal is user-actionable: it says which child's
@@ -363,11 +374,10 @@ describe("PersonalInfoFormModal", () => {
 
       fireEvent.click(screen.getByText("Speichern"));
 
-      await waitFor(() => {
-        expect(mockToast.error).toHaveBeenCalledWith(
-          "Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.",
-        );
-      });
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.",
+      );
+      expect(mockToast.error).not.toHaveBeenCalled();
     });
 
     it("shows loading state while saving", async () => {
