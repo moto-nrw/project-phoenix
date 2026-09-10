@@ -45,11 +45,6 @@ func newIdentityAccess(db *bun.DB, observe IdentityAccessObserver) *identityacce
 	return module
 }
 
-// newUnobservedIdentityAccess composes the module without runtime observation.
-func newUnobservedIdentityAccess(db *bun.DB) *identityaccess.Module {
-	return newIdentityAccess(db, nil)
-}
-
 // identityAccountDirectory adapts the public account lookup to the parent
 // enrollment repository's directory port.
 type identityAccountDirectory struct {

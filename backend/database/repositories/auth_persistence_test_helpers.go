@@ -62,13 +62,13 @@ type SessionValidationPersistence struct {
 }
 
 func NewSessionValidationPersistence(db *bun.DB) *SessionValidationPersistence {
-	operators, operatorSessions := NewOperatorRepositories(newUnobservedIdentityAccess(db))
+	identity := newIdentityAccess(db, nil)
 	return &SessionValidationPersistence{
 		Account:              authRepo.NewAccountRepository(db),
 		AccountTenant:        authRepo.NewAccountTenantRepository(db),
 		Token:                authRepo.NewTokenRepository(db),
-		Operator:             operators,
-		OperatorRefreshToken: operatorSessions,
+		Operator:             operatorRepository{identity: identity},
+		OperatorRefreshToken: operatorRefreshTokenRepository{identity: identity},
 	}
 }
 

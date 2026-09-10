@@ -13,16 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
-// NewOperatorRepositories serves the retained operator repository contracts
-// over the Identity & Access owner for compositions that do not build the
-// legacy factory (session validation, focused tests).
-func NewOperatorRepositories(identity identityaccess.OperatorAccess) (platform.OperatorRepository, platform.OperatorRefreshTokenRepository) {
-	if identity == nil {
-		panic("operator repositories: identity access capability is required")
-	}
-	return operatorRepository{identity: identity}, operatorRefreshTokenRepository{identity: identity}
-}
-
 // NewOperatorAuditLogRepository serves the retained operator audit-log
 // contract over the Audit owner's platform ledger.
 func NewOperatorAuditLogRepository(entries auditModels.OperatorAuditLogRepository) platform.OperatorAuditLogRepository {
