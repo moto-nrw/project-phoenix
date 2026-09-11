@@ -472,7 +472,6 @@ src/components/activities/activity-management-modal.tsx|text-[10px]@330 text-[10
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
 src/components/calendar/personal-calendar.tsx|text-[11px]@786 text-[11px]@814 text-[11px]@901 text-[11px]@962 text-[11px]@966 text-[11px]@972 text-[11px]@1018 text-[11px]@1024 text-[10px]@1044 text-[11px]@1097 text-[11px]@1177 text-[11px]@1183 text-[11px]@1188
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@40 text-[10px]@94
-src/components/dashboard/sidebar.tsx|text-[10px]@1340
 src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@920 text-[11px]@939
 src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1306 text-[11px]@2991 text-[11px]@3183 text-[11px]@3188 text-[11px]@3193 text-[11px]@3347 text-[11px]@3939 text-[10px]@4156 text-[11px]@4168 text-[11px]@4203 text-[10px]@4217 text-[10px]@4261
 src/components/enrollment/enrollment-form.tsx|text-[11px]@2090

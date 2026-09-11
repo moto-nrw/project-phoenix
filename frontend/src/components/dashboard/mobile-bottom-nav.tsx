@@ -735,9 +735,10 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // Callers covered by the school-wide overview (#2380): inject the
   // "Aufsicht" tab dynamically. This includes effective admins and verified
   // staff under all_staff. Gate on overviewEnabled (confirmed via
-  // /supervisors/all 200) rather than just isSupervising so a synthetic
-  // Schulhof entry does not surface the tab when the school keeps everyone
-  // on their own supervisions.
+  // /supervisors/all 200) rather than just isSupervising: a released room is
+  // reachable for everyone and grants no supervision (#3065), so its presence
+  // must not surface the tab for a school that keeps everyone on their own
+  // supervisions.
   // STAFF_MAIN_ITEMS already contains /active-supervisions, so only inject
   // when it is missing (i.e. for admin-only users whose baseline is
   // ADMIN_MAIN_ITEMS) to avoid duplicate React keys.

@@ -48,7 +48,7 @@ vi.mock("next-auth/react", () => ({
 const mockPush = vi.fn();
 const mockRedirect = vi.fn();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ push: mockPush, replace: vi.fn() }),
   useSearchParams: () => ({
     get: (key: string) =>
       key === "room" ? navigationMockState.roomParam : null,
@@ -83,8 +83,22 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
 
 // Mock Alert
 vi.mock("~/components/ui/alert", () => ({
-  Alert: ({ message, type }: { message: string; type: string }) => (
-    <div data-testid={`alert-${type}`}>{message}</div>
+  // The action slot is part of the real Alert: the released-room notice and
+  // the reopen banner both carry their action in it, so a stub that drops it
+  // would hide the only control on those blocks.
+  Alert: ({
+    message,
+    type,
+    action,
+  }: {
+    message: string;
+    type: string;
+    action?: React.ReactNode;
+  }) => (
+    <div data-testid={`alert-${type}`}>
+      {message}
+      {action}
+    </div>
   ),
 }));
 
@@ -211,6 +225,7 @@ vi.mock("~/components/students/student-card", () => ({
   ),
   SchoolClassIcon: () => <span data-testid="school-class-icon" />,
   GroupIcon: () => <span data-testid="group-icon" />,
+  ActivityIcon: () => <span data-testid="activity-icon" />,
   PickupTimeRow: ({
     pickupTime,
     isException,
@@ -413,6 +428,7 @@ describe("Year filter (Klassenstufe) on active supervisions", () => {
       })),
       firstRoomId: "r1",
       schulhofStatus: null,
+      openRooms: [],
     };
   }
 

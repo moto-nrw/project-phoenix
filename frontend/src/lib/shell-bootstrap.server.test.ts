@@ -99,12 +99,8 @@ describe("loadShellBootstrap", () => {
           { id: 1, group_id: 1, room_id: 5, room: { id: 5, name: "Aula" } },
         ],
       },
-      "/api/active/schulhof/status": {
-        data: {
-          exists: true,
-          room_name: "Schulhof",
-          is_user_supervising: false,
-        },
+      "/api/rooms?is_open_room=true": {
+        data: [{ id: 8, name: "Kreativraum" }],
       },
       "/api/staff/absences/pending": { data: [{}, {}] },
       "/api/messages/unread-count": { data: { unread_count: 4 } },
@@ -151,11 +147,7 @@ describe("loadShellBootstrap", () => {
       ownSupervised: [
         { id: 1, group_id: 1, room_id: 5, room: { id: 5, name: "Aula" } },
       ],
-      schulhof: {
-        exists: true,
-        room_name: "Schulhof",
-        is_user_supervising: false,
-      },
+      openRooms: [{ id: 8, name: "Kreativraum" }],
       overviewOk: true,
     });
     expect(shell.counts).toEqual({
@@ -179,7 +171,7 @@ describe("loadShellBootstrap", () => {
       "/auth/account/tenants": { data: [] },
       "/api/students/ogs-group-navigation": { data: [] },
       "/api/me/groups/supervised": { data: [] },
-      "/api/active/schulhof/status": { data: { exists: false } },
+      "/api/rooms?is_open_room=true": { data: [] },
       "/api/staff-notices/today": { data: [] },
       "/api/messages/unread-count": { data: { unread_count: 2 } },
       "/api/reminders": { data: { enabled: false, reminders: [], count: 0 } },
@@ -223,7 +215,7 @@ describe("loadShellBootstrap", () => {
       "/api/me/groups/supervised": {
         data: [{ id: 3, group_id: 3, room_id: 2, room: { id: 2, name: "B" } }],
       },
-      "/api/active/schulhof/status": new Error("500"),
+      "/api/rooms?is_open_room=true": new Error("500"),
       "/api/staff/absences/pending": new Error("500"),
       "/api/messages/unread-count": new Error("500"),
       "/api/staff-notices/today": new Error("500"),
@@ -258,7 +250,7 @@ describe("loadShellBootstrap", () => {
         ],
       },
       "/api/me/groups/supervised": new Error("500"),
-      "/api/active/schulhof/status": { data: { exists: false } },
+      "/api/rooms?is_open_room=true": { data: [] },
     });
 
     const shell = await loadShellBootstrap(session(), tenant);
@@ -269,7 +261,7 @@ describe("loadShellBootstrap", () => {
         { id: 1, group_id: 1, room_id: 5, room: { id: 5, name: "Aula" } },
       ],
       ownSupervised: null,
-      schulhof: { exists: false },
+      openRooms: [],
       overviewOk: true,
     });
   });
