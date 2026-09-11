@@ -251,9 +251,6 @@ export function TimetableEventModal({
     sourcePhaseKidsFromWarning,
     sourceOverlapWarnings,
     changeSourceOfferings,
-    pendingSourceOfferingIds,
-    confirmPendingSourceOffering,
-    cancelPendingSourceOffering,
     toggleSourceGradeLevel,
     toggleSourceSchoolClass,
     changeSourceFilterMode,
@@ -298,14 +295,6 @@ export function TimetableEventModal({
     canCheckShiftCoverage,
     closingDayRanges,
   });
-
-  const pendingSourceOfferingNames =
-    pendingSourceOfferingIds
-      ?.map(
-        (offeringId) =>
-          offeringSources?.find((offering) => offering.id === offeringId)?.name,
-      )
-      .filter((name): name is string => Boolean(name)) ?? [];
 
   // Converting a one-off into a Regeltermin is a repeat decision — that entry
   // opens on step 2. Every other entry (quick create, "+ Neu → Regeltermin",
@@ -982,34 +971,6 @@ export function TimetableEventModal({
               </p>
             </div>
           )}
-        </ConfirmationModal>
-
-        {/* #2137 x #2129: ein Angebot als Quelle kennt nur eine gemeinsame
-            Besetzung. Bestehende wochentagsspezifische Personalzuweisungen
-            werden beim Übernehmen entfernt und NICHT zu einer Sammelliste
-            zusammengelegt; die gemeinsame Besetzung muss danach ausdrücklich
-            neu gewählt werden. Das braucht eine ausdrückliche Bestätigung. */}
-        <ConfirmationModal
-          isOpen={pendingSourceOfferingIds !== null}
-          onClose={cancelPendingSourceOffering}
-          onConfirm={confirmPendingSourceOffering}
-          title="Besetzung je Wochentag wird ersetzt"
-          confirmText="Angebot als Quelle übernehmen"
-          cancelText="Abbrechen"
-          confirmVariant="warning"
-        >
-          <p className="text-sm leading-relaxed text-gray-600">
-            Dieser Regeltermin hat je Wochentag unterschiedliches Personal. Mit
-            {pendingSourceOfferingNames.length === 1
-              ? ` dem Angebot „${pendingSourceOfferingNames[0]}“ `
-              : pendingSourceOfferingNames.length > 1
-                ? ` den Angeboten „${pendingSourceOfferingNames.join("“, „")}“ `
-                : " einem Angebot "}
-            als Quelle gilt eine gemeinsame Besetzung für alle Wochentage. Die
-            bisherigen Zuweisungen je Wochentag werden entfernt; wähle die
-            gemeinsame Besetzung anschließend im Schritt „Personal und Kinder“
-            neu. Die Kinderliste kommt automatisch aus dem Angebot.
-          </p>
         </ConfirmationModal>
       </SlideOverContent>
     </SlideOver>

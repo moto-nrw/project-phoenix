@@ -200,6 +200,27 @@ export function changeRosterWeekdays(
   return { ...form, weekdays, weekdayRosters };
 }
 
+/**
+ * Replaces the child list of every scheduled weekday and keeps each day's
+ * staffing. An offering source takes the children over this way, and a
+ * cleared source hands the stashed lists back (#3165).
+ */
+export function withWeekdayStudentIds(
+  form: EventFormState,
+  studentIdsFor: (weekday: number) => string[],
+): Record<number, WeekdayRosterState> {
+  const rosters: Record<number, WeekdayRosterState> = {};
+  for (const weekday of form.weekdays) {
+    const roster = rosterForWeekday(form, weekday);
+    rosters[weekday] = {
+      staffIds: [...roster.staffIds],
+      primaryStaffId: roster.primaryStaffId,
+      studentIds: [...studentIdsFor(weekday)],
+    };
+  }
+  return rosters;
+}
+
 /** Copies a roster to a newly introduced day without widening protected rows. */
 export function rosterSeedForWeekday(
   form: EventFormState,
@@ -244,9 +265,14 @@ export function weekdayDeviatesFromBaseline(
   }
   const baseline = rosterForWeekday(form, baselineWeekday);
   const current = rosterForWeekday(form, weekday);
+  // With an offering source the per-weekday child lists are hidden and not
+  // saved (#3165), so only the staffing can make a day deviate.
+  const compareStudents = !(
+    form.targetGroupType === "angebot" && form.sourceCareOfferingIds.length > 0
+  );
   return (
     !sameIdSet(baseline.staffIds, current.staffIds) ||
-    !sameIdSet(baseline.studentIds, current.studentIds) ||
+    (compareStudents && !sameIdSet(baseline.studentIds, current.studentIds)) ||
     baseline.primaryStaffId !== current.primaryStaffId
   );
 }
@@ -255,30 +281,6 @@ function sameIdSet(left: string[], right: string[]): boolean {
   if (left.length !== right.length) return false;
   const seen = new Set(left);
   return right.every((id) => seen.has(id));
-}
-
-/**
- * True when at least one weekday staffs differently from the others. This is
- * the state an offering source destroys: with a source set, the payload
- * carries only the shared staff list (the backend rejects
- * `weekday_assignments` next to a source), so activating one must ask for
- * explicit confirmation first (#2147 review). Confirming then empties the
- * shared staffing instead of adopting an aggregated all-weekdays union, so
- * the replacement Besetzung is picked explicitly (#2147 review round 13).
- * Child lists are not compared; a sourced roster replaces them by design.
- */
-export function hasPerWeekdayStaffDeviation(form: EventFormState): boolean {
-  if (!form.perWeekdayRoster || form.weekdays.length < 2) return false;
-  const [first, ...rest] = form.weekdays;
-  if (first === undefined) return false;
-  const baseline = rosterForWeekday(form, first);
-  return rest.some((weekday) => {
-    const current = rosterForWeekday(form, weekday);
-    return (
-      !sameIdSet(baseline.staffIds, current.staffIds) ||
-      baseline.primaryStaffId !== current.primaryStaffId
-    );
-  });
 }
 
 export interface EventFormState {
@@ -636,12 +638,16 @@ export function formFromSeries(
 function weekdayRostersFromSeries(
   series: TimetableTemplate,
 ): Record<number, WeekdayRosterState> {
+  // Same rule as the shared list in formFromSeries: a sourced series' child
+  // rows ARE the offering's children, prefilling them would turn the rule
+  // into a snapshot once the source is cleared (#3165).
+  const sourced = (series.sourceCareOfferingIds?.length ?? 0) > 0;
   const rosters: Record<number, WeekdayRosterState> = {};
   for (const assignment of series.weekdayAssignments) {
     rosters[assignment.weekday] = {
       staffIds: assignment.staffIds,
       primaryStaffId: assignment.primaryStaffId ?? "",
-      studentIds: assignment.studentIds,
+      studentIds: sourced ? [] : assignment.studentIds,
     };
   }
   return rosters;
