@@ -166,6 +166,7 @@ type TokenRepository interface {
 	MarkRotated(ctx context.Context, id int64, replacementToken string, recoveryProofHash []byte, rotatedAt time.Time) error
 	DeleteExpiredRotatedForAccount(ctx context.Context, accountID int64, now time.Time) error
 	FindByAccountID(ctx context.Context, accountID int64) ([]*Token, error)
+	CountExpiredTokens(ctx context.Context) (int, error)
 	DeleteExpiredTokens(ctx context.Context) (int, error)
 	ListInactiveAccountIDsWithLiveTokens(ctx context.Context) ([]int64, error)
 	HasLiveTokensCreatedAfter(ctx context.Context, accountID int64, since time.Time) (bool, error)

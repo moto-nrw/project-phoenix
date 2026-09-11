@@ -15,17 +15,18 @@ import (
 // one it opens for the tenant in context), records one observation per call
 // and turns "no row" outcomes into the stable domain errors.
 type Service struct {
-	store    ports.Store
-	tx       ports.Transaction
-	tenantOf func(context.Context) int64
-	observe  ports.Observer
+	store     ports.Store
+	operators ports.OperatorStore
+	tx        ports.Transaction
+	tenantOf  func(context.Context) int64
+	observe   ports.Observer
 }
 
-func New(store ports.Store, tx ports.Transaction, tenantOf func(context.Context) int64, observe ports.Observer) *Service {
-	if store == nil || tx == nil || tenantOf == nil || observe == nil {
+func New(store ports.Store, operators ports.OperatorStore, tx ports.Transaction, tenantOf func(context.Context) int64, observe ports.Observer) *Service {
+	if store == nil || operators == nil || tx == nil || tenantOf == nil || observe == nil {
 		panic("identity access application: all dependencies are required")
 	}
-	return &Service{store: store, tx: tx, tenantOf: tenantOf, observe: observe}
+	return &Service{store: store, operators: operators, tx: tx, tenantOf: tenantOf, observe: observe}
 }
 
 func (s *Service) FindAccount(ctx context.Context, id int64) (result domain.Account, err error) {

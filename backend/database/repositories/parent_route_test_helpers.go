@@ -48,8 +48,8 @@ func NewParentRouteTestRepositories(db *bun.DB) (ParentRouteTestRepositories, er
 	}
 	r := &Factory{db: db,
 		ParentChild: parentRepo.NewChildRepository(carePlanLegacy.NewParentRuntime(db)),
-		Student:     usersRepo.NewStudentRepository(db), Person: usersRepo.NewPersonRepository(db),
-		GuardianProfile: usersRepo.NewGuardianProfileRepository(db), StudentGuardian: usersRepo.NewStudentGuardianRepository(db),
+		Student:     usersRepo.NewStudentRepository(db), Person: NewPersonRepository(db),
+		GuardianProfile: NewGuardianProfileRepository(db), StudentGuardian: usersRepo.NewStudentGuardianRepository(db),
 	}
 	r.BindPeopleDirectory(people)
 	r.bindCarePlanAdapters(care)

@@ -32,7 +32,7 @@ func (f *Factory) bindStaffMembershipDecorators(workTime workforce.Capability) {
 	}
 	f.StaffMessageRead = usersRepo.NewStaffMessageReadRepository(f.db, func(ctx context.Context) ([]int64, error) {
 		return currentTenantStaffAccounts(ctx, capability(), persons())
-	})
+	}, activeAccountQuery(mustAccountRepository(f.Account)))
 }
 
 // staffAccountsByTenant maps every tenant visible in the caller's transaction

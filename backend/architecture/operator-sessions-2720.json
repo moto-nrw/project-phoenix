@@ -1,0 +1,82 @@
+{
+  "schema_version": 2,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#2645",
+    "#2656",
+    "#2657",
+    "#2659",
+    "#2660",
+    "#2663",
+    "#2667",
+    "#2699",
+    "#2709"
+  ],
+  "owner_and_capability": "Identity & Access — operator identity and refresh sessions behind operator login, refresh, MFA lockout and session revocation; Audit — operator action ledger; owner account queries for People Directory, Care Plan parent and CLI reads",
+  "affected_packages": [
+    "modules/identityaccess",
+    "database/repositories",
+    "database/repositories/auth",
+    "database/repositories/audit",
+    "database/repositories/platform",
+    "database/repositories/parent",
+    "database/repositories/users",
+    "models/audit",
+    "models/auth",
+    "services/auth",
+    "api/auth",
+    "cmd"
+  ],
+  "affected_tables": [
+    "platform.operators",
+    "platform.operator_refresh_tokens",
+    "platform.operator_audit_log",
+    "auth.accounts",
+    "auth.tokens",
+    "auth.accounts_parents"
+  ],
+  "exact_ratchet_keys": [
+    "production|tables.foreign-read|github.com/moto-nrw/project-phoenix/cmd|auth.tokens",
+    "production|tables.foreign-read|github.com/moto-nrw/project-phoenix/database/repositories/iot|auth.accounts",
+    "production|tables.foreign-read|github.com/moto-nrw/project-phoenix/database/repositories/iot|auth.tokens",
+    "production|tables.foreign-read|github.com/moto-nrw/project-phoenix/database/repositories/parent|auth.accounts",
+    "production|tables.foreign-read|github.com/moto-nrw/project-phoenix/database/repositories/platform|auth.accounts",
+    "production|tables.foreign-read|github.com/moto-nrw/project-phoenix/database/repositories/platform|platform.operator_audit_log",
+    "production|tables.foreign-read|github.com/moto-nrw/project-phoenix/database/repositories/platform|platform.operator_refresh_tokens",
+    "production|tables.foreign-read|github.com/moto-nrw/project-phoenix/database/repositories/platform|platform.operators",
+    "production|tables.foreign-read|github.com/moto-nrw/project-phoenix/database/repositories/users|auth.accounts",
+    "production|tables.foreign-write|github.com/moto-nrw/project-phoenix/database/repositories/platform|platform.operator_audit_log",
+    "production|tables.foreign-write|github.com/moto-nrw/project-phoenix/database/repositories/platform|platform.operator_refresh_tokens",
+    "production|tables.foreign-write|github.com/moto-nrw/project-phoenix/database/repositories/platform|platform.operators",
+    "production|tables.unclassified|github.com/moto-nrw/project-phoenix/database/repositories/auth|auth.accounts_parents",
+    "production|tables.unresolved|github.com/moto-nrw/project-phoenix/database/repositories/auth|auth.Join",
+    "production|tables.unresolved|github.com/moto-nrw/project-phoenix/database/repositories/auth|auth.NewRaw",
+    "production|tables.unresolved|github.com/moto-nrw/project-phoenix/database/repositories/auth|auth.Where"
+  ],
+  "atomic_cutover": "The retained operator and refresh-token repository contracts become adapters over the public Identity & Access capability and the platform audit repository over the Audit appender; the old platform repositories are deleted in the same change. Foreign auth.accounts and auth.tokens reads use owner queries bound at construction. The legacy parent-account model, routes and client stay unchanged because auth.accounts_parents has no target owner. No dual provider or fallback read chain.",
+  "tests": [
+    "Owner operator lifecycle, MFA lockout, rotation hand-off, revocation and expiry sweep; injected failure after each authoritative refresh write and after revocation, each with rollback proof and idempotent retry; platform-wide visibility from two tenant contexts; observation row counts; adapter contract tests preserving the retained (nil, nil) and DatabaseError shapes; platform-scoped audit ledger; fail-closed owner lookups; existing operator login/MFA/refresh/session-validation, parent dashboard and staff messaging suites; route goldens and architecture, composition and query-budget ratchets."
+  ],
+  "runtime_evidence": {
+    "source": "docs/runtime-checkpoints/operator-sessions-2720.md and operator-sessions-2720.raw.json",
+    "workload": "2026-09-10 local isolated PostgreSQL 17.11 clone, Go 1.27.0 darwin/arm64; five warmups plus 30 sequential login, refresh and revoke sequences over the public capability, refresh and revoke inside one administrative transaction each.",
+    "thresholds": "No task-specific latency SLO or query budget is defined. Existing architecture, composition, query-budget and behavior gates apply; measured values are observations, not fitted thresholds or a production performance claim.",
+    "query_count": "Login 3 statements and 2 DML rows; refresh 9 statements and 2 DML rows; revoke 4 statements and 2 DML rows, identical across all samples.",
+    "errors": "0/30 errors per operation; 70 commits and zero rollback events including warmups.",
+    "lock_wait": "70 lock-acquisition statement events totalling 21.724 ms including warmups. The hook measures SQL acquisition duration, an upper bound on lock wait; the workload is sequential and contains no contention, so these are a floor rather than load evidence.",
+    "failure": "A failure is injected after each of the four authoritative writes of a refresh in turn and after family revocation; every case preserves the predecessor un-rotated, leaves no successor, keeps the family ending at the predecessor and records no login stamp. A second rotation hand-off returns the stable ErrOperatorSessionRotated error; rotated predecessors are retained as replay evidence until expiry.",
+    "rollback": "Session, login and revocation writes roll back with the caller's administrative transaction; the full retry then commits, and a repeated revoke deletes nothing instead of failing.",
+    "smoke": "Operator login, MFA, refresh replay and password-change revocation suites, four-portal session validation, parent dashboard listing, staff messaging reachability, cleanup CLI preview and the regenerated route goldens pass.",
+    "latency_p50": "Login 0.778 ms; refresh 2.279 ms; revoke 0.832 ms (nearest rank over 30 samples).",
+    "latency_p95": "Login 1.085 ms; refresh 3.126 ms; revoke 1.172 ms (nearest rank over 30 samples).",
+    "affected_rows": "Two DML rows per operation: login inserts the session and stamps the login, refresh inserts the successor and marks the predecessor rotated, revoke deletes the family. Duplicate-prevention conflicts do not apply: no operator or session write is an upsert or conflict-tolerant insert, and the one conflict-shaped case, a repeated rotation hand-off, is rejected with the stable ErrOperatorSessionRotated error rather than absorbed.",
+    "pool_wait": "Zero pool waits in the measured samples; 70 pool-wait events totalling 0.044 ms including warmups.",
+    "deadlocks": "The database deadlock counter changed by zero and no transaction reported a retry, so there were no serialization retries.",
+    "job_duration": "Not applicable: this capability has no Worker path.",
+    "job_retries": "Not applicable: this capability has no Worker path.",
+    "job_backlog": "Not applicable: this capability has no Worker path."
+  },
+  "rollback_and_cleanup": "Revert the composition and adapters against unchanged table shapes; no schema change and no irreversible cleanup.",
+  "exit_criterion": "Every listed entry point reaches platform.operators, platform.operator_refresh_tokens, platform.operator_audit_log, auth.accounts and auth.tokens through one owner provider; scripts/backend-architecture.sh check introduces no key and leaves policy ownership unchanged. Partial delivery: thirteen of the sixteen listed keys were still in the baseline at the base commit and eleven are removed here; the two database/repositories/iot keys and database/repositories/platform|auth.accounts were already resolved by earlier waves. The database/repositories/auth keys auth.accounts_parents and auth.Where remain with the unchanged parent-account repository, so #2720 stays open."
+}

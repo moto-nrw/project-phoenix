@@ -352,6 +352,25 @@ integration-test rules mirror the People Directory owner; the
 legacy service factory still composes the enrollment decision service and
 go with #2751.
 
+The same owner serves platform operator identity and refresh sessions
+(#2720): `platform.operators` and `platform.operator_refresh_tokens` are read
+and written only through the public `OperatorAccess` capability. Operator
+rows are platform-wide, so the operator operations join an ambient
+administrative transaction and otherwise run on the root connection; the
+operator flows open the transaction where rotation or revocation and its
+audit evidence must commit together. `platform.operator_audit_log` is
+appended through the Audit owner's appender as a platform-scoped ledger
+(`models/audit.OperatorAuditEntry`, no tenant handshake). The retained
+`models/platform` operator repository contracts are compatibility adapters in
+the legacy composition (`database/repositories/operator_identity.go`), bound
+at construction, and go with #2751. The foreign `auth.accounts` reads of the
+People Directory, Care Plan parent and CLI packages use owner queries bound
+the same way (`identity_ports.go`): the account lookup and active-account
+subquery of `database/repositories/auth` and the public account fact. The
+legacy `auth.accounts_parents` model, repository and its six
+`/auth/parent-accounts` routes stay unchanged; the table has no target owner
+and that conflict stays open under #2720.
+
 The session end workflow (`workflows/sessionend`, owner `session-end`, kind
 `workflow`, #2697) is a cross-module write workflow of #2580. Its
 public command closes one live kiosk session in one UnitOfWork: it joins the

@@ -1648,7 +1648,6 @@ func setupGuardianServiceWithMailer(db *bun.DB, mailer *testpkg.CapturingMailer)
 		StudentGuardianRepo:     repoFactory.StudentGuardian,
 		GuardianInvitationRepo:  repoFactory.GuardianInvitation,
 		AccountRepo:             repoFactory.Account,
-		AccountParentRepo:       repoFactory.AccountParent,
 		AccountTenantRepo:       repoFactory.AccountTenant,
 		AccountRoleRepo:         repoFactory.AccountRole,
 		RoleRepo:                repoFactory.Role,
