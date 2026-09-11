@@ -959,6 +959,7 @@ export const appChapters: readonly GuideChapter[] = [
           "`Erwartete bestätigen` checkt alle Kinder unter `Erwartet` ein. Kinder unter `Kommt später` sind nicht dabei.",
           "Ab der angegebenen Uhrzeit wechselt das Kind zu `Erwartet`.",
           "Bei anwesendem Kind auf `Einchecken` klicken.",
+          "Sind Sie für eine laufende Aktivität nicht eingeplant, sehen Sie die Liste nur. Eintragen oder ändern können dort nur die eingeplanten Betreuungskräfte.",
           "Bei bekannter Abwesenheit `Entschuldigt` wählen. Danach `Nur dieser Block` oder `Rest des Tages` antippen.",
           "`Rest des Tages` entschuldigt diesen Block und alle späteren Blöcke von heute. Frühere Blöcke bleiben, wie sie sind. Den Eintrag für die späteren Blöcke finden und entfernen Sie auf der Seite des Kindes. Diesen Block korrigieren Sie mit `Zurück auf erwartet`. Wer keine Kinderdaten ändern darf, entschuldigt nur diesen Block.",
           "Falsche Markierung mit `Zurück auf erwartet` korrigieren.",
