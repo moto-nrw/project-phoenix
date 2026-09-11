@@ -49,11 +49,10 @@ func TestMigrateBackfillRequestChildStorageReportsPerTenantEvidence(t *testing.T
 
 	var output bytes.Buffer
 	options := migrations.RequestChildStorageBackfillOptions{TenantIDs: []int64{tenant}}
-	require.ErrorContains(t, runRequestChildStorageBackfill(t.Context(), db, options, &output), "incomplete for tenants")
+	require.NoError(t, runRequestChildStorageBackfill(t.Context(), db, options, &output))
 	assert.Regexp(t, `tenant +complete +hwm +scanned`, output.String())
-	assert.Regexp(t, strconv.FormatInt(tenant, 10)+` +false`, output.String())
-	assert.Contains(t, output.String(), "unresolved_origins=1")
-	assert.Contains(t, output.String(), "missing-authoritative-submission")
+	assert.Regexp(t, strconv.FormatInt(tenant, 10)+` +true`, output.String())
+	assert.Contains(t, output.String(), "provenance=earliest-surviving-interval-v1 day_differences=0")
 
 	// Drift makes verify-only fail with a non-zero exit and an evidence row.
 	_, err = db.NewRaw(`UPDATE enrollment.request_child_offerings SET notes = 'changed' WHERE tenant_id = ?`, tenant).Exec(t.Context())

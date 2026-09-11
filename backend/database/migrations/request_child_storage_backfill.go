@@ -3,7 +3,6 @@ package migrations
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -18,16 +17,21 @@ import (
 // Request-child storage backfill (#2713).
 //
 // enrollment.request_child_offerings stays the only production authority until
-// Cutover (#2714). Effective bookings copy independently of submission proof:
+// Cutover (#2714). The copy must not change which days anybody plans with:
 //
 //   - enrollment.care_offering_bookings receives one row per legacy row and
 //     keeps the legacy id, so both sides join on id and every batch is
 //     idempotent. It owns the effective care state (manual/automatic days,
-//     half-open validity).
-//   - No immutable, full-field submission authority is established for legacy
-//     pairs. Every nonempty pair remains unresolved; no selection is guessed
-//     from current intervals, old target rows or partial audit snapshots.
-//     Copy runs remove untrusted target selections; source history is untouched.
+//     half-open validity). Legacy rows written before the manual/automatic
+//     breakdown carry their days only in selected_days; nothing derived those
+//     days, so they are manual by construction and copy into
+//     manual_selected_days. Verification requires manual ∪ automatic of every
+//     booking to equal the selected_days the application plans with today.
+//   - enrollment.request_child_offering_selections receives the Anmeldung of
+//     each pair: its earliest surviving interval without automatic additions.
+//     Later intervals are approved changes. Where a change effective from the
+//     original start deleted the original interval, the earliest surviving
+//     one stands in for it; no planned day depends on the selection.
 //
 // Every batch commits on its own and persists a per-tenant checkpoint
 // (high-water mark plus counters) in
@@ -37,8 +41,7 @@ import (
 // deleted.
 
 const (
-	requestChildOriginPolicy              = "immutable-submission-v1-unresolved-legacy"
-	requestChildOriginReason              = "missing-authoritative-submission"
+	requestChildOriginPolicy              = "earliest-surviving-interval-v1"
 	defaultRequestChildStorageBatchSize   = 500
 	defaultRequestChildStorageMaxPasses   = 5
 	defaultRequestChildStorageMaxRetries  = 5
@@ -133,28 +136,28 @@ type RequestChildStorageVerification struct {
 	TargetBookingsChecksum   string
 	SourceSelectionsChecksum string
 	TargetSelectionsChecksum string
-	// MissingOrDifferent and Orphans measure copy differences separately from
-	// unresolved historical submission origins.
+	// MissingOrDifferent and Orphans measure copy differences.
 	MissingOrDifferent int64
 	Orphans            int64
+	// DayDifferences counts legacy rows whose booking would plan other days
+	// (manual ∪ automatic) than the selected_days the application plans with.
+	DayDifferences int64
 	// OldestUnmigrated is the age of the oldest legacy row that still lacks an
 	// equal target row; zero when everything matches.
-	OldestUnmigrated  time.Duration
-	VerifiedAt        time.Time
-	Snapshot          string
-	ProvenancePolicy  string
-	UnresolvedOrigins int64
-	UnresolvedReasons map[string]int64
+	OldestUnmigrated time.Duration
+	VerifiedAt       time.Time
+	Snapshot         string
+	ProvenancePolicy string
 }
 
 // Mismatches is the total the exit criterion requires to be zero.
 func (v RequestChildStorageVerification) Mismatches() int64 {
-	return v.MissingOrDifferent + v.Orphans
+	return v.MissingOrDifferent + v.Orphans + v.DayDifferences
 }
 
 // Equal reports equal counts and checksums with no mismatch.
 func (v RequestChildStorageVerification) Equal() bool {
-	return v.ProvenancePolicy == requestChildOriginPolicy && v.Snapshot != "" && !v.VerifiedAt.IsZero() && v.UnresolvedOrigins == 0 && v.SourceBookings == v.TargetBookings && v.SourceSelections == v.TargetSelections &&
+	return v.ProvenancePolicy == requestChildOriginPolicy && v.Snapshot != "" && !v.VerifiedAt.IsZero() && v.SourceBookings == v.TargetBookings && v.SourceSelections == v.TargetSelections &&
 		v.SourceBookingsChecksum == v.TargetBookingsChecksum &&
 		v.SourceSelectionsChecksum == v.TargetSelectionsChecksum && v.Mismatches() == 0
 }
@@ -425,8 +428,6 @@ func backfillRequestChildStorageTenant(ctx context.Context, db *bun.DB, tenantID
 	run.logger.Info("request child storage backfill tenant finished",
 		"complete", report.Complete,
 		"provenance_policy", verification.ProvenancePolicy,
-		"unresolved_origins", verification.UnresolvedOrigins,
-		"unresolved_reasons", verification.UnresolvedReasons,
 		"lock_wait_ms", float64(report.LockWait)/float64(time.Millisecond),
 		"stable", report.Stable,
 		"passes", report.Passes,
@@ -445,6 +446,7 @@ func backfillRequestChildStorageTenant(ctx context.Context, db *bun.DB, tenantID
 		"pool_wait_ms", report.PoolWait.Milliseconds(),
 		"mismatch_count", verification.Mismatches(),
 		"orphan_count", verification.Orphans,
+		"day_differences", verification.DayDifferences,
 		"oldest_unmigrated_seconds", int64(verification.OldestUnmigrated.Seconds()),
 		"source_bookings", verification.SourceBookings,
 		"target_bookings", verification.TargetBookings,
@@ -586,22 +588,51 @@ const bookingMismatchQuery = `
 		SELECT 1 FROM enrollment.request_child_offerings AS o WHERE o.id = b.id AND o.tenant_id = b.tenant_id)
 	ORDER BY 1`
 
+// legacyManualDays is the manual part of a legacy alias o. Rows written before
+// the manual/automatic breakdown carry neither part, only selected_days, and
+// those days are manual by construction. Like grandfatheredOfferingsFromLinks,
+// a part counts as absent when it holds no days (NULL, JSON null or []).
+const legacyManualDays = `CASE WHEN COALESCE(o.manual_selected_days, '[]'::jsonb) IN ('[]'::jsonb, 'null'::jsonb)
+		AND COALESCE(o.automatic_selected_days, '[]'::jsonb) IN ('[]'::jsonb, 'null'::jsonb)
+	THEN o.selected_days ELSE o.manual_selected_days END`
+
 // bookingEqualsSource compares a booking alias b with a legacy alias o.
 const bookingEqualsSource = `b.request_child_id = o.request_child_id AND b.care_offering_id = o.care_offering_id
-	AND b.manual_selected_days IS NOT DISTINCT FROM o.manual_selected_days
+	AND b.manual_selected_days IS NOT DISTINCT FROM (` + legacyManualDays + `)
 	AND b.automatic_selected_days IS NOT DISTINCT FROM o.automatic_selected_days
 	AND b.valid_from IS NOT DISTINCT FROM o.valid_from AND b.valid_until IS NOT DISTINCT FROM o.valid_until
 	AND b.created_at = o.created_at AND b.updated_at = o.updated_at`
 
-// trustedSelections deliberately resolves no legacy pair: no immutable,
-// tenant-linked full submission authority has been established. Interval order,
-// current targets, and partial audit payloads are not provenance.
-const trustedSelections = `
-	SELECT tenant_id, request_child_id, care_offering_id, selected_days, notes, created_at
-	FROM enrollment.request_child_offerings WHERE tenant_id = ?0 AND FALSE`
+// Day lists read as JSONB arrays; NULL and non-array values are no days.
+const (
+	sourceSelectedDays   = `COALESCE(CASE WHEN jsonb_typeof(o.selected_days) = 'array' THEN o.selected_days END, '[]'::jsonb)`
+	bookingPlannedDays   = `(` + bookingManualDays + ` || ` + bookingAutomaticDays + `)`
+	bookingManualDays    = `COALESCE(CASE WHEN jsonb_typeof(b.manual_selected_days) = 'array' THEN b.manual_selected_days END, '[]'::jsonb)`
+	bookingAutomaticDays = `COALESCE(CASE WHEN jsonb_typeof(b.automatic_selected_days) = 'array' THEN b.automatic_selected_days END, '[]'::jsonb)`
+)
+
+// bookingPlansSourceDays holds when a booking alias b plans exactly the days
+// of the legacy alias o that the application plans with today.
+const bookingPlansSourceDays = sourceSelectedDays + ` @> ` + bookingPlannedDays + ` AND ` + bookingPlannedDays + ` @> ` + sourceSelectedDays
+
+// anmeldungSelections is the Anmeldung of each pair: its earliest surviving
+// interval without automatic additions. The touched variant narrows the pairs
+// to those a batch touches.
+const (
+	anmeldungSelect = `
+	SELECT DISTINCT ON (o.request_child_id, o.care_offering_id)
+		o.tenant_id, o.request_child_id, o.care_offering_id, ` + legacyManualDays + ` AS selected_days, o.notes, o.created_at
+	FROM enrollment.request_child_offerings AS o
+	WHERE o.tenant_id = ?0`
+	anmeldungOrder = `
+	ORDER BY o.request_child_id, o.care_offering_id, o.valid_from NULLS FIRST, o.id`
+	anmeldungSelections        = anmeldungSelect + anmeldungOrder
+	touchedAnmeldungSelections = anmeldungSelect + `
+		AND (o.request_child_id, o.care_offering_id) IN (SELECT request_child_id, care_offering_id FROM touched)` + anmeldungOrder
+)
 
 const selectionMismatchQuery = `
-	WITH origin AS (` + trustedSelections + `),
+	WITH origin AS (` + anmeldungSelections + `),
 	target AS (
 		SELECT s.request_child_id, s.care_offering_id, s.selected_days, s.notes, s.created_at
 		FROM enrollment.request_child_offering_selections AS s WHERE s.tenant_id = ?0)
@@ -761,17 +792,35 @@ const missingBookingInsert = `
 	INSERT INTO enrollment.care_offering_bookings
 		(id, tenant_id, request_child_id, care_offering_id, manual_selected_days, automatic_selected_days,
 		 valid_from, valid_until, created_at, updated_at)
-	SELECT o.id, o.tenant_id, o.request_child_id, o.care_offering_id, o.manual_selected_days, o.automatic_selected_days,
+	SELECT o.id, o.tenant_id, o.request_child_id, o.care_offering_id, ` + legacyManualDays + `, o.automatic_selected_days,
 		o.valid_from, o.valid_until, o.created_at, o.updated_at
 	FROM enrollment.request_child_offerings AS o
 	WHERE o.tenant_id = ?0 AND o.id = ANY(?1)
 	ORDER BY o.id
 	ON CONFLICT (id) DO NOTHING`
 
-const orphanSelectionDelete = touchedPairs + `
+// touchedOrigin is the Anmeldung of the pairs a batch touches.
+const touchedOrigin = touchedPairs + `,
+	origin AS (` + touchedAnmeldungSelections + `)`
+
+// staleSelectionDelete removes selections of touched pairs that no longer
+// equal their Anmeldung, including pairs without legacy rows.
+const staleSelectionDelete = touchedOrigin + `
 	DELETE FROM enrollment.request_child_offering_selections AS s
 	WHERE s.tenant_id = ?0
-		AND (s.request_child_id, s.care_offering_id) IN (SELECT request_child_id, care_offering_id FROM touched)`
+		AND (s.request_child_id, s.care_offering_id) IN (SELECT request_child_id, care_offering_id FROM touched)
+		AND NOT EXISTS (
+			SELECT 1 FROM origin
+			WHERE origin.request_child_id = s.request_child_id AND origin.care_offering_id = s.care_offering_id
+				AND (origin.selected_days, origin.notes, origin.created_at) IS NOT DISTINCT FROM (s.selected_days, s.notes, s.created_at))`
+
+const missingSelectionInsert = touchedOrigin + `
+	INSERT INTO enrollment.request_child_offering_selections
+		(tenant_id, request_child_id, care_offering_id, selected_days, notes, created_at)
+	SELECT tenant_id, request_child_id, care_offering_id, selected_days, notes, created_at
+	FROM origin
+	ORDER BY request_child_id, care_offering_id
+	ON CONFLICT (tenant_id, request_child_id, care_offering_id) DO NOTHING`
 
 const checkpointBatchUpdate = `
 	UPDATE enrollment.request_child_storage_backfill_checkpoints SET
@@ -808,12 +857,16 @@ func (run *tenantBackfillRun) applyBatch(ctx context.Context, tx bun.Tx, batch *
 	if err != nil {
 		return fmt.Errorf("insert bookings: %w", err)
 	}
-	deletedSelections, err := rowsAffected(tx.NewRaw(orphanSelectionDelete, run.tenantID, ids, children, offerings).Exec(ctx))
+	deletedSelections, err := rowsAffected(tx.NewRaw(staleSelectionDelete, run.tenantID, ids, children, offerings).Exec(ctx))
 	if err != nil {
-		return fmt.Errorf("delete orphan selections: %w", err)
+		return fmt.Errorf("delete stale selections: %w", err)
+	}
+	insertedSelections, err := rowsAffected(tx.NewRaw(missingSelectionInsert, run.tenantID, ids, children, offerings).Exec(ctx))
+	if err != nil {
+		return fmt.Errorf("insert selections: %w", err)
 	}
 	batch.Scanned = int64(len(batch.IDs)) + int64(len(batch.Pairs))
-	batch.Copied = insertedBookings
+	batch.Copied = insertedBookings + insertedSelections
 	batch.Skipped = scannedSource - insertedBookings
 	batch.Deleted = deletedBookings + deletedSelections
 	if run.options.BeforeCommit != nil {
@@ -841,32 +894,37 @@ func rowsAffected(result sql.Result, err error) (int64, error) {
 
 // Checksum rows render NULL distinctly from every real value and instants
 // independent of the session time zone, so digests compare across hosts.
-const bookingChecksumRow = `jsonb_build_array(id, request_child_id, care_offering_id,
-	manual_selected_days, automatic_selected_days, valid_from, valid_until,
+// The source row renders the legacy manual part the booking copies.
+const (
+	bookingChecksumHead = `jsonb_build_array(id, request_child_id, care_offering_id, `
+	bookingChecksumTail = `, automatic_selected_days, valid_from, valid_until,
 	to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US'),
 	to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US'))::text`
+	sourceBookingChecksumRow = bookingChecksumHead + legacyManualDays + bookingChecksumTail
+	targetBookingChecksumRow = bookingChecksumHead + `manual_selected_days` + bookingChecksumTail
+)
 
 const selectionChecksumRow = `jsonb_build_array(request_child_id, care_offering_id, selected_days, notes,
 	to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US'))::text`
 
 const verificationQuery = `
-	WITH origin AS (` + trustedSelections + `)
+	WITH origin AS (` + anmeldungSelections + `)
 	SELECT
 		(SELECT count(*) FROM enrollment.request_child_offerings WHERE tenant_id = ?0) AS source_bookings,
 		(SELECT count(*) FROM enrollment.care_offering_bookings WHERE tenant_id = ?0) AS target_bookings,
 		(SELECT count(*) FROM origin) AS source_selections,
 		(SELECT count(*) FROM enrollment.request_child_offering_selections WHERE tenant_id = ?0) AS target_selections,
-		(SELECT encode(sha256(convert_to(COALESCE(string_agg(` + bookingChecksumRow + `, E'\n' ORDER BY id), ''), 'UTF8')), 'hex')
-			FROM enrollment.request_child_offerings WHERE tenant_id = ?0) AS source_bookings_checksum,
-		(SELECT encode(sha256(convert_to(COALESCE(string_agg(` + bookingChecksumRow + `, E'\n' ORDER BY id), ''), 'UTF8')), 'hex')
+		(SELECT encode(sha256(convert_to(COALESCE(string_agg(` + sourceBookingChecksumRow + `, E'\n' ORDER BY id), ''), 'UTF8')), 'hex')
+			FROM enrollment.request_child_offerings AS o WHERE tenant_id = ?0) AS source_bookings_checksum,
+		(SELECT encode(sha256(convert_to(COALESCE(string_agg(` + targetBookingChecksumRow + `, E'\n' ORDER BY id), ''), 'UTF8')), 'hex')
 			FROM enrollment.care_offering_bookings WHERE tenant_id = ?0) AS target_bookings_checksum,
 		(SELECT encode(sha256(convert_to(COALESCE(string_agg(` + selectionChecksumRow + `, E'\n' ORDER BY request_child_id, care_offering_id), ''), 'UTF8')), 'hex')
 			FROM origin) AS source_selections_checksum,
 		(SELECT encode(sha256(convert_to(COALESCE(string_agg(` + selectionChecksumRow + `, E'\n' ORDER BY request_child_id, care_offering_id), ''), 'UTF8')), 'hex')
 			FROM enrollment.request_child_offering_selections WHERE tenant_id = ?0) AS target_selections_checksum,
-		(SELECT count(*) FROM (SELECT DISTINCT request_child_id, care_offering_id FROM enrollment.request_child_offerings WHERE tenant_id = ?0) pairs) AS unresolved_origins,
-		(SELECT COALESCE(GREATEST(0, EXTRACT(EPOCH FROM clock_timestamp() - MIN(created_at))), 0)::double precision
-			FROM enrollment.request_child_offerings WHERE tenant_id = ?0) AS oldest_unresolved_seconds,
+		(SELECT count(*) FROM enrollment.request_child_offerings AS o
+			JOIN enrollment.care_offering_bookings AS b ON b.id = o.id AND b.tenant_id = o.tenant_id
+			WHERE o.tenant_id = ?0 AND NOT (` + bookingPlansSourceDays + `)) AS day_differences,
 		pg_current_snapshot()::text AS snapshot,
 		clock_timestamp() AS verified_at`
 
@@ -883,8 +941,7 @@ func verifyRequestChildStorageTenant(ctx context.Context, db bun.IDB, tenantID i
 		SourceSelectionsChecksum string    `bun:"source_selections_checksum"`
 		TargetSelectionsChecksum string    `bun:"target_selections_checksum"`
 		VerifiedAt               time.Time `bun:"verified_at"`
-		UnresolvedOrigins        int64     `bun:"unresolved_origins"`
-		OldestUnresolvedSeconds  float64   `bun:"oldest_unresolved_seconds"`
+		DayDifferences           int64     `bun:"day_differences"`
 		Snapshot                 string    `bun:"snapshot"`
 	}
 	if err := db.NewRaw(verificationQuery, tenantID).Scan(ctx, &row); err != nil {
@@ -900,13 +957,8 @@ func verifyRequestChildStorageTenant(ctx context.Context, db bun.IDB, tenantID i
 		SourceSelections: row.SourceSelections, TargetSelections: row.TargetSelections,
 		SourceBookingsChecksum: row.SourceBookingsChecksum, TargetBookingsChecksum: row.TargetBookingsChecksum,
 		SourceSelectionsChecksum: row.SourceSelectionsChecksum, TargetSelectionsChecksum: row.TargetSelectionsChecksum,
-		VerifiedAt: row.VerifiedAt, Snapshot: row.Snapshot,
-		ProvenancePolicy: requestChildOriginPolicy, UnresolvedOrigins: row.UnresolvedOrigins,
-		UnresolvedReasons: map[string]int64{},
-		OldestUnmigrated:  time.Duration(row.OldestUnresolvedSeconds * float64(time.Second)),
-	}
-	if row.UnresolvedOrigins > 0 {
-		verification.UnresolvedReasons[requestChildOriginReason] = row.UnresolvedOrigins
+		VerifiedAt: row.VerifiedAt, Snapshot: row.Snapshot, DayDifferences: row.DayDifferences,
+		ProvenancePolicy: requestChildOriginPolicy,
 	}
 	ids, bookingCounts, err := bookingMismatches(ctx, db, tenantID)
 	if err != nil {
@@ -978,7 +1030,7 @@ const checkpointVerificationUpdate = `
 		source_selections_checksum = ?11, target_selections_checksum = ?12,
 		mismatch_count = ?13, orphan_count = ?14, oldest_unmigrated_seconds = ?15,
 		complete = ?16, verified_at = ?17, verification_snapshot = ?18,
-		provenance_policy = ?19, unresolved_origins = ?20, unresolved_reasons = ?21::jsonb, updated_at = NOW()
+		provenance_policy = ?19, day_differences = ?20, updated_at = NOW()
 	WHERE tenant_id = ?0`
 
 // Verify-only refreshes all acceptance evidence in its snapshot, while keeping
@@ -991,21 +1043,17 @@ const checkpointVerifyOnlyUpdate = `
 		mismatch_count = ?13, orphan_count = ?14, oldest_unmigrated_seconds = ?15,
 		verified_at = ?17, stable = stable AND ?16,
 		verify_only_mismatch_count = ?13, verify_only_at = ?17, complete = ?16,
-		verification_snapshot = ?18, provenance_policy = ?19, unresolved_origins = ?20,
-		unresolved_reasons = ?21::jsonb, updated_at = NOW()
+		verification_snapshot = ?18, provenance_policy = ?19, day_differences = ?20, updated_at = NOW()
 	WHERE tenant_id = ?0`
 
 func (run *tenantBackfillRun) persistVerification(ctx context.Context, tx bun.Tx, report RequestChildStorageTenantReport) error {
 	v := report.Verification
-	reasons, err := json.Marshal(v.UnresolvedReasons)
-	if err != nil {
-		return err
-	}
+	var err error
 	args := []any{run.tenantID,
 		report.BatchP95.Milliseconds(), report.PoolWait.Milliseconds(), report.Passes, report.Stable,
 		v.SourceBookings, v.TargetBookings, v.SourceSelections, v.TargetSelections,
 		v.SourceBookingsChecksum, v.TargetBookingsChecksum, v.SourceSelectionsChecksum, v.TargetSelectionsChecksum,
-		v.Mismatches(), v.Orphans, int64(v.OldestUnmigrated.Seconds()), report.Complete, v.VerifiedAt, v.Snapshot, v.ProvenancePolicy, v.UnresolvedOrigins, string(reasons)}
+		v.Mismatches(), v.Orphans, int64(v.OldestUnmigrated.Seconds()), report.Complete, v.VerifiedAt, v.Snapshot, v.ProvenancePolicy, v.DayDifferences}
 	if run.options.VerifyOnly {
 		_, err = tx.NewRaw(checkpointVerifyOnlyUpdate, args...).Exec(ctx)
 	} else {

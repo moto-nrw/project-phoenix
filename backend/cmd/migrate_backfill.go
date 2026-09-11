@@ -109,9 +109,9 @@ func writeRequestChildStorageReport(output io.Writer, report migrations.RequestC
 		panic(fmt.Errorf("write backfill report: %w", err))
 	}
 	for _, tenant := range report.Tenants {
-		mustFprintf(output, "Tenant %d provenance=%s unresolved_origins=%d reasons=%v lock_wait=%s snapshot=%s\n",
-			tenant.TenantID, tenant.Verification.ProvenancePolicy, tenant.Verification.UnresolvedOrigins,
-			tenant.Verification.UnresolvedReasons, tenant.LockWait, tenant.Verification.Snapshot)
+		mustFprintf(output, "Tenant %d provenance=%s day_differences=%d lock_wait=%s snapshot=%s\n",
+			tenant.TenantID, tenant.Verification.ProvenancePolicy, tenant.Verification.DayDifferences,
+			tenant.LockWait, tenant.Verification.Snapshot)
 	}
 	if report.DatabaseDeadlocksKnown {
 		mustFprintf(output, "Database deadlocks during run: %d; duration %s\n", report.DatabaseDeadlocks, report.Duration.Round(time.Millisecond))
