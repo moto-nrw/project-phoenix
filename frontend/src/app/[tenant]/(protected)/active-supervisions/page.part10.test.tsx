@@ -667,6 +667,8 @@ describe("open-room tab onTabChange callback", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    navigationMockState.roomParam = null;
+    navigationMockState.sessionParam = null;
     global.fetch = vi.fn();
     // Simulate mobile viewport for tabs to appear
     Object.defineProperty(window, "innerWidth", {
@@ -970,6 +972,97 @@ describe("open-room tab onTabChange callback", () => {
     });
     expect(screen.getByTestId("timetable-roster")).toBeInTheDocument();
     expect(removeItem).toHaveBeenCalledWith("supervision-last-session");
+  });
+
+  it("shows every child in a released room the caller only partly supervises", async () => {
+    navigationMockState.roomParam = "sporthalle";
+    navigationMockState.sessionParam = "active-fussball";
+    const dashboardData = {
+      supervisedGroups: [
+        {
+          id: "active-fussball",
+          name: "Fußball",
+          room_id: "sporthalle",
+          room: { id: "sporthalle", name: "Sporthalle" },
+        },
+      ],
+      unclaimedGroups: [],
+      currentStaff: { id: "staff-1" },
+      educationalGroups: [],
+      firstRoomVisits: [],
+      firstRoomId: "active-fussball",
+      selectedGroupId: "active-fussball",
+      capabilities: { webSpontaneousActivitiesEnabled: true },
+      schulhofStatus: null,
+      openRooms: [
+        {
+          roomId: "sporthalle",
+          name: "Sporthalle",
+          isUserSupervising: true,
+          activeGroupIds: ["active-fussball", "active-tanzen"],
+          studentCount: 2,
+          students: [
+            {
+              studentId: "student-fussball",
+              studentName: "Klara Kick",
+              schoolClass: "2a",
+              activeGroupId: "active-fussball",
+              activityName: "Fußball",
+              checkInTime: "2026-09-09T10:00:00.000Z",
+              isActive: true,
+            },
+            {
+              studentId: "student-tanzen",
+              studentName: "Theo Tanz",
+              schoolClass: "3b",
+              activeGroupId: "active-tanzen",
+              activityName: "Tanzen",
+              checkInTime: "2026-09-09T10:05:00.000Z",
+              isActive: true,
+            },
+          ],
+        },
+      ],
+    };
+
+    vi.mocked(useSWRAuth).mockImplementation(((key: unknown) =>
+      typeof key === "string" && key.startsWith("active-supervision-dashboard")
+        ? ({
+            data: dashboardData,
+            isLoading: false,
+            error: null,
+            mutate: mockMutate,
+            isValidating: false,
+          } as never)
+        : key === "timetable-roster-active-group-active-fussball"
+          ? ({
+              data: {
+                instance: {
+                  id: "instance-fussball",
+                  activeGroupId: "active-fussball",
+                },
+                rows: [],
+              },
+              isLoading: false,
+              error: null,
+              mutate: mockMutate,
+              isValidating: false,
+            } as never)
+          : ({
+              data: null,
+              isLoading: false,
+              error: null,
+              mutate: mockMutate,
+              isValidating: false,
+            } as never)) as never);
+
+    render(<MeinRaumPage />);
+
+    expect(await screen.findByText("Klara Kick")).toBeInTheDocument();
+    expect(screen.getByText("Theo Tanz")).toBeInTheDocument();
+    expect(screen.getByText("Angebot: Fußball")).toBeInTheDocument();
+    expect(screen.getByText("Angebot: Tanzen")).toBeInTheDocument();
+    expect(screen.queryByTestId("timetable-roster")).not.toBeInTheDocument();
   });
 
   it("shows a released room the caller does not supervise", async () => {

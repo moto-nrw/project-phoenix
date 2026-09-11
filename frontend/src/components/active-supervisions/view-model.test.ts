@@ -65,19 +65,11 @@ describe("active-supervisions view model", () => {
           studentCount: 2,
           students: [],
         },
-        rooms: [
-          {
-            id: "fußball",
-            name: "Fußball",
-            room_id: "sporthalle",
-          },
-        ],
-        selectedSessionId: null,
       }),
     ).toBe("fußball");
   });
 
-  it("keeps the explicitly selected session in an open room", () => {
+  it("does not bind a session roster when the released room has several offerings", () => {
     expect(
       openRoomRosterActiveGroupId({
         currentOpenRoom: {
@@ -88,31 +80,6 @@ describe("active-supervisions view model", () => {
           studentCount: 2,
           students: [],
         },
-        rooms: [
-          { id: "fußball", name: "Fußball", room_id: "sporthalle" },
-          { id: "tanzen", name: "Tanzen", room_id: "sporthalle" },
-        ],
-        selectedSessionId: "tanzen",
-      }),
-    ).toBe("tanzen");
-  });
-
-  it("does not choose between multiple own sessions in an open room", () => {
-    expect(
-      openRoomRosterActiveGroupId({
-        currentOpenRoom: {
-          roomId: "sporthalle",
-          name: "Sporthalle",
-          isUserSupervising: true,
-          activeGroupIds: ["fußball", "tanzen"],
-          studentCount: 2,
-          students: [],
-        },
-        rooms: [
-          { id: "fußball", name: "Fußball", room_id: "sporthalle" },
-          { id: "tanzen", name: "Tanzen", room_id: "sporthalle" },
-        ],
-        selectedSessionId: null,
       }),
     ).toBeNull();
   });

@@ -100,18 +100,25 @@ function MeinRaumPageContent() {
     setError,
     mutateDashboard,
     refresh,
-    selectedRoomId,
   } = dashboard;
 
   const openRoomRosterGroupId = openRoomRosterActiveGroupId({
     currentOpenRoom,
-    rooms: allRooms,
-    selectedSessionId: selectedRoomId,
   });
+  // A released-room tab is the room, not one offering. Binding the caller's
+  // session — or a leftover timetable instance after `?session=` /
+  // last-session was consumed while resolving `?room=` — would hide every
+  // other child in the room. Occupancy is already on `currentOpenRoom`.
+  const showMergedOpenRoomOccupancy =
+    currentOpenRoom !== null && openRoomRosterGroupId === null;
 
   const roster = useTimetableRoster({
-    selectedTimetableInstanceId,
-    currentRoomId: openRoomRosterGroupId ?? currentRoom?.id,
+    selectedTimetableInstanceId: showMergedOpenRoomOccupancy
+      ? null
+      : selectedTimetableInstanceId,
+    currentRoomId: showMergedOpenRoomOccupancy
+      ? undefined
+      : (openRoomRosterGroupId ?? currentRoom?.id),
   });
   const { currentTimetableRoster } = roster;
 
@@ -388,12 +395,12 @@ function MeinRaumPageContent() {
   const renderStudentContent = () => {
     if (
       dashboard.isWaitingForUrlRoomSelection ||
-      roster.isWaitingForTimetableRoster
+      (!showMergedOpenRoomOccupancy && roster.isWaitingForTimetableRoster)
     ) {
       return <ActiveSupervisionLoadingView withHeader={false} />;
     }
 
-    if (currentTimetableRoster) {
+    if (currentTimetableRoster && !showMergedOpenRoomOccupancy) {
       return (
         <>
           {actions.moveNotice && (

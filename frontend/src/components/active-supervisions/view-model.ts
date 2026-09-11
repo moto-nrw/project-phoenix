@@ -236,26 +236,21 @@ export function openRoomSessionSelection(options: {
  * The caller's single active session in a shared room, used to keep that
  * session's roster actionable without turning the room back into a
  * session-keyed navigation entry.
+ *
+ * Only the room's own sessions count. Intersecting with the caller's
+ * `supervisedGroups` (or a leftover `?session=` / last-session id) still
+ * looks like "one session" when someone else runs a second offering in the
+ * same room — and that offering's children then disappear behind the
+ * caller's roster (#3065). Several sessions in the room is the same
+ * ambiguity `additionalSupervisionTarget` already treats as "none".
  */
 export function openRoomRosterActiveGroupId(options: {
   readonly currentOpenRoom: OpenRoomView | null;
-  readonly rooms: readonly ActiveSupervisionRoom[];
-  readonly selectedSessionId: string | null;
 }): string | null {
-  const { currentOpenRoom, rooms, selectedSessionId } = options;
+  const { currentOpenRoom } = options;
   if (!currentOpenRoom?.isUserSupervising) return null;
-  const candidates = rooms.filter(
-    (room) =>
-      room.room_id === currentOpenRoom.roomId &&
-      currentOpenRoom.activeGroupIds.includes(room.id),
-  );
-  if (
-    selectedSessionId &&
-    candidates.some((room) => room.id === selectedSessionId)
-  ) {
-    return selectedSessionId;
-  }
-  return candidates.length === 1 ? (candidates[0]?.id ?? null) : null;
+  if (currentOpenRoom.activeGroupIds.length !== 1) return null;
+  return currentOpenRoom.activeGroupIds[0] ?? null;
 }
 
 export interface VisitDisplayLike {
