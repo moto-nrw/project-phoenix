@@ -163,9 +163,10 @@ export function NowStrip({
             <NowText state={state} analytics={analytics.data} today={today} />
           )}
         </div>
-        {/* Auch auf dem Telefon eine Zeile in Knopfgröße: untereinander in
-            voller Breite waren die zwei Wege dort größer als die Uhr, um die
-            es in der Zone geht. */}
+        {/* Auf dem Telefon EINE Zeile, die sich die Knöpfe teilen: untereinander
+            in voller Breite waren die zwei Wege größer als die Uhr, um die es
+            in der Zone geht, und in Knopfgröße blieb rechts ein toter Rest
+            stehen. Ab sm stehen sie in Knopfgröße neben dem Text. */}
         {actions.length > 0 && (
           <div className="flex shrink-0 flex-wrap gap-2">
             {actions.map((action, index) => {
@@ -176,7 +177,7 @@ export function NowStrip({
                   type="button"
                   variant={variant}
                   size="md"
-                  className="whitespace-nowrap"
+                  className="whitespace-nowrap max-sm:flex-1"
                   disabled={busyId !== null}
                   onClick={() => void start(action.block)}
                 >
@@ -188,7 +189,7 @@ export function NowStrip({
                   href={action.href}
                   variant={variant}
                   size="md"
-                  className="whitespace-nowrap"
+                  className="whitespace-nowrap max-sm:flex-1"
                 >
                   {action.label}
                 </ButtonLink>
