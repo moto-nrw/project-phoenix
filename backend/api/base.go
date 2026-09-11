@@ -387,6 +387,8 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 		observability.ObserveDurableDelivery,
 		observability.ObserveDeviceFleetOperation,
 		observability.ObserveIdentityAccessOperation,
+		workTime,
+		observability.ObserveDataImport,
 	)
 	if err != nil {
 		return moduleServices{}, err

@@ -69,6 +69,10 @@ type StudentQuery interface {
 	// ListStudentsByClasses returns the non-alumni students of the given
 	// classes ordered by class, then id.
 	ListStudentsByClasses(context.Context, []string) ([]Student, error)
+	// ListStudentsByPersonID returns the students (alumni included) whose
+	// identity is one of the given persons, ordered by id. The data import
+	// resolves a matched person to its student row through it.
+	ListStudentsByPersonID(context.Context, []int64) ([]Student, error)
 	// ListEnrolledStudents returns every non-alumni student of the current
 	// tenant ordered by id.
 	ListEnrolledStudents(context.Context) ([]Student, error)
@@ -124,6 +128,7 @@ type studentEngine interface {
 	ListStudentNamesByIDs(context.Context, []int64) ([]StudentName, error)
 	ListStudentsAcrossTenantsByIDs(context.Context, []int64) ([]Student, error)
 	ListStudentsByClasses(context.Context, []string) ([]Student, error)
+	ListStudentsByPersonIDs(context.Context, []int64) ([]Student, error)
 	ListEnrolledStudents(context.Context) ([]Student, error)
 	ListSchoolClasses(context.Context) ([]string, error)
 	LockStudent(context.Context, int64) error
@@ -164,6 +169,14 @@ func (m *Module) ListStudentsByClasses(ctx context.Context, classes []string) ([
 		return []Student{}, nil
 	}
 	return m.engine.ListStudentsByClasses(ctx, classes)
+}
+
+func (m *Module) ListStudentsByPersonID(ctx context.Context, personIDs []int64) ([]Student, error) {
+	personIDs = uniquePositive(personIDs)
+	if len(personIDs) == 0 {
+		return []Student{}, nil
+	}
+	return m.engine.ListStudentsByPersonIDs(ctx, personIDs)
 }
 
 func (m *Module) ListEnrolledStudents(ctx context.Context) ([]Student, error) {

@@ -12,16 +12,12 @@ import (
 	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/services/import/ports"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 var (
@@ -115,41 +111,78 @@ func MapGuardianRole(raw string) (string, bool) {
 	return "", false
 }
 
-// StudentImportConfig implements ImportConfig for student imports
+// StudentImportConfig implements ImportConfig for student imports. Every
+// write goes through the owner commands in StudentImportDeps (#2708).
 type StudentImportConfig struct {
 	StudentImportDeps
-	txHandler *tenant.TransactionRunner
 }
 
-// StudentImportDeps contains dependencies for StudentImportConfig
+// StudentImportDeps are the consumer-owned ports of the student import.
+// Persons, Students and Guardians are the People Directory; Schedules is
+// Care Plan; PrivacyConsents is Student Presence; ConsentHistory is the
+// Audit platform recorder of the consent timestamps.
 type StudentImportDeps struct {
-	PersonRepo          users.PersonRepository
-	StudentRepo         users.StudentRepository
-	GuardianRepo        users.GuardianProfileRepository
-	GuardianPhoneRepo   users.GuardianPhoneNumberRepository
-	RelationRepo        users.StudentGuardianRepository
-	PrivacyRepo         users.PrivacyConsentRepository
-	ArrivalScheduleRepo scheduleModels.StudentArrivalScheduleRepository
-	PickupScheduleRepo  scheduleModels.StudentPickupScheduleRepository
+	Persons         ports.PersonDirectory
+	Students        ports.StudentDirectory
+	Guardians       ports.GuardianDirectory
+	Schedules       ports.StudentSchedules
+	PrivacyConsents ports.PrivacyConsents
 	// RFIDCardRepo resolves the optional RFID column to a card of this school
 	// (#2600). nil disables RFID import (the column is then rejected).
-	RFIDCardRepo auth.RFIDCardRepository
-	Resolver     *RelationshipResolver
-	Consents     usersService.StudentConsentChangeRecorder
+	RFIDCardRepo   auth.RFIDCardRepository
+	Resolver       *RelationshipResolver
+	ConsentHistory usersService.StudentConsentChangeRecorder
 }
 
-// NewStudentImportConfig creates a new student import configuration
-func NewStudentImportConfig(deps StudentImportDeps, db *bun.DB) *StudentImportConfig {
-	return &StudentImportConfig{
-		StudentImportDeps: deps,
-		txHandler:         tenant.NewTransactionRunner(),
-	}
+// NewStudentImportConfig creates a new student import configuration.
+func NewStudentImportConfig(deps StudentImportDeps) *StudentImportConfig {
+	return &StudentImportConfig{StudentImportDeps: deps}
 }
+
+// GuardianPort is the guardian slice of the People Directory the student
+// import consumes, and GuardianPortDecorator wraps it. Test compositions use
+// the decorator to observe an owner failure mid-batch without naming the
+// port package themselves.
+type (
+	GuardianPort          = ports.GuardianDirectory
+	GuardianPortDecorator = func(GuardianPort) GuardianPort
+)
 
 // PreloadReferenceData loads all reference data (groups) for relationship resolution
 func (c *StudentImportConfig) PreloadReferenceData(ctx context.Context) error {
 	// Pre-load all groups for relationship resolution
 	return c.Resolver.PreloadGroups(ctx)
+}
+
+// ValidateBatch flags rows that claim the same RFID card as an earlier row
+// of the same file. The card is still free while the batch is validated, so
+// only a batch-wide check can tell the second claim apart from a legitimate
+// import; without it the owner refuses the second row at write time with a
+// generic error instead of naming the card (#2708). The map is keyed by the
+// zero-based slice index, and the message shows the 1-based file row
+// including the header line, matching the engine's own row numbering.
+func (c *StudentImportConfig) ValidateBatch(_ context.Context, rows []importModels.StudentImportRow) map[int][]importModels.ValidationError {
+	result := make(map[int][]importModels.ValidationError)
+	seen := make(map[string]int, len(rows))
+	for i, row := range rows {
+		tag := strings.TrimSpace(row.TagID)
+		if tag == "" {
+			continue
+		}
+		key := strings.ToLower(tag)
+		if firstRow, duplicate := seen[key]; duplicate {
+			result[i] = append(result[i], importModels.ValidationError{
+				Field:       "tag_id",
+				Message:     fmt.Sprintf("RFID-Karte '%s' ist in der Datei mehrfach vergeben (bereits in Zeile %d).", tag, firstRow+2),
+				Code:        "duplicate_in_file",
+				Severity:    importModels.ErrorSeverityError,
+				ActualValue: tag,
+			})
+			continue
+		}
+		seen[key] = i
+	}
+	return result
 }
 
 // Validate validates a single row of student import data
@@ -314,14 +347,17 @@ func (c *StudentImportConfig) validateTag(ctx context.Context, row *importModels
 		}}
 	}
 
-	card, err := c.RFIDCardRepo.FindByID(ctx, raw)
-	if err != nil && !stdErrors.Is(err, sql.ErrNoRows) {
+	lookupFailed := func(err error) []importModels.ValidationError {
 		return []importModels.ValidationError{{
 			Field:    "tag_id",
 			Message:  fmt.Sprintf("RFID-Karte konnte nicht geprüft werden: %s", err.Error()),
 			Code:     "rfid_lookup_failed",
 			Severity: importModels.ErrorSeverityError,
 		}}
+	}
+	card, err := c.RFIDCardRepo.FindByID(ctx, raw)
+	if err != nil && !stdErrors.Is(err, sql.ErrNoRows) {
+		return lookupFailed(err)
 	}
 	if card == nil {
 		return []importModels.ValidationError{{
@@ -334,32 +370,23 @@ func (c *StudentImportConfig) validateTag(ctx context.Context, row *importModels
 	}
 	row.TagID = card.ID
 
-	wearer, err := c.PersonRepo.FindByTagID(ctx, card.ID)
+	wearer, err := c.Persons.FindPersonByTag(ctx, card.ID)
 	if err != nil {
-		return []importModels.ValidationError{{
-			Field:    "tag_id",
-			Message:  fmt.Sprintf("RFID-Karte konnte nicht geprüft werden: %s", err.Error()),
-			Code:     "rfid_lookup_failed",
-			Severity: importModels.ErrorSeverityError,
-		}}
+		if stdErrors.Is(err, ports.ErrPersonNotFound) {
+			return nil
+		}
+		return lookupFailed(err)
 	}
-	if wearer == nil {
-		return nil
+	students, err := c.Students.ListStudentsByPersonID(ctx, []int64{wearer.ID})
+	if err != nil {
+		return lookupFailed(err)
 	}
-	student, err := c.StudentRepo.FindByPersonID(ctx, wearer.ID)
-	if err != nil && !stdErrors.Is(err, sql.ErrNoRows) {
-		return []importModels.ValidationError{{
-			Field:    "tag_id",
-			Message:  fmt.Sprintf("RFID-Karte konnte nicht geprüft werden: %s", err.Error()),
-			Code:     "rfid_lookup_failed",
-			Severity: importModels.ErrorSeverityError,
-		}}
-	}
-	if student != nil {
+	if len(students) > 0 {
+		student := students[0]
 		if strings.TrimSpace(row.FirstName) != "" && strings.TrimSpace(row.LastName) != "" && strings.TrimSpace(row.SchoolClass) != "" {
 			matched, err := c.findStudentWithoutTag(ctx, *row)
 			if err != nil {
-				return []importModels.ValidationError{{Field: "tag_id", Message: fmt.Sprintf("RFID-Karte konnte nicht geprüft werden: %s", err.Error()), Code: "rfid_lookup_failed", Severity: importModels.ErrorSeverityError}}
+				return lookupFailed(err)
 			}
 			if matched != nil && *matched != student.ID {
 				return []importModels.ValidationError{{Field: "tag_id", Message: fmt.Sprintf("RFID-Karte '%s' ist bereits einer anderen Person zugeordnet.", raw), Code: "rfid_taken", Severity: importModels.ErrorSeverityError, ActualValue: raw}}
@@ -646,167 +673,6 @@ func validateGuardianPhoneNumbers(num int, phones []importModels.PhoneImportData
 // in create mode, match key in update mode). Keys, in order: the RFID card
 // (survives a class change), first + last name + class, and first + last name
 // + birthday (the class-change case without a card).
-func (c *StudentImportConfig) FindExisting(ctx context.Context, row importModels.StudentImportRow) (*int64, error) {
-	if row.TagID != "" {
-		id, err := c.findStudentByTag(ctx, row.TagID)
-		if err != nil || id != nil {
-			return id, err
-		}
-	}
-
-	return c.findStudentWithoutTag(ctx, row)
-}
-
-func (c *StudentImportConfig) findStudentWithoutTag(ctx context.Context, row importModels.StudentImportRow) (*int64, error) {
-	students, err := c.StudentRepo.FindByNameAndClass(ctx, row.FirstName, row.LastName, row.SchoolClass)
-	if err != nil {
-		return nil, err
-	}
-	if len(students) == 1 {
-		return &students[0].ID, nil
-	}
-	if len(students) > 1 {
-		return nil, fmt.Errorf("mehrere Kinder gefunden mit Name '%s %s' in Klasse '%s'",
-			row.FirstName, row.LastName, row.SchoolClass)
-	}
-
-	if importModeFromContext(ctx) == importModels.ImportModeCreate {
-		return nil, nil
-	}
-	return c.findStudentByNameAndBirthday(ctx, row)
-}
-
-// findStudentByTag returns the student wearing the card, if any.
-func (c *StudentImportConfig) findStudentByTag(ctx context.Context, tagID string) (*int64, error) {
-	wearer, err := c.PersonRepo.FindByTagID(ctx, tagID)
-	if err != nil || wearer == nil {
-		return nil, err
-	}
-	student, err := c.StudentRepo.FindByPersonID(ctx, wearer.ID)
-	if err != nil {
-		if stdErrors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	if student == nil {
-		return nil, nil
-	}
-	return &student.ID, nil
-}
-
-// findStudentByNameAndBirthday matches a child that changed class: same
-// name, same birthday, exactly one hit.
-func (c *StudentImportConfig) findStudentByNameAndBirthday(ctx context.Context, row importModels.StudentImportRow) (*int64, error) {
-	birthday, err := parseOptionalDate(row.Birthday)
-	if err != nil || birthday == nil {
-		return nil, nil
-	}
-	persons, err := c.PersonRepo.List(ctx, map[string]any{
-		"first_name": strings.TrimSpace(row.FirstName),
-		"last_name":  strings.TrimSpace(row.LastName),
-	})
-	if err != nil {
-		return nil, err
-	}
-	var matches []int64
-	for _, person := range persons {
-		if person.Birthday == nil || *person.Birthday != *birthday {
-			continue
-		}
-		student, err := c.StudentRepo.FindByPersonID(ctx, person.ID)
-		if err != nil {
-			if stdErrors.Is(err, sql.ErrNoRows) {
-				continue
-			}
-			return nil, err
-		}
-		if student != nil {
-			matches = append(matches, student.ID)
-		}
-	}
-	switch len(matches) {
-	case 0:
-		return nil, nil
-	case 1:
-		return &matches[0], nil
-	default:
-		return nil, fmt.Errorf("mehrere Kinder gefunden mit Name '%s %s' und Geburtstag %s", row.FirstName, row.LastName, row.Birthday)
-	}
-}
-
-// Create creates a new student with all related entities.
-// Uses a PostgreSQL savepoint for per-row atomicity within the outer tenant transaction.
-// If any step fails (e.g. person created but student fails), ROLLBACK TO SAVEPOINT
-// cleans up partial records while keeping the outer tx alive for other rows.
-func (c *StudentImportConfig) Create(ctx context.Context, row importModels.StudentImportRow) (int64, error) {
-	if _, hasTx := tenant.TransactionFromContext(ctx); hasTx {
-		var studentID int64
-		err := tenant.WithSavepoint(ctx, func(savepointCtx context.Context) error {
-			var err error
-			studentID, err = c.createAllEntities(savepointCtx, row)
-			return err
-		})
-		return studentID, err
-	}
-
-	// Fallback: no outer tx (shouldn't happen in normal HTTP flow)
-	return c.createAllEntities(ctx, row)
-}
-
-// createAllEntities creates person, student, guardians, privacy consent, and weekly schedules.
-func (c *StudentImportConfig) createAllEntities(ctx context.Context, row importModels.StudentImportRow) (int64, error) {
-	person, err := c.createPersonFromRow(ctx, row)
-	if err != nil {
-		return 0, err
-	}
-
-	student, err := c.createStudentFromRow(ctx, person.ID, row)
-	if err != nil {
-		return 0, err
-	}
-
-	if err := c.createGuardianRelationships(ctx, student.ID, row.Guardians); err != nil {
-		return 0, err
-	}
-
-	if err := c.createPrivacyConsentIfNeeded(ctx, student.ID, row); err != nil {
-		return 0, err
-	}
-
-	if err := c.createArrivalSchedules(ctx, student.ID, row.ArrivalSchedules); err != nil {
-		return 0, err
-	}
-
-	if err := c.createPickupSchedules(ctx, student.ID, row.PickupSchedules); err != nil {
-		return 0, err
-	}
-
-	return student.ID, nil
-}
-
-// createPersonFromRow creates a person from import row
-func (c *StudentImportConfig) createPersonFromRow(ctx context.Context, row importModels.StudentImportRow) (*users.Person, error) {
-	birthday, _ := parseOptionalDate(row.Birthday)
-	person := &users.Person{
-		FirstName: strings.TrimSpace(row.FirstName),
-		LastName:  strings.TrimSpace(row.LastName),
-		Birthday:  birthday,
-		TagID:     strutil.TrimToNil(row.TagID),
-	}
-	person.SetTenantID(tenant.FromContext(ctx))
-
-	if err := c.PersonRepo.Create(ctx, person); err != nil {
-		return nil, fmt.Errorf("create person: %w", err)
-	}
-
-	return person, nil
-}
-
-// busDaysFromImportRow resolves the student's bus_days from an import row.
-// Per-day "Bus.Mo".."Bus.Fr" columns take precedence; otherwise the legacy
-// single "Bus" column maps to all weekdays (Mo–Fr) when true, no days when
-// false. bus_days is the single source of truth (#1582).
 func busDaysFromImportRow(row importModels.StudentImportRow) users.BusDays {
 	if row.BusDays != nil {
 		days := users.BusDays{}
@@ -848,64 +714,6 @@ func departurePlanFromImportRow(row importModels.StudentImportRow) users.Departu
 }
 
 // createStudentFromRow creates a student from person and row
-func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID int64, row importModels.StudentImportRow) (*users.Student, error) {
-	enrolledFrom := parseOptionalImportCalendarDate(row.EnrolledFrom)
-	enrolledUntil := parseOptionalImportCalendarDate(row.EnrolledUntil)
-
-	student := &users.Student{
-		PersonID:          personID,
-		SchoolClass:       strings.TrimSpace(row.SchoolClass),
-		GroupID:           row.GroupID,
-		ExtraInfo:         strutil.TrimToNil(row.ExtraInfo),
-		SupervisorNotes:   strutil.TrimToNil(row.SupervisorNotes),
-		HealthInfo:        strutil.TrimToNil(row.HealthInfo),
-		AddressStreet:     strutil.TrimToNil(row.AddressStreet),
-		AddressCity:       strutil.TrimToNil(row.AddressCity),
-		AddressPostalCode: strutil.TrimToNil(row.AddressPostalCode),
-		// DepartureDays is the unified source of truth; the repository derives
-		// bus_days, pickup_days and pickup_status from it on persist (#1610).
-		DepartureDays: departurePlanFromImportRow(row),
-		// Free-text "mit wem" for the accompanied mode; the repository clears it
-		// on persist when no day is accompanied, so it never outlives the mode.
-		DepartureCompanionNote:   boundedNotePtr(row.DepartureCompanionNote),
-		EnrolledFrom:             enrolledFrom,
-		EnrolledUntil:            enrolledUntil,
-		AGBAcceptedAt:            parseOptionalImportDate(row.AGBAcceptedAt),
-		DataProcessingAcceptedAt: parseOptionalImportDate(row.DataProcessingAcceptedAt),
-		EmailContactAcceptedAt:   parseOptionalImportDate(row.EmailContactAcceptedAt),
-		// Photo consent date is set; "given_by" is intentionally left nil on import.
-		PhotoConsentGivenAt: parseOptionalImportDate(row.PhotoConsentGivenAt),
-	}
-
-	// A future enrollment start means the student isn't active yet. Mark them
-	// pending so the activate-students scheduler flips them to active once
-	// enrolled_from arrives (mirrors the parent-enrollment flow). Without a
-	// future start date the DB default ('active') applies.
-	if enrollmentStartsInFuture(enrolledFrom) {
-		student.Status = users.StudentStatusPending
-	}
-
-	student.SetTenantID(tenant.FromContext(ctx))
-
-	if err := c.StudentRepo.Create(ctx, student); err != nil {
-		return nil, fmt.Errorf("create student: %w", err)
-	}
-	if c.Consents != nil {
-		if err := c.Consents.RecordTransitions(
-			ctx,
-			nil,
-			student,
-			auditModels.StudentConsentSourceImport,
-			nil,
-			time.Now(),
-		); err != nil {
-			return nil, fmt.Errorf("create student consent history: %w", err)
-		}
-	}
-
-	return student, nil
-}
-
 func enrollmentStartsInFuture(enrolledFrom *timezone.Date) bool {
 	return enrollmentStartsAfter(enrolledFrom, timezone.TodayDate())
 }
@@ -915,88 +723,6 @@ func enrollmentStartsAfter(enrolledFrom *timezone.Date, today timezone.Date) boo
 }
 
 // createGuardianRelationships creates all guardian relationships
-func (c *StudentImportConfig) createGuardianRelationships(ctx context.Context, studentID int64, guardians []importModels.GuardianImportData) error {
-	for i, guardianData := range guardians {
-		if err := c.createSingleGuardianRelationship(ctx, studentID, guardianData, i+1); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// createSingleGuardianRelationship creates a single guardian relationship
-func (c *StudentImportConfig) createSingleGuardianRelationship(ctx context.Context, studentID int64, guardianData importModels.GuardianImportData, index int) error {
-	guardianID, err := c.createOrFindGuardian(ctx, guardianData)
-	if err != nil {
-		return fmt.Errorf("guardian %d: %w", index, err)
-	}
-	return c.createGuardianRelationship(ctx, studentID, guardianID, guardianData, index)
-}
-
-func (c *StudentImportConfig) createGuardianRelationship(ctx context.Context, studentID, guardianID int64, guardianData importModels.GuardianImportData, index int) error {
-	relationship := &users.StudentGuardian{
-		StudentID:          studentID,
-		GuardianProfileID:  guardianID,
-		RelationshipType:   MapRelationshipType(guardianData.RelationshipType),
-		IsPrimary:          guardianData.IsPrimary,
-		IsEmergencyContact: guardianData.IsEmergencyContact,
-		CanPickup:          guardianData.CanPickup,
-		PickupNotes:        strutil.TrimToNil(guardianData.PickupNotes),
-		EmergencyPriority:  guardianData.EmergencyPriority,
-	}
-	if relationship.EmergencyPriority < 1 {
-		relationship.EmergencyPriority = 1
-	}
-	if role, ok := MapGuardianRole(guardianData.GuardianRole); ok && role != "" {
-		authorize.ApplyStudentGuardianRole(relationship, role)
-	} else {
-		authorize.ApplyDefaultStudentGuardianRole(relationship)
-	}
-	relationship.SetTenantID(tenant.FromContext(ctx))
-
-	if err := c.RelationRepo.Create(ctx, relationship); err != nil {
-		return fmt.Errorf("create relationship %d: %w", index, err)
-	}
-
-	return nil
-}
-
-// createPrivacyConsentIfNeeded creates privacy consent if specified in row.
-// Only creates consent if privacy is explicitly accepted OR a valid retention period (>0) is specified.
-func (c *StudentImportConfig) createPrivacyConsentIfNeeded(ctx context.Context, studentID int64, row importModels.StudentImportRow) error {
-	// Skip if privacy not accepted AND no valid retention days specified
-	// This prevents creating consent for negative/zero/missing retention values
-	if !row.PrivacyAccepted && row.DataRetentionDays <= 0 {
-		return nil
-	}
-
-	consent := buildPrivacyConsent(studentID, row)
-	if err := c.PrivacyRepo.Create(ctx, consent); err != nil {
-		return fmt.Errorf("create privacy consent: %w", err)
-	}
-
-	return nil
-}
-
-// buildPrivacyConsent builds a privacy consent object
-func buildPrivacyConsent(studentID int64, row importModels.StudentImportRow) *users.PrivacyConsent {
-	retentionDays := validateRetentionDays(row.DataRetentionDays)
-
-	consent := &users.PrivacyConsent{
-		StudentID:         studentID,
-		PolicyVersion:     "1.0",
-		Accepted:          row.PrivacyAccepted,
-		DataRetentionDays: retentionDays,
-	}
-
-	if row.PrivacyAccepted {
-		now := time.Now()
-		consent.AcceptedAt = &now
-	}
-
-	return consent
-}
-
 // validateRetentionDays validates and normalizes retention days
 func validateRetentionDays(days int) int {
 	if days < 1 {
@@ -1009,149 +735,12 @@ func validateRetentionDays(days int) int {
 }
 
 // createOrFindGuardian deduplicates guardians by email
-func (c *StudentImportConfig) createOrFindGuardian(ctx context.Context, data importModels.GuardianImportData) (int64, error) {
-	// Deduplication strategy: Email is unique identifier
-	if data.Email != "" {
-		existing, err := c.GuardianRepo.FindByEmail(ctx, data.Email)
-		// CRITICAL: Distinguish between "not found" and real DB errors
-		// The repository converts sql.ErrNoRows to "guardian profile not found" message
-		// This is NORMAL and means we should create a new guardian
-		if err != nil {
-			// Check if it's a "not found" error (expected and normal)
-			if strings.Contains(err.Error(), "guardian profile not found") {
-				// Guardian doesn't exist yet - will create new one below
-				// This is the expected flow for new guardians
-			} else {
-				// Real database error (connection timeout, constraint violation, etc.)
-				return 0, fmt.Errorf("database error checking existing guardian: %w", err)
-			}
-		} else if existing != nil {
-			// Guardian found - reuse it (deduplication)
-			// Update profile fields if the import provides new data
-			if err := c.updateExistingGuardianProfile(ctx, existing, data); err != nil {
-				return 0, fmt.Errorf("existing guardian profile aktualisieren: %w", err) //nolint:staticcheck // ST1005: user-facing German message
-			}
-
-			// Add any new phone numbers from the import data
-			if err := c.createGuardianPhoneNumbers(ctx, existing.ID, data.PhoneNumbers); err != nil {
-				// Log but don't fail - phone numbers are additive
-				// Duplicates will be handled gracefully
-				return existing.ID, fmt.Errorf("add phone numbers to existing guardian: %w", err)
-			}
-			return existing.ID, nil
-		}
-		// Guardian not found - will create new one below
-	}
-
-	// Create new guardian (phone numbers are added via createGuardianPhoneNumbers below)
-	guardian := &users.GuardianProfile{
-		FirstName:          strings.TrimSpace(data.FirstName),
-		LastName:           strings.TrimSpace(data.LastName),
-		Email:              strutil.TrimToNil(data.Email),
-		AddressStreet:      strutil.TrimToNil(data.AddressStreet),
-		AddressCity:        strutil.TrimToNil(data.AddressCity),
-		AddressPostalCode:  strutil.TrimToNil(data.AddressPostalCode),
-		Notes:              strutil.TrimToNil(data.Notes),
-		LanguagePreference: guardianLanguagePreference(data.LanguagePreference),
-	}
-
-	if err := c.GuardianRepo.Create(ctx, guardian); err != nil {
-		return 0, err
-	}
-
-	// Create phone numbers from PhoneNumbers array (flexible phone support)
-	if err := c.createGuardianPhoneNumbers(ctx, guardian.ID, data.PhoneNumbers); err != nil {
-		return 0, fmt.Errorf("create phone numbers: %w", err)
-	}
-
-	return guardian.ID, nil
-}
-
-// updateExistingGuardianProfile merges non-empty import fields into an existing guardian.
-// Only overwrites fields that are provided in the import data (non-empty).
-func (c *StudentImportConfig) updateExistingGuardianProfile(ctx context.Context, existing *users.GuardianProfile, data importModels.GuardianImportData) error {
-	updated := false
-
-	if v := strings.TrimSpace(data.AddressStreet); v != "" && !ptrEquals(existing.AddressStreet, v) {
-		existing.AddressStreet = strutil.TrimToNil(v)
-		updated = true
-	}
-	if v := strings.TrimSpace(data.AddressCity); v != "" && !ptrEquals(existing.AddressCity, v) {
-		existing.AddressCity = strutil.TrimToNil(v)
-		updated = true
-	}
-	if v := strings.TrimSpace(data.AddressPostalCode); v != "" && !ptrEquals(existing.AddressPostalCode, v) {
-		existing.AddressPostalCode = strutil.TrimToNil(v)
-		updated = true
-	}
-	if v := strings.TrimSpace(data.Notes); v != "" && !ptrEquals(existing.Notes, v) {
-		existing.Notes = strutil.TrimToNil(v)
-		updated = true
-	}
-	if v := guardianLanguagePreference(data.LanguagePreference); data.LanguagePreference != "" && v != existing.LanguagePreference {
-		existing.LanguagePreference = v
-		updated = true
-	}
-
-	if !updated {
-		return nil
-	}
-
-	return c.GuardianRepo.Update(ctx, existing)
-}
-
 // ptrEquals checks if a *string equals a plain string value
 func ptrEquals(ptr *string, val string) bool {
 	return ptr != nil && *ptr == val
 }
 
 // createGuardianPhoneNumbers creates phone numbers for a guardian from import data
-func (c *StudentImportConfig) createGuardianPhoneNumbers(ctx context.Context, guardianID int64, phones []importModels.PhoneImportData) error {
-	if len(phones) == 0 {
-		return nil
-	}
-	existing, err := c.GuardianPhoneRepo.FindByGuardianID(ctx, guardianID)
-	if err != nil {
-		return fmt.Errorf("Telefonnummern laden: %w", err) //nolint:staticcheck // ST1005: user-facing German message
-	}
-	existingNumbers := make(map[string]struct{}, len(existing))
-	for _, phone := range existing {
-		existingNumbers[phone.PhoneNumber] = struct{}{}
-	}
-	for i, phoneData := range phones {
-		if phoneData.PhoneNumber == "" {
-			continue // Skip empty phone numbers
-		}
-		if _, exists := existingNumbers[phoneData.PhoneNumber]; exists {
-			continue
-		}
-
-		// Map phone type string to enum
-		phoneType := mapPhoneType(phoneData.PhoneType)
-
-		// Set label pointer (nil if empty)
-		var label *string
-		if phoneData.Label != "" {
-			label = &phoneData.Label
-		}
-
-		phone := &users.GuardianPhoneNumber{
-			GuardianProfileID: guardianID,
-			PhoneNumber:       phoneData.PhoneNumber,
-			PhoneType:         phoneType,
-			Label:             label,
-			IsPrimary:         phoneData.IsPrimary,
-			Priority:          i + 1, // Priority based on order in import
-		}
-
-		if err := c.GuardianPhoneRepo.Create(ctx, phone); err != nil {
-			return fmt.Errorf("phone %d: %w", i+1, err)
-		}
-		existingNumbers[phoneData.PhoneNumber] = struct{}{}
-	}
-	return nil
-}
-
 // mapPhoneType converts import phone type string to users.PhoneType enum
 func mapPhoneType(importType string) users.PhoneType {
 	switch strings.ToLower(importType) {
@@ -1170,338 +759,6 @@ func mapPhoneType(importType string) users.PhoneType {
 // stored value; only what the row carries is written. Guardians are merged
 // (matched by e-mail, new ones linked), schedules are replaced per weekday
 // given, privacy consent is only created when none exists yet.
-func (c *StudentImportConfig) Update(ctx context.Context, studentID int64, row importModels.StudentImportRow) error {
-	return tenant.WithSavepoint(ctx, func(ctx context.Context) error {
-		return c.updateAllEntities(ctx, studentID, row)
-	})
-}
-
-func (c *StudentImportConfig) updateAllEntities(ctx context.Context, studentID int64, row importModels.StudentImportRow) error {
-	student, err := c.StudentRepo.FindByID(ctx, studentID)
-	if err != nil {
-		return fmt.Errorf("Kind laden: %w", err) //nolint:staticcheck // ST1005: user-facing German message
-	}
-	if student == nil {
-		return fmt.Errorf("Kind nicht gefunden") //nolint:staticcheck // ST1005: user-facing German message
-	}
-	person, err := c.PersonRepo.FindByID(ctx, student.PersonID)
-	if err != nil {
-		return fmt.Errorf("Person laden: %w", err) //nolint:staticcheck // ST1005: user-facing German message
-	}
-	if person == nil {
-		return fmt.Errorf("Person nicht gefunden") //nolint:staticcheck // ST1005: user-facing German message
-	}
-
-	if err := c.updatePersonFromRow(ctx, person, row); err != nil {
-		return err
-	}
-	if err := c.updateStudentFromRow(ctx, student, row); err != nil {
-		return err
-	}
-	if err := c.mergeGuardianRelationships(ctx, student.ID, row.Guardians); err != nil {
-		return err
-	}
-	if err := c.upsertArrivalSchedules(ctx, student.ID, row.ArrivalSchedules); err != nil {
-		return err
-	}
-	if err := c.upsertPickupSchedules(ctx, student.ID, row.PickupSchedules); err != nil {
-		return err
-	}
-	return c.createPrivacyConsentIfMissing(ctx, student.ID, row)
-}
-
-func (c *StudentImportConfig) updatePersonFromRow(ctx context.Context, person *users.Person, row importModels.StudentImportRow) error {
-	changed := false
-	if firstName := strings.TrimSpace(row.FirstName); firstName != "" && person.FirstName != firstName {
-		person.FirstName = firstName
-		changed = true
-	}
-	if lastName := strings.TrimSpace(row.LastName); lastName != "" && person.LastName != lastName {
-		person.LastName = lastName
-		changed = true
-	}
-	if birthday, _ := parseOptionalDate(row.Birthday); birthday != nil && (person.Birthday == nil || *person.Birthday != *birthday) {
-		person.Birthday = birthday
-		changed = true
-	}
-	if row.TagID != "" && !ptrEquals(person.TagID, row.TagID) {
-		person.TagID = strutil.TrimToNil(row.TagID)
-		changed = true
-	}
-	if !changed {
-		return nil
-	}
-	if err := c.PersonRepo.Update(ctx, person); err != nil {
-		return fmt.Errorf("Person aktualisieren: %w", err) //nolint:staticcheck // ST1005: user-facing German message
-	}
-	return nil
-}
-
-func (c *StudentImportConfig) updateStudentFromRow(ctx context.Context, student *users.Student, row importModels.StudentImportRow) error {
-	before := *student
-	if class := strings.TrimSpace(row.SchoolClass); class != "" {
-		student.SchoolClass = class
-	}
-	if row.GroupID != nil {
-		student.GroupID = row.GroupID
-	}
-	setStr := func(dst **string, v string) {
-		if strings.TrimSpace(v) != "" {
-			*dst = strutil.TrimToNil(v)
-		}
-	}
-	setStr(&student.ExtraInfo, row.ExtraInfo)
-	setStr(&student.SupervisorNotes, row.SupervisorNotes)
-	setStr(&student.HealthInfo, row.HealthInfo)
-	setStr(&student.AddressStreet, row.AddressStreet)
-	setStr(&student.AddressCity, row.AddressCity)
-	setStr(&student.AddressPostalCode, row.AddressPostalCode)
-
-	// Gehweise only when the file carries the per-day columns; the legacy
-	// Bus/Abholstatus columns are not consulted in update mode because their
-	// empty state is indistinguishable from "no".
-	if row.DepartureDays != nil {
-		if student.DepartureDays == nil {
-			student.DepartureDays = users.DepartureDays{}
-		}
-		for weekday, mode := range departurePlanFromImportRow(row) {
-			student.DepartureDays[weekday] = mode
-		}
-	}
-	if note := boundedNotePtr(row.DepartureCompanionNote); note != nil {
-		student.DepartureCompanionNote = note
-	}
-	if d := parseOptionalImportCalendarDate(row.EnrolledFrom); d != nil {
-		student.EnrolledFrom = d
-		if enrollmentStartsInFuture(d) {
-			student.Status = users.StudentStatusPending
-		} else if student.Status == users.StudentStatusPending {
-			student.Status = users.StudentStatusActive
-		}
-	}
-	if d := parseOptionalImportCalendarDate(row.EnrolledUntil); d != nil {
-		student.EnrolledUntil = d
-	}
-	if t := parseOptionalImportDate(row.AGBAcceptedAt); t != nil {
-		student.AGBAcceptedAt = t
-	}
-	if t := parseOptionalImportDate(row.DataProcessingAcceptedAt); t != nil {
-		student.DataProcessingAcceptedAt = t
-	}
-	if t := parseOptionalImportDate(row.EmailContactAcceptedAt); t != nil {
-		student.EmailContactAcceptedAt = t
-	}
-	if t := parseOptionalImportDate(row.PhotoConsentGivenAt); t != nil {
-		student.PhotoConsentGivenAt = t
-	}
-
-	if err := c.StudentRepo.Update(ctx, student); err != nil {
-		return fmt.Errorf("Kind aktualisieren: %w", err) //nolint:staticcheck // ST1005: user-facing German message
-	}
-	if c.Consents != nil {
-		if err := c.Consents.RecordTransitions(
-			ctx,
-			&before,
-			student,
-			auditModels.StudentConsentSourceImport,
-			nil,
-			time.Now(),
-		); err != nil {
-			return fmt.Errorf("Einwilligungsverlauf aktualisieren: %w", err) //nolint:staticcheck // ST1005: user-facing German message
-		}
-	}
-	return nil
-}
-
-// mergeGuardianRelationships links guardians the child does not have yet and
-// patches the relationship of the ones it has (role, pickup note, priority,
-// relationship type when given). The Ja/Nein flags are changed only when their
-// cells are supplied; an empty cell must not revoke an existing permission.
-func (c *StudentImportConfig) mergeGuardianRelationships(ctx context.Context, studentID int64, guardians []importModels.GuardianImportData) error {
-	if len(guardians) == 0 {
-		return nil
-	}
-	existing, err := c.RelationRepo.FindByStudentID(ctx, studentID)
-	if err != nil {
-		return fmt.Errorf("Erziehungsberechtigte laden: %w", err) //nolint:staticcheck // ST1005: user-facing German message
-	}
-	byGuardianID := make(map[int64]*users.StudentGuardian, len(existing))
-	for _, rel := range existing {
-		byGuardianID[rel.GuardianProfileID] = rel
-	}
-
-	linkedIDs := make([]int64, 0, len(existing))
-	for _, rel := range existing {
-		linkedIDs = append(linkedIDs, rel.GuardianProfileID)
-	}
-	linkedProfiles, err := c.loadLinkedGuardianProfiles(ctx, linkedIDs)
-	if err != nil {
-		return err
-	}
-
-	for i, data := range guardians {
-		guardianID, err := c.resolveLinkedGuardian(ctx, linkedProfiles, data)
-		if err != nil {
-			return fmt.Errorf("guardian %d: %w", i+1, err)
-		}
-		if guardianID == 0 {
-			guardianID, err = c.createOrFindGuardian(ctx, data)
-			if err != nil {
-				return fmt.Errorf("guardian %d: %w", i+1, err)
-			}
-		}
-		rel, linked := byGuardianID[guardianID]
-		if !linked {
-			if err := c.createGuardianRelationship(ctx, studentID, guardianID, data, i+1); err != nil {
-				return err
-			}
-			continue
-		}
-
-		changed := false
-		if strings.TrimSpace(data.RelationshipType) != "" {
-			if mapped := MapRelationshipType(data.RelationshipType); mapped != rel.RelationshipType {
-				rel.RelationshipType = mapped
-				changed = true
-			}
-		}
-		if role, ok := MapGuardianRole(data.GuardianRole); ok && role != "" && role != rel.GuardianRole {
-			authorize.ApplyStudentGuardianRole(rel, role)
-			changed = true
-		}
-		if strings.TrimSpace(data.PickupNotes) != "" && !ptrEquals(rel.PickupNotes, strings.TrimSpace(data.PickupNotes)) {
-			rel.PickupNotes = strutil.TrimToNil(data.PickupNotes)
-			changed = true
-		}
-		if data.EmergencyPriority > 0 && data.EmergencyPriority != rel.EmergencyPriority {
-			rel.EmergencyPriority = data.EmergencyPriority
-			changed = true
-		}
-		if data.IsPrimarySet && data.IsPrimary != rel.IsPrimary {
-			rel.IsPrimary = data.IsPrimary
-			changed = true
-		}
-		if data.IsEmergencyContactSet && data.IsEmergencyContact != rel.IsEmergencyContact {
-			rel.IsEmergencyContact = data.IsEmergencyContact
-			changed = true
-		}
-		if data.CanPickupSet && data.CanPickup != rel.CanPickup {
-			rel.CanPickup = data.CanPickup
-			changed = true
-		}
-		if changed {
-			if err := c.RelationRepo.Update(ctx, rel); err != nil {
-				return fmt.Errorf("guardian %d: Zuordnung aktualisieren: %w", i+1, err)
-			}
-		}
-	}
-	return nil
-}
-
-// linkedGuardianProfile is one guardian already linked to the child, together
-// with the phone numbers stored for it, so a re-import can recognise the
-// guardian without an e-mail address.
-type linkedGuardianProfile struct {
-	profile *users.GuardianProfile
-	phones  []string
-}
-
-// loadLinkedGuardianProfiles loads the profiles and phone numbers of the
-// guardians already linked to the child.
-func (c *StudentImportConfig) loadLinkedGuardianProfiles(ctx context.Context, guardianIDs []int64) ([]linkedGuardianProfile, error) {
-	if len(guardianIDs) == 0 {
-		return nil, nil
-	}
-	phonesByGuardian, err := c.GuardianPhoneRepo.FindByGuardianIDs(ctx, guardianIDs)
-	if err != nil {
-		return nil, fmt.Errorf("Telefonnummern der Erziehungsberechtigten laden: %w", err) //nolint:staticcheck // ST1005: user-facing German message
-	}
-	profilesByID, err := c.GuardianRepo.FindByIDs(ctx, guardianIDs)
-	if err != nil {
-		return nil, fmt.Errorf("Erziehungsberechtigte konnten nicht geladen werden. Bitte versuchen Sie es noch einmal: %w", err) //nolint:staticcheck // ST1005: user-facing German message
-	}
-	linked := make([]linkedGuardianProfile, 0, len(guardianIDs))
-	for _, id := range guardianIDs {
-		profile := profilesByID[id]
-		if profile == nil {
-			continue
-		}
-		var phones []string
-		for _, phone := range phonesByGuardian[id] {
-			if normalized := normalizeImportPhone(phone.PhoneNumber); normalized != "" {
-				phones = append(phones, normalized)
-			}
-		}
-		linked = append(linked, linkedGuardianProfile{profile: profile, phones: phones})
-	}
-	return linked, nil
-}
-
-// resolveLinkedGuardian recognises an imported guardian among the guardians the
-// child already has: by e-mail, otherwise by a stored phone number, otherwise
-// by a unique first and last name. The match is confined to the child's own
-// relationships, so a shared landline of two different children never merges
-// strangers. It returns 0 when nothing matches; the caller then falls back to
-// the school-wide e-mail lookup or creates the guardian. A recognised guardian
-// receives the non-empty profile fields and any new phone numbers of the row.
-func (c *StudentImportConfig) resolveLinkedGuardian(ctx context.Context, linked []linkedGuardianProfile, data importModels.GuardianImportData) (int64, error) {
-	match := matchLinkedGuardian(linked, data)
-	if match == nil {
-		return 0, nil
-	}
-	if err := c.updateExistingGuardianProfile(ctx, match, data); err != nil {
-		return 0, fmt.Errorf("existing guardian profile aktualisieren: %w", err) //nolint:staticcheck // ST1005: user-facing German message
-	}
-	if err := c.createGuardianPhoneNumbers(ctx, match.ID, data.PhoneNumbers); err != nil {
-		return 0, fmt.Errorf("add phone numbers to existing guardian: %w", err)
-	}
-	return match.ID, nil
-}
-
-// matchLinkedGuardian is the pure matching step of resolveLinkedGuardian.
-func matchLinkedGuardian(linked []linkedGuardianProfile, data importModels.GuardianImportData) *users.GuardianProfile {
-	if len(linked) == 0 {
-		return nil
-	}
-	if email := strings.ToLower(strings.TrimSpace(data.Email)); email != "" {
-		for _, g := range linked {
-			if g.profile.Email != nil && strings.ToLower(strings.TrimSpace(*g.profile.Email)) == email {
-				return g.profile
-			}
-		}
-		// An e-mail that matches nobody linked is resolved school-wide by the
-		// caller; a phone or name match would otherwise override the e-mail.
-		return nil
-	}
-
-	phones := importGuardianPhones(data)
-	for _, g := range linked {
-		for _, stored := range g.phones {
-			if _, ok := phones[stored]; ok {
-				return g.profile
-			}
-		}
-	}
-
-	first := strings.ToLower(strings.TrimSpace(data.FirstName))
-	last := strings.ToLower(strings.TrimSpace(data.LastName))
-	if first == "" || last == "" {
-		return nil
-	}
-	var byName *users.GuardianProfile
-	for _, g := range linked {
-		if strings.ToLower(strings.TrimSpace(g.profile.FirstName)) != first ||
-			strings.ToLower(strings.TrimSpace(g.profile.LastName)) != last {
-			continue
-		}
-		if byName != nil {
-			return nil // ambiguous: two linked guardians share the name
-		}
-		byName = g.profile
-	}
-	return byName
-}
-
 // importGuardianPhones collects every phone number of the row in normalized
 // form, including the legacy single-column fields.
 func importGuardianPhones(data importModels.GuardianImportData) map[string]struct{} {
@@ -1532,82 +789,6 @@ func normalizeImportPhone(raw string) string {
 		}
 	}
 	return b.String()
-}
-
-func (c *StudentImportConfig) upsertArrivalSchedules(ctx context.Context, studentID int64, schedules []importModels.ArrivalScheduleImportData) error {
-	if len(schedules) == 0 || c.ArrivalScheduleRepo == nil {
-		return nil
-	}
-	for _, sched := range schedules {
-		existing, err := c.ArrivalScheduleRepo.FindByStudentIDAndWeekday(ctx, studentID, sched.Weekday)
-		if err != nil {
-			return fmt.Errorf("Ankunftszeit für Wochentag %d laden: %w", sched.Weekday, err) //nolint:staticcheck // ST1005: user-facing German message
-		}
-		if existing == nil {
-			if err := c.createArrivalSchedules(ctx, studentID, []importModels.ArrivalScheduleImportData{sched}); err != nil {
-				return err
-			}
-			continue
-		}
-		parsed, err := time.Parse("15:04", sched.ExpectedArrival)
-		if err != nil {
-			return fmt.Errorf("Ungültige Ankunftszeit '%s': %w", sched.ExpectedArrival, err) //nolint:staticcheck // ST1005: user-facing German message
-		}
-		existing.ExpectedArrival = timezone.NormalizeWallClock(parsed)
-		if strings.TrimSpace(sched.Notes) != "" {
-			existing.Notes = strutil.TrimToNil(sched.Notes)
-		}
-		if err := c.ArrivalScheduleRepo.Update(ctx, existing); err != nil {
-			return fmt.Errorf("Ankunftszeit für Wochentag %d aktualisieren: %w", sched.Weekday, err) //nolint:staticcheck // ST1005: user-facing German message
-		}
-	}
-	return nil
-}
-
-func (c *StudentImportConfig) upsertPickupSchedules(ctx context.Context, studentID int64, schedules []importModels.PickupScheduleImportData) error {
-	if len(schedules) == 0 || c.PickupScheduleRepo == nil {
-		return nil
-	}
-	for _, sched := range schedules {
-		existing, err := c.PickupScheduleRepo.FindByStudentIDAndWeekday(ctx, studentID, sched.Weekday)
-		if err != nil {
-			return fmt.Errorf("Abholzeit für Wochentag %d laden: %w", sched.Weekday, err) //nolint:staticcheck // ST1005: user-facing German message
-		}
-		if existing == nil {
-			if err := c.createPickupSchedules(ctx, studentID, []importModels.PickupScheduleImportData{sched}); err != nil {
-				return err
-			}
-			continue
-		}
-		parsed, err := time.Parse("15:04", sched.PickupTime)
-		if err != nil {
-			return fmt.Errorf("Ungültige Abholzeit '%s': %w", sched.PickupTime, err) //nolint:staticcheck // ST1005: user-facing German message
-		}
-		existing.PickupTime = timezone.NormalizeWallClock(parsed)
-		if strings.TrimSpace(sched.Notes) != "" {
-			existing.Notes = strutil.TrimToNil(sched.Notes)
-		}
-		if err := c.PickupScheduleRepo.Update(ctx, existing); err != nil {
-			return fmt.Errorf("Abholzeit für Wochentag %d aktualisieren: %w", sched.Weekday, err) //nolint:staticcheck // ST1005: user-facing German message
-		}
-	}
-	return nil
-}
-
-// createPrivacyConsentIfMissing adds the consent row in update mode only when
-// the child has none yet; an existing consent is never rewritten by a file.
-func (c *StudentImportConfig) createPrivacyConsentIfMissing(ctx context.Context, studentID int64, row importModels.StudentImportRow) error {
-	if !row.PrivacyAccepted || c.PrivacyRepo == nil {
-		return nil
-	}
-	consents, err := c.PrivacyRepo.FindByStudentID(ctx, studentID)
-	if err != nil {
-		return fmt.Errorf("Datenschutz-Einwilligung laden: %w", err)
-	}
-	if len(consents) > 0 {
-		return nil
-	}
-	return c.createPrivacyConsentIfNeeded(ctx, studentID, row)
 }
 
 // EntityName returns the entity type name
@@ -1754,62 +935,3 @@ func guardianLanguagePreference(val string) string {
 }
 
 // createArrivalSchedules creates weekly arrival schedule records for a student
-func (c *StudentImportConfig) createArrivalSchedules(ctx context.Context, studentID int64, schedules []importModels.ArrivalScheduleImportData) error {
-	if len(schedules) == 0 || c.ArrivalScheduleRepo == nil {
-		return nil
-	}
-
-	for i, sched := range schedules {
-		parsed, err := time.Parse("15:04", sched.ExpectedArrival)
-		if err != nil {
-			return fmt.Errorf("arrival schedule %d: invalid time '%s': %w", i+1, sched.ExpectedArrival, err)
-		}
-		arrivalTime := timezone.NormalizeWallClock(parsed)
-
-		record := &scheduleModels.StudentArrivalSchedule{
-			StudentID:       studentID,
-			Weekday:         sched.Weekday,
-			ExpectedArrival: arrivalTime,
-			Notes:           strutil.TrimToNil(sched.Notes),
-			CreatedBy:       ImporterIDFromContext(ctx),
-		}
-		record.SetTenantID(tenant.FromContext(ctx))
-
-		if err := c.ArrivalScheduleRepo.Create(ctx, record); err != nil {
-			return fmt.Errorf("create arrival schedule (weekday %d): %w", sched.Weekday, err)
-		}
-	}
-
-	return nil
-}
-
-// createPickupSchedules creates weekly pickup schedule records for a student
-func (c *StudentImportConfig) createPickupSchedules(ctx context.Context, studentID int64, schedules []importModels.PickupScheduleImportData) error {
-	if len(schedules) == 0 || c.PickupScheduleRepo == nil {
-		return nil
-	}
-
-	for i, sched := range schedules {
-		parsed, err := time.Parse("15:04", sched.PickupTime)
-		if err != nil {
-			return fmt.Errorf("pickup schedule %d: invalid time '%s': %w", i+1, sched.PickupTime, err)
-		}
-		// Use a valid reference date — time.Parse("15:04") produces year 0000 which PostgreSQL rejects
-		pickupTime := timezone.NormalizeWallClock(parsed)
-
-		record := &scheduleModels.StudentPickupSchedule{
-			StudentID:  studentID,
-			Weekday:    sched.Weekday,
-			PickupTime: pickupTime,
-			Notes:      strutil.TrimToNil(sched.Notes),
-			CreatedBy:  ImporterIDFromContext(ctx),
-		}
-		record.SetTenantID(tenant.FromContext(ctx))
-
-		if err := c.PickupScheduleRepo.Create(ctx, record); err != nil {
-			return fmt.Errorf("create pickup schedule (weekday %d): %w", sched.Weekday, err)
-		}
-	}
-
-	return nil
-}

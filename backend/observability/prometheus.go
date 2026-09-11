@@ -425,6 +425,18 @@ var (
 		prometheus.HistogramOpts{Name: "phoenix_workforce_statement_duration_seconds", Help: "Cumulative Workforce work-time database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
 		[]string{"operation"},
 	)
+	dataImportRuns = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_data_import_runs_total", Help: "Data Import runs by entity and mode (preview or import)."},
+		[]string{"entity", "mode"},
+	)
+	dataImportRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_data_import_rows_total", Help: "Data Import rows by entity, mode and outcome (parsed, accepted, rejected, created, updated)."},
+		[]string{"entity", "mode", "outcome"},
+	)
+	dataImportDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_data_import_duration_seconds", Help: "Data Import run duration by entity and mode.", Buckets: []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30}},
+		[]string{"entity", "mode"},
+	)
 	appointmentsOperations = prometheus.NewCounterVec(
 		prometheus.CounterOpts{Name: "phoenix_appointments_operations_total", Help: "Appointments operations by operation, outcome, and stable error code."},
 		[]string{"operation", "outcome", "code"},
@@ -789,6 +801,9 @@ func init() {
 		workforceQueries,
 		workforceRows,
 		workforceStatementDuration,
+		dataImportRuns,
+		dataImportRows,
+		dataImportDuration,
 		appointmentsOperations,
 		appointmentsDuration,
 		appointmentsQueries,
@@ -1177,6 +1192,24 @@ func ObserveWorkforceOperation(operation string, duration time.Duration, queries
 	if statementDuration > 0 {
 		workforceStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
 	}
+}
+
+// ObserveDataImport records one Data Import run (#2708): rows parsed,
+// accepted, rejected, created and updated plus the run duration, by entity
+// and mode. It carries no personal data.
+func ObserveDataImport(entity string, dryRun bool, rows, accepted, rejected, created, updated int, duration time.Duration) {
+	entity = sanitizeLabel(entity)
+	mode := "import"
+	if dryRun {
+		mode = "preview"
+	}
+	dataImportRuns.WithLabelValues(entity, mode).Inc()
+	for outcome, count := range map[string]int{"parsed": rows, "accepted": accepted, "rejected": rejected, "created": created, "updated": updated} {
+		if count > 0 {
+			dataImportRows.WithLabelValues(entity, mode, outcome).Add(float64(count))
+		}
+	}
+	dataImportDuration.WithLabelValues(entity, mode).Observe(duration.Seconds())
 }
 
 func ObserveAppointmentsOperation(operation string, duration time.Duration, queries, rows, duplicatePreventionConflicts int64, statementDuration time.Duration, code string, err error) {

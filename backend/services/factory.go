@@ -56,6 +56,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	supervisiondashboardlegacy "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/activities"
@@ -411,6 +412,11 @@ type DeviceFleetObserver func(operation string, duration time.Duration, queries,
 type IdentityAccessObserver func(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error)
 type DurableDeliveryObserver func(transport, template, operation string, duration time.Duration, count int, err error)
 
+// DataImportObserver records one Data Import run (#2708): rows parsed,
+// accepted, rejected, created and updated plus the run duration. The
+// composition root supplies it so this package keeps no metrics dependency.
+type DataImportObserver func(entity string, dryRun bool, rows, accepted, rejected, created, updated int, duration time.Duration)
+
 func newAuditCommand(store auditModels.AppendStore, logger *slog.Logger, observe AuditAppendObserver) (auditModels.Command, error) {
 	if store == nil || logger == nil || observe == nil {
 		return nil, errors.New("audit command store, logger, and observer are required")
@@ -462,16 +468,18 @@ func NewFactoryWithModules(
 	observeDurableDelivery DurableDeliveryObserver,
 	observeDeviceFleet DeviceFleetObserver,
 	observeIdentityAccess IdentityAccessObserver,
+	workTime workforceModule.Capability,
+	observeDataImport DataImportObserver,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
-	if organizations == nil || persons == nil || groups == nil || rooms == nil || membership == nil || calendar == nil || timetableCapability == nil || appointmentCapability == nil || communicationCapability == nil || observeCommunication == nil || observeCarePlan == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil || observeDeviceFleet == nil || observeIdentityAccess == nil {
-		return nil, errors.New("organization tenancy, people directory, school structure, facilities, school membership, school calendar, timetable, appointments, communication, care plan, meal plan, feedback, Audit, Delivery, and Identity & Access capabilities with their binders and observers are required")
+	if organizations == nil || persons == nil || groups == nil || rooms == nil || membership == nil || calendar == nil || timetableCapability == nil || appointmentCapability == nil || communicationCapability == nil || observeCommunication == nil || observeCarePlan == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil || observeDeviceFleet == nil || observeIdentityAccess == nil || workTime == nil || observeDataImport == nil {
+		return nil, errors.New("organization tenancy, people directory, school structure, facilities, school membership, school calendar, timetable, appointments, communication, care plan, meal plan, feedback, Audit, Delivery, Identity & Access, Workforce, and Data Import capabilities with their binders and observers are required")
 	}
 	communicationCompose.InstallMessageQueryInstrumentation(db)
 	repos.BindAppointments(appointmentCapability)
 	cfg := currentFactoryConfig()
 	cfg.PublicAPIURL = publicAPIURL
-	return newFactory(repos, db, logger, cfg, tenantRuntime, organizations, persons, groups, rooms, membership, calendar, timetableCapability, communicationCapability, observeCommunication, observeCarePlan, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, observeDeviceFleet, observeIdentityAccess, false, clocks...)
+	return newFactory(repos, db, logger, cfg, tenantRuntime, organizations, persons, groups, rooms, membership, calendar, timetableCapability, communicationCapability, observeCommunication, observeCarePlan, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, observeDeviceFleet, observeIdentityAccess, workTime, observeDataImport, false, clocks...)
 }
 
 func newFactory(
@@ -499,6 +507,8 @@ func newFactory(
 	observeDurableDelivery DurableDeliveryObserver,
 	observeDeviceFleet DeviceFleetObserver,
 	observeIdentityAccess IdentityAccessObserver,
+	workTime workforceModule.Capability,
+	observeDataImport DataImportObserver,
 	allowAuditRootWrites bool,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
@@ -1888,76 +1898,31 @@ func newFactory(
 		return nil, err
 	}
 
-	// Initialize import service
-	relationshipResolver := importService.NewRelationshipResolver(repos.Group, repos.Room)
-	studentImportConfig := importService.NewStudentImportConfig(
-		importService.StudentImportDeps{
-			PersonRepo:          repos.Person,
-			StudentRepo:         repos.Student,
-			GuardianRepo:        repos.GuardianProfile,
-			GuardianPhoneRepo:   repos.GuardianPhoneNumber,
-			RelationRepo:        repos.StudentGuardian,
-			PrivacyRepo:         repos.PrivacyConsent,
-			ArrivalScheduleRepo: repos.StudentArrivalSchedule,
-			PickupScheduleRepo:  repos.StudentPickupSchedule,
-			RFIDCardRepo:        repos.RFIDCard,
-			Resolver:            relationshipResolver,
-			Consents:            studentConsentService,
+	// Data Import (#2708): every accepted row is committed through the owner
+	// commands the composer binds. The observer records rows
+	// parsed/accepted/rejected per run without personal data.
+	dataImports := newImports(importWiring{
+		Persons: persons, Membership: membership, Workforce: workTime,
+		CarePlan: repos.CarePlan(), Presence: newStudentPresence(db, logger),
+		InvitationService: invitationService,
+		Reads: importService.LegacyReads{
+			RFIDCard: repos.RFIDCard, InvitationToken: repos.InvitationToken, Account: repos.Account,
+			AccountTenant: repos.AccountTenant, Role: repos.Role, Permission: repos.Permission,
+			School: repos.School, Groups: repos.Group, Rooms: repos.Room,
 		},
-		db,
-	)
-	studentImportService := importService.NewImportService(studentImportConfig)
-	studentImportService.SetAuditRepository(repos.DataImport)
-
-	// Staff import files the Stammdatensatz (Person/Staff/Teacher/master
-	// data) immediately and issues an invitation for rows with an e-mail;
-	// accepting links the account to the imported person (#2600).
-	staffImportConfig := importService.NewStaffImportConfig(
-		importService.StaffImportDeps{
-			InvitationService: invitationService,
-			InvitationRepo:    repos.InvitationToken,
-			AccountRepo:       repos.Account,
-			AccountTenantRepo: repos.AccountTenant,
-			RoleRepo:          repos.Role,
-			PermissionRepo:    repos.Permission,
-			SchoolRepo:        repos.School,
-			PersonRepo:        repos.Person,
-			StaffRepo:         repos.Staff,
-			TeacherRepo:       repos.Teacher,
-			MasterDataRepo:    repos.StaffMasterData,
-			QualificationRepo: repos.StaffQualification,
+		OpeningBalance: importService.OpeningBalanceImportDeps{
+			StaffRepo:            repos.Staff,
+			AdjustmentRepo:       repos.StaffBalanceAdjust,
+			VacationOpeningRepo:  repos.StaffVacationOpening,
+			BalanceAdjustService: staffBalanceAdjustService,
+			StaffAbsenceService:  staffAbsenceService,
 		},
-	)
-	staffImportService := importService.NewImportService(staffImportConfig)
-	staffImportService.SetAuditRepository(repos.DataImport)
-
-	// Class-list entry import (#2382): creates through the entry service so
-	// the duplicate guards and the audit trail apply to imported rows too.
-	classListImportConfig := importService.NewClassListImportConfig(importService.ClassListImportDeps{
-		EntryService: users.NewClassListEntryService(repos.ClassListEntry, repos.Student, repos.ClassListEntryChange),
-		EntryRepo:    repos.ClassListEntry,
-		StudentRepo:  repos.Student,
+		ConsentHistory: studentConsentService,
+		Audit:          auditCommand,
+		Observe: func(observation importService.ImportObservation) {
+			observeDataImport(observation.Entity, observation.DryRun, observation.Rows, observation.Accepted, observation.Rejected, observation.Created, observation.Updated, observation.Duration)
+		},
 	})
-	classListImportService := importService.NewImportService(classListImportConfig)
-	classListImportService.SetAuditRepository(repos.DataImport)
-
-	// Opening balance import (#2132): the config is request-scoped (Stichtag,
-	// Begründung, and acting staff member come from the upload form), so the
-	// factory closes over the request-independent deps and builds a fresh
-	// service per request.
-	openingBalanceImportFactory := importService.OpeningBalanceImportFactory(
-		func(effectiveDate timezone.Date, note string, decidedByStaffID int64) *importService.ImportService[importModels.OpeningBalanceImportRow] {
-			config := importService.NewOpeningBalanceImportConfig(importService.OpeningBalanceImportDeps{
-				StaffRepo:            repos.Staff,
-				AdjustmentRepo:       repos.StaffBalanceAdjust,
-				VacationOpeningRepo:  repos.StaffVacationOpening,
-				BalanceAdjustService: staffBalanceAdjustService,
-				StaffAbsenceService:  staffAbsenceService,
-			}, effectiveDate, note, decidedByStaffID)
-			svc := importService.NewImportService(config)
-			svc.SetAuditRepository(repos.DataImport)
-			return svc
-		})
 
 	// Email change tokens deliberately reuse PASSWORD_RESET_TOKEN_EXPIRY_MINUTES
 	// because both serve the same purpose (one-time verification links with the same
@@ -3104,10 +3069,10 @@ func newFactory(
 		DatabaseStatsCapabilities: func(ctx context.Context) database.StatsCapabilities {
 			return usercontext.DatabaseStatsCapabilities(ctx)
 		},
-		Import:                   studentImportService,        // Student import service
-		StaffImport:              staffImportService,          // Staff (Mitarbeiter) import service
-		ClassListImport:          classListImportService,      // Class-list entry import (#2382)
-		OpeningBalanceImport:     openingBalanceImportFactory, // Opening balance import (#2132)
+		Import:                   dataImports.Student,        // Student import service
+		StaffImport:              dataImports.Staff,          // Staff (Mitarbeiter) import service
+		ClassListImport:          dataImports.ClassList,      // Class-list entry import (#2382)
+		OpeningBalanceImport:     dataImports.OpeningBalance, // Opening balance import (#2132)
 		ListExport:               listExportService,
 		PlanExport:               planExportService,
 		Emergency:                emergencyService,

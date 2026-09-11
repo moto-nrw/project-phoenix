@@ -6,12 +6,10 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -43,32 +41,38 @@ func TestEnrollmentStartsInFuture_UsesBusinessDate(t *testing.T) {
 	assert.True(t, enrollmentStartsAfter(&tomorrow, today))
 }
 
-func TestStudentImportConfig_CreateSingleGuardianRelationship_AssignsRolePermissions(t *testing.T) {
+// The guardian link is created through the People Directory command: the
+// relationship type is mapped to the stored form, a known role preset is
+// forwarded, an empty or unknown preset is left to the owner's default
+// derivation, and the emergency priority never drops below one.
+func TestStudentImportConfig_CreateSingleGuardianRelationship_ForwardsRolePreset(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	ctx := testpkg.Ctx(t)
-	student := testpkg.CreateTestStudent(t, db, "Import", "Guardian", "1a")
+	guardians := newFakeGuardians()
+	config := NewStudentImportConfig(StudentImportDeps{Guardians: guardians})
+	ctx := context.Background()
 
-	config := NewStudentImportConfig(StudentImportDeps{
-		GuardianRepo:      factory.GuardianProfile,
-		GuardianPhoneRepo: factory.GuardianPhoneNumber,
-		RelationRepo:      factory.StudentGuardian,
-	}, db)
+	require.NoError(t, config.createSingleGuardianRelationship(ctx, 41, importModels.GuardianImportData{
+		FirstName: "Import", LastName: "Parent", Email: "import-parent@example.test", RelationshipType: "Elternteil",
+	}, 1))
+	require.NoError(t, config.createSingleGuardianRelationship(ctx, 41, importModels.GuardianImportData{
+		FirstName: "Nur", LastName: "Abholung", RelationshipType: "Oma", GuardianRole: "Nur Abholung", CanPickup: true, EmergencyPriority: 3,
+	}, 2))
 
-	err := config.createSingleGuardianRelationship(ctx, student.ID, importModels.GuardianImportData{
-		FirstName:        "Import",
-		LastName:         "Parent",
-		Email:            "import-parent@example.test",
-		RelationshipType: "Elternteil",
-	}, 1)
-	require.NoError(t, err)
+	require.Len(t, guardians.linked, 2)
+	assert.Equal(t, "parent", guardians.linked[0].RelationshipType)
+	assert.Empty(t, guardians.linked[0].GuardianRole, "no preset: the owner derives the default role")
+	assert.Equal(t, 1, guardians.linked[0].EmergencyPriority)
+	assert.Equal(t, authorize.GuardianRolePickupOnly, guardians.linked[1].GuardianRole)
+	assert.True(t, guardians.linked[1].CanPickup)
+	assert.Equal(t, 3, guardians.linked[1].EmergencyPriority)
+	assert.Len(t, guardians.guardians, 2, "one profile per guardian row")
 
-	relationships, err := factory.StudentGuardian.FindByStudentID(ctx, student.ID)
-	require.NoError(t, err)
-	require.Len(t, relationships, 1)
-	assert.Equal(t, authorize.GuardianRoleLegalGuardian, relationships[0].GuardianRole)
-	assert.True(t, authorize.StudentGuardianHasPermission(relationships[0], authorize.GuardianPermissionPortalAccess))
+	// The same e-mail resolves to the existing profile instead of a twin.
+	require.NoError(t, config.createSingleGuardianRelationship(ctx, 42, importModels.GuardianImportData{
+		FirstName: "Import", LastName: "Parent", Email: "IMPORT-PARENT@example.test", RelationshipType: "Mutter", AddressCity: "Köln",
+	}, 1))
+	assert.Len(t, guardians.guardians, 2)
+	assert.Equal(t, "Köln", *guardians.guardians[guardians.linked[0].GuardianProfileID].AddressCity, "non-empty cells patch the reused profile")
 }
 
 func TestStudentImportConfig_Validate_RequiredFields(t *testing.T) {
@@ -1135,7 +1139,7 @@ func TestStudentImportConfig_Validate_PickupScheduleErrorMessages(t *testing.T) 
 
 func TestStudentImportConfig_CreateArrivalSchedules_NilRepo(t *testing.T) {
 	t.Parallel()
-	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{ArrivalScheduleRepo: nil}}
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Schedules: nil}}
 
 	schedules := []importModels.ArrivalScheduleImportData{
 		{Weekday: 1, ExpectedArrival: "08:00"},
@@ -1147,7 +1151,7 @@ func TestStudentImportConfig_CreateArrivalSchedules_NilRepo(t *testing.T) {
 
 func TestStudentImportConfig_CreateArrivalSchedules_EmptySchedules(t *testing.T) {
 	t.Parallel()
-	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{ArrivalScheduleRepo: nil}}
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Schedules: nil}}
 
 	err := config.createArrivalSchedules(context.Background(), 123, nil)
 	assert.NoError(t, err)
@@ -1160,7 +1164,7 @@ func TestStudentImportConfig_CreatePickupSchedules_NilRepo(t *testing.T) {
 	t.Parallel()
 	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{
 		// No repo
-		PickupScheduleRepo: nil},
+		Schedules: nil},
 	}
 
 	schedules := []importModels.PickupScheduleImportData{
@@ -1176,7 +1180,7 @@ func TestStudentImportConfig_CreatePickupSchedules_EmptySchedules(t *testing.T) 
 	t.Parallel()
 	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{
 		// Would panic if called, but shouldn't be
-		PickupScheduleRepo: nil},
+		Schedules: nil},
 	}
 
 	// Should return nil (no-op) when schedules is empty

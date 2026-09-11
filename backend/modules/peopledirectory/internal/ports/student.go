@@ -21,6 +21,9 @@ type StudentStore interface {
 	// ListByClasses returns the non-alumni rows of the classes, ordered by
 	// class then id.
 	ListByClasses(context.Context, []string) ([]domain.Student, domain.OperationStats, error)
+	// ListByPersonIDs returns the rows whose person is one of the ids, alumni
+	// included, ordered by id.
+	ListByPersonIDs(context.Context, []int64) ([]domain.Student, domain.OperationStats, error)
 	// ListEnrolled returns every non-alumni row of the current tenant.
 	ListEnrolled(context.Context) ([]domain.Student, domain.OperationStats, error)
 	// ListClasses returns the distinct non-empty classes of non-alumni rows.

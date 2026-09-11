@@ -31,6 +31,11 @@ func (e engine) ListStudentsByClasses(ctx context.Context, classes []string) ([]
 	return toPublicStudents(values), mapError(err)
 }
 
+func (e engine) ListStudentsByPersonIDs(ctx context.Context, personIDs []int64) ([]peopledirectory.Student, error) {
+	values, err := e.students.ListByPersonIDs(ctx, personIDs)
+	return toPublicStudents(values), mapError(err)
+}
+
 func (e engine) ListEnrolledStudents(ctx context.Context) ([]peopledirectory.Student, error) {
 	values, err := e.students.ListEnrolled(ctx)
 	return toPublicStudents(values), mapError(err)

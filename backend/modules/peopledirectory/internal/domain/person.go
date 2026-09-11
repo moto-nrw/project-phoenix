@@ -46,6 +46,8 @@ type UpdatePerson struct {
 type Filter struct {
 	FirstNamePrefix  string
 	LastNamePrefix   string
+	FirstNameEquals  string
+	LastNameEquals   string
 	FullNameContains string
 	TagID            string
 	AccountIDs       []int64

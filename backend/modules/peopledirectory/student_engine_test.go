@@ -44,6 +44,12 @@ func (e *recordingEngine) RenewEnrollmentStudent(context.Context, int64, peopled
 	return nil
 }
 
+func (e *recordingEngine) ListStudentsByPersonIDs(_ context.Context, ids []int64) ([]peopledirectory.Student, error) {
+	e.calls++
+	e.student = studentCall{ids: ids}
+	return nil, nil
+}
+
 func (e *recordingEngine) ListStudentsByIDs(_ context.Context, ids []int64) ([]peopledirectory.Student, error) {
 	e.calls++
 	e.student = studentCall{ids: ids}
