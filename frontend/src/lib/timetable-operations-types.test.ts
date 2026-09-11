@@ -8,6 +8,22 @@ import {
 } from "./timetable-operations-types";
 
 describe("timetable operation mappers", () => {
+  it("maps the caller's action right and omits it for older backends", () => {
+    const base: BackendTimetableRoster = {
+      instance: {
+        id: 117,
+        title: "Randstunde",
+        status: "active",
+        room_id: 217,
+      },
+      rows: [],
+    };
+
+    expect(mapRoster({ ...base, can_operate: false }).canOperate).toBe(false);
+    expect(mapRoster({ ...base, can_operate: true }).canOperate).toBe(true);
+    expect(mapRoster(base)).not.toHaveProperty("canOperate");
+  });
+
   it("keeps loaded pickup times distinct from a failed pickup lookup", () => {
     const loaded = mapRoster({
       instance: {
