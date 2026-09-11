@@ -9489,7 +9489,7 @@
       "declaration": "TestTemplateOfferingSource_CreateStoresTheRuleAndIsFoundByOffering",
       "target": "database/repositories.NewFactory",
       "lines": [
-        325
+        339
       ],
       "tables": []
     },
@@ -9499,7 +9499,7 @@
       "declaration": "TestTemplateOfferingSource_RejectsInactiveOffering",
       "target": "database/repositories.NewFactory",
       "lines": [
-        869
+        883
       ],
       "tables": [
         "enrollment.care_offerings"
@@ -9511,7 +9511,7 @@
       "declaration": "TestTemplateOfferingSource_RejectsOfferingOutsideTheTemplatePeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        802
+        816
       ],
       "tables": []
     },
@@ -9521,8 +9521,8 @@
       "declaration": "TestTemplateOfferingSource_SplitRejectsOfferingOutsideNewPeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        918,
-        939
+        932,
+        953
       ],
       "tables": []
     },
@@ -9532,17 +9532,17 @@
       "declaration": "TestTemplateOfferingSource_UpdateRewritesAndClearsTheRule",
       "target": "database/repositories.NewFactory",
       "lines": [
-        395
+        409
       ],
       "tables": []
     },
     {
       "scope": "test",
       "file": "services/schedule/template_offering_source_integration_test.go",
-      "declaration": "createSourceCareOffering",
+      "declaration": "createSourceCareOfferingOnDays",
       "target": "database/repositories.NewFactory",
       "lines": [
-        55
+        71
       ],
       "tables": []
     },
@@ -9552,7 +9552,7 @@
       "declaration": "linkApprovedChildToOffering",
       "target": "database/repositories.NewFactory",
       "lines": [
-        132
+        146
       ],
       "tables": [
         "users.students"
@@ -9564,7 +9564,7 @@
       "declaration": "loadTemplateGroup",
       "target": "database/repositories.NewFactory",
       "lines": [
-        101
+        115
       ],
       "tables": []
     },
