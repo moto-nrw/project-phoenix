@@ -27,9 +27,9 @@ import (
 // import records.
 const privacyConsentPolicyVersion = "1.0"
 
-// personSearchPageSize bounds the prefix search a name match runs; a school
-// has far fewer namesakes than this, and exact matching happens in memory.
-const personSearchPageSize = 200
+// guardianSearchLimit bounds the guardian search an e-mail match runs; exact
+// matching happens in memory.
+const guardianSearchLimit = 200
 
 // FindExisting resolves the row to an existing student (duplicate detection
 // in create mode, match key in update mode). Keys, in order: the RFID card
@@ -124,17 +124,9 @@ func findPersonsByExactName(ctx context.Context, persons ports.PersonDirectory, 
 	if first == "" || last == "" {
 		return nil, nil
 	}
-	candidates, err := persons.SearchPersons(ctx, ports.PersonFilter{FirstNamePrefix: first, LastNamePrefix: last, PageSize: personSearchPageSize})
-	if err != nil {
-		return nil, err
-	}
-	matches := make([]ports.Person, 0, len(candidates))
-	for _, person := range candidates {
-		if strings.EqualFold(strings.TrimSpace(person.FirstName), first) && strings.EqualFold(strings.TrimSpace(person.LastName), last) {
-			matches = append(matches, person)
-		}
-	}
-	return matches, nil
+	// Unpaged on purpose: absence or ambiguity is decided over every namesake,
+	// not over the first page of a sorted listing.
+	return persons.SearchPersons(ctx, ports.PersonFilter{FirstNameEquals: first, LastNameEquals: last})
 }
 
 // findStudentsByNameAndClass returns the non-alumni students of the class
@@ -444,7 +436,7 @@ func (c *StudentImportConfig) createOrFindGuardian(ctx context.Context, data imp
 // findGuardianByEmail resolves the tenant's guardian with exactly this e-mail
 // (case-insensitive); nil when none exists.
 func (c *StudentImportConfig) findGuardianByEmail(ctx context.Context, email string) (*ports.Guardian, error) {
-	matches, err := c.Guardians.SearchGuardians(ctx, email, personSearchPageSize)
+	matches, err := c.Guardians.SearchGuardians(ctx, email, guardianSearchLimit)
 	if err != nil {
 		return nil, err
 	}

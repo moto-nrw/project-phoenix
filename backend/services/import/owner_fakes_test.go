@@ -109,6 +109,12 @@ func (f *fakePersons) SearchPersons(_ context.Context, filter ports.PersonFilter
 		if filter.LastNamePrefix != "" && !strings.HasPrefix(strings.ToLower(person.LastName), strings.ToLower(filter.LastNamePrefix)) {
 			continue
 		}
+		if filter.FirstNameEquals != "" && !strings.EqualFold(strings.TrimSpace(person.FirstName), filter.FirstNameEquals) {
+			continue
+		}
+		if filter.LastNameEquals != "" && !strings.EqualFold(strings.TrimSpace(person.LastName), filter.LastNameEquals) {
+			continue
+		}
 		result = append(result, person)
 	}
 	return result, nil
