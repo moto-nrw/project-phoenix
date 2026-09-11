@@ -5,6 +5,7 @@ import { UserPlus } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { ChoiceModal } from "~/components/ui/choice-modal";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
 import {
@@ -16,6 +17,7 @@ import {
   rosterPickupTimeLabel,
   upcomingArrivalTime,
 } from "~/lib/timetable-roster-helpers";
+import { saveStudentPartialAbsence } from "~/lib/student-partial-absences-api";
 import { canCompleteInstance } from "~/lib/timetable-lifecycle";
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import type {
@@ -129,6 +131,80 @@ export async function runRosterActionRequest(
       : { status: "absent" },
   );
   return null;
+}
+
+/** The block was excused, but the partial absence for the rest of the day
+ *  could not be written (conflict with another excusal, network error). */
+export class RestOfDayNotSavedError extends Error {
+  constructor(cause: unknown) {
+    super(cause instanceof Error ? cause.message : String(cause));
+    this.name = "RestOfDayNotSavedError";
+  }
+}
+
+/**
+ * „Rest des Tages“ (#3166): excuses this block by hand, then records a partial
+ * absence from the block's start through the existing partial-absence path.
+ * That path excuses every later block of the day that nobody decided by hand
+ * yet; earlier blocks start before the cutoff and stay untouched.
+ */
+export async function runRestOfDayExcusalRequest(
+  instance: Pick<TimetableRoster["instance"], "id" | "date" | "startTime">,
+  studentId: string,
+): Promise<void> {
+  await runRosterActionRequest("excused", instance.id, studentId);
+  try {
+    await saveStudentPartialAbsence(
+      studentId,
+      null,
+      instance.date,
+      instance.startTime,
+    );
+  } catch (error) {
+    throw new RestOfDayNotSavedError(error);
+  }
+}
+
+const EXCUSE_SCOPE_BLOCK = "block";
+const EXCUSE_SCOPE_REST_OF_DAY = "rest-of-day";
+
+interface ExcuseScopeModalProps {
+  readonly instance: TimetableRoster["instance"];
+  readonly row: TimetableRosterRow | null;
+  readonly isBusy: boolean;
+  readonly onClose: () => void;
+  readonly onSelect: (scope: string) => void;
+}
+
+function ExcuseScopeModal({
+  instance,
+  row,
+  isBusy,
+  onClose,
+  onSelect,
+}: ExcuseScopeModalProps) {
+  const name = row?.studentName || `Kind ${row?.studentId ?? ""}`;
+  return (
+    <ChoiceModal
+      isOpen={row !== null}
+      onClose={onClose}
+      title={`${name} entschuldigen`}
+      isBusy={isBusy}
+      onSelect={onSelect}
+      options={[
+        {
+          value: EXCUSE_SCOPE_BLOCK,
+          label: "Nur dieser Block",
+          description: `${instance.title}, ${instance.startTime}–${instance.endTime} Uhr`,
+        },
+        {
+          value: EXCUSE_SCOPE_REST_OF_DAY,
+          label: "Rest des Tages",
+          description: `Ab ${instance.startTime} Uhr alle Blöcke heute. Sie finden das auf der Seite des Kindes.`,
+        },
+      ]}
+    />
+  );
 }
 
 interface RosterRowActionsProps {
@@ -746,6 +822,14 @@ interface TimetableRosterContentProps {
   readonly onComplete: () => Promise<void>;
   readonly onConfirmExpected: (rows: TimetableRosterRow[]) => Promise<void>;
   readonly onRosterAction: RosterRowActionsProps["onAction"];
+  /**
+   * Entschuldigt das Kind für diesen Block und den Rest des Tages (#3166).
+   * Nur wer Teilabwesenheiten anlegen darf (`users:update`), bekommt ihn;
+   * ohne ihn entschuldigt „Entschuldigt“ sofort nur diesen Block. Das
+   * Schul-Portal reicht ihn bewusst nicht durch: eine Lehrkraft entscheidet
+   * nur über die eigene Aufsicht.
+   */
+  readonly onExcuseRestOfDay?: (row: TimetableRosterRow) => Promise<void>;
   readonly onOpenStudent?: (row: TimetableRosterRow) => void;
   readonly onSearchChange: (value: string) => void;
   /** Fehler des Nachtragens; steht im Dialog „Kind ungeplant hinzufügen“. */
@@ -767,12 +851,41 @@ export function TimetableRosterContent({
   onComplete,
   onConfirmExpected,
   onRosterAction,
+  onExcuseRestOfDay,
   onOpenStudent,
   onSearchChange,
   addStudentError,
 }: TimetableRosterContentProps) {
   const now = useMinuteClock();
   const [addStudentOpen, setAddStudentOpen] = useState(false);
+  const [excuseRow, setExcuseRow] = useState<TimetableRosterRow | null>(null);
+  const [isExcusing, setIsExcusing] = useState(false);
+  // Mit dem Recht für Teilabwesenheiten fragt „Entschuldigt“ zuerst, ob nur
+  // dieser Block oder der Rest des Tages gemeint ist (#3166).
+  const handleRosterAction: RosterRowActionsProps["onAction"] = async (
+    action,
+    row,
+  ) => {
+    if (action === "excused" && onExcuseRestOfDay) {
+      setExcuseRow(row);
+      return;
+    }
+    await onRosterAction(action, row);
+  };
+  const handleExcuseScope = async (scope: string) => {
+    if (!excuseRow) return;
+    setIsExcusing(true);
+    try {
+      if (scope === EXCUSE_SCOPE_REST_OF_DAY && onExcuseRestOfDay) {
+        await onExcuseRestOfDay(excuseRow);
+      } else {
+        await onRosterAction("excused", excuseRow);
+      }
+    } finally {
+      setIsExcusing(false);
+      setExcuseRow(null);
+    }
+  };
   const closeAddStudent = () => {
     setAddStudentOpen(false);
     // Der nächste Dialog startet ohne Suche und ohne Fehlermeldung; beides
@@ -843,7 +956,7 @@ export function TimetableRosterContent({
     rosterDate: roster.instance.date,
     pickupTimesLoaded: roster.pickupTimesLoaded,
     pickupTimesRedacted: roster.pickupTimesRedacted,
-    onAction: onRosterAction,
+    onAction: handleRosterAction,
     onOpenStudent,
     showTimetableCounts,
   };
@@ -891,6 +1004,15 @@ export function TimetableRosterContent({
           onAdd={onAddStudent}
           onClose={closeAddStudent}
           onSearchChange={onSearchChange}
+        />
+      ) : null}
+      {attendanceWebEnabled && onExcuseRestOfDay ? (
+        <ExcuseScopeModal
+          instance={roster.instance}
+          row={excuseRow}
+          isBusy={isExcusing}
+          onClose={() => setExcuseRow(null)}
+          onSelect={(scope) => void handleExcuseScope(scope)}
         />
       ) : null}
       <TimetableRosterSection
