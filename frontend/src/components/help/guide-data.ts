@@ -619,7 +619,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Nach dem Anmelden landen alle auf der Startseite. Ganz oben steht, was jetzt ansteht; darunter liegen Bausteine, die Sie selbst anordnen. Womit Sie starten, hängt von Ihrer Aufgabe ab.",
         steps: [
           "In der Seitenleiste ganz oben `Startseite` öffnen. Nach dem Anmelden landen Sie automatisch hier, unabhängig von Ihrer Rolle. Am Handy ist es der Reiter `Start` unten links.",
-          "Die Zeile unter der Begrüßung zeigt die Uhrzeit und den Moment: Betreuungskräfte sehen den Einsatz, der gerade läuft (`Läuft`), oder den nächsten mit der Zeit bis dahin. Die Leitung sieht, wie viele Blöcke laufen, wie viele nicht gestartet wurden, wie viele Kinder da sind und wie viele vom Team Aufsicht führen. Rechts daneben führt ein Knopf dorthin, wo Sie jetzt am ehesten hinwollen, zum Beispiel `Aufsicht fortsetzen` oder `Meine Gruppe`. Der Tag selbst steht direkt darunter im Baustein `Mein Tag`.",
+          "Die Zeile unter der Begrüßung zeigt die Uhrzeit und den Moment: Betreuungskräfte sehen den Einsatz, der jetzt dran ist, oder den nächsten mit der Zeit bis dahin. `Läuft` steht dort erst, wenn der Block gestartet ist, sonst `Nicht gestartet`. Die Leitung sieht, wie viele Blöcke laufen, wie viele nicht gestartet wurden, wie viele Kinder da sind und wie viele vom Team Aufsicht führen. Daneben stehen höchstens zwei Knöpfe: `Aufsicht starten`, wenn Ihr eigener Block jetzt beginnen kann, oder `Zur Aufsicht`, wenn Ihre Aufsicht schon läuft, und dazu `Alle Kinder`. Der Tag selbst steht direkt darunter im Baustein `Mein Tag`.",
           "Betreuungskräfte starten mit `Mein Tag` (Ihr ganzer Betreuungstag: alle Blöcke, für die Sie eingeteilt sind, mit Raum, Kinderzahl und Kolleginnen, die Jetzt-Linie und der Knopf `Starten` am eigenen Block), `Meine Gruppe heute` (wie viele Kinder da sind, wer längst da sein sollte, die nächsten Abholungen mit den Hinweisen der Eltern, wer heute fehlt), den `Tagesinformationen` der Leitung und den `Erinnerungen` (anstehende Abholungen und Aktivitäten).",
           "Die Leitung startet mit vier Kennzahlen (`Kinder anwesend`, `Krank`, `Entschuldigt`, `Zuhause`), den `Offenen Anfragen`, `Personal heute`, den `Tagesinformationen`, dem `Ablauf des Tages`, den `Ungelesenen Nachrichten` und der `Laufenden Betreuung`. Wer die Einrichtung leitet und selbst betreut, bekommt beides: den eigenen Tag vorneweg, die Lage der Schule dahinter.",
           "Ein Klick auf eine Kennzahl springt in den passenden Bereich, zum Beispiel von `Krank` in den bereits gefilterten Bereich `Alle Kinder`. Jede Zeile in einer Karte führt dorthin, wo Sie damit arbeiten.",
@@ -633,7 +633,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Startseite mit Begrüßung, der Zeile mit Uhrzeit und laufendem Einsatz, den Bausteinen der eigenen Rolle und dem Knopf `Anpassen` oben rechts.",
+          "Startseite der Leitung mit Begrüßung, der Zeile mit Uhrzeit, der Lage der Schule und den Knöpfen `Aufsicht starten` und `Alle Kinder`, darunter die Bausteine und oben rechts der Knopf `Anpassen`.",
         image: "/help/screens/startseite.webp",
       },
       {
@@ -959,7 +959,9 @@ export const appChapters: readonly GuideChapter[] = [
           "`Erwartete bestätigen` checkt alle Kinder unter `Erwartet` ein. Kinder unter `Kommt später` sind nicht dabei.",
           "Ab der angegebenen Uhrzeit wechselt das Kind zu `Erwartet`.",
           "Bei anwesendem Kind auf `Einchecken` klicken.",
-          "Bei bekannter Abwesenheit `Entschuldigt` wählen.",
+          "Sind Sie für eine laufende Aktivität nicht eingeplant, sehen Sie die Liste nur. Eintragen oder ändern können dort nur die eingeplanten Betreuungskräfte.",
+          "Bei bekannter Abwesenheit `Entschuldigt` wählen. Danach `Nur dieser Block` oder `Rest des Tages` antippen.",
+          "`Rest des Tages` entschuldigt diesen Block und alle späteren Blöcke von heute. Frühere Blöcke bleiben, wie sie sind. Den Eintrag für die späteren Blöcke finden und entfernen Sie auf der Seite des Kindes. Diesen Block korrigieren Sie mit `Zurück auf erwartet`. Wer keine Kinderdaten ändern darf, entschuldigt nur diesen Block.",
           "Falsche Markierung mit `Zurück auf erwartet` korrigieren.",
           "Ungeplantes Kind über `Kind hinzufügen` in der Kopfzeile der Liste nachtragen. Im Fenster das Kind über `Weiteres Kind suchen...` finden.",
           "Bei mehreren Treffern ein Kind antippen. Danach `Hinzufügen` wählen. Bei einem Treffer direkt `Hinzufügen` wählen.",

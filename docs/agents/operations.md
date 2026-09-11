@@ -41,6 +41,7 @@ does not make it a dry-run.
 ```bash
 # CLI (run inside the container via `docker compose run server go run . <cmd>`)
 go run . migrate status|validate|reset
+go run . migrate backfill request-child-storage [--tenant ID] [--verify-only] [--restart]  # resumable #2713 copy; see docs/operations/enrollment-storage-backfill-2713.md
 go run . seed --email <op-email> --password <pw> --pin 1234   # flags required; seeds via the HTTP API, server must be running
 go run . cleanup preview|stats      # visit-retention dry-run / statistics
 go run . cleanup visits             # REAL deletion — there is no `cleanup visits preview`; extra args are silently ignored
