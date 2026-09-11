@@ -443,7 +443,6 @@ const TINY_TEXT_BASELINE_FILES = new Set([
   "src/components/timetable/substitution-person-card.tsx",
   "src/components/timetable/substitution-slide-over.tsx",
   "src/components/timetable/template-card.tsx",
-  "src/components/timetable/timetable-add-menu.tsx",
   "src/components/timetable/vertretung-day-list.tsx",
   "src/components/timetable/vertretung-week-list.tsx",
   "src/components/timetable/weekly-calendar-grid.tsx",
@@ -508,7 +507,6 @@ src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@379 text-[11px]@4
 src/components/timetable/substitution-person-card.tsx|text-[11px]@53 text-[11px]@331 text-[11px]@338 text-[11px]@345 text-[11px]@353 text-[11px]@365
 src/components/timetable/substitution-slide-over.tsx|text-[10px]@546 text-[9px]@551 text-[11px]@704 text-[11px]@708 text-[10px]@748 text-[10px]@752 text-[10px]@756 text-[10px]@760 text-[11px]@1196
 src/components/timetable/template-card.tsx|text-[11px]@113 text-[11px]@119 text-[10px]@162
-src/components/timetable/timetable-add-menu.tsx|text-[10px]@61 text-[11px]@81 text-[11px]@103
 src/components/timetable/vertretung-day-list.tsx|text-[11px]@342 text-[11px]@376 text-[11px]@383 text-[11px]@404 text-[11px]@410
 src/components/timetable/vertretung-week-list.tsx|text-[10px]@157
 src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@253 text-[9px]@269 text-[10px]@325 text-[11px]@325 text-[11px]@330 text-[10px]@353 text-[10px]@388 text-[11px]@388
