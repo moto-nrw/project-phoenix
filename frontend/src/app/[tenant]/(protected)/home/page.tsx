@@ -434,16 +434,22 @@ function HomeContent() {
             </Button>
           </>
         ) : (
+          // Auf dem Telefon nur das Symbol: als Textknopf bekam „Anpassen"
+          // dort eine eigene volle Zeile unter der Begrüßung und war größer
+          // als alles, wofür man die Startseite öffnet. `data-icon-only`
+          // hält ihn in der Titelzeile; der Name bleibt für Vorlesen und
+          // Tastatur „Anpassen".
           <Button
             type="button"
             variant="outline"
             size="md"
-            className="gap-2"
+            className="gap-2 max-sm:aspect-square max-sm:px-0"
+            data-icon-only=""
             disabled={!homeLayoutReady}
             onClick={startEditing}
           >
             <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
-            Anpassen
+            <span className="max-sm:sr-only">Anpassen</span>
           </Button>
         )
       }

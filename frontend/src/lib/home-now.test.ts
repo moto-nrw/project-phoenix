@@ -179,13 +179,28 @@ describe("nowActions (#2180)", () => {
 
     expect(actions.map((a) => a.label)).toEqual([
       "Aufsicht fortsetzen",
-      "Meine Gruppe",
+      "Alle Kinder",
     ]);
   });
 
   // Der Tagesplan ist kein Weg der Zone: „Mein Tag" steht direkt darunter.
-  it("führt sonst in die eigene Gruppe, nicht in den Tagesplan", () => {
+  // Alle Kinder vor der eigenen Gruppe: die Gruppe steht schon als Baustein
+  // unter der Zone und war als schwarzer Hauptknopf zu präsent.
+  it("führt sonst zu allen Kindern, dann in die eigene Gruppe", () => {
     const actions = nowActions({ ...base, canOpenGroup: true });
+
+    expect(actions.map((a) => a.href)).toEqual([
+      "/t/students/search",
+      "/t/ogs-groups",
+    ]);
+  });
+
+  it("führt ohne users:read nur in die eigene Gruppe", () => {
+    const actions = nowActions({
+      ...base,
+      canOpenGroup: true,
+      canReadUsers: false,
+    });
 
     expect(actions.map((a) => a.href)).toEqual(["/t/ogs-groups"]);
   });

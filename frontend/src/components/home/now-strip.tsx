@@ -141,15 +141,18 @@ export function NowStrip({
             <NowText state={state} analytics={analytics.data} today={today} />
           )}
         </div>
+        {/* Auch auf dem Telefon eine Zeile in Knopfgröße: untereinander in
+            voller Breite waren die zwei Wege dort größer als die Uhr, um die
+            es in der Zone geht. */}
         {actions.length > 0 && (
-          <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+          <div className="flex shrink-0 flex-wrap gap-2">
             {actions.map((action, index) => (
               <ButtonLink
                 key={action.href}
                 href={action.href}
                 variant={index === 0 ? "primary" : "outline"}
                 size="md"
-                className="w-full justify-center sm:w-auto"
+                className="whitespace-nowrap"
               >
                 {action.label}
               </ButtonLink>

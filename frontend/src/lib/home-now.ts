@@ -138,8 +138,12 @@ interface NowAction {
 /**
  * Höchstens zwei Wege, die an dieser Stelle im Tag wirklich naheliegen —
  * nicht die ganze Navigation als Knopfleiste. Läuft eine Aufsicht, ist das
- * Fortsetzen der eine Weg; sonst der Tag, sonst die eigene Gruppe, sonst
- * alle Kinder, wenn die Person die Kindersuche öffnen darf.
+ * Fortsetzen der erste Weg. Danach alle Kinder, dann die eigene Gruppe:
+ * nach Rückmeldung aus den Schulen öffnet das Team die Kindersuche am
+ * häufigsten, und die eigene Gruppe steht ohnehin als Baustein unter der
+ * Zone. Vorher stand
+ * „Meine Gruppe" als schwarzer Hauptknopf vorne und war das Auffälligste
+ * der ganzen Startseite.
  */
 export function nowActions({
   isSupervising,
@@ -162,14 +166,14 @@ export function nowActions({
   // Kein Weg in den Tagesplan: der Tag steht als Baustein direkt unter der
   // Zone, mit Weiterlink und Starten-Knopf. Ein zweiter Knopf darüber wäre
   // derselbe Weg zweimal.
-  if (canOpenGroup) {
-    actions.push({ href: tenantPath("/ogs-groups"), label: "Meine Gruppe" });
-  }
-  if (actions.length === 0 && canReadUsers) {
+  if (canReadUsers) {
     actions.push({
       href: tenantPath("/students/search"),
       label: "Alle Kinder",
     });
+  }
+  if (canOpenGroup) {
+    actions.push({ href: tenantPath("/ogs-groups"), label: "Meine Gruppe" });
   }
   return actions.slice(0, 2);
 }

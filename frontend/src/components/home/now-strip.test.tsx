@@ -170,6 +170,10 @@ describe("NowStrip (#2180)", () => {
       "href",
       "/test-tenant/ogs-groups",
     );
+    // Alle Kinder ist der erste Weg, die eigene Gruppe der zweite.
+    expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual(
+      ["Alle Kinder", "Meine Gruppe"],
+    );
   });
 
   it("nennt den nächsten Einsatz mit der Zeit bis dahin", () => {
