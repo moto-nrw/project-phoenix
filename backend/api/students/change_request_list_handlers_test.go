@@ -23,6 +23,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+	requestreviewlegacy "github.com/moto-nrw/project-phoenix/modules/requestreview/legacy"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
@@ -131,7 +132,9 @@ type aggCareFake struct {
 
 func (f *aggCareFake) ListPending(_ context.Context, filters modelBase.RequestQueueFilters) ([]*scheduleService.CareRequestReviewItem, *userService.HistoryCursor, error) {
 	f.pendingCalls++
-	rows := urgencyRows(f.pending, filters, careRequestUrgentToday)
+	rows := urgencyRows(f.pending, filters, func(it *scheduleService.CareRequestReviewItem) bool {
+		return requestreviewlegacy.CareRequestUrgentToday(it, timezone.TodayDate())
+	})
 	items, next := keysetPage(rows, filters,
 		func(it *scheduleService.CareRequestReviewItem) (time.Time, int64) {
 			return it.Request.CreatedAt, it.Request.ID
@@ -270,11 +273,23 @@ func newAggResource() (*Resource, *aggFakes) {
 		offering: &aggOfferingFake{},
 		excused:  &aggExcusedFake{},
 	}
+	// The list route reads the shared request-review projection (#2705);
+	// the fakes stand in for the retained owner queues it adapts.
+	review, err := requestreviewlegacy.New(requestreviewlegacy.Sources{
+		MasterData:   fakes.master,
+		CareSchedule: fakes.care,
+		Offering:     fakes.offering,
+		Excused:      fakes.excused,
+	})
+	if err != nil {
+		panic(err)
+	}
 	rs := NewResource(ResourceConfig{
 		MasterDataReviewService: fakes.master,
 		CareRequestService:      fakes.care,
 		OfferingChangeService:   fakes.offering,
 		ExcusedRequestService:   fakes.excused,
+		RequestReview:           review,
 	})
 	return rs, fakes
 }

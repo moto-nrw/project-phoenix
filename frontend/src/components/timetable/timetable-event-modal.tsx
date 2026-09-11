@@ -1,7 +1,9 @@
 "use client";
 
 import { Trash2 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import { useCatalogRefreshOnFocus } from "~/components/database/catalog/catalog-manage-link";
 
 import { useModal } from "~/components/dashboard/modal-context";
 import { ClosingDayConfirmModal } from "~/components/planning/closing-day-marker";
@@ -30,7 +32,6 @@ import {
 } from "~/lib/closing-day-helpers";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { materializedRecurrenceDates } from "~/lib/timetable-helpers";
-import { CategoryManageModal } from "./category-manage-modal";
 import { Field } from "./event-form/field";
 import type { EventFormState, RepeatMode } from "./event-form/form-model";
 import { StepPersonalKinder } from "./event-form/step-personal-kinder";
@@ -170,9 +171,6 @@ export function TimetableEventModal({
   closingDaysLoading = false,
 }: TimetableEventModalProps) {
   const { isModalOpen } = useModal();
-  const [categoryDialog, setCategoryDialog] = useState<
-    "list" | "create" | null
-  >(null);
   const {
     form,
     update,
@@ -253,9 +251,6 @@ export function TimetableEventModal({
     sourcePhaseKidsFromWarning,
     sourceOverlapWarnings,
     changeSourceOfferings,
-    pendingSourceOfferingIds,
-    confirmPendingSourceOffering,
-    cancelPendingSourceOffering,
     toggleSourceGradeLevel,
     toggleSourceSchoolClass,
     changeSourceFilterMode,
@@ -301,20 +296,24 @@ export function TimetableEventModal({
     closingDayRanges,
   });
 
-  const pendingSourceOfferingNames =
-    pendingSourceOfferingIds
-      ?.map(
-        (offeringId) =>
-          offeringSources?.find((offering) => offering.id === offeringId)?.name,
-      )
-      .filter((name): name is string => Boolean(name)) ?? [];
-
   // Converting a one-off into a Regeltermin is a repeat decision — that entry
   // opens on step 2. Every other entry (quick create, "+ Neu → Regeltermin",
   // instance edit, series edit) starts at step 1 with all steps reachable.
   const [step, setStep] = useState(0);
   const submitAttempted = useRef(false);
   const formRef = useRef<HTMLFormElement>(null);
+
+  // „Kategorien verwalten" und „Planungsspuren verwalten" öffnen ihre Route in
+  // einem zweiten Fenster, damit dieser Entwurf stehen bleibt (#3114). Kommt
+  // das Formular wieder in den Vordergrund, stehen die dort angelegten
+  // Einträge ohne Zutun in den beiden Auswahlfeldern.
+  const refreshCatalogs = useCallback(async () => {
+    await Promise.all([refreshCategories(), refreshPlanningTracks()]);
+  }, [refreshCategories, refreshPlanningTracks]);
+  useCatalogRefreshOnFocus(
+    refreshCatalogs,
+    isOpen && (canManageCategories || canManagePlanningTracks),
+  );
   useEffect(() => {
     if (isOpen) {
       setStep(convertInstance ? 1 : 0);
@@ -600,11 +599,7 @@ export function TimetableEventModal({
                 quickPreset={quickPreset}
                 listKindTouched={listKindTouched}
                 canManageCategories={canManageCategories}
-                onManageCategories={setCategoryDialog}
                 canManagePlanningTracks={canManagePlanningTracks}
-                onPlanningTracksChanged={async (created) => {
-                  await refreshPlanningTracks(created?.id);
-                }}
               />
             )}
 
@@ -977,48 +972,6 @@ export function TimetableEventModal({
             </div>
           )}
         </ConfirmationModal>
-
-        {/* #2137 x #2129: ein Angebot als Quelle kennt nur eine gemeinsame
-            Besetzung. Bestehende wochentagsspezifische Personalzuweisungen
-            werden beim Übernehmen entfernt und NICHT zu einer Sammelliste
-            zusammengelegt; die gemeinsame Besetzung muss danach ausdrücklich
-            neu gewählt werden. Das braucht eine ausdrückliche Bestätigung. */}
-        <ConfirmationModal
-          isOpen={pendingSourceOfferingIds !== null}
-          onClose={cancelPendingSourceOffering}
-          onConfirm={confirmPendingSourceOffering}
-          title="Besetzung je Wochentag wird ersetzt"
-          confirmText="Angebot als Quelle übernehmen"
-          cancelText="Abbrechen"
-          confirmVariant="warning"
-        >
-          <p className="text-sm leading-relaxed text-gray-600">
-            Dieser Regeltermin hat je Wochentag unterschiedliches Personal. Mit
-            {pendingSourceOfferingNames.length === 1
-              ? ` dem Angebot „${pendingSourceOfferingNames[0]}“ `
-              : pendingSourceOfferingNames.length > 1
-                ? ` den Angeboten „${pendingSourceOfferingNames.join("“, „")}“ `
-                : " einem Angebot "}
-            als Quelle gilt eine gemeinsame Besetzung für alle Wochentage. Die
-            bisherigen Zuweisungen je Wochentag werden entfernt; wähle die
-            gemeinsame Besetzung anschließend im Schritt „Personal und Kinder“
-            neu. Die Kinderliste kommt automatisch aus dem Angebot.
-          </p>
-        </ConfirmationModal>
-
-        {/* Kategorien verwalten (#2131): mounted only while open so its fetch
-            and dialog context stay out of every test that never opens it. */}
-        {canManageCategories && categoryDialog && (
-          <CategoryManageModal
-            isOpen
-            initialView={categoryDialog}
-            onClose={() => setCategoryDialog(null)}
-            onChanged={async (created) => {
-              await refreshCategories(created?.id);
-              if (created) setCategoryDialog(null);
-            }}
-          />
-        )}
       </SlideOverContent>
     </SlideOver>
   );

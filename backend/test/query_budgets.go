@@ -63,9 +63,20 @@ var queryBudgets = map[string]queryBudget{
 	"api.auth.tenant_resolve.setting_values": {max: 1, exact: true},
 	// api/active — #2065: toggle + three labels share one settings read.
 	"api.active.tracking_indicators.setting_values": {max: 1, exact: true},
-	// api/active — aggregated supervision dashboard, 10 checked-in students
-	// (measured 29 flat; headroom for benign changes only).
-	"api.active.supervision_dashboard": {max: 40},
+	// api/active — aggregated supervision dashboard, 10 checked-in students.
+	// 41 since #3065: the projection reads which rooms the administration has
+	// released, once per request. The measured count sat at 40 — the cap
+	// itself — before that read, so this is a raise, which normally means an
+	// N+1. It is not one, and the tests say so rather than the comment:
+	// TestSupervisionDashboard_QueryBudget asserts the count is identical at 3
+	// and at 10 students, and TestOpenRoomLoadCostDoesNotGrowWithRoomsOrSessions
+	// asserts one call per port for one room with one session and for four
+	// rooms with four. The shared view costs a fixed three reads when a school
+	// has released rooms and this single read when it has none.
+	//
+	// Reviewer approval for the raise is recorded in the #3065 pull request,
+	// per the deviation clause in .claude/rules/backend-conventions.md.
+	"api.active.supervision_dashboard": {max: 41},
 	// api/active — GET /active/groups list, 8 active groups with visits.
 	"api.active.groups.list": {max: 9},
 	// #2941: formerly one identity query per supervisor / teacher.
@@ -163,6 +174,14 @@ var queryBudgets = map[string]queryBudget{
 	// of the transaction runtime. The presence mode is a settings read that
 	// the scenario fakes.
 	"modules.emergencysnapshot.snapshot": {max: 10, exact: true},
+	// modules/requestreview/legacy — #2705: the open review page of one
+	// child with one request in each of the four retained queues (the RLS
+	// proof fixture), inside one tenant transaction: the urgent and the
+	// normal phase of every queue, the conflict scan, the group and
+	// Familienschutz decorations. The retained queues hydrate per request
+	// (their own N+1, unchanged by the cutover), so this is a ceiling for the
+	// fixture, not a flat cost.
+	"modules.requestreview.open_page": {max: 101},
 	// test/e2e/timetable — end-to-end counts include TenantTxMiddleware overhead.
 	"e2e.timetable.exception_conflicts.cancelled": {max: 22},
 	"e2e.timetable.exception_conflicts.modified":  {max: 22},

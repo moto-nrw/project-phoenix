@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	requestreviewlegacy "github.com/moto-nrw/project-phoenix/modules/requestreview/legacy"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
@@ -46,7 +47,7 @@ func toCareRequestDetailResponse(item *scheduleService.CareRequestHistoryItem) C
 	req := item.Request
 	var diff []CareRequestDiffResponse
 	if len(item.Diff) > 0 {
-		diff = toCareRequestDiffResponses(item.Diff)
+		diff = requestreviewlegacy.ToCareRequestDiffResponses(item.Diff)
 	}
 	var pickupChange *CareRequestPickupChangeResponse
 	if terms := item.PickupChange; terms != nil {
@@ -58,7 +59,7 @@ func toCareRequestDetailResponse(item *scheduleService.CareRequestHistoryItem) C
 	}
 	var decidedAt *time.Time
 	if req.Status != scheduleModels.CareRequestStatusPending {
-		at := historyDecidedAt(req.ReviewedAt, req.UpdatedAt)
+		at := requestreviewlegacy.HistoryDecidedAt(req.ReviewedAt, req.UpdatedAt)
 		decidedAt = &at
 	}
 	return CareRequestDetailResponse{
@@ -68,7 +69,7 @@ func toCareRequestDetailResponse(item *scheduleService.CareRequestHistoryItem) C
 		LastName:       item.LastName,
 		Status:         req.Status,
 		RequestKind:    req.RequestKind,
-		Requested:      toCareRequestDiffResponses(item.Requested),
+		Requested:      requestreviewlegacy.ToCareRequestDiffResponses(item.Requested),
 		Diff:           diff,
 		RequestReason:  item.RequestReason,
 		DecisionReason: req.DecisionReason,

@@ -4,52 +4,20 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strconv"
-	"time"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-nrw/project-phoenix/modules/requestreview"
+	requestreviewlegacy "github.com/moto-nrw/project-phoenix/modules/requestreview/legacy"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // StaffExcusedRequestResponse is the legacy-named staff projection of one
-// parent absence approval request in the review queue.
-type StaffExcusedRequestResponse struct {
-	ID            string     `json:"id"`
-	StudentID     string     `json:"student_id"`
-	FirstName     string     `json:"first_name"`
-	LastName      string     `json:"last_name"`
-	AbsenceStatus string     `json:"absence_status"`
-	Status        string     `json:"status"`
-	Dates         []string   `json:"dates"`
-	Note          string     `json:"note"`
-	Reason        *string    `json:"reason,omitempty"`
-	CreatedAt     time.Time  `json:"created_at"`
-	ReviewedAt    *time.Time `json:"reviewed_at,omitempty"`
-}
-
-func toStaffExcusedRequestResponse(item *excusedrequests.ReviewItem) StaffExcusedRequestResponse {
-	r := item.Request
-	dates := make([]string, 0, len(r.Dates))
-	for _, d := range r.Dates {
-		dates = append(dates, d.String())
-	}
-	return StaffExcusedRequestResponse{
-		ID:            strconv.FormatInt(r.ID, 10),
-		StudentID:     strconv.FormatInt(r.StudentID, 10),
-		FirstName:     item.FirstName,
-		LastName:      item.LastName,
-		AbsenceStatus: r.AbsenceStatus,
-		Status:        r.Status,
-		Dates:         dates,
-		Note:          r.Note,
-		Reason:        r.DecisionReason,
-		CreatedAt:     r.CreatedAt,
-		ReviewedAt:    r.ReviewedAt,
-	}
-}
+// parent absence approval request; the shared request-review projection
+// (#2705) owns the shape and the decide route answers with the same one.
+type StaffExcusedRequestResponse = requestreview.StaffExcusedRequestResponse
 
 // DecideExcusedRequestBody is the body of POST
 // .../excused-absence-requests/{requestId}/decide.
@@ -113,5 +81,5 @@ func (rs *Resource) decideExcusedAbsenceRequest(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, toStaffExcusedRequestResponse(item), "Decision applied")
+	common.Respond(w, r, http.StatusOK, requestreviewlegacy.ToStaffExcusedRequestResponse(item), "Decision applied")
 }

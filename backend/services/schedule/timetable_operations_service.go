@@ -31,8 +31,12 @@ import (
 
 var (
 	ErrTimetableOperationForbidden = errors.New("timetable operation forbidden")
-	ErrTimetableOperationNotFound  = errors.New("timetable operation not found")
-	ErrTimetableOperationConflict  = errors.New("timetable operation conflict")
+	// errNoStaffProfile separates an admin without a staff record — who may
+	// act on the block but cannot be recorded as the acting staff member —
+	// from a caller who is not planned for it (#3167).
+	errNoStaffProfile             = fmt.Errorf("%w: no staff profile", ErrTimetableOperationForbidden)
+	ErrTimetableOperationNotFound = errors.New("timetable operation not found")
+	ErrTimetableOperationConflict = errors.New("timetable operation conflict")
 )
 
 type OperationSettings interface {
@@ -222,6 +226,10 @@ type OperationRoster struct {
 	// out of another running session (#2386). It carries the origin's display
 	// name; an empty string means the move happened but no name resolved.
 	MovedFrom *string `json:"moved_from,omitempty"`
+	// CanOperate reports whether the caller may act on this block, decided by
+	// requireCanOperate (#3167). The all_staff overview scope shows every
+	// running roster without granting action rights.
+	CanOperate bool `json:"can_operate"`
 }
 
 type OperationRosterInstance struct {
@@ -653,7 +661,7 @@ func (s *timetableOperationsService) Start(ctx context.Context, accountID int64,
 		return nil, err
 	}
 	if staffID <= 0 {
-		return nil, ErrTimetableOperationForbidden
+		return nil, errNoStaffProfile
 	}
 	return s.deps.InstanceService.Start(ctx, instanceID, staffID)
 }
@@ -683,7 +691,35 @@ func (s *timetableOperationsService) Roster(ctx context.Context, accountID int64
 	if _, err := s.requireCanView(ctx, accountID, isAdmin, instanceID); err != nil {
 		return nil, err
 	}
-	return s.buildRoster(ctx, instanceID)
+	roster, err := s.buildRoster(ctx, instanceID)
+	if err != nil {
+		return nil, err
+	}
+	roster.CanOperate, err = s.canOperate(ctx, accountID, isAdmin, instanceID)
+	if err != nil {
+		return nil, err
+	}
+	return roster, nil
+}
+
+// canOperate turns requireCanOperate into a flag for read responses. Only a
+// denial becomes false; lookup failures still fail the request.
+func (s *timetableOperationsService) canOperate(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (bool, error) {
+	_, err := s.requireCanOperate(ctx, accountID, isAdmin, instanceID)
+	if errors.Is(err, ErrTimetableOperationForbidden) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+// operatedRoster marks the roster of a write response as operable: the caller
+// has just passed requireCanOperate, and the client replaces its cached
+// roster with this one.
+func operatedRoster(roster *OperationRoster, err error) (*OperationRoster, error) {
+	if roster != nil {
+		roster.CanOperate = true
+	}
+	return roster, err
 }
 
 func (s *timetableOperationsService) RosterByActiveGroup(ctx context.Context, accountID int64, isAdmin bool, activeGroupID int64) (*OperationRoster, error) {
@@ -698,12 +734,16 @@ func (s *timetableOperationsService) RosterByActiveGroup(ctx context.Context, ac
 }
 
 func (s *timetableOperationsService) CheckInStudent(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64) (*OperationRoster, error) {
+	return operatedRoster(s.checkInStudent(ctx, accountID, isAdmin, instanceID, studentID))
+}
+
+func (s *timetableOperationsService) checkInStudent(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64) (*OperationRoster, error) {
 	staffID, err := s.requireCanOperate(ctx, accountID, isAdmin, instanceID)
 	if err != nil {
 		return nil, err
 	}
 	if staffID <= 0 {
-		return nil, ErrTimetableOperationForbidden
+		return nil, errNoStaffProfile
 	}
 	inst, err := s.loadInstance(ctx, instanceID)
 	if err != nil {
@@ -846,12 +886,16 @@ func (s *timetableOperationsService) markPlannedStudentPresent(ctx context.Conte
 }
 
 func (s *timetableOperationsService) CheckOutStudent(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64) (*OperationRoster, error) {
+	return operatedRoster(s.checkOutStudent(ctx, accountID, isAdmin, instanceID, studentID))
+}
+
+func (s *timetableOperationsService) checkOutStudent(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64) (*OperationRoster, error) {
 	staffID, err := s.requireCanOperate(ctx, accountID, isAdmin, instanceID)
 	if err != nil {
 		return nil, err
 	}
 	if staffID <= 0 {
-		return nil, ErrTimetableOperationForbidden
+		return nil, errNoStaffProfile
 	}
 	inst, err := s.loadInstance(ctx, instanceID)
 	if err != nil {

@@ -56,7 +56,6 @@ import {
   fetchAllStudentOptions,
   formFromInstance,
   formFromSeries,
-  hasPerWeekdayStaffDeviation,
   initialPrimaryStaffID,
   initialStaffIDs,
   initialStudentIDs,
@@ -68,10 +67,16 @@ import {
   rosterSeedForWeekday,
   schoolClassLabel,
   seedWeekdayRosters,
+  withWeekdayStudentIds,
   sortPeople,
   sourceScopesOverlap,
   targetCohortActionLabel,
 } from "./form-model";
+import {
+  withUnavailableCurrentCategory,
+  type CategoryOption,
+  type RoomOption,
+} from "./category-option";
 import type {
   EventFormState,
   PersonOption,
@@ -95,11 +100,7 @@ import type {
   WeekdayAssignmentBody,
 } from "~/lib/timetable-types";
 
-export interface RoomOption {
-  id: number;
-  name: string;
-  building?: string;
-}
+export type { CategoryOption, RoomOption } from "./category-option";
 
 export interface GroupOption {
   id: string;
@@ -149,15 +150,21 @@ export const WEEKDAYS = [1, 2, 3, 4, 5] as const;
 /**
  * Keeps a category selection only while the refreshed picker still offers it.
  * A newly created category is authoritative even if the following refetch is
- * stale; an archived category is cleared so saving cannot submit its old ID.
+ * stale. A category on an existing series remains selectable after archiving
+ * so that refreshing the picker cannot discard the stored association.
  */
 export function reconcileCategoryId(
   currentId: string,
   categories: readonly Pick<ActivityCategory, "id">[],
   createdId?: string,
+  preserveMissing = false,
 ): string {
   if (createdId) return createdId;
-  if (currentId && !categories.some((category) => category.id === currentId)) {
+  if (
+    !preserveMissing &&
+    currentId &&
+    !categories.some((category) => category.id === currentId)
+  ) {
     return "";
   }
   return currentId;
@@ -279,7 +286,7 @@ export function useEventForm({
       initialPrimaryStaffID(initialInstance, initialSeries, convertInstance),
     );
   const [rooms, setRooms] = useState<RoomOption[]>([]);
-  const [categories, setCategories] = useState<ActivityCategory[]>([]);
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [planningTracks, setPlanningTracks] = useState<PlanningTrack[]>([]);
   const [groups, setGroups] = useState<GroupOption[]>([]);
   const [students, setStudents] = useState<PersonOption[]>([]);
@@ -343,11 +350,13 @@ export function useEventForm({
   // newer modal state.
   const referenceLoadSeq = useRef(0);
   const categoryLoadSeq = useRef(0);
+  const planningTrackLoadSeq = useRef(0);
   const studentLoadSeq = useRef(0);
   const staffLoadSeq = useRef(0);
   const invalidateReferenceLoads = useCallback(() => {
     referenceLoadSeq.current++;
     categoryLoadSeq.current++;
+    planningTrackLoadSeq.current++;
     studentLoadSeq.current++;
     staffLoadSeq.current++;
   }, []);
@@ -520,6 +529,7 @@ export function useEventForm({
     }
     const referenceSeq = ++referenceLoadSeq.current;
     const categorySeq = ++categoryLoadSeq.current;
+    const planningTrackSeq = ++planningTrackLoadSeq.current;
     const studentSeq = ++studentLoadSeq.current;
     const staffSeq = ++staffLoadSeq.current;
     const isCurrentReferenceLoad = () =>
@@ -628,9 +638,20 @@ export function useEventForm({
         if (isCurrentReferenceLoad()) {
           setRooms(sortedRooms);
           setGroups(sortedGroups);
-          setPlanningTracks(planningTrackData);
+          if (planningTrackLoadSeq.current === planningTrackSeq) {
+            setPlanningTracks(planningTrackData);
+          }
           if (categoryLoadSeq.current === categorySeq) {
-            setCategories(sortedCategories);
+            setCategories(
+              initialSeries
+                ? withUnavailableCurrentCategory(
+                    sortedCategories,
+                    nextForm.categoryId,
+                    [],
+                    initialSeries.categoryName,
+                  )
+                : sortedCategories,
+            );
             setForm((prev) =>
               prev.categoryId || sortedCategories.length === 0
                 ? prev
@@ -1155,17 +1176,13 @@ export function useEventForm({
    * the shared lists to know who is there on a given day.
    */
   const weekdayAssignmentsBody = (): WeekdayAssignmentBody[] | undefined => {
-    // An offering-sourced roster is server-managed; the backend rejects
-    // weekday_assignments next to a source (#2137 x #2129). The editor hides
-    // the section, but a stale perWeekdayRoster flag from before the source
-    // was picked must not leak into the payload.
-    if (
-      form.targetGroupType === "angebot" &&
-      form.sourceCareOfferingIds.length > 0
-    ) {
-      return undefined;
-    }
     if (!form.perWeekdayRoster || form.weekdays.length < 2) return undefined;
+    // An offering-sourced child list is server-managed: the backend rejects
+    // per-weekday children next to a source, per-weekday staff is fine
+    // (#3165). The form empties them while a source is set; never send any.
+    const sourced =
+      form.targetGroupType === "angebot" &&
+      form.sourceCareOfferingIds.length > 0;
     return [...form.weekdays]
       .sort((a, b) => a - b)
       .map((weekday) => {
@@ -1178,15 +1195,16 @@ export function useEventForm({
         return {
           weekday,
           staff_ids: roster.staffIds.map(Number),
-          student_ids: roster.studentIds.map(Number),
+          student_ids: sourced ? [] : roster.studentIds.map(Number),
           primary_staff_id: primary,
         };
       });
   };
 
   const changeTargetGroupType = (nextType: TargetGroupType) => {
-    // Read outside the updater so it stays pure (mirrors applySourceOfferingIds).
+    // Read outside the updater so it stays pure (mirrors changeSourceOfferings).
     const restoredStudentIds = preSourceStudentIdsRef.current;
+    const restoredWeekdayStudentIds = preSourceWeekdayStudentIdsRef.current;
     setForm((current) => ({
       ...current,
       targetGroupType: nextType,
@@ -1214,6 +1232,17 @@ export function useEventForm({
         nextType !== "angebot" && current.sourceCareOfferingIds.length > 0
           ? restoredStudentIds
           : current.studentIds,
+      // Same hand-back for the per-weekday child lists (#3165).
+      weekdayRosters:
+        current.perWeekdayRoster &&
+        nextType !== "angebot" &&
+        current.sourceCareOfferingIds.length > 0
+          ? withWeekdayStudentIds(
+              current,
+              (weekday) =>
+                restoredWeekdayStudentIds[weekday] ?? restoredStudentIds,
+            )
+          : current.weekdayRosters,
     }));
     setValidationError(null);
     setFieldErrors((current) => {
@@ -1706,6 +1735,9 @@ export function useEventForm({
     // predecessor's occurrence — apply only the user's delta on top of the
     // successor's own weekday roster instead of replacing it.
     const chainResolved = template.resolvedFromTemplateId !== undefined;
+    // #3165: a sourced series keeps its per-weekday staff, but its children
+    // come from the offering; the backend rejects them per weekday.
+    const sourced = (template.sourceCareOfferingIds?.length ?? 0) > 0;
     return template.weekdayAssignments.map((assignment) => {
       if (
         (!staffWasEdited && !studentsWereEdited) ||
@@ -1714,7 +1746,7 @@ export function useEventForm({
         return {
           weekday: assignment.weekday,
           staff_ids: assignment.staffIds.map(Number),
-          student_ids: assignment.studentIds.map(Number),
+          student_ids: sourced ? [] : assignment.studentIds.map(Number),
           primary_staff_id: assignment.primaryStaffId
             ? Number(assignment.primaryStaffId)
             : undefined,
@@ -1748,7 +1780,7 @@ export function useEventForm({
       return {
         weekday: assignment.weekday,
         staff_ids: weekdayStaffIDs.map(Number),
-        student_ids: weekdayStudentIDs.map(Number),
+        student_ids: sourced ? [] : weekdayStudentIDs.map(Number),
         primary_staff_id: staffWasEdited
           ? weekdayPrimary && weekdayStaffIDs.includes(weekdayPrimary)
             ? Number(weekdayPrimary)
@@ -2498,6 +2530,10 @@ export function useEventForm({
       const rosterFrom =
         typedScope === "following" ? initialInstance.date : berlinTodayISO();
       const perWeekdaySeries = template.weekdayAssignments.length > 0;
+      // #3165: a sourced series' weekday child rows are the offering's
+      // children. The form loads them empty and cannot edit them, so only
+      // the staffing can have changed.
+      const sourcedSeries = (template.sourceCareOfferingIds?.length ?? 0) > 0;
       const studentScope = new Set<number>();
       const staffScope = new Set<number>();
       const scopeWeekdays: number[] = [];
@@ -2507,10 +2543,9 @@ export function useEventForm({
         for (const assignment of template.weekdayAssignments) {
           const next = form.weekdayRosters[assignment.weekday];
           if (!next) continue;
-          const changedStudents = changedRosterIDs(
-            next.studentIds,
-            assignment.studentIds,
-          );
+          const changedStudents = sourcedSeries
+            ? []
+            : changedRosterIDs(next.studentIds, assignment.studentIds);
           const changedStaff = changedRosterIDs(
             next.staffIds,
             assignment.staffIds,
@@ -3099,6 +3134,9 @@ export function useEventForm({
   // The manual shared roster as it was before a source was selected in this
   // session — restored when the source is cleared again (#2147 review).
   const preSourceStudentIdsRef = useRef<string[]>([]);
+  // The per-weekday child lists at the same moment, keyed by ISO weekday
+  // (#3165). Empty when the form was in shared mode.
+  const preSourceWeekdayStudentIdsRef = useRef<Record<number, string[]>>({});
   // Same value as render-visible state: the Umstiegs-Vorschau (#2482) has to
   // re-render when the stash changes, and a ref never triggers that.
   const [preSourceStudentIds, setPreSourceStudentIds] = useState<string[]>([]);
@@ -3430,7 +3468,7 @@ export function useEventForm({
     selectedOfferingSources,
   ]);
 
-  const applySourceOfferingIds = (nextIds: string[]) => {
+  const changeSourceOfferings = (nextIds: string[]) => {
     // Selecting the first source clears the manual roster (server-managed).
     // Stash it so clearing the last source restores the admin's picks —
     // submitting the emptied array would wipe the shared manual assignments
@@ -3443,100 +3481,67 @@ export function useEventForm({
       // included — otherwise the Umstiegs-Vorschau reports "nothing falls
       // away" for a plan whose children live per weekday (#2482).
       preSourceStudentIdsRef.current = form.studentIds;
+      preSourceWeekdayStudentIdsRef.current = form.perWeekdayRoster
+        ? Object.fromEntries(
+            form.weekdays.map((weekday) => [
+              weekday,
+              [...rosterForWeekday(form, weekday).studentIds],
+            ]),
+          )
+        : {};
       setPreSourceStudentIds(plannedStudentIds(form));
     }
-    if (nextIds.length > 0 && form.perWeekdayRoster) {
-      staffRosterTouched.current = true;
-      studentRosterTouched.current = true;
-    }
     const restoredStudentIds = preSourceStudentIdsRef.current;
+    const restoredWeekdayStudentIds = preSourceWeekdayStudentIdsRef.current;
     setForm((current) => {
-      const next = {
+      const takesOver = nextIds.length > 0;
+      const handsBack = !takesOver && current.sourceCareOfferingIds.length > 0;
+      return {
         ...current,
         sourceCareOfferingIds: nextIds,
         // The filter applies to the UNION of the selected offerings, so it
         // survives adding/removing single offerings and falls only with the
         // last source.
-        sourceGradeLevels: nextIds.length > 0 ? current.sourceGradeLevels : [],
-        sourceSchoolClasses:
-          nextIds.length > 0 ? current.sourceSchoolClasses : [],
-        sourceFilterMode:
-          nextIds.length > 0 ? current.sourceFilterMode : "alle",
+        sourceGradeLevels: takesOver ? current.sourceGradeLevels : [],
+        sourceSchoolClasses: takesOver ? current.sourceSchoolClasses : [],
+        sourceFilterMode: takesOver ? current.sourceFilterMode : "alle",
         // The sourced roster is server-managed; clearing the last source
         // restores the manual roster picked before the first source was set.
-        studentIds:
-          nextIds.length > 0
-            ? []
-            : current.sourceCareOfferingIds.length > 0
-              ? restoredStudentIds
-              : current.studentIds,
-      };
-      if (nextIds.length === 0 || !current.perWeekdayRoster) return next;
-      // A source knows only one shared Besetzung, so per-weekday mode ends
-      // right here, visibly in the Personal step, not silently at save time.
-      // Days that staff identically collapse into the shared controls. Days
-      // that deviate are NOT aggregated into an all-weekdays union: nobody
-      // chose that staffing, so the shared Besetzung starts empty and has to
-      // be picked explicitly (#2147 review round 13).
-      const baseline = rosterForWeekday(
-        current,
-        current.weekdays[0] ?? activeRosterWeekday,
-      );
-      const flattened = hasPerWeekdayStaffDeviation(current)
-        ? { staffIds: [] as string[], primaryStaffId: "" }
-        : {
-            staffIds: [...baseline.staffIds],
-            primaryStaffId: baseline.primaryStaffId,
-          };
-      return {
-        ...next,
-        ...flattened,
-        perWeekdayRoster: false,
-        weekdayRosters: {},
+        studentIds: takesOver
+          ? []
+          : handsBack
+            ? restoredStudentIds
+            : current.studentIds,
+        // Per-weekday staffing stays untouched (#3165). The per-weekday child
+        // lists follow the shared list: the source empties them, clearing it
+        // hands the stashed lists back. A day without a stashed list (per-
+        // weekday mode switched on while the source was set) gets the stashed
+        // shared list, so the next save cannot wipe the manual children.
+        weekdayRosters: !current.perWeekdayRoster
+          ? current.weekdayRosters
+          : takesOver
+            ? withWeekdayStudentIds(current, () => [])
+            : handsBack
+              ? withWeekdayStudentIds(
+                  current,
+                  (weekday) =>
+                    restoredWeekdayStudentIds[weekday] ?? restoredStudentIds,
+                )
+              : current.weekdayRosters,
       };
     });
     setValidationError(null);
   };
 
-  // Offering selection awaiting explicit confirmation because applying it
-  // removes a deliberate per-weekday staffing (#2147 review): with a source
-  // set, the payload carries only the shared staff list (the backend rejects
-  // weekday_assignments next to a source). Confirming empties the shared
-  // Besetzung, so the replacement staffing is an explicit choice, never an
-  // implicit all-weekdays union (#2147 review round 13). A list because the
-  // MultiCheckboxSelect's "Alle auswählen" can add several offerings at once.
-  const [pendingSourceOfferingIds, setPendingSourceOfferingIds] = useState<
-    string[] | null
-  >(null);
   useEffect(() => {
-    setPendingSourceOfferingIds(null);
     // A new modal session must not inherit the previous session's stashed
     // manual roster: clearing a source in a freshly opened, already sourced
     // template would otherwise restore (and save) another template's picks
     // (#2147 review round 10).
     preSourceStudentIdsRef.current = [];
+    preSourceWeekdayStudentIdsRef.current = {};
     setPreSourceStudentIds([]);
   }, [isOpen]);
-
-  const changeSourceOfferings = (nextIds: string[]) => {
-    if (
-      nextIds.length > 0 &&
-      form.sourceCareOfferingIds.length === 0 &&
-      hasPerWeekdayStaffDeviation(form)
-    ) {
-      setPendingSourceOfferingIds(nextIds);
-      return;
-    }
-    applySourceOfferingIds(nextIds);
-  };
-
-  const confirmPendingSourceOffering = () => {
-    if (pendingSourceOfferingIds === null) return;
-    applySourceOfferingIds(pendingSourceOfferingIds);
-    setPendingSourceOfferingIds(null);
-  };
-
-  const cancelPendingSourceOffering = () => setPendingSourceOfferingIds(null);
 
   const toggleSourceGradeLevel = (grade: number) => {
     setForm((current) => ({
@@ -3641,39 +3646,58 @@ export function useEventForm({
    * something (#2131). When a category was just created, it is selected right
    * away — the user opened the dialog because the one they needed was missing.
    */
-  const refreshCategories = useCallback(async (selectId?: string) => {
-    const categorySeq = ++categoryLoadSeq.current;
-    if (selectId) {
-      setForm((prev) => ({ ...prev, categoryId: selectId }));
-    }
-    try {
-      const data = await fetchPlannerActivityCategories();
-      const sorted = [...data].sort((a, b) =>
-        a.name.localeCompare(b.name, "de"),
-      );
-      if (categoryLoadSeq.current !== categorySeq) return;
-      setCategories(sorted);
-      setForm((prev) => {
-        const categoryId = reconcileCategoryId(
-          prev.categoryId,
-          sorted,
-          selectId,
+  const refreshCategories = useCallback(
+    async (selectId?: string) => {
+      const categorySeq = ++categoryLoadSeq.current;
+      if (selectId) {
+        setForm((prev) => ({ ...prev, categoryId: selectId }));
+      }
+      try {
+        const data = await fetchPlannerActivityCategories();
+        const sorted = [...data].sort((a, b) =>
+          a.name.localeCompare(b.name, "de"),
         );
-        return categoryId === prev.categoryId ? prev : { ...prev, categoryId };
-      });
-    } catch (err: unknown) {
-      logger.error("categories_refresh_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-  }, []);
+        if (categoryLoadSeq.current !== categorySeq) return;
+        setCategories(
+          effectiveSeries && !selectId
+            ? withUnavailableCurrentCategory(
+                sorted,
+                form.categoryId,
+                categories,
+                effectiveSeries.categoryName,
+              )
+            : sorted,
+        );
+        setForm((prev) => {
+          const categoryId = reconcileCategoryId(
+            prev.categoryId,
+            sorted,
+            selectId,
+            effectiveSeries !== null,
+          );
+          return categoryId === prev.categoryId
+            ? prev
+            : { ...prev, categoryId };
+        });
+      } catch (err: unknown) {
+        logger.error("categories_refresh_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    },
+    [categories, effectiveSeries, form.categoryId],
+  );
 
   const refreshPlanningTracks = useCallback(async (selectId?: string) => {
+    const planningTrackSeq = ++planningTrackLoadSeq.current;
     if (selectId) {
       setForm((prev) => ({ ...prev, planningTrackId: selectId }));
     }
     try {
-      setPlanningTracks(await planningTrackService.list());
+      const planningTracks = await planningTrackService.list();
+      if (planningTrackLoadSeq.current === planningTrackSeq) {
+        setPlanningTracks(planningTracks);
+      }
     } catch (err: unknown) {
       logger.error("planning_tracks_refresh_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -3762,9 +3786,6 @@ export function useEventForm({
     sourcePhaseKidsFromWarning,
     sourceOverlapWarnings,
     changeSourceOfferings,
-    pendingSourceOfferingIds,
-    confirmPendingSourceOffering,
-    cancelPendingSourceOffering,
     toggleSourceGradeLevel,
     toggleSourceSchoolClass,
     changeSourceFilterMode,

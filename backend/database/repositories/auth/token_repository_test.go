@@ -8,6 +8,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -961,4 +962,36 @@ func TestTokenRepository_DeleteByTenantID(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, deleted)
 	})
+}
+
+// The cleanup CLI previews the sweep through this owner query (#2720).
+func TestTokenRepository_CountExpiredTokens(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupIsolatedTestDB(t)
+
+	repo := authRepo.NewTokenRepository(db)
+	ctx := testpkg.Ctx(t)
+	account := testpkg.CreateTestAccount(t, db, "countExpiredToken")
+
+	before, err := repo.CountExpiredTokens(ctx)
+	require.NoError(t, err)
+
+	var expiredTokenID int64
+	err = db.NewRaw(`
+		INSERT INTO auth.tokens (account_id, token, expiry, mobile, family_id, tenant_id)
+		VALUES (?, ?, ?, false, ?, ?)
+		RETURNING id
+	`, account.ID, uuid.Must(uuid.NewV4()).String(), time.Now().Add(-time.Hour), uuid.Must(uuid.NewV4()).String(), testpkg.Tenant(t)).
+		Scan(ctx, &expiredTokenID)
+	require.NoError(t, err)
+	testpkg.CreateTestToken(t, db, account.ID, "refresh")
+
+	count, err := repo.CountExpiredTokens(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, before+1, count, "only the expired token is counted")
+
+	deleted, err := repo.DeleteExpiredTokens(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, count, deleted, "the preview matches the sweep")
 }

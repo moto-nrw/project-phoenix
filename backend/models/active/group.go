@@ -32,6 +32,15 @@ type Group struct {
 	Supervisors []*GroupSupervisor `bun:"rel:has-many,join:id=group_id" json:"supervisors,omitempty"`
 }
 
+// RoomSession is a read projection for a running session in a released room.
+type RoomSession struct {
+	ActiveGroupID      int64
+	RoomID             int64
+	ActivityName       string
+	StartTime          time.Time
+	SupervisorStaffIDs []int64
+}
+
 // Validate ensures active group data is valid
 func (g *Group) Validate() error {
 	if g.StartTime.IsZero() {

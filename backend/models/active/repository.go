@@ -25,6 +25,9 @@ type GroupRepository interface {
 
 	// FindActiveByRoomID finds all active groups in a specific room
 	FindActiveByRoomID(ctx context.Context, roomID int64) ([]*Group, error)
+	// FindOpenSessionsInRooms answers the shared-room projection with the
+	// session activity and current supervisors in bulk.
+	FindOpenSessionsInRooms(ctx context.Context, roomIDs []int64) ([]RoomSession, error)
 
 	// LockRoomSessionWrites serializes active session writes for one room until
 	// the current transaction completes.

@@ -14,6 +14,15 @@ import (
 
 // Token Management
 
+// CountExpiredTokens reports how many refresh tokens a cleanup would remove.
+func (s *Service) CountExpiredTokens(ctx context.Context) (int, error) {
+	count, err := s.repos.Token.CountExpiredTokens(ctx)
+	if err != nil {
+		return 0, &AuthError{Op: "count expired tokens", Err: err}
+	}
+	return count, nil
+}
+
 // CleanupExpiredTokens removes expired authentication tokens
 func (s *Service) CleanupExpiredTokens(ctx context.Context) (int, error) {
 	count, err := s.repos.Token.DeleteExpiredTokens(ctx)

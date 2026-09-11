@@ -352,6 +352,25 @@ integration-test rules mirror the People Directory owner; the
 legacy service factory still composes the enrollment decision service and
 go with #2751.
 
+The same owner serves platform operator identity and refresh sessions
+(#2720): `platform.operators` and `platform.operator_refresh_tokens` are read
+and written only through the public `OperatorAccess` capability. Operator
+rows are platform-wide, so the operator operations join an ambient
+administrative transaction and otherwise run on the root connection; the
+operator flows open the transaction where rotation or revocation and its
+audit evidence must commit together. `platform.operator_audit_log` is
+appended through the Audit owner's appender as a platform-scoped ledger
+(`models/audit.OperatorAuditEntry`, no tenant handshake). The retained
+`models/platform` operator repository contracts are compatibility adapters in
+the legacy composition (`database/repositories/operator_identity.go`), bound
+at construction, and go with #2751. The foreign `auth.accounts` reads of the
+People Directory, Care Plan parent and CLI packages use owner queries bound
+the same way (`identity_ports.go`): the account lookup and active-account
+subquery of `database/repositories/auth` and the public account fact. The
+legacy `auth.accounts_parents` model, repository and its six
+`/auth/parent-accounts` routes stay unchanged; the table has no target owner
+and that conflict stays open under #2720.
+
 The session end workflow (`workflows/sessionend`, owner `session-end`, kind
 `workflow`, #2697) is a cross-module write workflow of #2580. Its
 public command closes one live kiosk session in one UnitOfWork: it joins the
@@ -475,6 +494,46 @@ may rely on them. The generic file-metadata
 repository (`database/repositories/documents`) and model (`models/documents`)
 keep their five `document-rendering` debt entries under #2706: their tables
 belong to File Storage (ADR 0010) and move with #2707.
+
+The shared request-review projection (`modules/requestreview`,
+`request-review-view`/`public`, #2705) is the one staff-facing list of every
+parent request awaiting or carrying a decision (Stammdaten, Betreuungszeiten,
+Angebote, Abwesenheiten and the office's own booking corrections): origin,
+type, child, requested change and decision. It owns the merged newest-first
+order with its deterministic tie-break, the one keyset cursor across the
+queues, the urgent-before-normal phases, the permission narrowing of a caller
+without `users:update` to the excused queue, the past-request bulk
+consequences, the whole-queue conflict grouping and the badge count; it
+persists nothing and never writes. The per-type wire shapes live in its
+public package because the decide, preview and detail routes answer with the
+same shapes. Every foreign fact enters through consumer-owned ports: the four
+queues, the correction log, the caller's rights, the group names and the
+Familienschutz flag. Its compatibility adapter (`modules/requestreview/legacy`,
+`request-review-view`/`adapter`) binds those ports to the retained
+`services/users`, `services/schedule`, `services/enrollment` review queues,
+the Care Plan excused-request contract, the retained review policy, people,
+education and Familienschutz services, and derives the per-row facts
+(urgency, past scope, version, conflict keys) with the owners' own rules.
+`api/students` serves `GET /students/change-requests` and
+`/change-requests/pending-count` through the public capability; the old
+four-service fan-out in that package is deleted. The `inbound-students` import
+of the adapter exists only because the per-type decide routes still render
+the same wire shapes from the retained service items; it goes when those
+routes move to their owners. Every `request-review-view.adapter.*`,
+`request-review-view.adapter-test.*` and
+`inbound-students.adapter-test.request-review-adapter` rule is a compatibility
+permission that exists only because PR mode cannot record debt for a package
+the candidate creates: convert them to exact debt with the rule above once the
+package exists at a base SHA, rebind each port to its owner's public
+capability as it appears, and delete the adapter with the last legacy source.
+The projection reads no table directly, so it needs no `read_projections`
+grant; the owner queues keep their per-child scope and tenant isolation. Its
+`Today` port resolves the review day once per call, so the queues' urgency
+phase and the rows' urgency and past flags cannot straddle midnight or
+disagree under a test clock. The staff RSS feed
+(`/students/change-requests/rss-feed`) still reads the request tables through
+its own registered `parent-request-feed-read-model` grant; moving it onto this
+owner is open under #2705.
 
 The Device Fleet authentication composition (`modules/devicefleet/deviceauth`)
 is classified as `device-fleet`/`http`. Its `device-fleet.device-auth.*`

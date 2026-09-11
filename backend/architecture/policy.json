@@ -91,6 +91,10 @@
       "kind": "projection"
     },
     {
+      "id": "request-review-view",
+      "kind": "projection"
+    },
+    {
       "id": "enrollment",
       "kind": "domain"
     },
@@ -1663,6 +1667,20 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/requestreview",
+      "owner": "request-review-view",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/requestreview/legacy",
+      "owner": "request-review-view",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "services/enrollment",
       "owner": "enrollment",
       "role": "application",
@@ -1738,6 +1756,20 @@
       "role": "application",
       "internal_test_role": "workflow-decision-test",
       "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "services/import/ports",
+      "owner": "data-import",
+      "role": "port",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "services/import/integration",
+      "owner": "data-import",
+      "role": "test-support",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
     },
     {
       "path": "services/iot",
@@ -2932,6 +2964,14 @@
   ],
   "data_objects": [
     {
+      "name": "active.presence_backfill_batches",
+      "write_owner": "student-presence"
+    },
+    {
+      "name": "active.presence_backfill_checkpoints",
+      "write_owner": "student-presence"
+    },
+    {
       "name": "active.activity_session_attendance",
       "write_owner": "student-presence"
     },
@@ -3384,6 +3424,10 @@
       "write_owner": "enrollment"
     },
     {
+      "name": "enrollment.request_child_storage_backfill_checkpoints",
+      "write_owner": "migrations"
+    },
+    {
       "name": "enrollment.request_children",
       "write_owner": "enrollment"
     },
@@ -3494,6 +3538,10 @@
     {
       "name": "platform.schools",
       "write_owner": "organization-tenancy"
+    },
+    {
+      "name": "platform.storage_backfill_checkpoints",
+      "write_owner": "migrations"
     },
     {
       "name": "schedule.activity_exceptions",
@@ -6233,6 +6281,159 @@
       "source_role": "application",
       "target_owner": "school-membership",
       "target_role": "public"
+    },
+    {
+      "id": "data-import.port.people-directory",
+      "description": "Data import ports name the People Directory person, student and guardian commands through their public contract (#2708).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "port",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.port.school-membership",
+      "description": "Data import ports name the School Membership staff, caregiver and class-list commands through their public contract (#2708).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "port",
+      "target_owner": "school-membership",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.port.care-plan",
+      "description": "Data import ports name the Care Plan weekly schedule commands through their public contract (#2708).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "port",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.port.student-presence",
+      "description": "Data import ports name the Student Presence retention-consent commands through their public contract (#2708).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "port",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.port.workforce",
+      "description": "Data import ports name the Workforce personnel-record commands through their public contract (#2708).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "port",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.integration-test.legacy-composition",
+      "description": "Data import integration tests compose the owner graph at the legacy composition boundary (#2708).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "data-import",
+      "source_role": "workflow-integration-test",
+      "target_owner": "legacy-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "data-import.integration-test.data-import.application",
+      "description": "Data import integration tests drive the import application through its public entry points (#2708).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "data-import",
+      "source_role": "workflow-integration-test",
+      "target_owner": "data-import",
+      "target_role": "application"
+    },
+    {
+      "id": "data-import.integration-test.data-import.port",
+      "description": "Data import integration tests decorate the owner ports to observe rollback (#2708).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "data-import",
+      "source_role": "workflow-integration-test",
+      "target_owner": "data-import",
+      "target_role": "port"
+    },
+    {
+      "id": "data-import.integration-test.data-import.domain",
+      "description": "Data import integration tests build rows from the import domain types (#2708).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "data-import",
+      "source_role": "workflow-integration-test",
+      "target_owner": "data-import",
+      "target_role": "domain"
+    },
+    {
+      "id": "data-import.integration-test.tenant-runtime",
+      "description": "Data import integration tests run batches in real tenant transactions (#2708).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "data-import",
+      "source_role": "workflow-integration-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.integration-test.security-runtime",
+      "description": "Data import integration tests assert the guardian role presets the security runtime defines (#2708).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "data-import",
+      "source_role": "workflow-integration-test",
+      "target_owner": "security-runtime",
+      "target_role": "application"
+    },
+    {
+      "id": "data-import.integration-test.test-support",
+      "description": "Data import integration tests use hermetic database support (#2708).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "data-import",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "data-import.integration-test.orm-sql",
+      "description": "Data import integration tests arrange and verify PostgreSQL fixtures (#2708).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "data-import",
+      "source_role": "workflow-integration-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "data-import.application.ports",
+      "description": "Data import coordinates the owners through its consumer-owned ports (#2708).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "application",
+      "target_owner": "data-import",
+      "target_role": "port"
     },
     {
       "id": "domain.adapter-port",
@@ -18513,6 +18714,336 @@
       "source_role": "adapter-test",
       "target_owner": "settings-platform",
       "target_role": "domain"
+    },
+    {
+      "id": "request-review-view.public.calendar-date",
+      "description": "The request-review projection parses the history's decided-at bounds and names today's calendar day with the shared calendar-date type (#2705).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "public",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "root-composition.to.request-review-adapter",
+      "description": "The production root constructs the request-review compatibility adapters over the retained parent-request queues, the review policy, the people, education and Familienschutz services (#2705).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "request-review-view",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-students.to.request-review-view",
+      "description": "The students HTTP surface serves the aggregated parent-request list and the pending-count badge through the request-review projection's one public capability (#2705).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "http",
+      "target_owner": "request-review-view",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-students.to.request-review-adapter",
+      "description": "Compatibility binding (#2705): the per-type decide, preview and detail routes render the same per-type wire shapes the projection lists through the adapter's mappers over the retained service items. Goes when those routes move to their owners.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "http",
+      "target_owner": "request-review-view",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-students.adapter-test.request-review-adapter",
+      "description": "Students handler and router tests compose the request-review projection over the retained queues and fakes exactly as the production root does (#2705).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "adapter-test",
+      "target_owner": "request-review-view",
+      "target_role": "adapter"
+    },
+    {
+      "id": "request-review-view.adapter.public",
+      "description": "The request-review compatibility adapters implement the projection's consumer-owned ports and return its public capability (#2705).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter",
+      "target_owner": "request-review-view",
+      "target_role": "public"
+    },
+    {
+      "id": "request-review-view.adapter.security-runtime-application",
+      "description": "Compatibility binding (#2705): the adapter checks the users:update permission with the shared authorize rules.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter",
+      "target_owner": "security-runtime",
+      "target_role": "application"
+    },
+    {
+      "id": "request-review-view.adapter.security-runtime-contract",
+      "description": "Compatibility binding (#2705): the adapter names the users:update permission.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "request-review-view.adapter.identity-access-adapter",
+      "description": "Compatibility binding (#2705): the adapter reads the caller's permissions from the JWT claims in context.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "request-review-view.adapter.legacy-shared-domain",
+      "description": "Compatibility binding (#2705): the adapter derives today's calendar day and parses request dates with the shared calendar-date type.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "request-review-view.adapter.transaction-runtime-domain",
+      "description": "Compatibility binding (#2705): the adapter speaks the retained queues' shared request-queue filter shape.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "request-review-view.adapter.people-directory-domain",
+      "description": "Compatibility binding (#2705): the adapter names the parent-request type constants of the retained conflict-key rule.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "request-review-view.adapter.people-directory-application",
+      "description": "Compatibility binding (#2705): the adapter lists the retained Stammdaten review queue, resolves the students' groups, the Familienschutz flag, the version, past and conflict-key rules of the retained users services.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter",
+      "target_owner": "people-directory",
+      "target_role": "application"
+    },
+    {
+      "id": "request-review-view.adapter.timetable-activities-domain",
+      "description": "Compatibility binding (#2705): the adapter maps the affected timetable blocks of a care-schedule request.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "request-review-view.adapter.timetable-activities-application",
+      "description": "Compatibility binding (#2705): the adapter lists the retained Betreuungszeiten review queue and its history.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "request-review-view.adapter.enrollment-application",
+      "description": "Compatibility binding (#2705): the adapter lists the retained Angebote review queue, its history, its pending count and the office's booking corrections.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter",
+      "target_owner": "enrollment",
+      "target_role": "application"
+    },
+    {
+      "id": "request-review-view.adapter.school-structure-application",
+      "description": "Compatibility binding (#2705): the adapter resolves the students' group names through the retained education service.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter",
+      "target_owner": "school-structure",
+      "target_role": "application"
+    },
+    {
+      "id": "request-review-view.adapter.care-plan-contract",
+      "description": "The request-review adapter lists the Care Plan excused-absence queue through its public contract (#2705).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "request-review-view.adapter-test.people-directory-application",
+      "description": "Request-review adapter tests fake the retained Stammdaten queue and its rules (#2705).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter-test",
+      "target_owner": "people-directory",
+      "target_role": "application"
+    },
+    {
+      "id": "request-review-view.adapter-test.people-directory-domain",
+      "description": "Request-review adapter tests build retained Stammdaten request rows (#2705).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter-test",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "request-review-view.adapter-test.timetable-activities-application",
+      "description": "Request-review adapter tests fake the retained Betreuungszeiten queue (#2705).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter-test",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "request-review-view.adapter-test.timetable-activities-domain",
+      "description": "Request-review adapter tests build retained care-schedule request rows (#2705).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter-test",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "request-review-view.adapter-test.enrollment-application",
+      "description": "Request-review adapter tests fake the retained Angebote queue and correction log (#2705).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter-test",
+      "target_owner": "enrollment",
+      "target_role": "application"
+    },
+    {
+      "id": "request-review-view.adapter-test.enrollment-domain",
+      "description": "Request-review adapter tests build retained offering-change request rows (#2705).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter-test",
+      "target_owner": "enrollment",
+      "target_role": "domain"
+    },
+    {
+      "id": "request-review-view.adapter-test.student-presence-domain",
+      "description": "Request-review adapter tests seed excused-absence request rows for the two-tenant RLS proof (#2705).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter-test",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "request-review-view.adapter-test.audit-platform-domain",
+      "description": "Request-review adapter tests build retained booking-correction rows (#2705).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter-test",
+      "target_owner": "audit-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "request-review-view.adapter-test.transaction-runtime-domain",
+      "description": "Request-review adapter tests speak the retained request-queue filter shape and base model (#2705).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter-test",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "request-review-view.adapter-test.legacy-shared-domain",
+      "description": "Request-review adapter tests fix calendar days with the shared calendar-date type (#2705).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "request-review-view.adapter-test.identity-access-adapter",
+      "description": "Request-review adapter tests place JWT permissions in context (#2705).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "request-review-view.adapter-test.orm-sql",
+      "description": "Request-review adapter tests seed rows and open tenant transactions through the Bun database for the two-tenant RLS proof (#2705).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter-test",
+      "target_class": "orm-sql"
     }
   ]
 }

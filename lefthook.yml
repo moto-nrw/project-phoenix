@@ -52,8 +52,20 @@ pre-commit:
     go-imports:
       glob: "backend/**/*.go"
       run: |
+        # Only the staged files. `goimports -d .` walks every package, which
+        # takes ~10 minutes on a WSL checkout, and it reads the WORKING TREE:
+        # editing an unrelated Go file while the hook runs makes it report that
+        # edit as a finding and fail the commit.
+        #
+        # Deleted paths are dropped ([ -f ]) and the backend/ prefix stripped,
+        # because `go tool` needs the module directory as its working directory.
+        FILES=$(for f in {staged_files}; do [ -f "$f" ] && printf '%s\n' "${f#backend/}"; done)
+        [ -n "$FILES" ] || exit 0
         cd backend
-        DIFF=$(../scripts/run-go-toolchain.sh go tool goimports -d . 2>&1)
+        # stderr is deliberately NOT folded into DIFF: a parse error would
+        # otherwise look like a formatting diff. It stays on the terminal, and
+        # goimports' own non-zero exit fails the hook.
+        DIFF=$(../scripts/run-go-toolchain.sh go tool goimports -d $FILES)
         if [ -n "$DIFF" ]; then
           echo "❌ Go imports not organized. Run: cd backend && ../scripts/run-go-toolchain.sh go tool goimports -w ."
           echo "$DIFF"

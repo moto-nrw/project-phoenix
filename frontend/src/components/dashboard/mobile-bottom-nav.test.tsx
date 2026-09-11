@@ -290,6 +290,26 @@ describe("MobileBottomNav", () => {
       );
     });
 
+    it.each([
+      ["activities:manage_categories", "/database/categories"],
+      ["schedules:manage", "/database/planning-tracks"],
+      ["time_tracking:manage", "/database/shift-types"],
+    ])(
+      "opens the first allowed catalog for users with %s",
+      (permission, expectedHref) => {
+        mockHasPermission.mockImplementation(
+          (_session, currentPermission) => currentPermission === permission,
+        );
+
+        render(<MobileBottomNav />);
+        fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+        expect(
+          screen.getByRole("link", { name: "Datenverwaltung" }),
+        ).toHaveAttribute("href", `/test-tenant${expectedHref}`);
+      },
+    );
+
     it("hides groups from users without staff or admin access", () => {
       mockIsCaregiver.mockReturnValue(false);
 
@@ -1076,10 +1096,11 @@ describe("MobileBottomNav", () => {
       expect(hrefs).not.toContain("/active-supervisions");
     });
 
-    it("does not inject Aufsicht tab when only a synthetic Schulhof room exists (setting off)", () => {
-      // P1-A regression guard: Schulhof is injected into supervisedRooms for
-      // every tenant that has one. An admin without admin_supervision_overview
-      // must not surface the admin tab merely because a Schulhof entry exists.
+    it("does not inject Aufsicht tab when only a released room exists (setting off)", () => {
+      // P1-A regression guard: a released room appears in supervisedRooms for
+      // every caregiver of that tenant. An admin without
+      // admin_supervision_overview must not surface the admin tab merely
+      // because such a shared room exists (#3065).
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
       mockUseSupervision.mockReturnValue({
@@ -1089,7 +1110,7 @@ describe("MobileBottomNav", () => {
         isLoadingSupervision: false,
         overviewEnabled: false,
         supervisedRooms: [
-          { id: "schulhof", name: "Schulhof", groupId: "g1", isSchulhof: true },
+          { id: "7", name: "Schulhof", groupId: "7", isOpenRoom: true },
         ],
         groups: [],
         refresh: vi.fn(),

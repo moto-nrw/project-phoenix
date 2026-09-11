@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	authsvc "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/auth/authtest"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -489,10 +488,9 @@ func TestStaffImportConfig_FindExisting(t *testing.T) {
 func TestStaffImportConfig_FindExisting_PersonnelNumberDoesNotFallBackToNameWithoutNumber(t *testing.T) {
 	t.Parallel()
 
-	staff := &userModels.Staff{Person: &userModels.Person{FirstName: "Anna", LastName: "Lehmann"}}
-	staff.ID = 99
+	staff := &indexedStaff{ID: 99, FirstName: "Anna", LastName: "Lehmann"}
 	config := NewStaffImportConfig(StaffImportDeps{})
-	config.staffByName = map[string][]*userModels.Staff{
+	config.staffByName = map[string][]*indexedStaff{
 		staffNameKey("Anna", "Lehmann"): {staff},
 	}
 

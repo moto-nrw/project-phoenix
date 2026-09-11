@@ -35,6 +35,7 @@ import (
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	classdayHTTP "github.com/moto-nrw/project-phoenix/modules/classday/http"
 	emergencyAPI "github.com/moto-nrw/project-phoenix/modules/emergencysnapshot/http"
+	requestreviewlegacy "github.com/moto-nrw/project-phoenix/modules/requestreview/legacy"
 	calendarAPI "github.com/moto-nrw/project-phoenix/modules/staffcalendar/http"
 
 	importAPI "github.com/moto-nrw/project-phoenix/api/import"
@@ -289,7 +290,10 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 	if err != nil {
 		return moduleServices{}, err
 	}
-	repoFactory := repositories.NewFactory(db, repositories.TimetableDependencies{Capability: timetableCapability, Students: persons, Groups: groups, Rooms: rooms, Calendar: calendar, Membership: membership, Workforce: workTime})
+	repoFactory := repositories.NewFactory(db, repositories.TimetableDependencies{
+		Capability: timetableCapability, Students: persons, Groups: groups, Rooms: rooms, Calendar: calendar, Membership: membership, Workforce: workTime,
+		ObserveIdentityAccess: observability.ObserveIdentityAccessOperation,
+	})
 	appointmentCapability, err := appointmentsCompose.New(appointmentsCompose.Dependencies{
 		DB: db,
 		Observe: func(observation appointmentsCompose.Observation) {
@@ -384,6 +388,8 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 		observability.ObserveDurableDelivery,
 		observability.ObserveDeviceFleetOperation,
 		observability.ObserveIdentityAccessOperation,
+		workTime,
+		observability.ObserveDataImport,
 	)
 	if err != nil {
 		return moduleServices{}, err
@@ -1176,6 +1182,23 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	// factory already fails startup when the decision service stops
 	// implementing the resync, so the assertion cannot silently miss here.
 	studentClassResyncer, _ := api.Services.EnrollmentDecision.(educationSvc.OfferingSourceResyncer)
+	// The shared request-review projection (#2705) merges the four retained
+	// parent-request queues for the aggregated list and the badge; its
+	// compatibility adapter binds the retained review policy, people,
+	// education and Familienschutz services.
+	requestReview, err := requestreviewlegacy.New(requestreviewlegacy.Sources{
+		MasterData:       api.Services.MasterDataReview,
+		CareSchedule:     api.Services.CareRequests,
+		Offering:         api.Services.OfferingChanges,
+		Excused:          api.Services.ExcusedRequests,
+		People:           api.Services.Users,
+		Education:        api.Services.Education,
+		FamilyProtection: api.Services.FamilyProtection,
+		ReviewPolicy:     api.Services.RequestReviewPolicy,
+	})
+	if err != nil {
+		return fmt.Errorf("request review projection: %w", err)
+	}
 	api.Students = studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PersonService:                api.Services.Users,
 		PeopleDirectory:              api.Services.PeopleDirectory,
@@ -1206,6 +1229,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		ParentRequestConflictService: api.Services.ParentRequests,
 		FamilyProtectionService:      api.Services.FamilyProtection,
 		RequestReviewAccess:          api.Services.RequestReviewPolicy,
+		RequestReview:                requestReview,
 		StudentStatusDayService:      api.Services.StudentStatusDays,
 		AbsenceOverview:              api.Services.AbsenceOverview,
 		StudentHistoryService:        api.Services.StudentHistory,

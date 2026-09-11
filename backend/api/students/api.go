@@ -16,6 +16,7 @@ import (
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	activityService "github.com/moto-nrw/project-phoenix/services/activities"
@@ -90,7 +91,11 @@ type ResourceConfig struct {
 	// RequestReviewAccess reports the caller's coarse reach over the parent
 	// request queues so the empty list can explain itself. Optional: a nil
 	// policy omits the field (bare test Resources).
-	RequestReviewAccess     ParentRequestReviewAccess
+	RequestReviewAccess ParentRequestReviewAccess
+	// RequestReview is the shared request-review projection (#2705) behind
+	// the aggregated list and the pending-count badge. Optional for bare
+	// test Resources; the two routes answer 500 without it.
+	RequestReview           requestreview.Query
 	StudentStatusDayService *activeService.StudentStatusDayService
 	AbsenceOverview         *activeService.StudentStatusDayOverviewService
 	StudentHistoryService   activeService.StudentHistoryService

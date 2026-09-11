@@ -398,7 +398,7 @@ func (rs *Resource) Router() chi.Router {
 			Delete("/templates/{id}", rs.archiveTemplate)
 
 		r.Route("/planning-tracks", func(r chi.Router) {
-			r.With(common.RequiresPermission(permissions.SchedulesRead), withTx).Get("/", rs.listPlanningTracks)
+			r.With(common.RequiresAnyPermission(permissions.SchedulesRead, permissions.SchedulesManage), withTx).Get("/", rs.listPlanningTracks)
 			r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).Post("/", rs.createPlanningTrack)
 			r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).Put("/order", rs.reorderPlanningTracks)
 			r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).Put("/{id}", rs.updatePlanningTrack)

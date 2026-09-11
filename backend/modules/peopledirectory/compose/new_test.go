@@ -66,6 +66,31 @@ func TestModuleCreatesReadsUpdatesAndSoftDeletesOneTenant(t *testing.T) {
 	assert.Empty(t, byIDs, "soft-deleted persons stay out of every listing")
 }
 
+// The import decides "no such child" and "ambiguous" over every namesake, so
+// an equals search must not stop at a page and must not match a prefix.
+func TestModuleSearchByExactNameIsUnpagedAndIgnoresPrefixes(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+
+	namesakes := peopledirectory.MaxPageSize + 1
+	for range namesakes {
+		_, err := module.CreatePerson(ctx, peopledirectory.CreatePerson{FirstName: "Anna", LastName: "Exactmatch"})
+		require.NoError(t, err)
+	}
+	_, err := module.CreatePerson(ctx, peopledirectory.CreatePerson{FirstName: "Annabell", LastName: "Exactmatchner"})
+	require.NoError(t, err)
+
+	found, err := module.SearchPersons(ctx, peopledirectory.PersonFilter{FirstNameEquals: " anna ", LastNameEquals: "EXACTMATCH"})
+	require.NoError(t, err)
+	assert.Len(t, found, namesakes)
+	for _, person := range found {
+		assert.Equal(t, "Anna", person.FirstName)
+		assert.Equal(t, "Exactmatch", person.LastName)
+	}
+}
+
 func TestModuleTenantIsolationHidesAnotherTenantsPersons(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

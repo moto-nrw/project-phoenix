@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	requestreviewlegacy "github.com/moto-nrw/project-phoenix/modules/requestreview/legacy"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
@@ -175,7 +176,7 @@ func TestToOfferingRequestResponse_IncludesRemainingDaysForOverridePreview(t *te
 		}},
 	}
 
-	response := toOfferingRequestResponse(view)
+	response := requestreviewlegacy.ToOfferingRequestResponse(view)
 
 	require.Len(t, response.Diff, 1)
 	assert.Equal(t, "Di", response.Diff[0].RuleDays)
@@ -206,7 +207,7 @@ func TestToOfferingRequestResponse_ReportsFullWithdrawalAndUntouchedBookings(t *
 		}},
 	}
 
-	resp := toOfferingRequestResponse(view)
+	resp := requestreviewlegacy.ToOfferingRequestResponse(view)
 
 	assert.True(t, resp.FullWithdrawal)
 	assert.Equal(t, "abgemeldet", resp.Diff[0].New)
@@ -231,7 +232,7 @@ func TestToOfferingRequestResponse_OmitsFullWithdrawalForAnOrdinaryRequest(t *te
 		}},
 	}
 
-	resp := toOfferingRequestResponse(view)
+	resp := requestreviewlegacy.ToOfferingRequestResponse(view)
 
 	assert.False(t, resp.FullWithdrawal)
 	assert.Empty(t, resp.Unchanged)

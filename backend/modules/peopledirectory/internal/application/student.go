@@ -64,6 +64,16 @@ func (s *StudentService) ListByClasses(ctx context.Context, classes []string) (r
 	return result, err
 }
 
+func (s *StudentService) ListByPersonIDs(ctx context.Context, personIDs []int64) (result []domain.Student, err error) {
+	err = s.run(ctx, "list_students_by_person", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {
+		var queryStats domain.OperationStats
+		result, queryStats, err = s.store.ListByPersonIDs(txCtx, personIDs)
+		stats.Add(queryStats)
+		return err
+	})
+	return result, err
+}
+
 func (s *StudentService) ListEnrolled(ctx context.Context) (result []domain.Student, err error) {
 	err = s.run(ctx, "list_enrolled_students", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats

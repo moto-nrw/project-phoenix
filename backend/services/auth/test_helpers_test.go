@@ -1199,6 +1199,10 @@ func (noopTokenRepository) FindByAccountIDAndIdentifier(context.Context, int64, 
 	panic("FindByAccountIDAndIdentifier not implemented")
 }
 
+func (noopTokenRepository) CountExpiredTokens(context.Context) (int, error) {
+	panic("CountExpiredTokens not implemented")
+}
+
 func (noopTokenRepository) DeleteExpiredTokens(context.Context) (int, error) {
 	panic("DeleteExpiredTokens not implemented")
 }

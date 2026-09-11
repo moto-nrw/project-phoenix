@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -26,6 +27,7 @@ type ownerCapabilities struct {
 	membership    schoolmembership.Capability
 	calendar      schoolcalendar.Capability
 	timetable     timetable.Capability
+	workforce     workforceModule.Capability
 }
 
 // NewFactoryForTests creates the partial graph used by legacy package tests.
@@ -35,7 +37,7 @@ func NewFactoryForTests(repos *repositories.Factory, db *bun.DB, logger *slog.Lo
 	if err != nil {
 		return nil, err
 	}
-	return newFactory(repos, db, logger, currentTestFactoryConfig(), tenant.UnitOfWork{}, owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, owners.timetable, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, true, clocks...)
+	return newFactory(repos, db, logger, currentTestFactoryConfig(), tenant.UnitOfWork{}, owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, owners.timetable, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.workforce, func(string, bool, int, int, int, int, int, time.Duration) {}, true, clocks...)
 }
 
 func NewFactoryForTestsWithConfig(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cfg FactoryConfig, clocks ...func() time.Time) (*Factory, error) {
@@ -43,7 +45,7 @@ func NewFactoryForTestsWithConfig(repos *repositories.Factory, db *bun.DB, logge
 	if err != nil {
 		return nil, err
 	}
-	return newFactory(repos, db, logger, cfg, tenant.UnitOfWork{}, owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, owners.timetable, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, true, clocks...)
+	return newFactory(repos, db, logger, cfg, tenant.UnitOfWork{}, owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, owners.timetable, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.workforce, func(string, bool, int, int, int, int, int, time.Duration) {}, true, clocks...)
 }
 
 func currentTestFactoryConfig() FactoryConfig {
@@ -81,8 +83,12 @@ func newOwnerCapabilitiesForTests(db *bun.DB) (ownerCapabilities, error) {
 	if err != nil {
 		return ownerCapabilities{}, err
 	}
+	workTime, err := repositories.NewWorkforce(db, membership)
+	if err != nil {
+		return ownerCapabilities{}, err
+	}
 	return ownerCapabilities{
 		organizations: organizations, persons: persons, groups: groups, rooms: rooms,
-		membership: membership, calendar: calendar, timetable: timetableCapability,
+		membership: membership, calendar: calendar, timetable: timetableCapability, workforce: workTime,
 	}, nil
 }

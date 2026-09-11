@@ -8,6 +8,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setTestClock } from "~/test/clock";
 
 // The date fields moved from native inputs to the kit picker; this stub keeps
 // them settable via fireEvent.change and forwards min/max so the bound
@@ -37,6 +38,8 @@ const {
   mockFetchStudents,
   mockGetAllStaff,
   mockListPlanningTracks,
+  mockGetOfferingSources,
+  mockGetCombinedOfferingCounts,
 } = vi.hoisted(() => ({
   mockToastSuccess: vi.fn(),
   mockToastError: vi.fn(),
@@ -56,6 +59,8 @@ const {
   mockFetchStudents: vi.fn(),
   mockGetAllStaff: vi.fn(),
   mockListPlanningTracks: vi.fn(),
+  mockGetOfferingSources: vi.fn(),
+  mockGetCombinedOfferingCounts: vi.fn(),
 }));
 
 vi.mock("~/contexts/ToastContext", () => ({
@@ -100,8 +105,20 @@ vi.mock("~/lib/timetable-api", () => ({
     countEditedInWindow: mockCountEditedInWindow,
     checkConflicts: mockCheckConflicts,
     checkShiftCoverage: (probe: unknown) => mockCheckShiftCoverage(probe),
+    getOfferingSources: mockGetOfferingSources,
+    getCombinedOfferingCounts: mockGetCombinedOfferingCounts,
   },
 }));
+
+// A sourced series loads its offering list and child counts on open.
+function mockOfferingSourceReads() {
+  mockGetOfferingSources.mockResolvedValue([]);
+  mockGetCombinedOfferingCounts.mockResolvedValue({
+    totalCount: 0,
+    gradeCounts: {},
+    students: [],
+  });
+}
 
 import { TimetableEventModal } from "./timetable-event-modal";
 import { parseISODate, toISODate, todayISO } from "~/lib/date-helpers";
@@ -1980,6 +1997,49 @@ describe("TimetableEventModal", () => {
     );
   });
 
+  it("saves a sourced series with per-weekday staff and no replace dialog (#3165)", async () => {
+    setTestClock("2026-05-04T10:00:00");
+    mockOfferingSourceReads();
+
+    renderModal({
+      initialSeries: {
+        ...templateWithWeekdayRosters,
+        targetGroupType: "angebot",
+        sourceCareOfferingIds: ["41"],
+      },
+    });
+
+    await screen.findByText("Regeltermin bearbeiten");
+    await clickSave();
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          source_care_offering_ids: [41],
+          student_ids: [],
+          weekday_assignments: [
+            {
+              weekday: 1,
+              staff_ids: [11],
+              student_ids: [],
+              primary_staff_id: 11,
+            },
+            {
+              weekday: 2,
+              staff_ids: [12],
+              student_ids: [],
+              primary_staff_id: 12,
+            },
+          ],
+        }),
+      ),
+    );
+    expect(
+      screen.queryByText("Besetzung je Wochentag wird ersetzt"),
+    ).not.toBeInTheDocument();
+  });
+
   it("ignores closing days before a direct series segment starts", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-05-04T10:00:00"));
@@ -3695,6 +3755,53 @@ describe("TimetableEventModal", () => {
       ),
     );
   });
+
+  it.each([
+    { scope: /Alle Termine der Serie/, mock: () => mockUpdateTemplate },
+    { scope: /Ab jetzt dauerhaft/, mock: () => mockSplitTemplate },
+  ])(
+    "keeps per-weekday staff without per-weekday children for a sourced series ($scope) (#3165)",
+    async ({ scope, mock }) => {
+      mockOfferingSourceReads();
+      mockGetTemplate.mockResolvedValue({
+        ...templateWithWeekdayRosters,
+        targetGroupType: "angebot",
+        sourceCareOfferingIds: ["41"],
+      });
+      renderModal({
+        initialInstance: { ...savedInstance, activityGroupId: "7" },
+      });
+
+      await screen.findByText("Wiederholenden Termin ändern");
+      fireEvent.click(screen.getByRole("button", { name: scope }));
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      await clickSave();
+
+      await waitFor(() =>
+        expect(mock()).toHaveBeenCalledWith(
+          "7",
+          expect.objectContaining({
+            source_care_offering_ids: [41],
+            student_ids: [],
+            weekday_assignments: [
+              {
+                weekday: 1,
+                staff_ids: [11],
+                student_ids: [],
+                primary_staff_id: 11,
+              },
+              {
+                weekday: 2,
+                staff_ids: [12],
+                student_ids: [],
+                primary_staff_id: 12,
+              },
+            ],
+          }),
+        ),
+      );
+    },
+  );
 
   it("preserves fetched template staff for 'Alle Termine der Serie' without users:read", async () => {
     mockGetAllStaff.mockRejectedValue(new Error("forbidden"));

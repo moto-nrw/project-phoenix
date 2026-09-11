@@ -36,6 +36,7 @@ The implementation owner approved deferring target enforcement to
 Cutover must preserve concurrent duplicate rejection and reuse after
 offboarding before enabling target writes. Expand leaves the authoritative
 old-table constraint intact. [Backfill #2752](https://github.com/moto-nrw/project-phoenix/issues/2752)
+(runbook: [staff-owner-storage-backfill.md](staff-owner-storage-backfill.md))
 and Cutover remain separate work.
 
 ## Rollback
