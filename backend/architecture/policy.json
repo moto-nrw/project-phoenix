@@ -14238,17 +14238,6 @@
       "target_role": "application"
     },
     {
-      "id": "workforce.http.document-rendering-application",
-      "description": "The Workforce shift-planning composition renders the printable Dienstplan through the retained plan export service (#2689).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "http",
-      "target_owner": "document-rendering",
-      "target_role": "application"
-    },
-    {
       "id": "workforce.http.orm-sql",
       "description": "The Workforce shift-planning HTTP composition passes the concrete Bun database to the shared tenant middleware.",
       "scopes": [
@@ -18354,7 +18343,7 @@
     },
     {
       "id": "inbound-filestore.to.file-storage-adapter",
-      "description": "Compatibility binding (#2706): the file store handlers move document bytes through the File Storage object-store adapter until File Storage exposes the upload lifecycle publicly (#2707).",
+      "description": "Named exception (https://github.com/moto-nrw/project-phoenix/issues/2580#issuecomment-5638973300), not a target dependency: the pre-existing file store handlers keep moving document bytes through the moved File Storage object-store adapter; delete this rule when #2707 moves them to the public File Storage capability.",
       "scopes": [
         "production"
       ],
@@ -18365,7 +18354,7 @@
     },
     {
       "id": "inbound-students.to.file-storage-adapter",
-      "description": "Compatibility binding (#2706): the student document handlers move document bytes through the File Storage object-store adapter until File Storage exposes the upload lifecycle publicly (#2707).",
+      "description": "Named exception (https://github.com/moto-nrw/project-phoenix/issues/2580#issuecomment-5638973300), not a target dependency: the pre-existing student document handlers keep moving document bytes through the moved File Storage object-store adapter; delete this rule when #2731 moves them to the public File Storage capability.",
       "scopes": [
         "production"
       ],
