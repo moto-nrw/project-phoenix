@@ -72,6 +72,11 @@ import {
   sourceScopesOverlap,
   targetCohortActionLabel,
 } from "./form-model";
+import {
+  withUnavailableCurrentCategory,
+  type CategoryOption,
+  type RoomOption,
+} from "./category-option";
 import type {
   EventFormState,
   PersonOption,
@@ -95,11 +100,7 @@ import type {
   WeekdayAssignmentBody,
 } from "~/lib/timetable-types";
 
-export interface RoomOption {
-  id: number;
-  name: string;
-  building?: string;
-}
+export type { CategoryOption, RoomOption } from "./category-option";
 
 export interface GroupOption {
   id: string;
@@ -149,15 +150,21 @@ export const WEEKDAYS = [1, 2, 3, 4, 5] as const;
 /**
  * Keeps a category selection only while the refreshed picker still offers it.
  * A newly created category is authoritative even if the following refetch is
- * stale; an archived category is cleared so saving cannot submit its old ID.
+ * stale. A category on an existing series remains selectable after archiving
+ * so that refreshing the picker cannot discard the stored association.
  */
 export function reconcileCategoryId(
   currentId: string,
   categories: readonly Pick<ActivityCategory, "id">[],
   createdId?: string,
+  preserveMissing = false,
 ): string {
   if (createdId) return createdId;
-  if (currentId && !categories.some((category) => category.id === currentId)) {
+  if (
+    !preserveMissing &&
+    currentId &&
+    !categories.some((category) => category.id === currentId)
+  ) {
     return "";
   }
   return currentId;
@@ -279,7 +286,7 @@ export function useEventForm({
       initialPrimaryStaffID(initialInstance, initialSeries, convertInstance),
     );
   const [rooms, setRooms] = useState<RoomOption[]>([]);
-  const [categories, setCategories] = useState<ActivityCategory[]>([]);
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [planningTracks, setPlanningTracks] = useState<PlanningTrack[]>([]);
   const [groups, setGroups] = useState<GroupOption[]>([]);
   const [students, setStudents] = useState<PersonOption[]>([]);
@@ -343,11 +350,13 @@ export function useEventForm({
   // newer modal state.
   const referenceLoadSeq = useRef(0);
   const categoryLoadSeq = useRef(0);
+  const planningTrackLoadSeq = useRef(0);
   const studentLoadSeq = useRef(0);
   const staffLoadSeq = useRef(0);
   const invalidateReferenceLoads = useCallback(() => {
     referenceLoadSeq.current++;
     categoryLoadSeq.current++;
+    planningTrackLoadSeq.current++;
     studentLoadSeq.current++;
     staffLoadSeq.current++;
   }, []);
@@ -520,6 +529,7 @@ export function useEventForm({
     }
     const referenceSeq = ++referenceLoadSeq.current;
     const categorySeq = ++categoryLoadSeq.current;
+    const planningTrackSeq = ++planningTrackLoadSeq.current;
     const studentSeq = ++studentLoadSeq.current;
     const staffSeq = ++staffLoadSeq.current;
     const isCurrentReferenceLoad = () =>
@@ -628,9 +638,20 @@ export function useEventForm({
         if (isCurrentReferenceLoad()) {
           setRooms(sortedRooms);
           setGroups(sortedGroups);
-          setPlanningTracks(planningTrackData);
+          if (planningTrackLoadSeq.current === planningTrackSeq) {
+            setPlanningTracks(planningTrackData);
+          }
           if (categoryLoadSeq.current === categorySeq) {
-            setCategories(sortedCategories);
+            setCategories(
+              initialSeries
+                ? withUnavailableCurrentCategory(
+                    sortedCategories,
+                    nextForm.categoryId,
+                    [],
+                    initialSeries.categoryName,
+                  )
+                : sortedCategories,
+            );
             setForm((prev) =>
               prev.categoryId || sortedCategories.length === 0
                 ? prev
@@ -3641,39 +3662,58 @@ export function useEventForm({
    * something (#2131). When a category was just created, it is selected right
    * away — the user opened the dialog because the one they needed was missing.
    */
-  const refreshCategories = useCallback(async (selectId?: string) => {
-    const categorySeq = ++categoryLoadSeq.current;
-    if (selectId) {
-      setForm((prev) => ({ ...prev, categoryId: selectId }));
-    }
-    try {
-      const data = await fetchPlannerActivityCategories();
-      const sorted = [...data].sort((a, b) =>
-        a.name.localeCompare(b.name, "de"),
-      );
-      if (categoryLoadSeq.current !== categorySeq) return;
-      setCategories(sorted);
-      setForm((prev) => {
-        const categoryId = reconcileCategoryId(
-          prev.categoryId,
-          sorted,
-          selectId,
+  const refreshCategories = useCallback(
+    async (selectId?: string) => {
+      const categorySeq = ++categoryLoadSeq.current;
+      if (selectId) {
+        setForm((prev) => ({ ...prev, categoryId: selectId }));
+      }
+      try {
+        const data = await fetchPlannerActivityCategories();
+        const sorted = [...data].sort((a, b) =>
+          a.name.localeCompare(b.name, "de"),
         );
-        return categoryId === prev.categoryId ? prev : { ...prev, categoryId };
-      });
-    } catch (err: unknown) {
-      logger.error("categories_refresh_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-  }, []);
+        if (categoryLoadSeq.current !== categorySeq) return;
+        setCategories(
+          effectiveSeries && !selectId
+            ? withUnavailableCurrentCategory(
+                sorted,
+                form.categoryId,
+                categories,
+                effectiveSeries.categoryName,
+              )
+            : sorted,
+        );
+        setForm((prev) => {
+          const categoryId = reconcileCategoryId(
+            prev.categoryId,
+            sorted,
+            selectId,
+            effectiveSeries !== null,
+          );
+          return categoryId === prev.categoryId
+            ? prev
+            : { ...prev, categoryId };
+        });
+      } catch (err: unknown) {
+        logger.error("categories_refresh_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    },
+    [categories, effectiveSeries, form.categoryId],
+  );
 
   const refreshPlanningTracks = useCallback(async (selectId?: string) => {
+    const planningTrackSeq = ++planningTrackLoadSeq.current;
     if (selectId) {
       setForm((prev) => ({ ...prev, planningTrackId: selectId }));
     }
     try {
-      setPlanningTracks(await planningTrackService.list());
+      const planningTracks = await planningTrackService.list();
+      if (planningTrackLoadSeq.current === planningTrackSeq) {
+        setPlanningTracks(planningTracks);
+      }
     } catch (err: unknown) {
       logger.error("planning_tracks_refresh_failed", {
         error: err instanceof Error ? err.message : String(err),

@@ -16,7 +16,8 @@ import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 import { DatabaseCardGridSkeleton } from "./page-skeleton";
 import { formatCount } from "~/lib/format-utils";
 
-import { useNFCEnabled } from "~/lib/tenant-context";
+import { hasEffectiveAdminScope, hasPermission } from "~/lib/auth-utils";
+import { useNFCEnabled, useTimetableEnabled } from "~/lib/tenant-context";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 
 interface DataSection {
@@ -31,6 +32,14 @@ interface DataSection {
    * no flag of its own.
    */
   permissionKey?: string;
+  /**
+   * Tenant-Berechtigung aus der Sitzung. Die Stammdaten-Kataloge (#3114)
+   * haben keine Zahl in /api/database/counts und damit auch kein Flag dort;
+   * sie hängen an dem Recht, das ihre Route verlangt.
+   */
+  sessionPermission?: string;
+  /** Nur sichtbar, solange der Planungsbereich eingeschaltet ist. */
+  requiresPlanning?: boolean;
   /** Replaces the entry-count badge for sections that count nothing. */
   badge?: string;
   /** Call to action on the card. Defaults to "Verwalten". */
@@ -161,6 +170,46 @@ const baseDataSections: DataSection[] = [
     concept: "permissions",
   },
   {
+    // Die kurzen Stammdaten-Listen der Schule (#3114). Sie lagen vorher in
+    // Slide-overs und Auswahlfeldern der Flächen, die sie benutzen.
+    id: "categories",
+    title: "Terminkategorien",
+    description: "Termine und Aktivitäten einordnen, zum Beispiel Essen",
+    href: "/database/categories",
+    concept: "activities",
+    sessionPermission: "activities:manage_categories",
+    badge: "Stammdaten",
+  },
+  {
+    id: "planningTracks",
+    title: "Planungsspuren",
+    description: "Regeltermine im Betreuungsplan farblich bündeln",
+    href: "/database/planning-tracks",
+    concept: "carePlan",
+    sessionPermission: "schedules:manage",
+    requiresPlanning: true,
+    badge: "Stammdaten",
+  },
+  {
+    id: "shiftTypes",
+    title: "Schichtarten",
+    description: "Aufgabe einer Schicht im Dienstplan benennen",
+    href: "/database/shift-types",
+    concept: "staffPlan",
+    sessionPermission: "time_tracking:manage",
+    requiresPlanning: true,
+    badge: "Stammdaten",
+  },
+  {
+    id: "absenceTypes",
+    title: "Abwesenheitsarten",
+    description: "Eigene Namen für Abwesenheiten der Mitarbeitenden",
+    href: "/database/absence-types",
+    concept: "timeTracking",
+    sessionPermission: "time_tracking:manage",
+    badge: "Stammdaten",
+  },
+  {
     id: "gradeTransitions",
     title: "Jahrgangswechsel",
     description:
@@ -210,6 +259,9 @@ function buildDatabaseStatusLine(counts: DatabaseCounts): string {
 function DatabaseContent() {
   const { data: session } = useSession();
   const nfcEnabled = useNFCEnabled();
+  // Der Wert kommt aus den Tenant-Metadaten und steht damit auch delegierten
+  // Personen ohne config:read zur Verfügung.
+  const timetableEnabled = useTimetableEnabled();
   const tenantPath = useTenantAwarePath();
   const { data, isLoading: countsLoading } = useSWR(
     session?.user ? "/api/database/counts" : null,
@@ -262,11 +314,26 @@ function DatabaseContent() {
               return null;
             }
 
-            // Check permissions for this section
-            const permissionKey = (section.permissionKey ??
-              `canView${section.id.charAt(0).toUpperCase() + section.id.slice(1)}`) as keyof typeof permissions;
-            if (!permissions?.[permissionKey]) {
+            if (section.requiresPlanning && !timetableEnabled) {
               return null;
+            }
+
+            if (section.sessionPermission !== undefined) {
+              // Stammdaten-Katalog: das Recht der Route entscheidet, nicht ein
+              // Flag aus den Zählern (#3114).
+              if (
+                !hasEffectiveAdminScope(session) &&
+                !hasPermission(session, section.sessionPermission)
+              ) {
+                return null;
+              }
+            } else {
+              // Check permissions for this section
+              const permissionKey = (section.permissionKey ??
+                `canView${section.id.charAt(0).toUpperCase() + section.id.slice(1)}`) as keyof typeof permissions;
+              if (!permissions?.[permissionKey]) {
+                return null;
+              }
             }
 
             const countKey =

@@ -464,7 +464,7 @@ const TINY_TEXT_BASELINE_FILES = new Set([
 const TINY_TEXT_BASELINE = parseLocationBaseline(`
 src/app/[tenant]/(protected)/database/personal/opening-balances/page.tsx|text-[11px]@188 text-[11px]@225
 src/app/[tenant]/(protected)/day-log/page.tsx|text-[11px]@164
-src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]@1334 text-[11px]@1334 text-[10px]@1338 text-[10px]@1347 text-[11px]@1347
+src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]@1335 text-[11px]@1335 text-[10px]@1339 text-[10px]@1348 text-[11px]@1348
 src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198
 src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@235 text-[11px]@276
 src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@213
@@ -473,7 +473,7 @@ src/components/activities/activity-management-modal.tsx|text-[10px]@330 text-[10
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
 src/components/calendar/personal-calendar.tsx|text-[11px]@786 text-[11px]@814 text-[11px]@901 text-[11px]@962 text-[11px]@966 text-[11px]@972 text-[11px]@1018 text-[11px]@1024 text-[10px]@1044 text-[11px]@1097 text-[11px]@1177 text-[11px]@1183 text-[11px]@1188
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@40 text-[10px]@94
-src/components/dashboard/sidebar.tsx|text-[10px]@1310
+src/components/dashboard/sidebar.tsx|text-[10px]@1340
 src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@920 text-[11px]@939
 src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1306 text-[11px]@2991 text-[11px]@3183 text-[11px]@3188 text-[11px]@3193 text-[11px]@3347 text-[11px]@3939 text-[10px]@4156 text-[11px]@4168 text-[11px]@4203 text-[10px]@4217 text-[10px]@4261
 src/components/enrollment/enrollment-form.tsx|text-[11px]@2090
@@ -498,7 +498,7 @@ src/components/time-tracking/leave-requests-card.tsx|text-[10px]@488
 src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@377
 src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@437 text-[11px]@479
 src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-[10px]@295 text-[11px]@301
-src/components/timetable/event-form/step-termin.tsx|text-[10px]@167 text-[11px]@247 text-[11px]@280 text-[11px]@341 text-[11px]@347 text-[11px]@395
+src/components/timetable/event-form/step-termin.tsx|text-[10px]@157 text-[11px]@227 text-[11px]@260 text-[11px]@321 text-[11px]@327 text-[11px]@375
 src/components/timetable/gap-jump-list.tsx|text-[10px]@108 text-[11px]@131 text-[11px]@146
 src/components/timetable/instance-block.tsx|text-[10px]@197 text-[10px]@203 text-[10px]@210 text-[10px]@218 text-[10px]@239
 src/components/timetable/instance-detail-modal.tsx|text-[10px]@244 text-[9px]@360 text-[9px]@940 text-[11px]@1233 text-[11px]@1259 text-[11px]@1435 text-[10px]@1505 text-[11px]@1528

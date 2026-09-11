@@ -372,6 +372,31 @@ const NFC_ONLY_HREFS = new Set<string>([
   "/database/devices",
 ]);
 
+/**
+ * Die Stammdaten-Kataloge der Datenverwaltung (#3114) und das Recht, das ihre
+ * Route verlangt. Dieselbe Zuordnung steht im Guard der Route
+ * (`database/layout.tsx`); hier entscheidet sie nur, ob der Eintrag sichtbar
+ * ist.
+ */
+const DATABASE_CATALOG_PERMISSIONS: Readonly<Record<string, string>> = {
+  "/database/categories": "activities:manage_categories",
+  "/database/planning-tracks": "schedules:manage",
+  "/database/shift-types": "time_tracking:manage",
+  "/database/absence-types": "time_tracking:manage",
+};
+
+/** Rechte, die den Personalbereich auch ohne Leitungsrolle öffnen. */
+const PERSONNEL_PAGE_PERMISSIONS = [
+  "staff:manage",
+  "staff:stammdaten",
+] as const;
+
+/** Kataloge, die ohne den Planungsbereich nichts zu ordnen haben. */
+const PLANNING_CATALOG_HREFS = new Set<string>([
+  "/database/planning-tracks",
+  "/database/shift-types",
+]);
+
 // Nav items hidden in binary-mode tenants. Rooms and Activities are room/visit
 // concepts with no operational meaning when the tenant only tracks
 // in-school/out-of-school on active.attendance. The Aktuelle-Aufsicht
@@ -672,12 +697,37 @@ function SidebarContent({
         // it isn't sent to a page that only 403s.
         if (page.href === "/database/grade-transitions") {
           return (
-            userIsAdmin || hasPermission(session, "grade_transitions:read")
+            userHasEffectiveAdminScope ||
+            hasPermission(session, "grade_transitions:read")
           );
         }
-        return true;
+        if (page.href === "/database/personal") {
+          return (
+            userHasEffectiveAdminScope ||
+            PERSONNEL_PAGE_PERMISSIONS.some((permission) =>
+              hasPermission(session, permission),
+            )
+          );
+        }
+        // Die Stammdaten-Kataloge (#3114) tragen dasselbe Recht wie ihre
+        // Schreibzugriffe; ohne es führt der Eintrag nur auf ein 403.
+        const catalogPermission = DATABASE_CATALOG_PERMISSIONS[page.href];
+        if (catalogPermission !== undefined) {
+          if (
+            !userHasEffectiveAdminScope &&
+            !hasPermission(session, catalogPermission)
+          ) {
+            return false;
+          }
+          // Planungsspuren und Schichtarten gehören zum Planungsbereich; ist
+          // er ausgeschaltet, gibt es nichts zu ordnen.
+          if (PLANNING_CATALOG_HREFS.has(page.href)) return timetableEnabled;
+          return true;
+        }
+        // Alle übrigen Datenverwaltungsseiten bleiben der Leitungsbereich.
+        return userHasEffectiveAdminScope;
       }),
-    [nfcEnabled, userIsAdmin, session],
+    [nfcEnabled, userHasEffectiveAdminScope, session, timetableEnabled],
   );
 
   // Visible "Eltern" accordion sub-pages. Same per-item gating the flat
@@ -1223,18 +1273,29 @@ function SidebarContent({
   }, [toggle, pathname, supervisedRooms, router]);
 
   const handleDatabaseToggle = useCallback(() => {
+    // Der Hub ist dem Leitungsbereich vorbehalten. Delegierte Personen haben
+    // nur einen oder mehrere Kataloge und starten deshalb beim ersten
+    // erreichbaren Unterpunkt statt auf einer gesperrten Hub-Seite.
+    const databaseLandingPath = userHasEffectiveAdminScope
+      ? "/database"
+      : databaseSubPages[0]?.href;
     if (!pathname.startsWith("/database")) {
-      // Not on any database page, expand accordion and navigate to hub
+      // Not on any database page, expand accordion and navigate to its
+      // reachable landing page.
       toggle("database");
-      router.push("/database");
+      if (databaseLandingPath) router.push(databaseLandingPath);
     } else if (pathname === "/database") {
       // On hub page, just toggle collapse or expand
+      toggle("database");
+    } else if (!userHasEffectiveAdminScope) {
+      // Delegated users have no hub to return to; keep them on their allowed
+      // catalog and let the control act as the accordion toggle.
       toggle("database");
     } else {
       // On a sub-page like /database/rooms, navigate back to hub
       router.push("/database");
     }
-  }, [toggle, pathname, router]);
+  }, [databaseSubPages, toggle, pathname, router, userHasEffectiveAdminScope]);
 
   const activeEnrollmentSubPageHref = getActiveEnrollmentSubPageHref(pathname);
   const isOnEnrollmentsPage = activeEnrollmentSubPageHref !== null;
@@ -1307,7 +1368,7 @@ function SidebarContent({
                     erhalten und die Icons darunter springen beim Klappen
                     nicht nach oben. */}
                 <p
-                  className={`mb-1.5 truncate px-3 text-[10px] font-semibold tracking-wider text-gray-400 uppercase motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-100" : "opacity-0"}`}
+                  className={`mb-1.5 truncate px-3 text-xs font-semibold tracking-wider text-gray-400 uppercase motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-100" : "opacity-0"}`}
                   aria-hidden={collapsed}
                 >
                   {section.label}
@@ -1505,9 +1566,9 @@ function SidebarContent({
       </SidebarAccordionSection>
     ) : null;
 
-  // Datenverwaltung (admin only): Hub-Seite plus feste Unterseiten.
+  // Datenverwaltung: Hub-Seite plus Unterseiten für berechtigte Personen.
   const renderDatabaseSection = () =>
-    userIsAdmin ? (
+    databaseSubPages.length > 0 ? (
       <SidebarAccordionSection
         icon={DATABASE_NAV_ICON}
         concept="database"

@@ -59,12 +59,13 @@ async function readOne(
 class CategoryService {
   /**
    * Lists the categories for the manage screen: archived ones included so they
-   * can be restored, and usage counts opted into. The pickers deliberately do
-   * NOT use this — a plain list skips the extra usage aggregate server-side.
+   * can be restored, system rows included for their read-only display, and
+   * usage counts opted into. The pickers deliberately do NOT use this — a
+   * plain list skips the extra usage aggregate server-side.
    */
   async getManagedCategories(): Promise<ActivityCategory[]> {
     const response = await sessionFetch(
-      "/api/activities/categories?include_archived=true&with_usage=true",
+      "/api/activities/categories?include_archived=true&include_system=true&with_usage=true",
     );
     if (!response.ok) {
       throw await readError(

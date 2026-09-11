@@ -1,6 +1,7 @@
 "use client";
 
 import { useId } from "react";
+import { Button } from "@/components/ui/button";
 import { LOCATION_COLORS } from "@/lib/location-helper";
 
 /**
@@ -19,7 +20,7 @@ import { LOCATION_COLORS } from "@/lib/location-helper";
  * Display value is normalised to upper-case hex so the audit log and the
  * uniqueness index stay consistent.
  */
-export function RoomColorField(props: {
+export function CatalogColorField(props: {
   value: unknown;
   onChange: (value: unknown) => void;
   label: string;
@@ -76,13 +77,15 @@ export function RoomColorField(props: {
           {stringValue ?? "Standard"}
         </span>
         {stringValue && (
-          <button
+          <Button
             type="button"
             onClick={() => onChange(null)}
-            className="text-xs text-gray-500 underline hover:text-gray-700"
+            variant="ghost"
+            size="compact"
+            className="h-auto px-0 py-0 text-gray-500 underline hover:text-gray-700"
           >
             Zurücksetzen
-          </button>
+          </Button>
         )}
       </div>
       <p className="mt-1 text-xs text-gray-500">

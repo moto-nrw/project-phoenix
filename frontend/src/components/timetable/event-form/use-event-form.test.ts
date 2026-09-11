@@ -2,7 +2,11 @@ import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ActivityCategory } from "~/lib/activity-helpers";
-import type { TimetableTemplate } from "~/lib/timetable-types";
+import type { PlanningTrack } from "~/lib/planning-track-api";
+import type {
+  EnrichedInstance,
+  TimetableTemplate,
+} from "~/lib/timetable-types";
 import * as plannerReferenceApi from "~/lib/planner-reference-api";
 import { planningTrackService } from "~/lib/planning-track-api";
 import { staffService } from "~/lib/staff-api";
@@ -47,6 +51,62 @@ describe("reconcileCategoryId", () => {
 
   it("keeps a newly created selection even if the refetch is stale", () => {
     expect(reconcileCategoryId("1", categories, "3")).toBe("3");
+  });
+});
+
+describe("useEventForm planning-track refresh", () => {
+  it("keeps a newer planning-track refresh when the initial load finishes later", async () => {
+    let resolveInitialTracks: (tracks: PlanningTrack[]) => void;
+    const initialTracks = new Promise<PlanningTrack[]>((resolve) => {
+      resolveInitialTracks = resolve;
+    });
+    const freshTracks: PlanningTrack[] = [
+      { id: "2", name: "Neu", color: "#83CD2D", sortOrder: 0 },
+    ];
+    vi.spyOn(planningTrackService, "list")
+      .mockReturnValueOnce(initialTracks)
+      .mockResolvedValueOnce(freshTracks);
+    vi.spyOn(plannerReferenceApi, "fetchPlannerRooms").mockResolvedValue([]);
+    vi.spyOn(plannerReferenceApi, "fetchPlannerGroups").mockResolvedValue([]);
+    vi.spyOn(
+      plannerReferenceApi,
+      "fetchPlannerActivityCategories",
+    ).mockResolvedValue([]);
+    vi.spyOn(formModel, "fetchAllStudentOptions").mockResolvedValue([]);
+    vi.spyOn(staffService, "getAllStaff").mockResolvedValue([]);
+
+    const { result } = renderHook(() =>
+      useEventForm({
+        isOpen: true,
+        onClose: vi.fn(),
+        onSaved: vi.fn(),
+        defaultDate: "2026-08-03",
+        calendarPeriods: [],
+        defaultCalendarPeriodId: null,
+        planningPeriods: null,
+        initialInstance: null,
+        initialSeries: null,
+        convertInstance: null,
+        defaultRepeat: "none",
+        variant: "full",
+        canCheckShiftCoverage: false,
+      }),
+    );
+
+    await waitFor(() => expect(planningTrackService.list).toHaveBeenCalled());
+    await act(async () => {
+      await result.current.refreshPlanningTracks();
+    });
+    expect(result.current.planningTracks).toEqual(freshTracks);
+
+    await act(async () => {
+      resolveInitialTracks!([
+        { id: "1", name: "Alt", color: "#5080D8", sortOrder: 0 },
+      ]);
+      await initialTracks;
+    });
+
+    expect(result.current.planningTracks).toEqual(freshTracks);
   });
 });
 
@@ -724,6 +784,183 @@ describe("useEventForm Quellenfilter-Modus (#2482)", () => {
 });
 
 describe("useEventForm category loading", () => {
+  it("keeps an archived category while refreshing an existing series", async () => {
+    const initialSeries: TimetableTemplate = {
+      id: "9",
+      name: "Basteln",
+      type: "care",
+      categoryId: "2",
+      categoryName: "Archiviert",
+      roomId: "7",
+      isOpen: true,
+      maxParticipants: 20,
+      targetGroupType: "angebot",
+      enrollmentCount: 0,
+      supervisorCount: 0,
+      requiredStaffCount: 0,
+      assignedStaffCount: 0,
+      studentIds: [],
+      staffIds: [],
+      weekdayAssignments: [],
+      schedules: [
+        {
+          id: "1",
+          weekday: 1,
+          startTime: "12:00",
+          endTime: "13:00",
+          weekPattern: 0,
+          calendarPeriodId: "5",
+        },
+      ],
+    };
+    vi.spyOn(plannerReferenceApi, "fetchPlannerRooms").mockResolvedValue([]);
+    vi.spyOn(plannerReferenceApi, "fetchPlannerGroups").mockResolvedValue([]);
+    vi.spyOn(
+      plannerReferenceApi,
+      "fetchPlannerActivityCategories",
+    ).mockResolvedValue([]);
+    vi.spyOn(formModel, "fetchAllStudentOptions").mockResolvedValue([]);
+    vi.spyOn(staffService, "getAllStaff").mockResolvedValue([]);
+
+    const { result } = renderHook(() =>
+      useEventForm({
+        isOpen: true,
+        onClose: vi.fn(),
+        onSaved: vi.fn(),
+        defaultDate: "2026-08-03",
+        calendarPeriods: [],
+        defaultCalendarPeriodId: null,
+        planningPeriods: null,
+        initialInstance: null,
+        initialSeries,
+        convertInstance: null,
+        defaultRepeat: "none",
+        variant: "full",
+        canCheckShiftCoverage: false,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.form.categoryId).toBe("2"));
+    await act(async () => {
+      await result.current.refreshCategories();
+    });
+
+    expect(result.current.form.categoryId).toBe("2");
+    expect(result.current.categories).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "2",
+          name: "Archiviert",
+          disabled: true,
+        }),
+      ]),
+    );
+  });
+
+  it("keeps an archived category after an instance switches to its series", async () => {
+    const initialInstance: EnrichedInstance = {
+      id: "42",
+      date: "2026-08-03",
+      startTime: "12:00",
+      endTime: "13:00",
+      title: "Basteln",
+      status: "planned",
+      isSpontaneous: false,
+      isLive: false,
+      activityGroupId: "9",
+      activityType: "care",
+      roomId: "7",
+      roomName: "Mensa",
+      staff: [],
+      students: [],
+      studentIds: [],
+      staffCount: 0,
+      absentStaffCount: 0,
+      expectedStudentsCount: 0,
+      notScheduledStudentsCount: 0,
+      presentStudentsCount: 0,
+      requiredStaffCount: 0,
+      assignedStaffCount: 0,
+      conflictWarnings: [],
+    };
+    const archivedSeries: TimetableTemplate = {
+      id: "9",
+      name: "Basteln",
+      type: "care",
+      categoryId: "2",
+      categoryName: "Archiviert",
+      roomId: "7",
+      isOpen: true,
+      maxParticipants: 20,
+      targetGroupType: "angebot",
+      enrollmentCount: 0,
+      supervisorCount: 0,
+      requiredStaffCount: 0,
+      assignedStaffCount: 0,
+      studentIds: [],
+      staffIds: [],
+      weekdayAssignments: [],
+      schedules: [
+        {
+          id: "1",
+          weekday: 1,
+          startTime: "12:00",
+          endTime: "13:00",
+          weekPattern: 0,
+          calendarPeriodId: "5",
+        },
+      ],
+    };
+    const timestamp = new Date("2026-08-03T10:00:00Z");
+    vi.spyOn(plannerReferenceApi, "fetchPlannerRooms").mockResolvedValue([]);
+    vi.spyOn(plannerReferenceApi, "fetchPlannerGroups").mockResolvedValue([]);
+    vi.spyOn(plannerReferenceApi, "fetchPlannerActivityCategories")
+      .mockResolvedValueOnce([
+        {
+          id: "2",
+          name: "Archiviert",
+          created_at: timestamp,
+          updated_at: timestamp,
+        },
+      ])
+      .mockResolvedValueOnce([]);
+    vi.spyOn(formModel, "fetchAllStudentOptions").mockResolvedValue([]);
+    vi.spyOn(staffService, "getAllStaff").mockResolvedValue([]);
+    vi.spyOn(timetableService, "getTemplate").mockResolvedValue(archivedSeries);
+
+    const { result } = renderHook(() =>
+      useEventForm({
+        isOpen: true,
+        onClose: vi.fn(),
+        onSaved: vi.fn(),
+        defaultDate: "2026-08-03",
+        calendarPeriods: [],
+        defaultCalendarPeriodId: null,
+        planningPeriods: null,
+        initialInstance,
+        initialSeries: null,
+        convertInstance: null,
+        defaultRepeat: "none",
+        variant: "full",
+        canCheckShiftCoverage: false,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.categories).toHaveLength(1));
+    await act(async () => {
+      await result.current.handleInitialScopeSelect("all");
+    });
+    await waitFor(() => expect(result.current.form.categoryId).toBe("2"));
+    await act(async () => {
+      await result.current.refreshCategories();
+    });
+
+    expect(result.current.form.categoryId).toBe("2");
+    expect(result.current.categories).toEqual([
+      { id: "2", name: "Archiviert", disabled: true },
+    ]);
+  });
+
   it("does not let the initial request overwrite a newer refresh", async () => {
     let resolveInitialCategories: (value: ActivityCategory[]) => void = () =>
       undefined;
