@@ -459,6 +459,36 @@ describe("resolveSupervisionSelection (#2265)", () => {
     ).toEqual({ kind: "open-room", roomId: "54" });
   });
 
+  it("opens the caller's supervised released room, not the first released room by name", () => {
+    // Home "Zur Aufsicht" lands on /active-supervisions with no query.
+    // Schulhof is first among released rooms, but the caller only
+    // supervises Sporthalle — that is the matching sidebar row.
+    expect(
+      resolveSupervisionSelection({
+        ...base,
+        rooms: [
+          {
+            id: "fußball",
+            name: "Fußball",
+            room_name: "Sporthalle",
+            room_id: "2",
+          },
+        ],
+        openRoomIds: new Set(["1", "2"]),
+      }),
+    ).toEqual({ kind: "open-room", roomId: "2" });
+  });
+
+  it("opens the first released room when the caller has no own session", () => {
+    expect(
+      resolveSupervisionSelection({
+        ...base,
+        rooms: [],
+        openRoomIds: new Set(["1", "2"]),
+      }),
+    ).toEqual({ kind: "open-room", roomId: "1" });
+  });
+
   it("falls back to the saved legacy room without switching within the room", () => {
     expect(
       resolveSupervisionSelection({

@@ -148,12 +148,16 @@ export function resolveSupervisionSelection(options: {
   // in a released room. The navigation has one entry for a released room, not
   // one per session in it, so selecting such a session by default would leave
   // the sidebar without a matching entry. If every running session is in a
-  // released room, select the first shared room instead.
+  // released room, select that session's room — the matching sidebar row —
+  // not the first released room by name. Home "Zur Aufsicht" lands here with
+  // no query.
   if (openRoomIds.size > 0) {
     const ownSession = rooms.find(
       (room) => !room.room_id || !openRoomIds.has(room.room_id),
     );
     if (ownSession) return sessionTarget(ownSession);
+    const firstOwn = rooms[0];
+    if (firstOwn) return sessionTarget(firstOwn);
     const firstOpenRoomId = openRoomIds.values().next().value as
       string | undefined;
     if (firstOpenRoomId) {
