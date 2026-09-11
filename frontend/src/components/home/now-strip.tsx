@@ -1,17 +1,24 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ButtonLink } from "~/components/ui/button";
+import { Alert } from "~/components/ui/alert";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useBerlinClock } from "~/components/home/home-card-rows";
+import { useStartOwnBlock } from "~/components/home/use-start-own-block";
 import { fetchDashboardAnalyticsClient } from "~/lib/dashboard-api";
 import type { DashboardAnalytics } from "~/lib/dashboard-helpers";
 import { formatStatusDate } from "~/lib/date-helpers";
 import type { HomeBlockAccess, HomeBlockContext } from "~/lib/home-blocks";
 import { formatMinutesAhead } from "~/lib/home-clock";
-import { deriveHomeNow, nowActions, type HomeNowState } from "~/lib/home-now";
+import {
+  deriveHomeNow,
+  nowActions,
+  startableOwnBlock,
+  type HomeNowState,
+} from "~/lib/home-now";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { createLogger } from "~/lib/logger";
 import { ownShiftService } from "~/lib/shift-api";
@@ -49,8 +56,8 @@ export function NowStrip({
   const today = useBerlinToday();
   const now = useBerlinClock();
   // `ownSupervision`, nicht `isSupervising`: Letzteres ist wahr, sobald es
-  // einen Schulhof gibt — „fortsetzen" kann man nur, was man selbst führt.
-  const { ownSupervision, hasGroups } = useOptionalSupervision();
+  // einen Schulhof gibt. „Zur Aufsicht" führt nur, wer selbst beaufsichtigt.
+  const { ownSupervision } = useOptionalSupervision();
 
   // Der eigene Tag: für alle, die selbst betreuen. Ein reines Adminkonto hat
   // keine Einsätze; die Abfrage liefe ins Leere.
@@ -64,6 +71,11 @@ export function NowStrip({
     context.timetableEnabled &&
     context.detailed &&
     access.has("schedules:read");
+  // Der Tag laut Plan, für „Aufsicht starten": dieselbe Freigabe und
+  // derselbe Schlüssel wie „Mein Tag" und „Ablauf des Tages". Die
+  // Schulansicht daraus bleibt der Leitung vorbehalten; wer betreut, bekommt
+  // aus diesen Daten nur den Knopf.
+  const wantsDay = context.timetableEnabled && access.has("schedules:read");
   const wantsAnalytics = access.isAdminScope && access.has("groups:read");
 
   const own = useSWRAuth<OwnAssignment[]>(
@@ -71,12 +83,13 @@ export function NowStrip({
     () => ownShiftService.getOwnAssignments(today, today),
     { revalidateOnFocus: false, errorRetryCount: 1 },
   );
-  const school = useSWRAuth<PlannedTimetableInstance[]>(
-    wantsSchool ? "home-day-flow" : null,
+  const day = useSWRAuth<PlannedTimetableInstance[]>(
+    wantsDay ? "home-day-flow" : null,
     () =>
       timetableOperationsApi.plannedNow({ scope: "day", includeRoster: false }),
     { refreshInterval: 5 * 60 * 1000 },
   );
+  const school = wantsSchool ? day : { data: undefined, error: undefined };
   const analytics = useSWRAuth<DashboardAnalytics>(
     wantsAnalytics ? "dashboard-analytics" : null,
     fetchDashboardAnalyticsClient,
@@ -110,11 +123,20 @@ export function NowStrip({
     school: school.error ? undefined : school.data,
   });
 
-  const canOpenGroup =
-    hasGroups && !context.openCareGroupMode && context.detailed;
+  // Dieselbe Regel wie der Starten-Knopf in „Mein Tag", aus derselben
+  // Abfrage. Ein Fehler dort nimmt nur den Knopf mit, nicht die Zone.
+  const startable =
+    wantsDay && !day.error
+      ? startableOwnBlock(day.data ?? [], new Date())
+      : null;
+  const {
+    start,
+    busyId,
+    error: startError,
+  } = useStartOwnBlock({ onFailure: () => day.mutate() });
   const actions = nowActions({
     isSupervising: ownSupervision === true,
-    canOpenGroup,
+    startable,
     canReadUsers: access.has("users:read"),
     tenantPath,
   });
@@ -146,20 +168,40 @@ export function NowStrip({
             es in der Zone geht. */}
         {actions.length > 0 && (
           <div className="flex shrink-0 flex-wrap gap-2">
-            {actions.map((action, index) => (
-              <ButtonLink
-                key={action.href}
-                href={action.href}
-                variant={index === 0 ? "primary" : "outline"}
-                size="md"
-                className="whitespace-nowrap"
-              >
-                {action.label}
-              </ButtonLink>
-            ))}
+            {actions.map((action, index) => {
+              const variant = index === 0 ? "primary" : "outline";
+              return action.kind === "start" ? (
+                <Button
+                  key={`start-${action.block.id}`}
+                  type="button"
+                  variant={variant}
+                  size="md"
+                  className="whitespace-nowrap"
+                  disabled={busyId !== null}
+                  onClick={() => void start(action.block)}
+                >
+                  {busyId === action.block.id ? "Startet..." : action.label}
+                </Button>
+              ) : (
+                <ButtonLink
+                  key={action.href}
+                  href={action.href}
+                  variant={variant}
+                  size="md"
+                  className="whitespace-nowrap"
+                >
+                  {action.label}
+                </ButtonLink>
+              );
+            })}
           </div>
         )}
       </div>
+      {startError && (
+        <div className="mt-4">
+          <Alert type="error" message={startError} />
+        </div>
+      )}
     </SectionCard>
   );
 }
@@ -181,7 +223,16 @@ function NowText({
           headline={block.title}
           badges={
             <>
-              <StatusBadge tone="green" label="Läuft" />
+              {/* Die Uhr sagt, dass der Block dran ist; ob er läuft, sagt
+                  der Status. Sonst stünde „Läuft" neben „Aufsicht starten".
+                  Dieselben Wörter wie im Tagesplan. */}
+              {block.status === "active" ? (
+                <StatusBadge tone="green" label="Läuft" />
+              ) : block.status === "completed" ? (
+                <StatusBadge tone="gray" label="Beendet" />
+              ) : (
+                <StatusBadge tone="orange" label="Nicht gestartet" />
+              )}
               {block.isSubstitute && (
                 <StatusBadge tone="blue" label="Vertretung" />
               )}
@@ -230,12 +281,15 @@ function NowText({
       );
     case "school": {
       const { running, notStarted, next, minutesAhead, total } = state;
+      // „Alles vorbei" erst, wenn auch nichts mehr überfällig ist: ein Block,
+      // den niemand gestartet hat, ist nicht vorbei, nur weil nach ihm
+      // nichts mehr kommt.
       const headline =
         running > 0
           ? running === 1
             ? "1 Block läuft"
             : `${running} Blöcke laufen`
-          : next
+          : next || notStarted > 0
             ? "Gerade läuft kein Block"
             : total > 0
               ? "Für heute ist alles vorbei"

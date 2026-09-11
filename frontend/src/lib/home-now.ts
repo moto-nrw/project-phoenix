@@ -1,5 +1,6 @@
 import { blockPhase, minutesBetween } from "~/lib/home-clock";
 import type { OwnAssignment } from "~/lib/shift-helpers";
+import { canStartPlannedInstance } from "~/lib/timetable-lifecycle";
 import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types";
 
 /**
@@ -130,50 +131,87 @@ export function deriveHomeNow(input: {
   return { kind: "plain" };
 }
 
-interface NowAction {
-  readonly href: string;
-  readonly label: string;
+/**
+ * Der eigene Block, den die Person JETZT starten darf. Dieselbe Regel wie
+ * der Starten-Knopf in „Mein Tag": eingeteilt, noch geplant, und der Server
+ * gibt das Starten frei (Zeitfenster um den Beginn). Liegen zwei Blöcke im
+ * Fenster, zählt der frühere.
+ */
+export function startableOwnBlock(
+  blocks: readonly PlannedTimetableInstance[],
+  at: Date,
+): PlannedTimetableInstance | null {
+  return (
+    blocks
+      .filter(
+        (block) =>
+          block.isAssigned &&
+          block.status === "planned" &&
+          canStartPlannedInstance(block, at),
+      )
+      .sort((a, b) => a.startTime.localeCompare(b.startTime))[0] ?? null
+  );
 }
+
+export type NowAction =
+  | {
+      readonly kind: "link";
+      readonly href: string;
+      readonly label: string;
+    }
+  | {
+      readonly kind: "start";
+      readonly block: PlannedTimetableInstance;
+      readonly label: string;
+    };
 
 /**
  * Höchstens zwei Wege, die an dieser Stelle im Tag wirklich naheliegen —
- * nicht die ganze Navigation als Knopfleiste. Läuft eine Aufsicht, ist das
- * Fortsetzen der erste Weg. Danach alle Kinder, dann die eigene Gruppe:
- * nach Rückmeldung aus den Schulen öffnet das Team die Kindersuche am
- * häufigsten, und die eigene Gruppe steht ohnehin als Baustein unter der
- * Zone. Vorher stand
- * „Meine Gruppe" als schwarzer Hauptknopf vorne und war das Auffälligste
- * der ganzen Startseite.
+ * nicht die ganze Navigation als Knopfleiste.
+ *
+ * Der erste Weg führt in die Aufsicht: läuft die eigene, zu ihr; steht der
+ * eigene Block laut Plan an, startet der Knopf ihn. Danach alle Kinder:
+ * nach Rückmeldung aus den Schulen der Weg, den das Team am häufigsten
+ * nimmt. „Meine Gruppe" steht nicht in der Zone: die eigene Gruppe hat als
+ * Baustein darunter ihren Platz, und als schwarzer Hauptknopf war sie das
+ * Auffälligste der ganzen Startseite.
  */
 export function nowActions({
   isSupervising,
-  canOpenGroup,
+  startable,
   canReadUsers,
   tenantPath,
 }: {
   readonly isSupervising: boolean;
-  readonly canOpenGroup: boolean;
+  /** Der eigene Block, der jetzt starten darf (`startableOwnBlock`). */
+  readonly startable: PlannedTimetableInstance | null;
   readonly canReadUsers: boolean;
   readonly tenantPath: (path: string) => string;
 }): readonly NowAction[] {
   const actions: NowAction[] = [];
+  // Wer schon beaufsichtigt, startet nicht noch einen Block von hier aus:
+  // ein zweiter Block im Fenster steht mit Starten-Knopf in „Mein Tag".
   if (isSupervising) {
     actions.push({
+      kind: "link",
       href: tenantPath("/active-supervisions"),
-      label: "Aufsicht fortsetzen",
+      label: "Zur Aufsicht",
+    });
+  } else if (startable) {
+    actions.push({
+      kind: "start",
+      block: startable,
+      label: "Aufsicht starten",
     });
   }
   // Kein Weg in den Tagesplan: der Tag steht als Baustein direkt unter der
-  // Zone, mit Weiterlink und Starten-Knopf. Ein zweiter Knopf darüber wäre
-  // derselbe Weg zweimal.
+  // Zone, mit Weiterlink. Ein zweiter Knopf darüber wäre derselbe Weg zweimal.
   if (canReadUsers) {
     actions.push({
+      kind: "link",
       href: tenantPath("/students/search"),
       label: "Alle Kinder",
     });
-  }
-  if (canOpenGroup) {
-    actions.push({ href: tenantPath("/ogs-groups"), label: "Meine Gruppe" });
   }
   return actions.slice(0, 2);
 }

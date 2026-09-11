@@ -8,6 +8,7 @@ import {
   deriveOwnNow,
   deriveSchoolNow,
   nowActions,
+  startableOwnBlock,
 } from "./home-now";
 
 function assignment(overrides: Partial<OwnAssignment> = {}): OwnAssignment {
@@ -161,56 +162,99 @@ describe("deriveHomeNow (#2180)", () => {
   });
 });
 
+describe("startableOwnBlock (#2180)", () => {
+  const at = new Date("2026-09-08T10:05:00+02:00");
+
+  it("nimmt den eigenen, geplanten Block, den der Server freigibt", () => {
+    const mine = block({ id: "4", isAssigned: true, canStart: true });
+
+    expect(startableOwnBlock([mine], at)).toBe(mine);
+  });
+
+  it("übergeht fremde, laufende und nicht freigegebene Blöcke", () => {
+    expect(
+      startableOwnBlock(
+        [
+          block({ id: "1", isAssigned: false, canStart: true }),
+          block({ id: "2", isAssigned: true, status: "active" }),
+          block({ id: "3", isAssigned: true, canStart: false }),
+          block({
+            id: "4",
+            isAssigned: true,
+            canStart: true,
+            startExpiresAt: "2026-09-08T10:00:00+02:00",
+          }),
+        ],
+        at,
+      ),
+    ).toBeNull();
+  });
+
+  it("nimmt bei zwei freigegebenen Blöcken den früheren", () => {
+    const later = block({
+      id: "5",
+      isAssigned: true,
+      canStart: true,
+      startTime: "10:30",
+    });
+    const earlier = block({
+      id: "6",
+      isAssigned: true,
+      canStart: true,
+      startTime: "10:00",
+    });
+
+    expect(startableOwnBlock([later, earlier], at)).toBe(earlier);
+  });
+});
+
 describe("nowActions (#2180)", () => {
   const tenantPath = (path: string) => `/t${path}`;
   const base = {
     isSupervising: false,
-    canOpenGroup: false,
+    startable: null,
     canReadUsers: true,
     tenantPath,
   };
+  const startable = block({ id: "9", isAssigned: true, canStart: true });
 
-  it("stellt eine laufende Aufsicht an die erste Stelle", () => {
-    const actions = nowActions({
-      ...base,
-      isSupervising: true,
-      canOpenGroup: true,
-    });
+  it("führt bei laufender eigener Aufsicht zu ihr", () => {
+    const actions = nowActions({ ...base, isSupervising: true });
 
     expect(actions.map((a) => a.label)).toEqual([
-      "Aufsicht fortsetzen",
+      "Zur Aufsicht",
       "Alle Kinder",
     ]);
+    expect(actions[0]).toMatchObject({ href: "/t/active-supervisions" });
   });
 
-  // Der Tagesplan ist kein Weg der Zone: „Mein Tag" steht direkt darunter.
-  // Alle Kinder vor der eigenen Gruppe: die Gruppe steht schon als Baustein
-  // unter der Zone und war als schwarzer Hauptknopf zu präsent.
-  it("führt sonst zu allen Kindern, dann in die eigene Gruppe", () => {
-    const actions = nowActions({ ...base, canOpenGroup: true });
+  it("bietet den eigenen Block zum Starten an, solange keine Aufsicht läuft", () => {
+    const actions = nowActions({ ...base, startable });
 
-    expect(actions.map((a) => a.href)).toEqual([
-      "/t/students/search",
-      "/t/ogs-groups",
-    ]);
-  });
-
-  it("führt ohne users:read nur in die eigene Gruppe", () => {
-    const actions = nowActions({
-      ...base,
-      canOpenGroup: true,
-      canReadUsers: false,
+    expect(actions[0]).toEqual({
+      kind: "start",
+      block: startable,
+      label: "Aufsicht starten",
     });
-
-    expect(actions.map((a) => a.href)).toEqual(["/t/ogs-groups"]);
+    expect(actions[1]).toMatchObject({
+      kind: "link",
+      href: "/t/students/search",
+    });
   });
 
-  // Ohne Gruppe bleibt die Kindersuche, wenn die Person sie öffnen darf.
-  it("bietet als letzten Weg alle Kinder an", () => {
-    const actions = nowActions(base);
+  // Ein zweiter Block im Fenster steht mit Starten-Knopf in „Mein Tag".
+  it("startet nichts von hier, wenn schon eine Aufsicht läuft", () => {
+    const actions = nowActions({ ...base, isSupervising: true, startable });
 
-    expect(actions).toEqual([
-      { href: "/t/students/search", label: "Alle Kinder" },
+    expect(actions.map((a) => a.kind)).toEqual(["link", "link"]);
+    expect(actions[0]?.label).toBe("Zur Aufsicht");
+  });
+
+  // Weder die eigene Gruppe (steht als Baustein darunter) noch der Tagesplan
+  // („Mein Tag" steht darunter) sind Wege der Zone.
+  it("führt sonst nur zu allen Kindern", () => {
+    expect(nowActions(base)).toEqual([
+      { kind: "link", href: "/t/students/search", label: "Alle Kinder" },
     ]);
   });
 
@@ -219,12 +263,8 @@ describe("nowActions (#2180)", () => {
   });
 
   it("zeigt nie mehr als zwei Wege", () => {
-    const actions = nowActions({
-      ...base,
-      isSupervising: true,
-      canOpenGroup: true,
-    });
-
-    expect(actions).toHaveLength(2);
+    expect(
+      nowActions({ ...base, isSupervising: true, startable }),
+    ).toHaveLength(2);
   });
 });
