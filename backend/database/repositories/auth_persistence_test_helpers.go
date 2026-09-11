@@ -1,6 +1,9 @@
 package repositories
 
 import (
+	"context"
+
+	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
@@ -70,6 +73,12 @@ func NewSessionValidationPersistence(db *bun.DB) *SessionValidationPersistence {
 		Operator:             operatorRepository{identity: identity},
 		OperatorRefreshToken: operatorRefreshTokenRepository{identity: identity},
 	}
+}
+
+// NewOperatorAuditLogPersistence composes only the retained operator audit
+// contract over the Audit owner's platform-scoped ledger.
+func NewOperatorAuditLogPersistence(db *bun.DB) platformModels.OperatorAuditLogRepository {
+	return newOperatorAuditLog(auditRepo.NewRuntime(db, func(context.Context) int64 { return 0 }))
 }
 
 // newInvitationMembershipRepositories composes only the staff and teacher adapters

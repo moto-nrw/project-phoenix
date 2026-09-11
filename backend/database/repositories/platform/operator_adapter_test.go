@@ -1,7 +1,6 @@
 package platform_test
 
 import (
-	"context"
 	"fmt"
 	"net"
 	"testing"
@@ -9,7 +8,6 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -175,7 +173,7 @@ func TestOperatorRefreshTokenRepositoryAdapter_Lifecycle(t *testing.T) {
 func TestOperatorAuditLogRepositoryAdapter(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repo := repositories.NewOperatorAuditLogRepository(auditRepo.NewOperatorAuditLogRepository(auditRepo.NewRuntime(db, func(context.Context) int64 { return 0 })))
+	repo := repositories.NewOperatorAuditLogPersistence(db)
 	ctx := testpkg.Ctx(t)
 	operator := testpkg.CreateTestOperator(t, db)
 
