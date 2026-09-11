@@ -255,6 +255,17 @@ func masterDataHistoryRow(item *userService.MasterDataHistoryItem) requestreview
 	}
 }
 
+// reviewDay is the day a page's per-row urgency and past flags are judged
+// against: the day the projection resolved once for the whole call and sent
+// as the urgency date, so the rows and the queue phase cannot fall on
+// different days. The clock is only a fallback for a filter without one.
+func reviewDay(filter requestreview.QueueFilter, clock func() timezone.Date) timezone.Date {
+	if day, err := timezone.ParseDate(filter.UrgentDate); err == nil {
+		return day
+	}
+	return clock()
+}
+
 type careScheduleQueue struct {
 	service scheduleService.CareScheduleRequestService
 	today   func() timezone.Date
@@ -265,7 +276,7 @@ func (q careScheduleQueue) Open(ctx context.Context, filter requestreview.QueueF
 	if err != nil {
 		return nil, nil, err
 	}
-	today := q.today()
+	today := reviewDay(filter, q.today)
 	return mapRows(items, func(item *scheduleService.CareRequestReviewItem) requestreview.Row {
 		return carePendingRow(item, today)
 	}), cursorOf(next), nil
@@ -362,7 +373,7 @@ func (q offeringQueue) Open(ctx context.Context, filter requestreview.QueueFilte
 	if err != nil {
 		return nil, nil, err
 	}
-	today := q.today()
+	today := reviewDay(filter, q.today)
 	return mapRows(items, func(item *enrollmentService.OfferingChangeView) requestreview.Row {
 		return offeringPendingRow(item, today)
 	}), cursorOf(next), nil
@@ -474,7 +485,7 @@ func (q excusedQueue) Open(ctx context.Context, filter requestreview.QueueFilter
 	if err != nil {
 		return nil, nil, err
 	}
-	today := q.today()
+	today := reviewDay(filter, q.today)
 	return mapRows(items, func(item *excusedrequests.ReviewItem) requestreview.Row {
 		return excusedPendingRow(item, today)
 	}), excusedCursorOf(next), nil

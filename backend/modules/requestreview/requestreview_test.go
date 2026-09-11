@@ -255,6 +255,23 @@ func TestListMergesQueuesNewestFirstWithDeterministicTieBreak(t *testing.T) {
 	assert.Empty(t, page.Items[0].GroupName, "no directory port, no group")
 }
 
+// Corrections have no open state, so an open view asking only for them is
+// empty. The query is validated again inside ListRequests; that second pass
+// must not widen the emptied type set back to every queue.
+func TestListOpenViewOfOnlyCorrectionsIsEmpty(t *testing.T) {
+	t.Parallel()
+	f := newFixture()
+	f.master.open = []Row{openRow(TypeMasterData, 1, 1, "Anna Adler", base)}
+	f.care.open = []Row{openRow(TypeCareSchedule, 2, 2, "Ben Berg", base)}
+	f.offering.open = []Row{openRow(TypeOffering, 3, 3, "Cara Cruz", base)}
+	f.excused.open = []Row{openRow(TypeExcused, 4, 4, "Dora Dahl", base)}
+
+	page, err := f.query().ListRequests(context.Background(), parse(t, "view=open&types=direct_correction"))
+	require.NoError(t, err)
+	assert.Empty(t, page.Items)
+	assert.Empty(t, page.NextCursor)
+}
+
 func TestListPagesAcrossQueuesWithOneCursor(t *testing.T) {
 	t.Parallel()
 	f := newFixture()

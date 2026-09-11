@@ -51,6 +51,10 @@ type ListQuery struct {
 
 	cursor     pageCursor
 	urgentOnly *bool
+	// typesNormalized marks Types as already defaulted, ordered and stripped
+	// of corrections, so a second validate keeps an explicitly emptied set
+	// empty instead of widening it to every type.
+	typesNormalized bool
 	// today is the calendar day the urgency phase is judged against,
 	// resolved once per call by the projection.
 	today Date
@@ -111,20 +115,25 @@ func (q *ListQuery) validate() error {
 		q.Limit = DefaultLimit
 	}
 	q.Limit = min(q.Limit, MaxLimit)
-	if len(q.Types) == 0 {
-		q.Types = append([]string(nil), TypeOrder...)
-	} else {
-		for _, typ := range q.Types {
-			if !isRequestType(typ) {
-				return ErrInvalidQuery
+	if !q.typesNormalized {
+		if len(q.Types) == 0 {
+			q.Types = append([]string(nil), TypeOrder...)
+		} else {
+			for _, typ := range q.Types {
+				if !isRequestType(typ) {
+					return ErrInvalidQuery
+				}
 			}
+			q.Types = intersectTypes(TypeOrder, q.Types...)
 		}
-		q.Types = intersectTypes(TypeOrder, q.Types...)
+		// Corrections have no open state — the working list must never show
+		// them, not even when a client asks for the type explicitly.
+		if !q.History {
+			q.Types = removeType(q.Types, TypeDirectCorrection)
+		}
+		q.typesNormalized = true
 	}
-	// Corrections have no open state — the working list must never show them,
-	// not even when a client asks for the type explicitly.
 	if !q.History {
-		q.Types = removeType(q.Types, TypeDirectCorrection)
 		if len(q.Statuses) > 0 || !q.From.IsZero() || !q.To.IsZero() {
 			return ErrInvalidQuery
 		}
