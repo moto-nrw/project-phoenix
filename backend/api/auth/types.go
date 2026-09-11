@@ -529,3 +529,28 @@ func (req *PasswordResetConfirmRequest) Bind(_ *http.Request) error {
 		})),
 	)
 }
+
+// CreateParentAccountRequest represents the create parent account request payload
+type CreateParentAccountRequest struct {
+	Email           string `json:"email"`
+	Username        string `json:"username"`
+	Password        string `json:"password"`
+	ConfirmPassword string `json:"confirm_password"`
+}
+
+// Bind validates the create parent account request
+func (req *CreateParentAccountRequest) Bind(_ *http.Request) error {
+	return validateAccountCredentialFields(req, &req.Email, &req.Username, &req.Password, &req.ConfirmPassword)
+}
+
+// ParentAccountResponse represents a parent account response
+type ParentAccountResponse struct {
+	ID        int64  `json:"id"`
+	Email     string `json:"email"`
+	Username  string `json:"username,omitempty"`
+	Active    bool   `json:"active"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
+}
+
+// Role Management Endpoints

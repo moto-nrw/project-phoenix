@@ -1714,6 +1714,128 @@ func TestInvitationManagement(t *testing.T) {
 }
 
 // ============================================================================
+// PARENT ACCOUNT TESTS
+// ============================================================================
+
+// TestParentAccountManagement tests parent account management endpoints
+func TestParentAccountManagement(t *testing.T) {
+	t.Parallel()
+	tc, router := setupProtectedRouter(t)
+	adminClaims := testutil.AdminTestClaims(1)
+
+	t.Run("list parent accounts", func(t *testing.T) {
+		req := testutil.NewJSONRequest(t, "GET", "/auth/parent-accounts", nil)
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:list"})
+
+		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	})
+
+	t.Run("list parent accounts with filters", func(t *testing.T) {
+		req := testutil.NewJSONRequest(t, "GET", "/auth/parent-accounts?active=true", nil)
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:list"})
+
+		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	})
+
+	t.Run("create parent account", func(t *testing.T) {
+		email := fmt.Sprintf("parent%d@test.local", time.Now().UnixNano())
+		username := fmt.Sprintf("parent_%d", time.Now().UnixNano()) // No modulo - fully unique
+		body := map[string]string{
+			"email":            email,
+			"username":         username,
+			"password":         "SecurePass123!",
+			"confirm_password": "SecurePass123!",
+		}
+
+		req := testutil.NewJSONRequest(t, "POST", "/auth/parent-accounts", body)
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:create"})
+
+		testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
+
+		// Cleanup: delete the created parent account
+		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+		data := response["data"].(map[string]interface{})
+		parentID := int64(data["id"].(float64))
+		_, _ = tc.db.NewDelete().TableExpr("auth.accounts_parents").Where("id = ?", parentID).Exec(context.Background())
+	})
+
+	t.Run("create parent account bad request with weak password", func(t *testing.T) {
+		// Use unique identifiers even though registration should fail
+		body := map[string]string{
+			"email":            fmt.Sprintf("weakparent_%d@test.local", time.Now().UnixNano()),
+			"username":         fmt.Sprintf("weakparent_%d", time.Now().UnixNano()),
+			"password":         "weak",
+			"confirm_password": "weak",
+		}
+
+		req := testutil.NewJSONRequest(t, "POST", "/auth/parent-accounts", body)
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:create"})
+
+		testutil.AssertBadRequest(t, rr)
+	})
+
+	t.Run("get parent account not found", func(t *testing.T) {
+		req := testutil.NewJSONRequest(t, "GET", "/auth/parent-accounts/99999", nil)
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:read"})
+
+		testutil.AssertNotFound(t, rr)
+	})
+
+	t.Run("update parent account not found", func(t *testing.T) {
+		body := map[string]string{
+			"email": "update@test.local",
+		}
+
+		req := testutil.NewJSONRequest(t, "PUT", "/auth/parent-accounts/99999", body)
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:update"})
+
+		testutil.AssertNotFound(t, rr)
+	})
+
+	t.Run("parent account operations forbidden without permission", func(t *testing.T) {
+		req := testutil.NewJSONRequest(t, "GET", "/auth/parent-accounts", nil)
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{})
+		testutil.AssertForbidden(t, rr)
+	})
+
+	// Test activate/deactivate with a real parent account
+	t.Run("activate and deactivate parent account", func(t *testing.T) {
+		// Create parent account first with fully unique identifiers
+		email := fmt.Sprintf("activateparent%d@test.local", time.Now().UnixNano())
+		username := fmt.Sprintf("activatep_%d", time.Now().UnixNano()) // No modulo - fully unique
+		body := map[string]string{
+			"email":            email,
+			"username":         username,
+			"password":         "SecurePass123!",
+			"confirm_password": "SecurePass123!",
+		}
+
+		req := testutil.NewJSONRequest(t, "POST", "/auth/parent-accounts", body)
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:create"})
+		require.Equal(t, http.StatusCreated, rr.Code, "Create failed: %s", rr.Body.String())
+
+		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+		data := response["data"].(map[string]interface{})
+		parentID := int64(data["id"].(float64))
+
+		// Cleanup when done
+		defer func() {
+			_, _ = tc.db.NewDelete().TableExpr("auth.accounts_parents").Where("id = ?", parentID).Exec(context.Background())
+		}()
+
+		// Deactivate
+		req = testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/parent-accounts/%d/deactivate", parentID), nil)
+		rr = testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:update"})
+		assert.Equal(t, http.StatusNoContent, rr.Code, "Deactivate failed: %s", rr.Body.String())
+
+		// Activate
+		req = testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/parent-accounts/%d/activate", parentID), nil)
+		rr = testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:update"})
+		assert.Equal(t, http.StatusNoContent, rr.Code, "Activate failed: %s", rr.Body.String())
+	})
+}
+
+// ============================================================================
 // ADDITIONAL COVERAGE TESTS - Previously 0% Coverage Handlers
 // ============================================================================
 

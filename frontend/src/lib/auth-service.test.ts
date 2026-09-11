@@ -7,6 +7,7 @@ import type {
   BackendRole,
   BackendPermission,
   BackendToken,
+  BackendParentAccount,
   LoginRequest,
   RegisterRequest,
   ChangePasswordRequest,
@@ -17,6 +18,7 @@ import type {
   CreatePermissionRequest,
   UpdatePermissionRequest,
   UpdateAccountRequest,
+  CreateParentAccountRequest,
 } from "./auth-helpers";
 
 // Mock dependencies
@@ -81,6 +83,15 @@ const sampleBackendToken: BackendToken = {
   Mobile: false,
   Identifier: "desktop",
   CreatedAt: "2024-01-01T00:00:00Z",
+};
+
+const sampleBackendParentAccount: BackendParentAccount = {
+  ID: 1,
+  Email: "parent@example.com",
+  Username: "parentuser",
+  Active: true,
+  CreatedAt: "2024-01-01T00:00:00Z",
+  UpdatedAt: "2024-01-01T00:00:00Z",
 };
 
 describe("authService", () => {
@@ -978,6 +989,108 @@ describe("authService", () => {
         const result = await authService.cleanupExpiredTokens();
 
         expect(result).toBe(5);
+      });
+    });
+  });
+
+  describe("Parent account management", () => {
+    describe("createParentAccount", () => {
+      const createRequest: CreateParentAccountRequest = {
+        email: "parent@example.com",
+        username: "parentuser",
+        password: "password123",
+        confirmPassword: "password123",
+      };
+
+      it("creates parent account", async () => {
+        mockedApiPost.mockResolvedValueOnce({
+          data: { data: sampleBackendParentAccount },
+        });
+
+        const result = await authService.createParentAccount(createRequest);
+
+        expect(result.email).toBe("parent@example.com");
+      });
+    });
+
+    describe("getParentAccounts", () => {
+      it("fetches parent accounts", async () => {
+        mockedApiGet.mockResolvedValueOnce({
+          data: { data: [sampleBackendParentAccount] },
+        });
+
+        const result = await authService.getParentAccounts();
+
+        expect(result).toHaveLength(1);
+      });
+
+      it("fetches parent accounts with filters", async () => {
+        mockedApiGet.mockResolvedValueOnce({
+          data: { data: [] },
+        });
+
+        await authService.getParentAccounts({
+          email: "parent@example.com",
+          active: true,
+        });
+
+        expect(mockedApiGet).toHaveBeenCalledWith(
+          expect.stringContaining("email=parent%40example.com"),
+          undefined,
+        );
+      });
+    });
+
+    describe("getParentAccount", () => {
+      it("fetches single parent account", async () => {
+        mockedApiGet.mockResolvedValueOnce({
+          data: { data: sampleBackendParentAccount },
+        });
+
+        const result = await authService.getParentAccount("1");
+
+        expect(result.email).toBe("parent@example.com");
+      });
+    });
+
+    describe("updateParentAccount", () => {
+      it("updates parent account", async () => {
+        mockedApiPut.mockResolvedValueOnce({ data: {} });
+
+        await authService.updateParentAccount("1", {
+          email: "updated@example.com",
+          username: "updatedparent",
+        });
+
+        expect(mockedApiPut).toHaveBeenCalled();
+      });
+    });
+
+    describe("activateParentAccount", () => {
+      it("activates parent account", async () => {
+        mockedApiPut.mockResolvedValueOnce({ data: {} });
+
+        await authService.activateParentAccount("1");
+
+        expect(mockedApiPut).toHaveBeenCalledWith(
+          expect.stringContaining("/activate"),
+          undefined,
+          undefined,
+        );
+      });
+    });
+
+    describe("deactivateParentAccount", () => {
+      it("deactivates parent account", async () => {
+        mockedApiPut.mockResolvedValueOnce({ data: {} });
+
+        await authService.deactivateParentAccount("1");
+
+        expect(mockedApiPut).toHaveBeenCalledWith(
+          expect.stringContaining("/deactivate"),
+          undefined,
+          undefined,
+        );
       });
     });
   });

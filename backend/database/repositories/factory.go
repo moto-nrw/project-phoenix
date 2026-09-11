@@ -89,6 +89,7 @@ type Factory struct {
 
 	// Auth domain
 	Account                authModels.AccountRepository
+	AccountParent          authModels.AccountParentRepository
 	AccountTenant          authModels.AccountTenantRepository
 	StaffCalendarFeedToken authModels.StaffCalendarFeedTokenRepository
 	Role                   authModels.RoleRepository
@@ -557,6 +558,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		db: db,
 		// Auth repositories
 		Account:                accountRepo,
+		AccountParent:          auth.NewAccountParentRepository(db),
 		AccountTenant:          accountTenantRepo,
 		StaffCalendarFeedToken: auth.NewStaffCalendarFeedTokenRepository(db),
 		Role:                   roleRepo,

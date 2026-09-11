@@ -229,6 +229,7 @@ func TestMessageConstants(t *testing.T) {
 	assert.Equal(t, "invalid role ID", common.MsgInvalidRoleID)
 	assert.Equal(t, "invalid account ID", common.MsgInvalidAccountID)
 	assert.Equal(t, "invalid permission ID", common.MsgInvalidPermissionID)
+	assert.Equal(t, "invalid parent account ID", common.MsgInvalidParentAccountID)
 	assert.Equal(t, "invalid room ID", common.MsgInvalidRoomID)
 	assert.Equal(t, "invalid weekday", common.MsgInvalidWeekday)
 	assert.Equal(t, "invalid person ID", common.MsgInvalidPersonID)

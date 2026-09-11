@@ -108,6 +108,15 @@ type PermissionRepository interface {
 	RemovePermissionFromRole(ctx context.Context, roleID int64, permissionID int64) error
 }
 
+// AccountParentRepository defines operations for managing parent accounts
+type AccountParentRepository interface {
+	base.CRUDRepository[*AccountParent]
+	FindByEmail(ctx context.Context, email string) (*AccountParent, error)
+	FindByUsername(ctx context.Context, username string) (*AccountParent, error)
+	UpdateLastLogin(ctx context.Context, id int64) error
+	UpdatePassword(ctx context.Context, id int64, passwordHash string) error
+}
+
 // RolePermissionRepository defines operations for managing role-permission mappings
 type RolePermissionRepository interface {
 	base.CRUDRepository[*RolePermission]

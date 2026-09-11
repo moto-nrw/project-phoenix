@@ -1047,6 +1047,88 @@
     },
     {
       "scope": "test",
+      "file": "database/repositories/auth/account_parent_repository_test.go",
+      "declaration": "TestAccountParentRepository_Create",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        36
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/account_parent_repository_test.go",
+      "declaration": "TestAccountParentRepository_FieldUpdatesRespectOptionalTenantScope",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        249
+      ],
+      "tables": [
+        "auth.accounts"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/account_parent_repository_test.go",
+      "declaration": "TestAccountParentRepository_FindByEmail",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        85
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/account_parent_repository_test.go",
+      "declaration": "TestAccountParentRepository_FindByUsername",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        127
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/account_parent_repository_test.go",
+      "declaration": "TestAccountParentRepository_List",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        279
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/account_parent_repository_test.go",
+      "declaration": "TestAccountParentRepository_Update",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        152
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/account_parent_repository_test.go",
+      "declaration": "TestAccountParentRepository_UpdateLastLogin",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        194
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/account_parent_repository_test.go",
+      "declaration": "TestAccountParentRepository_UpdatePassword",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        227
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "database/repositories/auth/account_permission_repository_test.go",
       "declaration": "TestAccountPermissionRepository_Create",
       "target": "database/repositories.NewFactory",
@@ -27320,12 +27402,12 @@
       "locations": [
         {
           "file": "services/auth/auth_service.go",
-          "line": 76,
+          "line": 77,
           "declaration": "type Service"
         },
         {
           "file": "services/auth/auth_service.go",
-          "line": 124,
+          "line": 125,
           "declaration": "NewService"
         },
         {

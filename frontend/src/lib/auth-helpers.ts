@@ -43,6 +43,15 @@ export interface BackendToken {
   CreatedAt: string;
 }
 
+export interface BackendParentAccount {
+  ID: number;
+  Email: string;
+  Username?: string;
+  Active: boolean;
+  CreatedAt: string;
+  UpdatedAt: string;
+}
+
 // Frontend types
 export interface Account {
   id: string;
@@ -97,6 +106,15 @@ export interface Token {
   mobile: boolean;
   identifier?: string;
   createdAt: string;
+}
+
+export interface ParentAccount {
+  id: string;
+  email: string;
+  username?: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // Transformation functions
@@ -176,6 +194,19 @@ export function mapTokenResponse(backendToken: BackendToken): Token {
     mobile: backendToken.Mobile,
     identifier: backendToken.Identifier,
     createdAt: backendToken.CreatedAt,
+  };
+}
+
+export function mapParentAccountResponse(
+  backendParentAccount: BackendParentAccount,
+): ParentAccount {
+  return {
+    id: String(backendParentAccount.ID),
+    email: backendParentAccount.Email,
+    username: backendParentAccount.Username,
+    active: backendParentAccount.Active,
+    createdAt: backendParentAccount.CreatedAt,
+    updatedAt: backendParentAccount.UpdatedAt,
   };
 }
 
@@ -333,4 +364,11 @@ export interface UpdatePermissionRequest {
 export interface UpdateAccountRequest {
   email: string;
   username?: string;
+}
+
+export interface CreateParentAccountRequest {
+  email: string;
+  username: string;
+  password: string;
+  confirmPassword: string;
 }

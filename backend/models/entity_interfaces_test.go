@@ -31,6 +31,7 @@ var (
 
 	// auth package
 	_ base.Entity = (*auth.Account)(nil)
+	_ base.Entity = (*auth.AccountParent)(nil)
 	_ base.Entity = (*auth.AccountPermission)(nil)
 	_ base.Entity = (*auth.AccountRole)(nil)
 	_ base.Entity = (*auth.GuardianInvitation)(nil)

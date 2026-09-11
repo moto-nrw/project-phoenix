@@ -344,6 +344,18 @@ func (rs *Resource) Router() chi.Router {
 					r.With(common.RequiresPermission(permUsersManage)).Post("/resend", rs.resendGuardianInvitation)
 				})
 			})
+
+			// Parent account management
+			r.Route("/parent-accounts", func(r chi.Router) {
+				r.With(common.RequiresPermission(permUsersCreate)).Post("/", rs.createParentAccount)
+				r.With(common.RequiresPermission(permUsersList)).Get("/", rs.listParentAccounts)
+				r.Route("/{id}", func(r chi.Router) {
+					r.With(common.RequiresPermission("users:read")).Get("/", rs.getParentAccountByID)
+					r.With(common.RequiresPermission(permUsersUpdate)).Put("/", rs.updateParentAccount)
+					r.With(common.RequiresPermission(permUsersUpdate)).Put("/activate", common.IDAction("id", common.MsgInvalidParentAccountID, rs.AuthService.ActivateParentAccount, common.ErrorInternalServer))
+					r.With(common.RequiresPermission(permUsersUpdate)).Put("/deactivate", common.IDAction("id", common.MsgInvalidParentAccountID, rs.AuthService.DeactivateParentAccount, common.ErrorInternalServer))
+				})
+			})
 		})
 	})
 

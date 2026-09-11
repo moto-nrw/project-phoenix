@@ -21,6 +21,7 @@ func TestNewFactory(t *testing.T) {
 	// Verify auth repositories are initialized
 	t.Run("auth repositories", func(t *testing.T) {
 		assert.NotNil(t, factory.Account)
+		assert.NotNil(t, factory.AccountParent)
 		assert.NotNil(t, factory.Role)
 		assert.NotNil(t, factory.Permission)
 		assert.NotNil(t, factory.RolePermission)
