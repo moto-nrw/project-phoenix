@@ -16,7 +16,7 @@ import type { FormSection } from "~/components/ui/database/database-form";
  * chosen colour the Schulhof badge renders orange, not the generic room blue,
  * so "Standard" has to preview orange and the copy has to say so.
  *
- * Bound through the field config, so the shared RoomColorField is reused as
+ * Bound through the field config, so the shared CatalogColorField is reused as
  * is. The copy travels as a prop because custom fields do not render
  * `helperText`.
  */

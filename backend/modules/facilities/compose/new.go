@@ -138,7 +138,7 @@ func (e engine) ListRooms(ctx context.Context, filter facilities.RoomFilter) ([]
 		Name: filter.Name, NameContains: filter.NameContains, Building: filter.Building,
 		BuildingContains: filter.BuildingContains, Floor: filter.Floor, Category: filter.Category,
 		MinimumCapacity: filter.MinimumCapacity, MaximumCapacity: filter.MaximumCapacity, Search: filter.Search,
-		ExcludeSystem: filter.ExcludeSystem,
+		ExcludeSystem: filter.ExcludeSystem, IsOpenRoom: filter.IsOpenRoom,
 	})
 	return toPublicList(values), mapError(err)
 }
@@ -148,7 +148,7 @@ func (e engine) ListRoomsPage(ctx context.Context, filter facilities.RoomFilter,
 		Name: filter.Name, NameContains: filter.NameContains, Building: filter.Building,
 		BuildingContains: filter.BuildingContains, Floor: filter.Floor, Category: filter.Category,
 		MinimumCapacity: filter.MinimumCapacity, MaximumCapacity: filter.MaximumCapacity, Search: filter.Search,
-		ExcludeSystem: filter.ExcludeSystem,
+		ExcludeSystem: filter.ExcludeSystem, IsOpenRoom: filter.IsOpenRoom,
 	}, offset, limit)
 	return facilities.RoomPage{Rooms: toPublicList(values), Total: total}, mapError(err)
 }

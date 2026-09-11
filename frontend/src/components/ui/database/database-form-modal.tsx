@@ -15,6 +15,8 @@ interface DatabaseFormModalProps<T> {
   readonly onSubmit: (data: Partial<T>) => Promise<void>;
   readonly initialData?: Partial<T>;
   readonly isLoading?: boolean;
+  /** Nachgeladene Felder dürfen einen offenen Entwurf nicht ersetzen. */
+  readonly preserveDraftOnSectionsChange?: boolean;
 }
 
 export function DatabaseFormModal<T>({
@@ -25,6 +27,7 @@ export function DatabaseFormModal<T>({
   onSubmit,
   initialData,
   isLoading,
+  preserveDraftOnSectionsChange,
 }: DatabaseFormModalProps<T>) {
   // Stable identity: DatabaseForm resets its form state whenever the sections
   // array identity changes, which would wipe in-progress edits on every
@@ -60,6 +63,7 @@ export function DatabaseFormModal<T>({
         isLoading={isLoading}
         submitLabel={mode === "create" ? "Erstellen" : "Speichern"}
         stickyActions
+        preserveDraftOnSectionsChange={preserveDraftOnSectionsChange}
       />
     </Modal>
   );

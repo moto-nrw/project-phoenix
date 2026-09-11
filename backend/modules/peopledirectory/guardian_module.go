@@ -71,6 +71,16 @@ func (m *Module) SearchGuardians(ctx context.Context, text string, limit int) ([
 	})
 }
 
+func (m *Module) FindGuardianByEmail(ctx context.Context, email string) (Guardian, error) {
+	email = strings.TrimSpace(email)
+	if email == "" {
+		return Guardian{}, invalidGuardian("guardian e-mail is required")
+	}
+	return guardianQuery(m, "find_guardian_by_email", func(p GuardianProvider) (Guardian, error) {
+		return p.FindGuardianByEmail(ctx, email)
+	})
+}
+
 func (m *Module) GuardianDeleteImpact(ctx context.Context, id int64) (GuardianDeleteImpact, error) {
 	if id <= 0 {
 		return GuardianDeleteImpact{}, invalidGuardian("guardian ID is required")

@@ -1,7 +1,6 @@
 import type { Student } from "~/lib/student-helpers";
 
 export const SCHULHOF_ROOM_NAME = "Schulhof";
-export const SCHULHOF_TAB_ID = "schulhof";
 
 export interface MinimalActiveGroup {
   id: string;
@@ -11,6 +10,7 @@ export interface MinimalActiveGroup {
 export interface ActiveSupervisionStudent extends Student {
   activeGroupId: string;
   checkInTime: Date;
+  activity_name?: string;
 }
 
 export interface ActiveSupervisionRoom {
@@ -44,20 +44,43 @@ export interface SchulhofStatusResponse {
   }>;
 }
 
+/**
+ * One permanently released room ("offener Raum", #3065) with everyone
+ * currently recorded in it.
+ *
+ * A released room is shared: reachable by every caregiver, empty or not, and
+ * opening it grants no supervision. `isUserSupervising` exists only so the
+ * screen can keep it visibly apart from the caller's own supervisions.
+ * `activeGroupIds` lists the sessions that feed the view — several of them is
+ * the normal case, which is why the room, not a session, is the identity here.
+ */
+export interface OpenRoomView {
+  readonly roomId: string;
+  readonly name: string;
+  readonly isUserSupervising: boolean;
+  readonly activeGroupIds: readonly string[];
+  readonly studentCount: number;
+  readonly students: readonly VisitDisplayLike[];
+}
+
 export type SupervisionSelectionTarget =
-  | { kind: "schulhof" }
+  | { kind: "open-room"; roomId: string }
   | { kind: "session"; sessionId: string }
   | { kind: "persist-first" }
   | { kind: "none" };
 
 /**
- * Resolves which supervision session (active group) the page should select.
+ * Resolves what the page should select: one of the caller's own supervision
+ * sessions, or one released room's shared view.
  *
- * Sessions are keyed by active-group ID (`?session=`), never by physical room:
- * several parallel sessions can share one room (#2265), so a room-keyed URL is
- * ambiguous. The legacy `?room=` entry point (sidebar, old links) still
- * resolves — but never switches away from a session already selected in that
- * room, which was the silent-switch bug behind contradictory attendance views.
+ * Own sessions are keyed by active-group ID (`?session=`), never by physical
+ * room: several parallel sessions can share one room (#2265), so a room-keyed
+ * URL is ambiguous for them. Released rooms are the opposite case — the room
+ * IS the thing, every session in it feeds one view — so they are keyed by room
+ * ID (`?room=`, #3065). The legacy `?room=` entry point for ordinary rooms
+ * still resolves, and still never switches away from a session already
+ * selected in that room, which was the silent-switch bug behind contradictory
+ * attendance views.
  */
 export function resolveSupervisionSelection(options: {
   readonly sessionParam: string | null;
@@ -66,15 +89,32 @@ export function resolveSupervisionSelection(options: {
   readonly savedRoomId: string | null;
   readonly rooms: readonly ActiveSupervisionRoom[];
   readonly currentSessionId: string | null;
-  readonly schulhofAvailable: boolean;
+  readonly currentOpenRoomId: string | null;
+  /** Room ids of the released rooms, as the dashboard reported them. */
+  readonly openRoomIds: ReadonlySet<string>;
 }): SupervisionSelectionTarget {
-  const { rooms, currentSessionId } = options;
+  const { rooms, currentSessionId, currentOpenRoomId, openRoomIds } = options;
 
-  const sessionTarget = (sessionId: string): SupervisionSelectionTarget => {
-    if (sessionId === currentSessionId) return { kind: "none" };
-    return { kind: "session", sessionId };
+  const sessionTarget = (
+    session: ActiveSupervisionRoom,
+  ): SupervisionSelectionTarget => {
+    if (session.room_id && openRoomIds.has(session.room_id)) {
+      return session.room_id === currentOpenRoomId
+        ? { kind: "none" }
+        : { kind: "open-room", roomId: session.room_id };
+    }
+    if (session.id === currentSessionId) return { kind: "none" };
+    return { kind: "session", sessionId: session.id };
   };
   const roomTarget = (roomId: string): SupervisionSelectionTarget | null => {
+    // A released room is answered by its shared view, never by one of the
+    // sessions running in it: which session a child happens to be recorded
+    // under is not what the room is addressed by (#3065).
+    if (openRoomIds.has(roomId)) {
+      return roomId === currentOpenRoomId
+        ? { kind: "none" }
+        : { kind: "open-room", roomId };
+    }
     const inRoom = rooms.filter((room) => room.room_id === roomId);
     if (inRoom.length === 0) return null;
     if (inRoom.some((room) => room.id === currentSessionId)) {
@@ -86,34 +126,48 @@ export function resolveSupervisionSelection(options: {
     return first ? { kind: "session", sessionId: first.id } : null;
   };
 
-  if (options.sessionParam === SCHULHOF_TAB_ID && options.schulhofAvailable) {
-    return { kind: "schulhof" };
-  }
   if (options.sessionParam) {
     const found = rooms.find((room) => room.id === options.sessionParam);
-    if (found) return sessionTarget(found.id);
+    if (found) return sessionTarget(found);
     // A stale session must not block the saved-room fallback below. This is
     // common when returning from a detail page after that session ended.
-  }
-  if (options.roomParam === SCHULHOF_TAB_ID && options.schulhofAvailable) {
-    return { kind: "schulhof" };
   }
   if (options.roomParam) {
     return roomTarget(options.roomParam) ?? { kind: "none" };
   }
-  if (options.savedSessionId === SCHULHOF_TAB_ID && options.schulhofAvailable) {
-    return { kind: "schulhof" };
-  }
   if (options.savedSessionId) {
     const found = rooms.find((room) => room.id === options.savedSessionId);
-    if (found) return sessionTarget(found.id);
-  }
-  if (options.savedRoomId === SCHULHOF_TAB_ID && options.schulhofAvailable) {
-    return { kind: "schulhof" };
+    if (found) return sessionTarget(found);
   }
   if (options.savedRoomId) {
     const target = roomTarget(options.savedRoomId);
     if (target) return target;
+  }
+
+  // With no explicit target, prefer an own session that does not already sit
+  // in a released room. The navigation has one entry for a released room, not
+  // one per session in it, so selecting such a session by default would leave
+  // the sidebar without a matching entry. If every running session is in a
+  // released room, select that session's room — the matching sidebar row —
+  // not the first released room by name. Home "Zur Aufsicht" lands here with
+  // no query.
+  if (openRoomIds.size > 0) {
+    const ownSession = rooms.find(
+      (room) => !room.room_id || !openRoomIds.has(room.room_id),
+    );
+    if (ownSession) return sessionTarget(ownSession);
+    const firstOwn = rooms[0];
+    if (firstOwn) return sessionTarget(firstOwn);
+    const firstOpenRoomId = openRoomIds.values().next().value as
+      string | undefined;
+    if (firstOpenRoomId) {
+      return (
+        roomTarget(firstOpenRoomId) ?? {
+          kind: "open-room",
+          roomId: firstOpenRoomId,
+        }
+      );
+    }
   }
   return { kind: "persist-first" };
 }
@@ -135,25 +189,80 @@ export function activeSupervisionRosterKey(options: {
   return `timetable-roster-active-group-${options.currentRoomId}`;
 }
 
-export function roomsOutsideSchulhofStatus(
+/**
+ * The caller's own supervisions that a shared room entry does not already
+ * stand for.
+ *
+ * A session running in a released room is part of that room's shared view, so
+ * listing it again would put the same place on screen twice — once per
+ * parallel session, which is the duplicate-tab problem #3065 removes.
+ */
+export function sessionsOutsideOpenRooms(
   rooms: readonly ActiveSupervisionRoom[],
-  options: {
-    readonly schulhofTabEnabled: boolean;
-    readonly statusActiveGroupId: string | null | undefined;
-  },
+  openRoomIds: ReadonlySet<string>,
 ): ActiveSupervisionRoom[] {
-  if (!options.schulhofTabEnabled || !options.statusActiveGroupId) {
-    return [...rooms];
-  }
-
-  return rooms.filter((room) => room.id !== options.statusActiveGroupId);
+  if (openRoomIds.size === 0) return [...rooms];
+  return rooms.filter(
+    (room) => !room.room_id || !openRoomIds.has(room.room_id),
+  );
 }
 
-interface VisitDisplayLike {
+/**
+ * Selects the caller's session to retain while opening a shared room.
+ *
+ * A previously selected session is only meaningful in the target room. This
+ * keeps the roster after starting that exact session, while preventing its
+ * controls from leaking into another shared room.
+ */
+export function openRoomSessionSelection(options: {
+  readonly roomId: string;
+  readonly preferredSessionId: string | undefined;
+  readonly selectedSessionId: string | null;
+  readonly rooms: readonly ActiveSupervisionRoom[];
+}): { sessionId: string | null; keepsTimetableInstance: boolean } {
+  const sessionId = options.preferredSessionId ?? options.selectedSessionId;
+  const sessionRunsInRoom =
+    sessionId !== null &&
+    options.rooms.some(
+      (room) => room.id === sessionId && room.room_id === options.roomId,
+    );
+
+  return {
+    sessionId: sessionRunsInRoom ? sessionId : null,
+    // A URL can name the session while an unrelated instance is still in
+    // memory. Only retain an instance that was already selected in this room.
+    keepsTimetableInstance:
+      sessionRunsInRoom && options.selectedSessionId === sessionId,
+  };
+}
+
+/**
+ * The caller's single active session in a shared room, used to keep that
+ * session's roster actionable without turning the room back into a
+ * session-keyed navigation entry.
+ *
+ * Only the room's own sessions count. Intersecting with the caller's
+ * `supervisedGroups` (or a leftover `?session=` / last-session id) still
+ * looks like "one session" when someone else runs a second offering in the
+ * same room — and that offering's children then disappear behind the
+ * caller's roster (#3065). Several sessions in the room is the same
+ * ambiguity `additionalSupervisionTarget` already treats as "none".
+ */
+export function openRoomRosterActiveGroupId(options: {
+  readonly currentOpenRoom: OpenRoomView | null;
+}): string | null {
+  const { currentOpenRoom } = options;
+  if (!currentOpenRoom?.isUserSupervising) return null;
+  if (currentOpenRoom.activeGroupIds.length !== 1) return null;
+  return currentOpenRoom.activeGroupIds[0] ?? null;
+}
+
+export interface VisitDisplayLike {
   studentId: string;
   studentName?: string;
   schoolClass?: string;
   groupName?: string;
+  activityName?: string;
   activeGroupId: string;
   checkInTime: string | Date;
   actualArrivalTime?: string;
@@ -252,18 +361,22 @@ export function supervisionTabLabel(
   return room.isCurrentUserSupervising ? `${label} · Eigene Aufsicht` : label;
 }
 
+/**
+ * The session a further supervisor would be added to (#2806), or null when
+ * there is no unambiguous one.
+ *
+ * In a shared room that is the caller's own single session there. With several
+ * sessions running, none of them is "the" supervision of the room, so the
+ * screen offers nothing rather than picking one.
+ */
 export function additionalSupervisionTarget(options: {
   readonly currentRoom: ActiveSupervisionRoom | null;
-  readonly isSchulhofTabSelected: boolean;
-  readonly schulhofStatus: Pick<
-    SchulhofStatusResponse,
-    "activeGroupId" | "isUserSupervising"
-  > | null;
+  readonly currentOpenRoom: OpenRoomView | null;
 }): string | null {
-  if (options.isSchulhofTabSelected) {
-    return options.schulhofStatus?.isUserSupervising
-      ? (options.schulhofStatus.activeGroupId ?? null)
-      : null;
+  if (options.currentOpenRoom) {
+    const { isUserSupervising, activeGroupIds } = options.currentOpenRoom;
+    if (!isUserSupervising || activeGroupIds.length !== 1) return null;
+    return activeGroupIds[0] ?? null;
   }
   return options.currentRoom?.canAssign ? options.currentRoom.id : null;
 }
@@ -296,6 +409,7 @@ function mapVisitToSupervisionStudent(
     current_room_color: options.roomColor ?? null,
     group_name: visit.groupName,
     group_id: groupId,
+    activity_name: visit.activityName,
     sick: visit.sick,
     sick_since: visit.sickSince,
     excused: visit.excused,

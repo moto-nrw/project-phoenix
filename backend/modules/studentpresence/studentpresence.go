@@ -11,6 +11,7 @@ type Query interface {
 	UnclaimedGroups(context.Context, string) ([]UnclaimedGroup, error)
 	AttendanceQuery
 	VisitQuery
+	PrivacyConsentQuery
 	ListOpenPresence(context.Context, []int64) ([]int64, error)
 	LatestPresenceDate(context.Context, int64) (*string, error)
 	CountAttendanceRecords(context.Context, int64) (int, error)
@@ -30,6 +31,7 @@ type Command interface {
 	VisitCommand
 	GroupRecovery
 	GroupSessionCommand
+	PrivacyConsentCommand
 	LockOpenPresence(context.Context, []int64) error
 	CloseOpenPresence(context.Context, []int64, time.Time) (int64, error)
 	LockOpenVisits(context.Context, int64) error

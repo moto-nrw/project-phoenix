@@ -290,7 +290,10 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 	if err != nil {
 		return moduleServices{}, err
 	}
-	repoFactory := repositories.NewFactory(db, repositories.TimetableDependencies{Capability: timetableCapability, Students: persons, Groups: groups, Rooms: rooms, Calendar: calendar, Membership: membership, Workforce: workTime})
+	repoFactory := repositories.NewFactory(db, repositories.TimetableDependencies{
+		Capability: timetableCapability, Students: persons, Groups: groups, Rooms: rooms, Calendar: calendar, Membership: membership, Workforce: workTime,
+		ObserveIdentityAccess: observability.ObserveIdentityAccessOperation,
+	})
 	appointmentCapability, err := appointmentsCompose.New(appointmentsCompose.Dependencies{
 		DB: db,
 		Observe: func(observation appointmentsCompose.Observation) {
@@ -385,6 +388,8 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 		observability.ObserveDurableDelivery,
 		observability.ObserveDeviceFleetOperation,
 		observability.ObserveIdentityAccessOperation,
+		workTime,
+		observability.ObserveDataImport,
 	)
 	if err != nil {
 		return moduleServices{}, err

@@ -1,6 +1,9 @@
 package repositories
 
 import (
+	"context"
+
+	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
@@ -44,7 +47,7 @@ func NewInvitationPersistence(db *bun.DB) (*InvitationPersistence, error) {
 		Permission:      authRepo.NewPermissionRepository(db),
 		AccountRole:     authRepo.NewAccountRoleRepository(db),
 		MFACredential:   authRepo.NewMFACredentialRepository(db),
-		Person:          usersRepo.NewPersonRepository(db),
+		Person:          NewPersonRepository(db),
 		Staff:           staff, Teacher: teachers,
 		Student: usersRepo.NewStudentRepository(db),
 		School:  platformRepo.NewSchoolRepository(db),
@@ -62,13 +65,20 @@ type SessionValidationPersistence struct {
 }
 
 func NewSessionValidationPersistence(db *bun.DB) *SessionValidationPersistence {
+	identity := newIdentityAccess(db, nil)
 	return &SessionValidationPersistence{
 		Account:              authRepo.NewAccountRepository(db),
 		AccountTenant:        authRepo.NewAccountTenantRepository(db),
 		Token:                authRepo.NewTokenRepository(db),
-		Operator:             platformRepo.NewOperatorRepository(db),
-		OperatorRefreshToken: platformRepo.NewOperatorRefreshTokenRepository(db),
+		Operator:             operatorRepository{identity: identity},
+		OperatorRefreshToken: operatorRefreshTokenRepository{identity: identity},
 	}
+}
+
+// NewOperatorAuditLogPersistence composes only the retained operator audit
+// contract over the Audit owner's platform-scoped ledger.
+func NewOperatorAuditLogPersistence(db *bun.DB) platformModels.OperatorAuditLogRepository {
+	return newOperatorAuditLog(auditRepo.NewRuntime(db, func(context.Context) int64 { return 0 }))
 }
 
 // newInvitationMembershipRepositories composes only the staff and teacher adapters
@@ -78,7 +88,7 @@ func newInvitationMembershipRepositories(db *bun.DB) (userModels.StaffRepository
 	if err != nil {
 		return nil, nil, err
 	}
-	deps := newStaffMembershipDeps(usersRepo.NewPersonRepository(db), authRepo.NewAccountRepository(db), authRepo.NewAccountTenantRepository(db), authRepo.NewPermissionRepository(db), authRepo.NewRoleRepository(db))
+	deps := newStaffMembershipDeps(NewPersonRepository(db), authRepo.NewAccountRepository(db), authRepo.NewAccountTenantRepository(db), authRepo.NewPermissionRepository(db), authRepo.NewRoleRepository(db))
 	groupTeachers := newGroupTeacherRepository(membership, educationRepo.NewGroupRepository(db))
 	deps.groupTeachers = func() educationModels.GroupTeacherRepository { return groupTeachers }
 	return staffMembershipRepository{membership: membership, deps: deps}, teacherMembershipRepository{membership: membership, deps: deps}, nil

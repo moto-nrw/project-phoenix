@@ -1,7 +1,7 @@
 // Room Entity Configuration
 
 import { defineEntityConfig } from "@/lib/database/types";
-import { RoomColorField } from "@/components/ui/database/room-color-field";
+import { CatalogColorField } from "@/components/ui/database/catalog-color-field";
 import { mapRoomResponse, prepareRoomForBackend } from "@/lib/room-helpers";
 import type { Room, BackendRoom } from "@/lib/room-helpers";
 
@@ -81,7 +81,7 @@ export const roomsConfig = defineEntityConfig<Room>({
             label: "Farbe",
             type: "custom",
             colSpan: 2,
-            component: RoomColorField,
+            component: CatalogColorField,
           },
           {
             // "Offener Raum" is the domain term from #3062. The hint names what

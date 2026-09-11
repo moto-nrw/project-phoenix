@@ -79,12 +79,13 @@ func (r *PermissionRepository) FindEffectivePermissionNamesByAccountIDsForTenant
 		AccountID      int64  `bun:"account_id"`
 		PermissionName string `bun:"permission_name"`
 	}
+	// The union is joined as a derived table so the evaluator resolves every
+	// table this read touches.
 	err := db.NewSelect().
-		With("effective_permissions", effective).
 		ColumnExpr(`DISTINCT "effective_permission".account_id AS account_id`).
 		ColumnExpr(`("permission".resource || ':' || "permission".action) AS permission_name`).
 		TableExpr(`auth.permissions AS "permission"`).
-		Join(`JOIN effective_permissions AS "effective_permission" ON "effective_permission".permission_id = "permission".id`).
+		Join(`JOIN (?) AS "effective_permission" ON "effective_permission".permission_id = "permission".id`, effective).
 		Scan(ctx, &rows)
 	if err != nil {
 		return nil, err

@@ -529,3 +529,273 @@ describe("bauart/no-unconfirmed-destructive-click", () => {
     expect(output).not.toContain("bauart(no-unconfirmed-destructive-click)");
   });
 });
+
+describe("bauart/no-toast-form-error", () => {
+  it("rejects a validation toast in a submit handler", () => {
+    const { status, output } = lintSource(
+      `import { useToast } from "~/contexts/ToastContext";
+      export function Probe() {
+        const toast = useToast();
+        const handleSubmit = (event: React.FormEvent) => {
+          event.preventDefault();
+          toast.warning("Bitte einen Titel eintragen.");
+        };
+        return <form onSubmit={handleSubmit} />;
+      }`,
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain("bauart(no-toast-form-error)");
+    expect(output).toContain("handleSubmit");
+  });
+
+  it("rejects a save error toasted from the catch of a save handler", () => {
+    const { status, output } = lintSource(
+      `import { useToast } from "~/contexts/ToastContext";
+      export function Probe({ save }: { save: () => Promise<void> }) {
+        const toast = useToast();
+        const handleSave = useCallback(async () => {
+          try {
+            await save();
+          } catch (err) {
+            toast.error("Speichern fehlgeschlagen.");
+          }
+        }, [save, toast]);
+        return <button type="button" onClick={() => void handleSave()} />;
+      }`,
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain("bauart(no-toast-form-error)");
+    expect(output).toContain("handleSave");
+  });
+
+  it("sees the destructured alias and a promise callback inside the handler", () => {
+    const { status, output } = lintSource(
+      `import { useToast } from "~/contexts/ToastContext";
+      export function Probe({ save }: { save: () => Promise<void> }) {
+        const { error: toastError } = useToast();
+        return (
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              save().catch(() => toastError("Speichern fehlgeschlagen."));
+            }}
+          />
+        );
+      }`,
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain("bauart(no-toast-form-error)");
+  });
+
+  it("accepts a success toast and an error toast outside a submit handler", () => {
+    const { status, output } = lintSource(
+      `import { useToast } from "~/contexts/ToastContext";
+      export function Probe({ save, load }: { save: () => Promise<void>; load: () => Promise<void> }) {
+        const toast = useToast();
+        const handleSave = async () => {
+          await save();
+          toast.success("Gespeichert.");
+        };
+        const handleReload = async () => {
+          try {
+            await load();
+          } catch {
+            toast.error("Laden fehlgeschlagen.");
+          }
+        };
+        return (
+          <>
+            <button type="button" onClick={() => void handleSave()} />
+            <button type="button" onClick={() => void handleReload()} />
+          </>
+        );
+      }`,
+    );
+
+    expect(status).toBe(0);
+    expect(output).not.toContain("bauart(no-toast-form-error)");
+  });
+
+  it("leaves the kit directory, tests and the other portals alone", () => {
+    const source = `import { useToast } from "~/contexts/ToastContext";
+      export function Probe() {
+        const toast = useToast();
+        const handleSubmit = () => toast.error("Nein.");
+        return <form onSubmit={handleSubmit} />;
+      }`;
+
+    for (const path of [
+      "src/components/ui/probe.tsx",
+      "src/components/probe.test.tsx",
+      "src/app/operator/probe.tsx",
+      "src/components/parent/probe.tsx",
+    ]) {
+      const { output } = lintSource(source, path);
+      expect(output).not.toContain("bauart(no-toast-form-error)");
+    }
+  });
+});
+
+describe("bauart/no-manage-surface-in-overlay", () => {
+  it("rejects a per-row kebab with object actions inside a SlideOver", () => {
+    const { status, output } = lintSource(
+      `import { SlideOver, SlideOverContent } from "~/components/ui/slide-over";
+      import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+      export function Probe({ items }: { items: { id: string; name: string }[] }) {
+        return (
+          <SlideOver open onOpenChange={() => {}}>
+            <SlideOverContent>
+              <ul>
+                {items.map((item) => (
+                  <li key={item.id}>
+                    {item.name}
+                    <OverflowMenu
+                      ariaLabel={"Aktionen"}
+                      items={[
+                        { label: "Bearbeiten", onClick: () => {} },
+                        { label: "Archivieren", onClick: () => {} },
+                      ]}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </SlideOverContent>
+          </SlideOver>
+        );
+      }`,
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain("bauart(no-manage-surface-in-overlay)");
+    expect(output).toContain("Bearbeiten");
+  });
+
+  it("follows a helper the overlay renders", () => {
+    const { status, output } = lintSource(
+      `import { AnchoredPopover } from "~/components/ui/anchored-popover";
+      import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+      export function Probe({ items }: { items: { id: string; name: string }[] }) {
+        const manageView = (
+          <ul>
+            {items.map((item) => (
+              <li key={item.id}>
+                <OverflowMenu
+                  ariaLabel={"Aktionen"}
+                  items={[{ label: "Umbenennen", onClick: () => {} }]}
+                />
+              </li>
+            ))}
+          </ul>
+        );
+        return (
+          <AnchoredPopover open onOpenChange={() => {}} renderTrigger={() => null}>
+            {() => manageView}
+          </AnchoredPopover>
+        );
+      }`,
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain("bauart(no-manage-surface-in-overlay)");
+    expect(output).toContain("Umbenennen");
+  });
+
+  it("rejects a rename button in a listbox menu slot", () => {
+    const { status, output } = lintSource(
+      `import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
+      export function Probe() {
+        return (
+          <ListboxDropdown
+            value=""
+            options={[]}
+            onChange={() => {}}
+            renderOptionActions={(option) => (
+              <button type="button" aria-label={option.label + " umbenennen"} />
+            )}
+          />
+        );
+      }`,
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain("bauart(no-manage-surface-in-overlay)");
+    expect(output).toContain("Auswahlfeld");
+  });
+
+  it("accepts the same list on a page", () => {
+    const { status, output } = lintSource(
+      `import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+      export function Probe({ items }: { items: { id: string; name: string }[] }) {
+        return (
+          <ul>
+            {items.map((item) => (
+              <li key={item.id}>
+                {item.name}
+                <OverflowMenu
+                  ariaLabel={"Aktionen"}
+                  items={[{ label: "Bearbeiten", onClick: () => {} }]}
+                />
+              </li>
+            ))}
+          </ul>
+        );
+      }`,
+    );
+
+    expect(status).toBe(0);
+    expect(output).not.toContain("bauart(no-manage-surface-in-overlay)");
+  });
+
+  it("accepts a plain select inside an overlay", () => {
+    const { status, output } = lintSource(
+      `import { Modal } from "~/components/ui/modal";
+      import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
+      export function Probe({ items }: { items: { id: string; name: string }[] }) {
+        return (
+          <Modal isOpen onClose={() => {}} title="Abwesenheit">
+            <ListboxDropdown
+              value=""
+              options={items.map((item) => ({ value: item.id, label: item.name }))}
+              onChange={() => {}}
+            />
+            <button type="button">Speichern</button>
+          </Modal>
+        );
+      }`,
+    );
+
+    expect(status).toBe(0);
+    expect(output).not.toContain("bauart(no-manage-surface-in-overlay)");
+  });
+
+  it("leaves the kit directory, tests and the other portals alone", () => {
+    const source = `import { Modal } from "~/components/ui/modal";
+      import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+      export function Probe({ items }: { items: { id: string }[] }) {
+        return (
+          <Modal isOpen onClose={() => {}} title="Liste">
+            {items.map((item) => (
+              <OverflowMenu
+                key={item.id}
+                ariaLabel={"Aktionen"}
+                items={[{ label: "Bearbeiten", onClick: () => {} }]}
+              />
+            ))}
+          </Modal>
+        );
+      }`;
+
+    for (const path of [
+      "src/components/ui/probe.tsx",
+      "src/components/probe.test.tsx",
+      "src/app/operator/probe.tsx",
+      "src/components/parent/probe.tsx",
+    ]) {
+      const { output } = lintSource(source, path);
+      expect(output).not.toContain("bauart(no-manage-surface-in-overlay)");
+    }
+  });
+});

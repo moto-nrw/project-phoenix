@@ -48,7 +48,7 @@ vi.mock("next-auth/react", () => ({
 const mockPush = vi.fn();
 const mockRedirect = vi.fn();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ push: mockPush, replace: vi.fn() }),
   useSearchParams: () => ({
     get: (key: string) =>
       key === "room" ? navigationMockState.roomParam : null,
@@ -78,8 +78,22 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
 
 // Mock Alert
 vi.mock("~/components/ui/alert", () => ({
-  Alert: ({ message, type }: { message: string; type: string }) => (
-    <div data-testid={`alert-${type}`}>{message}</div>
+  // The action slot is part of the real Alert: the released-room notice and
+  // the reopen banner both carry their action in it, so a stub that drops it
+  // would hide the only control on those blocks.
+  Alert: ({
+    message,
+    type,
+    action,
+  }: {
+    message: string;
+    type: string;
+    action?: React.ReactNode;
+  }) => (
+    <div data-testid={`alert-${type}`}>
+      {message}
+      {action}
+    </div>
   ),
 }));
 
@@ -214,6 +228,7 @@ vi.mock("~/components/students/student-card", () => ({
   ),
   SchoolClassIcon: () => <span data-testid="school-class-icon" />,
   GroupIcon: () => <span data-testid="group-icon" />,
+  ActivityIcon: () => <span data-testid="activity-icon" />,
   PickupTimeRow: ({
     pickupTime,
     isException,
@@ -379,6 +394,16 @@ describe("MeinRaumPage (Active Supervisions) (3/5)", () => {
         studentCount: 0,
         supervisors: [],
       },
+      openRooms: [
+        {
+          roomId: "10",
+          name: "Schulhof",
+          isUserSupervising: false,
+          activeGroupIds: [],
+          studentCount: 0,
+          students: [],
+        },
+      ],
       plannedNow: [],
     };
     let dashboardResult = {
@@ -437,11 +462,86 @@ describe("MeinRaumPage (Active Supervisions) (3/5)", () => {
     expect(
       await screen.findByRole("button", { name: "Beaufsichtigen" }),
     ).toBeDisabled();
+    // Der Grund steht einmal: die Karte „Spontane Aktivität starten" trägt
+    // ihn schon, ein zweiter Hinweis für „Beaufsichtigen" wäre doppelt.
     expect(
       screen.getAllByText(
+        /Spontane Aktivitäten sind nur montags bis freitags möglich\./,
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("states why Beaufsichtigen is blocked when spontaneous starts are off", async () => {
+    const dashboardResult = {
+      data: {
+        businessDay: "2026-08-29",
+        spontaneousStartAvailability: {
+          available: false,
+          blockedReason: "weekend" as const,
+        },
+        supervisedGroups: [],
+        unclaimedGroups: [],
+        currentStaff: { id: "staff-1" },
+        educationalGroups: [],
+        firstRoomVisits: [],
+        firstRoomId: null,
+        capabilities: { webSpontaneousActivitiesEnabled: false },
+        schulhofStatus: {
+          exists: true,
+          roomId: "10",
+          roomName: "Schulhof",
+          activityGroupId: null,
+          activeGroupId: null,
+          isUserSupervising: false,
+          supervisionId: null,
+          supervisorCount: 0,
+          studentCount: 0,
+          supervisors: [],
+        },
+        openRooms: [
+          {
+            roomId: "10",
+            name: "Schulhof",
+            isUserSupervising: false,
+            activeGroupIds: [],
+            studentCount: 0,
+            students: [],
+          },
+        ],
+        plannedNow: [],
+      },
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    };
+    const emptyResult = {
+      data: null,
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    };
+    vi.mocked(useSWRAuth).mockImplementation(((key: string | null) =>
+      key?.startsWith("active-supervision-dashboard")
+        ? dashboardResult
+        : emptyResult) as never);
+
+    render(<MeinRaumPage />);
+
+    expect(
+      await screen.findByRole("button", { name: "Beaufsichtigen" }),
+    ).toBeDisabled();
+    // Ohne die Karte für spontane Aktivitäten steht der Grund selbst da —
+    // eine gesperrte Schaltfläche ohne Grund wäre eine Sackgasse.
+    expect(
+      screen.queryByRole("button", { name: /Spontane Aktivität starten/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
         "Spontane Aktivitäten sind nur montags bis freitags möglich.",
       ),
-    ).toHaveLength(2);
+    ).toBeInTheDocument();
   });
 
   it("keeps Schulhof selectable as a normal room when status is unavailable (#2161)", async () => {
@@ -455,6 +555,7 @@ describe("MeinRaumPage (Active Supervisions) (3/5)", () => {
         firstRoomId: null,
         capabilities: { webSpontaneousActivitiesEnabled: true },
         schulhofStatus: null,
+        openRooms: [],
         plannedNow: [],
       },
       isLoading: false,
@@ -500,7 +601,10 @@ describe("MeinRaumPage (Active Supervisions) (3/5)", () => {
       plannedNow: [],
     };
     let dashboardResult: {
-      data: typeof baseDashboardData & { schulhofStatus: unknown };
+      data: typeof baseDashboardData & {
+        schulhofStatus: unknown;
+        openRooms: unknown;
+      };
       isLoading: boolean;
       error: Error | null;
       mutate: typeof mockMutate;
@@ -521,6 +625,16 @@ describe("MeinRaumPage (Active Supervisions) (3/5)", () => {
           studentCount: 0,
           supervisors: [],
         },
+        openRooms: [
+          {
+            roomId: "5",
+            name: "Schulhof",
+            isUserSupervising: false,
+            activeGroupIds: [],
+            studentCount: 0,
+            students: [],
+          },
+        ],
       },
       isLoading: false,
       error: null,
@@ -608,6 +722,16 @@ describe("MeinRaumPage (Active Supervisions) (3/5)", () => {
           studentCount: 3,
           supervisors: [],
         },
+        openRooms: [
+          {
+            roomId: "10",
+            name: "Schulhof",
+            isUserSupervising: false,
+            activeGroupIds: ["55"],
+            studentCount: 3,
+            students: [],
+          },
+        ],
         plannedNow: [],
       },
       isLoading: false,

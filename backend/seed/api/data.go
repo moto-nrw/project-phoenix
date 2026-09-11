@@ -227,7 +227,13 @@ var DemoStudents = []DemoStudent{
 	{FirstName: "Sabrina", LastName: "Bergmann", Class: "Klasse 4b", GroupKey: "wiesengruppe"},
 }
 
-// DemoActivities defines the 10 activities with room assignments
+// DemoActivities defines the 10 activities with room assignments.
+//
+// Fußball and Tanzen deliberately share the Sporthalle, which is a released
+// room: that pairing is what makes the shared open-room view demonstrable
+// (#3065) — several offerings in one open room, each child listed once. Moving
+// either of them to a different room would quietly remove the only place in
+// the demo where that can be seen.
 var DemoActivities = []DemoActivity{
 	{Name: "Hausaufgaben", DefaultRoom: "OGS-Raum 1", DurationMins: 60},
 	{Name: "Fußball", DefaultRoom: "Sporthalle", DurationMins: 90},

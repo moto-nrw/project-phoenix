@@ -94,7 +94,10 @@ func assertLocalHooksUsePinnedRunner(t *testing.T, repoRoot string) {
 	t.Helper()
 	checks := map[string][]string{
 		"lefthook.yml": {
-			`DIFF=$(../scripts/run-go-toolchain.sh go tool goimports -d . 2>&1)`,
+			// The hook checks the staged files, not the whole tree, and keeps
+			// goimports' stderr out of the diff variable — but it still has to
+			// go through the pinned runner, which is what this pin is for.
+			`DIFF=$(../scripts/run-go-toolchain.sh go tool goimports -d $FILES)`,
 			"run: cd backend && ../scripts/run-go-toolchain.sh go vet ./...",
 			"run: cd backend && ../scripts/run-go-toolchain.sh go test ./test -run '^TestToolchainPinsRatchet$' -count=1",
 			"run: scripts/run-go-toolchain.sh scripts/backend-architecture.sh check",

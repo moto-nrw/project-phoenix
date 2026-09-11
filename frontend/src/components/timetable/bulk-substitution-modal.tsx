@@ -28,6 +28,7 @@ import { ISODatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
 import {
   SlideOver,
+  SlideOverBody,
   SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
@@ -35,6 +36,7 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import { useFormError } from "~/components/ui/form-error";
 import { useToast } from "~/contexts/ToastContext";
 import { formatDate, parseISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
@@ -110,6 +112,9 @@ export function BulkSubstitutionModal({
   // damit automatisch ausgewählt, ohne die bestehende Abwahl zu verlieren.
   const [deselected, setDeselected] = useState<ReadonlySet<string>>(new Set());
   const [saving, setSaving] = useState(false);
+  // Speicherfehler stehen oben im Panel (SlideOverBody `error`), nicht als
+  // Toast: Bauart 2 Regel 5.
+  const [saveError, setSaveError] = useFormError();
 
   // Nach dem Tagesübergang wären Von/Bis-Werte von gestern ungültige
   // Vergangenheit; auf den neuen Berliner "heute"-Anker nachziehen.
@@ -220,6 +225,7 @@ export function BulkSubstitutionModal({
     setSubstituteStaffId("");
     setReason("");
     setDeselected(new Set());
+    setSaveError(null);
     onClose();
   };
 
@@ -243,6 +249,7 @@ export function BulkSubstitutionModal({
   const handleSave = async () => {
     if (!canSave) return;
     setSaving(true);
+    setSaveError(null);
     try {
       const result = await substitutionService.applyBulkSubstitution({
         absentStaffId,
@@ -256,6 +263,7 @@ export function BulkSubstitutionModal({
           : `Abwesenheit eingetragen: ${result.totalAffected} Termin(e) an ${result.days.length} Tag(en)`,
       );
       if (result.warningCount > 0) {
+        // oxlint-disable-next-line bauart/no-toast-form-error -- Kein Formularfehler: der Save ist durch und das Panel schließt; der Hinweis auf Überschneidungen hat keine andere Fläche.
         toast.error(
           `${result.warningCount} mögliche Zeitüberschneidung(en) prüfen.`,
         );
@@ -279,7 +287,7 @@ export function BulkSubstitutionModal({
       logger.error("bulk_substitution_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      toast.error(
+      setSaveError(
         err instanceof Error ? err.message : "Speichern fehlgeschlagen",
       );
     } finally {
@@ -315,7 +323,7 @@ export function BulkSubstitutionModal({
             disabled={saving}
           />
         </SlideOverHeader>
-        <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+        <SlideOverBody error={saveError} className="space-y-4">
           {staffLoadError && (
             <Alert
               type="error"
@@ -489,7 +497,7 @@ export function BulkSubstitutionModal({
               {substituteStaffId ? "vertreten" : "als abwesend markiert"}.
             </p>
           )}
-        </div>
+        </SlideOverBody>
         <SlideOverFooter className="flex-row justify-end gap-2">
           <Button
             type="button"

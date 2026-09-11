@@ -553,6 +553,7 @@ func (m *mockAuthService) ResetPassword(context.Context, string, string) error {
 func (m *mockAuthService) CleanupExpiredRateLimits(context.Context) (int, error) {
 	return 0, nil
 }
+func (m *mockAuthService) CountExpiredTokens(context.Context) (int, error)   { return 0, nil }
 func (m *mockAuthService) CleanupExpiredTokens(context.Context) (int, error) { return 0, nil }
 func (m *mockAuthService) CleanupExpiredPasswordResetTokens(context.Context) (int, error) {
 	return 0, nil

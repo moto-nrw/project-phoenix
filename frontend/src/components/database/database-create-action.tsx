@@ -8,6 +8,7 @@ import {
 interface DatabaseCreateActionProps {
   label: string;
   ariaLabel: string;
+  disabled?: boolean;
   onClick: () => void;
 }
 
@@ -18,6 +19,7 @@ interface DatabaseCreateActionProps {
 export function DatabaseCreateAction({
   label,
   ariaLabel,
+  disabled = false,
   onClick,
 }: DatabaseCreateActionProps) {
   useFloatingFabOffset({
@@ -30,7 +32,8 @@ export function DatabaseCreateAction({
       <button
         type="button"
         onClick={onClick}
-        className="bg-moto-green hover:bg-moto-green-hover hidden h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold text-gray-950 md:flex"
+        disabled={disabled}
+        className="bg-moto-green hover:bg-moto-green-hover hidden h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold text-gray-950 disabled:cursor-not-allowed disabled:opacity-50 md:flex"
         aria-label={ariaLabel}
       >
         + {label}
@@ -38,7 +41,8 @@ export function DatabaseCreateAction({
       <button
         type="button"
         onClick={onClick}
-        className="bg-moto-green hover:bg-moto-green-hover fixed right-4 bottom-24 z-40 flex h-14 w-14 items-center justify-center rounded-full text-gray-950 shadow-lg md:hidden"
+        disabled={disabled}
+        className="bg-moto-green hover:bg-moto-green-hover fixed right-4 bottom-24 z-40 flex h-14 w-14 items-center justify-center rounded-full text-gray-950 shadow-lg disabled:cursor-not-allowed disabled:opacity-50 md:hidden"
         // Schwebender Symbolknopf: das Gerüst der Kopfkarte darf ihn auf dem
         // Telefon nicht wie einen Textknopf über die Zeile strecken.
         data-icon-only=""

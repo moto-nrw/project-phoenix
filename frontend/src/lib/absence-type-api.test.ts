@@ -48,6 +48,45 @@ describe("absenceTypeService allowances", () => {
     ]);
   });
 
+  it("creates an absence type with its allowance configuration", async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            id: "12",
+            name: "Regenerationstag",
+            base_type: "other",
+            is_active: true,
+            allowance_enabled: true,
+            overrun_policy: "block",
+          },
+        }),
+        { status: 201, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    await expect(
+      absenceTypeService.createAbsenceType("Regenerationstag", {
+        allowanceEnabled: true,
+        overrunPolicy: "block",
+      }),
+    ).resolves.toMatchObject({
+      allowanceEnabled: true,
+      overrunPolicy: "block",
+    });
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/staff/absence-types",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          name: "Regenerationstag",
+          allowance_enabled: true,
+          overrun_policy: "block",
+        }),
+      }),
+    );
+  });
+
   it("saves a yearly claim with its reason", async () => {
     global.fetch = vi.fn().mockResolvedValue(
       new Response(

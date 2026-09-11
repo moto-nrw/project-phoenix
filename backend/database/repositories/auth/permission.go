@@ -62,38 +62,36 @@ func (r *PermissionRepository) FindByAccountID(ctx context.Context, accountID in
 func (r *PermissionRepository) FindByAccountIDForTenant(ctx context.Context, accountID int64, tenantID int64) ([]*auth.Permission, error) {
 	var permissions []*auth.Permission
 
-	// Build direct permissions CTE with tenant filter
-	directCTE := base.GetDB(ctx, r.db).NewSelect().
-		Table("auth.account_permissions").
-		Where("account_id = ? AND granted = true", accountID)
+	// Direct grants, filtered by tenant
+	direct := base.GetDB(ctx, r.db).NewSelect().
+		ColumnExpr(`"account_permission".permission_id`).
+		TableExpr(`auth.account_permissions AS "account_permission"`).
+		Where(`"account_permission".account_id = ? AND "account_permission".granted = true`, accountID)
 
-	// Build role-based permissions CTE with tenant filter
-	roleCTE := base.GetDB(ctx, r.db).NewSelect().
-		Table(rolePermissionsTable).
-		Join("JOIN auth.account_roles ar ON ar.role_id = role_permissions.role_id").
-		Where("ar.account_id = ?", accountID)
+	// Role-granted permissions, filtered by tenant
+	fromRoles := base.GetDB(ctx, r.db).NewSelect().
+		ColumnExpr(`"role_permission".permission_id`).
+		TableExpr(`auth.role_permissions AS "role_permission"`).
+		Join(`JOIN auth.account_roles AS "ar" ON "ar".role_id = "role_permission".role_id`).
+		Where(`"ar".account_id = ?`, accountID)
 
 	// Apply tenant filtering: explicit tenant ID takes priority, then context
 	if tenantID > 0 {
-		directCTE = directCTE.Where("account_permissions.tenant_id = ?", tenantID)
-		roleCTE = roleCTE.Where("ar.tenant_id = ?", tenantID)
-	} else if where, val, ok := base.TenantWhere(ctx, "account_permissions"); ok {
-		directCTE = directCTE.Where(where, val)
-		// Use same tenant ID for role CTE
-		roleCTE = roleCTE.Where(`ar.tenant_id = ?`, val)
+		direct = direct.Where(`"account_permission".tenant_id = ?`, tenantID)
+		fromRoles = fromRoles.Where(`"ar".tenant_id = ?`, tenantID)
+	} else if _, val, ok := base.TenantWhere(ctx, "account_permission"); ok {
+		direct = direct.Where(`"account_permission".tenant_id = ?`, val)
+		// Use same tenant ID for the role-granted set
+		fromRoles = fromRoles.Where(`"ar".tenant_id = ?`, val)
 	}
 
+	// The union is joined as a derived table so the evaluator resolves every
+	// table this read touches.
 	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&permissions).
 		ModelTableExpr(permissionTableAlias).
 		Distinct().
-		With("account_permissions_direct", directCTE).
-		With("account_permissions_from_roles", roleCTE).
-		With("all_account_permissions", base.GetDB(ctx, r.db).NewSelect().
-			Column("permission_id").
-			TableExpr("account_permissions_direct").
-			UnionAll(base.GetDB(ctx, r.db).NewSelect().TableExpr("account_permissions_from_roles").Column("permission_id"))).
-		Join(`JOIN all_account_permissions aap ON aap.permission_id = "permission".id`).
+		Join(`JOIN (?) AS "aap" ON "aap".permission_id = "permission".id`, direct.UnionAll(fromRoles)).
 		Scan(ctx)
 
 	if err != nil {
@@ -325,13 +323,13 @@ func (r *PermissionRepository) List(ctx context.Context, filters map[string]inte
 func (r *PermissionRepository) applyPermissionFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
 	switch field {
 	case "name":
-		return r.applyPermissionStringEqualFilter(query, `"permission".name`, value)
+		return r.applyPermissionStringEqualFilter(query, bun.Safe(`"permission".name`), value)
 	case "resource":
-		return r.applyPermissionStringEqualFilter(query, `"permission".resource`, value)
+		return r.applyPermissionStringEqualFilter(query, bun.Safe(`"permission".resource`), value)
 	case "action":
-		return r.applyPermissionStringEqualFilter(query, `"permission".action`, value)
+		return r.applyPermissionStringEqualFilter(query, bun.Safe(`"permission".action`), value)
 	case "name_like":
-		return r.applyPermissionStringLikeFilter(query, `"permission".name`, value)
+		return r.applyPermissionStringLikeFilter(query, bun.Safe(`"permission".name`), value)
 	case "is_system":
 		return query.Where(`"permission".is_system = ?`, value)
 	default:
@@ -340,17 +338,18 @@ func (r *PermissionRepository) applyPermissionFilter(query *bun.SelectQuery, fie
 }
 
 // applyPermissionStringEqualFilter applies case-insensitive equality filter for permission fields
-func (r *PermissionRepository) applyPermissionStringEqualFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
+// The field is a column written in this file, never request input.
+func (r *PermissionRepository) applyPermissionStringEqualFilter(query *bun.SelectQuery, field bun.Safe, value interface{}) *bun.SelectQuery {
 	if strValue, ok := value.(string); ok {
-		return query.Where("LOWER("+field+") = LOWER(?)", strValue)
+		return query.Where("LOWER(?) = LOWER(?)", field, strValue)
 	}
-	return query.Where(field+" = ?", value)
+	return query.Where("? = ?", field, value)
 }
 
 // applyPermissionStringLikeFilter applies case-insensitive LIKE filter for permission fields
-func (r *PermissionRepository) applyPermissionStringLikeFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
+func (r *PermissionRepository) applyPermissionStringLikeFilter(query *bun.SelectQuery, field bun.Safe, value interface{}) *bun.SelectQuery {
 	if strValue, ok := value.(string); ok {
-		return query.Where("LOWER("+field+") LIKE LOWER(?)", "%"+strValue+"%")
+		return query.Where("LOWER(?) LIKE LOWER(?)", field, "%"+strValue+"%")
 	}
 	return query
 }

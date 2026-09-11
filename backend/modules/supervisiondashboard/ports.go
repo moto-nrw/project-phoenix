@@ -68,6 +68,9 @@ type SessionDirectory interface {
 	SupervisedByStaff(ctx context.Context, staffID int64) (map[int64]struct{}, error)
 	// Unclaimed lists the running sessions without a supervisor.
 	Unclaimed(ctx context.Context) ([]UnclaimedGroup, error)
+	// InRooms lists every running session in the supplied released rooms in
+	// one bulk read.
+	InRooms(ctx context.Context, roomIDs []int64) ([]RunningSession, error)
 }
 
 // Yard reads the Schulhof workflow state of a staff member.
@@ -130,6 +133,28 @@ type Presence interface {
 	// AttendanceTimes returns today's attendance rows of the students.
 	AttendanceTimes(ctx context.Context, studentIDs []int64) (map[int64]Attendance, error)
 	TrackingIndicators(ctx context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error)
+	OpenVisitsOfSessions(ctx context.Context, activeGroupIDs []int64) ([]VisitRecord, error)
+}
+
+// RoomDirectory answers which rooms the Facilities owner released. A release
+// controls shared visibility; it never grants a supervision.
+type RoomDirectory interface {
+	Released(ctx context.Context) ([]ReleasedRoom, error)
+}
+
+type ReleasedRoom struct {
+	ID   int64
+	Name string
+}
+
+// RunningSession contains the facts one shared-room entry needs for a live
+// session. An empty ActivityName is a room-only session, not a placeholder.
+type RunningSession struct {
+	ActiveGroupID      int64
+	RoomID             int64
+	ActivityName       string
+	StartTime          time.Time
+	SupervisorStaffIDs []int64
 }
 
 // Pickup is the effective pickup plan of one student for the day.

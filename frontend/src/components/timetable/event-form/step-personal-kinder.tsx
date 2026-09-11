@@ -188,21 +188,19 @@ export function StepPersonalKinder({
   // Per-weekday rosters only make sense for a recurring series, and only once
   // the people lists have actually loaded — otherwise a save would write the
   // empty placeholder lists onto every weekday. An offering-sourced template
-  // (#2137) hides the whole section: its child roster is server-managed, and
-  // the backend rejects weekday_assignments next to a source.
+  // (#2137) keeps per-weekday staff (#3165); only the per-weekday child lists
+  // are hidden because the source owns them, so the section does not wait for
+  // the student list either.
   const rosterWeekdays = [...form.weekdays].sort((a, b) => a - b);
   const showWeekdayRoster =
     isSeriesFlow &&
-    !hasOfferingSource &&
     !loadingStaff &&
     !staffLoadError &&
-    !loadingStudents &&
-    !studentLoadError;
+    (hasOfferingSource || (!loadingStudents && !studentLoadError));
   const usePerWeekdayRoster =
     showWeekdayRoster && form.perWeekdayRoster && rosterWeekdays.length >= 2;
   const preserveUnavailableWeekdayRoster =
     isSeriesFlow &&
-    !hasOfferingSource &&
     form.perWeekdayRoster &&
     rosterWeekdays.length >= 2 &&
     !showWeekdayRoster;
@@ -690,6 +688,7 @@ export function StepPersonalKinder({
           setPerWeekdayRoster={setPerWeekdayRoster}
           setWeekdayRoster={setWeekdayRoster}
           applyActiveWeekdayToAll={applyActiveWeekdayRosterToAll}
+          childrenFromSource={hasOfferingSource}
           staff={staff}
           students={students}
           studentBulkOptions={studentBulkOptions}
@@ -700,10 +699,16 @@ export function StepPersonalKinder({
         <div className="flex flex-col gap-2">
           <Alert
             type="info"
-            message="Die wochentagsspezifischen Zuordnungen können erst bearbeitet werden, wenn Personal- und Kinderliste vollständig geladen sind. Die bestehenden Zuordnungen bleiben beim Speichern unverändert."
+            message={
+              hasOfferingSource
+                ? "Das Personal pro Wochentag lässt sich erst bearbeiten, wenn die Personalliste geladen ist. Die bestehende Zuordnung bleibt beim Speichern unverändert."
+                : "Die wochentagsspezifischen Zuordnungen können erst bearbeitet werden, wenn Personal- und Kinderliste vollständig geladen sind. Die bestehenden Zuordnungen bleiben beim Speichern unverändert."
+            }
           />
           {(loadingStaff || staffLoadError) && staffRosterField}
-          {(loadingStudents || studentLoadError) && studentRosterField}
+          {!hasOfferingSource &&
+            (loadingStudents || studentLoadError) &&
+            studentRosterField}
         </div>
       )}
 

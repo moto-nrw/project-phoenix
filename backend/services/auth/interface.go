@@ -119,6 +119,7 @@ type AuthService interface {
 	CleanupExpiredRateLimits(ctx context.Context) (int, error)
 
 	// Token Management
+	CountExpiredTokens(ctx context.Context) (int, error)
 	CleanupExpiredTokens(ctx context.Context) (int, error)
 	CleanupExpiredPasswordResetTokens(ctx context.Context) (int, error)
 	RevokeAllTokens(ctx context.Context, accountID int) error

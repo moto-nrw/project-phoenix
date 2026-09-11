@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { HomeBlockAccess, HomeBlockContext } from "~/lib/home-blocks";
@@ -16,6 +16,7 @@ const sources = vi.hoisted(() => ({
   analytics: undefined as
     { studentsPresent: number; supervisorsToday: number } | undefined,
   requested: [] as (string | null)[],
+  mutateDay: vi.fn(),
 }));
 
 vi.mock("~/lib/swr", () => ({
@@ -25,10 +26,16 @@ vi.mock("~/lib/swr", () => ({
     if (key.startsWith("time-tracking-own-assignments-today-")) {
       return { data: sources.own, error: sources.ownError };
     }
-    if (key === "home-day-flow") return { data: sources.school };
+    if (key === "home-day-flow") {
+      return { data: sources.school, mutate: sources.mutateDay };
+    }
     if (key === "dashboard-analytics") return { data: sources.analytics };
     return { data: undefined, error: undefined };
   },
+}));
+const router = vi.hoisted(() => ({ push: vi.fn() }));
+vi.mock("~/lib/tenant-router", () => ({
+  useTenantRouter: () => router,
 }));
 vi.mock("~/lib/hooks/use-berlin-today", () => ({
   useBerlinToday: () => "2026-09-08",
@@ -53,8 +60,9 @@ vi.mock("~/lib/supervision-context", () => ({
 vi.mock("~/lib/shift-api", () => ({
   ownShiftService: { getOwnAssignments: vi.fn() },
 }));
+const api = vi.hoisted(() => ({ plannedNow: vi.fn(), start: vi.fn() }));
 vi.mock("~/lib/timetable-operations-api", () => ({
-  timetableOperationsApi: { plannedNow: vi.fn() },
+  timetableOperationsApi: api,
 }));
 vi.mock("~/lib/dashboard-api", () => ({
   fetchDashboardAnalyticsClient: vi.fn(),
@@ -137,13 +145,16 @@ describe("NowStrip (#2180)", () => {
     sources.school = undefined;
     sources.analytics = undefined;
     sources.requested = [];
+    sources.mutateDay.mockReset();
+    api.start.mockReset();
+    router.push.mockReset();
     supervision.ownSupervision = false;
     supervision.hasGroups = true;
   });
 
   it("zeigt die Uhrzeit, den laufenden Einsatz und den Weg in den Tag", () => {
     sources.own = [
-      assignment(),
+      assignment({ status: "active" }),
       assignment({
         instanceId: "2",
         startTime: "12:00",
@@ -166,10 +177,68 @@ describe("NowStrip (#2180)", () => {
     expect(
       screen.queryByRole("link", { name: "Zum Tagesplan" }),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Meine Gruppe" })).toHaveAttribute(
-      "href",
-      "/test-tenant/ogs-groups",
+    // Die eigene Gruppe steht als Baustein darunter, nicht in der Zone.
+    expect(
+      screen.queryByRole("link", { name: "Meine Gruppe" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual(
+      ["Alle Kinder"],
     );
+  });
+
+  // Die Uhr sagt, dass der Block dran ist, nicht, dass er läuft.
+  it("nennt einen fälligen, aber nicht gestarteten Einsatz so", () => {
+    sources.own = [assignment()];
+
+    render(<NowStrip access={care} context={context(care)} />);
+
+    expect(screen.getByText("Nicht gestartet")).toBeInTheDocument();
+    expect(screen.queryByText("Läuft")).not.toBeInTheDocument();
+  });
+
+  it("startet den eigenen Block und springt in seine Kinderliste", async () => {
+    sources.own = [];
+    sources.school = [block({ id: "4", isAssigned: true, canStart: true })];
+    api.start.mockResolvedValue({ activeGroupId: "77" });
+
+    render(<NowStrip access={care} context={context(care)} />);
+    fireEvent.click(screen.getByRole("button", { name: "Aufsicht starten" }));
+
+    await waitFor(() =>
+      expect(router.push).toHaveBeenCalledWith(
+        "/active-supervisions?session=77",
+      ),
+    );
+    expect(api.start).toHaveBeenCalledWith("4");
+  });
+
+  it("sagt es, wenn das Starten scheitert, und lädt den Tag neu", async () => {
+    sources.own = [];
+    sources.school = [block({ id: "4", isAssigned: true, canStart: true })];
+    api.start.mockRejectedValue(new Error("boom"));
+
+    render(<NowStrip access={care} context={context(care)} />);
+    fireEvent.click(screen.getByRole("button", { name: "Aufsicht starten" }));
+
+    expect(
+      await screen.findByText(/konnte nicht gestartet werden/),
+    ).toBeInTheDocument();
+    expect(sources.mutateDay).toHaveBeenCalled();
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
+  it("bietet keinen fremden oder schon laufenden Block zum Starten an", () => {
+    sources.own = [];
+    sources.school = [
+      block({ id: "1", isAssigned: false, canStart: true }),
+      block({ id: "2", isAssigned: true, status: "active" }),
+    ];
+
+    render(<NowStrip access={care} context={context(care)} />);
+
+    expect(
+      screen.queryByRole("button", { name: "Aufsicht starten" }),
+    ).not.toBeInTheDocument();
   });
 
   it("nennt den nächsten Einsatz mit der Zeit bis dahin", () => {
@@ -186,14 +255,14 @@ describe("NowStrip (#2180)", () => {
     expect(screen.getByText("Vertretung")).toBeInTheDocument();
   });
 
-  it("stellt eine laufende Aufsicht als ersten Weg voran", () => {
+  it("führt bei laufender eigener Aufsicht zu ihr", () => {
     sources.own = [];
     supervision.ownSupervision = true;
 
     render(<NowStrip access={care} context={context(care)} />);
 
     const links = screen.getAllByRole("link");
-    expect(links[0]).toHaveTextContent("Aufsicht fortsetzen");
+    expect(links[0]).toHaveTextContent("Zur Aufsicht");
     expect(links[0]).toHaveAttribute(
       "href",
       "/test-tenant/active-supervisions",
@@ -240,6 +309,21 @@ describe("NowStrip (#2180)", () => {
     ).toBe(false);
   });
 
+  // Ein überfälliger Block ist nicht vorbei, nur weil danach nichts kommt.
+  it("meldet der Leitung keinen Feierabend, solange ein Block überfällig ist", () => {
+    sources.school = [
+      block({ id: "1", startTime: "10:00", endTime: "11:00", isOverdue: true }),
+    ];
+
+    render(<NowStrip access={lead} context={context(lead)} />);
+
+    expect(screen.getByText("Gerade läuft kein Block")).toBeInTheDocument();
+    expect(screen.getByText("1 nicht gestartet")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Für heute ist alles vorbei"),
+    ).not.toBeInTheDocument();
+  });
+
   // Ein Fehler in einer Quelle nimmt die Zone nicht mit.
   it("trägt bei einem Ladefehler nur Uhrzeit und Wege", () => {
     sources.ownError = new Error("boom");
@@ -248,7 +332,7 @@ describe("NowStrip (#2180)", () => {
 
     expect(screen.getByText("10:20")).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Meine Gruppe" }),
+      screen.getByRole("link", { name: "Alle Kinder" }),
     ).toBeInTheDocument();
     expect(screen.queryByText(/Läuft/)).not.toBeInTheDocument();
   });

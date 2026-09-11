@@ -15,8 +15,14 @@ import type {
 import type { Student } from "~/lib/student-helpers";
 import { useLatest } from "~/lib/hooks/use-latest";
 import {
+  isTimetableOperationForbidden,
+  TIMETABLE_OPERATION_FORBIDDEN_MESSAGE,
+} from "~/lib/timetable-operation-access";
+import {
+  RestOfDayNotSavedError,
   moveNoticeFromRoster,
   runOwnAttendanceMutation,
+  runRestOfDayExcusalRequest,
   runRosterActionRequest,
   type RosterAction,
 } from "~/components/active-supervisions/timetable-roster";
@@ -74,6 +80,7 @@ export interface TimetableActions {
     action: RosterAction,
     row: TimetableRosterRow,
   ) => Promise<void>;
+  readonly handleExcuseRestOfDay: (row: TimetableRosterRow) => Promise<void>;
   readonly confirmCompleteTimetableInstance: () => Promise<void>;
   readonly handleCompleteTimetableInstance: () => Promise<void>;
   readonly handleReopenTimetableInstance: () => Promise<void>;
@@ -281,6 +288,33 @@ export function useTimetableActions(
     [currentStaffId, adoptSession, mutateDashboard, refresh, router, setError],
   );
 
+  // After a planning denial the open list is stale: reload it so the actions
+  // the caller may no longer use disappear.
+  const revalidateRoster = useCallback(async () => {
+    try {
+      await mutateRoster();
+    } catch (err) {
+      logger.warn("timetable_roster_revalidate_failed_after_forbidden", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }, [mutateRoster]);
+
+  // A 403 "timetable operation forbidden" means the caller is not (or no
+  // longer) planned for the block (#3167): name that instead of the fallback
+  // and reload the list so its actions disappear.
+  const reportOperationFailure = useCallback(
+    (err: unknown, fallback: string, show: (message: string) => void) => {
+      if (!isTimetableOperationForbidden(err)) {
+        show(fallback);
+        return;
+      }
+      show(TIMETABLE_OPERATION_FORBIDDEN_MESSAGE);
+      void revalidateRoster();
+    },
+    [revalidateRoster],
+  );
+
   const handleRosterAction = useCallback(
     async (action: RosterAction, row: TimetableRosterRow) => {
       if (!activeTimetableInstanceId) return;
@@ -300,7 +334,11 @@ export function useTimetableActions(
           student_id: row.studentId,
           error: err instanceof Error ? err.message : String(err),
         });
-        setError("Aktion im Betreuungsplan konnte nicht ausgeführt werden.");
+        reportOperationFailure(
+          err,
+          "Aktion im Betreuungsplan konnte nicht ausgeführt werden.",
+          setError,
+        );
         return;
       }
       if (activeTimetableInstanceIdRef.current !== instanceId) return;
@@ -326,6 +364,59 @@ export function useTimetableActions(
       activeTimetableInstanceId,
       activeTimetableInstanceIdRef,
       mutateRoster,
+      reportOperationFailure,
+      setError,
+    ],
+  );
+
+  // „Rest des Tages“ (#3166): this block by hand, every later block of the day
+  // through a partial absence from this block's start.
+  const handleExcuseRestOfDay = useCallback(
+    async (row: TimetableRosterRow) => {
+      const instance = currentTimetableRoster?.instance;
+      if (
+        !activeTimetableInstanceId ||
+        instance?.id !== activeTimetableInstanceId
+      )
+        return;
+      const instanceId = activeTimetableInstanceId;
+      setMoveNotice(null);
+      try {
+        await runRestOfDayExcusalRequest(instance, row.studentId);
+      } catch (err) {
+        if (activeTimetableInstanceIdRef.current !== instanceId) return;
+        const blockExcused = err instanceof RestOfDayNotSavedError;
+        logger.error("timetable_rest_of_day_excusal_failed", {
+          instance_id: instanceId,
+          student_id: row.studentId,
+          block_excused: blockExcused,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        setError(
+          blockExcused
+            ? "Dieser Block ist entschuldigt. Die späteren Blöcke sind es noch nicht. Bitte tragen Sie das auf der Seite des Kindes ein."
+            : "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
+        );
+      }
+      if (activeTimetableInstanceIdRef.current !== instanceId) return;
+      try {
+        await mutateRoster();
+      } catch (err) {
+        if (activeTimetableInstanceIdRef.current !== instanceId) return;
+        logger.warn("timetable_roster_sync_failed_after_successful_action", {
+          action: "excused-rest-of-day",
+          student_id: row.studentId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        void logger.flush();
+        window.location.reload();
+      }
+    },
+    [
+      activeTimetableInstanceId,
+      activeTimetableInstanceIdRef,
+      currentTimetableRoster,
+      mutateRoster,
       setError,
     ],
   );
@@ -350,7 +441,11 @@ export function useTimetableActions(
         instance_id: activeTimetableInstanceId,
         error: err instanceof Error ? err.message : String(err),
       });
-      setError("Aktivität konnte nicht beendet werden.");
+      reportOperationFailure(
+        err,
+        "Aktivität konnte nicht beendet werden.",
+        setError,
+      );
     } finally {
       setIsCompletingInstance(false);
     }
@@ -360,6 +455,7 @@ export function useTimetableActions(
     mutateDashboard,
     refresh,
     rememberReopenable,
+    reportOperationFailure,
     setSelectedTimetableInstanceId,
     setError,
   ]);
@@ -430,7 +526,11 @@ export function useTimetableActions(
           count: rows.length,
           error: err instanceof Error ? err.message : String(err),
         });
-        setError("Erwartete Kinder konnten nicht bestätigt werden.");
+        reportOperationFailure(
+          err,
+          "Erwartete Kinder konnten nicht bestätigt werden.",
+          setError,
+        );
       } finally {
         setIsConfirmingExpected(false);
       }
@@ -440,6 +540,7 @@ export function useTimetableActions(
       activeTimetableInstanceIdRef,
       mutateDashboard,
       mutateRoster,
+      reportOperationFailure,
       setError,
     ],
   );
@@ -469,15 +570,22 @@ export function useTimetableActions(
           student_id: studentId,
           error: err instanceof Error ? err.message : String(err),
         });
-        setAddStudentError(
+        reportOperationFailure(
+          err,
           "Kind konnte nicht zur Aktivität hinzugefügt werden.",
+          setAddStudentError,
         );
         return false;
       } finally {
         setIsAddingStudent(false);
       }
     },
-    [activeTimetableInstanceId, activeTimetableInstanceIdRef, mutateRoster],
+    [
+      activeTimetableInstanceId,
+      activeTimetableInstanceIdRef,
+      mutateRoster,
+      reportOperationFailure,
+    ],
   );
 
   return {
@@ -496,6 +604,7 @@ export function useTimetableActions(
     handleStartPlannedInstance,
     handleStartSpontaneousActivity,
     handleRosterAction,
+    handleExcuseRestOfDay,
     confirmCompleteTimetableInstance,
     handleCompleteTimetableInstance,
     handleReopenTimetableInstance,

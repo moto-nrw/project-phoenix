@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,6 +18,7 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	authsvc "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/auth/authtest"
+	"github.com/moto-nrw/project-phoenix/services/import/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -28,7 +28,8 @@ import (
 
 func newStammdatenStaffConfig(t *testing.T, db *bun.DB, invitations authsvc.InvitationService) (*StaffImportConfig, *repositories.Factory) {
 	t.Helper()
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	owners := repositories.NewUnobservedTimetableDependencies(db)
+	repos := repositories.NewFactory(db, owners)
 	config := NewStaffImportConfig(StaffImportDeps{
 		InvitationService: invitations,
 		InvitationRepo:    repos.InvitationToken,
@@ -37,11 +38,9 @@ func newStammdatenStaffConfig(t *testing.T, db *bun.DB, invitations authsvc.Invi
 		RoleRepo:          repos.Role,
 		PermissionRepo:    repos.Permission,
 		SchoolRepo:        repos.School,
-		PersonRepo:        repos.Person,
-		StaffRepo:         repos.Staff,
-		TeacherRepo:       repos.Teacher,
-		MasterDataRepo:    repos.StaffMasterData,
-		QualificationRepo: repos.StaffQualification,
+		Persons:           owners.Students,
+		Membership:        owners.Membership,
+		Records:           owners.Workforce,
 	})
 	return config, repos
 }
@@ -297,106 +296,21 @@ func TestMapGuardianRole(t *testing.T) {
 
 func newStammdatenStudentConfig(t *testing.T, db *bun.DB) (*StudentImportConfig, *repositories.Factory) {
 	t.Helper()
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	// Guardian commands need the owner's provider, which the legacy root
+	// binds; the guardian-bearing cutover tests therefore live in the
+	// services package (import_cutover_test.go). This config covers the
+	// person, student, schedule and consent paths.
+	owners := repositories.NewUnobservedTimetableDependencies(db)
+	repos := repositories.NewFactory(db, owners)
 	config := NewStudentImportConfig(StudentImportDeps{
-		PersonRepo:          repos.Person,
-		StudentRepo:         repos.Student,
-		GuardianRepo:        repos.GuardianProfile,
-		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
-		RelationRepo:        repos.StudentGuardian,
-		PrivacyRepo:         repos.PrivacyConsent,
-		ArrivalScheduleRepo: repos.StudentArrivalSchedule,
-		PickupScheduleRepo:  repos.StudentPickupSchedule,
-		RFIDCardRepo:        repos.RFIDCard,
-		Resolver:            NewRelationshipResolver(repos.Group, repos.Room),
-	}, db)
+		Persons:         owners.Students,
+		Students:        owners.Students,
+		Schedules:       repos.CarePlan(),
+		PrivacyConsents: repositories.NewStudentPresenceForTests(db),
+		RFIDCardRepo:    repos.RFIDCard,
+		Resolver:        NewRelationshipResolver(repos.Group, repos.Room),
+	})
 	return config, repos
-}
-
-func TestStudentImportConfig_CreateAndUpdate_Stammdaten(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	config, repos := newStammdatenStudentConfig(t, db)
-	ctx := testpkg.Ctx(t)
-	card := testpkg.CreateTestRFIDCard(t, db, "IMP")
-	guardianEmail := fmt.Sprintf("erz.%s@example.test", card.ID)
-
-	row := importModels.StudentImportRow{
-		FirstName: "Max", LastName: "Import", SchoolClass: "1A", Birthday: "2018-02-03", TagID: card.ID,
-		AddressStreet: "Kinderweg 3", AddressPostalCode: "50667", AddressCity: "Köln",
-		Guardians: []importModels.GuardianImportData{{
-			FirstName: "Maria", LastName: "Import", Email: guardianEmail, RelationshipType: "Mutter",
-			GuardianRole: "Nur Abholung", PickupNotes: "nur dienstags", EmergencyPriority: 2, CanPickup: true,
-		}},
-		PrivacyAccepted: true, DataRetentionDays: 30,
-	}
-	importer := testpkg.CreateTestStaff(t, db, "Import", "Admin")
-
-	var studentID int64
-	inTenantTx(t, db, func(ctx context.Context) error {
-		ctx = ContextWithImporterID(ctx, importer.ID)
-		require.NoError(t, config.PreloadReferenceData(ctx))
-		errs := config.Validate(ctx, &row)
-		for _, e := range errs {
-			assert.NotEqual(t, importModels.ErrorSeverityError, e.Severity, e.Message)
-		}
-		id, err := config.Create(ctx, row)
-		require.NoError(t, err)
-		studentID = id
-		return nil
-	})
-
-	student, err := repos.Student.FindByID(ctx, studentID)
-	require.NoError(t, err)
-	assert.Equal(t, "Kinderweg 3", *student.AddressStreet)
-	person, err := repos.Person.FindByID(ctx, student.PersonID)
-	require.NoError(t, err)
-	require.NotNil(t, person.TagID)
-	assert.Equal(t, card.ID, *person.TagID)
-
-	rels, err := repos.StudentGuardian.FindByStudentID(ctx, studentID)
-	require.NoError(t, err)
-	require.Len(t, rels, 1)
-	assert.Equal(t, authorize.GuardianRolePickupOnly, rels[0].GuardianRole)
-	assert.Equal(t, "nur dienstags", *rels[0].PickupNotes)
-	assert.Equal(t, 2, rels[0].EmergencyPriority)
-	assert.False(t, authorize.StudentGuardianHasPermission(rels[0], authorize.GuardianPermissionPortalAccess))
-
-	// Update: class changed, matched via the card; only given cells change.
-	update := importModels.StudentImportRow{
-		FirstName: "Max", LastName: "Import", SchoolClass: "2A", TagID: card.ID, AddressCity: "Bonn",
-		Guardians:         []importModels.GuardianImportData{{Email: guardianEmail, GuardianRole: "Sorgeberechtigt"}},
-		PickupSchedules:   []importModels.PickupScheduleImportData{{Weekday: 1, PickupTime: "15:00"}},
-		DataRetentionDays: 30,
-	}
-	inTenantTx(t, db, func(ctx context.Context) error {
-		ctx = ContextWithImporterID(ctx, importer.ID)
-		require.NoError(t, config.PreloadReferenceData(ctx))
-		errs := config.Validate(ctx, &update)
-		for _, e := range errs {
-			assert.NotEqual(t, importModels.ErrorSeverityError, e.Severity, e.Message)
-		}
-		id, err := config.FindExisting(ctx, update)
-		require.NoError(t, err)
-		require.NotNil(t, id, "the card must resolve the child across a class change")
-		assert.Equal(t, studentID, *id)
-		return config.Update(ctx, *id, update)
-	})
-
-	student, err = repos.Student.FindByID(ctx, studentID)
-	require.NoError(t, err)
-	assert.Equal(t, "2A", student.SchoolClass)
-	assert.Equal(t, "Bonn", *student.AddressCity)
-	assert.Equal(t, "Kinderweg 3", *student.AddressStreet, "empty cell keeps the street")
-	rels, err = repos.StudentGuardian.FindByStudentID(ctx, studentID)
-	require.NoError(t, err)
-	require.Len(t, rels, 1, "existing guardian is merged, not duplicated")
-	assert.Equal(t, authorize.GuardianRoleLegalGuardian, rels[0].GuardianRole)
-	assert.Equal(t, "nur dienstags", *rels[0].PickupNotes)
-	pickup, err := repos.StudentPickupSchedule.FindByStudentIDAndWeekday(ctx, studentID, 1)
-	require.NoError(t, err)
-	require.NotNil(t, pickup)
-	assert.Equal(t, 15, pickup.PickupTime.Hour())
 }
 
 func TestStudentImportConfig_Validate_RejectsUnknownOrTakenTag(t *testing.T) {
@@ -456,9 +370,9 @@ func TestMapStudentRow_GuardianNumberingWithGaps(t *testing.T) {
 func TestMatchLinkedGuardian(t *testing.T) {
 	t.Parallel()
 	email := "anna@example.test"
-	anna := &userModels.GuardianProfile{FirstName: "Anna", LastName: "Muster", Email: &email}
-	ben := &userModels.GuardianProfile{FirstName: "Ben", LastName: "Muster"}
-	ben2 := &userModels.GuardianProfile{FirstName: "Ben", LastName: "Muster"}
+	anna := ports.Guardian{ID: 1, FirstName: "Anna", LastName: "Muster", Email: &email}
+	ben := ports.Guardian{ID: 2, FirstName: "Ben", LastName: "Muster"}
+	ben2 := ports.Guardian{ID: 3, FirstName: "Ben", LastName: "Muster"}
 	linked := []linkedGuardianProfile{
 		{profile: anna, phones: []string{"+4915112345"}},
 		{profile: ben, phones: []string{"022112345"}},
@@ -466,18 +380,18 @@ func TestMatchLinkedGuardian(t *testing.T) {
 
 	got := matchLinkedGuardian(linked, importModels.GuardianImportData{Email: "ANNA@example.test "})
 	require.NotNil(t, got)
-	assert.Same(t, anna, got, "e-mail wins")
+	assert.Equal(t, anna.ID, got.ID, "e-mail wins")
 
 	got = matchLinkedGuardian(linked, importModels.GuardianImportData{
 		FirstName: "Ben", LastName: "Muster",
 		PhoneNumbers: []importModels.PhoneImportData{{PhoneNumber: "0221 123-45"}},
 	})
 	require.NotNil(t, got)
-	assert.Same(t, ben, got, "stored phone matches in normalized form")
+	assert.Equal(t, ben.ID, got.ID, "stored phone matches in normalized form")
 
 	got = matchLinkedGuardian(linked, importModels.GuardianImportData{FirstName: "ben", LastName: "MUSTER"})
 	require.NotNil(t, got)
-	assert.Same(t, ben, got, "unique name matches without contact data")
+	assert.Equal(t, ben.ID, got.ID, "unique name matches without contact data")
 
 	assert.Nil(t, matchLinkedGuardian(linked, importModels.GuardianImportData{
 		FirstName: "Ben", LastName: "Muster", Email: "other@example.test",
@@ -488,66 +402,4 @@ func TestMatchLinkedGuardian(t *testing.T) {
 
 	assert.Equal(t, "+4915112345", normalizeImportPhone(" +49 151 123-45 "))
 	assert.Equal(t, "", normalizeImportPhone("Handy"))
-}
-
-func TestStudentImportConfig_Update_ReusesPhoneOnlyGuardian(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	config, repos := newStammdatenStudentConfig(t, db)
-	ctx := testpkg.Ctx(t)
-	importer := testpkg.CreateTestStaff(t, db, "Import", "Admin")
-	suffix := fmt.Sprintf("%d", time.Now().UnixNano()%1_000_000)
-	phone := "0151 " + suffix
-
-	row := importModels.StudentImportRow{
-		FirstName: "Lena", LastName: "Ohnemail" + suffix, SchoolClass: "1B", Birthday: "2018-05-06",
-		Guardians: []importModels.GuardianImportData{{
-			FirstName: "Karin", LastName: "Ohnemail", RelationshipType: "Mutter",
-			PhoneNumbers: []importModels.PhoneImportData{{PhoneNumber: phone, PhoneType: "mobile", IsPrimary: true}},
-		}},
-		PrivacyAccepted: true, DataRetentionDays: 30,
-	}
-	var studentID int64
-	inTenantTx(t, db, func(ctx context.Context) error {
-		ctx = ContextWithImporterID(ctx, importer.ID)
-		require.NoError(t, config.PreloadReferenceData(ctx))
-		id, err := config.Create(ctx, row)
-		require.NoError(t, err)
-		studentID = id
-		return nil
-	})
-
-	// Re-import of the same row in update mode: the phone-only guardian must be
-	// recognised, not created a second time.
-	update := row
-	update.Guardians = []importModels.GuardianImportData{{
-		FirstName: "Karin", LastName: "Ohnemail", GuardianRole: "Sorgeberechtigt",
-		PhoneNumbers: []importModels.PhoneImportData{{PhoneNumber: "0151-" + suffix, PhoneType: "mobile"}},
-	}}
-	inTenantTx(t, db, func(ctx context.Context) error {
-		ctx = ContextWithImporterID(ctx, importer.ID)
-		require.NoError(t, config.PreloadReferenceData(ctx))
-		return config.Update(ctx, studentID, update)
-	})
-
-	rels, err := repos.StudentGuardian.FindByStudentID(ctx, studentID)
-	require.NoError(t, err)
-	require.Len(t, rels, 1, "phone-only guardian is merged, not duplicated")
-	assert.Equal(t, authorize.GuardianRoleLegalGuardian, rels[0].GuardianRole)
-	phones, err := repos.GuardianPhoneNumber.FindByGuardianID(ctx, rels[0].GuardianProfileID)
-	require.NoError(t, err)
-	assert.Len(t, phones, 2, "differently formatted number is stored as given; the profile stays one")
-
-	// A row without any contact data still resolves via the unique name.
-	byName := row
-	byName.Guardians = []importModels.GuardianImportData{{FirstName: "Karin", LastName: "Ohnemail", PickupNotes: "ab 15 Uhr"}}
-	inTenantTx(t, db, func(ctx context.Context) error {
-		ctx = ContextWithImporterID(ctx, importer.ID)
-		require.NoError(t, config.PreloadReferenceData(ctx))
-		return config.Update(ctx, studentID, byName)
-	})
-	rels, err = repos.StudentGuardian.FindByStudentID(ctx, studentID)
-	require.NoError(t, err)
-	require.Len(t, rels, 1)
-	assert.Equal(t, "ab 15 Uhr", *rels[0].PickupNotes)
 }

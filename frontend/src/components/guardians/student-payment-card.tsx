@@ -8,6 +8,8 @@ import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EditActions } from "~/components/ui/edit-actions";
+import { useFormError } from "~/components/ui/form-error";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { useToast } from "~/contexts/ToastContext";
@@ -78,7 +80,7 @@ export function StudentPaymentCard({
   const [baseline, setBaseline] = useState<PaymentDraft | null>(null);
   // Fehler des Bearbeiten-Zustands (Öffnen oder Speichern) stehen als Alert
   // oben im Bearbeiten-Bereich, nicht als Toast (Bauart 2, Regel 5).
-  const [editError, setEditError] = useState<string | null>(null);
+  const [editError, setEditError] = useFormError();
 
   const payerId = payer?.id ?? null;
 
@@ -88,7 +90,7 @@ export function StudentPaymentCard({
       setBaseline(null);
       setEditError(null);
     }
-  }, [baseline?.payerId, draft, payerId]);
+  }, [baseline?.payerId, draft, payerId, setEditError]);
 
   // Reload trigger. The effect below deliberately depends on payerId and this
   // counter only: a card that refetches on every render — and resets the
@@ -263,7 +265,7 @@ export function StudentPaymentCard({
       }
     >
       <div className="space-y-4">
-        {editError && <Alert type="error" message={editError} />}
+        <FormErrorAlert message={editError} />
         {loadError && !editing && <Alert type="error" message={loadError} />}
 
         {editing ? (
