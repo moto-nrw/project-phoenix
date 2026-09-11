@@ -594,6 +594,51 @@ describe("MeinRaumPage roster actions", () => {
     expect(mockRosterMutate).not.toHaveBeenCalled();
   });
 
+  it("names the missing planning when the server forbids the action", async () => {
+    vi.mocked(timetableOperationsApi.checkIn).mockRejectedValue(
+      Object.assign(new Error("timetable operation forbidden"), {
+        httpStatus: 403,
+      }),
+    );
+
+    render(<MeinRaumPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Einchecken" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("alert-error")).toHaveTextContent(
+        "Sie sind für diese Aktivität nicht eingeplant.",
+      );
+    });
+    expect(screen.getByTestId("alert-error")).not.toHaveTextContent(
+      "Aktion im Betreuungsplan konnte nicht ausgeführt werden.",
+    );
+    // The planning changed under the open list: reload it so the actions go.
+    expect(mockRosterMutate).toHaveBeenCalledWith();
+  });
+
+  it("names the missing planning when the bulk confirm is forbidden", async () => {
+    vi.mocked(timetableOperationsApi.checkIn).mockRejectedValue(
+      Object.assign(new Error("timetable operation forbidden"), {
+        httpStatus: 403,
+      }),
+    );
+
+    render(<MeinRaumPage />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: /erwartete bestätigen/i }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("alert-error")).toHaveTextContent(
+        "Sie sind für diese Aktivität nicht eingeplant.",
+      );
+    });
+    expect(screen.getByTestId("alert-error")).not.toHaveTextContent(
+      "Erwartete Kinder konnten nicht bestätigt werden.",
+    );
+    expect(mockRosterMutate).toHaveBeenCalledWith();
+  });
+
   it("shows the origin notice when an unplanned child is added", async () => {
     vi.mocked(timetableOperationsApi.checkIn).mockResolvedValue({
       instance: rosterInstance,
