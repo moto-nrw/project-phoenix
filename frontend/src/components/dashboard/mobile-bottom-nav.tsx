@@ -498,6 +498,29 @@ const PAGE_ITEMS: readonly AdditionalNavItem[] = [
 
 const PAGE_ITEMS_BY_HREF = new Map(PAGE_ITEMS.map((item) => [item.href, item]));
 
+const DATABASE_CATALOG_ITEMS = [
+  {
+    href: "/database/categories",
+    permission: "activities:manage_categories",
+    requiresTimetable: false,
+  },
+  {
+    href: "/database/planning-tracks",
+    permission: "schedules:manage",
+    requiresTimetable: true,
+  },
+  {
+    href: "/database/shift-types",
+    permission: "time_tracking:manage",
+    requiresTimetable: true,
+  },
+  {
+    href: "/database/absence-types",
+    permission: "time_tracking:manage",
+    requiresTimetable: false,
+  },
+] as const;
+
 /**
  * Die Akkordeon-Bereiche der Seitenleiste als je eine Zeile: Meine Gruppen
  * und Aktuelle Aufsicht führen auf ihre Übersicht, Datenverwaltung und
@@ -524,7 +547,8 @@ const SECTION_ITEMS: Readonly<Record<StaffNavSectionKey, AdditionalNavItem>> = {
     label: DATABASE_SECTION.label,
     iconKey: "database",
     concept: "database",
-    requiresAdmin: true,
+    requiresPermission: DATABASE_CATALOG_ITEMS.map((item) => item.permission),
+    activePaths: DATABASE_CATALOG_ITEMS.map((item) => item.href),
   },
   enrollments: {
     href: ENROLLMENT_SECTION.href,
@@ -556,6 +580,7 @@ const TENANT_SCOPED_HREFS = new Set<string>([
     (item) => item.href,
   ),
   ...Object.values(SECTION_ITEMS).map((item) => item.href),
+  ...DATABASE_CATALOG_ITEMS.map((item) => item.href),
 ]);
 
 const NFC_ONLY_HREFS = new Set<string>(["/activities"]);
@@ -773,6 +798,13 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     getSettingValue(settingsSchema, "operations.parent_news_enabled") === true;
   const mealPlanEnabled =
     getSettingValue(settingsSchema, "operations.meal_plan_enabled") === true;
+  const databaseLandingHref = userHasEffectiveAdminScope
+    ? DATABASE_SECTION.href
+    : DATABASE_CATALOG_ITEMS.find(
+        (item) =>
+          (!item.requiresTimetable || timetableEnabled) &&
+          hasPermission(session, item.permission),
+      )?.href;
   // Elternmitteilungen (#1669) authoring is admin-only (admin:* wildcard on
   // every /api/parent-announcements route); same rule as the sidebar entry.
   const canAnnounce = hasPermission(session, "admin:*");
@@ -806,6 +838,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // dieselben wie in der Desktop-Sidebar, damit beide dieselben Seiten
   // zeigen.
   const isHrefEnabled = (href: string): boolean => {
+    if (href === DATABASE_SECTION.href && databaseLandingHref === undefined) {
+      return false;
+    }
     // Anfragen (#2429/#2911): dieselbe effektive Regel wie in Sidebar,
     // Seiten-Guard und Badge.
     if (href === "/anfragen") return changeRequestAccess.canOpenRequestsPage;
@@ -918,6 +953,11 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     entries
       .map(itemForEntry)
       .filter((item): item is AdditionalNavItem => item !== undefined)
+      .map((item) =>
+        item.href === DATABASE_SECTION.href && databaseLandingHref
+          ? { ...item, href: databaseLandingHref }
+          : item,
+      )
       .filter(
         (item) => isAdditionalItemVisible(item) && !mainHrefs.has(item.href),
       );

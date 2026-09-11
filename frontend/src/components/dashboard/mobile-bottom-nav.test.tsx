@@ -290,6 +290,26 @@ describe("MobileBottomNav", () => {
       );
     });
 
+    it.each([
+      ["activities:manage_categories", "/database/categories"],
+      ["schedules:manage", "/database/planning-tracks"],
+      ["time_tracking:manage", "/database/shift-types"],
+    ])(
+      "opens the first allowed catalog for users with %s",
+      (permission, expectedHref) => {
+        mockHasPermission.mockImplementation(
+          (_session, currentPermission) => currentPermission === permission,
+        );
+
+        render(<MobileBottomNav />);
+        fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+        expect(
+          screen.getByRole("link", { name: "Datenverwaltung" }),
+        ).toHaveAttribute("href", `/test-tenant${expectedHref}`);
+      },
+    );
+
     it("hides groups from users without staff or admin access", () => {
       mockIsCaregiver.mockReturnValue(false);
 
