@@ -153,7 +153,7 @@ export function startableOwnBlock(
   );
 }
 
-export type NowAction =
+type NowAction =
   | {
       readonly kind: "link";
       readonly href: string;
