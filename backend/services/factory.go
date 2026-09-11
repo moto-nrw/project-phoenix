@@ -1145,7 +1145,7 @@ func newFactory(
 	})
 
 	// Initialize active service with SSE broadcaster
-	activeService := active.NewService(active.ServiceDependencies{
+	activeServiceDeps := active.ServiceDependencies{
 		SchoolPresence:           newStudentPresence(db, logger),
 		StudentDisplay:           studentDisplayProjection{students: persons, groups: groups},
 		GroupRepo:                repos.ActiveGroup,
@@ -1175,7 +1175,8 @@ func newFactory(
 		TimetableBridgeCompleter: timetableBridgeService,
 		Logger:                   activeLogger,
 		Now:                      now,
-	})
+	}
+	activeService := active.NewService(activeServiceDeps)
 
 	// Inject settings resolver into active service so auto-clear of sick /
 	// excused flags respects the tenant's operations.sick_clear_mode and
@@ -2885,15 +2886,18 @@ func newFactory(
 	}
 
 	supervisionDashboardService, err := supervisiondashboardlegacy.New(supervisiondashboardlegacy.Sources{
-		Active:      activeService,
-		UserContext: userContextService,
-		Education:   educationService,
-		Schulhof:    schulhofService,
-		Operations:  timetableOperationsService,
-		Settings:    settingsService,
-		Pickups:     pickupScheduleService,
-		Arrivals:    arrivalScheduleService,
-		Now:         now,
+		Active:       activeService,
+		ActiveGroups: repos.ActiveGroup,
+		OpenVisits:   active.NewVisitDisplayBatchReader(activeServiceDeps),
+		Rooms:        openRoomDirectory{rooms: rooms},
+		UserContext:  userContextService,
+		Education:    educationService,
+		Schulhof:     schulhofService,
+		Operations:   timetableOperationsService,
+		Settings:     settingsService,
+		Pickups:      pickupScheduleService,
+		Arrivals:     arrivalScheduleService,
+		Now:          now,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("compose supervision dashboard projection: %w", err)

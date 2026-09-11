@@ -71,8 +71,14 @@ func setupActiveRoute(t *testing.T) *testContext {
 // tests exercise the real middleware chain (Verifier -> Authenticator ->
 // TenantMiddleware -> RequiresPermission/resource-auth -> TenantTxMiddleware)
 // exactly as the running server does, instead of a hand-wired stand-in.
+//
+// The request-scoped identity memo (#2099) is part of that chain: api/base.go
+// mounts it router-wide. Without it here, a handler that resolves the caller
+// more than once looks more expensive in a query-budget test than it is in
+// production — which is the wrong number to hold a budget against.
 func mountActiveRouter(tc *testContext) chi.Router {
 	r := chi.NewRouter()
+	r.Use(common.RequestIdentityCacheMiddleware)
 	r.Mount("/active", tc.resource.Router())
 	return r
 }

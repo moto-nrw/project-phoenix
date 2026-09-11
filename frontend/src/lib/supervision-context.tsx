@@ -23,7 +23,7 @@ import {
   sameSupervision,
   sortNavigationGroups,
   type DerivedSupervision,
-  type SchulhofStatus,
+  type OpenRoomPayload,
   type SupervisedGroupPayload,
   type SupervisedRoom,
   type SupervisionSnapshot,
@@ -89,7 +89,7 @@ function initialState(initial: SupervisionSnapshot | null): SupervisionState {
     groups,
     ...deriveSupervision(
       initial.supervised,
-      initial.schulhof,
+      initial.openRooms,
       initial.overviewOk,
       initial.ownSupervised,
     ),
@@ -289,29 +289,25 @@ export function SupervisionProvider({
         return { response: overviewResponse, ownResponse };
       };
 
-      // Fetch supervised groups and Schulhof status in parallel.
-      // Skip the Schulhof fetch for accounts without `groups:read`: the
-      // backend gates /schulhof/status on that permission, so polling it
-      // would only ever 403 (issue #846). The supervised-groups fetch below
-      // hits permission-less /me endpoints and is safe for everyone.
-      const [{ response, ownResponse }, schulhofResponse] = await Promise.all([
+      // Own supervisions and the permanently released rooms in parallel. The
+      // room list needs rooms:read, which every caregiver already holds for
+      // the rest of the navigation, so there is no extra permission gate.
+      const [{ response, ownResponse }, openRoomsResponse] = await Promise.all([
         fetchSupervisedGroups(),
-        canReadGroupsRef.current
-          ? fetch("/api/active/schulhof/status", {
-              headers: { "Content-Type": "application/json" },
-              cache: "no-store",
-            }).catch(() => null) // Schulhof is optional
-          : Promise.resolve(null),
+        fetch("/api/rooms?is_open_room=true", {
+          headers: { "Content-Type": "application/json" },
+          cache: "no-store",
+        }).catch(() => null),
       ]);
 
-      // Parse Schulhof status
-      let schulhof: SchulhofStatus | null = null;
-      if (schulhofResponse?.ok) {
-        // Response is double-wrapped: { success, data: { status, data: SchulhofStatus } }
-        const schulhofJson = (await schulhofResponse.json()) as {
-          data?: { data?: SchulhofStatus };
+      // A failed load stays null rather than becoming "no open rooms": an
+      // empty navigation must not be indistinguishable from a load error.
+      let openRooms: OpenRoomPayload[] | null = null;
+      if (openRoomsResponse?.ok) {
+        const payload = (await openRoomsResponse.json()) as {
+          data?: OpenRoomPayload[] | null;
         };
-        schulhof = schulhofJson.data?.data ?? null;
+        openRooms = payload.data ?? [];
       }
 
       let supervised: SupervisedGroupPayload[] | null = null;
@@ -333,10 +329,10 @@ export function SupervisionProvider({
       }
 
       applySupervision(
-        deriveSupervision(supervised, schulhof, overviewOk, ownSupervised),
+        deriveSupervision(supervised, openRooms, overviewOk, ownSupervised),
       );
     } catch {
-      // On error, we can't fetch Schulhof either, so just clear
+      // On error the open-room list is unreachable too, so just clear.
       applySupervision(EMPTY_SUPERVISION_STATE);
     }
   }, [applySupervision, canReadGroupsRef, mayHaveOverviewRef, tokenRef]);

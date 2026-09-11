@@ -1096,10 +1096,11 @@ describe("MobileBottomNav", () => {
       expect(hrefs).not.toContain("/active-supervisions");
     });
 
-    it("does not inject Aufsicht tab when only a synthetic Schulhof room exists (setting off)", () => {
-      // P1-A regression guard: Schulhof is injected into supervisedRooms for
-      // every tenant that has one. An admin without admin_supervision_overview
-      // must not surface the admin tab merely because a Schulhof entry exists.
+    it("does not inject Aufsicht tab when only a released room exists (setting off)", () => {
+      // P1-A regression guard: a released room appears in supervisedRooms for
+      // every caregiver of that tenant. An admin without
+      // admin_supervision_overview must not surface the admin tab merely
+      // because such a shared room exists (#3065).
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
       mockUseSupervision.mockReturnValue({
@@ -1109,7 +1110,7 @@ describe("MobileBottomNav", () => {
         isLoadingSupervision: false,
         overviewEnabled: false,
         supervisedRooms: [
-          { id: "schulhof", name: "Schulhof", groupId: "g1", isSchulhof: true },
+          { id: "7", name: "Schulhof", groupId: "7", isOpenRoom: true },
         ],
         groups: [],
         refresh: vi.fn(),

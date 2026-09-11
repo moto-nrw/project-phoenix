@@ -10,6 +10,7 @@ import {
   StudentInfoRow,
   SchoolClassIcon,
   GroupIcon,
+  ActivityIcon,
   PickupTimeRow,
   ArrivalTimeRow,
   StudentAbsenceRow,
@@ -117,6 +118,11 @@ export function SupervisionStudentGrid({
                   {student.group_name && (
                     <StudentInfoRow icon={<GroupIcon />}>
                       Gruppe: {student.group_name}
+                    </StudentInfoRow>
+                  )}
+                  {student.activity_name && (
+                    <StudentInfoRow icon={<ActivityIcon />}>
+                      Angebot: {student.activity_name}
                     </StudentInfoRow>
                   )}
                   {student.pending_excused_note !== undefined && (
