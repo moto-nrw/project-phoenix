@@ -1,6 +1,8 @@
 // Package ports holds the consumer-owned ports of the Data Import workflow
-// (#2708). Every accepted row is committed through the public commands of
-// the owners named here; the import holds no repository and issues no SQL.
+// (#2708). Student, staff and class-list rows are committed through the
+// public commands of the owners named here; opening balances and a few
+// read-only lookups still use retained services and repositories, bound in
+// services/import_composition.go. The import issues no SQL of its own.
 // The ports name the owner contracts through their public types, so the
 // application and its decision tests depend on this package alone. The
 // composition root binds the production capabilities; tests bind the same
@@ -72,7 +74,7 @@ type StudentDirectory interface {
 // GuardianDirectory is the People Directory guardian slice: profiles, phone
 // numbers and the child links.
 type GuardianDirectory interface {
-	SearchGuardians(ctx context.Context, text string, limit int) ([]GuardianMatch, error)
+	FindGuardianByEmail(context.Context, string) (Guardian, error)
 	ListGuardiansByID(context.Context, []int64) ([]Guardian, error)
 	ListGuardianPhones(context.Context, int64) ([]GuardianPhone, error)
 	ListStudentGuardians(context.Context, int64) ([]GuardianWithLink, error)

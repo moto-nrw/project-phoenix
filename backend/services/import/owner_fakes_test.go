@@ -267,16 +267,15 @@ func newFakeGuardians(guardians ...ports.Guardian) *fakeGuardians {
 	return f
 }
 
-func (f *fakeGuardians) SearchGuardians(_ context.Context, text string, _ int) ([]ports.GuardianMatch, error) {
+func (f *fakeGuardians) FindGuardianByEmail(_ context.Context, email string) (ports.Guardian, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	var result []ports.GuardianMatch
 	for _, guardian := range f.guardians {
-		if guardian.Email != nil && strings.Contains(strings.ToLower(*guardian.Email), strings.ToLower(text)) {
-			result = append(result, ports.GuardianMatch{Guardian: guardian})
+		if guardian.Email != nil && strings.EqualFold(*guardian.Email, email) {
+			return guardian, nil
 		}
 	}
-	return result, nil
+	return ports.Guardian{}, ports.ErrGuardianNotFound
 }
 
 func (f *fakeGuardians) ListGuardiansByID(_ context.Context, ids []int64) ([]ports.Guardian, error) {

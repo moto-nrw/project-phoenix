@@ -9,9 +9,9 @@ It is not a staging or production observation window.
 
 ## Cutover and ownership
 
-`services/import` performs no write of its own: it issues no SQL and holds no
-writing repository. Every accepted row is committed through the public
-commands of its owners:
+`services/import` issues no SQL and holds no writing repository. Student,
+staff and class-list rows are committed through the public commands of their
+owners; opening balances are the exception described below:
 
 | Row type | Owners invoked |
 | --- | --- |
@@ -97,6 +97,11 @@ Local development evidence on an isolated database clone, single writer, no
 concurrency. It measures the ten-row student file only; the staff and
 class-list imports are covered by behaviour tests, not by this workload. The
 opening-balance import was not re-measured because its owner path is
-unchanged. There is no checkpoint or resume state to measure: an import is
-one batch in one transaction, and a failed batch is retried by re-uploading
-the file.
+unchanged.
+
+This is a partial delivery of #2708, which stays open. An import is still one
+batch in one transaction, and a failed batch is retried by re-uploading the
+file. The bounded, durable batches with a resume checkpoint that #2708 asks
+for, their batch and checkpoint metrics, and failure tests after every owner
+command are not part of this change, so there is no checkpoint state to
+measure here.

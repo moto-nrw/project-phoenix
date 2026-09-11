@@ -27,10 +27,6 @@ import (
 // import records.
 const privacyConsentPolicyVersion = "1.0"
 
-// guardianSearchLimit bounds the guardian search an e-mail match runs; exact
-// matching happens in memory.
-const guardianSearchLimit = 200
-
 // FindExisting resolves the row to an existing student (duplicate detection
 // in create mode, match key in update mode). Keys, in order: the RFID card
 // (survives a class change), first + last name + class, and first + last name
@@ -434,19 +430,16 @@ func (c *StudentImportConfig) createOrFindGuardian(ctx context.Context, data imp
 }
 
 // findGuardianByEmail resolves the tenant's guardian with exactly this e-mail
-// (case-insensitive); nil when none exists.
+// (case-insensitive, like the legacy lookup); nil when none exists.
 func (c *StudentImportConfig) findGuardianByEmail(ctx context.Context, email string) (*ports.Guardian, error) {
-	matches, err := c.Guardians.SearchGuardians(ctx, email, guardianSearchLimit)
+	guardian, err := c.Guardians.FindGuardianByEmail(ctx, email)
+	if errors.Is(err, ports.ErrGuardianNotFound) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}
-	for _, match := range matches {
-		if match.Guardian.Email != nil && strings.EqualFold(strings.TrimSpace(*match.Guardian.Email), email) {
-			guardian := match.Guardian
-			return &guardian, nil
-		}
-	}
-	return nil, nil
+	return &guardian, nil
 }
 
 // updateExistingGuardianProfile merges non-empty import fields into an

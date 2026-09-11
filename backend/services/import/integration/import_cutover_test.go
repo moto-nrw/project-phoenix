@@ -281,6 +281,50 @@ func TestDataImportCutover_ReusesPhoneOnlyGuardian(t *testing.T) {
 	assert.Equal(t, "ab 15 Uhr", notes)
 }
 
+// The import resolves an existing guardian by the exact e-mail, however many
+// other guardians contain that address and sort before it: the legacy lookup
+// compared LOWER(email) without a page limit.
+func TestDataImportCutover_FindsGuardianByExactEmailAmongSubstringMatches(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	tenantID := testpkg.OwnTenant(t)
+	module, err := services.NewImportTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	actor := newImporter(t, db)
+	suffix := fmt.Sprintf("%d", time.Now().UnixNano()%1_000_000)
+	target := "k" + suffix + "@import.test"
+	setEmail := func(id int64, email string) {
+		t.Helper()
+		_, err := db.NewUpdate().TableExpr("users.guardian_profiles").Set("email = ?", email).Where("id = ?", id).Exec(context.Background())
+		require.NoError(t, err)
+	}
+	for i := range 201 {
+		other := testpkg.CreateTestGuardianProfileForTenant(t, db, tenantID, "Anna", "Aaron", "substring")
+		setEmail(other.ID, fmt.Sprintf("x%03d%s", i, target))
+	}
+	existing := testpkg.CreateTestGuardianProfileForTenant(t, db, tenantID, "Karin", "Zimmer", "exact")
+	setEmail(existing.ID, target)
+	before := countImportRows(t, db, tenantID)
+
+	row := importModels.StudentImportRow{
+		FirstName: "Mila", LastName: "Mailtreffer" + suffix, SchoolClass: "2A", Birthday: "2017-03-04",
+		Guardians: []importModels.GuardianImportData{{
+			FirstName: "Karin", LastName: "Zimmer", Email: strings.ToUpper(target), RelationshipType: "Mutter",
+		}},
+		PrivacyAccepted: true, DataRetentionDays: 30,
+	}
+	result, err := runStudentImport(t, db, module, actor, importModels.ImportModeCreate, []importModels.StudentImportRow{row}, nil)
+	require.NoError(t, err)
+	requireNoRowErrors(t, result)
+
+	after := countImportRows(t, db, tenantID)
+	assert.Equal(t, before.guardians, after.guardians, "the existing guardian is reused, not duplicated")
+	var linked int64
+	require.NoError(t, db.NewSelect().TableExpr("users.students_guardians").Column("guardian_profile_id").
+		Where("tenant_id = ?", tenantID).OrderExpr("id DESC").Limit(1).Scan(context.Background(), &linked))
+	assert.Equal(t, existing.ID, linked)
+}
+
 // A batch is validated completely before any owner command runs, a row that
 // fails during the write phase is rolled back to its savepoint while the
 // other rows survive, and a failure after the last owner command (the audit

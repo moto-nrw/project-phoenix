@@ -53,10 +53,11 @@ type imports struct {
 	OpeningBalance importService.OpeningBalanceImportFactory
 }
 
-// newImports composes the Data Import over its owner ports. Every accepted
-// row is committed through the public commands of People Directory, School
-// Membership, Workforce, Care Plan, Student Presence and the Audit platform;
-// the import performs no write of its own.
+// newImports composes the Data Import over its owner ports. Student, staff
+// and class-list rows are committed through the public commands of People
+// Directory, School Membership, Workforce, Care Plan, Student Presence and
+// the Audit platform; opening balances still book through the retained
+// Workforce services.
 func newImports(wiring importWiring) imports {
 	runtime := importService.ImportRuntime{Audit: wiring.Audit, Observe: wiring.Observe}
 	resolver := importService.NewRelationshipResolver(wiring.Reads.Groups, wiring.Reads.Rooms)
