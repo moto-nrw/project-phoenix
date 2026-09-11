@@ -1,16 +1,20 @@
 package students_test
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 	"runtime"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -133,10 +137,13 @@ func TestRequestReviewRuntimeEvidence(t *testing.T) {
 		}},
 	}
 
+	plans := make(map[string][]requestReviewPlan)
 	for _, scenario := range []struct {
 		name     string
 		children int
-	}{{"empty", 0}, {"children-8", 8}, {"children-32", 32}} {
+		// explain captures the query plans of this scenario's requests.
+		explain bool
+	}{{"empty", 0, false}, {"children-8", 8, false}, {"children-32", 32, true}} {
 		t.Run(scenario.name, func(t *testing.T) {
 			for seeded < scenario.children {
 				seedChild(t, seeded)
@@ -189,8 +196,119 @@ func TestRequestReviewRuntimeEvidence(t *testing.T) {
 					})
 					require.NoError(t, err)
 					t.Logf("request-review-runtime: %s", report)
+					if scenario.explain {
+						// The counter still holds the last measured request.
+						plans[req.name] = explainRequestReviewShapes(t, tc.db, counter.Queries())
+					}
 				})
 			}
 		})
 	}
+	report, err := json.Marshal(plans)
+	require.NoError(t, err)
+	t.Logf("request-review-plans: %s", report)
+}
+
+// requestReviewPlan is the EXPLAIN (ANALYZE, BUFFERS) evidence for one
+// statement shape of a measured request: how often the request issued it,
+// what one execution cost and how many rows it scanned for the rows it
+// returned. Rows scanned sums actual rows times loops over every scan node.
+type requestReviewPlan struct {
+	Shape            string          `json:"shape"`
+	Executions       int             `json:"executions"`
+	PlanningMS       float64         `json:"planning_ms"`
+	ExecutionMS      float64         `json:"execution_ms"`
+	RowsReturned     float64         `json:"rows_returned"`
+	RowsScanned      float64         `json:"rows_scanned"`
+	SharedHitBlocks  float64         `json:"shared_hit_blocks"`
+	SharedReadBlocks float64         `json:"shared_read_blocks"`
+	SeqScans         []string        `json:"seq_scans,omitempty"`
+	Plan             json.RawMessage `json:"plan"`
+}
+
+var (
+	planLiteral = regexp.MustCompile(`'(?:[^']|'')*'|\b\d+(?:\.\d+)?\b`)
+	planList    = regexp.MustCompile(`\(\?(?:, \?)*\)`)
+)
+
+// explainRequestReviewShapes explains one exemplar of every distinct read
+// shape under the least-privilege tenant role, most expensive first. Bun
+// inlines the arguments, so the exemplar replays the request's own values;
+// literals are folded only to group the executions of one shape.
+func explainRequestReviewShapes(t *testing.T, db *bun.DB, statements []string) []requestReviewPlan {
+	t.Helper()
+	exemplars := make(map[string]string)
+	executions := make(map[string]int)
+	var order []string
+	for _, statement := range statements {
+		head := strings.ToUpper(strings.TrimSpace(statement))
+		if (!strings.HasPrefix(head, "SELECT") && !strings.HasPrefix(head, "WITH")) || strings.Contains(statement, "set_config(") {
+			continue
+		}
+		shape := planList.ReplaceAllString(planLiteral.ReplaceAllString(statement, "?"), "(?…)")
+		if _, seen := exemplars[shape]; !seen {
+			exemplars[shape] = statement
+			order = append(order, shape)
+		}
+		executions[shape]++
+	}
+	plans := make([]requestReviewPlan, 0, len(order))
+	require.NoError(t, testpkg.WithTenantTx(t, testpkg.Ctx(t), db, testpkg.Tenant(t), func(ctx context.Context, tx bun.Tx) error {
+		var bypass bool
+		require.NoError(t, tx.NewRaw("SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user").Scan(ctx, &bypass))
+		require.False(t, bypass, "plans must run under the least-privilege role")
+		for _, shape := range order {
+			var raw string
+			require.NoError(t, tx.NewRaw("EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) "+exemplars[shape]).Scan(ctx, &raw))
+			plans = append(plans, summarizeRequestReviewPlan(t, shape, executions[shape], raw))
+		}
+		return nil
+	}))
+	slices.SortStableFunc(plans, func(a, b requestReviewPlan) int {
+		return cmp.Compare(b.ExecutionMS*float64(b.Executions), a.ExecutionMS*float64(a.Executions))
+	})
+	return plans
+}
+
+type explainNode struct {
+	NodeType         string        `json:"Node Type"`
+	RelationName     string        `json:"Relation Name"`
+	ActualRows       float64       `json:"Actual Rows"`
+	ActualLoops      float64       `json:"Actual Loops"`
+	SharedHitBlocks  float64       `json:"Shared Hit Blocks"`
+	SharedReadBlocks float64       `json:"Shared Read Blocks"`
+	Plans            []explainNode `json:"Plans"`
+}
+
+func summarizeRequestReviewPlan(t *testing.T, shape string, executions int, raw string) requestReviewPlan {
+	t.Helper()
+	var explained []struct {
+		Plan          explainNode `json:"Plan"`
+		PlanningTime  float64     `json:"Planning Time"`
+		ExecutionTime float64     `json:"Execution Time"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(raw), &explained))
+	require.Len(t, explained, 1)
+	root := explained[0]
+	plan := requestReviewPlan{
+		Shape: shape, Executions: executions,
+		PlanningMS: root.PlanningTime, ExecutionMS: root.ExecutionTime,
+		RowsReturned:    root.Plan.ActualRows * root.Plan.ActualLoops,
+		SharedHitBlocks: root.Plan.SharedHitBlocks, SharedReadBlocks: root.Plan.SharedReadBlocks,
+		Plan: json.RawMessage(raw),
+	}
+	var walk func(node explainNode)
+	walk = func(node explainNode) {
+		if strings.HasSuffix(node.NodeType, "Scan") && node.NodeType != "Subquery Scan" && node.NodeType != "CTE Scan" {
+			plan.RowsScanned += node.ActualRows * node.ActualLoops
+			if node.NodeType == "Seq Scan" {
+				plan.SeqScans = append(plan.SeqScans, node.RelationName)
+			}
+		}
+		for _, child := range node.Plans {
+			walk(child)
+		}
+	}
+	walk(root.Plan)
+	return plan
 }

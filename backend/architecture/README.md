@@ -530,10 +530,19 @@ The projection reads no table directly, so it needs no `read_projections`
 grant; the owner queues keep their per-child scope and tenant isolation. Its
 `Today` port resolves the review day once per call, so the queues' urgency
 phase and the rows' urgency and past flags cannot straddle midnight or
-disagree under a test clock. The staff RSS feed
-(`/students/change-requests/rss-feed`) still reads the request tables through
-its own registered `parent-request-feed-read-model` grant; moving it onto this
-owner is open under #2705.
+disagree under a test clock. The public enrollment change requests keep
+their own `config:manage`-gated list (#2435), which the client merges into
+the same Eltern list, so the projection does not cross that permission
+boundary. The staff RSS feed (`/students/change-requests/rss-feed`) keeps its
+own registered `parent-request-feed-read-model` grant. It postdates #2705's
+evidence, also announces the `config:manage` enrollment change requests and
+selects by submission instant in one statement, and this owner cannot take it
+over in PR mode: a `read_projections`
+grant is accepted only for a newly created projection owner, `care-plan` may
+not import `request-review-view/public`, and neither
+`request-review-view/adapter` nor the root may import
+`parent-request-feed-view/postgres`. Moving the feed needs a reviewed policy
+decision under #2580.
 
 The Device Fleet authentication composition (`modules/devicefleet/deviceauth`)
 is classified as `device-fleet`/`http`. Its `device-fleet.device-auth.*`
