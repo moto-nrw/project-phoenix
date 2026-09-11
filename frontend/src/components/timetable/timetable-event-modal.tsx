@@ -1,7 +1,9 @@
 "use client";
 
 import { Trash2 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import { useCatalogRefreshOnFocus } from "~/components/database/catalog/catalog-manage-link";
 
 import { useModal } from "~/components/dashboard/modal-context";
 import { ClosingDayConfirmModal } from "~/components/planning/closing-day-marker";
@@ -30,7 +32,6 @@ import {
 } from "~/lib/closing-day-helpers";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { materializedRecurrenceDates } from "~/lib/timetable-helpers";
-import { CategoryManageModal } from "./category-manage-modal";
 import { Field } from "./event-form/field";
 import type { EventFormState, RepeatMode } from "./event-form/form-model";
 import { StepPersonalKinder } from "./event-form/step-personal-kinder";
@@ -170,9 +171,6 @@ export function TimetableEventModal({
   closingDaysLoading = false,
 }: TimetableEventModalProps) {
   const { isModalOpen } = useModal();
-  const [categoryDialog, setCategoryDialog] = useState<
-    "list" | "create" | null
-  >(null);
   const {
     form,
     update,
@@ -315,6 +313,18 @@ export function TimetableEventModal({
   const [step, setStep] = useState(0);
   const submitAttempted = useRef(false);
   const formRef = useRef<HTMLFormElement>(null);
+
+  // „Kategorien verwalten" und „Planungsspuren verwalten" öffnen ihre Route in
+  // einem zweiten Fenster, damit dieser Entwurf stehen bleibt (#3114). Kommt
+  // das Formular wieder in den Vordergrund, stehen die dort angelegten
+  // Einträge ohne Zutun in den beiden Auswahlfeldern.
+  const refreshCatalogs = useCallback(async () => {
+    await Promise.all([refreshCategories(), refreshPlanningTracks()]);
+  }, [refreshCategories, refreshPlanningTracks]);
+  useCatalogRefreshOnFocus(
+    refreshCatalogs,
+    isOpen && (canManageCategories || canManagePlanningTracks),
+  );
   useEffect(() => {
     if (isOpen) {
       setStep(convertInstance ? 1 : 0);
@@ -600,11 +610,7 @@ export function TimetableEventModal({
                 quickPreset={quickPreset}
                 listKindTouched={listKindTouched}
                 canManageCategories={canManageCategories}
-                onManageCategories={setCategoryDialog}
                 canManagePlanningTracks={canManagePlanningTracks}
-                onPlanningTracksChanged={async (created) => {
-                  await refreshPlanningTracks(created?.id);
-                }}
               />
             )}
 
@@ -1005,20 +1011,6 @@ export function TimetableEventModal({
             neu. Die Kinderliste kommt automatisch aus dem Angebot.
           </p>
         </ConfirmationModal>
-
-        {/* Kategorien verwalten (#2131): mounted only while open so its fetch
-            and dialog context stay out of every test that never opens it. */}
-        {canManageCategories && categoryDialog && (
-          <CategoryManageModal
-            isOpen
-            initialView={categoryDialog}
-            onClose={() => setCategoryDialog(null)}
-            onChanged={async (created) => {
-              await refreshCategories(created?.id);
-              if (created) setCategoryDialog(null);
-            }}
-          />
-        )}
       </SlideOverContent>
     </SlideOver>
   );

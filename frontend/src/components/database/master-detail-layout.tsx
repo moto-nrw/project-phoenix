@@ -112,7 +112,12 @@ export function MasterDetailLayout({
   return (
     <div
       ref={containerRef}
-      style={{ height }}
+      // Die Richtung steht im style, nicht in einer Klasse: die Regel „der
+      // Rumpf füllt die Höhe" in globals.css macht jede Hülle auf dem Weg zur
+      // letzten Kartenfläche zur Flex-SPALTE, und weil sie ungeschichtet ist,
+      // schlägt sie jede Tailwind-Utility. Ohne diese Zeile lagen Liste und
+      // Objektansicht übereinander statt nebeneinander.
+      style={{ height, flexDirection: "row" }}
       className={cn("flex w-full gap-4", className)}
     >
       <div
@@ -120,12 +125,24 @@ export function MasterDetailLayout({
           "moto-content-surface overflow-hidden rounded-2xl border shadow-sm",
           showDetail ? "shrink-0" : "flex-1",
         )}
-        style={showDetail ? { width: listWidth } : undefined}
+        style={
+          showDetail
+            ? { width: listWidth, flex: "0 0 auto" }
+            : { flex: "1 1 0%" }
+        }
       >
         <div className="flex h-full flex-col">{list}</div>
       </div>
       {showDetail ? (
-        <div className="moto-content-surface min-w-0 flex-1 overflow-hidden rounded-2xl border shadow-sm">
+        // `flex` ebenfalls im style: die Wachstumsregel aus globals.css gibt
+        // der letzten Kartenfläche `flex: 1 0 auto`, damit sie in einer
+        // Spalte bis zur Unterkante wächst. In dieser Zeile heißt dasselbe
+        // „nicht schrumpfen" — die Objektansicht lief dadurch über den
+        // rechten Rand hinaus.
+        <div
+          className="moto-content-surface min-w-0 flex-1 overflow-hidden rounded-2xl border shadow-sm"
+          style={{ flex: "1 1 0%" }}
+        >
           <div className="flex h-full flex-col">{detail}</div>
         </div>
       ) : null}

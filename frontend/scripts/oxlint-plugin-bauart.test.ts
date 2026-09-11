@@ -638,3 +638,164 @@ describe("bauart/no-toast-form-error", () => {
     }
   });
 });
+
+describe("bauart/no-manage-surface-in-overlay", () => {
+  it("rejects a per-row kebab with object actions inside a SlideOver", () => {
+    const { status, output } = lintSource(
+      `import { SlideOver, SlideOverContent } from "~/components/ui/slide-over";
+      import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+      export function Probe({ items }: { items: { id: string; name: string }[] }) {
+        return (
+          <SlideOver open onOpenChange={() => {}}>
+            <SlideOverContent>
+              <ul>
+                {items.map((item) => (
+                  <li key={item.id}>
+                    {item.name}
+                    <OverflowMenu
+                      ariaLabel={"Aktionen"}
+                      items={[
+                        { label: "Bearbeiten", onClick: () => {} },
+                        { label: "Archivieren", onClick: () => {} },
+                      ]}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </SlideOverContent>
+          </SlideOver>
+        );
+      }`,
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain("bauart(no-manage-surface-in-overlay)");
+    expect(output).toContain("Bearbeiten");
+  });
+
+  it("follows a helper the overlay renders", () => {
+    const { status, output } = lintSource(
+      `import { AnchoredPopover } from "~/components/ui/anchored-popover";
+      import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+      export function Probe({ items }: { items: { id: string; name: string }[] }) {
+        const manageView = (
+          <ul>
+            {items.map((item) => (
+              <li key={item.id}>
+                <OverflowMenu
+                  ariaLabel={"Aktionen"}
+                  items={[{ label: "Umbenennen", onClick: () => {} }]}
+                />
+              </li>
+            ))}
+          </ul>
+        );
+        return (
+          <AnchoredPopover open onOpenChange={() => {}} renderTrigger={() => null}>
+            {() => manageView}
+          </AnchoredPopover>
+        );
+      }`,
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain("bauart(no-manage-surface-in-overlay)");
+    expect(output).toContain("Umbenennen");
+  });
+
+  it("rejects a rename button in a listbox menu slot", () => {
+    const { status, output } = lintSource(
+      `import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
+      export function Probe() {
+        return (
+          <ListboxDropdown
+            value=""
+            options={[]}
+            onChange={() => {}}
+            renderOptionActions={(option) => (
+              <button type="button" aria-label={option.label + " umbenennen"} />
+            )}
+          />
+        );
+      }`,
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain("bauart(no-manage-surface-in-overlay)");
+    expect(output).toContain("Auswahlfeld");
+  });
+
+  it("accepts the same list on a page", () => {
+    const { status, output } = lintSource(
+      `import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+      export function Probe({ items }: { items: { id: string; name: string }[] }) {
+        return (
+          <ul>
+            {items.map((item) => (
+              <li key={item.id}>
+                {item.name}
+                <OverflowMenu
+                  ariaLabel={"Aktionen"}
+                  items={[{ label: "Bearbeiten", onClick: () => {} }]}
+                />
+              </li>
+            ))}
+          </ul>
+        );
+      }`,
+    );
+
+    expect(status).toBe(0);
+    expect(output).not.toContain("bauart(no-manage-surface-in-overlay)");
+  });
+
+  it("accepts a plain select inside an overlay", () => {
+    const { status, output } = lintSource(
+      `import { Modal } from "~/components/ui/modal";
+      import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
+      export function Probe({ items }: { items: { id: string; name: string }[] }) {
+        return (
+          <Modal isOpen onClose={() => {}} title="Abwesenheit">
+            <ListboxDropdown
+              value=""
+              options={items.map((item) => ({ value: item.id, label: item.name }))}
+              onChange={() => {}}
+            />
+            <button type="button">Speichern</button>
+          </Modal>
+        );
+      }`,
+    );
+
+    expect(status).toBe(0);
+    expect(output).not.toContain("bauart(no-manage-surface-in-overlay)");
+  });
+
+  it("leaves the kit directory, tests and the other portals alone", () => {
+    const source = `import { Modal } from "~/components/ui/modal";
+      import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+      export function Probe({ items }: { items: { id: string }[] }) {
+        return (
+          <Modal isOpen onClose={() => {}} title="Liste">
+            {items.map((item) => (
+              <OverflowMenu
+                key={item.id}
+                ariaLabel={"Aktionen"}
+                items={[{ label: "Bearbeiten", onClick: () => {} }]}
+              />
+            ))}
+          </Modal>
+        );
+      }`;
+
+    for (const path of [
+      "src/components/ui/probe.tsx",
+      "src/components/probe.test.tsx",
+      "src/app/operator/probe.tsx",
+      "src/components/parent/probe.tsx",
+    ]) {
+      const { output } = lintSource(source, path);
+      expect(output).not.toContain("bauart(no-manage-surface-in-overlay)");
+    }
+  });
+});
