@@ -245,6 +245,7 @@ vi.mock("~/components/students/student-card", () => ({
   ),
   SchoolClassIcon: () => <span data-testid="school-class-icon" />,
   GroupIcon: () => <span data-testid="group-icon" />,
+  ActivityIcon: () => <span data-testid="activity-icon" />,
   PickupTimeRow: ({
     pickupTime,
     isException,
@@ -1138,17 +1139,13 @@ describe("open-room tab onTabChange callback", () => {
       );
     });
 
-    // The room says what it is and that the reader has no supervision here —
-    // and stays open anyway. Hiding it from everyone but the supervisor is
-    // exactly what #3065 removes.
+    // The head card names the room an open room and carries no "Eigene
+    // Aufsicht" — and the room stays open anyway. Hiding it from everyone but
+    // the supervisor is exactly what #3065 removes.
     await waitFor(() => {
-      expect(
-        screen.getByText(/Diesen Raum sehen alle Betreuungskräfte/),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Offener Raum")).toBeInTheDocument();
     });
-    expect(
-      screen.getByText(/Sie haben hier keine Aufsicht/),
-    ).toBeInTheDocument();
+    expect(screen.queryByText("Eigene Aufsicht")).not.toBeInTheDocument();
 
     // Its occupancy came with the dashboard; no extra request is made.
     expect(

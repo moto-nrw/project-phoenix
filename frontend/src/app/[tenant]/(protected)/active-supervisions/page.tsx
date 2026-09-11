@@ -28,7 +28,6 @@ import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import {
   ActiveSupervisionLoadingView,
   EmptyRoomsView,
-  OpenRoomNotice,
   ReleaseSupervisionModal,
   SchulhofSuperviseButton,
 } from "~/components/active-supervisions/states";
@@ -270,8 +269,19 @@ function MeinRaumPageContent() {
     currentOpenRoom?.studentCount ??
     currentRoom?.student_count ??
     students.length;
+  // Beim Schulhof steht dazu, wer dort die Aufsicht hat, solange es nicht die
+  // Person selbst ist; das sagt dann das Abzeichen „Eigene Aufsicht".
+  const openRoomSupervisorNames =
+    isSchulhofOpenRoom && !currentOpenRoom?.isUserSupervising
+      ? (schulhofStatus?.supervisors.map((s) => s.name) ?? [])
+      : [];
   const supervisionSummary = supervisionName
-    ? `${supervisionName} · ${supervisionCount} ${supervisionCount === 1 ? "Kind" : "Kinder"}`
+    ? [
+        `${supervisionName} · ${supervisionCount} ${supervisionCount === 1 ? "Kind" : "Kinder"}`,
+        ...(openRoomSupervisorNames.length > 0
+          ? [`Aktuelle Aufsicht: ${openRoomSupervisorNames.join(", ")}`]
+          : []),
+      ].join(" · ")
     : "Keine Aufsicht aktiv";
 
   // Reiterleiste. Am Desktop wechselt die Seitenleiste, deshalb stehen die
@@ -306,8 +316,8 @@ function MeinRaumPageContent() {
         }
       : undefined;
 
-  // Die Aufsicht abgeben kann nur, wer den Schulhof gerade beaufsichtigt; im
-  // Leerzustand steht dort stattdessen „Beaufsichtigen".
+  // Die Aufsicht abgeben kann nur, wer den Schulhof gerade beaufsichtigt;
+  // sonst steht an derselben Stelle „Beaufsichtigen".
   const releaseAction =
     isSchulhofOpenRoom && schulhofStatus?.isUserSupervising ? (
       <Button
@@ -366,21 +376,56 @@ function MeinRaumPageContent() {
     : (currentRoom?.isCurrentUserSupervising ?? false);
 
   const addSupervisorButton = additionalSupervisionActiveGroupId ? (
-    <>
-      {isCurrentSupervisionOwn ? (
-        <StatusBadge label="Eigene Aufsicht" tone="green" />
-      ) : null}
-      <Button
-        type="button"
-        variant="outline"
-        size="md"
-        onClick={() => setShowAddSupervisor(true)}
-      >
-        <UserPlus className="h-4 w-4" aria-hidden="true" />
-        Betreuer hinzufügen
-      </Button>
-    </>
+    <Button
+      type="button"
+      variant="outline"
+      size="md"
+      onClick={() => setShowAddSupervisor(true)}
+    >
+      <UserPlus className="h-4 w-4" aria-hidden="true" />
+      Betreuer hinzufügen
+    </Button>
   ) : null;
+
+  // Abzeichen in der Kopfkarte: ein offener Raum heißt dort „Offener Raum",
+  // die eigene Aufsicht „Eigene Aufsicht" (#3065). Keine Erklärzeile.
+  const openRoomBadge = currentOpenRoom ? (
+    <StatusBadge label="Offener Raum" tone="blue" />
+  ) : null;
+  const ownSupervisionBadge =
+    isCurrentSupervisionOwn &&
+    (currentOpenRoom !== null || additionalSupervisionActiveGroupId) ? (
+      <StatusBadge label="Eigene Aufsicht" tone="green" />
+    ) : null;
+
+  // „Beaufsichtigen" steht als Kopf-Aktion dort, wo sonst „Aufsicht abgeben"
+  // steht (#2161).
+  const superviseDisabled =
+    !schulhofStatus?.activeGroupId &&
+    dashboard.spontaneousStartAvailability?.available === false;
+  const superviseAction =
+    isSchulhofOpenRoom && !currentOpenRoom?.isUserSupervising ? (
+      <SchulhofSuperviseButton
+        isToggling={schulhof.isTogglingSchulhof}
+        disabled={superviseDisabled}
+        onToggle={() => schulhof.handleToggleSchulhof().catch(() => undefined)}
+      />
+    ) : null;
+  // Warum „Beaufsichtigen" gerade nicht geht. Mit spontanen Aktivitäten sagt
+  // das schon deren Karte; ohne sie steht der Grund als Hinweis im Inhalt.
+  const superviseBlockedReason =
+    superviseAction &&
+    superviseDisabled &&
+    !dashboard.webSpontaneousActivitiesEnabled
+      ? spontaneousStartBlockedReason
+      : undefined;
+  const hasHeadActions = Boolean(
+    openRoomBadge ??
+    ownSupervisionBadge ??
+    addSupervisorButton ??
+    superviseAction ??
+    releaseAction,
+  );
 
   // Keine eigene Aufsicht, kein offener Raum, nichts geplant: dieselbe
   // Kopfkarte, nur ein anderer Inhalt — keine zweite Seite.
@@ -450,9 +495,12 @@ function MeinRaumPageContent() {
       title="Aktuelle Aufsicht"
       stats={supervisionSummary}
       actions={
-        (addSupervisorButton ?? releaseAction) ? (
+        hasHeadActions ? (
           <>
+            {openRoomBadge}
+            {ownSupervisionBadge}
             {addSupervisorButton}
+            {superviseAction}
             {releaseAction}
           </>
         ) : undefined
@@ -578,40 +626,8 @@ function MeinRaumPageContent() {
 
           {spontaneousStartBanner}
 
-          {/* Ein offener Raum sagt in einer Zeile, was er ist und ob die
-              Person hier die Aufsicht hat. Die Kinder bleiben in jedem Fall
-              sichtbar — genau das unterscheidet ihn von einer Aufsicht. */}
-          {currentOpenRoom ? (
-            <OpenRoomNotice
-              isUserSupervising={currentOpenRoom.isUserSupervising}
-              supervisorNames={
-                isSchulhofOpenRoom
-                  ? schulhofStatus?.supervisors.map((s) => s.name)
-                  : undefined
-              }
-              hint={
-                isSchulhofOpenRoom &&
-                !currentOpenRoom.isUserSupervising &&
-                !schulhofStatus?.activeGroupId
-                  ? spontaneousStartBlockedReason
-                  : undefined
-              }
-              action={
-                isSchulhofOpenRoom && !currentOpenRoom.isUserSupervising ? (
-                  <SchulhofSuperviseButton
-                    isToggling={schulhof.isTogglingSchulhof}
-                    disabled={
-                      !schulhofStatus?.activeGroupId &&
-                      dashboard.spontaneousStartAvailability?.available ===
-                        false
-                    }
-                    onToggle={() =>
-                      schulhof.handleToggleSchulhof().catch(() => undefined)
-                    }
-                  />
-                ) : undefined
-              }
-            />
+          {superviseBlockedReason ? (
+            <Alert type="info" message={superviseBlockedReason} />
           ) : null}
 
           {/* Kinder in einen Raum setzen ist eine Verwaltungsaktion. Einen

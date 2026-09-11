@@ -1724,7 +1724,9 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      fireEvent.click(screen.getByText("Aktuelle Aufsichten"));
+      // The released room sits in its own "Offene Räume" section, so the
+      // own-supervision header counts one room only.
+      fireEvent.click(screen.getByText("Aktuelle Aufsicht"));
 
       expect(mockRouterPush).toHaveBeenCalledWith(
         "/test-tenant/active-supervisions?session=active-raum-a",
@@ -1970,6 +1972,109 @@ describe("Sidebar", () => {
           link.textContent === "Raum A" || link.textContent === "Schulhof",
       );
       expect(roomLinks).toHaveLength(2);
+    });
+
+    it("keeps released rooms in their own Offene Räume section", () => {
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [
+          { id: "10", name: "Raum A", groupId: "1" },
+          { id: "11", name: "Raum B", groupId: "2" },
+          { id: "7", name: "Schulhof", groupId: "", isOpenRoom: true },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+      mockUsePathname.mockReturnValue("/active-supervisions");
+
+      render(<Sidebar />);
+
+      // Shared rooms are visibly apart from own supervisions (#3065), the
+      // same way "Weitere Gruppen" stands apart from "Meine Gruppen".
+      expect(screen.getByText("Offene Räume")).toBeInTheDocument();
+      expect(screen.getByText("Aktuelle Aufsichten")).toBeInTheDocument();
+      expect(screen.getByText("Schulhof").closest("a")).toHaveAttribute(
+        "href",
+        "/active-supervisions?room=7",
+      );
+    });
+
+    it("counts only own supervisions in the Aktuelle Aufsicht header", () => {
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [
+          { id: "7", name: "Schulhof", groupId: "", isOpenRoom: true },
+          { id: "8", name: "Sporthalle", groupId: "", isOpenRoom: true },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+      mockUsePathname.mockReturnValue("/active-supervisions");
+
+      render(<Sidebar />);
+
+      // Reaching two shared rooms is not supervising two rooms.
+      expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
+      expect(screen.queryByText("Aktuelle Aufsichten")).not.toBeInTheDocument();
+      expect(screen.getByText("Offene Räume")).toBeInTheDocument();
+    });
+
+    it("shows no Offene Räume section without released rooms", () => {
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [{ id: "10", name: "Raum A", groupId: "1" }],
+        groups: [],
+        refresh: vi.fn(),
+      });
+      mockUsePathname.mockReturnValue("/active-supervisions");
+
+      render(<Sidebar />);
+
+      expect(screen.queryByText("Offene Räume")).not.toBeInTheDocument();
+    });
+
+    it("opens the Offene Räume section for the selected released room", () => {
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [
+          { id: "10", name: "Raum A", groupId: "1" },
+          { id: "7", name: "Schulhof", groupId: "", isOpenRoom: true },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+      mockUsePathname.mockReturnValue("/active-supervisions");
+      mockUseSearchParams.mockReturnValue(
+        createMockSearchParams((key) => (key === "room" ? "7" : null)),
+      );
+
+      render(<Sidebar />);
+
+      expect(
+        screen.getByRole("button", { name: /Offene Räume/ }),
+      ).toHaveAttribute("aria-expanded", "true");
+      expect(
+        screen.getByRole("button", { name: /Aktuelle Aufsicht/ }),
+      ).toHaveAttribute("aria-expanded", "false");
+      expect(screen.getByText("Schulhof").closest("a")).toHaveClass(
+        "bg-gray-100",
+      );
     });
   });
 

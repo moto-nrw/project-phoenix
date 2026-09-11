@@ -8,7 +8,6 @@ import {
   EmptyRoomsView,
   NoActiveSupervisionAccessView,
   ReleaseSupervisionModal,
-  OpenRoomNotice,
   SchulhofSuperviseButton,
 } from "./states";
 
@@ -57,20 +56,16 @@ export const ReleaseModal: Story = {
   ),
 };
 
-export const OpenRoomShared: Story = {
-  render: () => <OpenRoomNotice isUserSupervising={false} />,
+export const SchulhofSupervise: Story = {
+  render: () => <SchulhofSuperviseButton isToggling={false} onToggle={fn()} />,
 };
 
-export const OpenRoomOwnSupervision: Story = {
-  render: () => <OpenRoomNotice isUserSupervising />,
+export const SchulhofSuperviseToggling: Story = {
+  render: () => <SchulhofSuperviseButton isToggling onToggle={fn()} />,
 };
 
-export const OpenRoomWithSchulhofOffer: Story = {
+export const SchulhofSuperviseBlocked: Story = {
   render: () => (
-    <OpenRoomNotice
-      isUserSupervising={false}
-      supervisorNames={["Anna Meier", "Ben Fischer"]}
-      action={<SchulhofSuperviseButton isToggling={false} onToggle={fn()} />}
-    />
+    <SchulhofSuperviseButton isToggling={false} disabled onToggle={fn()} />
   ),
 };

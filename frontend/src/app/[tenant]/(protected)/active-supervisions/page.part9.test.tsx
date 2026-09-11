@@ -229,6 +229,7 @@ vi.mock("~/components/students/student-card", () => ({
   ),
   SchoolClassIcon: () => <span data-testid="school-class-icon" />,
   GroupIcon: () => <span data-testid="group-icon" />,
+  ActivityIcon: () => <span data-testid="activity-icon" />,
   PickupTimeRow: ({
     pickupTime,
     isException,
@@ -981,9 +982,8 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
     // The caller's own session runs in the released room, so the room is the
     // entry — with the occupancy the room reports, not the one session's.
     expect(await screen.findByText("Schulhof · 9 Kinder")).toBeInTheDocument();
-    expect(
-      screen.getByText(/Sie haben hier keine Aufsicht/),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Offener Raum")).toBeInTheDocument();
+    expect(screen.queryByText("Eigene Aufsicht")).not.toBeInTheDocument();
   });
 
   it("shows the permission notice when switching to a forbidden session", async () => {

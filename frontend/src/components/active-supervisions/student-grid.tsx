@@ -10,6 +10,7 @@ import {
   StudentInfoRow,
   SchoolClassIcon,
   GroupIcon,
+  ActivityIcon,
   PickupTimeRow,
   ArrivalTimeRow,
   StudentAbsenceRow,
@@ -120,7 +121,7 @@ export function SupervisionStudentGrid({
                     </StudentInfoRow>
                   )}
                   {student.activity_name && (
-                    <StudentInfoRow icon={<GroupIcon />}>
+                    <StudentInfoRow icon={<ActivityIcon />}>
                       Angebot: {student.activity_name}
                     </StudentInfoRow>
                   )}
