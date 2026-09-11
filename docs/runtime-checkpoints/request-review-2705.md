@@ -169,7 +169,7 @@ harness wires the review policy.
 
 ## Scope decisions
 
-**Staff RSS feed: proposed rescoping, needs a maintainer decision.** The
+**Staff RSS feed: rescoped out of #2705.** The
 personal RSS feed (`/students/change-requests/rss-feed`, Care Plan's
 `modules/careplan/requestfeed`) keeps its registered
 `parent-request-feed-read-model` projection; this change does not move it.
@@ -193,9 +193,15 @@ points is a policy loosening, and PR mode accepts a new `read_projections`
 grant only for a newly created projection owner. The existing
 `request-review-view.adapter.care-plan-contract` rule would let the adapter
 implement a new Care Plan contract port, but the adapter would still have no
-grant for the tables and would have to fall back to the owner queues.
-Whether #2705 is rescoped without the feed, or the feed moves under a
-reviewed #2580 policy decision, is the maintainer's call.
+grant for the tables and would have to fall back to the owner queues. #2705
+is rescoped without the feed; moving it later needs a reviewed policy
+decision under #2580.
+
+**Compatibility permissions.** The `request-review-view.adapter.*`,
+`request-review-view.adapter-test.*` and `inbound-students.*` compatibility
+rules exist only because PR mode cannot record debt for a package the
+candidate creates. Both packages exist on `development` now, so they convert
+to exact debt in `legacy.jsonl` under #3174 instead of keeping #2705 open.
 
 **`enrollment.change_requests`.** The ticket's table list names the public
 enrollment change requests; the staff list serves the parent offering

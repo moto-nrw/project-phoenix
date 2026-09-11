@@ -523,9 +523,10 @@ routes move to their owners. Every `request-review-view.adapter.*`,
 `request-review-view.adapter-test.*` and
 `inbound-students.adapter-test.request-review-adapter` rule is a compatibility
 permission that exists only because PR mode cannot record debt for a package
-the candidate creates: convert them to exact debt with the rule above once the
-package exists at a base SHA, rebind each port to its owner's public
-capability as it appears, and delete the adapter with the last legacy source.
+the candidate creates: convert them to exact debt with the rule above under
+#3174, now that the packages exist at a base SHA, rebind each port to its
+owner's public capability as it appears, and delete the adapter with the last
+legacy source.
 The projection reads no table directly, so it needs no `read_projections`
 grant; the owner queues keep their per-child scope and tenant isolation. Its
 `Today` port resolves the review day once per call, so the queues' urgency
