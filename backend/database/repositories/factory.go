@@ -546,7 +546,12 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	accountTenantRepo := auth.NewAccountTenantRepository(db)
 	roleRepo := auth.NewRoleRepository(db)
 	permissionRepo := auth.NewPermissionRepository(db)
-	personRepo := users.NewPersonRepository(db)
+	// Operators, their refresh sessions and the account facts other owners
+	// read belong to Identity & Access (#2720). The retained contracts are
+	// adapters over the one module; the account lookups the People Directory
+	// and Care Plan repositories need are bound at construction.
+	identity := newIdentityAccess(db, timetableDependencies.ObserveIdentityAccess)
+	personRepo := NewPersonRepository(db)
 	studentRepo := users.NewStudentRepository(db)
 	groupRepo := education.NewGroupRepository(db)
 	factory := &Factory{
@@ -583,7 +588,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		Profile:             users.NewProfileRepository(db),
 		StudentGuardian:     users.NewStudentGuardianRepository(db),
 		StudentCompanion:    nil, // bound to Care Plan below
-		GuardianProfile:     users.NewGuardianProfileRepository(db),
+		GuardianProfile:     NewGuardianProfileRepository(db),
 		GuardianPhoneNumber: users.NewGuardianPhoneNumberRepository(db),
 		PrivacyConsent:      active.NewPrivacyConsentRepository(db),
 		FamilyProtection:    users.NewFamilyProtectionEventRepository(db),
@@ -713,11 +718,12 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		TimeTrackingAuditLog:         audit.NewTimeTrackingAuditLogRepository(auditRepositoryRuntime),
 		BookingConsistency:           audit.NewBookingConsistencyRepository(auditRepositoryRuntime, enrollmentModule),
 
-		// Platform repositories
-		Operator:                 platformRepo.NewOperatorRepository(db),
-		OperatorAuditLog:         platformRepo.NewOperatorAuditLogRepository(db),
+		// Platform repositories. Operators, their refresh sessions and the
+		// operator audit ledger belong to Identity & Access and Audit (#2720).
+		Operator:                 operatorRepository{identity: identity},
+		OperatorRefreshToken:     operatorRefreshTokenRepository{identity: identity},
+		OperatorAuditLog:         newOperatorAuditLog(auditRepositoryRuntime),
 		OperatorEmailChangeToken: platformRepo.NewOperatorEmailChangeTokenRepository(db),
-		OperatorRefreshToken:     platformRepo.NewOperatorRefreshTokenRepository(db),
 		OperatorInvitationToken:  platformRepo.NewOperatorInvitationTokenRepository(db),
 		OperatorSummaries:        platformRepo.NewOperatorSummariesRepository(db),
 		School:                   platformRepo.NewSchoolRepository(db),
@@ -734,7 +740,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		// Parent (cross-tenant guardian portal — PR 9+)
 		ParentChild:             parentRepo.NewChildRepository(parentRuntime),
 		ParentEnrollablePhase:   parentRepo.NewEnrollablePhaseRepository(parentRuntime, enrollmentModule),
-		ParentEnrollmentRequest: parentRepo.NewEnrollmentRequestRepository(parentRuntime, enrollmentModule),
+		ParentEnrollmentRequest: parentRepo.NewEnrollmentRequestRepository(parentRuntime, enrollmentModule, identityAccountDirectory{accounts: identity}),
 
 		// Parent Stammdaten direct-edit audit + change-request review
 		StudentDataChangeRequest: nil, // bound to Care Plan below

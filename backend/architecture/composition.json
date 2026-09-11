@@ -2377,7 +2377,7 @@
       "declaration": "TestTokenRepository_CleanupOldTokensForAccount",
       "target": "database/repositories.NewFactory",
       "lines": [
-        499
+        500
       ],
       "tables": [
         "auth.tokens"
@@ -2389,7 +2389,7 @@
       "declaration": "TestTokenRepository_CleanupOldTokensForAccount_AdminTxIgnoresTenantFilter",
       "target": "database/repositories.NewFactory",
       "lines": [
-        687
+        688
       ],
       "tables": []
     },
@@ -2399,7 +2399,7 @@
       "declaration": "TestTokenRepository_CleanupOldTokensForAccount_EmptyPortalScopeUsesUnknown",
       "target": "database/repositories.NewFactory",
       "lines": [
-        731
+        732
       ],
       "tables": []
     },
@@ -2409,7 +2409,7 @@
       "declaration": "TestTokenRepository_CleanupOldTokensForAccount_IgnoresOtherPortal",
       "target": "database/repositories.NewFactory",
       "lines": [
-        573
+        574
       ],
       "tables": []
     },
@@ -2419,7 +2419,7 @@
       "declaration": "TestTokenRepository_CleanupOldTokensForAccount_StaffGroupSharesTenantAndOrg",
       "target": "database/repositories.NewFactory",
       "lines": [
-        649
+        650
       ],
       "tables": []
     },
@@ -2429,7 +2429,7 @@
       "declaration": "TestTokenRepository_CleanupOldTokensForAccount_TenantCapLeavesUnknownIsolated",
       "target": "database/repositories.NewFactory",
       "lines": [
-        608
+        609
       ],
       "tables": []
     },
@@ -2439,7 +2439,7 @@
       "declaration": "TestTokenRepository_Create",
       "target": "database/repositories.NewFactory",
       "lines": [
-        28
+        29
       ],
       "tables": []
     },
@@ -2449,7 +2449,7 @@
       "declaration": "TestTokenRepository_CreateValidation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        910
+        911
       ],
       "tables": []
     },
@@ -2459,7 +2459,7 @@
       "declaration": "TestTokenRepository_Delete",
       "target": "database/repositories.NewFactory",
       "lines": [
-        138
+        139
       ],
       "tables": []
     },
@@ -2469,7 +2469,7 @@
       "declaration": "TestTokenRepository_DeleteAllByAccountIDReturningIgnoresTenant",
       "target": "database/repositories.NewFactory",
       "lines": [
-        386
+        387
       ],
       "tables": [
         "auth.tokens"
@@ -2481,7 +2481,7 @@
       "declaration": "TestTokenRepository_DeleteByAccountID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        326
+        327
       ],
       "tables": []
     },
@@ -2491,7 +2491,7 @@
       "declaration": "TestTokenRepository_DeleteByAccountIDCreatedAtOrBeforeIncludesRefreshSuccessor",
       "target": "database/repositories.NewFactory",
       "lines": [
-        414
+        415
       ],
       "tables": [
         "auth.tokens"
@@ -2503,7 +2503,7 @@
       "declaration": "TestTokenRepository_DeleteByAccountIDReturningKeepsOtherSchoolInAdminTx",
       "target": "database/repositories.NewFactory",
       "lines": [
-        351
+        352
       ],
       "tables": [
         "auth.tokens"
@@ -2515,7 +2515,7 @@
       "declaration": "TestTokenRepository_DeleteByFamilyID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        455
+        456
       ],
       "tables": []
     },
@@ -2525,7 +2525,7 @@
       "declaration": "TestTokenRepository_DeleteByTenantID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        929
+        930
       ],
       "tables": []
     },
@@ -2535,7 +2535,7 @@
       "declaration": "TestTokenRepository_DeleteExpiredRotatedForAccount",
       "target": "database/repositories.NewFactory",
       "lines": [
-        758
+        759
       ],
       "tables": []
     },
@@ -2545,7 +2545,7 @@
       "declaration": "TestTokenRepository_DeleteExpiredTokens",
       "target": "database/repositories.NewFactory",
       "lines": [
-        219
+        220
       ],
       "tables": [
         "auth.tokens"
@@ -2557,7 +2557,7 @@
       "declaration": "TestTokenRepository_FindByAccountID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        180
+        181
       ],
       "tables": []
     },
@@ -2567,7 +2567,7 @@
       "declaration": "TestTokenRepository_FindByID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        68
+        69
       ],
       "tables": []
     },
@@ -2577,7 +2577,7 @@
       "declaration": "TestTokenRepository_FindByToken",
       "target": "database/repositories.NewFactory",
       "lines": [
-        91
+        92
       ],
       "tables": []
     },
@@ -2587,7 +2587,7 @@
       "declaration": "TestTokenRepository_GetLatestTokenInFamily",
       "target": "database/repositories.NewFactory",
       "lines": [
-        800
+        801
       ],
       "tables": []
     },
@@ -2597,7 +2597,7 @@
       "declaration": "TestTokenRepository_HasLiveTokensCreatedAfter",
       "target": "database/repositories.NewFactory",
       "lines": [
-        259
+        260
       ],
       "tables": []
     },
@@ -2607,7 +2607,7 @@
       "declaration": "TestTokenRepository_List",
       "target": "database/repositories.NewFactory",
       "lines": [
-        162
+        163
       ],
       "tables": []
     },
@@ -2617,7 +2617,7 @@
       "declaration": "TestTokenRepository_ListWithFilters",
       "target": "database/repositories.NewFactory",
       "lines": [
-        857
+        858
       ],
       "tables": []
     },
@@ -2627,7 +2627,7 @@
       "declaration": "TestTokenRepository_RotationHandoffLifecycle",
       "target": "database/repositories.NewFactory",
       "lines": [
-        279
+        280
       ],
       "tables": []
     },
@@ -2637,7 +2637,7 @@
       "declaration": "TestTokenRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        114
+        115
       ],
       "tables": []
     },
@@ -4107,7 +4107,7 @@
       "declaration": "TestPersonRepository_Create",
       "target": "database/repositories.NewFactory",
       "lines": [
-        41
+        42
       ],
       "tables": []
     },
@@ -4117,7 +4117,7 @@
       "declaration": "TestPersonRepository_Delete",
       "target": "database/repositories.NewFactory",
       "lines": [
-        175
+        176
       ],
       "tables": []
     },
@@ -4127,7 +4127,7 @@
       "declaration": "TestPersonRepository_EdgeCases",
       "target": "database/repositories.NewFactory",
       "lines": [
-        593
+        594
       ],
       "tables": []
     },
@@ -4137,7 +4137,7 @@
       "declaration": "TestPersonRepository_FindByAccountID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        344
+        345
       ],
       "tables": []
     },
@@ -4147,7 +4147,7 @@
       "declaration": "TestPersonRepository_FindByID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        111
+        112
       ],
       "tables": []
     },
@@ -4157,7 +4157,7 @@
       "declaration": "TestPersonRepository_FindByIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        244
+        245
       ],
       "tables": []
     },
@@ -4167,7 +4167,7 @@
       "declaration": "TestPersonRepository_FindByTagID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        434
+        435
       ],
       "tables": []
     },
@@ -4177,7 +4177,7 @@
       "declaration": "TestPersonRepository_FindWithAccount",
       "target": "database/repositories.NewFactory",
       "lines": [
-        476
+        477
       ],
       "tables": []
     },
@@ -4187,7 +4187,7 @@
       "declaration": "TestPersonRepository_LinkToAccount",
       "target": "database/repositories.NewFactory",
       "lines": [
-        288
+        289
       ],
       "tables": []
     },
@@ -4197,7 +4197,7 @@
       "declaration": "TestPersonRepository_LinkToRFIDCard",
       "target": "database/repositories.NewFactory",
       "lines": [
-        373
+        374
       ],
       "tables": []
     },
@@ -4207,7 +4207,7 @@
       "declaration": "TestPersonRepository_List",
       "target": "database/repositories.NewFactory",
       "lines": [
-        203
+        204
       ],
       "tables": []
     },
@@ -4217,7 +4217,7 @@
       "declaration": "TestPersonRepository_ListWithNullableFilters",
       "target": "database/repositories.NewFactory",
       "lines": [
-        515
+        516
       ],
       "tables": []
     },
@@ -4227,7 +4227,7 @@
       "declaration": "TestPersonRepository_UnlinkFromAccount",
       "target": "database/repositories.NewFactory",
       "lines": [
-        317
+        318
       ],
       "tables": []
     },
@@ -4237,7 +4237,7 @@
       "declaration": "TestPersonRepository_UnlinkFromRFIDCard",
       "target": "database/repositories.NewFactory",
       "lines": [
-        402
+        403
       ],
       "tables": []
     },
@@ -4247,7 +4247,7 @@
       "declaration": "TestPersonRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        143
+        144
       ],
       "tables": []
     },
@@ -10215,7 +10215,7 @@
       "declaration": "TestGetStudentGuardians_AccountHolderPendingUpgradeApproval",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2693
+        2692
       ],
       "tables": [
         "auth.guardian_invitations",
@@ -10230,7 +10230,7 @@
       "declaration": "TestGetStudentGuardians_NonOpenInvitationsNotPending",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2544
+        2543
       ],
       "tables": [
         "users.guardian_profiles",
@@ -10244,7 +10244,7 @@
       "declaration": "TestGuardianService_ContactWritersShareProfileLock",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2652
+        2651
       ],
       "tables": [
         "users.guardian_phone_numbers",
@@ -27255,22 +27255,22 @@
         },
         {
           "file": "api/base.go",
-          "line": 456,
+          "line": 459,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 619,
+          "line": 622,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 857,
+          "line": 860,
           "declaration": "initializeAPIResourcesWithRequestFeed"
         },
         {
           "file": "api/base.go",
-          "line": 1145,
+          "line": 1148,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -27295,7 +27295,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 616,
+          "line": 619,
           "declaration": "type API"
         },
         {

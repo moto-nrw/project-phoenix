@@ -41,6 +41,15 @@ func (a *Appender) prepare(ctx context.Context, event any) (bun.IDB, error) {
 	if event == nil || (reflect.ValueOf(event).Kind() == reflect.Pointer && reflect.ValueOf(event).IsNil()) {
 		return nil, fmt.Errorf("audit event is required")
 	}
+	// Platform-scoped ledgers (operator actions) have no tenant column; they
+	// still join the caller's transaction but skip the tenant handshake.
+	if platform, ok := event.(interface{ PlatformScoped() bool }); ok && platform.PlatformScoped() {
+		if err := validateEvent(event); err != nil {
+			return nil, err
+		}
+		db, _, err := database(ctx, a.runtime)
+		return db, err
+	}
 	scoped, ok := event.(interface {
 		GetTenantID() int64
 		SetTenantID(int64)
@@ -106,6 +115,8 @@ func appendQuery(db bun.IDB, event any) (string, *bun.InsertQuery, error) {
 		table, query = "audit.guardian_changes", db.NewInsert().Model(value).ModelTableExpr("audit.guardian_changes")
 	case *auditModels.GuardianFinancialChange:
 		table, query = "audit.guardian_financial_changes", db.NewInsert().Model(value).ModelTableExpr("audit.guardian_financial_change_ledger")
+	case *auditModels.OperatorAuditEntry:
+		table, query = "platform.operator_audit_log", db.NewInsert().Model(value).ModelTableExpr("platform.operator_audit_log").Returning("id, created_at")
 	case *auditModels.PersonnelNumberChange:
 		table, query = "audit.personnel_number_changes", db.NewInsert().Model(value).ModelTableExpr("audit.personnel_number_changes")
 	case *auditModels.StaffMasterDataChange:

@@ -154,6 +154,20 @@ func (r *TokenRepository) FindByAccountID(ctx context.Context, accountID int64) 
 	return tokens, nil
 }
 
+// CountExpiredTokens reports how many refresh tokens have expired. The
+// cleanup CLI previews the deletion through this owner query instead of
+// counting auth.tokens itself.
+func (r *TokenRepository) CountExpiredTokens(ctx context.Context) (int, error) {
+	count, err := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`auth.tokens AS "token"`).
+		Where(`"token".expiry < ?`, time.Now()).
+		Count(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "count expired tokens", Err: base.TranslateNotFound(err)}
+	}
+	return count, nil
+}
+
 // DeleteExpiredTokens removes all expired tokens
 func (r *TokenRepository) DeleteExpiredTokens(ctx context.Context) (int, error) {
 	deleted, err := r.DeleteBefore(ctx, "expiry", time.Now(), "delete expired tokens")

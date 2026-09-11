@@ -781,6 +781,16 @@ func TestCountExpiredTokens(t *testing.T) {
 	t.Parallel()
 	ctx := setupTestCleanupContext(t)
 
+	// Without the Identity & Access owner service the preview fails closed
+	// instead of counting auth.tokens itself (#2720).
+	_, err := countExpiredTokens(ctx)
+	require.Error(t, err)
+
+	auditCommand, err := newCleanupAuditCommand()
+	require.NoError(t, err)
+	ctx.Audit = auditCommand
+	ctx.AuthCleanupService = buildAuthCleanupService(ctx)
+
 	// Should return count (0 or more) without error
 	count, err := countExpiredTokens(ctx)
 	require.NoError(t, err)

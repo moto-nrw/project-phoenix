@@ -3,6 +3,7 @@ package repositories
 import (
 	"context"
 
+	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
@@ -28,6 +29,6 @@ func NewStaffMessagingTestRepositories(db *bun.DB) (StaffMessagingTestRepositori
 		Message: usersRepo.NewStaffMessageRepository(db),
 		Read: usersRepo.NewStaffMessageReadRepository(db, func(ctx context.Context) ([]int64, error) {
 			return currentTenantStaffAccounts(ctx, membership, members.Person)
-		}),
+		}, activeAccountQuery(mustAccountRepository(authRepo.NewAccountRepository(db)))),
 	}, nil
 }

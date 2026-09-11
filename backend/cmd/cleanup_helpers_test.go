@@ -99,6 +99,7 @@ func TestCleanupRootFailsFastForEveryNilBuiltCapability(t *testing.T) {
 
 type nilAuthCleanup struct{}
 
+func (*nilAuthCleanup) CountExpiredTokens(context.Context) (int, error)       { return 0, nil }
 func (*nilAuthCleanup) CleanupExpiredTokens(context.Context) (int, error)     { return 0, nil }
 func (*nilAuthCleanup) CleanupExpiredRateLimits(context.Context) (int, error) { return 0, nil }
 

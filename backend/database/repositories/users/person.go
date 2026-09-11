@@ -4,6 +4,7 @@ package users
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -56,16 +57,32 @@ func (r *PersonRepository) unlinkField(ctx context.Context, personID int64, fiel
 type PersonRepository struct {
 	*base.Repository[*users.Person]
 	db *bun.DB
+	// accounts resolves the login account Identity & Access owns; without it
+	// FindWithAccount fails closed instead of reading auth.accounts itself.
+	accounts AccountLookup
+}
+
+// PersonOption configures a PersonRepository at construction.
+type PersonOption func(*PersonRepository)
+
+// WithAccountLookup installs the Identity & Access account lookup
+// FindWithAccount attaches the person's account through (#2720).
+func WithAccountLookup(lookup AccountLookup) PersonOption {
+	return func(r *PersonRepository) { r.accounts = lookup }
 }
 
 // NewPersonRepository creates a new PersonRepository
-func NewPersonRepository(db *bun.DB) users.PersonRepository {
+func NewPersonRepository(db *bun.DB, options ...PersonOption) users.PersonRepository {
 	repo := base.NewRepository[*users.Person](db, "users.persons", "Person")
 	repo.TenantScoped = true
-	return &PersonRepository{
+	repository := &PersonRepository{
 		Repository: repo,
 		db:         db,
 	}
+	for _, option := range options {
+		option(repository)
+	}
+	return repository
 }
 
 // FindByTagID retrieves a person by their RFID tag ID
@@ -321,55 +338,47 @@ func (r *PersonRepository) Update(ctx context.Context, person *users.Person) err
 	return base.AssertRowsAffected(result, 1, "update person")
 }
 
-// FindWithAccount retrieves a person with their associated account
+// AccountLookup resolves the login account behind a person. Identity &
+// Access owns auth.accounts, so the relation that used to be a LEFT JOIN is
+// injected as an owner lookup; a missing account resolves to nil.
+type AccountLookup func(ctx context.Context, accountID int64) (*modelAuth.Account, error)
+
+// FindWithAccount retrieves a person with their associated account. The
+// person row is read here; the account comes from the Identity & Access
+// owner through the bound lookup and is attached when the person has one.
 func (r *PersonRepository) FindWithAccount(ctx context.Context, id int64) (*users.Person, error) {
-	// Use a more explicit approach with result struct to avoid table name conflicts
-	type personAccountResult struct {
-		Person  *users.Person      `bun:"person"`
-		Account *modelAuth.Account `bun:"account"`
+	if r.accounts == nil {
+		return nil, &modelBase.DatabaseError{Op: "find with account", Err: errors.New("account lookup is required")}
 	}
 
-	result := &personAccountResult{
-		Person:  new(users.Person),
-		Account: new(modelAuth.Account),
-	}
-
+	person := new(users.Person)
 	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(result).
+		Model(person).
 		ModelTableExpr(`users.persons AS "person"`).
-		// Person columns with proper aliasing
-		ColumnExpr(`"person".id AS "person__id", "person".created_at AS "person__created_at", "person".updated_at AS "person__updated_at"`).
-		ColumnExpr(`"person".tenant_id AS "person__tenant_id"`).
-		ColumnExpr(`"person".first_name AS "person__first_name", "person".last_name AS "person__last_name"`).
-		ColumnExpr(`"person".birthday AS "person__birthday"`).
-		ColumnExpr(`"person".tag_id AS "person__tag_id", "person".account_id AS "person__account_id"`).
-		// Account columns
-		ColumnExpr(`"account".id AS "account__id", "account".created_at AS "account__created_at", "account".updated_at AS "account__updated_at"`).
-		ColumnExpr(`"account".email AS "account__email", "account".username AS "account__username"`).
-		ColumnExpr(`"account".active AS "account__active", "account".last_login AS "account__last_login"`).
-		ColumnExpr(`"account".pin_hash AS "account__pin_hash", "account".pin_attempts AS "account__pin_attempts", "account".pin_locked_until AS "account__pin_locked_until"`).
-		// JOIN - Fixed to use auth.accounts directly rather than joining to a table alias "accounts"
-		Join(`LEFT JOIN auth.accounts AS "account" ON ("account".id = "person".account_id)`).
 		Where(`"person".id = ?`, id).
 		Where(`"person".deleted_at IS NULL`)
 
 	query = base.WithTenantFilter(ctx, query, "person")
 
-	err := query.Scan(ctx)
-
-	if err != nil {
+	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find with account",
 			Err: base.TranslateNotFound(err),
 		}
 	}
 
-	// Connect the account to the person
-	if result.Account != nil && result.Account.ID != 0 {
-		result.Person.Account = result.Account
+	if person.AccountID == nil {
+		return person, nil
+	}
+	account, err := r.accounts(ctx, *person.AccountID)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find with account", Err: err}
+	}
+	if account != nil && account.ID != 0 {
+		person.Account = account
 	}
 
-	return result.Person, nil
+	return person, nil
 }
 
 // Legacy method to maintain compatibility with old interface

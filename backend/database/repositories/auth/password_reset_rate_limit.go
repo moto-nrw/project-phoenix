@@ -60,27 +60,27 @@ func (r *PasswordResetRateLimitRepository) IncrementAttempts(ctx context.Context
 	}
 
 	var state result
-	query := `
-		WITH upsert AS (
-			INSERT INTO auth.password_reset_rate_limits (email, attempts, window_start)
-			VALUES (?, 1, NOW())
-			ON CONFLICT (email) DO UPDATE
-			SET attempts = CASE
-					WHEN auth.password_reset_rate_limits.window_start > NOW() - INTERVAL '1 hour'
-						THEN auth.password_reset_rate_limits.attempts + 1
-					ELSE 1
-				END,
-				window_start = CASE
-					WHEN auth.password_reset_rate_limits.window_start > NOW() - INTERVAL '1 hour'
-						THEN auth.password_reset_rate_limits.window_start
-					ELSE NOW()
-				END
-			RETURNING attempts, window_start + INTERVAL '1 hour' AS retry_at
-		)
-		SELECT attempts, retry_at FROM upsert
-	`
-
-	if err := base.GetDB(ctx, r.db).NewRaw(query, email).Scan(ctx, &state); err != nil {
+	// One upsert counts the attempt inside the rolling window and reports
+	// when the caller may retry; the window restarts once it has elapsed.
+	record := &modelAuth.PasswordResetRateLimit{Email: email, Attempts: 1}
+	err := base.GetDB(ctx, r.db).NewInsert().
+		Model(record).
+		ModelTableExpr("auth.password_reset_rate_limits").
+		Value("window_start", "NOW()").
+		On("CONFLICT (email) DO UPDATE").
+		Set(`attempts = CASE
+			WHEN auth.password_reset_rate_limits.window_start > NOW() - INTERVAL '1 hour'
+				THEN auth.password_reset_rate_limits.attempts + 1
+			ELSE 1
+		END`).
+		Set(`window_start = CASE
+			WHEN auth.password_reset_rate_limits.window_start > NOW() - INTERVAL '1 hour'
+				THEN auth.password_reset_rate_limits.window_start
+			ELSE NOW()
+		END`).
+		Returning("attempts, window_start + INTERVAL '1 hour' AS retry_at").
+		Scan(ctx, &state)
+	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "increment password reset rate limit",
 			Err: base.TranslateNotFound(err),

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -467,11 +468,13 @@ func runCleanupTokens(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
+// countExpiredTokens previews the cleanup through the Identity & Access
+// owner; the CLI does not read auth.tokens itself (#2720).
 func countExpiredTokens(ctx *cleanupContext) (int, error) {
-	return ctx.DB.NewSelect().
-		TableExpr("auth.tokens").
-		Where("expiry < ?", time.Now()).
-		Count(context.Background())
+	if ctx.AuthCleanupService == nil {
+		return 0, errors.New("auth cleanup service is not available")
+	}
+	return ctx.AuthCleanupService.CountExpiredTokens(context.Background())
 }
 
 func runCleanupInvitations(cmd *cobra.Command, _ []string) error {
