@@ -154,7 +154,14 @@ export function StatCard(props: StatCardProps | StatTileProps) {
         <div className="min-w-0">
           {/* Auch mobil 12 px: 10 px war unter dem Typo-Boden (nichts
               Lesbares unter text-xs, und das nur für Versalien-Labels). */}
-          <p className="pr-8 text-xs font-semibold tracking-wider text-gray-500 uppercase max-sm:tracking-wide">
+          {/* Der rechte Rand hält nur dann Platz frei, wenn oben rechts
+              wirklich eine Aktion liegt; sonst nahm er dem Label auf dem
+              Telefon neben dem Symbol ein Drittel der Breite. */}
+          <p
+            className={`text-xs font-semibold tracking-wider text-gray-500 uppercase max-sm:tracking-wide ${
+              action != null ? "pr-8" : ""
+            }`}
+          >
             {label}
           </p>
           {loading ? (
@@ -173,7 +180,11 @@ export function StatCard(props: StatCardProps | StatTileProps) {
           )}
         </div>
         {icon != null ? (
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-gray-600 max-sm:hidden">
+          // Auch auf dem Telefon: ohne Symbol waren vier Kacheln dort nur
+          // noch Versalien und Zahl, und die Bedeutung, die das Symbol trägt
+          // (die Zahl steht bewusst in Textfarbe), fehlte gerade dort.
+          // Eine Stufe kleiner, damit das Label daneben Platz behält.
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-gray-600 max-sm:h-8 max-sm:w-8 max-sm:rounded-lg max-sm:[&_svg]:size-5">
             {icon}
           </span>
         ) : null}

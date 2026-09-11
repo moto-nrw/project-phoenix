@@ -1,6 +1,5 @@
 "use client";
 
-import { useCallback, useState } from "react";
 import { ChevronRight } from "lucide-react";
 
 import { Alert } from "~/components/ui/alert";
@@ -19,15 +18,12 @@ import {
   useHomeCardRows,
 } from "~/components/home/home-card-rows";
 import { useDayPlanHref, useDayPlanLabel } from "~/lib/hooks/use-day-plan-href";
-import { createLogger } from "~/lib/logger";
+import { useStartOwnBlock } from "~/components/home/use-start-own-block";
 import { useSWRAuth } from "~/lib/swr";
 import { useTenantAwarePath } from "~/lib/tenant-path";
-import { useTenantRouter } from "~/lib/tenant-router";
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import { canStartPlannedInstance } from "~/lib/timetable-lifecycle";
 import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types";
-
-const logger = createLogger({ component: "MyDayBlock" });
 
 /**
  * So viele Blöcke passen in eine Karte von drei Rasterzeilen ganz hinein
@@ -53,7 +49,6 @@ export function MyDayBlock() {
   const dayPlanHref = useDayPlanHref();
   const dayPlanLabel = useDayPlanLabel();
   const tenantPath = useTenantAwarePath();
-  const router = useTenantRouter();
   const now = useBerlinClock();
   const { data, error, isLoading, mutate } = useSWRAuth<
     PlannedTimetableInstance[]
@@ -67,31 +62,12 @@ export function MyDayBlock() {
     { refreshInterval: 5 * 60 * 1000 },
   );
 
-  const [startBusyId, setStartBusyId] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
-
-  const start = useCallback(
-    async (instance: PlannedTimetableInstance) => {
-      setStartBusyId(instance.id);
-      setActionError(null);
-      try {
-        const result = await timetableOperationsApi.start(instance.id);
-        router.push(`/active-supervisions?session=${result.activeGroupId}`);
-      } catch (err) {
-        logger.error("home_my_day_start_failed", {
-          instance_id: instance.id,
-          error: err instanceof Error ? err.message : String(err),
-        });
-        setActionError(
-          "Der Block konnte nicht gestartet werden. Bitte noch einmal versuchen.",
-        );
-        await mutate();
-      } finally {
-        setStartBusyId(null);
-      }
-    },
-    [mutate, router],
-  );
+  // Derselbe Weg wie „Aufsicht starten" in der Jetzt-Zone.
+  const {
+    start,
+    busyId: startBusyId,
+    error: actionError,
+  } = useStartOwnBlock({ onFailure: () => mutate() });
 
   const mine = [...(data ?? [])]
     .filter((block) => block.isAssigned)
