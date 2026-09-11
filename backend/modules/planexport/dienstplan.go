@@ -9,10 +9,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 // areaWithoutShiftType labels shifts that carry no Schichtart, so they still
@@ -25,20 +22,21 @@ const areaWithoutShiftType = "Dienst ohne Schichtart"
 // screen renders from, so the printout cannot drift from the screen it was
 // printed from.
 func (s *service) ExportDienstplan(ctx context.Context, params Params) (listexport.File, error) {
-	if err := params.validate(TemplatesForDienstplan); err != nil {
+	window, err := params.validate(TemplatesForDienstplan)
+	if err != nil {
 		return listexport.File{}, err
 	}
 	if s.deps.Overview == nil || s.deps.Renderer == nil {
 		return listexport.File{}, errors.New("plan export service is not fully wired")
 	}
 
-	weeks, err := expandWeeks(params.From, params.To)
+	weeks, err := expandWeeks(window.from, window.to)
 	if err != nil {
 		return listexport.File{}, err
 	}
 	from, to := weeks[0].days[0], weeks[len(weeks)-1].last()
 
-	overview, err := s.deps.Overview.GetOverview(ctx, from, to)
+	overview, err := s.deps.Overview.StaffScheduleOverview(ctx, dayKey(from), dayKey(to))
 	if err != nil {
 		return listexport.File{}, fmt.Errorf("load staff schedule overview: %w", err)
 	}
@@ -79,7 +77,7 @@ func (s *service) shiftTypes(ctx context.Context) map[int64]shiftTypeInfo {
 	if s.deps.ShiftTypes == nil {
 		return out
 	}
-	types, err := s.deps.ShiftTypes.ListAll(ctx)
+	types, err := s.deps.ShiftTypes.ListShiftTypes(ctx)
 	if err != nil {
 		s.getLogger().Warn("plan export: shift type lookup failed", "error", err.Error())
 		return out
@@ -100,34 +98,36 @@ type shiftTypeInfo struct {
 
 // dienstplanData is the overview indexed the way the two templates read it.
 type dienstplanData struct {
-	staff       []*usersModel.Staff
-	staffByID   map[int64]*usersModel.Staff
-	shifts      map[staffDay][]*scheduleModel.StaffShift
-	assignments map[staffDay][]scheduleSvc.StaffScheduleAssignment
+	staff       []*StaffMember
+	staffByID   map[int64]*StaffMember
+	shifts      map[staffDay][]*Shift
+	assignments map[staffDay][]Assignment
 	// coversByOrigin lists the replacement shifts attached to a cancelled
 	// shift, so the cancelled row can name who steps in (#1841).
-	coversByOrigin map[int64][]*scheduleModel.StaffShift
+	coversByOrigin map[int64][]*Shift
 	shiftTypes     map[int64]shiftTypeInfo
-	closedDays     map[timezone.Date]string
+	closedDays     map[Date]string
 	variant        Variant
 }
 
+// staffDay keys a staff member's day by the record form of the calendar
+// day, so record dates are matched with a printed column without parsing.
 type staffDay struct {
 	staffID int64
-	date    timezone.Date
+	date    Date
 }
 
 func newDienstplanData(
-	overview *scheduleSvc.StaffScheduleOverview,
+	overview *StaffScheduleOverview,
 	shiftTypes map[int64]shiftTypeInfo,
-	closedDays map[timezone.Date]string,
+	closedDays map[Date]string,
 	variant Variant,
 ) *dienstplanData {
 	data := &dienstplanData{
-		staffByID:      map[int64]*usersModel.Staff{},
-		shifts:         map[staffDay][]*scheduleModel.StaffShift{},
-		assignments:    map[staffDay][]scheduleSvc.StaffScheduleAssignment{},
-		coversByOrigin: map[int64][]*scheduleModel.StaffShift{},
+		staffByID:      map[int64]*StaffMember{},
+		shifts:         map[staffDay][]*Shift{},
+		assignments:    map[staffDay][]Assignment{},
+		coversByOrigin: map[int64][]*Shift{},
 		shiftTypes:     shiftTypes,
 		closedDays:     closedDays,
 		variant:        variant,
@@ -146,7 +146,7 @@ func newDienstplanData(
 		if shift == nil {
 			continue
 		}
-		key := staffDay{staffID: shift.StaffID, date: timezone.Date(shift.Date)}
+		key := staffDay{staffID: shift.StaffID, date: shift.Date}
 		data.shifts[key] = append(data.shifts[key], shift)
 		if shift.OriginShiftID != nil {
 			data.coversByOrigin[*shift.OriginShiftID] = append(data.coversByOrigin[*shift.OriginShiftID], shift)
@@ -169,8 +169,8 @@ func newDienstplanData(
 // weekday they fall on. It decides whether the sheet carries a Saturday and
 // Sunday column: a weekend shift exists whenever somebody planned one, and a
 // plan that omits it is wrong in the way that sends nobody to work.
-func (d *dienstplanData) plannedDays() map[timezone.Date]bool {
-	days := make(map[timezone.Date]bool, len(d.shifts)+len(d.assignments))
+func (d *dienstplanData) plannedDays() map[Date]bool {
+	days := make(map[Date]bool, len(d.shifts)+len(d.assignments))
 	for key := range d.shifts {
 		days[key.date] = true
 	}
@@ -180,13 +180,13 @@ func (d *dienstplanData) plannedDays() map[timezone.Date]bool {
 	return days
 }
 
-func sortShifts(shifts []*scheduleModel.StaffShift) {
+func sortShifts(shifts []*Shift) {
 	sort.SliceStable(shifts, func(i, j int) bool {
 		return shifts[i].StartTime.Before(shifts[j].StartTime)
 	})
 }
 
-func sortAssignments(assignments []scheduleSvc.StaffScheduleAssignment) {
+func sortAssignments(assignments []Assignment) {
 	sort.SliceStable(assignments, func(i, j int) bool {
 		if assignments[i].StartTime.Equal(assignments[j].StartTime) {
 			return assignments[i].ActivityTitle < assignments[j].ActivityTitle
@@ -197,10 +197,10 @@ func sortAssignments(assignments []scheduleSvc.StaffScheduleAssignment) {
 
 func (d *dienstplanData) staffName(staffID int64) string {
 	member := d.staffByID[staffID]
-	if member == nil || member.Person == nil {
+	if member == nil {
 		return "Unbekannt"
 	}
-	return shortName(member.Person.FirstName, member.Person.LastName)
+	return shortName(member.FirstName, member.LastName)
 }
 
 // rowsByPerson is the on-screen layout: one row per staff member, their
@@ -230,18 +230,15 @@ func (d *dienstplanData) rowsByPerson(w week) []listexport.Row {
 	return rows
 }
 
-func memberFullName(member *usersModel.Staff) string {
-	if member.Person == nil {
-		return "Unbekannt"
-	}
-	return fullName(member.Person.FirstName, member.Person.LastName)
+func memberFullName(member *StaffMember) string {
+	return fullName(member.FirstName, member.LastName)
 }
 
 // closedDayLines prefixes a cell with the reason the day is closed, so an
 // empty Tuesday reads as "Schließtag" rather than as a planning mistake. It
 // is the dominant fact of that column, so it leads in strong weight.
 func (d *dienstplanData) closedDayLines(day timezone.Date) []listexport.Line {
-	if label, ok := d.closedDays[day]; ok {
+	if label, ok := d.closedDays[dayKey(day)]; ok {
 		return []listexport.Line{strong(label)}
 	}
 	return nil
@@ -250,7 +247,7 @@ func (d *dienstplanData) closedDayLines(day timezone.Date) []listexport.Line {
 // personDayLines is one staff member's day: their shift windows first, then
 // the tasks planned inside them.
 func (d *dienstplanData) personDayLines(staffID int64, day timezone.Date) []listexport.Line {
-	key := staffDay{staffID: staffID, date: day}
+	key := staffDay{staffID: staffID, date: dayKey(day)}
 	lines := make([]listexport.Line, 0, 4)
 
 	for _, shift := range d.shifts[key] {
@@ -266,7 +263,7 @@ func (d *dienstplanData) personDayLines(staffID int64, day timezone.Date) []list
 
 // shiftLines renders one planned presence window. The window leads in strong
 // weight — it is the anchor everything else in the cell sits under.
-func (d *dienstplanData) shiftLines(shift *scheduleModel.StaffShift) []listexport.Line {
+func (d *dienstplanData) shiftLines(shift *Shift) []listexport.Line {
 	info := d.shiftTypes[derefID(shift.ShiftTypeID)]
 	head := timeRange(shift.StartTime, shift.EndTime)
 	if info.name != "" {
@@ -309,7 +306,7 @@ func (d *dienstplanData) shiftLines(shift *scheduleModel.StaffShift) []listexpor
 // a second presence window. It stays in normal weight, so a glance at the
 // cell separates "wann ist die Person da" (strong) from "was macht sie
 // darin" (normal) without anyone having to read the times.
-func (d *dienstplanData) assignmentLines(assignment scheduleSvc.StaffScheduleAssignment) []listexport.Line {
+func (d *dienstplanData) assignmentLines(assignment Assignment) []listexport.Line {
 	if assignment.IsAbsent && !d.variant.internal() {
 		// Someone marked absent for a block is not working it; the wall
 		// sheet should not send anyone looking for them there.
@@ -357,7 +354,7 @@ func (d *dienstplanData) rowsByArea(w week) []listexport.Row {
 		}
 		name := d.staffName(member.ID)
 		for i, day := range w.days {
-			key := staffDay{staffID: member.ID, date: day}
+			key := staffDay{staffID: member.ID, date: dayKey(day)}
 			assignments := d.assignments[key]
 
 			for _, assignment := range assignments {

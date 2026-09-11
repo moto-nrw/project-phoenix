@@ -8,8 +8,6 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 )
 
@@ -21,14 +19,15 @@ import (
 // shift" and therefore drops cancelled blocks and blocks nobody is assigned
 // to yet. A care plan has to print both.
 func (s *service) ExportBetreuungsplan(ctx context.Context, params Params) (listexport.File, error) {
-	if err := params.validate(TemplatesForBetreuungsplan); err != nil {
+	window, err := params.validate(TemplatesForBetreuungsplan)
+	if err != nil {
 		return listexport.File{}, err
 	}
 	if s.deps.Instances == nil || s.deps.InstanceStaff == nil || s.deps.Renderer == nil {
 		return listexport.File{}, errors.New("plan export service is not fully wired")
 	}
 
-	weeks, err := expandWeeks(params.From, params.To)
+	weeks, err := expandWeeks(window.from, window.to)
 	if err != nil {
 		return listexport.File{}, err
 	}
@@ -60,8 +59,8 @@ func (s *service) ExportBetreuungsplan(ctx context.Context, params Params) (list
 
 // betreuungsplanData is the loaded care week indexed by block title.
 type betreuungsplanData struct {
-	instances   []*scheduleModel.ActivityInstance
-	staffByInst map[int64][]*scheduleModel.InstanceStaff
+	instances   []*Instance
+	staffByInst map[int64][]*InstanceStaff
 	staffNames  map[int64]string
 	roomNames   map[int64]string
 	childCounts map[int64]int
@@ -73,21 +72,21 @@ type betreuungsplanData struct {
 	// blockColors maps an instance id to its Planungsspur colour, the same
 	// colour the planner paints the block with on screen.
 	blockColors map[int64]string
-	closedDays  map[timezone.Date]string
+	closedDays  map[Date]string
 	variant     Variant
 }
 
 func (s *service) loadBetreuungsplanData(
 	ctx context.Context, from, to timezone.Date, variant Variant,
 ) (*betreuungsplanData, error) {
-	instances, err := s.deps.Instances.FindByTenantAndDateRange(ctx, scheduleModel.Date(from), scheduleModel.Date(to))
+	instances, err := s.deps.Instances.InstancesInRange(ctx, dayKey(from), dayKey(to))
 	if err != nil {
 		return nil, fmt.Errorf("load activity instances: %w", err)
 	}
 
 	instanceIDs := make([]int64, 0, len(instances))
 	roomIDs := make([]int64, 0, len(instances))
-	kept := make([]*scheduleModel.ActivityInstance, 0, len(instances))
+	kept := make([]*Instance, 0, len(instances))
 	for _, instance := range instances {
 		if instance == nil {
 			continue
@@ -97,11 +96,11 @@ func (s *service) loadBetreuungsplanData(
 		roomIDs = append(roomIDs, instance.RoomID)
 	}
 
-	staffRows, err := s.deps.InstanceStaff.FindByInstanceIDs(ctx, instanceIDs)
+	staffRows, err := s.deps.InstanceStaff.InstanceStaffByInstanceIDs(ctx, instanceIDs)
 	if err != nil {
 		return nil, fmt.Errorf("load instance staff: %w", err)
 	}
-	staffByInst := make(map[int64][]*scheduleModel.InstanceStaff, len(kept))
+	staffByInst := make(map[int64][]*InstanceStaff, len(kept))
 	staffIDs := make([]int64, 0, len(staffRows))
 	for _, row := range staffRows {
 		if row == nil {
@@ -132,7 +131,7 @@ func (s *service) loadBetreuungsplanData(
 // blockColors resolves each block's Planungsspur colour via its template. Both
 // readers are optional and every failure degrades to "no colour": the bar is
 // recognition, never information the sheet depends on.
-func (s *service) blockColors(ctx context.Context, instances []*scheduleModel.ActivityInstance) map[int64]string {
+func (s *service) blockColors(ctx context.Context, instances []*Instance) map[int64]string {
 	colors := map[int64]string{}
 	if s.deps.ActivityGroups == nil || s.deps.PlanningTracks == nil {
 		return colors
@@ -148,7 +147,7 @@ func (s *service) blockColors(ctx context.Context, instances []*scheduleModel.Ac
 		return colors
 	}
 
-	groups, err := s.deps.ActivityGroups.FindByIDs(ctx, groupIDs)
+	groups, err := s.deps.ActivityGroups.ActivityGroupsByIDs(ctx, groupIDs)
 	if err != nil {
 		s.getLogger().Warn("plan export: activity group lookup failed", "error", err.Error())
 		return colors
@@ -163,7 +162,7 @@ func (s *service) blockColors(ctx context.Context, instances []*scheduleModel.Ac
 		return colors
 	}
 
-	tracks, err := s.deps.PlanningTracks.ListAll(ctx)
+	tracks, err := s.deps.PlanningTracks.ListPlanningTracks(ctx)
 	if err != nil {
 		s.getLogger().Warn("plan export: planning track lookup failed", "error", err.Error())
 		return colors
@@ -194,7 +193,7 @@ func (s *service) staffNames(ctx context.Context, staffIDs []int64) map[int64]st
 	if s.deps.Staff == nil || len(staffIDs) == 0 {
 		return names
 	}
-	members, err := s.deps.Staff.FindWithPersonByIDs(ctx, staffIDs)
+	members, err := s.deps.Staff.StaffByIDs(ctx, staffIDs)
 	if err != nil {
 		s.getLogger().Warn("plan export: staff name lookup failed", "error", err.Error())
 		return names
@@ -205,11 +204,11 @@ func (s *service) staffNames(ctx context.Context, staffIDs []int64) map[int64]st
 	return names
 }
 
-func staffShortName(member *usersModel.Staff) string {
-	if member == nil || member.Person == nil {
+func staffShortName(member *StaffMember) string {
+	if member == nil {
 		return "Unbekannt"
 	}
-	return shortName(member.Person.FirstName, member.Person.LastName)
+	return shortName(member.FirstName, member.LastName)
 }
 
 func (s *service) roomNames(ctx context.Context, roomIDs []int64) map[int64]string {
@@ -217,7 +216,7 @@ func (s *service) roomNames(ctx context.Context, roomIDs []int64) map[int64]stri
 	if s.deps.Rooms == nil || len(roomIDs) == 0 {
 		return names
 	}
-	rooms, err := s.deps.Rooms.FindByIDs(ctx, roomIDs)
+	rooms, err := s.deps.Rooms.RoomsByIDs(ctx, roomIDs)
 	if err != nil {
 		s.getLogger().Warn("plan export: room lookup failed", "error", err.Error())
 		return names
@@ -260,7 +259,7 @@ type offeringKey struct {
 	title   string
 }
 
-func keyFor(instance *scheduleModel.ActivityInstance, title string) offeringKey {
+func keyFor(instance *Instance, title string) offeringKey {
 	if instance.ActivityGroupID != nil {
 		return offeringKey{groupID: *instance.ActivityGroupID}
 	}
@@ -269,21 +268,21 @@ func keyFor(instance *scheduleModel.ActivityInstance, title string) offeringKey 
 
 // rows builds one row per Angebot for the given week.
 func (d *betreuungsplanData) rows(w week) []listexport.Row {
-	dayIndex := make(map[timezone.Date]int, len(w.days))
+	dayIndex := make(map[Date]int, len(w.days))
 	for i, day := range w.days {
-		dayIndex[day] = i
+		dayIndex[dayKey(day)] = i
 	}
 
 	type offering struct {
 		key      offeringKey
 		title    string
 		earliest string
-		days     [fullWeekDays][]*scheduleModel.ActivityInstance
+		days     [fullWeekDays][]*Instance
 	}
 	offerings := map[offeringKey]*offering{}
 
 	for _, instance := range d.instances {
-		index, ok := dayIndex[timezone.Date(instance.Date)]
+		index, ok := dayIndex[instance.Date]
 		if !ok {
 			continue
 		}
@@ -346,10 +345,10 @@ func (d *betreuungsplanData) rows(w week) []listexport.Row {
 
 // plannedDays are the days blocks run on, so a Saturday Angebot gets its own
 // column instead of vanishing from the printed plan.
-func (d *betreuungsplanData) plannedDays() map[timezone.Date]bool {
-	days := make(map[timezone.Date]bool, len(d.instances))
+func (d *betreuungsplanData) plannedDays() map[Date]bool {
+	days := make(map[Date]bool, len(d.instances))
 	for _, instance := range d.instances {
-		days[timezone.Date(instance.Date)] = true
+		days[instance.Date] = true
 	}
 	return days
 }
@@ -359,7 +358,7 @@ func (d *betreuungsplanData) emptyWeekRows(w week) []listexport.Row {
 }
 
 func (d *betreuungsplanData) closedDayLines(day timezone.Date) []listexport.Line {
-	if label, ok := d.closedDays[day]; ok {
+	if label, ok := d.closedDays[dayKey(day)]; ok {
 		return []listexport.Line{strong(label)}
 	}
 	return nil
@@ -369,14 +368,13 @@ func (d *betreuungsplanData) closedDayLines(day timezone.Date) []listexport.Line
 // runs it in normal, the head count and any note muted. Three ranks, so a
 // reader finds the time, the people, or the size of the group without
 // reading the whole cell.
-func (d *betreuungsplanData) instanceLines(instance *scheduleModel.ActivityInstance) []listexport.Line {
+func (d *betreuungsplanData) instanceLines(instance *Instance) []listexport.Line {
 	head := timeRange(instance.StartTime, instance.EndTime)
 	if room := distinctRoom(instance.Title, d.roomNames[instance.RoomID]); room != "" {
 		head += " · " + room
 	}
 
-	cancelled := instance.Status == scheduleModel.InstanceStatusCancelled
-	if cancelled {
+	if instance.Cancelled {
 		// A cancelled block stays on the sheet — "entfällt" is the
 		// information the reader came for. The reason is internal.
 		head += " · entfällt"

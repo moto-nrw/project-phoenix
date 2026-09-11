@@ -3,18 +3,11 @@ package planexport
 import (
 	"bytes"
 	"context"
-	"errors"
 	"log/slog"
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 // The plan exports read half a dozen optional sources. The rule this file
@@ -25,112 +18,6 @@ import (
 // silent regression here turns a failed colour lookup into a 500 on a
 // printout somebody is waiting for.
 
-var errBoom = errors.New("boom")
-
-// Failing readers, one per optional source.
-
-type failingOverview struct{}
-
-func (failingOverview) GetOverview(context.Context, timezone.Date, timezone.Date) (*scheduleSvc.StaffScheduleOverview, error) {
-	return nil, errBoom
-}
-
-type failingShiftTypes struct{}
-
-func (failingShiftTypes) ListAll(context.Context) ([]*scheduleModel.ShiftType, error) {
-	return nil, errBoom
-}
-
-type failingInstances struct{}
-
-func (failingInstances) FindByTenantAndDateRange(context.Context, scheduleModel.Date, scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
-	return nil, errBoom
-}
-
-type failingInstanceStaff struct{}
-
-func (failingInstanceStaff) FindByInstanceIDs(context.Context, []int64) ([]*scheduleModel.InstanceStaff, error) {
-	return nil, errBoom
-}
-
-type failingRooms struct{}
-
-func (failingRooms) FindByIDs(context.Context, []int64) ([]*facilitiesModel.Room, error) {
-	return nil, errBoom
-}
-
-type failingStaffDirectory struct{}
-
-func (failingStaffDirectory) ListAllWithPerson(context.Context) ([]*usersModel.Staff, error) {
-	return nil, errBoom
-}
-
-func (failingStaffDirectory) FindWithPersonByIDs(context.Context, []int64) (map[int64]*usersModel.Staff, error) {
-	return nil, errBoom
-}
-
-type failingStudentCounts struct{}
-
-func (failingStudentCounts) CountNonAbsentByInstanceIDs(context.Context, []int64) (map[int64]int, error) {
-	return nil, errBoom
-}
-
-type stubActivityGroups struct {
-	groups []*activitiesModel.Group
-	err    error
-}
-
-func (s stubActivityGroups) FindByIDs(context.Context, []int64) ([]*activitiesModel.Group, error) {
-	return s.groups, s.err
-}
-
-type stubPlanningTracks struct {
-	tracks []*scheduleModel.PlanningTrack
-	err    error
-}
-
-func (s stubPlanningTracks) ListAll(context.Context) ([]*scheduleModel.PlanningTrack, error) {
-	return s.tracks, s.err
-}
-
-type stubHolidays struct {
-	scheduleSvc.HolidayService
-	days []scheduleSvc.Holiday
-	err  error
-}
-
-func (s stubHolidays) HolidaysInRange(context.Context, timezone.Date, timezone.Date) ([]scheduleSvc.Holiday, error) {
-	return s.days, s.err
-}
-
-type failingClosingDays struct {
-	scheduleSvc.ClosingDayService
-}
-
-func (failingClosingDays) ClosingDaysInRange(context.Context, timezone.Date, timezone.Date) ([]*scheduleModel.ClosingDay, error) {
-	return nil, errBoom
-}
-
-func activityGroup(id, planningTrackID int64) *activitiesModel.Group {
-	g := &activitiesModel.Group{PlanningTrackID: &planningTrackID}
-	g.ID = id
-	return g
-}
-
-func planningTrack(id int64, color string) *scheduleModel.PlanningTrack {
-	track := &scheduleModel.PlanningTrack{Color: color}
-	track.ID = id
-	return track
-}
-
-func withGroup(i *scheduleModel.ActivityInstance, groupID int64) *scheduleModel.ActivityInstance {
-	i.ActivityGroupID = &groupID
-	return i
-}
-
-// A plan needs its own data. Without the projection it prints from there is
-// nothing to print, and the caller has to hear about it rather than receive
-// an empty sheet that looks like an empty week.
 func TestExportsFailOnTheirOwnDataSource(t *testing.T) {
 	t.Parallel()
 
@@ -151,7 +38,7 @@ func TestExportsFailOnTheirOwnDataSource(t *testing.T) {
 	}
 
 	betreuungsplan = NewService(Dependencies{
-		Instances:     stubInstances{instances: []*scheduleModel.ActivityInstance{instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)}},
+		Instances:     stubInstances{instances: []*Instance{instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)}},
 		InstanceStaff: failingInstanceStaff{},
 		Renderer:      renderer,
 	}, nil)
@@ -181,9 +68,9 @@ func TestDienstplanSurvivesFailingOptionalLookups(t *testing.T) {
 
 	renderer := &captureRenderer{}
 	service := NewService(Dependencies{
-		Overview: stubOverview{overview: &scheduleSvc.StaffScheduleOverview{
-			Staff:  []*usersModel.Staff{staffMember(7, "Franziska", "Kessener")},
-			Shifts: []*scheduleModel.StaffShift{withType(shift(1, 7, monday, clock(7, 30), clock(14, 0)), 4)},
+		Overview: stubOverview{overview: &StaffScheduleOverview{
+			Staff:  []*StaffMember{staffMember(7, "Franziska", "Kessener")},
+			Shifts: []*Shift{withType(shift(1, 7, monday, clock(7, 30), clock(14, 0)), 4)},
 		}},
 		ShiftTypes:  failingShiftTypes{},
 		ClosingDays: failingClosingDays{},
@@ -206,8 +93,8 @@ func TestBetreuungsplanSurvivesFailingOptionalLookups(t *testing.T) {
 
 	renderer := &captureRenderer{}
 	service := NewService(Dependencies{
-		Instances:     stubInstances{instances: []*scheduleModel.ActivityInstance{instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)}},
-		InstanceStaff: stubInstanceStaff{rows: []*scheduleModel.InstanceStaff{instanceStaff(11, 7)}},
+		Instances:     stubInstances{instances: []*Instance{instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)}},
+		InstanceStaff: stubInstanceStaff{rows: []*InstanceStaff{instanceStaff(11, 7)}},
 		Rooms:         failingRooms{},
 		Staff:         failingStaffDirectory{},
 		Students:      failingStudentCounts{},
@@ -235,14 +122,14 @@ func TestBetreuungsplanSurvivesFailingOptionalLookups(t *testing.T) {
 func TestBetreuungsplanBlockColour(t *testing.T) {
 	t.Parallel()
 
-	build := func(groups ActivityGroupBatchReader, tracks PlanningTrackReader, grouped bool) *captureRenderer {
+	build := func(groups ActivityGroupReader, tracks PlanningTrackReader, grouped bool) *captureRenderer {
 		block := instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)
 		if grouped {
 			block = withGroup(block, 5)
 		}
 		renderer := &captureRenderer{}
 		service := NewService(Dependencies{
-			Instances:      stubInstances{instances: []*scheduleModel.ActivityInstance{block}},
+			Instances:      stubInstances{instances: []*Instance{block}},
 			InstanceStaff:  stubInstanceStaff{},
 			ActivityGroups: groups,
 			PlanningTracks: tracks,
@@ -254,8 +141,8 @@ func TestBetreuungsplanBlockColour(t *testing.T) {
 		return renderer
 	}
 
-	groups := stubActivityGroups{groups: []*activitiesModel.Group{activityGroup(5, 9)}}
-	tracks := stubPlanningTracks{tracks: []*scheduleModel.PlanningTrack{planningTrack(9, "#5080D8")}}
+	groups := stubActivityGroups{groups: []*ActivityGroup{activityGroup(5, 9)}}
+	tracks := stubPlanningTracks{tracks: []*PlanningTrack{planningTrack(9, "#5080D8")}}
 
 	renderer := build(groups, tracks, true)
 	if got := cellLines(t, renderer.doc, "Mensa", listexport.ColumnPlanMonday)[0].Accent; got != "#5080D8" {
@@ -263,7 +150,7 @@ func TestBetreuungsplanBlockColour(t *testing.T) {
 	}
 
 	for name, tc := range map[string]struct {
-		groups  ActivityGroupBatchReader
+		groups  ActivityGroupReader
 		tracks  PlanningTrackReader
 		grouped bool
 	}{
@@ -271,7 +158,7 @@ func TestBetreuungsplanBlockColour(t *testing.T) {
 		"block has no template": {groups, tracks, false},
 		"template read fails":   {stubActivityGroups{err: errBoom}, tracks, true},
 		"track read fails":      {groups, stubPlanningTracks{err: errBoom}, true},
-		"track has no colour":   {groups, stubPlanningTracks{tracks: []*scheduleModel.PlanningTrack{planningTrack(9, "")}}, true},
+		"track has no colour":   {groups, stubPlanningTracks{tracks: []*PlanningTrack{planningTrack(9, "")}}, true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			renderer := build(tc.groups, tc.tracks, tc.grouped)
@@ -293,13 +180,13 @@ func TestNonWorkingDaysPrefersClosingDayOverHoliday(t *testing.T) {
 
 	renderer := &captureRenderer{}
 	service := NewService(Dependencies{
-		Instances:     stubInstances{instances: []*scheduleModel.ActivityInstance{instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)}},
+		Instances:     stubInstances{instances: []*Instance{instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)}},
 		InstanceStaff: stubInstanceStaff{},
-		Holidays: stubHolidays{days: []scheduleSvc.Holiday{
-			{Date: tuesday, Name: "Christi Himmelfahrt"},
-			{Date: wednesday, Name: "Fronleichnam"},
+		Holidays: stubHolidays{days: []Holiday{
+			{Date: dayKey(tuesday), Name: "Christi Himmelfahrt"},
+			{Date: dayKey(wednesday), Name: "Fronleichnam"},
 		}},
-		ClosingDays: stubClosingDays{days: []*scheduleModel.ClosingDay{
+		ClosingDays: stubClosingDays{days: []*ClosingPeriod{
 			// Deliberately overruns the printed week on both ends: only the
 			// days inside it may be labelled.
 			closingRange(monday.AddDays(-3), tuesday, "Betriebsferien"),
@@ -332,7 +219,7 @@ func TestBetreuungsplanUntitledBlocksAndSameDayOrder(t *testing.T) {
 	t.Parallel()
 
 	service, renderer := newBetreuungsplanService(
-		[]*scheduleModel.ActivityInstance{
+		[]*Instance{
 			instance(12, monday, clock(15, 0), clock(16, 0), "", 4),
 			instance(11, monday, clock(12, 0), clock(13, 0), "", 3),
 		},
@@ -359,8 +246,8 @@ func TestBetreuungsplanStaffLineMarksSubstitutes(t *testing.T) {
 	unknown := instanceStaff(11, 99)
 
 	service, renderer := newBetreuungsplanService(
-		[]*scheduleModel.ActivityInstance{instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)},
-		[]*scheduleModel.InstanceStaff{substitute, unknown},
+		[]*Instance{instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)},
+		[]*InstanceStaff{substitute, unknown},
 		nil,
 	)
 	if _, err := service.ExportBetreuungsplan(context.Background(), careParams()); err != nil {
@@ -391,7 +278,7 @@ func TestBetreuungsplanUnderstaffedNoteOnlyInternal(t *testing.T) {
 	} {
 		t.Run(string(tc.variant), func(t *testing.T) {
 			service, renderer := newBetreuungsplanService(
-				[]*scheduleModel.ActivityInstance{block}, nil, nil)
+				[]*Instance{block}, nil, nil)
 			params := careParams()
 			params.Variant = tc.variant
 			if _, err := service.ExportBetreuungsplan(context.Background(), params); err != nil {
@@ -412,7 +299,7 @@ func TestBetreuungsplanPrintsWeekendBlocksInTheirOwnColumn(t *testing.T) {
 
 	saturday := monday.AddDays(5)
 	service, renderer := newBetreuungsplanService(
-		[]*scheduleModel.ActivityInstance{
+		[]*Instance{
 			instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3),
 			instance(12, saturday, clock(9, 0), clock(11, 0), "Mensa", 3),
 		},
@@ -420,7 +307,7 @@ func TestBetreuungsplanPrintsWeekendBlocksInTheirOwnColumn(t *testing.T) {
 		nil,
 	)
 	params := careParams()
-	params.To = monday.AddDays(11) // two weeks, so Saturday is inside the range
+	params.To = dayKey(monday.AddDays(11)) // two weeks, so Saturday is inside the range
 	if _, err := service.ExportBetreuungsplan(context.Background(), params); err != nil {
 		t.Fatalf("ExportBetreuungsplan: %v", err)
 	}
@@ -445,7 +332,7 @@ func TestBetreuungsplanStopsAfterFridayWithoutWeekendBlocks(t *testing.T) {
 	t.Parallel()
 
 	service, renderer := newBetreuungsplanService(
-		[]*scheduleModel.ActivityInstance{instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)},
+		[]*Instance{instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)},
 		nil,
 		nil,
 	)
@@ -463,9 +350,9 @@ func TestDienstplanPrintsWeekendShifts(t *testing.T) {
 	t.Parallel()
 
 	saturday := monday.AddDays(5)
-	overview := &scheduleSvc.StaffScheduleOverview{
-		Staff:  []*usersModel.Staff{staffMember(7, "Franziska", "Kessener")},
-		Shifts: []*scheduleModel.StaffShift{shift(1, 7, saturday, clock(9, 0), clock(12, 0))},
+	overview := &StaffScheduleOverview{
+		Staff:  []*StaffMember{staffMember(7, "Franziska", "Kessener")},
+		Shifts: []*Shift{shift(1, 7, saturday, clock(9, 0), clock(12, 0))},
 	}
 	service, renderer := newDienstplanService(overview, nil)
 
@@ -477,27 +364,19 @@ func TestDienstplanPrintsWeekendShifts(t *testing.T) {
 	}
 }
 
-func columnIDs(doc listexport.Document) []listexport.ColumnID {
-	ids := make([]listexport.ColumnID, 0, len(doc.Columns))
-	for _, column := range doc.Columns {
-		ids = append(ids, column.ID)
-	}
-	return ids
-}
-
 // A shift without a Schichtart still needs a row on the deployment sheet;
 // unnamed, it would otherwise disappear from the plan entirely.
 func TestDienstplanByAreaKeepsShiftsWithoutShiftType(t *testing.T) {
 	t.Parallel()
 
-	absent := scheduleSvc.StaffScheduleAssignment{
-		StaffID: 7, Date: monday, StartTime: clock(12, 0), EndTime: clock(13, 0),
+	absent := Assignment{
+		StaffID: 7, Date: dayKey(monday), StartTime: clock(12, 0), EndTime: clock(13, 0),
 		ActivityTitle: "Mensa", IsAbsent: true,
 	}
-	overview := &scheduleSvc.StaffScheduleOverview{
-		Staff:       []*usersModel.Staff{staffMember(7, "Franziska", "Kessener"), nil},
-		Shifts:      []*scheduleModel.StaffShift{shift(1, 7, monday, clock(7, 30), clock(14, 0)), nil},
-		Assignments: []scheduleSvc.StaffScheduleAssignment{absent},
+	overview := &StaffScheduleOverview{
+		Staff:       []*StaffMember{staffMember(7, "Franziska", "Kessener"), nil},
+		Shifts:      []*Shift{shift(1, 7, monday, clock(7, 30), clock(14, 0)), nil},
+		Assignments: []Assignment{absent},
 	}
 
 	service, renderer := newDienstplanService(overview, nil)
@@ -533,9 +412,9 @@ func TestDienstplanMarksSubstituteShiftAndNote(t *testing.T) {
 	cover.OriginShiftID = ptr(int64(1))
 	cover.Notes = "übernimmt die Randstunde"
 
-	overview := &scheduleSvc.StaffScheduleOverview{
-		Staff:  []*usersModel.Staff{staffMember(7, "Franziska", "Kessener")},
-		Shifts: []*scheduleModel.StaffShift{cover},
+	overview := &StaffScheduleOverview{
+		Staff:  []*StaffMember{staffMember(7, "Franziska", "Kessener")},
+		Shifts: []*Shift{cover},
 	}
 
 	service, renderer := newDienstplanService(overview, nil)
@@ -566,11 +445,11 @@ func TestDienstplanMarksSubstituteShiftAndNote(t *testing.T) {
 func TestDienstplanOrdersSimultaneousTasksByTitle(t *testing.T) {
 	t.Parallel()
 
-	overview := &scheduleSvc.StaffScheduleOverview{
-		Staff: []*usersModel.Staff{staffMember(7, "Franziska", "Kessener")},
-		Assignments: []scheduleSvc.StaffScheduleAssignment{
-			{StaffID: 7, Date: monday, StartTime: clock(12, 0), EndTime: clock(13, 0), ActivityTitle: "Mensa"},
-			{StaffID: 7, Date: monday, StartTime: clock(12, 0), EndTime: clock(13, 0), ActivityTitle: "Lernzeit"},
+	overview := &StaffScheduleOverview{
+		Staff: []*StaffMember{staffMember(7, "Franziska", "Kessener")},
+		Assignments: []Assignment{
+			{StaffID: 7, Date: dayKey(monday), StartTime: clock(12, 0), EndTime: clock(13, 0), ActivityTitle: "Mensa"},
+			{StaffID: 7, Date: dayKey(monday), StartTime: clock(12, 0), EndTime: clock(13, 0), ActivityTitle: "Lernzeit"},
 		},
 	}
 	service, renderer := newDienstplanService(overview, nil)
@@ -588,14 +467,14 @@ func TestDienstplanOrdersSimultaneousTasksByTitle(t *testing.T) {
 func TestDienstplanOrdersShiftsAndMarksSubstitutedTasks(t *testing.T) {
 	t.Parallel()
 
-	overview := &scheduleSvc.StaffScheduleOverview{
-		Staff: []*usersModel.Staff{staffMember(7, "Franziska", "Kessener")},
-		Shifts: []*scheduleModel.StaffShift{
+	overview := &StaffScheduleOverview{
+		Staff: []*StaffMember{staffMember(7, "Franziska", "Kessener")},
+		Shifts: []*Shift{
 			shift(2, 7, monday, clock(14, 0), clock(16, 30)),
 			shift(1, 7, monday, clock(7, 30), clock(9, 0)),
 		},
-		Assignments: []scheduleSvc.StaffScheduleAssignment{{
-			StaffID: 7, Date: monday, StartTime: clock(15, 0), EndTime: clock(16, 0),
+		Assignments: []Assignment{{
+			StaffID: 7, Date: dayKey(monday), StartTime: clock(15, 0), EndTime: clock(16, 0),
 			ActivityTitle: "Lernzeit", IsSubstitute: true,
 		}},
 	}
@@ -615,11 +494,11 @@ func TestDienstplanOrdersShiftsAndMarksSubstitutedTasks(t *testing.T) {
 func TestDienstplanNamesStaffWithoutPersonRecord(t *testing.T) {
 	t.Parallel()
 
-	headless := &usersModel.Staff{}
+	headless := &StaffMember{}
 	headless.ID = 7
-	overview := &scheduleSvc.StaffScheduleOverview{
-		Staff:  []*usersModel.Staff{headless},
-		Shifts: []*scheduleModel.StaffShift{shift(1, 7, monday, clock(7, 30), clock(14, 0))},
+	overview := &StaffScheduleOverview{
+		Staff:  []*StaffMember{headless},
+		Shifts: []*Shift{shift(1, 7, monday, clock(7, 30), clock(14, 0))},
 	}
 	service, renderer := newDienstplanService(overview, nil)
 	if _, err := service.ExportDienstplan(context.Background(), defaultParams()); err != nil {
@@ -635,7 +514,7 @@ func TestDienstplanNamesStaffWithoutPersonRecord(t *testing.T) {
 func TestExportsRefuseBadRequests(t *testing.T) {
 	t.Parallel()
 
-	service, _ := newDienstplanService(&scheduleSvc.StaffScheduleOverview{}, nil)
+	service, _ := newDienstplanService(&StaffScheduleOverview{}, nil)
 
 	params := defaultParams()
 	params.Template = TemplateByOffering
@@ -644,14 +523,14 @@ func TestExportsRefuseBadRequests(t *testing.T) {
 	}
 
 	params = defaultParams()
-	params.To = monday.AddDays(7 * maxExportWeeks)
+	params.To = dayKey(monday.AddDays(7 * maxExportWeeks))
 	if _, err := service.ExportDienstplan(context.Background(), params); err == nil {
 		t.Fatal("expected an oversized range to be refused")
 	}
 
 	care, _ := newBetreuungsplanService(nil, nil, nil)
 	careRange := careParams()
-	careRange.To = monday.AddDays(7 * maxExportWeeks)
+	careRange.To = dayKey(monday.AddDays(7 * maxExportWeeks))
 	if _, err := care.ExportBetreuungsplan(context.Background(), careRange); err == nil {
 		t.Fatal("expected an oversized range to be refused on the care plan too")
 	}
@@ -663,11 +542,11 @@ func TestExportsRefuseBadRequests(t *testing.T) {
 func TestDienstplanByPersonHidesAbsentTasks(t *testing.T) {
 	t.Parallel()
 
-	overview := &scheduleSvc.StaffScheduleOverview{
-		Staff: []*usersModel.Staff{staffMember(7, "Franziska", "Kessener"), nil},
-		Assignments: []scheduleSvc.StaffScheduleAssignment{
-			{StaffID: 7, Date: monday, StartTime: clock(14, 0), EndTime: clock(15, 0), ActivityTitle: "Lernzeit"},
-			{StaffID: 7, Date: monday, StartTime: clock(12, 0), EndTime: clock(13, 0), ActivityTitle: "Mensa", IsAbsent: true},
+	overview := &StaffScheduleOverview{
+		Staff: []*StaffMember{staffMember(7, "Franziska", "Kessener"), nil},
+		Assignments: []Assignment{
+			{StaffID: 7, Date: dayKey(monday), StartTime: clock(14, 0), EndTime: clock(15, 0), ActivityTitle: "Lernzeit"},
+			{StaffID: 7, Date: dayKey(monday), StartTime: clock(12, 0), EndTime: clock(13, 0), ActivityTitle: "Mensa", IsAbsent: true},
 		},
 	}
 
@@ -703,20 +582,20 @@ func TestDienstplanByAreaLabelsCoverCancellationAndUntitledBlocks(t *testing.T) 
 	cover := withType(shift(2, 8, monday, clock(7, 30), clock(9, 0)), 4)
 	cover.OriginShiftID = ptr(int64(1))
 
-	overview := &scheduleSvc.StaffScheduleOverview{
-		Staff: []*usersModel.Staff{
+	overview := &StaffScheduleOverview{
+		Staff: []*StaffMember{
 			staffMember(7, "Franziska", "Kessener"),
 			staffMember(8, "Anna", "Müller"),
 		},
-		Shifts: []*scheduleModel.StaffShift{cancelled, cover},
-		Assignments: []scheduleSvc.StaffScheduleAssignment{
+		Shifts: []*Shift{cancelled, cover},
+		Assignments: []Assignment{
 			// Same window as the shift above, so the row order falls to the title.
-			{StaffID: 7, Date: monday, StartTime: clock(7, 30), EndTime: clock(9, 0), ActivityTitle: "Frühbetreuung", IsSubstitute: true},
-			{StaffID: 8, Date: monday, StartTime: clock(7, 30), EndTime: clock(9, 0), ActivityTitle: "  "},
+			{StaffID: 7, Date: dayKey(monday), StartTime: clock(7, 30), EndTime: clock(9, 0), ActivityTitle: "Frühbetreuung", IsSubstitute: true},
+			{StaffID: 8, Date: dayKey(monday), StartTime: clock(7, 30), EndTime: clock(9, 0), ActivityTitle: "  "},
 		},
 	}
 
-	service, renderer := newDienstplanService(overview, []*scheduleModel.ShiftType{shiftType(4, "Randstunde")})
+	service, renderer := newDienstplanService(overview, []*ShiftType{shiftType(4, "Randstunde")})
 	params := defaultParams()
 	params.Template = TemplateByArea
 	if _, err := service.ExportDienstplan(context.Background(), params); err != nil {
@@ -753,9 +632,9 @@ func TestDienstplanNamesAnUnknownCover(t *testing.T) {
 	cover := shift(2, 99, monday, clock(7, 30), clock(14, 0))
 	cover.OriginShiftID = ptr(int64(1))
 
-	overview := &scheduleSvc.StaffScheduleOverview{
-		Staff:  []*usersModel.Staff{staffMember(7, "Franziska", "Kessener")},
-		Shifts: []*scheduleModel.StaffShift{cancelled, cover},
+	overview := &StaffScheduleOverview{
+		Staff:  []*StaffMember{staffMember(7, "Franziska", "Kessener")},
+		Shifts: []*Shift{cancelled, cover},
 	}
 	service, renderer := newDienstplanService(overview, nil)
 	if _, err := service.ExportDienstplan(context.Background(), defaultParams()); err != nil {
@@ -772,11 +651,11 @@ func TestBetreuungsplanOrdersSimultaneousOfferingsByTitle(t *testing.T) {
 	t.Parallel()
 
 	service, renderer := newBetreuungsplanService(
-		[]*scheduleModel.ActivityInstance{
+		[]*Instance{
 			instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3),
 			instance(12, monday, clock(12, 0), clock(13, 0), "Lernzeit", 4),
 		},
-		[]*scheduleModel.InstanceStaff{instanceStaff(11, 7)},
+		[]*InstanceStaff{instanceStaff(11, 7)},
 		nil,
 	)
 	if _, err := service.ExportBetreuungsplan(context.Background(), careParams()); err != nil {
@@ -796,13 +675,13 @@ func TestBetreuungsplanColoursOnlyTheBlocksItCan(t *testing.T) {
 
 	renderer := &captureRenderer{}
 	service := NewService(Dependencies{
-		Instances: stubInstances{instances: []*scheduleModel.ActivityInstance{
+		Instances: stubInstances{instances: []*Instance{
 			withGroup(instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3), 5),
 			instance(12, monday, clock(14, 0), clock(15, 0), "Lernzeit", 4),
 		}},
 		InstanceStaff:  stubInstanceStaff{},
-		ActivityGroups: stubActivityGroups{groups: []*activitiesModel.Group{activityGroup(5, 9), nil}},
-		PlanningTracks: stubPlanningTracks{tracks: []*scheduleModel.PlanningTrack{planningTrack(9, "#5080D8"), nil}},
+		ActivityGroups: stubActivityGroups{groups: []*ActivityGroup{activityGroup(5, 9), nil}},
+		PlanningTracks: stubPlanningTracks{tracks: []*PlanningTrack{planningTrack(9, "#5080D8"), nil}},
 		Renderer:       renderer,
 	}, nil)
 
@@ -874,9 +753,9 @@ func TestDocumentHelpersTolerateAnEmptyRange(t *testing.T) {
 func TestDocumentNamesTheVariant(t *testing.T) {
 	t.Parallel()
 
-	overview := &scheduleSvc.StaffScheduleOverview{
-		Staff:  []*usersModel.Staff{staffMember(7, "Franziska", "Kessener")},
-		Shifts: []*scheduleModel.StaffShift{shift(1, 7, monday, clock(7, 30), clock(14, 0))},
+	overview := &StaffScheduleOverview{
+		Staff:  []*StaffMember{staffMember(7, "Franziska", "Kessener")},
+		Shifts: []*Shift{shift(1, 7, monday, clock(7, 30), clock(14, 0))},
 	}
 	service, renderer := newDienstplanService(overview, nil)
 	params := defaultParams()
@@ -901,9 +780,9 @@ func TestExportLogsThroughTheInjectedLogger(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&sink, nil))
 	renderer := &captureRenderer{}
 	service := NewService(Dependencies{
-		Overview: stubOverview{overview: &scheduleSvc.StaffScheduleOverview{
-			Staff:  []*usersModel.Staff{staffMember(7, "Franziska", "Kessener")},
-			Shifts: []*scheduleModel.StaffShift{shift(1, 7, monday, clock(7, 30), clock(14, 0))},
+		Overview: stubOverview{overview: &StaffScheduleOverview{
+			Staff:  []*StaffMember{staffMember(7, "Franziska", "Kessener")},
+			Shifts: []*Shift{shift(1, 7, monday, clock(7, 30), clock(14, 0))},
 		}},
 		Renderer: renderer,
 	}, logger)
@@ -922,8 +801,8 @@ func TestParamsRejectMissingDates(t *testing.T) {
 	t.Parallel()
 
 	params := defaultParams()
-	params.From = timezone.Date("")
-	if err := params.validate(TemplatesForDienstplan); err == nil {
+	params.From = ""
+	if _, err := params.validate(TemplatesForDienstplan); err == nil {
 		t.Fatal("expected a missing from-date to be refused")
 	}
 	if _, err := ParseParams("2026-07-27", "not-a-date", string(TemplateByPerson), "", ""); err == nil {
@@ -937,15 +816,15 @@ func TestParamsRejectMissingDates(t *testing.T) {
 func TestDienstplanByAreaSeparatesSameNamedOfferings(t *testing.T) {
 	t.Parallel()
 
-	overview := &scheduleSvc.StaffScheduleOverview{
-		Staff: []*usersModel.Staff{
+	overview := &StaffScheduleOverview{
+		Staff: []*StaffMember{
 			staffMember(7, "Franziska", "Kessener"),
 			staffMember(8, "Anna", "Müller"),
 		},
-		Assignments: []scheduleSvc.StaffScheduleAssignment{
-			{StaffID: 7, Date: monday, StartTime: clock(14, 0), EndTime: clock(15, 0),
+		Assignments: []Assignment{
+			{StaffID: 7, Date: dayKey(monday), StartTime: clock(14, 0), EndTime: clock(15, 0),
 				ActivityTitle: "Lernzeit", ActivityGroupID: ptr(int64(21))},
-			{StaffID: 8, Date: monday, StartTime: clock(14, 0), EndTime: clock(15, 0),
+			{StaffID: 8, Date: dayKey(monday), StartTime: clock(14, 0), EndTime: clock(15, 0),
 				ActivityTitle: "Lernzeit", ActivityGroupID: ptr(int64(22))},
 		},
 	}
@@ -975,14 +854,14 @@ func TestDienstplanByAreaSeparatesSameNamedOfferings(t *testing.T) {
 func TestDienstplanByAreaMergesSpontaneousBlocksByTitle(t *testing.T) {
 	t.Parallel()
 
-	overview := &scheduleSvc.StaffScheduleOverview{
-		Staff: []*usersModel.Staff{
+	overview := &StaffScheduleOverview{
+		Staff: []*StaffMember{
 			staffMember(7, "Franziska", "Kessener"),
 			staffMember(8, "Anna", "Müller"),
 		},
-		Assignments: []scheduleSvc.StaffScheduleAssignment{
-			{StaffID: 7, Date: monday, StartTime: clock(14, 0), EndTime: clock(15, 0), ActivityTitle: "Waldtag"},
-			{StaffID: 8, Date: monday, StartTime: clock(14, 0), EndTime: clock(15, 0), ActivityTitle: "Waldtag"},
+		Assignments: []Assignment{
+			{StaffID: 7, Date: dayKey(monday), StartTime: clock(14, 0), EndTime: clock(15, 0), ActivityTitle: "Waldtag"},
+			{StaffID: 8, Date: dayKey(monday), StartTime: clock(14, 0), EndTime: clock(15, 0), ActivityTitle: "Waldtag"},
 		},
 	}
 
@@ -999,18 +878,6 @@ func TestDienstplanByAreaMergesSpontaneousBlocksByTitle(t *testing.T) {
 	}
 }
 
-// cellsForLabel returns every row carrying the label, unlike cellFor, which
-// stops at the first — the point of these two tests is how many there are.
-func cellsForLabel(doc listexport.Document, label string, column listexport.ColumnID) []string {
-	cells := make([]string, 0, 2)
-	for _, row := range doc.Rows {
-		if listexport.StripStyleMarkers(row.Values[listexport.ColumnPlanRowLabel]) == label {
-			cells = append(cells, listexport.StripStyleMarkers(row.Values[column]))
-		}
-	}
-	return cells
-}
-
 // An Angebot nobody is signed up for states its zero. Printing nothing would
 // make it indistinguishable from a count that could not be loaded, which is
 // the one case that legitimately leaves the line off
@@ -1019,7 +886,7 @@ func TestBetreuungsplanPrintsZeroAndSingleChildCounts(t *testing.T) {
 	t.Parallel()
 
 	service, renderer := newBetreuungsplanService(
-		[]*scheduleModel.ActivityInstance{
+		[]*Instance{
 			instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3),
 			instance(12, monday, clock(14, 0), clock(15, 0), "Lernzeit", 4),
 		},

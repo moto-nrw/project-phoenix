@@ -4,157 +4,22 @@ import (
 	"context"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
-
-// Pure unit tests against in-memory projections: the IDs below are struct
-// field values, never database rows. The renderer is captured so the tests
-// assert what lands on the page, which is the thing that can silently go
-// wrong (a missing cancellation, a reason leaking onto the wall sheet).
-
-// monday is 2026-07-27, a Monday, so days[0..4] are Mon–Fri.
-var (
-	monday    = timezone.NewDate(2026, time.July, 27)
-	tuesday   = monday.AddDays(1)
-	wednesday = monday.AddDays(2)
-)
-
-type captureRenderer struct {
-	doc      listexport.Document
-	format   listexport.Format
-	filename string
-}
-
-func (c *captureRenderer) Render(doc listexport.Document, format listexport.Format, filenameBase string) (listexport.File, error) {
-	c.doc = doc
-	c.format = format
-	c.filename = filenameBase
-	return listexport.File{Data: []byte("rendered"), ContentType: "application/pdf", Filename: filenameBase + ".pdf"}, nil
-}
-
-type stubOverview struct {
-	overview *scheduleSvc.StaffScheduleOverview
-}
-
-func (s stubOverview) GetOverview(_ context.Context, from, to timezone.Date) (*scheduleSvc.StaffScheduleOverview, error) {
-	out := *s.overview
-	out.From, out.To = from, to
-	return &out, nil
-}
-
-type stubShiftTypes struct{ types []*scheduleModel.ShiftType }
-
-func (s stubShiftTypes) ListAll(context.Context) ([]*scheduleModel.ShiftType, error) {
-	return s.types, nil
-}
-
-func staffMember(id int64, first, last string) *usersModel.Staff {
-	member := &usersModel.Staff{Person: &usersModel.Person{FirstName: first, LastName: last}}
-	member.ID = id
-	return member
-}
-
-func clock(hour, minute int) time.Time {
-	return time.Date(2000, time.January, 1, hour, minute, 0, 0, time.UTC)
-}
-
-func shift(id, staffID int64, date timezone.Date, from, to time.Time) *scheduleModel.StaffShift {
-	s := &scheduleModel.StaffShift{StaffID: staffID, Date: scheduleModel.Date(date), StartTime: from, EndTime: to}
-	s.ID = id
-	return s
-}
-
-func shiftType(id int64, name string) *scheduleModel.ShiftType {
-	t := &scheduleModel.ShiftType{Name: name}
-	t.ID = id
-	return t
-}
-
-func ptr[T any](v T) *T { return &v }
-
-// newDienstplanService builds the service with only the Dienstplan side
-// wired; the care-plan readers stay nil, which the Dienstplan path never
-// touches.
-func newDienstplanService(overview *scheduleSvc.StaffScheduleOverview, types []*scheduleModel.ShiftType) (Service, *captureRenderer) {
-	renderer := &captureRenderer{}
-	return NewService(Dependencies{
-		Overview:   stubOverview{overview: overview},
-		ShiftTypes: stubShiftTypes{types: types},
-		Renderer:   renderer,
-	}, nil), renderer
-}
-
-func defaultParams() Params {
-	return Params{
-		From:     monday,
-		To:       monday.AddDays(4),
-		Template: TemplateByPerson,
-		Variant:  VariantNotice,
-		Format:   listexport.FormatPDF,
-	}
-}
-
-// cellFor returns the rendered cell of the row with the given label, with
-// the style markers stripped — most assertions are about the text.
-func cellFor(t *testing.T, doc listexport.Document, label string, column listexport.ColumnID) string {
-	t.Helper()
-	return listexport.StripStyleMarkers(rawCellFor(t, doc, label, column))
-}
-
-// cellLines returns the cell's lines with their styles, for the assertions
-// that are about emphasis rather than wording.
-func cellLines(t *testing.T, doc listexport.Document, label string, column listexport.ColumnID) []listexport.Line {
-	t.Helper()
-	raw := rawCellFor(t, doc, label, column)
-	lines := make([]listexport.Line, 0, 4)
-	for _, encoded := range strings.Split(raw, "\n") {
-		decoded, _ := listexport.DecodeLine(encoded)
-		lines = append(lines, decoded)
-	}
-	return lines
-}
-
-func rawCellFor(t *testing.T, doc listexport.Document, label string, column listexport.ColumnID) string {
-	t.Helper()
-	for _, row := range doc.Rows {
-		if listexport.StripStyleMarkers(row.Values[listexport.ColumnPlanRowLabel]) == label {
-			return row.Values[column]
-		}
-	}
-	t.Fatalf("no row labelled %q in %v", label, rowLabels(doc))
-	return ""
-}
-
-func rowLabels(doc listexport.Document) []string {
-	labels := make([]string, 0, len(doc.Rows))
-	for _, row := range doc.Rows {
-		if row.GroupTitle != "" {
-			labels = append(labels, "#"+row.GroupTitle)
-			continue
-		}
-		labels = append(labels, listexport.StripStyleMarkers(row.Values[listexport.ColumnPlanRowLabel]))
-	}
-	return labels
-}
 
 func TestDienstplanByPersonRendersShiftAndTask(t *testing.T) {
 	t.Parallel()
 
-	overview := &scheduleSvc.StaffScheduleOverview{
-		Staff:  []*usersModel.Staff{staffMember(7, "Franziska", "Kessener")},
-		Shifts: []*scheduleModel.StaffShift{withType(shift(1, 7, monday, clock(7, 30), clock(14, 0)), 4)},
-		Assignments: []scheduleSvc.StaffScheduleAssignment{{
-			StaffID: 7, Date: monday, StartTime: clock(12, 0), EndTime: clock(13, 0),
+	overview := &StaffScheduleOverview{
+		Staff:  []*StaffMember{staffMember(7, "Franziska", "Kessener")},
+		Shifts: []*Shift{withType(shift(1, 7, monday, clock(7, 30), clock(14, 0)), 4)},
+		Assignments: []Assignment{{
+			StaffID: 7, Date: dayKey(monday), StartTime: clock(12, 0), EndTime: clock(13, 0),
 			ActivityTitle: "Mensa", RoomName: "Speisesaal",
 		}},
 	}
-	service, renderer := newDienstplanService(overview, []*scheduleModel.ShiftType{shiftType(4, "Frühdienst")})
+	service, renderer := newDienstplanService(overview, []*ShiftType{shiftType(4, "Frühdienst")})
 
 	if _, err := service.ExportDienstplan(context.Background(), defaultParams()); err != nil {
 		t.Fatalf("ExportDienstplan: %v", err)
@@ -177,11 +42,6 @@ func TestDienstplanByPersonRendersShiftAndTask(t *testing.T) {
 	}
 }
 
-func withType(s *scheduleModel.StaffShift, typeID int64) *scheduleModel.StaffShift {
-	s.ShiftTypeID = &typeID
-	return s
-}
-
 // The wall sheet names the cancellation and its cover, but never the reason:
 // "krank" beside a name is a health datum.
 func TestDienstplanNoticeVariantHidesCancellationReason(t *testing.T) {
@@ -193,12 +53,12 @@ func TestDienstplanNoticeVariantHidesCancellationReason(t *testing.T) {
 	cover := shift(2, 8, monday, clock(7, 30), clock(14, 0))
 	cover.OriginShiftID = ptr(int64(1))
 
-	overview := &scheduleSvc.StaffScheduleOverview{
-		Staff: []*usersModel.Staff{
+	overview := &StaffScheduleOverview{
+		Staff: []*StaffMember{
 			staffMember(7, "Franziska", "Kessener"),
 			staffMember(8, "Anna", "Müller"),
 		},
-		Shifts: []*scheduleModel.StaffShift{cancelled, cover},
+		Shifts: []*Shift{cancelled, cover},
 	}
 
 	for _, tc := range []struct {
@@ -234,12 +94,12 @@ func TestDienstplanNoticeVariantHidesCancellationReason(t *testing.T) {
 func TestDienstplanUncoveredIntervalsOnlyInternal(t *testing.T) {
 	t.Parallel()
 
-	overview := &scheduleSvc.StaffScheduleOverview{
-		Staff: []*usersModel.Staff{staffMember(7, "Franziska", "Kessener")},
-		Assignments: []scheduleSvc.StaffScheduleAssignment{{
-			StaffID: 7, Date: monday, StartTime: clock(12, 0), EndTime: clock(13, 0),
+	overview := &StaffScheduleOverview{
+		Staff: []*StaffMember{staffMember(7, "Franziska", "Kessener")},
+		Assignments: []Assignment{{
+			StaffID: 7, Date: dayKey(monday), StartTime: clock(12, 0), EndTime: clock(13, 0),
 			ActivityTitle: "Mensa",
-			UncoveredIntervals: []scheduleSvc.ShiftCoverageInterval{
+			UncoveredIntervals: []Interval{
 				{StartTime: clock(12, 30), EndTime: clock(13, 0)},
 			},
 		}},
@@ -269,12 +129,12 @@ func TestDienstplanUncoveredIntervalsOnlyInternal(t *testing.T) {
 func TestDienstplanSkipsStaffWithoutEntries(t *testing.T) {
 	t.Parallel()
 
-	overview := &scheduleSvc.StaffScheduleOverview{
-		Staff: []*usersModel.Staff{
+	overview := &StaffScheduleOverview{
+		Staff: []*StaffMember{
 			staffMember(7, "Franziska", "Kessener"),
 			staffMember(9, "Ohne", "Schicht"),
 		},
-		Shifts: []*scheduleModel.StaffShift{shift(1, 7, monday, clock(7, 30), clock(14, 0))},
+		Shifts: []*Shift{shift(1, 7, monday, clock(7, 30), clock(14, 0))},
 	}
 	service, renderer := newDienstplanService(overview, nil)
 	if _, err := service.ExportDienstplan(context.Background(), defaultParams()); err != nil {
@@ -294,24 +154,24 @@ func TestDienstplanSkipsStaffWithoutEntries(t *testing.T) {
 func TestDienstplanByAreaGroupsNamesUnderTasks(t *testing.T) {
 	t.Parallel()
 
-	overview := &scheduleSvc.StaffScheduleOverview{
-		Staff: []*usersModel.Staff{
+	overview := &StaffScheduleOverview{
+		Staff: []*StaffMember{
 			staffMember(7, "Franziska", "Kessener"),
 			staffMember(8, "Anna", "Müller"),
 		},
-		Shifts: []*scheduleModel.StaffShift{
+		Shifts: []*Shift{
 			// Monday: both have a Mensa block, so neither forms a Schichtart row.
 			withType(shift(1, 7, monday, clock(11, 0), clock(16, 0)), 4),
 			withType(shift(2, 8, monday, clock(11, 0), clock(16, 0)), 4),
 			// Tuesday: a shift with no block at all — this is the Randstunde case.
 			withType(shift(3, 7, tuesday, clock(7, 30), clock(8, 0)), 5),
 		},
-		Assignments: []scheduleSvc.StaffScheduleAssignment{
-			{StaffID: 7, Date: monday, StartTime: clock(12, 0), EndTime: clock(13, 0), ActivityTitle: "Mensa", RoomName: "Speisesaal"},
-			{StaffID: 8, Date: monday, StartTime: clock(12, 0), EndTime: clock(13, 0), ActivityTitle: "Mensa", RoomName: "Speisesaal"},
+		Assignments: []Assignment{
+			{StaffID: 7, Date: dayKey(monday), StartTime: clock(12, 0), EndTime: clock(13, 0), ActivityTitle: "Mensa", RoomName: "Speisesaal"},
+			{StaffID: 8, Date: dayKey(monday), StartTime: clock(12, 0), EndTime: clock(13, 0), ActivityTitle: "Mensa", RoomName: "Speisesaal"},
 		},
 	}
-	service, renderer := newDienstplanService(overview, []*scheduleModel.ShiftType{
+	service, renderer := newDienstplanService(overview, []*ShiftType{
 		shiftType(4, "Ganztag"), shiftType(5, "Randstunde"),
 	})
 
@@ -350,9 +210,9 @@ func TestDienstplanByAreaGroupsNamesUnderTasks(t *testing.T) {
 func TestDienstplanWeekHeadingsAndColumns(t *testing.T) {
 	t.Parallel()
 
-	overview := &scheduleSvc.StaffScheduleOverview{
-		Staff:  []*usersModel.Staff{staffMember(7, "Franziska", "Kessener")},
-		Shifts: []*scheduleModel.StaffShift{shift(1, 7, monday, clock(7, 30), clock(14, 0))},
+	overview := &StaffScheduleOverview{
+		Staff:  []*StaffMember{staffMember(7, "Franziska", "Kessener")},
+		Shifts: []*Shift{shift(1, 7, monday, clock(7, 30), clock(14, 0))},
 	}
 
 	service, renderer := newDienstplanService(overview, nil)
@@ -370,7 +230,7 @@ func TestDienstplanWeekHeadingsAndColumns(t *testing.T) {
 
 	service, renderer = newDienstplanService(overview, nil)
 	params := defaultParams()
-	params.To = monday.AddDays(11) // spans two calendar weeks
+	params.To = dayKey(monday.AddDays(11)) // spans two calendar weeks
 	if _, err := service.ExportDienstplan(context.Background(), params); err != nil {
 		t.Fatalf("ExportDienstplan: %v", err)
 	}
@@ -429,7 +289,7 @@ func TestNarrowWeeksKeepsTheWeekendWhenItIsPlanned(t *testing.T) {
 	}
 	saturday := monday.AddDays(12) // in the second week
 
-	printed := narrowWeeks(weeks, map[timezone.Date]bool{saturday: true})
+	printed := narrowWeeks(weeks, map[Date]bool{dayKey(saturday): true})
 	// Columns are document-level, so one weekend entry widens every sheet.
 	for _, w := range printed {
 		if len(w.days) != fullWeekDays {
@@ -459,7 +319,7 @@ func TestParamsValidation(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "valid", mutate: func(*Params) {}, allowed: TemplatesForDienstplan},
-		{name: "inverted range", mutate: func(p *Params) { p.To = p.From.AddDays(-1) }, allowed: TemplatesForDienstplan, wantErr: true},
+		{name: "inverted range", mutate: func(p *Params) { p.To = dayKey(monday.AddDays(-1)) }, allowed: TemplatesForDienstplan, wantErr: true},
 		{name: "unknown variant", mutate: func(p *Params) { p.Variant = "geheim" }, allowed: TemplatesForDienstplan, wantErr: true},
 		{name: "docx refused", mutate: func(p *Params) { p.Format = listexport.FormatDOCX }, allowed: TemplatesForDienstplan, wantErr: true},
 		{name: "care template on staff plan", mutate: func(p *Params) { p.Template = TemplateByOffering }, allowed: TemplatesForDienstplan, wantErr: true},
@@ -468,7 +328,7 @@ func TestParamsValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			params := defaultParams()
 			tt.mutate(&params)
-			err := params.validate(tt.allowed)
+			_, err := params.validate(tt.allowed)
 			if tt.wantErr && err == nil {
 				t.Fatal("expected a validation error")
 			}
@@ -504,11 +364,11 @@ func TestDienstplanLabelsNonWorkingDays(t *testing.T) {
 
 	renderer := &captureRenderer{}
 	service := NewService(Dependencies{
-		Overview: stubOverview{overview: &scheduleSvc.StaffScheduleOverview{
-			Staff:  []*usersModel.Staff{staffMember(7, "Franziska", "Kessener")},
-			Shifts: []*scheduleModel.StaffShift{shift(1, 7, monday, clock(7, 30), clock(14, 0))},
+		Overview: stubOverview{overview: &StaffScheduleOverview{
+			Staff:  []*StaffMember{staffMember(7, "Franziska", "Kessener")},
+			Shifts: []*Shift{shift(1, 7, monday, clock(7, 30), clock(14, 0))},
 		}},
-		ClosingDays: stubClosingDays{days: []*scheduleModel.ClosingDay{closingRange(tuesday, tuesday, "Betriebsferien")}},
+		ClosingDays: stubClosingDays{days: []*ClosingPeriod{closingRange(tuesday, tuesday, "Betriebsferien")}},
 		Renderer:    renderer,
 	}, nil)
 
@@ -525,8 +385,8 @@ func TestDienstplanKeepsNonWorkingDaysForAnOtherwiseEmptyWeek(t *testing.T) {
 
 	renderer := &captureRenderer{}
 	service := NewService(Dependencies{
-		Overview: stubOverview{overview: &scheduleSvc.StaffScheduleOverview{}},
-		ClosingDays: stubClosingDays{days: []*scheduleModel.ClosingDay{
+		Overview: stubOverview{overview: &StaffScheduleOverview{}},
+		ClosingDays: stubClosingDays{days: []*ClosingPeriod{
 			closingRange(monday, monday.AddDays(4), "Betriebsferien"),
 		}},
 		Renderer: renderer,
@@ -544,7 +404,7 @@ func TestNonWorkingDaysClampsLongClosingRangesToTheExportWindow(t *testing.T) {
 	t.Parallel()
 
 	svc := NewService(Dependencies{
-		ClosingDays: stubClosingDays{days: []*scheduleModel.ClosingDay{
+		ClosingDays: stubClosingDays{days: []*ClosingPeriod{
 			closingRange(monday.AddDays(-100_000), monday.AddDays(100_000), "Betriebsferien"),
 		}},
 	}, nil)
@@ -553,7 +413,7 @@ func TestNonWorkingDaysClampsLongClosingRangesToTheExportWindow(t *testing.T) {
 	if len(labels) != 5 {
 		t.Fatalf("label count = %d, want the five export days only", len(labels))
 	}
-	if got := labels[monday]; got != "Schließtag: Betriebsferien" {
+	if got := labels[dayKey(monday)]; got != "Schließtag: Betriebsferien" {
 		t.Fatalf("first export day = %q", got)
 	}
 }
@@ -566,10 +426,10 @@ func TestDienstplanAreaInternalVariantShowsCancellationReason(t *testing.T) {
 	cancelled.ChangeReason = ptr("Fortbildung")
 	typeID := int64(1)
 	cancelled.ShiftTypeID = &typeID
-	service, renderer := newDienstplanService(&scheduleSvc.StaffScheduleOverview{
-		Staff:  []*usersModel.Staff{staffMember(7, "Franziska", "Kessener")},
-		Shifts: []*scheduleModel.StaffShift{cancelled},
-	}, []*scheduleModel.ShiftType{shiftType(1, "Frühdienst")})
+	service, renderer := newDienstplanService(&StaffScheduleOverview{
+		Staff:  []*StaffMember{staffMember(7, "Franziska", "Kessener")},
+		Shifts: []*Shift{cancelled},
+	}, []*ShiftType{shiftType(1, "Frühdienst")})
 	params := defaultParams()
 	params.Template = TemplateByArea
 	params.Variant = VariantInternal
@@ -588,13 +448,13 @@ func TestDienstplanAreaKeepsSameNamedShiftAndOfferingSeparate(t *testing.T) {
 	typeID := int64(1)
 	shift := shift(1, 7, monday, clock(7, 30), clock(10, 0))
 	shift.ShiftTypeID = &typeID
-	service, renderer := newDienstplanService(&scheduleSvc.StaffScheduleOverview{
-		Staff:  []*usersModel.Staff{staffMember(7, "Franziska", "Kessener")},
-		Shifts: []*scheduleModel.StaffShift{shift},
-		Assignments: []scheduleSvc.StaffScheduleAssignment{{
-			StaffID: 7, Date: monday, StartTime: clock(12, 0), EndTime: clock(13, 0), ActivityTitle: "Mensa",
+	service, renderer := newDienstplanService(&StaffScheduleOverview{
+		Staff:  []*StaffMember{staffMember(7, "Franziska", "Kessener")},
+		Shifts: []*Shift{shift},
+		Assignments: []Assignment{{
+			StaffID: 7, Date: dayKey(monday), StartTime: clock(12, 0), EndTime: clock(13, 0), ActivityTitle: "Mensa",
 		}},
-	}, []*scheduleModel.ShiftType{shiftType(1, "Mensa")})
+	}, []*ShiftType{shiftType(1, "Mensa")})
 	params := defaultParams()
 	params.Template = TemplateByArea
 
@@ -606,33 +466,15 @@ func TestDienstplanAreaKeepsSameNamedShiftAndOfferingSeparate(t *testing.T) {
 	}
 }
 
-type stubClosingDays struct {
-	scheduleSvc.ClosingDayService
-	days []*scheduleModel.ClosingDay
-}
-
-func (s stubClosingDays) ClosingDaysInRange(context.Context, timezone.Date, timezone.Date) ([]*scheduleModel.ClosingDay, error) {
-	return s.days, nil
-}
-
-func closingRange(start, end timezone.Date, reason string) *scheduleModel.ClosingDay {
-	return &scheduleModel.ClosingDay{
-		Model:     scheduleModel.Model{},
-		StartDate: scheduleModel.Date(start),
-		EndDate:   scheduleModel.Date(end),
-		Reason:    reason,
-	}
-}
-
 // Rooms are routinely named after what happens in them; "Mensa · Mensa" is
 // noise on a sheet meant to be read from across a room.
 func TestDienstplanDropsRoomThatRepeatsTheTitle(t *testing.T) {
 	t.Parallel()
 
-	overview := &scheduleSvc.StaffScheduleOverview{
-		Staff: []*usersModel.Staff{staffMember(7, "Franziska", "Kessener")},
-		Assignments: []scheduleSvc.StaffScheduleAssignment{{
-			StaffID: 7, Date: monday, StartTime: clock(12, 0), EndTime: clock(13, 0),
+	overview := &StaffScheduleOverview{
+		Staff: []*StaffMember{staffMember(7, "Franziska", "Kessener")},
+		Assignments: []Assignment{{
+			StaffID: 7, Date: dayKey(monday), StartTime: clock(12, 0), EndTime: clock(13, 0),
 			ActivityTitle: "Mensa", RoomName: "Mensa",
 		}},
 	}
@@ -658,14 +500,14 @@ func TestDienstplanCellRanksShiftTaskAndDetail(t *testing.T) {
 	cover := shift(2, 8, monday, clock(7, 30), clock(14, 0))
 	cover.OriginShiftID = ptr(int64(1))
 
-	overview := &scheduleSvc.StaffScheduleOverview{
-		Staff: []*usersModel.Staff{
+	overview := &StaffScheduleOverview{
+		Staff: []*StaffMember{
 			staffMember(7, "Franziska", "Kessener"),
 			staffMember(8, "Anna", "Müller"),
 		},
-		Shifts: []*scheduleModel.StaffShift{cancelled, cover},
-		Assignments: []scheduleSvc.StaffScheduleAssignment{{
-			StaffID: 7, Date: monday, StartTime: clock(12, 0), EndTime: clock(13, 0),
+		Shifts: []*Shift{cancelled, cover},
+		Assignments: []Assignment{{
+			StaffID: 7, Date: dayKey(monday), StartTime: clock(12, 0), EndTime: clock(13, 0),
 			ActivityTitle: "Mensa", RoomName: "Speisesaal",
 		}},
 	}
@@ -706,8 +548,8 @@ func TestBetreuungsplanCellRanks(t *testing.T) {
 	t.Parallel()
 
 	service, renderer := newBetreuungsplanService(
-		[]*scheduleModel.ActivityInstance{instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)},
-		[]*scheduleModel.InstanceStaff{instanceStaff(11, 7)},
+		[]*Instance{instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)},
+		[]*InstanceStaff{instanceStaff(11, 7)},
 		map[int64]int{11: 24},
 	)
 	if _, err := service.ExportBetreuungsplan(context.Background(), careParams()); err != nil {
@@ -733,18 +575,18 @@ func TestBetreuungsplanCellRanks(t *testing.T) {
 func TestDienstplanShiftLineCarriesShiftTypeColour(t *testing.T) {
 	t.Parallel()
 
-	overview := &scheduleSvc.StaffScheduleOverview{
-		Staff:  []*usersModel.Staff{staffMember(7, "Franziska", "Kessener")},
-		Shifts: []*scheduleModel.StaffShift{withType(shift(1, 7, monday, clock(7, 30), clock(14, 0)), 4)},
-		Assignments: []scheduleSvc.StaffScheduleAssignment{{
-			StaffID: 7, Date: monday, StartTime: clock(12, 0), EndTime: clock(13, 0),
+	overview := &StaffScheduleOverview{
+		Staff:  []*StaffMember{staffMember(7, "Franziska", "Kessener")},
+		Shifts: []*Shift{withType(shift(1, 7, monday, clock(7, 30), clock(14, 0)), 4)},
+		Assignments: []Assignment{{
+			StaffID: 7, Date: dayKey(monday), StartTime: clock(12, 0), EndTime: clock(13, 0),
 			ActivityTitle: "Mensa",
 		}},
 	}
 	coloured := shiftType(4, "Ganztag")
 	coloured.Color = "#83CD2D"
 
-	service, renderer := newDienstplanService(overview, []*scheduleModel.ShiftType{coloured})
+	service, renderer := newDienstplanService(overview, []*ShiftType{coloured})
 	if _, err := service.ExportDienstplan(context.Background(), defaultParams()); err != nil {
 		t.Fatalf("ExportDienstplan: %v", err)
 	}
@@ -762,9 +604,9 @@ func TestDienstplanShiftLineCarriesShiftTypeColour(t *testing.T) {
 func TestDienstplanWithoutColourStillRendersStrongLine(t *testing.T) {
 	t.Parallel()
 
-	overview := &scheduleSvc.StaffScheduleOverview{
-		Staff:  []*usersModel.Staff{staffMember(7, "Franziska", "Kessener")},
-		Shifts: []*scheduleModel.StaffShift{shift(1, 7, monday, clock(7, 30), clock(14, 0))},
+	overview := &StaffScheduleOverview{
+		Staff:  []*StaffMember{staffMember(7, "Franziska", "Kessener")},
+		Shifts: []*Shift{shift(1, 7, monday, clock(7, 30), clock(14, 0))},
 	}
 	service, renderer := newDienstplanService(overview, nil)
 	if _, err := service.ExportDienstplan(context.Background(), defaultParams()); err != nil {

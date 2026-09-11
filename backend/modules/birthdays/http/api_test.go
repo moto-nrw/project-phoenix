@@ -1,11 +1,11 @@
-// Package birthdays_test drives the production Resource.Router(), so the full
+// Package http_test drives the production Resource.Router(), so the full
 // middleware chain (Verifier → Authenticator → TenantMiddleware →
 // RequiresPermission → TenantTxMiddleware) runs exactly as on the real server.
 //
 // What it pins: the permission gates (a colleague's birth date must not fall
 // out of a users:read route), the two settings that govern the display, and the
 // personal opt-out (#1542).
-package birthdays_test
+package http_test
 
 import (
 	"context"
@@ -21,18 +21,23 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	birthdaysAPI "github.com/moto-nrw/project-phoenix/api/birthdays"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	birthdaysAPI "github.com/moto-nrw/project-phoenix/modules/birthdays/http"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 type testContext struct {
 	db       *bun.DB
 	resource *birthdaysAPI.Resource
+	// setFlag and resetFlag flip the two boolean birthday settings through
+	// the tenant settings service; the resource itself takes no settings
+	// dependency, the birthday service applies them.
+	setFlag   func(ctx context.Context, key string, value bool) error
+	resetFlag func(ctx context.Context, key string) error
 }
 
 func setupBirthdaysRoute(t *testing.T, clocks ...func() time.Time) *testContext {
@@ -42,8 +47,14 @@ func setupBirthdaysRoute(t *testing.T, clocks ...func() time.Time) *testContext 
 	return &testContext{
 		db: db,
 		resource: birthdaysAPI.NewResource(
-			svc.Birthdays, svc.ListExport, svc.UserContext, svc.Settings, db, slog.Default(),
+			svc.Birthdays, svc.ListExport, svc.UserContext, db, slog.Default(),
 		),
+		setFlag: func(ctx context.Context, key string, value bool) error {
+			return svc.Settings.SetValue(ctx, key, value, nil, nil)
+		},
+		resetFlag: func(ctx context.Context, key string) error {
+			return svc.Settings.ResetValue(ctx, key, nil, nil)
+		},
 	}
 }
 
@@ -82,12 +93,12 @@ func setPersonBirthday(t *testing.T, db *bun.DB, personID int64, date timezone.D
 	require.NoError(t, err, "stamp birthday on test person")
 }
 
-func setSetting(t *testing.T, tc *testContext, key string, value any) {
+func setSetting(t *testing.T, tc *testContext, key string, value bool) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	require.NoError(t, tc.resource.SettingsService.SetValue(ctx, key, value, nil, nil), "set %s", key)
+	require.NoError(t, tc.setFlag(ctx, key, value), "set %s", key)
 	t.Cleanup(func() {
-		_ = tc.resource.SettingsService.ResetValue(ctx, key, nil, nil)
+		_ = tc.resetFlag(ctx, key)
 	})
 }
 

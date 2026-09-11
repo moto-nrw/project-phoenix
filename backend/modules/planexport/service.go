@@ -7,67 +7,11 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 // confidentialityNote matches the wording of every other printed export.
 const confidentialityNote = "Vertraulich, nur für berechtigte Personen. Nach Gebrauch sicher vernichten."
-
-// Renderer is the slice of listexport this service needs.
-type Renderer interface {
-	Render(doc listexport.Document, format listexport.Format, filenameBase string) (listexport.File, error)
-}
-
-// InstanceStudentCountReader returns the number of children per instance in
-// one grouped query, so a Betreuungsplan week costs one count query rather
-// than one per block.
-type InstanceStudentCountReader interface {
-	CountNonAbsentByInstanceIDs(ctx context.Context, instanceIDs []int64) (map[int64]int, error)
-}
-
-// ShiftTypeReader resolves Schichtart names and colours for the shift cells.
-type ShiftTypeReader interface {
-	ListAll(ctx context.Context) ([]*scheduleModel.ShiftType, error)
-}
-
-// ActivityGroupBatchReader and PlanningTrackReader resolve the planning-track
-// colour of a Betreuungsblock, matching the planner.
-type ActivityGroupBatchReader interface {
-	FindByIDs(ctx context.Context, ids []int64) ([]*activitiesModel.Group, error)
-}
-
-type PlanningTrackReader interface {
-	ListAll(ctx context.Context) ([]*scheduleModel.PlanningTrack, error)
-}
-
-// Dependencies are the reads the two exports need. The instance-side
-// readers are the same narrow interfaces services/schedule already declares
-// — the Betreuungsplan cannot reuse StaffScheduleOverview itself, because
-// that projection drops cancelled blocks and only knows blocks that have
-// staff assigned, while a care plan must print a block whether or not
-// anyone is on it yet.
-type Dependencies struct {
-	Overview      scheduleSvc.StaffScheduleOverviewGetter
-	ShiftTypes    ShiftTypeReader
-	Instances     scheduleSvc.ActivityInstanceRangeReader
-	InstanceStaff scheduleSvc.InstanceStaffBatchReader
-	Students      InstanceStudentCountReader
-	Rooms         scheduleSvc.RoomBatchReader
-	Staff         scheduleSvc.StaffOverviewReader
-	// ActivityGroups and PlanningTracks drive the colour bar on the care plan.
-	// Optional: without them a block simply prints without its colour.
-	ActivityGroups ActivityGroupBatchReader
-	PlanningTracks PlanningTrackReader
-	// ClosingDays and Holidays label the days nobody is expected to work.
-	// Both are optional: without them a closed day simply prints as empty,
-	// which is a worse sheet but never a wrong one.
-	ClosingDays scheduleSvc.ClosingDayService
-	Holidays    scheduleSvc.HolidayService
-	Renderer    Renderer
-}
 
 // Service renders the printable weekly plans.
 type Service interface {
@@ -80,7 +24,7 @@ type service struct {
 	logger *slog.Logger
 }
 
-// NewService creates the plan export service.
+// NewService creates the plan export service over the bound ports.
 func NewService(deps Dependencies, logger *slog.Logger) Service {
 	return &service{deps: deps, logger: logger}
 }
@@ -96,11 +40,11 @@ func (s *service) getLogger() *slog.Logger {
 // "Schließtag: Betriebsferien" or "Feiertag: Christi Himmelfahrt". A closing
 // day wins over a holiday when both apply — it is the tenant's own decision
 // and carries the more specific wording.
-func (s *service) nonWorkingDays(ctx context.Context, from, to timezone.Date) map[timezone.Date]string {
-	labels := map[timezone.Date]string{}
+func (s *service) nonWorkingDays(ctx context.Context, from, to timezone.Date) map[Date]string {
+	labels := map[Date]string{}
 
 	if s.deps.Holidays != nil {
-		holidays, err := s.deps.Holidays.HolidaysInRange(ctx, from, to)
+		holidays, err := s.deps.Holidays.HolidaysInRange(ctx, dayKey(from), dayKey(to))
 		if err != nil {
 			// A missing holiday label costs a line on the sheet, not its
 			// correctness — the plan itself is unaffected.
@@ -112,7 +56,7 @@ func (s *service) nonWorkingDays(ctx context.Context, from, to timezone.Date) ma
 	}
 
 	if s.deps.ClosingDays != nil {
-		ranges, err := s.deps.ClosingDays.ClosingDaysInRange(ctx, from, to)
+		ranges, err := s.deps.ClosingDays.ClosingDaysInRange(ctx, dayKey(from), dayKey(to))
 		if err != nil {
 			s.getLogger().Warn("plan export: closing day lookup failed", "error", err.Error())
 		}
@@ -120,15 +64,24 @@ func (s *service) nonWorkingDays(ctx context.Context, from, to timezone.Date) ma
 			if closing == nil {
 				continue
 			}
-			start, end := closing.StartDate, closing.EndDate
-			if start.Before(scheduleModel.Date(from)) {
-				start = scheduleModel.Date(from)
+			start, err := timezone.ParseDate(string(closing.StartDate))
+			if err != nil {
+				s.getLogger().Warn("plan export: closing day has no valid start", "error", err.Error())
+				continue
 			}
-			if end.After(scheduleModel.Date(to)) {
-				end = scheduleModel.Date(to)
+			end, err := timezone.ParseDate(string(closing.EndDate))
+			if err != nil {
+				s.getLogger().Warn("plan export: closing day has no valid end", "error", err.Error())
+				continue
+			}
+			if start.Before(from) {
+				start = from
+			}
+			if end.After(to) {
+				end = to
 			}
 			for day := start; !day.After(end); day = day.AddDays(1) {
-				labels[timezone.Date(day)] = "Schließtag: " + closing.Reason
+				labels[dayKey(day)] = "Schließtag: " + closing.Reason
 			}
 		}
 	}
@@ -173,10 +126,10 @@ func (s *service) document(
 
 // emptyWeekRow states that the week is empty instead of leaving the sheet
 // blank.
-func emptyWeekRows(w week, closedDays map[timezone.Date]string) []listexport.Row {
+func emptyWeekRows(w week, closedDays map[Date]string) []listexport.Row {
 	cells := newDayCells("Keine Einträge in dieser Woche", w)
 	for i, day := range w.days {
-		if label, ok := closedDays[day]; ok {
+		if label, ok := closedDays[dayKey(day)]; ok {
 			cells.days[i] = []listexport.Line{strong(label)}
 		}
 	}

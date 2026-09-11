@@ -1,12 +1,14 @@
-// Package planexport renders the two weekly plans as printable documents
-// (issue #2079): the Dienstplan (staff view — who works when, where, on
-// what) and the Betreuungsplan (child view — which block runs when, with
-// whom).
+// Package planexport is the public Document Rendering capability that
+// renders the two weekly plans as printable documents (issue #2079, migrated
+// under #2706): the Dienstplan (staff view — who works when, where, on what)
+// and the Betreuungsplan (child view — which block runs when, with whom).
 //
 // It is a projection, not a second source of truth: the Dienstplan export
-// reads the very same StaffScheduleOverview the screen renders from, so a
+// reads the very same staff schedule overview the screen renders from, so a
 // printout cannot disagree with the plan it was printed from. Nothing here
-// writes.
+// writes, and the package owns no table: every fact arrives as a plain
+// record through the consumer-owned ports in ports.go, bound by the
+// composition root to the owners that hold the data.
 //
 // A week is a matrix — one label column plus Monday to Friday — which is a
 // plain listexport.Document with five day columns. Multi-week ranges emit
@@ -21,6 +23,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 )
+
+// Date is a calendar day in "YYYY-MM-DD" form, the shape every record and
+// request of this capability carries. The renderer resolves it to the
+// canonical calendar-date value internally; a malformed day in a request is
+// refused, one in a record is a programming error of the binding adapter.
+type Date string
 
 // Template is the row axis of the printed matrix.
 type Template string
@@ -67,8 +75,8 @@ var (
 // service widens them to whole Monday–Friday weeks, because a wall plan is
 // printed by the week and a Wednesday-to-Wednesday sheet helps nobody.
 type Params struct {
-	From     timezone.Date
-	To       timezone.Date
+	From     Date
+	To       Date
 	Template Template
 	Variant  Variant
 	Format   listexport.Format
@@ -96,26 +104,41 @@ func formatValid(f listexport.Format) bool {
 	return f == listexport.FormatPDF || f == listexport.FormatXLSX
 }
 
-// validate checks the request against the templates the plan allows.
-func (p Params) validate(allowed []Template) error {
-	if p.From.IsZero() || p.To.IsZero() {
-		return fmt.Errorf("%w: from and to are required", ErrInvalidParams)
+// window is the validated request range as calendar-date values.
+type window struct {
+	from timezone.Date
+	to   timezone.Date
+}
+
+// validate checks the request against the templates the plan allows and
+// resolves its calendar days.
+func (p Params) validate(allowed []Template) (window, error) {
+	if p.From == "" || p.To == "" {
+		return window{}, fmt.Errorf("%w: from and to are required", ErrInvalidParams)
 	}
-	if p.To.Before(p.From) {
-		return fmt.Errorf("%w: to must not be before from", ErrInvalidParams)
+	from, err := timezone.ParseDate(string(p.From))
+	if err != nil {
+		return window{}, fmt.Errorf("%w: from must be YYYY-MM-DD", ErrInvalidParams)
+	}
+	to, err := timezone.ParseDate(string(p.To))
+	if err != nil {
+		return window{}, fmt.Errorf("%w: to must be YYYY-MM-DD", ErrInvalidParams)
+	}
+	if to.Before(from) {
+		return window{}, fmt.Errorf("%w: to must not be before from", ErrInvalidParams)
 	}
 	if !p.Variant.valid() {
-		return fmt.Errorf("%w: unknown variant %q", ErrInvalidParams, p.Variant)
+		return window{}, fmt.Errorf("%w: unknown variant %q", ErrInvalidParams, p.Variant)
 	}
 	if !formatValid(p.Format) {
-		return fmt.Errorf("%w: unsupported format %q", ErrInvalidParams, p.Format)
+		return window{}, fmt.Errorf("%w: unsupported format %q", ErrInvalidParams, p.Format)
 	}
 	for _, template := range allowed {
 		if p.Template == template {
-			return nil
+			return window{from: from, to: to}, nil
 		}
 	}
-	return fmt.Errorf("%w: unknown template %q", ErrInvalidParams, p.Template)
+	return window{}, fmt.Errorf("%w: unknown template %q", ErrInvalidParams, p.Template)
 }
 
 // ParseParams turns the raw request strings into validated Params. It lives
@@ -140,10 +163,16 @@ func ParseParams(from, to, template, variant, format string) (Params, error) {
 		variant = string(VariantNotice)
 	}
 	return Params{
-		From:     fromDate,
-		To:       toDate,
+		From:     dayKey(fromDate),
+		To:       dayKey(toDate),
 		Template: Template(template),
 		Variant:  Variant(variant),
 		Format:   listexport.Format(format),
 	}, nil
+}
+
+// dayKey is the record form of a calendar day, used wherever a record date
+// is compared with a printed column.
+func dayKey(day timezone.Date) Date {
+	return Date(day.String())
 }

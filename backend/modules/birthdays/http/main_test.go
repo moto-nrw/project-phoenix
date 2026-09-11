@@ -1,4 +1,4 @@
-package birthdays_test
+package http_test
 
 import (
 	"testing"

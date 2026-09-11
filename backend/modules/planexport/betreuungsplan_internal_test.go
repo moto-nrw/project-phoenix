@@ -4,131 +4,16 @@ import (
 	"context"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 )
-
-// In-memory readers; every id below is a struct field, not a database row.
-
-type stubInstances struct {
-	instances []*scheduleModel.ActivityInstance
-}
-
-func (s stubInstances) FindByTenantAndDateRange(_ context.Context, from, to scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
-	kept := make([]*scheduleModel.ActivityInstance, 0, len(s.instances))
-	for _, instance := range s.instances {
-		if instance.Date.Before(from) || instance.Date.After(to) {
-			continue
-		}
-		kept = append(kept, instance)
-	}
-	return kept, nil
-}
-
-type stubInstanceStaff struct {
-	rows []*scheduleModel.InstanceStaff
-}
-
-func (s stubInstanceStaff) FindByInstanceIDs(_ context.Context, ids []int64) ([]*scheduleModel.InstanceStaff, error) {
-	wanted := make(map[int64]bool, len(ids))
-	for _, id := range ids {
-		wanted[id] = true
-	}
-	kept := make([]*scheduleModel.InstanceStaff, 0, len(s.rows))
-	for _, row := range s.rows {
-		if wanted[row.InstanceID] {
-			kept = append(kept, row)
-		}
-	}
-	return kept, nil
-}
-
-type stubRooms struct{ rooms []*facilitiesModel.Room }
-
-func (s stubRooms) FindByIDs(context.Context, []int64) ([]*facilitiesModel.Room, error) {
-	return s.rooms, nil
-}
-
-type stubStaffDirectory struct{ members []*usersModel.Staff }
-
-func (s stubStaffDirectory) ListAllWithPerson(context.Context) ([]*usersModel.Staff, error) {
-	return s.members, nil
-}
-
-func (s stubStaffDirectory) FindWithPersonByIDs(context.Context, []int64) (map[int64]*usersModel.Staff, error) {
-	out := make(map[int64]*usersModel.Staff, len(s.members))
-	for _, member := range s.members {
-		out[member.ID] = member
-	}
-	return out, nil
-}
-
-type stubStudentCounts struct{ counts map[int64]int }
-
-func (s stubStudentCounts) CountNonAbsentByInstanceIDs(context.Context, []int64) (map[int64]int, error) {
-	return s.counts, nil
-}
-
-func instance(id int64, date timezone.Date, from, to time.Time, title string, roomID int64) *scheduleModel.ActivityInstance {
-	i := &scheduleModel.ActivityInstance{
-		Date:      scheduleModel.Date(date),
-		Title:     title,
-		StartTime: from,
-		EndTime:   to,
-		RoomID:    roomID,
-		Status:    scheduleModel.InstanceStatusPlanned,
-	}
-	i.ID = id
-	return i
-}
-
-func room(id int64, name string) *facilitiesModel.Room {
-	r := &facilitiesModel.Room{Name: name}
-	r.ID = id
-	return r
-}
-
-func instanceStaff(instanceID, staffID int64) *scheduleModel.InstanceStaff {
-	return &scheduleModel.InstanceStaff{InstanceID: instanceID, StaffID: staffID}
-}
-
-func newBetreuungsplanService(
-	instances []*scheduleModel.ActivityInstance,
-	staffRows []*scheduleModel.InstanceStaff,
-	counts map[int64]int,
-) (Service, *captureRenderer) {
-	renderer := &captureRenderer{}
-	service := NewService(Dependencies{
-		Instances:     stubInstances{instances: instances},
-		InstanceStaff: stubInstanceStaff{rows: staffRows},
-		Students:      stubStudentCounts{counts: counts},
-		Rooms:         stubRooms{rooms: []*facilitiesModel.Room{room(3, "Speisesaal"), room(4, "Gruppenraum 1")}},
-		Staff: stubStaffDirectory{members: []*usersModel.Staff{
-			staffMember(7, "Franziska", "Kessener"),
-			staffMember(8, "Anna", "Müller"),
-		}},
-		Renderer: renderer,
-	}, nil)
-	return service, renderer
-}
-
-func careParams() Params {
-	params := defaultParams()
-	params.Template = TemplateByOffering
-	return params
-}
 
 func TestBetreuungsplanRendersBlockRoomStaffAndChildren(t *testing.T) {
 	t.Parallel()
 
 	service, renderer := newBetreuungsplanService(
-		[]*scheduleModel.ActivityInstance{instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)},
-		[]*scheduleModel.InstanceStaff{instanceStaff(11, 7), instanceStaff(11, 8)},
+		[]*Instance{instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)},
+		[]*InstanceStaff{instanceStaff(11, 7), instanceStaff(11, 8)},
 		map[int64]int{11: 24},
 	)
 
@@ -149,8 +34,8 @@ func TestBetreuungsplanShowsStaffRoomOverride(t *testing.T) {
 	overridden := instanceStaff(11, 8)
 	overridden.RoomID = ptr(int64(4))
 	service, renderer := newBetreuungsplanService(
-		[]*scheduleModel.ActivityInstance{instance(11, monday, clock(12, 0), clock(13, 0), "Lernzeit", 3)},
-		[]*scheduleModel.InstanceStaff{instanceStaff(11, 7), overridden}, nil,
+		[]*Instance{instance(11, monday, clock(12, 0), clock(13, 0), "Lernzeit", 3)},
+		[]*InstanceStaff{instanceStaff(11, 7), overridden}, nil,
 	)
 
 	if _, err := service.ExportBetreuungsplan(context.Background(), careParams()); err != nil {
@@ -169,7 +54,7 @@ func TestBetreuungsplanShowsBlockWithoutStaff(t *testing.T) {
 	t.Parallel()
 
 	service, renderer := newBetreuungsplanService(
-		[]*scheduleModel.ActivityInstance{instance(11, monday, clock(14, 30), clock(15, 30), "Lernzeit", 4)},
+		[]*Instance{instance(11, monday, clock(14, 30), clock(15, 30), "Lernzeit", 4)},
 		nil,
 		nil,
 	)
@@ -189,7 +74,7 @@ func TestBetreuungsplanCancelledBlockHidesReasonOnNotice(t *testing.T) {
 	t.Parallel()
 
 	cancelled := instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)
-	cancelled.Status = scheduleModel.InstanceStatusCancelled
+	cancelled.Cancelled = true
 	cancelled.CancelReason = ptr("Personalmangel")
 
 	for _, tc := range []struct {
@@ -201,7 +86,7 @@ func TestBetreuungsplanCancelledBlockHidesReasonOnNotice(t *testing.T) {
 	} {
 		t.Run(string(tc.variant), func(t *testing.T) {
 			service, renderer := newBetreuungsplanService(
-				[]*scheduleModel.ActivityInstance{cancelled}, nil, nil)
+				[]*Instance{cancelled}, nil, nil)
 			params := careParams()
 			params.Variant = tc.variant
 			if _, err := service.ExportBetreuungsplan(context.Background(), params); err != nil {
@@ -228,8 +113,8 @@ func TestBetreuungsplanAbsentStaffOnlyMarkedInternally(t *testing.T) {
 	absent.IsAbsent = true
 
 	service, renderer := newBetreuungsplanService(
-		[]*scheduleModel.ActivityInstance{instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)},
-		[]*scheduleModel.InstanceStaff{instanceStaff(11, 7), absent},
+		[]*Instance{instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)},
+		[]*InstanceStaff{instanceStaff(11, 7), absent},
 		nil,
 	)
 	if _, err := service.ExportBetreuungsplan(context.Background(), careParams()); err != nil {
@@ -240,8 +125,8 @@ func TestBetreuungsplanAbsentStaffOnlyMarkedInternally(t *testing.T) {
 	}
 
 	service, renderer = newBetreuungsplanService(
-		[]*scheduleModel.ActivityInstance{instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)},
-		[]*scheduleModel.InstanceStaff{instanceStaff(11, 7), absent},
+		[]*Instance{instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)},
+		[]*InstanceStaff{instanceStaff(11, 7), absent},
 		nil,
 	)
 	params := careParams()
@@ -259,7 +144,7 @@ func TestBetreuungsplanOrdersOfferingsByEarliestStart(t *testing.T) {
 	t.Parallel()
 
 	service, renderer := newBetreuungsplanService(
-		[]*scheduleModel.ActivityInstance{
+		[]*Instance{
 			instance(12, monday, clock(14, 30), clock(15, 30), "Lernzeit", 4),
 			instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3),
 			instance(13, tuesday, clock(7, 30), clock(8, 0), "Randstunde", 4),
@@ -294,7 +179,7 @@ func TestBetreuungsplanKeepsSameNamedOfferingsApart(t *testing.T) {
 	second.ActivityGroupID = ptr(int64(42))
 
 	service, renderer := newBetreuungsplanService(
-		[]*scheduleModel.ActivityInstance{first, second}, nil, nil)
+		[]*Instance{first, second}, nil, nil)
 	if _, err := service.ExportBetreuungsplan(context.Background(), careParams()); err != nil {
 		t.Fatalf("ExportBetreuungsplan: %v", err)
 	}
@@ -321,7 +206,7 @@ func TestBetreuungsplanGroupsSpontaneousBlocksByTitle(t *testing.T) {
 	t.Parallel()
 
 	service, renderer := newBetreuungsplanService(
-		[]*scheduleModel.ActivityInstance{
+		[]*Instance{
 			instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3),
 			instance(12, tuesday, clock(12, 0), clock(13, 0), "Mensa", 3),
 		}, nil, nil)
@@ -349,7 +234,7 @@ func TestBetreuungsplanNoteOnlyOnInternalSheet(t *testing.T) {
 	} {
 		t.Run(string(tc.variant), func(t *testing.T) {
 			service, renderer := newBetreuungsplanService(
-				[]*scheduleModel.ActivityInstance{noted}, nil, nil)
+				[]*Instance{noted}, nil, nil)
 			params := careParams()
 			params.Variant = tc.variant
 			if _, err := service.ExportBetreuungsplan(context.Background(), params); err != nil {
@@ -369,11 +254,11 @@ func TestBetreuungsplanCancelledBlockKeepsNoteInternally(t *testing.T) {
 	t.Parallel()
 
 	cancelled := instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)
-	cancelled.Status = scheduleModel.InstanceStatusCancelled
+	cancelled.Cancelled = true
 	cancelled.Notes = ptr("Ersatz in Gruppenraum 1")
 
 	service, renderer := newBetreuungsplanService(
-		[]*scheduleModel.ActivityInstance{cancelled}, nil, nil)
+		[]*Instance{cancelled}, nil, nil)
 	params := careParams()
 	params.Variant = VariantInternal
 	if _, err := service.ExportBetreuungsplan(context.Background(), params); err != nil {
