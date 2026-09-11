@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { TEST_CLOCK_TODAY } from "~/test/clock";
 
 import {
   RestOfDayNotSavedError,
@@ -54,11 +55,11 @@ const roster: TimetableRoster = {
     activeGroupId: "group-1",
     roomId: "room-1",
     roomName: "Raum 1",
-    date: "2026-09-09",
+    date: TEST_CLOCK_TODAY,
     startTime: "11:30",
     endTime: "12:30",
     canComplete: false,
-    completeAvailableAt: "2026-09-09T10:30:00Z",
+    completeAvailableAt: `${TEST_CLOCK_TODAY}T10:30:00Z`,
   },
   rows: [row],
   pickupTimesLoaded: true,
@@ -165,7 +166,7 @@ describe("runRestOfDayExcusalRequest", () => {
     expect(saveStudentPartialAbsence).toHaveBeenCalledWith(
       "42",
       null,
-      "2026-09-09",
+      TEST_CLOCK_TODAY,
       "11:30",
     );
     expect(patchAttendance.mock.invocationCallOrder[0]).toBeLessThan(

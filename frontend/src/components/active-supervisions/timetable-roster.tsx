@@ -200,7 +200,7 @@ function ExcuseScopeModal({
         {
           value: EXCUSE_SCOPE_REST_OF_DAY,
           label: "Rest des Tages",
-          description: `Ab ${instance.startTime} Uhr alle Blöcke heute. Sie finden das auf der Seite des Kindes.`,
+          description: `Ab ${instance.startTime} Uhr alle Blöcke heute.`,
         },
       ]}
     />

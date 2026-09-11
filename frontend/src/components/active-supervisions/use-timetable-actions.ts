@@ -350,7 +350,7 @@ export function useTimetableActions(
       } catch (err) {
         if (activeTimetableInstanceIdRef.current !== instanceId) return;
         const blockExcused = err instanceof RestOfDayNotSavedError;
-        logger.error("failed to excuse student for the rest of the day", {
+        logger.error("timetable_rest_of_day_excusal_failed", {
           instance_id: instanceId,
           student_id: row.studentId,
           block_excused: blockExcused,
@@ -358,7 +358,7 @@ export function useTimetableActions(
         });
         setError(
           blockExcused
-            ? "Dieser Block ist entschuldigt. Der Rest des Tages hat nicht geklappt. Bitte prüfen Sie das auf der Seite des Kindes."
+            ? "Dieser Block ist entschuldigt. Die späteren Blöcke sind es noch nicht. Bitte tragen Sie das auf der Seite des Kindes ein."
             : "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
         );
       }
@@ -366,10 +366,14 @@ export function useTimetableActions(
       try {
         await mutateRoster();
       } catch (err) {
-        logger.warn("timetable_roster_sync_failed_after_rest_of_day", {
+        if (activeTimetableInstanceIdRef.current !== instanceId) return;
+        logger.warn("timetable_roster_sync_failed_after_successful_action", {
+          action: "excused-rest-of-day",
           student_id: row.studentId,
           error: err instanceof Error ? err.message : String(err),
         });
+        void logger.flush();
+        window.location.reload();
       }
     },
     [
