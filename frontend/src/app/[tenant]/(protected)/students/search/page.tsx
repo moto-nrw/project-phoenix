@@ -18,6 +18,8 @@ import {
 // SSE is handled globally by TenantAuthWrapper - real-time updates work automatically
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
+import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
+import { HELP_TOPICS } from "~/lib/help-topics";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { Alert } from "~/components/ui/alert";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
@@ -943,6 +945,7 @@ function SearchPageContent() {
     },
   });
   const searchParams = useSearchParams();
+  useSetBreadcrumb({ helpTopic: HELP_TOPICS.studentSearch });
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const storageKey = useMemo(
     () => buildSearchFilterStorageKey(session?.user),
@@ -2734,6 +2737,7 @@ function SearchPageContent() {
       <div className="-mx-1 px-1 pb-2 sm:mx-0 sm:px-0">
         <PageHeaderWithSearch
           title="Alle Kinder"
+          helpTopic={HELP_TOPICS.studentSearch}
           badge={{
             icon: (
               <Users className="h-5 w-5 text-gray-600" aria-hidden="true" />

@@ -19,6 +19,7 @@ import { ActiveFilterChips } from "./ActiveFilterChips";
 import { NavigationTabs } from "./NavigationTabs";
 import { OverflowMenu } from "./OverflowMenu";
 import { DesktopTabsActionArea, MobileTabsActionArea } from "./TabsActionArea";
+import { ContextHelpLink } from "~/components/help/context-help-link";
 import {
   InlineStatusBadge,
   DesktopSearchAction,
@@ -41,6 +42,7 @@ export function PageHeaderWithSearch({
   concept,
   badge,
   statusIndicator,
+  helpTopic,
   tabs,
   search,
   filters = EMPTY_FILTERS,
@@ -133,6 +135,7 @@ export function PageHeaderWithSearch({
           concept={concept}
           badge={badge}
           statusIndicator={statusIndicator}
+          helpTopic={helpTopic}
           actionButton={mobileActionButton ?? actionButton}
           overflowMenu={overflowMenu}
         />
@@ -149,6 +152,7 @@ export function PageHeaderWithSearch({
           statusIndicator={statusIndicator}
           badge={badge}
           overflowMenu={overflowMenu}
+          helpTopic={hasTitle ? undefined : helpTopic}
         />
       )}
 
@@ -264,6 +268,7 @@ interface TabsSectionProps {
   readonly statusIndicator?: PageHeaderWithSearchProps["statusIndicator"];
   readonly badge?: PageHeaderWithSearchProps["badge"];
   readonly overflowMenu?: PageHeaderWithSearchProps["overflowMenu"];
+  readonly helpTopic?: PageHeaderWithSearchProps["helpTopic"];
 }
 
 function TabsSection({
@@ -275,6 +280,7 @@ function TabsSection({
   statusIndicator,
   badge,
   overflowMenu,
+  helpTopic,
 }: TabsSectionProps) {
   const hasOverflowMenu = overflowMenu !== undefined && overflowMenu.length > 0;
 
@@ -283,6 +289,10 @@ function TabsSection({
       <div className="flex flex-wrap items-center justify-between gap-2 md:flex-nowrap md:items-end md:gap-4">
         {tabs ? (
           <NavigationTabs {...tabs} className="min-w-0 flex-[1_1_10rem]" />
+        ) : null}
+
+        {helpTopic ? (
+          <ContextHelpLink topic={helpTopic} className="size-11 md:hidden" />
         ) : null}
 
         {tabsRowAction ? (

@@ -16,6 +16,8 @@ import {
 } from "~/lib/tenant-context";
 import { normalizeTenantPathname } from "~/lib/tenant-path";
 import { matchesPathPrefix } from "~/lib/section-navigation";
+import { getHelpTopicForPath } from "~/lib/help-topics";
+import { ContextHelpLink } from "~/components/help/context-help-link";
 
 // Import extracted components
 import { BrandLink, BreadcrumbDivider } from "./header/brand-link";
@@ -82,6 +84,7 @@ export function Header() {
     activeSupervisionName,
     ogsGroupName,
     pageTitle: customPageTitle,
+    helpTopic,
   } = breadcrumb;
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
@@ -146,6 +149,8 @@ export function Header() {
   const schoolPageTitle =
     mode === "school" ? schoolTitleForPath(pathname) : null;
   const displayedPageTitle = parentPageTitle ?? schoolPageTitle ?? pageTitle;
+  const contextualHelpTopic =
+    mode === "teacher" ? (helpTopic ?? getHelpTopicForPath(pathname)) : null;
 
   // Derive user info from ShellAuth context
   const userName = user?.name ?? "Benutzer";
@@ -261,20 +266,28 @@ export function Header() {
                 {displayedPageTitle}
               </span>
             )}
-            <HeaderBreadcrumb
-              pathname={pathname}
-              pageTitle={displayedPageTitle}
-              pageTypeInfo={pageTypeInfo}
-              sectionBreadcrumb={sectionBreadcrumb}
-              isScrolled={isScrolled}
-              studentName={studentName}
-              staffName={staffName}
-              referrer={referrer}
-              breadcrumbLabel={breadcrumbLabel}
-              historyType={historyType}
-              ogsGroupName={ogsGroupName}
-              activeSupervisionName={activeSupervisionName}
-            />
+            <div className="flex min-w-0 items-center gap-1">
+              <HeaderBreadcrumb
+                pathname={pathname}
+                pageTitle={displayedPageTitle}
+                pageTypeInfo={pageTypeInfo}
+                sectionBreadcrumb={sectionBreadcrumb}
+                isScrolled={isScrolled}
+                studentName={studentName}
+                staffName={staffName}
+                referrer={referrer}
+                breadcrumbLabel={breadcrumbLabel}
+                historyType={historyType}
+                ogsGroupName={ogsGroupName}
+                activeSupervisionName={activeSupervisionName}
+              />
+              {contextualHelpTopic ? (
+                <ContextHelpLink
+                  topic={contextualHelpTopic}
+                  containerClassName="hidden md:inline-flex"
+                />
+              ) : null}
+            </div>
           </div>
 
           {/* Right section: Actions + Profile */}

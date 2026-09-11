@@ -10,6 +10,7 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
+import type { HelpTopicId } from "~/lib/help-topics";
 
 interface BreadcrumbData {
   studentName?: string;
@@ -18,6 +19,7 @@ interface BreadcrumbData {
   activeSupervisionName?: string;
   ogsGroupName?: string;
   pageTitle?: string;
+  helpTopic?: HelpTopicId;
 }
 
 interface BreadcrumbContextValue {

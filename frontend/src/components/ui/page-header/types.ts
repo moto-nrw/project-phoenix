@@ -2,6 +2,7 @@
 
 import type { OverflowMenuItem } from "./OverflowMenu";
 import type { MotoConceptKey } from "~/lib/moto-concepts";
+import type { HelpTopicId } from "~/lib/help-topics";
 
 export type { OverflowMenuItem } from "./OverflowMenu";
 
@@ -23,6 +24,8 @@ export interface PageHeaderWithSearchProps {
     readonly color: "green" | "yellow" | "red" | "gray";
     readonly tooltip?: string;
   };
+  /** Contextual entry into the help article for this exact page. */
+  readonly helpTopic?: HelpTopicId;
 
   // Optional navigation tabs (like in OGS groups or MyRoom)
   readonly tabs?: {
@@ -219,6 +222,7 @@ export interface PageHeaderProps {
     readonly tooltip?: string;
   };
   readonly actionButton?: React.ReactNode;
+  readonly helpTopic?: HelpTopicId;
   /** Optional kebab-menu rendered after the action button on mobile. */
   readonly overflowMenu?: readonly OverflowMenuItem[];
   readonly className?: string;
