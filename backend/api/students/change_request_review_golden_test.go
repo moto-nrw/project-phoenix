@@ -402,6 +402,12 @@ func (s *goldenScrubber) value(key, requestType string, v any) any {
 		if namespace := goldenIDNamespace(key, requestType); namespace != "" && isDecimal(typed) {
 			return s.token(namespace, typed)
 		}
+		// The care request's impact fingerprint is a 64-character digest the
+		// retained service produces and the projection passes through.
+		// Secret scanners flag such a literal in a committed file.
+		if key == "impact_token" {
+			return "<impact-token>"
+		}
 		// The offering conflict key names the offering by its ID.
 		if id, ok := strings.CutPrefix(typed, "offer:"); ok && strings.HasPrefix(key, "conflict_key") && isDecimal(id) {
 			return "offer:" + s.token("offering", id)

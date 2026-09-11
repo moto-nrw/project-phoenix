@@ -155,7 +155,10 @@ pre-cutover four-service fan-out reader: the same test file, copied into the
 projection reproduces that file byte for byte, and so does a second run in a
 fresh process with new synthetic IDs. Synthetic IDs, suffixed group and
 offering names and the offering ID inside a conflict key are replaced by
-named tokens; the next cursor is decoded to its per-type positions.
+named tokens; the next cursor is decoded to its per-type positions. The care
+request's impact fingerprint is tokenized too: it is a 64-character digest
+that the retained service produces and the projection only passes through,
+and a literal digest in a committed file trips secret scanners.
 
 The golden has four deliberate limits. The pre-cutover reader judged
 urgency against the wall clock, so every calendar day lies long before or
