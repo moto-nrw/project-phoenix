@@ -497,8 +497,15 @@ function MeinRaumPageContent() {
       actions={
         hasHeadActions ? (
           <>
-            {openRoomBadge}
-            {ownSupervisionBadge}
+            {/* Die Abzeichen sind eine Zeile: das Gerüst gibt unter sm jedem
+                Kopf-Element eine eigene volle Zeile, zwei gestreckte Pillen
+                untereinander läsen sich wie zwei Knöpfe. */}
+            {openRoomBadge || ownSupervisionBadge ? (
+              <span className="flex items-center gap-2">
+                {openRoomBadge}
+                {ownSupervisionBadge}
+              </span>
+            ) : null}
             {addSupervisorButton}
             {superviseAction}
             {releaseAction}

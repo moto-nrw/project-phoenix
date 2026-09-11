@@ -964,10 +964,6 @@ export const appChapters: readonly GuideChapter[] = [
           "Ungeplantes Kind über `Kind hinzufügen` in der Kopfzeile der Liste nachtragen. Im Fenster das Kind über `Weiteres Kind suchen...` finden.",
           "Bei mehreren Treffern ein Kind antippen. Danach `Hinzufügen` wählen. Bei einem Treffer direkt `Hinzufügen` wählen.",
           "Im Bereich `Kinder unterwegs` Kinder ohne Raum auswählen, einen Zielraum wählen und mit `In Raum setzen` zuweisen.",
-          "Offene Räume stehen in der Seitenleiste unter `Offene Räume`, direkt unter Ihren eigenen Aufsichten. Ein offener Raum ist immer erreichbar, auch wenn dort gerade niemand ist.",
-          "Oben im offenen Raum steht `Offener Raum`. Haben Sie dort die Aufsicht, steht daneben `Eigene Aufsicht`. Den Raum zu sehen heißt nicht, dass Sie dort die Aufsicht haben.",
-          "Sie sehen alle Kinder, die dort gerade erfasst sind. Jedes Kind steht einmal in der Liste, mit seinem Angebot. Laufen dort mehrere Angebote, stehen alle in derselben Liste.",
-          "Den Schulhof über seinen Raum und `Beaufsichtigen` oben rechts führen. Läuft dort bereits eine Aufsicht oder ein gestarteter Termin, treten Sie als weitere Aufsicht bei; sonst startet eine spontane Schulhof-Aufsicht. Im Dialog für eine spontane Aktivität lässt sich der Raum `Schulhof` wie jeder andere Raum wählen.",
           "Für ein neues Angebot `Spontane Aktivität starten`.",
           "Spontane Aktivitäten sind nur montags bis freitags möglich.",
           "Erfasst Ihre Einrichtung Anwesenheit ohne Raum- oder Aktivitätszuordnung, erscheinen weder dieser Bereich noch `Räume` und `Aktivitäten` in der Seitenleiste. Ist die Schulhof-Funktion aktiviert, kann der Schulhof trotzdem zusätzlich erfasst werden. Diesen Modus stellt das moto-Team ein.",
@@ -983,6 +979,23 @@ export const appChapters: readonly GuideChapter[] = [
         screenshot:
           "Dialog `Kind ungeplant hinzufügen` mit Suchfeld und mehreren Kindern zur Auswahl.",
         image: "/help/screens/aktuelle-aufsicht.webp",
+      },
+      {
+        id: "offene-raeume",
+        title: "Offene Räume",
+        icon: Eye,
+        summary:
+          "Freigegebene Räume sehen alle Betreuungskräfte, auch wenn dort gerade niemand ist.",
+        steps: [
+          "In der Seitenleiste `Offene Räume` aufklappen. Die Räume stehen direkt unter Ihren eigenen Aufsichten.",
+          "Einen Raum wählen. Oben steht `Offener Raum`. Haben Sie dort die Aufsicht, steht daneben `Eigene Aufsicht`.",
+          "Den Raum zu sehen heißt nicht, dass Sie dort die Aufsicht haben.",
+          "Sie sehen alle Kinder, die dort gerade erfasst sind. Jedes Kind steht einmal in der Liste, mit seinem Angebot. Laufen dort mehrere Angebote, stehen alle in derselben Liste.",
+          "Den Schulhof über `Beaufsichtigen` oben rechts übernehmen. Läuft dort bereits eine Aufsicht oder ein gestarteter Termin, treten Sie als weitere Aufsicht bei; sonst startet eine spontane Schulhof-Aufsicht. Im Dialog für eine spontane Aktivität lässt sich der Raum `Schulhof` wie jeder andere Raum wählen.",
+        ],
+        screenshot:
+          "Offener Raum `Kreativraum` mit dem Abzeichen `Offener Raum` oben und dem Bereich `Offene Räume` in der Seitenleiste.",
+        image: "/help/screens/offene-raeume.webp",
       },
       {
         id: "tagesauswertung",
