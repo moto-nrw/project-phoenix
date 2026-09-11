@@ -522,7 +522,7 @@ func findRoomForActivity(activityName string, rooms map[string]int64) int64 {
 		"Kochen":       "Mensa",
 		"Lesen":        "Leseecke",
 		"Musik":        "Musikraum",
-		"Tanzen":       "Sporthalle", // shares the released Sporthalle with Fußball (#3065)
+		"Tanzen":       "Bewegungsraum",
 		"Schach":       "OGS-Raum 2",
 		"Garten":       "Schulhof",
 		"Freispiel":    "OGS-Raum 3",

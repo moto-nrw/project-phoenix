@@ -55,7 +55,7 @@ func TestFindRoomForActivity_AllMappings(t *testing.T) {
 		"Kochen":       6,
 		"Lesen":        8,
 		"Musik":        9,
-		"Tanzen":       4,
+		"Tanzen":       10,
 		"Schach":       2,
 		"Garten":       7,
 		"Freispiel":    3,
