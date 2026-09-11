@@ -381,6 +381,48 @@ describe("Sidebar", () => {
       expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
     });
 
+    it("shows data management for an effective admin", () => {
+      mockIsAdmin.mockReturnValue(false);
+      mockUseSession.mockReturnValue(createMockSession(false));
+      mockHasEffectiveAdminScope.mockReturnValue(true);
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
+    });
+
+    it("shows data management for a catalog permission", () => {
+      mockIsAdmin.mockReturnValue(false);
+      mockUseSession.mockReturnValue(createMockSession(false));
+      mockHasEffectiveAdminScope.mockReturnValue(false);
+      mockHasPermission.mockImplementation(
+        (_session, permission) => permission === "activities:manage_categories",
+      );
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
+      expect(screen.getByText("Terminkategorien")).toBeInTheDocument();
+      expect(screen.queryByText("Kinderdaten")).not.toBeInTheDocument();
+    });
+
+    it.each(["staff:manage", "staff:stammdaten"])(
+      "shows personnel data for the delegated %s permission",
+      (permission) => {
+        mockIsAdmin.mockReturnValue(false);
+        mockUseSession.mockReturnValue(createMockSession(false));
+        mockHasEffectiveAdminScope.mockReturnValue(false);
+        mockHasPermission.mockImplementation(
+          (_session, requiredPermission) => requiredPermission === permission,
+        );
+
+        render(<Sidebar />);
+
+        expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
+        expect(screen.getByText("Personal")).toBeInTheDocument();
+      },
+    );
+
     it("shows all children with the children concept icon for admins", () => {
       mockUsePathname.mockReturnValue("/students/search");
       render(<Sidebar />);
@@ -1180,6 +1222,24 @@ describe("Sidebar", () => {
       fireEvent.click(databaseHeader);
 
       expect(mockRouterPush).toHaveBeenCalledWith("/test-tenant/database");
+    });
+
+    it("opens an allowed catalog instead of the forbidden hub for delegated users", () => {
+      mockIsAdmin.mockReturnValue(false);
+      mockHasEffectiveAdminScope.mockReturnValue(false);
+      mockUseSession.mockReturnValue(createMockSession(false));
+      mockHasPermission.mockImplementation(
+        (_session, permission) => permission === "activities:manage_categories",
+      );
+      mockUsePathname.mockReturnValue("/activities");
+
+      render(<Sidebar />);
+
+      fireEvent.click(screen.getByText("Datenverwaltung"));
+
+      expect(mockRouterPush).toHaveBeenCalledWith(
+        "/test-tenant/database/categories",
+      );
     });
 
     it("navigates back to database hub when on a database sub-page", () => {

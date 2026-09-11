@@ -23,7 +23,7 @@ import { Button } from "~/components/ui/button";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useMinuteClock } from "~/lib/pickup-helpers";
-import { isCaregiver } from "~/lib/auth-utils";
+import { hasPermission, isCaregiver } from "~/lib/auth-utils";
 import { UnclaimedRooms } from "~/components/active/unclaimed-rooms";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import {
@@ -398,6 +398,11 @@ function MeinRaumPageContent() {
             onComplete={actions.handleCompleteTimetableInstance}
             onConfirmExpected={actions.handleConfirmExpectedStudents}
             onRosterAction={actions.handleRosterAction}
+            onExcuseRestOfDay={
+              hasPermission(session, "users:update")
+                ? actions.handleExcuseRestOfDay
+                : undefined
+            }
             onSearchChange={actions.handleAddStudentSearchChange}
           />
         </>

@@ -1,6 +1,10 @@
 {
   "commands": [
     "phoenix",
+    "phoenix backfill",
+    "phoenix backfill staff-owner",
+    "phoenix backfill staff-owner reset",
+    "phoenix backfill staff-owner status",
     "phoenix cleanup",
     "phoenix cleanup attendance",
     "phoenix cleanup invitations",
@@ -19,6 +23,9 @@
     "phoenix cleanup visits",
     "phoenix gendoc",
     "phoenix migrate",
+    "phoenix migrate backfill",
+    "phoenix migrate backfill request-child-storage",
+    "phoenix migrate presence-backfill",
     "phoenix migrate reset",
     "phoenix migrate status",
     "phoenix migrate validate",

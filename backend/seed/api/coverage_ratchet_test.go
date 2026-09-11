@@ -28,6 +28,8 @@ import (
 // limited to security/session artifacts, one-time migration backups, legacy
 // compatibility tables, and transient lifecycle state.
 var seedCoverageExemptions = map[string]string{
+	"active.presence_backfill_checkpoints": "one-time migration ledger (#2761); only the explicit backfill CLI writes checkpoints, never seed/API traffic",
+	"active.presence_backfill_batches":     "one-time migration evidence (#2761); empty unless an operator explicitly runs the backfill",
 	// Expand #2718 explicitly requires empty targets and forbids dual writes.
 	// Remove these exemptions when #2762 switches the real seed/API callers.
 	"active.activity_sessions":             "empty Expand target (#2718); old timetable rows remain authoritative until #2762",
@@ -73,8 +75,8 @@ var seedCoverageExemptions = map[string]string{
 	"education.grade_transition_class_teachers":     "empty in prod too",
 
 	"enrollment.care_offering_auto_triggers":       "empty in prod too",
-	"enrollment.care_offering_bookings":            "#2712 Expand requires empty target storage and forbids application dual writes; remove at Cutover",
-	"enrollment.request_child_offering_selections": "#2712 Expand requires empty target storage and forbids application dual writes; remove at Cutover",
+	"enrollment.care_offering_bookings":            "#2713 backfills only legacy rows present at migration time; the seeder writes afterwards and dual writes are forbidden; remove at Cutover",
+	"enrollment.request_child_offering_selections": "#2713 backfills only legacy rows present at migration time; the seeder writes afterwards and dual writes are forbidden; remove at Cutover",
 
 	"feedback.entries": "empty in prod too",
 

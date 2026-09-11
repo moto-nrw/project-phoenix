@@ -61,6 +61,7 @@ import { ToggleChip } from "~/components/ui/toggle-chip";
 import { Input } from "~/components/ui/input";
 import {
   SlideOver,
+  SlideOverBody,
   SlideOverContent,
   SlideOverHeader,
   SlideOverTitle,
@@ -68,6 +69,7 @@ import {
 import { TenantPage } from "~/components/ui/tenant-page";
 import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
 import { Alert } from "~/components/ui/alert";
+import { useFormError } from "~/components/ui/form-error";
 import { formatChatDateTime, formatDate } from "~/lib/date-helpers";
 import {
   DataTable,
@@ -234,7 +236,7 @@ export function PhasesEditor() {
   const [schemas, setSchemas] = useState<FormSchema[]>([]);
   const [periods, setPeriods] = useState<CalendarPeriod[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useFormError();
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<PhaseInput | null>(null);
@@ -318,7 +320,7 @@ export function PhasesEditor() {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [setError, toast]);
 
   useEffect(() => {
     void loadAll();
@@ -350,7 +352,7 @@ export function PhasesEditor() {
     setSchemaSource(assignSchema ? "reuse" : "base");
     setHighlightFormSection(Boolean(assignSchema));
     setError(null);
-  }, [assignSchema]);
+  }, [assignSchema, setError]);
 
   const startEdit = useCallback(
     (phase: Phase, forceFormHighlight = false) => {
@@ -363,7 +365,7 @@ export function PhasesEditor() {
       setHighlightFormSection(Boolean(assignSchema) || forceFormHighlight);
       setError(null);
     },
-    [assignSchema],
+    [assignSchema, setError],
   );
 
   const cancelEdit = () => {
@@ -471,7 +473,6 @@ export function PhasesEditor() {
       const message = err instanceof Error ? err.message : "Unbekannter Fehler";
       logger.error("phase_save_failed", { error: message });
       setError(message);
-      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -548,12 +549,15 @@ export function PhasesEditor() {
     toast,
   ]);
 
-  const startRollover = useCallback((phase: Phase) => {
-    setRolloverSource(phase);
-    setEditingId(null);
-    setDraft(null);
-    setError(null);
-  }, []);
+  const startRollover = useCallback(
+    (phase: Phase) => {
+      setRolloverSource(phase);
+      setEditingId(null);
+      setDraft(null);
+      setError(null);
+    },
+    [setError],
+  );
 
   const startRolloverByID = useCallback(
     (sourcePhaseID: string) => {
@@ -566,7 +570,7 @@ export function PhasesEditor() {
       }
       startRollover(source);
     },
-    [phases, startRollover],
+    [phases, setError, startRollover],
   );
 
   useEffect(() => {
@@ -641,7 +645,7 @@ export function PhasesEditor() {
         setSaving(false);
       }
     },
-    [loadAll, refreshPhaseExpiryWarnings, toast],
+    [loadAll, refreshPhaseExpiryWarnings, setError, toast],
   );
 
   const activePhaseCount = phases.filter((phase) => phase.is_active).length;
@@ -854,7 +858,7 @@ export function PhasesEditor() {
                       : "Anmeldephase bearbeiten"}
                 </SlideOverTitle>
               </SlideOverHeader>
-              <div className="flex-1 overflow-y-auto px-5 py-4">
+              <SlideOverBody error={rolloverSource ? null : error}>
                 {rolloverSource ? (
                   <RolloverForm
                     source={rolloverSource}
@@ -877,7 +881,7 @@ export function PhasesEditor() {
                     onCancel={cancelEdit}
                   />
                 ) : null}
-              </div>
+              </SlideOverBody>
             </SlideOverContent>
           </SlideOver>
 
@@ -955,9 +959,13 @@ export function PhasesEditor() {
       {/* Flex-Spalte statt Block: so wächst die Tabelle als letzte Fläche
           bis zur Unterkante des Bildschirms (`.moto-tenant-body`). */}
       <div className="hidden space-y-4 lg:flex lg:flex-col">
-        {/* Speicher- und Aktivierungsfehler stehen über der Liste; sie dürfen
-            das gerade bearbeitete Formular nicht ersetzen. */}
-        {error ? <Alert type="error" message={error} /> : null}
+        {/* Fehler einer Listenaktion (Aktivieren, Laden) stehen über der
+            Liste. Ist das Bearbeiten-Panel offen, trägt dessen Rumpf den
+            Speicherfehler (Bauart 2 Regel 5); hier stünde er sonst hinter dem
+            Panel und doppelt. */}
+        {error && !(editingId && draft) ? (
+          <Alert type="error" message={error.message} />
+        ) : null}
         <div className="grid gap-2 sm:grid-cols-3">
           <EnrollmentStatTile
             leading={

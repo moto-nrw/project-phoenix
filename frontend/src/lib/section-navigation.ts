@@ -94,6 +94,16 @@ export const DATABASE_SUB_PAGES: readonly SectionSubPage[] = [
   { href: "/database/personal", label: "Personal" },
   { href: "/database/rooms", label: "Räume" },
   { href: "/database/activities", label: "Aktivitäten" },
+  // Die kurzen Stammdaten-Listen der Schule (#3114). Sie standen vorher in
+  // Slide-overs und Auswahlfeldern der Flächen, die sie benutzen.
+  // „Terminkategorien", nicht „Kategorien": Raum, Lohnart und
+  // Personal-Dokument tragen dasselbe Wort für etwas anderes, und es gibt
+  // eine Terminkategorie „Gruppenraum" neben der Raumkategorie gleichen
+  // Namens (#3114).
+  { href: "/database/categories", label: "Terminkategorien" },
+  { href: "/database/planning-tracks", label: "Planungsspuren" },
+  { href: "/database/shift-types", label: "Schichtarten" },
+  { href: "/database/absence-types", label: "Abwesenheitsarten" },
   { href: "/database/groups", label: "Gruppen" },
   { href: "/database/roles", label: "Rollen" },
   { href: "/database/devices", label: "Geräte" },

@@ -1,681 +1,135 @@
 "use client";
 
-import {
-  Archive,
-  ArchiveRestore,
-  Check,
-  ChevronDown,
-  ChevronUp,
-  Pencil,
-  Plus,
-} from "lucide-react";
-import {
-  type KeyboardEvent,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { Check, ChevronDown } from "lucide-react";
+import { useState } from "react";
 
-import { Alert } from "~/components/ui/alert";
-import { AnchoredPopover } from "~/components/ui/anchored-popover";
-import { Button } from "~/components/ui/button";
-import { ColorPickerField } from "~/components/ui/color-picker-field";
-import { EmptyState } from "~/components/ui/empty-state";
-import { Input } from "~/components/ui/input";
-import { ConfirmationModal } from "~/components/ui/modal";
-import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import { useToast } from "~/contexts/ToastContext";
-import { LOCATION_COLORS } from "~/lib/location-helper";
 import {
-  planningTrackService,
-  type PlanningTrack,
-} from "~/lib/planning-track-api";
-
-type View = "select" | "manage" | "form";
-type MutationResult<T> =
-  { readonly ok: true; readonly value: T } | { readonly ok: false };
+  ListboxDropdown,
+  type ListboxDropdownOption,
+} from "~/components/ui/listbox-dropdown";
+import type { PlanningTrack } from "~/lib/planning-track-api";
 
 interface PlanningTrackSelectProps {
   readonly value: string;
   readonly tracks: readonly PlanningTrack[];
   readonly onChange: (value: string) => void;
-  readonly onTracksChanged: (created?: PlanningTrack) => void | Promise<void>;
-  readonly canManage?: boolean;
   readonly disabled?: boolean;
 }
-
-const DEFAULT_COLOR: string = LOCATION_COLORS.OTHER_ROOM;
 
 function normalize(value: string): string {
   return value.trim().toLocaleLowerCase("de");
 }
 
+/**
+ * Auswahl einer Planungsspur — und nur das (#3114).
+ *
+ * Bis dahin trug dasselbe Popover drei Ansichten: auswählen, verwalten,
+ * Formular. Anlegen, Umbenennen, Umsortieren und Archivieren steckten damit
+ * in einem Auswahlfeld, mitten im Termin-Formular. Diese Fläche liegt jetzt
+ * unter „Datenverwaltung → Planungsspuren"; das Feld daneben verlinkt sie.
+ * Geblieben ist, was eine Auswahl braucht: Suche, Farbpunkt und Tastatur.
+ */
 export function PlanningTrackSelect({
   value,
   tracks,
   onChange,
-  onTracksChanged,
-  canManage = false,
   disabled = false,
 }: PlanningTrackSelectProps) {
-  const toast = useToast();
-  const searchRef = useRef<HTMLInputElement>(null);
-  const nameRef = useRef<HTMLInputElement>(null);
-  const manageRef = useRef<HTMLButtonElement>(null);
-  const optionsRef = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(false);
-  const [view, setView] = useState<View>("select");
-  const [items, setItems] = useState<PlanningTrack[]>([...tracks]);
   const [query, setQuery] = useState("");
-  const [editing, setEditing] = useState<PlanningTrack | null>(null);
-  const [name, setName] = useState("");
-  const [color, setColor] = useState(DEFAULT_COLOR);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  // Archivieren ist umkehrbar, aber die Spur verschwindet mitten im
-  // Termin-Formular aus der Auswahl: der Klick öffnet erst die Rückfrage
-  // (BAUARTEN-SPEC Bauart 2 Regel 6, #3109). Das Popover liegt über jedem
-  // Modal (z 10000), darum schließt es für die Dauer der Rückfrage und
-  // öffnet danach wieder in der Verwaltung.
-  const [archiveTarget, setArchiveTarget] = useState<PlanningTrack | null>(
-    null,
-  );
 
-  useEffect(() => setItems([...tracks]), [tracks]);
-
-  useEffect(() => {
-    if (!open) return;
-    if (view === "select") searchRef.current?.focus();
-    if (view === "form") nameRef.current?.focus();
-  }, [open, view]);
-
-  const active = useMemo(
-    () => items.filter((track) => !track.archivedAt),
-    [items],
-  );
-  const archived = useMemo(
-    () => items.filter((track) => track.archivedAt),
-    [items],
-  );
-  const selected = items.find((track) => track.id === value);
+  const selected = tracks.find((track) => track.id === value);
   const normalizedQuery = normalize(query);
-  const visibleTracks = items.filter(
+  // Eine archivierte Spur steht nur da, solange sie der gewählte Wert ist:
+  // sonst würde das Bearbeiten eines alten Termins sie still austauschen.
+  const visibleTracks = tracks.filter(
     (track) =>
       (!track.archivedAt || track.id === value) &&
       normalize(track.name).includes(normalizedQuery),
   );
-  const canCreate =
-    canManage &&
-    query.trim().length > 0 &&
-    !items.some((track) => normalize(track.name) === normalizedQuery);
+  const options: ListboxDropdownOption<string>[] = [
+    ...(normalizedQuery.length === 0
+      ? [{ value: "", label: "Keine Planungsspur" }]
+      : []),
+    ...visibleTracks.map((track) => ({
+      value: track.id,
+      label: `${track.name}${track.archivedAt ? " (archiviert)" : ""}`,
+    })),
+  ];
 
-  const handleOpenChange = (next: boolean) => {
-    setOpen(next);
-    if (next) return;
-    setView("select");
-    setQuery("");
-    setEditing(null);
-    setError(null);
-  };
-
-  const executeMutation = async <T,>(
-    mutation: () => Promise<T>,
-  ): Promise<MutationResult<T>> => {
-    setBusy(true);
-    setError(null);
-    try {
-      return { ok: true, value: await mutation() };
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Aktion fehlgeschlagen");
-      return { ok: false };
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const beginCreate = () => {
-    setEditing(null);
-    setName(query.trim());
-    setColor(DEFAULT_COLOR);
-    setError(null);
-    setView("form");
-  };
-
-  const beginEdit = (track: PlanningTrack) => {
-    setEditing(track);
-    setName(track.name);
-    setColor(track.color);
-    setError(null);
-    setView("form");
-  };
-
-  const save = async () => {
-    const trimmedName = name.trim();
-    if (!trimmedName) {
-      setError("Name ist erforderlich");
-      nameRef.current?.focus();
-      return;
-    }
-
-    if (editing) {
-      const result = await executeMutation(async () => {
-        const updated = await planningTrackService.update(editing.id, {
-          name: trimmedName,
-          color,
-          sort_order: editing.sortOrder,
-        });
-        await onTracksChanged();
-        return updated;
-      });
-      if (!result.ok) return;
-      setItems((current) =>
-        current.map((track) =>
-          track.id === result.value.id ? result.value : track,
-        ),
-      );
-      setEditing(null);
-      setView("manage");
-      return;
-    }
-
-    const result = await executeMutation(async () => {
-      const created = await planningTrackService.create({
-        name: trimmedName,
-        color,
-        sort_order:
-          active.reduce(
-            (highest, track) => Math.max(highest, track.sortOrder),
-            -1,
-          ) + 1,
-      });
-      await onTracksChanged(created);
-      return created;
-    });
-    if (!result.ok) return;
-    setItems((current) => [...current, result.value]);
-    onChange(result.value.id);
-    handleOpenChange(false);
-  };
-
-  const move = async (index: number, offset: -1 | 1) => {
-    const target = index + offset;
-    if (target < 0 || target >= active.length) return;
-    const reordered = [...active];
-    [reordered[index], reordered[target]] = [
-      reordered[target]!,
-      reordered[index]!,
-    ];
-
-    const result = await executeMutation(async () => {
-      const saved = await planningTrackService.reorder(
-        reordered.map((track) => track.id),
-      );
-      await onTracksChanged();
-      return saved;
-    });
-    if (result.ok) setItems(result.value);
-  };
-
-  const restoreTrack = async (track: PlanningTrack) => {
-    const result = await executeMutation(async () => {
-      const restored = await planningTrackService.restore(track.id);
-      await onTracksChanged();
-      return restored;
-    });
-    if (!result.ok) return;
-    setItems((current) =>
-      current.map((item) => (item.id === track.id ? result.value : item)),
-    );
-    toast.success(`Planungsspur „${track.name}“ wiederhergestellt`);
-  };
-
-  const beginArchive = (track: PlanningTrack) => {
-    setError(null);
-    setArchiveTarget(track);
-    setOpen(false);
-  };
-
-  const closeArchiveDialog = () => {
-    setArchiveTarget(null);
-    setView("manage");
-    setOpen(true);
-  };
-
-  const archiveTrack = async (track: PlanningTrack) => {
-    const result = await executeMutation(async () => {
-      await planningTrackService.archive(track.id);
-      await onTracksChanged();
-      return new Date().toISOString();
-    });
-    // Zurück in die Verwaltung: bei Erfolg steht die Spur dort unter
-    // „Archivierte Planungsspuren“, bei einem Fehler zeigt sie den Alert.
-    closeArchiveDialog();
-    if (!result.ok) return;
-    setItems((current) =>
-      current.map((item) =>
-        item.id === track.id ? { ...item, archivedAt: result.value } : item,
-      ),
-    );
-    const toastId = `planning-track-archived-${track.id}`;
-    toast.success(`Planungsspur „${track.name}“ archiviert`, {
-      id: toastId,
-      duration: 0,
-      action: {
-        label: "Rückgängig",
-        onClick: () => {
-          toast.remove(toastId);
-          void restoreTrack(track);
-        },
-      },
-    });
-  };
-
-  const focusOption = (
-    event: KeyboardEvent<HTMLElement>,
-    direction: 1 | -1,
-  ) => {
-    const options = Array.from(
-      optionsRef.current?.querySelectorAll<HTMLElement>('[role="option"]') ??
-        [],
-    );
-    if (options.length === 0) return;
-    event.preventDefault();
-    const currentIndex = options.indexOf(event.currentTarget);
-    const nextIndex =
-      currentIndex < 0
-        ? direction === 1
-          ? 0
-          : options.length - 1
-        : (currentIndex + direction + options.length) % options.length;
-    options[nextIndex]?.focus();
-  };
-
-  const renderSelectView = (close: () => void) => (
-    <div>
-      <div className="border-b border-gray-100 p-2">
-        <label htmlFor="planning_track_search" className="sr-only">
-          Planungsspur suchen oder anlegen
-        </label>
-        <Input
-          ref={searchRef}
-          id="planning_track_search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "ArrowDown") focusOption(event, 1);
-            if (event.key === "ArrowUp") focusOption(event, -1);
-          }}
-          placeholder="Planungsspur suchen oder anlegen …"
-          autoComplete="off"
-          controlSize="compact"
-        />
-      </div>
-      <div
-        ref={optionsRef}
-        role="listbox"
-        aria-label="Planungsspuren"
-        className="py-1"
-      >
-        {normalizedQuery.length === 0 && (
-          <button
-            type="button"
-            role="option"
-            aria-selected={value === ""}
-            onKeyDown={(event) => {
-              if (event.key === "ArrowDown") focusOption(event, 1);
-              if (event.key === "ArrowUp") focusOption(event, -1);
-            }}
-            onClick={() => {
-              onChange("");
-              close();
-            }}
-            className="flex min-h-10 w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 focus-visible:bg-gray-50 focus-visible:outline-none"
-          >
-            <span className="size-4" aria-hidden="true" />
-            <span className="min-w-0 flex-1 truncate">Keine Planungsspur</span>
-            {value === "" && <Check className="size-4" aria-hidden="true" />}
-          </button>
-        )}
-        {visibleTracks.map((track) => (
-          <button
-            key={track.id}
-            type="button"
-            role="option"
-            aria-selected={track.id === value}
-            onKeyDown={(event) => {
-              if (event.key === "ArrowDown") focusOption(event, 1);
-              if (event.key === "ArrowUp") focusOption(event, -1);
-            }}
-            onClick={() => {
-              onChange(track.id);
-              close();
-            }}
-            className="flex min-h-10 w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 focus-visible:bg-gray-50 focus-visible:outline-none"
-          >
-            <span
-              className="size-4 shrink-0 rounded-full border border-black/10"
-              style={{ backgroundColor: track.color }}
-              aria-hidden="true"
-            />
-            <span className="min-w-0 flex-1 truncate">
-              {track.name}
-              {track.archivedAt ? " (archiviert)" : ""}
-            </span>
-            {track.id === value && (
-              <Check className="size-4 shrink-0" aria-hidden="true" />
-            )}
-          </button>
-        ))}
-        {visibleTracks.length === 0 && !canCreate && (
+  return (
+    <ListboxDropdown
+      id="event_planning_track"
+      value={value}
+      options={options}
+      onChange={onChange}
+      ariaLabel="Planungsspur"
+      disabled={disabled}
+      placeholder="Keine Planungsspur"
+      triggerRole="combobox"
+      searchValue={query}
+      onSearchChange={setQuery}
+      searchPlaceholder="Planungsspur suchen …"
+      onOpenChange={(open) => {
+        if (!open) setQuery("");
+      }}
+      className="moto-content-surface flex h-10 w-full items-center justify-between gap-2 rounded-lg border px-3 text-left text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 disabled:opacity-80"
+      menuClassName="moto-popover-surface flex max-h-72 flex-col overflow-hidden rounded-xl border"
+      listClassName="scrollbar-thin overflow-y-auto py-1"
+      emptyState={
+        <li role="presentation">
           <p className="px-3 py-4 text-center text-sm text-gray-500">
             Keine Planungsspur gefunden.
           </p>
-        )}
-        {canCreate && (
-          <button
-            type="button"
-            role="option"
-            aria-selected="false"
-            onKeyDown={(event) => {
-              if (event.key === "ArrowDown") focusOption(event, 1);
-              if (event.key === "ArrowUp") focusOption(event, -1);
-            }}
-            onClick={beginCreate}
-            className="flex min-h-10 w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-gray-900 hover:bg-gray-50 focus-visible:bg-gray-50 focus-visible:outline-none"
-          >
-            <Plus className="size-4 shrink-0" aria-hidden="true" />
-            <span className="min-w-0 truncate">
-              „{query.trim()}“ als Planungsspur anlegen
+        </li>
+      }
+      optionClassName="flex min-h-10 w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 focus-visible:bg-gray-50 focus-visible:outline-none"
+      activeOptionClassName="flex min-h-10 w-full items-center gap-2 bg-gray-50 px-3 py-2 text-left text-sm text-gray-900 focus-visible:outline-none"
+      renderTrigger={({ open }) => (
+        <>
+          <span className="flex min-w-0 flex-1 items-center gap-2">
+            {selected ? (
+              <span
+                className="size-4 shrink-0 rounded-full border border-black/10"
+                style={{ backgroundColor: selected.color }}
+                aria-hidden="true"
+              />
+            ) : null}
+            <span className="truncate text-gray-900">
+              {selected
+                ? `${selected.name}${selected.archivedAt ? " (archiviert)" : ""}`
+                : "Keine Planungsspur"}
             </span>
-          </button>
-        )}
-      </div>
-      {canManage && (
-        <div className="border-t border-gray-100 p-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="compact"
-            className="w-full justify-start"
-            onClick={() => {
-              setError(null);
-              setView("manage");
-            }}
-          >
-            Planungsspuren verwalten
-          </Button>
-        </div>
-      )}
-    </div>
-  );
-
-  const renderManageView = (overflowMenuPortal: {
-    ownerId: string;
-    zIndex: number;
-  }) => (
-    <div className="p-3">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h3 className="text-sm font-semibold text-gray-900">
-          Planungsspuren verwalten
-        </h3>
-        <div className="flex shrink-0 items-center gap-2">
-          <Button
-            ref={manageRef}
-            type="button"
-            variant="outline"
-            size="compact"
-            onClick={beginCreate}
-          >
-            <Plus className="size-4" aria-hidden="true" /> Neue Planungsspur
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="compact"
-            onClick={() => setView("select")}
-          >
-            Fertig
-          </Button>
-        </div>
-      </div>
-      {error && <Alert type="error" message={error} />}
-      {active.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-gray-200 px-4 py-2">
-          <EmptyState
-            variant="compact"
-            title="Noch keine Planungsspuren angelegt"
-            description="Legen Sie eine Planungsspur an, um Termine farblich zu bündeln."
+          </span>
+          <ChevronDown
+            className={`size-4 shrink-0 text-gray-400 transition-transform ${
+              open ? "rotate-180" : ""
+            }`}
+            aria-hidden="true"
           />
-        </div>
-      ) : (
-        <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200">
-          {active.map((track, index) => (
-            <li key={track.id} className="flex items-center gap-1 px-2 py-1.5">
+        </>
+      )}
+      renderOption={(option, { selected: isSelected }) => {
+        const track = visibleTracks.find((item) => item.id === option.value);
+        return (
+          <>
+            {track ? (
               <span
                 className="size-4 shrink-0 rounded-full border border-black/10"
                 style={{ backgroundColor: track.color }}
                 aria-hidden="true"
               />
-              <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">
-                {track.name}
-              </span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={`${track.name} nach oben`}
-                disabled={busy || index === 0}
-                onClick={() => void move(index, -1)}
-              >
-                <ChevronUp className="size-4" aria-hidden="true" />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={`${track.name} nach unten`}
-                disabled={busy || index === active.length - 1}
-                onClick={() => void move(index, 1)}
-              >
-                <ChevronDown className="size-4" aria-hidden="true" />
-              </Button>
-              {/* Umsortieren ist eine Listenaktion und bleibt sichtbar;
-                  Bearbeiten und Archivieren betreffen die Spur und liegen
-                  im Kebab (BAUARTEN-SPEC Bauart 1 Regel 4). */}
-              <OverflowMenu
-                ariaLabel={`Aktionen für ${track.name}`}
-                triggerSize="sm"
-                portalOwnerId={overflowMenuPortal.ownerId}
-                portalZIndex={overflowMenuPortal.zIndex}
-                items={[
-                  {
-                    label: "Bearbeiten",
-                    icon: <Pencil className="size-4" aria-hidden="true" />,
-                    disabled: busy,
-                    onClick: () => beginEdit(track),
-                  },
-                  {
-                    label: "Archivieren",
-                    icon: <Archive className="size-4" aria-hidden="true" />,
-                    disabled: busy,
-                    onClick: () => beginArchive(track),
-                  },
-                ]}
-              />
-            </li>
-          ))}
-        </ul>
-      )}
-      {archived.length > 0 && (
-        <details className="mt-3">
-          <summary className="cursor-pointer text-xs font-semibold text-gray-600">
-            Archivierte Planungsspuren ({archived.length})
-          </summary>
-          <ul className="mt-2 divide-y divide-gray-100 rounded-lg border border-gray-200">
-            {archived.map((track) => (
-              <li
-                key={track.id}
-                className="flex items-center gap-2 px-2 py-1.5 text-gray-500"
-              >
-                <span className="min-w-0 flex-1 truncate text-sm">
-                  {track.name}
-                </span>
-                <OverflowMenu
-                  ariaLabel={`Aktionen für ${track.name}`}
-                  triggerSize="sm"
-                  portalOwnerId={overflowMenuPortal.ownerId}
-                  portalZIndex={overflowMenuPortal.zIndex}
-                  items={[
-                    {
-                      label: "Wiederherstellen",
-                      icon: (
-                        <ArchiveRestore className="size-4" aria-hidden="true" />
-                      ),
-                      disabled: busy,
-                      onClick: () => void restoreTrack(track),
-                    },
-                  ]}
-                />
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
-    </div>
-  );
-
-  const renderFormView = () => (
-    <div className="space-y-4 p-3">
-      <h3 className="text-sm font-semibold text-gray-900">
-        {editing ? "Planungsspur bearbeiten" : "Neue Planungsspur"}
-      </h3>
-      {error && <Alert type="error" message={error} />}
-      <div>
-        <label
-          htmlFor="planning_track_name"
-          className="mb-1 block text-sm font-medium text-gray-700"
-        >
-          Name
-        </label>
-        <Input
-          ref={nameRef}
-          id="planning_track_name"
-          value={name}
-          maxLength={100}
-          onChange={(event) => setName(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              void save();
-            }
-          }}
-          required
-          controlSize="compact"
-        />
-      </div>
-      <ColorPickerField
-        label="Farbe"
-        value={color}
-        fallbackColor={DEFAULT_COLOR}
-        onChange={(next) => setColor(next ?? DEFAULT_COLOR)}
-      />
-      <div className="flex justify-end gap-2 border-t border-gray-100 pt-3">
-        <Button
-          type="button"
-          variant="outline"
-          size="md"
-          disabled={busy}
-          onClick={() => setView(editing ? "manage" : "select")}
-        >
-          Abbrechen
-        </Button>
-        <Button
-          type="button"
-          variant="primary"
-          size="md"
-          isLoading={busy}
-          onClick={() => void save()}
-        >
-          {editing ? "Speichern" : "Anlegen"}
-        </Button>
-      </div>
-    </div>
-  );
-
-  return (
-    <>
-      <AnchoredPopover
-        open={open}
-        onOpenChange={handleOpenChange}
-        ariaLabel="Planungsspur auswählen und verwalten"
-        initialFocusRef={
-          view === "form" ? nameRef : view === "manage" ? manageRef : searchRef
-        }
-        renderTrigger={({ ref, open: isOpen, panelId, toggle }) => (
-          <button
-            ref={ref}
-            id="event_planning_track"
-            type="button"
-            role="combobox"
-            aria-label="Planungsspur"
-            aria-haspopup="dialog"
-            aria-expanded={isOpen}
-            aria-controls={isOpen ? panelId : undefined}
-            disabled={disabled}
-            onClick={toggle}
-            onKeyDown={(event) => {
-              if (event.key !== "Escape" || !isOpen) return;
-              event.preventDefault();
-              event.stopPropagation();
-              event.nativeEvent.stopImmediatePropagation();
-              handleOpenChange(false);
-            }}
-            className="moto-content-surface flex h-10 w-full items-center justify-between gap-2 rounded-lg border px-3 text-left text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 disabled:opacity-80"
-          >
-            <span className="flex min-w-0 flex-1 items-center gap-2">
-              {selected && (
-                <span
-                  className="size-4 shrink-0 rounded-full border border-black/10"
-                  style={{ backgroundColor: selected.color }}
-                  aria-hidden="true"
-                />
-              )}
-              <span className="truncate text-gray-900">
-                {selected
-                  ? `${selected.name}${selected.archivedAt ? " (archiviert)" : ""}`
-                  : "Keine Planungsspur"}
-              </span>
+            ) : (
+              <span className="size-4 shrink-0" aria-hidden="true" />
+            )}
+            <span className="min-w-0 flex-1 truncate" title={option.label}>
+              {option.label}
             </span>
-            <ChevronDown
-              className={`size-4 shrink-0 text-gray-400 ${isOpen ? "rotate-180" : ""}`}
-              aria-hidden="true"
-            />
-          </button>
-        )}
-      >
-        {({ close, overflowMenuPortal }) => {
-          if (view === "manage") return renderManageView(overflowMenuPortal);
-          if (view === "form") return renderFormView();
-          return renderSelectView(close);
-        }}
-      </AnchoredPopover>
-      <ConfirmationModal
-        isOpen={archiveTarget !== null}
-        title="Planungsspur archivieren?"
-        confirmText="Archivieren"
-        cancelText="Abbrechen"
-        isConfirmLoading={busy}
-        isDismissDisabled={busy}
-        onConfirm={() => archiveTarget && void archiveTrack(archiveTarget)}
-        onClose={closeArchiveDialog}
-      >
-        <p className="text-sm text-gray-700">
-          Die Planungsspur <strong>{archiveTarget?.name}</strong> wird für neue
-          Termine nicht mehr angeboten. Bestehende Termine behalten sie. Sie
-          können die Spur jederzeit wiederherstellen.
-        </p>
-      </ConfirmationModal>
-    </>
+            {isSelected ? (
+              <Check className="size-4 shrink-0" aria-hidden="true" />
+            ) : null}
+          </>
+        );
+      }}
+    />
   );
 }

@@ -30,6 +30,8 @@ const mockTimeTrackingService = vi.hoisted(() => ({
   exportSessions: vi.fn(),
 }));
 
+const mockTenantMutate = vi.hoisted(() => vi.fn());
+
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(),
 }));
@@ -48,7 +50,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
-  useTenantMutate: vi.fn(() => vi.fn()),
+  useTenantMutate: vi.fn(() => mockTenantMutate),
   useTenantMutateMatching: vi.fn(() => vi.fn()),
 }));
 
@@ -248,6 +250,18 @@ vi.mock("~/components/ui/slide-over", () => ({
   SlideOverContent: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="modal-body">{children}</div>
   ),
+  SlideOverBody: ({
+    children,
+    error,
+  }: {
+    children: React.ReactNode;
+    error?: string | null;
+  }) => (
+    <div>
+      {error ? <div role="alert">{error}</div> : null}
+      {children}
+    </div>
+  ),
   SlideOverHeader: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
@@ -400,6 +414,7 @@ vi.mock("lucide-react", () => ({
   ChevronLeft: () => <span data-testid="chevron-left" />,
   ChevronRight: () => <span data-testid="chevron-right" />,
   Download: () => <span data-testid="download-icon" />,
+  ExternalLink: () => <span data-testid="external-link" />,
   MoreVertical: () => <span data-testid="more-vertical" />,
   Pencil: () => <span data-testid="pencil-icon" />,
   Plus: () => <span data-testid="plus-icon" />,
@@ -1800,6 +1815,28 @@ describe("TimeTrackingPage", () => {
         expect(timeTrackingService.createAbsence).toHaveBeenCalled();
       });
     });
+  });
+
+  it("refreshes absence types after returning from their management page", () => {
+    setupDefaultMocks();
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          token: "test-token",
+          permissions: ["time_tracking:manage"],
+        },
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    } as never);
+    render(<TimeTrackingPage />);
+
+    fireEvent.click(screen.getByText("Abwesend"));
+    fireEvent.click(screen.getByLabelText("Abwesenheit melden"));
+    act(() => window.dispatchEvent(new Event("focus")));
+
+    expect(mockTenantMutate).toHaveBeenCalledWith("staff-absence-types");
   });
 
   // ── Error Handling (friendlyError) ──────────────────────────────────────

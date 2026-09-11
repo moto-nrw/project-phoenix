@@ -17,10 +17,9 @@ import {
   ShiftEditModal,
   type ShiftEditMode,
 } from "~/components/staff/shift-edit-modal";
-import { ShiftTypeManageModal } from "~/components/staff/shift-type-manage-modal";
 import { SickReportModal } from "~/components/staff/sick-report-modal";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { PlanningContextBar } from "~/components/ui/planning-context-bar";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
@@ -117,7 +116,6 @@ function DienstplanContent() {
     rawView === "halbjahr" && canViewHalbjahr ? "halbjahr" : "woche";
 
   const [modal, setModal] = useState<ModalState | null>(null);
-  const [manageOpen, setManageOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [sickModal, setSickModal] = useState<StaffScheduleStaff | null>(null);
   const [periodModalOpen, setPeriodModalOpen] = useState(false);
@@ -184,8 +182,6 @@ function DienstplanContent() {
     allShifts,
     shiftTypes,
     shiftTypesError,
-    shiftTypesLoading,
-    mutateShiftTypes,
     scheduleError,
     scheduleLoading,
     retryLoad,
@@ -339,7 +335,7 @@ function DienstplanContent() {
         {shiftTypesError && (
           <Alert
             type="warning"
-            message="Schichtarten konnten nicht geladen werden. Der Dienstplan wird mit neutralen Schichtfarben angezeigt; die Schichtartenverwaltung ist vorübergehend deaktiviert."
+            message="Die Schichtarten konnten nicht geladen werden. Der Dienstplan zeigt die Schichten so lange in neutraler Farbe."
           />
         )}
         {allShifts.length === 0 && (
@@ -415,16 +411,17 @@ function DienstplanContent() {
         // einsamen Symbol. Deshalb trägt der Knopf sein Label auf jeder
         // Breite.
         <>
-          <Button
-            type="button"
+          {/* Die Schichtarten liegen in der Datenverwaltung (#3114); eine
+              Kopf-Aktion hat keinen Entwurf zu verlieren und führt deshalb im
+              selben Fenster dorthin. */}
+          <ButtonLink
+            href={tenantPath("/database/shift-types")}
             variant="primary"
             size="md"
-            onClick={() => setManageOpen(true)}
-            disabled={Boolean(shiftTypesError)}
           >
             <Settings2 className="mr-1.5 h-4 w-4 shrink-0" aria-hidden />
             <span className="whitespace-nowrap">Schichtarten verwalten</span>
-          </Button>
+          </ButtonLink>
           {/* Drucken/Exportieren (#2079) meint immer die Woche, die gerade auf
               dem Bildschirm steht -- deshalb hier und nicht auf der zentralen
               Exportseite. Im Menü, weil neben dem Titel eine sichtbare Aktion
@@ -541,17 +538,6 @@ function DienstplanContent() {
           onClose={() => setExportOpen(false)}
         />
       )}
-      <ShiftTypeManageModal
-        isOpen={manageOpen && !shiftTypesError}
-        shiftTypes={shiftTypes ?? []}
-        isLoading={shiftTypesLoading}
-        loadError={Boolean(shiftTypesError)}
-        onClose={() => setManageOpen(false)}
-        onChanged={() => {
-          mutateShiftTypes();
-          refreshAfterPlanMutation();
-        }}
-      />
       {sickModal && (
         <SickReportModal
           isOpen
