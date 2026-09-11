@@ -475,9 +475,10 @@ The projection reads no table directly, so it needs no `read_projections`
 grant; the owner queues keep their per-child scope and tenant isolation. Its
 `Today` port resolves the review day once per call, so the queues' urgency
 phase and the rows' urgency and past flags cannot straddle midnight or
-disagree under a test clock. The parents' personal RSS feed is a separate
-document-shaped capability and keeps its own registered
-`parent-request-feed-read-model` grant; it is not merged into this owner.
+disagree under a test clock. The staff RSS feed
+(`/students/change-requests/rss-feed`) still reads the request tables through
+its own registered `parent-request-feed-read-model` grant; moving it onto this
+owner is open under #2705.
 
 The Device Fleet authentication composition (`modules/devicefleet/deviceauth`)
 is classified as `device-fleet`/`http`. Its `device-fleet.device-auth.*`
