@@ -17,6 +17,7 @@ import {
   upcomingArrivalTime,
 } from "~/lib/timetable-roster-helpers";
 import { canCompleteInstance } from "~/lib/timetable-lifecycle";
+import { TIMETABLE_VIEW_ONLY_NOTICE } from "~/lib/timetable-operation-access";
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import type {
   TimetableRoster,
@@ -772,6 +773,14 @@ export function TimetableRosterContent({
   addStudentError,
 }: TimetableRosterContentProps) {
   const now = useMinuteClock();
+  // Seeing a running block does not mean acting on it (#3167): staff who only
+  // see it through the all_staff overview get the list without actions and a
+  // line that says why. Older backends omit the flag and keep the actions.
+  const viewOnly = attendanceWebEnabled && roster.canOperate === false;
+  const actionsEnabled = attendanceWebEnabled && !viewOnly;
+  const note = viewOnly
+    ? [TIMETABLE_VIEW_ONLY_NOTICE, headerNote].filter(Boolean).join(" ")
+    : headerNote;
   const [addStudentOpen, setAddStudentOpen] = useState(false);
   const closeAddStudent = () => {
     setAddStudentOpen(false);
@@ -837,7 +846,7 @@ export function TimetableRosterContent({
   const instanceIsSpontaneous = roster.instance.isSpontaneous;
   const unplannedTitle = instanceIsSpontaneous ? "Teilnehmende" : "Ungeplant";
   const sectionProps = {
-    attendanceWebEnabled,
+    attendanceWebEnabled: actionsEnabled,
     instanceIsSpontaneous,
     now,
     rosterDate: roster.instance.date,
@@ -851,14 +860,14 @@ export function TimetableRosterContent({
   return (
     <div className="space-y-4">
       <TimetableRosterHeader
-        attendanceWebEnabled={attendanceWebEnabled}
+        attendanceWebEnabled={actionsEnabled}
         confirmableExpectedRows={confirmableExpectedRows}
         isCompletingInstance={isCompletingInstance}
         isConfirmingExpected={isConfirmingExpected}
         now={now}
         roster={roster}
         showTimetableCounts={showTimetableCounts}
-        note={headerNote}
+        note={note}
         onAddStudent={
           canAddUnplanned ? () => setAddStudentOpen(true) : undefined
         }
@@ -880,7 +889,7 @@ export function TimetableRosterContent({
           message="Die Gehzeiten konnten nicht geladen werden. Die Anwesenheitsliste bleibt verfügbar."
         />
       ) : null}
-      {attendanceWebEnabled && canAddUnplanned ? (
+      {actionsEnabled && canAddUnplanned ? (
         <AddUnplannedStudentModal
           isOpen={addStudentOpen}
           instanceId={roster.instance.id}
@@ -906,7 +915,7 @@ export function TimetableRosterContent({
       <TimetableRosterSection
         title="Kommt später"
         description={
-          attendanceWebEnabled
+          actionsEnabled
             ? "Diese Kinder kommen laut Plan später. Bei „Erwartete bestätigen“ sind sie nicht dabei. Kommt ein Kind früher, checken Sie es hier einzeln ein."
             : "Diese Kinder kommen laut Plan später."
         }
