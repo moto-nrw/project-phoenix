@@ -23,10 +23,9 @@ The foreign `auth.accounts` reads of the People Directory, Care Plan parent and
 CLI packages are replaced by owner queries: the account lookup and the
 active-account subquery of `database/repositories/auth`, the public
 `FindAccount` for the parent dashboard, and `CountExpiredTokens` for the
-cleanup preview. The orphaned `auth.accounts_parents` model, repository,
-service methods, `/auth/parent-accounts` routes and frontend client are removed;
-no production code reads or writes that table. Data ownership in
-`policy.json` is unchanged.
+cleanup preview. The legacy `auth.accounts_parents` model, repository, service
+methods, the six `/auth/parent-accounts` routes and the frontend client stay
+unchanged. Data ownership in `policy.json` is unchanged.
 
 ## Local runtime workload
 
@@ -105,11 +104,10 @@ Reverting the composition restores the previous adapters against unchanged
 table shapes; no schema changed and nothing is deleted irreversibly, so the
 cutover needs no tracer window before its old provider goes.
 
-The parent-account removal is the one change that drops a public surface. It
-is required rather than optional: `auth.accounts_parents` has no target owner,
-and the architecture README forbids inventing one to silence the check, so the
-access had to go. Zero-caller proof is a repository-wide search for the six
-routes, the service methods and the generated client, all of which this change
-removes together; `seed/api/coverage_ratchet_test.go` records the table as
-"empty in prod too". Should the surface be wanted again, it belongs behind the
-Identity & Access owner over `auth.accounts`, not behind the orphaned table.
+This is a partial delivery of #2720. The parent-account surface keeps its
+public contract: `auth.accounts_parents` has no target owner, and the
+architecture README forbids inventing one to silence the check, so its two
+ratchet keys (`tables.unclassified` for the table and the dynamic
+`tables.unresolved` `auth.Where` filters of its repository) stay in the
+baseline and #2720 stays open. Tenant, parent and school login, refresh,
+switching and revocation are not part of this change.

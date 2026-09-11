@@ -367,8 +367,9 @@ at construction, and go with #2751. The foreign `auth.accounts` reads of the
 People Directory, Care Plan parent and CLI packages use owner queries bound
 the same way (`identity_ports.go`): the account lookup and active-account
 subquery of `database/repositories/auth` and the public account fact. The
-orphaned `auth.accounts_parents` model and its endpoints are deleted; the
-table stays until its migration is retired.
+legacy `auth.accounts_parents` model, repository and its six
+`/auth/parent-accounts` routes stay unchanged; the table has no target owner
+and that conflict stays open under #2720.
 
 The session end workflow (`workflows/sessionend`, owner `session-end`, kind
 `workflow`, #2697) is a cross-module write workflow of #2580. Its

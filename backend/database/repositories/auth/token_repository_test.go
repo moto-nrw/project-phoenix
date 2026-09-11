@@ -8,6 +8,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -969,7 +970,7 @@ func TestTokenRepository_CountExpiredTokens(t *testing.T) {
 
 	db := testpkg.SetupIsolatedTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
+	repo := authRepo.NewTokenRepository(db)
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "countExpiredToken")
 

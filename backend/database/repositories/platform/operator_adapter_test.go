@@ -1,6 +1,7 @@
 package platform_test
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"testing"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -22,7 +24,7 @@ import (
 func TestOperatorRepositoryAdapter_Create(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Operator
+	repo := repositories.NewSessionValidationPersistence(db).Operator
 	ctx := testpkg.Ctx(t)
 
 	t.Run("success", func(t *testing.T) {
@@ -50,7 +52,7 @@ func TestOperatorRepositoryAdapter_Create(t *testing.T) {
 func TestOperatorRepositoryAdapter_ReadUpdateDelete(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Operator
+	repo := repositories.NewSessionValidationPersistence(db).Operator
 	ctx := testpkg.Ctx(t)
 	operator := testpkg.CreateTestOperator(t, db)
 
@@ -107,7 +109,7 @@ func TestOperatorRepositoryAdapter_ReadUpdateDelete(t *testing.T) {
 func TestOperatorRefreshTokenRepositoryAdapter_Lifecycle(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).OperatorRefreshToken
+	repo := repositories.NewSessionValidationPersistence(db).OperatorRefreshToken
 	ctx := testpkg.Ctx(t)
 	operator := testpkg.CreateTestOperator(t, db)
 	familyID := uuid.Must(uuid.NewV4()).String()
@@ -173,7 +175,7 @@ func TestOperatorRefreshTokenRepositoryAdapter_Lifecycle(t *testing.T) {
 func TestOperatorAuditLogRepositoryAdapter(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).OperatorAuditLog
+	repo := repositories.NewOperatorAuditLogRepository(auditRepo.NewOperatorAuditLogRepository(auditRepo.NewRuntime(db, func(context.Context) int64 { return 0 })))
 	ctx := testpkg.Ctx(t)
 	operator := testpkg.CreateTestOperator(t, db)
 
