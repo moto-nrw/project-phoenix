@@ -284,9 +284,9 @@ func (r *RoleRepository) List(ctx context.Context, filters map[string]interface{
 func (r *RoleRepository) applyRoleFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
 	switch field {
 	case "name":
-		return r.applyRoleStringEqualFilter(query, "role.name", value)
+		return r.applyRoleStringEqualFilter(query, bun.Safe("role.name"), value)
 	case "name_like":
-		return r.applyRoleStringLikeFilter(query, "role.name", value)
+		return r.applyRoleStringLikeFilter(query, bun.Safe("role.name"), value)
 	case "is_system":
 		return query.Where("role.is_system = ?", value)
 	default:
@@ -295,17 +295,18 @@ func (r *RoleRepository) applyRoleFilter(query *bun.SelectQuery, field string, v
 }
 
 // applyRoleStringEqualFilter applies case-insensitive equality filter for role fields
-func (r *RoleRepository) applyRoleStringEqualFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
+// The field is a column written in this file, never request input.
+func (r *RoleRepository) applyRoleStringEqualFilter(query *bun.SelectQuery, field bun.Safe, value interface{}) *bun.SelectQuery {
 	if strValue, ok := value.(string); ok {
-		return query.Where("LOWER("+field+") = LOWER(?)", strValue)
+		return query.Where("LOWER(?) = LOWER(?)", field, strValue)
 	}
-	return query.Where(field+" = ?", value)
+	return query.Where("? = ?", field, value)
 }
 
 // applyRoleStringLikeFilter applies case-insensitive LIKE filter for role fields
-func (r *RoleRepository) applyRoleStringLikeFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
+func (r *RoleRepository) applyRoleStringLikeFilter(query *bun.SelectQuery, field bun.Safe, value interface{}) *bun.SelectQuery {
 	if strValue, ok := value.(string); ok {
-		return query.Where("LOWER("+field+") LIKE LOWER(?)", "%"+strValue+"%")
+		return query.Where("LOWER(?) LIKE LOWER(?)", field, "%"+strValue+"%")
 	}
 	return query
 }

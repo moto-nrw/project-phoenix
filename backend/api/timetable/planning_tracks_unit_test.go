@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	model "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
@@ -54,6 +56,28 @@ func (s *planningTrackServiceStub) RestorePlanningTrack(context.Context, int64) 
 
 func (s *planningTrackServiceStub) ValidatePlanningTrackAssignment(context.Context, *int64) error {
 	return nil
+}
+
+func TestPlanningTrackListRouteAllowsSchedulesManage(t *testing.T) {
+	t.Parallel()
+
+	db, _ := testutil.SetupTimetableModule(t)
+	resource := NewResource(Dependencies{
+		DB:                   db,
+		PlanningTrackService: new(planningTrackServiceStub),
+	})
+	router := chi.NewRouter()
+	router.Mount("/timetable", resource.Router())
+	request := httptest.NewRequest(http.MethodGet, "/timetable/planning-tracks/", nil)
+
+	response := testutil.ExecuteWithAuthPermissions(
+		t, router, request, testutil.AdminTestClaims(999999),
+		[]string{permissions.SchedulesManage},
+	)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
 }
 
 func TestPlanningTrackHandlersCreateAndReorder(t *testing.T) {

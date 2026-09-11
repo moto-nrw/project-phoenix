@@ -24,6 +24,14 @@ type FullDayOptions struct {
 	Close     bool // if true, do daily checkout + end sessions at the end
 	Verbose   bool
 	Client    ClientFactory
+	Now       func() time.Time // nil uses the system clock
+}
+
+func (o FullDayOptions) now() time.Time {
+	if o.Now != nil {
+		return o.Now()
+	}
+	return time.Now()
 }
 
 // RunFullDay runs a one-shot full-day simulation using seed state.
@@ -220,7 +228,7 @@ func (seedStaffFeedTombstoneAction) Run(_ context.Context, rt *Runtime) error {
 	if err := json.Unmarshal(periodResponse, &periodEnvelope); err != nil {
 		return fmt.Errorf("decode POST /api/timetable/periods/bootstrap response: %w", err)
 	}
-	today, err := time.ParseInLocation("2006-01-02", time.Now().In(berlin).Format("2006-01-02"), berlin)
+	today, err := time.ParseInLocation("2006-01-02", rt.Options.now().In(berlin).Format("2006-01-02"), berlin)
 	if err != nil {
 		return fmt.Errorf("normalize current date: %w", err)
 	}

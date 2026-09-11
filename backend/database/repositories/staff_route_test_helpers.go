@@ -55,5 +55,5 @@ func NewStudentLookupTestRepository(db *bun.DB) usersModels.StudentRepository {
 }
 
 func NewGuardianProfileTestRepository(db *bun.DB) usersModels.GuardianProfileRepository {
-	return usersRepo.NewGuardianProfileRepository(db)
+	return NewGuardianProfileRepository(db)
 }

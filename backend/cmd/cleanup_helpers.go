@@ -53,6 +53,7 @@ type cleanupContext struct {
 }
 
 type authCleanupService interface {
+	CountExpiredTokens(context.Context) (int, error)
 	CleanupExpiredTokens(context.Context) (int, error)
 	CleanupExpiredRateLimits(context.Context) (int, error)
 }
@@ -163,7 +164,7 @@ func (root cleanupRoot) newContext() (*cleanupContext, error) {
 		_ = db.Close()
 		return nil, err
 	}
-	auditCommand, err := services.NewCleanupAuditCommand(slog.Default().With("service", "cleanup-cli"))
+	auditCommand, err := newCleanupAuditCommand()
 	if err != nil {
 		_ = db.Close()
 		return nil, err
@@ -203,6 +204,12 @@ func newCleanupContextWithAuthCleanup() (*cleanupContext, error) {
 		return nil, err
 	}
 	return ctx, nil
+}
+
+// newCleanupAuditCommand builds the fail-closed Audit command every cleanup
+// root appends through.
+func newCleanupAuditCommand() (services.AuditCommand, error) {
+	return services.NewCleanupAuditCommand(slog.Default().With("service", "cleanup-cli"))
 }
 
 func buildAuthCleanupService(ctx *cleanupContext) authCleanupService {

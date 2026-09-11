@@ -406,9 +406,14 @@ describe("DienstplanView", () => {
     expect(
       screen.getByText(/Schichtarten konnten nicht geladen werden/),
     ).toBeInTheDocument();
+    // Seit #3114 führt die Kopf-Aktion auf die Route der Schichtarten, die
+    // ihre Liste selbst lädt: ein Ladefehler HIER sperrt sie nicht mehr.
     expect(
-      screen.getByRole("button", { name: "Schichtarten verwalten" }),
-    ).toBeDisabled();
+      screen.getByRole("link", { name: "Schichtarten verwalten" }),
+    ).toHaveAttribute(
+      "href",
+      expect.stringContaining("/database/shift-types") as unknown as string,
+    );
   });
 
   it("defaults to today's week and the Woche view without URL params", () => {

@@ -2943,6 +2943,14 @@
   ],
   "data_objects": [
     {
+      "name": "active.presence_backfill_batches",
+      "write_owner": "student-presence"
+    },
+    {
+      "name": "active.presence_backfill_checkpoints",
+      "write_owner": "student-presence"
+    },
+    {
       "name": "active.activity_session_attendance",
       "write_owner": "student-presence"
     },
@@ -3395,6 +3403,10 @@
       "write_owner": "enrollment"
     },
     {
+      "name": "enrollment.request_child_storage_backfill_checkpoints",
+      "write_owner": "migrations"
+    },
+    {
       "name": "enrollment.request_children",
       "write_owner": "enrollment"
     },
@@ -3505,6 +3517,10 @@
     {
       "name": "platform.schools",
       "write_owner": "organization-tenancy"
+    },
+    {
+      "name": "platform.storage_backfill_checkpoints",
+      "write_owner": "migrations"
     },
     {
       "name": "schedule.activity_exceptions",

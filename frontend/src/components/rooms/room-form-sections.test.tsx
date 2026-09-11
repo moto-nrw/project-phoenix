@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { type ComponentProps } from "react";
-import { RoomColorField } from "@/components/ui/database/room-color-field";
+import { CatalogColorField } from "@/components/ui/database/catalog-color-field";
 import { LOCATION_COLORS } from "@/lib/location-helper";
 import { buildRoomFormSections } from "./room-form-sections";
 import type { Room } from "@/lib/room-helpers";
@@ -84,15 +84,15 @@ describe("buildRoomFormSections", () => {
     expect(colorField).toBeDefined();
     // Same shared kit component as every other room; only its preset props
     // differ, bound through the field config.
-    expect(colorField?.component).toBe(RoomColorField);
+    expect(colorField?.component).toBe(CatalogColorField);
 
     // With no colour set the swatch must show the orange the yard badge
     // actually renders, not the generic room blue, and the hint has to say so.
     const preset = colorField?.componentProps as ComponentProps<
-      typeof RoomColorField
+      typeof CatalogColorField
     >;
     render(
-      <RoomColorField
+      <CatalogColorField
         {...preset}
         value={null}
         onChange={vi.fn()}
@@ -138,7 +138,7 @@ describe("buildRoomFormSections", () => {
       .flatMap((section) => section.fields)
       .find((field) => field.name === "color");
 
-    expect(colorField?.component).toBe(RoomColorField);
+    expect(colorField?.component).toBe(CatalogColorField);
     expect(colorField?.componentProps).toBeUndefined();
   });
 

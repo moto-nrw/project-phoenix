@@ -1,6 +1,6 @@
 // Bauarten ratchet (BAUARTEN-SPEC.md, Abschnitt „Ratschen“).
 //
-// Three rules; a production match beyond the tolerated remainder fails
+// Five rules; a production match beyond the tolerated remainder fails
 // `pnpm run check`:
 //
 //   bauart/one-delete-confirm — deletion is confirmed by ConfirmDeleteModal
@@ -49,6 +49,43 @@
 //                               handler inline, so a handler referenced by
 //                               name (`onClick={handleDelete}`) is out of
 //                               reach — the review covers that case.
+//
+//   bauart/no-toast-form-error — a form reports its validation and save
+//                               errors in the Alert at the top of the edit
+//                               area (`error` on FormModal / SlideOverBody,
+//                               `FormErrorAlert`), never in a toast (Bauart
+//                               2 Regel 5, issue #3113). The rule flags
+//                               `toast.error` / `toast.warning` (and the
+//                               aliases `toastError` / `toastWarning`)
+//                               inside a submit handler: a function named
+//                               handleSave / handleSubmit / onSubmit /
+//                               save… / submit…, one with a `FormEvent`
+//                               parameter, or one that calls
+//                               `preventDefault()` itself; callbacks inside
+//                               it (`.catch(() => toast.error(…))`) count.
+//                               Success toasts and toasts outside such
+//                               handlers (delete, toggle, load) pass.
+//                               Hard-zero; tenant portal only.
+//
+//   bauart/no-manage-surface-in-overlay — the Stammdaten of a school are
+//                               managed on a route of the Datenverwaltung,
+//                               never in a SlideOver, Modal, Popover or
+//                               inside a select (Bauart 1 Regel 9, issue
+//                               #3114). The rule flags a per-row kebab entry
+//                               or button whose label is an object action
+//                               (bearbeiten, löschen, archivieren,
+//                               wiederherstellen, umbenennen, duplizieren,
+//                               (de)aktivieren) rendered inside one of those
+//                               shells — directly, through a helper the
+//                               shell renders, or in a menu slot of
+//                               `ListboxDropdown`. „entfernen“ is not in the
+//                               list: inside a dialog it removes a form
+//                               value far more often than a stored object,
+//                               and no-row-action-buttons covers that case.
+//                               Hard-zero; the pinned exceptions
+//                               (OWN_OBJECT_ENTRY_EXCEPTIONS) are entries of
+//                               the very object the dialog edits, which
+//                               Bauart 2 Regel 4 allows.
 //
 // Files under src/components/ui/ are exempt (ConfirmDeleteModal is itself
 // built on Modal and owns the final destructive button), as are tests and
@@ -242,7 +279,7 @@ const ROW_ACTION_BASELINE = new Map(
       "Block bearbeiten@960",
     ],
     "src/components/staff/stundenkonto-panel.tsx": [
-      "Buchung vom löschen@186",
+      "Buchung vom löschen@188",
     ],
     "src/components/students/class-arrival-exception-panel.tsx": [
       "Entfernen@529",
@@ -255,20 +292,20 @@ const ROW_ACTION_BASELINE = new Map(
     // Formular-intern (Eintrag eines Formularwerts, kein gespeichertes
     // Objekt): fest an die bestehende Stelle gebunden, damit keine neue
     // Zeilenaktion dieselbe Ausnahme nutzen kann.
-    "src/app/[tenant]/(protected)/calendar/page.tsx": ["entfernen@1147"],
+    "src/app/[tenant]/(protected)/calendar/page.tsx": ["entfernen@1190"],
     "src/app/[tenant]/(protected)/meal-plan/page.tsx": [
-      "Gericht entfernen@729",
+      "Gericht entfernen@738",
     ],
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
-      "Antwort entfernen@1431",
-      "Entfernen@1703",
+      "Antwort entfernen@1429",
+      "Entfernen@1701",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
-      "Bedingung löschen@1980",
+      "Bedingung löschen@1974",
     ],
     "src/components/enrollment/enrollment-form-editor.tsx": [
-      "abweichend bearbeiten@2511",
-      "Auswahlzeit entfernen@3435",
+      "abweichend bearbeiten@2512",
+      "Auswahlzeit entfernen@3436",
     ],
     "src/components/guardians/guardian-form-modal.tsx": [
       "Entfernen@585",
@@ -960,6 +997,406 @@ const noAutosave = {
   },
 };
 
+// --- bauart/no-toast-form-error ----------------------------------------------
+
+// The toast API of ~/contexts/ToastContext (`toast.error`, `toast.warning`),
+// including the destructured aliases the code base uses
+// (`const { error: toastError } = useToast()`).
+const TOAST_LEVEL_RE = /^(?:error|warning|warn)$/;
+const TOAST_ALIAS_RE = /^toast(?:Error|Warning|Warn)$/;
+// A function that saves what a person typed. Matches handleSave, handleSubmit,
+// onSubmit, submitForm, saveDraft, handleSaveClick; not handleSelect or
+// handleToggle, whose toast is not a form's error report.
+const SUBMIT_HANDLER_NAME_RE = /^(?:handle|on)?(?:submit|save)/i;
+
+function isToastErrorCall(node) {
+  if (!isCall(node)) return false;
+  const { callee } = node;
+  if (
+    callee?.type === "MemberExpression" &&
+    callee.property?.type === "Identifier" &&
+    TOAST_LEVEL_RE.test(callee.property.name)
+  ) {
+    return (
+      callee.object?.type === "Identifier" && /toast/i.test(callee.object.name)
+    );
+  }
+  return callee?.type === "Identifier" && TOAST_ALIAS_RE.test(callee.name);
+}
+
+function isFunctionNode(node) {
+  return (
+    node?.type === "ArrowFunctionExpression" ||
+    node?.type === "FunctionExpression" ||
+    node?.type === "FunctionDeclaration"
+  );
+}
+
+/** `event.preventDefault()` in the function's own body (nested functions
+ *  skipped): the handler intercepts a form submission. */
+function callsPreventDefault(node, seen = new WeakSet()) {
+  if (!node || typeof node !== "object" || seen.has(node)) return false;
+  seen.add(node);
+  if (
+    isCall(node) &&
+    node.callee?.type === "MemberExpression" &&
+    node.callee.property?.type === "Identifier" &&
+    node.callee.property.name === "preventDefault"
+  ) {
+    return true;
+  }
+  if (isFunctionNode(node)) return false;
+  for (const [key, value] of Object.entries(node)) {
+    if (key === "parent") continue;
+    if (Array.isArray(value)) {
+      if (value.some((child) => callsPreventDefault(child, seen))) return true;
+    } else if (callsPreventDefault(value, seen)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** The name a function is bound to: `const handleSave = async () => {}`,
+ *  `const handleSave = useCallback(async () => {}, [])`,
+ *  `function handleSave() {}`, `{ onSubmit: () => {} }`. */
+function boundFunctionName(fn) {
+  if (fn.type === "FunctionDeclaration") return fn.id?.name ?? null;
+  let owner = fn.parent;
+  // useCallback(fn, deps) and similar wrappers sit between the arrow and its
+  // declarator.
+  if (isCall(owner) && owner.arguments.includes(fn)) owner = owner.parent;
+  if (owner?.type === "VariableDeclarator" && owner.id?.type === "Identifier") {
+    return owner.id.name;
+  }
+  if (owner?.type === "Property" && owner.key?.type === "Identifier") {
+    return owner.key.name;
+  }
+  if (owner?.type === "JSXExpressionContainer") {
+    const attribute = owner.parent;
+    if (
+      attribute?.type === "JSXAttribute" &&
+      attribute.name?.type === "JSXIdentifier"
+    ) {
+      return attribute.name.name;
+    }
+  }
+  return null;
+}
+
+function hasFormEventParameter(fn) {
+  return (fn.params ?? []).some((param) => {
+    const annotation = param.typeAnnotation?.typeAnnotation;
+    const chunks = [];
+    collectTypeNames(annotation, chunks);
+    return chunks.some((name) => /FormEvent$/.test(name));
+  });
+}
+
+function collectTypeNames(node, chunks, seen = new WeakSet()) {
+  if (!node || typeof node !== "object" || seen.has(node)) return;
+  seen.add(node);
+  if (node.type === "Identifier" && typeof node.name === "string") {
+    chunks.push(node.name);
+  }
+  for (const [key, value] of Object.entries(node)) {
+    if (key === "parent") continue;
+    if (Array.isArray(value)) {
+      for (const child of value) collectTypeNames(child, chunks, seen);
+    } else {
+      collectTypeNames(value, chunks, seen);
+    }
+  }
+}
+
+function isSubmitHandler(fn) {
+  const name = boundFunctionName(fn);
+  if (name && SUBMIT_HANDLER_NAME_RE.test(name)) return true;
+  if (hasFormEventParameter(fn)) return true;
+  return callsPreventDefault(fn.body);
+}
+
+/** The nearest enclosing submit handler, looking through callbacks such as
+ *  `.catch((err) => toast.error(…))` inside it. */
+function enclosingSubmitHandler(node) {
+  let current = node.parent;
+  while (current) {
+    if (isFunctionNode(current) && isSubmitHandler(current)) return current;
+    current = current.parent;
+  }
+  return null;
+}
+
+const noToastFormError = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "A form reports its validation and save errors in an Alert at the top of the edit area (and at the field), not in a toast.",
+    },
+    messages: {
+      toast:
+        "Fehler aus dem Speichern eines Formulars („{{handler}}“) stehen im Alert oben im Bearbeiten-Bereich und, wo zuordenbar, am Feld: `error` an FormModal oder SlideOverBody, `error` am Input. Ein Toast verblasst, bevor jemand das Feld gefunden hat (BAUARTEN-SPEC Bauart 2 Regel 5, #3113).",
+    },
+    schema: [],
+  },
+  create(context) {
+    if (isExempt(context)) return {};
+    if (OTHER_PORTAL_RE.test(fileKey(context))) return {};
+
+    return {
+      CallExpression(node) {
+        if (!isToastErrorCall(node)) return;
+        const handler = enclosingSubmitHandler(node);
+        if (!handler) return;
+        context.report({
+          node,
+          messageId: "toast",
+          data: { handler: boundFunctionName(handler) ?? "onSubmit" },
+        });
+      },
+    };
+  },
+};
+
+// --- bauart/no-manage-surface-in-overlay --------------------------------------
+
+// Shells that float over a page. Anything rendered inside one of them is an
+// overlay; a kebab per list row in there is a management surface in a dialog.
+const OVERLAY_ELEMENTS = new Set([
+  "SlideOver",
+  "SlideOverContent",
+  "SlideOverBody",
+  "Modal",
+  "FormModal",
+  "ChoiceModal",
+  "ConfirmationModal",
+  "ConfirmDeleteModal",
+  "Drawer",
+  "DrawerContent",
+  "AnchoredPopover",
+  "Popover",
+  "PopoverContent",
+  "ListboxDropdown",
+]);
+// Slots of the kit listbox that render inside its floating menu. A button
+// per option there manages the option list from inside a select.
+const LISTBOX_MENU_SLOTS = new Set([
+  "renderOptionActions",
+  "menuHeader",
+  "menuFooter",
+]);
+// Object actions that make a row a managed object. „entfernen“ is absent on
+// purpose: inside a dialog it removes a form value (a staged guardian, a
+// chip) far more often than a stored object, and that case has its own rule.
+const MANAGE_ACTION_LABEL_RE =
+  /(?:^|\P{L})(?:bearbeiten|löschen|archivieren|wiederherstellen|umbenennen|duplizieren|deaktivieren|aktivieren)(?:\P{L}|$)/iu;
+
+// Einträge des Objekts, um das der Dialog ohnehin geht — keine Stammdaten,
+// die anderswo in einer Auswahl stehen. Bauart 2 Regel 4 lässt das Nachtragen
+// eines Eintrags am Objekt ausdrücklich zu; verboten ist der Katalog der
+// Schule in einem Overlay. Ortsgebunden, damit die Ausnahme nicht wandert.
+const OWN_OBJECT_ENTRY_EXCEPTIONS = new Map(
+  Object.entries({
+    // Teilentschuldigungen genau dieses Kindes an genau diesen Tagen.
+    "src/components/students/planned-status-days-modal.tsx": ["Bearbeiten@1139"],
+  }),
+);
+
+/** Static labels of the entries in an OverflowMenu `items` expression. */
+function collectMenuItemLabels(node, labels, seen = new WeakSet()) {
+  if (!node || typeof node !== "object" || seen.has(node)) return;
+  seen.add(node);
+  if (
+    node.type === "Property" &&
+    node.key?.type === "Identifier" &&
+    node.key.name === "label"
+  ) {
+    const text = staticText(node.value);
+    if (text) labels.push(text);
+    return;
+  }
+  for (const [key, value] of Object.entries(node)) {
+    if (key === "parent") continue;
+    if (Array.isArray(value)) {
+      for (const child of value) collectMenuItemLabels(child, labels, seen);
+    } else {
+      collectMenuItemLabels(value, labels, seen);
+    }
+  }
+}
+
+/** Ein Menü-Slot der Kit-Auswahlliste, als Objekteintrag (der Hook baut die
+ *  Props) oder als JSX-Attribut (die Komponente bekommt sie direkt). */
+function isListboxMenuSlot(node) {
+  if (
+    node?.type === "Property" &&
+    node.key?.type === "Identifier" &&
+    LISTBOX_MENU_SLOTS.has(node.key.name)
+  ) {
+    return true;
+  }
+  return (
+    node?.type === "JSXAttribute" &&
+    node.name?.type === "JSXIdentifier" &&
+    LISTBOX_MENU_SLOTS.has(node.name.name)
+  );
+}
+
+/**
+ * Where a node sits: `overlay` when a JSX ancestor is an overlay shell or a
+ * listbox menu slot, `inJsx` when it is rendered at all, `binding` = the
+ * nearest `const x = …` / `function x()` around it. The binding is what
+ * links a helper such as `renderManageView` or `listFooter` to the overlay
+ * that renders it.
+ */
+function locate(node) {
+  let current = node.parent;
+  let overlay = false;
+  let inJsx = false;
+  let inListboxSlot = false;
+  let binding = null;
+  while (current) {
+    if (current.type === "JSXExpressionContainer") inJsx = true;
+    if (
+      current.type === "JSXElement" &&
+      OVERLAY_ELEMENTS.has(jsxName(current.openingElement.name))
+    ) {
+      overlay = true;
+    }
+    if (isListboxMenuSlot(current)) {
+      overlay = true;
+      inListboxSlot = true;
+    }
+    if (binding === null) {
+      if (
+        current.type === "VariableDeclarator" &&
+        current.id?.type === "Identifier"
+      ) {
+        binding = current.id.name;
+      } else if (current.type === "FunctionDeclaration" && current.id) {
+        binding = current.id.name;
+      }
+    }
+    current = current.parent;
+  }
+  return { overlay, inJsx, inListboxSlot, binding };
+}
+
+const noManageSurfaceInOverlay = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "A collection with per-object actions (Bearbeiten, Archivieren, Löschen, …) is a route in the Datenverwaltung, never a view inside a SlideOver, Modal, Popover or select.",
+    },
+    messages: {
+      manageSurface:
+        "Verwaltungsfläche im Overlay: die Zeilenaktion „{{label}}“ liegt in einem {{shell}}. Sammlung und Objektbearbeitung sind eine Route der Datenverwaltung (Bauart 1 + 2); ein Formular, dem ein Stammdatum fehlt, trägt nur die Auswahl und einen Link „… verwalten“ zur Route (BAUARTEN-SPEC Bauart 1 Regel 9, #3114).",
+    },
+    schema: [],
+  },
+  create(context) {
+    if (isExempt(context)) return {};
+    if (OTHER_PORTAL_RE.test(fileKey(context))) return {};
+    const ownEntries = new Set(
+      OWN_OBJECT_ENTRY_EXCEPTIONS.get(fileKey(context)) ?? [],
+    );
+
+    // Names rendered directly inside an overlay, and the names each binding
+    // renders in turn; the closure of the first over the second is every
+    // helper whose JSX ends up in an overlay.
+    const overlayReferences = new Set();
+    const referencesByBinding = new Map();
+    const pending = [];
+
+    const record = (node, label) => {
+      if (ownEntries.delete(`${label}@${node.loc.start.line}`)) return;
+      const { overlay, inListboxSlot, binding } = locate(node);
+      const shell = inListboxSlot ? "Auswahlfeld" : "Overlay";
+      if (overlay) {
+        context.report({
+          node,
+          messageId: "manageSurface",
+          data: { label, shell },
+        });
+        return;
+      }
+      if (binding) pending.push({ node, label, binding });
+    };
+
+    return {
+      Identifier(node) {
+        const parent = node.parent;
+        // Only expression references count: not the name being declared,
+        // not a property key, not a parameter.
+        if (
+          (parent?.type === "VariableDeclarator" && parent.id === node) ||
+          (parent?.type === "Property" && parent.key === node) ||
+          (parent?.type === "MemberExpression" && parent.property === node) ||
+          parent?.type === "FunctionDeclaration"
+        ) {
+          return;
+        }
+        const { overlay, inJsx, binding } = locate(node);
+        if (!inJsx) return;
+        if (overlay) {
+          overlayReferences.add(node.name);
+          return;
+        }
+        if (!binding || binding === node.name) return;
+        let references = referencesByBinding.get(binding);
+        if (!references) {
+          references = new Set();
+          referencesByBinding.set(binding, references);
+        }
+        references.add(node.name);
+      },
+      JSXOpeningElement(node) {
+        const name = jsxName(node.name);
+        if (name === "OverflowMenu") {
+          if (!isPerItemRender(node)) return;
+          const labels = [];
+          collectMenuItemLabels(jsxAttribute(node, "items")?.value, labels);
+          const label = labels.find((text) =>
+            MANAGE_ACTION_LABEL_RE.test(text),
+          );
+          if (label) record(node, label);
+          return;
+        }
+        if (name !== "Button" && name !== "button") return;
+        const { inListboxSlot } = locate(node);
+        if (!inListboxSlot && !isPerItemRender(node)) return;
+        const { text } = accessibleName(node);
+        if (MANAGE_ACTION_LABEL_RE.test(text)) record(node, text);
+      },
+      "Program:exit"() {
+        const scoped = new Set(overlayReferences);
+        let grew = true;
+        while (grew) {
+          grew = false;
+          for (const name of [...scoped]) {
+            for (const reference of referencesByBinding.get(name) ?? []) {
+              if (!scoped.has(reference)) {
+                scoped.add(reference);
+                grew = true;
+              }
+            }
+          }
+        }
+        for (const { node, label, binding } of pending) {
+          if (!scoped.has(binding)) continue;
+          context.report({
+            node,
+            messageId: "manageSurface",
+            data: { label, shell: "Overlay" },
+          });
+        }
+      },
+    };
+  },
+};
+
 export default {
   meta: { name: "bauart" },
   rules: {
@@ -967,5 +1404,7 @@ export default {
     "no-row-action-buttons": noRowActionButtons,
     "no-unconfirmed-destructive-click": noUnconfirmedDestructiveClick,
     "no-autosave": noAutosave,
+    "no-toast-form-error": noToastFormError,
+    "no-manage-surface-in-overlay": noManageSurfaceInOverlay,
   },
 };

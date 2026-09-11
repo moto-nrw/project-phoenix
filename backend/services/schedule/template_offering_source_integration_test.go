@@ -39,7 +39,23 @@ func createSourceCareOffering(
 	serviceStart, serviceEnd timezone.Date,
 ) *enrollmentModels.CareOffering {
 	t.Helper()
+	return createSourceCareOfferingOnDays(t, s, serviceStart, serviceEnd, []string{"mon"})
+}
 
+// createSourceCareOfferingOnDays is createSourceCareOffering with a fixed set
+// of offering days; every linked child is booked on exactly those days.
+func createSourceCareOfferingOnDays(
+	t *testing.T,
+	s *scenarioSetup,
+	serviceStart, serviceEnd timezone.Date,
+	days []string,
+) *enrollmentModels.CareOffering {
+	t.Helper()
+
+	pickupTimes := make(map[string]string, len(days))
+	for _, day := range days {
+		pickupTimes[day] = "14:30"
+	}
 	suffix := time.Now().UnixNano()
 	phase := &capability.Phase{
 		Name:                      fmt.Sprintf("Quell-Phase %d", suffix),
@@ -59,8 +75,8 @@ func createSourceCareOffering(
 		PhaseID:            phase.ID,
 		Name:               fmt.Sprintf("Frühbetreuung %d", suffix),
 		DaysOfWeekMode:     enrollmentModels.DaysOfWeekModeFixed,
-		AvailableDays:      []string{"mon"},
-		PickupTimes:        map[string]string{"mon": "14:30"},
+		AvailableDays:      days,
+		PickupTimes:        pickupTimes,
 		IsActive:           true,
 		CountsAsCare:       true,
 		CountsAsCareSet:    true,
@@ -74,8 +90,6 @@ func createSourceCareOffering(
 		return createErr
 	}))
 
-	s.extraCleanups = append([]func(){func() {
-	}}, s.extraCleanups...)
 	return created
 }
 

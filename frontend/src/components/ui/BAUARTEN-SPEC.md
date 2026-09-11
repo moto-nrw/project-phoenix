@@ -73,6 +73,29 @@ Aktivitäten, Gruppen, Rollen, Geräte, Dateien, Nachrichten, Anfragen.
    Skelett, keine domänenspezifische Leerzustands-Komponente.
 8. **Der Leerzustand ist der nächste Schritt.** Titel, ein Satz, und die
    Aktion, die den Zustand beendet — nie nur eine Feststellung.
+9. **Stammdaten der Schule werden auf einer Route verwaltet, nie in einem
+   Overlay und nie in einem Auswahlfeld.** Eine Liste, die man anlegen,
+   umbenennen, umsortieren, archivieren oder löschen kann, ist eine Sammlung
+   (Bauart 1) mit einer Objektansicht (Bauart 2) in der Datenverwaltung —
+   auch dann, wenn sie kurz ist und nur ein Formular sie braucht. Ein
+   Slide-over mit `view: list | form`, ein Popover mit
+   `select | manage | form` und ein Auswahlfeld mit Stift- und
+   Deaktivieren-Symbolen an den Zeilen sind dieselbe fünfte Bauart, die es
+   nicht gibt; aus einem Formular geöffnet stapeln zwei davon zusätzlich
+   Ebenen (Bauart 2 Regel 3).
+
+   **Was ein Formular stattdessen trägt:** die Auswahl, und daneben einen
+   Link „<Stammdaten> verwalten" auf die Route. Der Link öffnet einen neuen
+   Tab, wenn er in einem Formular steht: der halb ausgefüllte Entwurf lebt
+   nur im Zustand des Formulars, ein Wechsel im selben Tab wirft ihn weg.
+   Beim Zurückkommen lädt die Auswahl ihre Einträge neu (`focus`), sodass
+   der eben angelegte Eintrag ohne Zutun dasteht. Eine Kopf-Aktion einer
+   Seite („Schichtarten verwalten") hat keinen Entwurf zu verlieren und
+   führt im selben Tab auf die Route.
+
+   Nicht gemeint sind die Einträge des Objekts, um das der Dialog ohnehin
+   geht (Teilentschuldigungen eines Kindes, Erziehungsberechtigte an einem
+   Kind): die gehören ans Objekt (Bauart 2 Regel 4).
 
 ## Bauart 2 — Objekt
 
@@ -101,6 +124,16 @@ keine zweite Ansicht.
    Listenkörper.
 5. **Fehler stehen im `Alert` oben im Bearbeiten-Bereich und, wo zuordenbar,
    am Feld.** Kein Toast als einzige Fehlermeldung, kein roter Absatz.
+   Der Platz dafür ist fest: `error` an `FormModal`, `error` an
+   `SlideOverBody`, sonst `FormErrorAlert` als erstes Element des
+   Formulars; das Feld trägt seinen Fehler über das `error`-Prop des
+   Kit-Felds. Der Fehler-Zustand kommt aus `useFormError()`: der Alert
+   scrollt sich bei jedem fehlgeschlagenen Speichern in den sichtbaren
+   Bereich, auch beim zweiten Klick mit gleichem Text, weil ein langes
+   Formular beim Speichern meist am Fuß steht.
+   Ein Fehler-Toast aus dem Speichern-Handler entfällt ganz, auch neben
+   einem Alert: eine Meldung, an einem Ort (#3113). Erfolgs-Toasts und
+   Toasts für Aktionen ohne Formular (Löschen, Umschalten, Laden) bleiben.
 6. **Löschen ist portalweit ein Muster:** `ConfirmDeleteModal`. Die
    Texteingabe-Bestätigung ist die Stufe für Unwiderrufliches mit
    Datenverlust, sonst reicht die einfache Rückfrage. Kein `window.confirm`,
@@ -234,6 +267,30 @@ bekommt eine shrink-only Baseline analog zum bestehenden
     Stories; die benannte Baseline im Plugin ist shrink-only und trägt nur
     Flächen, die ihr Sofort-Speichern auf dem Schirm benennen (Abrechnung,
     Elternportal-Stammdaten, Sprachwahl).
+11. `bauart/no-toast-form-error` — kein Fehler-Toast aus dem
+    Speichern-Handler eines Formulars (Bauart 2 Regel 5). **Umgesetzt**
+    (`scripts/oxlint-plugin-bauart.mjs`, hard-zero, #3113): ein
+    `toast.error`/`toast.warning` (auch die Aliasse `toastError`,
+    `toastWarning`) innerhalb einer Funktion, die ein Formular speichert,
+    fällt durch. Als Speichern-Handler gilt eine Funktion, die
+    `handleSave`, `handleSubmit`, `onSubmit`, `save…` oder `submit…` heißt,
+    einen `FormEvent`-Parameter hat oder selbst `preventDefault()` ruft;
+    Rückrufe darin (`.catch(() => toast.error(…))`) zählen mit. Erfolgs-
+    Toasts und Toasts außerhalb solcher Handler sind frei. Operator-,
+    Eltern- und Schul-Portal sind nicht im Scope.
+12. `bauart/no-manage-surface-in-overlay` — keine Verwaltungsfläche für
+    Stammdaten in einem Overlay oder Auswahlfeld (Bauart 1 Regel 9).
+    **Umgesetzt** (`scripts/oxlint-plugin-bauart.mjs`, hard-zero, #3114):
+    ein Kebab-Eintrag oder Knopf je Zeile, dessen Beschriftung eine
+    Objektaktion ist (bearbeiten, löschen, archivieren, wiederherstellen,
+    umbenennen, duplizieren, (de)aktivieren), fällt durch, sobald er in
+    `SlideOver`, `Modal`, `FormModal`, `Drawer`, `AnchoredPopover` oder in
+    einem Menü-Slot von `ListboxDropdown` landet — auch über eine
+    Hilfsfunktion, die eine dieser Hüllen rendert. „entfernen" steht nicht
+    in der Liste, weil es in einem Dialog meist einen Formularwert
+    entfernt; dafür gilt `bauart/no-row-action-buttons`. Die ortsgebundenen
+    Ausnahmen sind Einträge des Objekts, das der Dialog bearbeitet.
+    Operator-, Eltern- und Schul-Portal sind nicht im Scope.
 
 ## Reihenfolge der Umsetzung
 

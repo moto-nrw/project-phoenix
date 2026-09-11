@@ -190,6 +190,40 @@ describe("StundenkontoPanel", () => {
     });
   });
 
+  it("zeigt einen fehlgeschlagenen Eröffnungssaldo als Alert im Formular", async () => {
+    vi.mocked(staffBalanceAdjustmentService.createOpening).mockRejectedValue(
+      new Error("Für diese Person ist bereits ein Eröffnungssaldo gebucht."),
+    );
+
+    render(
+      <StundenkontoPanel
+        staffId="4"
+        balanceMinutes={0}
+        accountStartKey="2026-01-01"
+        todayKey="2026-07-24"
+        adjustments={[]}
+        onChanged={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Eröffnungssaldo" }));
+    fireEvent.change(screen.getByLabelText("Übernommener Saldo (Stunden)"), {
+      target: { value: "4" },
+    });
+    fireEvent.change(screen.getByLabelText("Begründung (Pflicht)"), {
+      target: { value: "Übernahme Altsystem" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Buchen" }));
+
+    // Bauart 2 Regel 5: the reason stands in the dialog, the form stays open.
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Für diese Person ist bereits ein Eröffnungssaldo gebucht.",
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Eröffnungssaldo buchen" }),
+    ).toBeInTheDocument();
+  });
+
   it("rejects opening balances with trailing text", () => {
     render(
       <StundenkontoPanel

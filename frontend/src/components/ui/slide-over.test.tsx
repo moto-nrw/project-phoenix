@@ -64,7 +64,7 @@ vi.mock("vaul", async () => {
   };
 });
 
-import { SlideOver, SlideOverContent } from "./slide-over";
+import { SlideOver, SlideOverBody, SlideOverContent } from "./slide-over";
 
 function StatefulContent() {
   const [value, setValue] = useState("");
@@ -182,5 +182,46 @@ describe("SlideOver", () => {
     fireEvent.click(screen.getByTestId("vaul-dismiss"));
 
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("renders the body error slot as an alert above the children", () => {
+    render(
+      <SlideOver open>
+        <SlideOverContent>
+          <SlideOverBody
+            error="Bitte einen Titel eintragen."
+            className="space-y-4"
+          >
+            <p>Formularfelder</p>
+          </SlideOverBody>
+        </SlideOverContent>
+      </SlideOver>,
+    );
+
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("Bitte einen Titel eintragen.");
+    expect(
+      alert.compareDocumentPosition(screen.getByText("Formularfelder")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.getByText("Formularfelder").parentElement).toHaveClass(
+      "flex-1",
+      "overflow-y-auto",
+      "space-y-4",
+    );
+  });
+
+  it("renders the body without an alert when there is no error", () => {
+    render(
+      <SlideOver open>
+        <SlideOverContent>
+          <SlideOverBody>
+            <p>Formularfelder</p>
+          </SlideOverBody>
+        </SlideOverContent>
+      </SlideOver>,
+    );
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

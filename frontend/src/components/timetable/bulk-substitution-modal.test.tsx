@@ -362,10 +362,11 @@ describe("BulkSubstitutionModal", () => {
       screen.getByRole("button", { name: "Für 1 Tag(e) speichern" }),
     );
 
-    await waitFor(() => expect(mockToastError).toHaveBeenCalledOnce());
-    expect(mockToastError).toHaveBeenCalledWith(
+    // Der Fehler steht oben im Panel (Bauart 2 Regel 5), nicht als Toast.
+    expect(await screen.findByRole("alert")).toHaveTextContent(
       "die Ersatzperson ist am 18.08.2026 selbst abwesend",
     );
+    expect(mockToastError).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
     expect(onSaved).not.toHaveBeenCalled();
   });
@@ -546,7 +547,11 @@ describe("BulkSubstitutionModal", () => {
       screen.getByRole("button", { name: "Für 1 Tag(e) speichern" }),
     );
 
-    await waitFor(() => expect(mockToastError).toHaveBeenCalledOnce());
+    // Der Fehler steht oben im Panel (Bauart 2 Regel 5), nicht als Toast.
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Speichern fehlgeschlagen",
+    );
+    expect(mockToastError).not.toHaveBeenCalled();
     expect(mockClearPreviewCache).not.toHaveBeenCalled();
   });
 
