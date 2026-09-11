@@ -31,6 +31,7 @@ vi.mock("~/lib/auth-utils", () => ({
     if (role === "user") return !(session?.user?.isAdmin ?? false);
     return false;
   },
+  hasPermission: () => false,
 }));
 
 // Mock next-auth/react

@@ -37,6 +37,7 @@ const defaultSupervisionState = vi.hoisted(() => ({
 
 // Mock auth-utils with hasRole that reads session roles
 vi.mock("~/lib/auth-utils", () => ({
+  hasPermission: () => false,
   isAdmin: (session: { user?: { isAdmin?: boolean } } | null) =>
     session?.user?.isAdmin ?? false,
   isCaregiver: (session: { user?: { isAdmin?: boolean } } | null) =>
