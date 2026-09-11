@@ -2,28 +2,66 @@ package careplanning
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
-
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
+	"sync"
 )
 
-// LockExceptionDay serializes every plan exception for one child and calendar
-// day, including full-day statuses and time-specific excusals.
-func LockExceptionDay(ctx context.Context, db *bun.DB, studentID int64, date timezone.Date) error {
-	tenantID := tenant.FromContext(ctx)
-	if tenantID <= 0 {
-		return errors.New("tenant id is required")
+var ErrStudentNotFound = errors.New("careplanning: student not found")
+
+// StudentLock takes the student row FOR UPDATE inside the caller's tenant
+// transaction. The row belongs to the People Directory (#2662).
+type StudentLock func(ctx context.Context, studentID int64) error
+
+// ExceptionDayLock takes the shared transaction-scoped advisory lock for one
+// student's care day. The tenant runtime implementation is supplied by the
+// composition layer, keeping this coordinator independent of SQL and Bun.
+type ExceptionDayLock func(ctx context.Context, studentID int64, date string) error
+
+type locks struct {
+	student      StudentLock
+	exceptionDay ExceptionDayLock
+}
+
+var graphLocks sync.Map // map[database identity]locks
+var graphLocksMu sync.Mutex
+
+// BindStudentLockForDB binds an owner-backed lock to exactly one repository
+// graph. Independent factories may use different databases or capabilities
+// without replacing each other's lock.
+func BindStudentLockForDB(db any, lock StudentLock, notFound error) {
+	if db == nil {
+		panic("careplanning: database is required")
 	}
-	key := fmt.Sprintf("care-exception-day:%d:%d:%s", tenantID, studentID, date.String())
-	if err := base.AcquireXactLock(ctx, db, key); err != nil {
-		return fmt.Errorf("lock care exception day: %w", err)
+	if lock == nil || notFound == nil {
+		panic("careplanning: student lock and not-found sentinel are required")
 	}
-	return nil
+	mapped := StudentLock(func(ctx context.Context, studentID int64) error {
+		err := lock(ctx, studentID)
+		if errors.Is(err, notFound) {
+			return ErrStudentNotFound
+		}
+		return err
+	})
+	graphLocksMu.Lock()
+	defer graphLocksMu.Unlock()
+	bound, _ := graphLocks.Load(db)
+	current, _ := bound.(locks)
+	current.student = mapped
+	graphLocks.Store(db, current)
+}
+
+// BindExceptionDayLockForDB binds the Care Plan day lock to one repository graph.
+func BindExceptionDayLockForDB(db any, lock ExceptionDayLock) {
+	if db == nil || lock == nil {
+		panic("careplanning: database and exception-day lock are required")
+	}
+	graphLocksMu.Lock()
+	defer graphLocksMu.Unlock()
+	bound, _ := graphLocks.Load(db)
+	current, _ := bound.(locks)
+	current.exceptionDay = lock
+	graphLocks.Store(db, current)
 }
 
 // LockStudent takes only the student row FOR UPDATE — the first lock every
@@ -31,25 +69,48 @@ func LockExceptionDay(ctx context.Context, db *bun.DB, studentID int64, date tim
 // their schedule rows so the global order stays student → schedule rows →
 // care-day locks and cannot deadlock against exception writers.
 //
-// Returns sql.ErrNoRows when the student is missing under the tenant.
-func LockStudent(ctx context.Context, db *bun.DB, studentID int64) error {
-	tenantID := tenant.FromContext(ctx)
-	if tenantID <= 0 {
-		return errors.New("tenant id is required")
-	}
+// Returns ErrStudentNotFound when the student is missing under the tenant.
+func LockStudent(ctx context.Context, db any, studentID int64) error {
 	if studentID <= 0 {
 		return errors.New("student id is required")
 	}
-	var lockedID int64
-	err := base.GetDB(ctx, db).NewRaw(
-		`SELECT id FROM users.students WHERE id = ? AND tenant_id = ? FOR UPDATE`,
-		studentID, tenantID,
-	).Scan(ctx, &lockedID)
+	if db == nil {
+		return errors.New("careplanning: database is required")
+	}
+	value, ok := graphLocks.Load(db)
+	if !ok {
+		return errors.New("careplanning: student lock is not bound for database")
+	}
+	bound, ok := value.(locks)
+	if !ok {
+		return errors.New("careplanning: invalid student lock binding")
+	}
+	if bound.student == nil {
+		return errors.New("careplanning: student lock is not bound for database")
+	}
+	err := bound.student(ctx, studentID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return err
-		}
 		return fmt.Errorf("lock student for care exception day: %w", err)
+	}
+	return nil
+}
+
+// LockExceptionDay serializes every plan exception for one child and calendar
+// day, including full-day statuses and time-specific excusals.
+func LockExceptionDay(ctx context.Context, db any, studentID int64, date string) error {
+	value, ok := graphLocks.Load(db)
+	if !ok {
+		return errors.New("careplanning: exception-day lock is not bound for database")
+	}
+	bound, ok := value.(locks)
+	if !ok {
+		return errors.New("careplanning: invalid exception-day lock binding")
+	}
+	if bound.exceptionDay == nil {
+		return errors.New("careplanning: exception-day lock is not bound for database")
+	}
+	if err := bound.exceptionDay(ctx, studentID, date); err != nil {
+		return fmt.Errorf("lock care exception day: %w", err)
 	}
 	return nil
 }
@@ -61,8 +122,8 @@ func LockStudent(ctx context.Context, db *bun.DB, studentID int64) error {
 // a concurrent full-day writer holds the student row and waits for care-day,
 // while an exception INSERT's FK check needs a KEY SHARE on the student.
 //
-// Returns sql.ErrNoRows when the student is missing under the tenant.
-func LockStudentAndExceptionDay(ctx context.Context, db *bun.DB, studentID int64, date timezone.Date) error {
+// Returns ErrStudentNotFound when the student is missing under the tenant.
+func LockStudentAndExceptionDay(ctx context.Context, db any, studentID int64, date string) error {
 	if err := LockStudent(ctx, db, studentID); err != nil {
 		return err
 	}

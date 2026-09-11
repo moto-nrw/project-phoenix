@@ -9,9 +9,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -61,7 +61,7 @@ func conversionRouterWithOpts(parentCtx context.Context, res *Resource, withTena
 func TestConvertInstanceToSeries_MapsRequestAndResponse(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, &mockMaterializationService{})
+	s := buildTemplateModule(t, &mockMaterializationService{})
 	defer s.cleanupFn()
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Convert-Period")
 	t.Cleanup(func() {
@@ -98,7 +98,7 @@ func TestConvertInstanceToSeries_MapsRequestAndResponse(t *testing.T) {
 func TestConvertInstanceToSeries_RequiresStartDate(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, &mockMaterializationService{})
+	s := buildTemplateModule(t, &mockMaterializationService{})
 	defer s.cleanupFn()
 	converter := &stubInstanceSeriesConverter{}
 	s.res.InstanceSeriesConverter = converter
@@ -114,7 +114,7 @@ func TestConvertInstanceToSeries_RequiresStartDate(t *testing.T) {
 func TestConvertInstanceToSeries_RejectsInvalidID(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, &mockMaterializationService{})
+	s := buildTemplateModule(t, &mockMaterializationService{})
 	defer s.cleanupFn()
 	s.res.InstanceSeriesConverter = &stubInstanceSeriesConverter{}
 	router := conversionRouter(s.ctx, s.res)
@@ -126,7 +126,7 @@ func TestConvertInstanceToSeries_RejectsInvalidID(t *testing.T) {
 func TestConvertInstanceToSeries_PreservesTemplateValidationErrorContract(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, &mockMaterializationService{})
+	s := buildTemplateModule(t, &mockMaterializationService{})
 	defer s.cleanupFn()
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Convert-Errors-Period")
 	body := createTemplateBody(s, "Tpl-Convert-Errors")
@@ -158,7 +158,7 @@ func TestConvertInstanceToSeries_PreservesTemplateValidationErrorContract(t *tes
 func TestConvertInstanceToSeries_LinksExistingOccurrenceAndRejectsRetry(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, &mockMaterializationService{})
+	s := buildTemplateModule(t, &mockMaterializationService{})
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Convert-Atomic-Period")
 	date := timezone.NewDate(2026, 8, 10) // Monday, matching createTemplateBody.
 	instance := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
@@ -193,7 +193,7 @@ func TestConvertInstanceToSeries_LinksExistingOccurrenceAndRejectsRetry(t *testi
 
 	// Materializer marker: seed must carry the template period so resync and
 	// FindPlannedTemplateBackedFrom treat it as a series occurrence.
-	seed, err := repositories.NewFactory(s.db).ActivityInstance.FindByID(s.ctx, instance.ID)
+	seed, err := mustTimetableTestRepositories(s.db).ActivityInstance.FindByID(s.ctx, instance.ID)
 	require.NoError(t, err)
 	require.NotNil(t, seed.CalendarPeriodID)
 	assert.Equal(t, period.ID, *seed.CalendarPeriodID)
@@ -218,7 +218,7 @@ func TestConvertInstanceToSeries_LinksExistingOccurrenceAndRejectsRetry(t *testi
 func TestConvertInstanceToSeries_UsesOfferingRosterForExistingSeed(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, &mockMaterializationService{})
+	s := buildTemplateModule(t, &mockMaterializationService{})
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Convert-Source-Period")
 	date := timezone.NewDate(2026, 8, 10) // Monday.
 	instance := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
@@ -228,7 +228,7 @@ func TestConvertInstanceToSeries_UsesOfferingRosterForExistingSeed(t *testing.T)
 		IsSpontaneous: true,
 	})
 
-	repoFactory := repositories.NewFactory(s.db)
+	repoFactory := mustTimetableTestRepositories(s.db)
 	timetableData := testTimetableDataWithOfferingCallbacks(
 		s.db,
 		nil,
@@ -238,14 +238,14 @@ func TestConvertInstanceToSeries_UsesOfferingRosterForExistingSeed(t *testing.T)
 				{
 					StudentID:        s.studentA,
 					ActivityGroupID:  in.TemplateID,
-					ValidFrom:        in.EffectiveFrom,
+					ValidFrom:        activitiesModel.Date(in.EffectiveFrom),
 					CalendarPeriodID: in.CalendarPeriodID,
 					SelectedWeekdays: []int{activitiesModel.WeekdayMonday},
 				},
 				{
 					StudentID:        s.studentB,
 					ActivityGroupID:  in.TemplateID,
-					ValidFrom:        in.EffectiveFrom,
+					ValidFrom:        activitiesModel.Date(in.EffectiveFrom),
 					CalendarPeriodID: in.CalendarPeriodID,
 					SelectedWeekdays: []int{activitiesModel.WeekdayTuesday},
 				},
@@ -293,7 +293,7 @@ func TestConvertInstanceToSeries_UsesOfferingRosterForExistingSeed(t *testing.T)
 func TestConvertInstanceToSeries_RollsBackTemplateWhenLinkFails(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, &mockMaterializationService{})
+	s := buildTemplateModule(t, &mockMaterializationService{})
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Convert-Rollback-Period")
 	date := timezone.NewDate(2026, 8, 10)
 	instance := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
@@ -304,7 +304,7 @@ func TestConvertInstanceToSeries_RollsBackTemplateWhenLinkFails(t *testing.T) {
 	})
 
 	failingInstanceService := &mockInstanceService{updateErr: errors.New("link failed")}
-	repoFactory := repositories.NewFactory(s.db)
+	repoFactory := mustTimetableTestRepositories(s.db)
 	s.res.InstanceSeriesConverter = scheduleSvc.NewInstanceSeriesConversionService(
 		scheduleSvc.InstanceSeriesConversionDependencies{
 			DB:              s.db,
@@ -336,7 +336,7 @@ func TestConvertInstanceToSeries_RollsBackTemplateWhenLinkFails(t *testing.T) {
 func TestConvertInstanceToSeries_RollsBackOrphanSeriesOn4xxLinkFailure(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, &mockMaterializationService{})
+	s := buildTemplateModule(t, &mockMaterializationService{})
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Convert-4xx-Period")
 	// Existing seed is a weekday; conversion start_date moves it onto a
 	// different weekend day → UpdatePlanned returns ErrInstanceWeekend (400)
@@ -370,17 +370,17 @@ func TestConvertInstanceToSeries_RollsBackOrphanSeriesOn4xxLinkFailure(t *testin
 			"TenantTxMiddleware must roll back the new series on a 4xx link failure")
 	}
 
-	seed, err := repositories.NewFactory(s.db).ActivityInstance.FindByID(s.ctx, instance.ID)
+	seed, err := mustTimetableTestRepositories(s.db).ActivityInstance.FindByID(s.ctx, instance.ID)
 	require.NoError(t, err)
 	assert.Nil(t, seed.ActivityGroupID, "seed must stay unlinked when convert rolls back")
 	assert.True(t, seed.IsSpontaneous)
-	assert.Equal(t, seedDate, seed.Date)
+	assert.Equal(t, scheduleModels.Date(seedDate), seed.Date)
 }
 
 func TestConvertInstanceToSeries_MarksRollbackOnServiceError(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, &mockMaterializationService{})
+	s := buildTemplateModule(t, &mockMaterializationService{})
 	defer s.cleanupFn()
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Convert-MarkRollback-Period")
 	t.Cleanup(func() {

@@ -60,7 +60,7 @@ type ConflictsResponse struct {
 
 // getExceptionConflicts handles GET /api/timetable/exception-conflicts.
 func (rs *Resource) getExceptionConflicts(w http.ResponseWriter, r *http.Request) {
-	from, to, ok := parseTodayFutureDateRange(w, r)
+	from, to, ok := rs.parseTodayFutureDateRange(w, r)
 	if !ok {
 		return
 	}

@@ -9,14 +9,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	baseModel "github.com/moto-nrw/project-phoenix/models/base"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
@@ -25,7 +25,7 @@ func TestCountAssignedPreviewPhases(t *testing.T) {
 
 	schemaID := int64(1234)
 	otherSchemaID := int64(5678)
-	phases := []*enrollmentModels.Phase{
+	phases := []*capability.Phase{
 		{FormSchemaID: &schemaID, IsActive: true},
 		{FormSchemaID: &schemaID, IsActive: false},
 		{FormSchemaID: &otherSchemaID, IsActive: true},
@@ -33,8 +33,8 @@ func TestCountAssignedPreviewPhases(t *testing.T) {
 		nil,
 	}
 
-	assigned, active := countAssignedPreviewPhases(phases, &enrollmentModels.FormSchema{
-		Model: baseModel.Model{ID: schemaID},
+	assigned, active := countAssignedPreviewPhases(phases, &capability.FormSchema{
+		ID: schemaID,
 	})
 	require.Equal(t, 2, assigned)
 	require.Equal(t, 1, active)
@@ -48,56 +48,56 @@ func TestCountAssignedPreviewPhases(t *testing.T) {
 // as mockRolloverService / mockDecisionService in this package.
 type mockFormSchemaService struct {
 	getActiveErr    error
-	getActiveResult *enrollmentModels.FormSchema
+	getActiveResult *capability.FormSchema
 	getByIDID       int64
 	getByIDErr      error
-	getByIDResult   *enrollmentModels.FormSchema
-	listResult      []*enrollmentModels.FormSchema
+	getByIDResult   *capability.FormSchema
+	listResult      []*capability.FormSchema
 	listErr         error
 	createName      string
-	createFields    []enrollmentModels.FormField
+	createFields    []capability.FormField
 	createCreatedBy int64
-	createCore      enrollmentModels.CoreRequirements
+	createCore      capability.CoreRequirements
 	createCoreSet   bool
-	createLegal     []enrollmentModels.FormLegalBlock
+	createLegal     []capability.FormLegalBlock
 	createLegalSet  bool
-	createResult    *enrollmentModels.FormSchema
+	createResult    *capability.FormSchema
 	createErr       error
 	updateID        int64
-	updateFields    []enrollmentModels.FormField
+	updateFields    []capability.FormField
 	updateUpdatedBy int64
-	updateCore      enrollmentModels.CoreRequirements
+	updateCore      capability.CoreRequirements
 	updateCoreSet   bool
-	updateLegal     []enrollmentModels.FormLegalBlock
+	updateLegal     []capability.FormLegalBlock
 	updateLegalSet  bool
-	updateResult    *enrollmentModels.FormSchema
+	updateResult    *capability.FormSchema
 	updateErr       error
 	deleteID        int64
 	deleteErr       error
 	renameID        int64
 	renameName      string
-	renameResult    *enrollmentModels.FormSchema
+	renameResult    *capability.FormSchema
 	renameErr       error
 
 	publishInput         enrollmentService.PublishFormInput
-	publishResult        *enrollmentModels.FormSchema
+	publishResult        *capability.FormSchema
 	publishErr           error
 	publishVersionInput  enrollmentService.PublishFormVersionInput
-	publishVersionResult *enrollmentModels.FormSchema
+	publishVersionResult *capability.FormSchema
 	publishVersionErr    error
 }
 
-func (m *mockFormSchemaService) GetActive(_ context.Context) (*enrollmentModels.FormSchema, error) {
+func (m *mockFormSchemaService) GetActive(_ context.Context) (*capability.FormSchema, error) {
 	return m.getActiveResult, m.getActiveErr
 }
-func (m *mockFormSchemaService) GetByID(_ context.Context, id int64) (*enrollmentModels.FormSchema, error) {
+func (m *mockFormSchemaService) GetByID(_ context.Context, id int64) (*capability.FormSchema, error) {
 	m.getByIDID = id
 	return m.getByIDResult, m.getByIDErr
 }
-func (m *mockFormSchemaService) ListVersions(_ context.Context) ([]*enrollmentModels.FormSchema, error) {
+func (m *mockFormSchemaService) ListVersions(_ context.Context) ([]*capability.FormSchema, error) {
 	return m.listResult, m.listErr
 }
-func (m *mockFormSchemaService) CreateSchema(_ context.Context, name string, fields []enrollmentModels.FormField, createdBy int64, coreRequirements ...enrollmentModels.CoreRequirements) (*enrollmentModels.FormSchema, error) {
+func (m *mockFormSchemaService) CreateSchema(_ context.Context, name string, fields []capability.FormField, createdBy int64, coreRequirements ...capability.CoreRequirements) (*capability.FormSchema, error) {
 	m.createName = name
 	m.createFields = fields
 	m.createCreatedBy = createdBy
@@ -107,7 +107,7 @@ func (m *mockFormSchemaService) CreateSchema(_ context.Context, name string, fie
 	}
 	return m.createResult, m.createErr
 }
-func (m *mockFormSchemaService) CreateSchemaWithLegal(_ context.Context, name string, fields []enrollmentModels.FormField, createdBy int64, coreRequirements enrollmentModels.CoreRequirements, legalBlocks []enrollmentModels.FormLegalBlock) (*enrollmentModels.FormSchema, error) {
+func (m *mockFormSchemaService) CreateSchemaWithLegal(_ context.Context, name string, fields []capability.FormField, createdBy int64, coreRequirements capability.CoreRequirements, legalBlocks []capability.FormLegalBlock) (*capability.FormSchema, error) {
 	m.createName = name
 	m.createFields = fields
 	m.createCreatedBy = createdBy
@@ -117,7 +117,7 @@ func (m *mockFormSchemaService) CreateSchemaWithLegal(_ context.Context, name st
 	m.createLegalSet = true
 	return m.createResult, m.createErr
 }
-func (m *mockFormSchemaService) UpdateSchema(_ context.Context, id int64, fields []enrollmentModels.FormField, updatedBy int64, coreRequirements ...enrollmentModels.CoreRequirements) (*enrollmentModels.FormSchema, error) {
+func (m *mockFormSchemaService) UpdateSchema(_ context.Context, id int64, fields []capability.FormField, updatedBy int64, coreRequirements ...capability.CoreRequirements) (*capability.FormSchema, error) {
 	m.updateID = id
 	m.updateFields = fields
 	m.updateUpdatedBy = updatedBy
@@ -127,7 +127,7 @@ func (m *mockFormSchemaService) UpdateSchema(_ context.Context, id int64, fields
 	}
 	return m.updateResult, m.updateErr
 }
-func (m *mockFormSchemaService) UpdateSchemaWithLegal(_ context.Context, id int64, fields []enrollmentModels.FormField, updatedBy int64, coreRequirements *enrollmentModels.CoreRequirements, legalBlocks *[]enrollmentModels.FormLegalBlock) (*enrollmentModels.FormSchema, error) {
+func (m *mockFormSchemaService) UpdateSchemaWithLegal(_ context.Context, id int64, fields []capability.FormField, updatedBy int64, coreRequirements *capability.CoreRequirements, legalBlocks *[]capability.FormLegalBlock) (*capability.FormSchema, error) {
 	m.updateID = id
 	m.updateFields = fields
 	m.updateUpdatedBy = updatedBy
@@ -145,16 +145,16 @@ func (m *mockFormSchemaService) DeleteSchema(_ context.Context, id int64) error 
 	m.deleteID = id
 	return m.deleteErr
 }
-func (m *mockFormSchemaService) RenameSchema(_ context.Context, id int64, newName string) (*enrollmentModels.FormSchema, error) {
+func (m *mockFormSchemaService) RenameSchema(_ context.Context, id int64, newName string) (*capability.FormSchema, error) {
 	m.renameID = id
 	m.renameName = newName
 	return m.renameResult, m.renameErr
 }
-func (m *mockFormSchemaService) PublishForm(_ context.Context, in enrollmentService.PublishFormInput) (*enrollmentModels.FormSchema, error) {
+func (m *mockFormSchemaService) PublishForm(_ context.Context, in enrollmentService.PublishFormInput) (*capability.FormSchema, error) {
 	m.publishInput = in
 	return m.publishResult, m.publishErr
 }
-func (m *mockFormSchemaService) PublishFormVersion(_ context.Context, in enrollmentService.PublishFormVersionInput) (*enrollmentModels.FormSchema, error) {
+func (m *mockFormSchemaService) PublishFormVersion(_ context.Context, in enrollmentService.PublishFormVersionInput) (*capability.FormSchema, error) {
 	m.publishVersionInput = in
 	return m.publishVersionResult, m.publishVersionErr
 }
@@ -196,15 +196,15 @@ func executeSchemaJSON(t *testing.T, router chi.Router, method, path string, bod
 	return w
 }
 
-func makeFormSchema(id int64, name string, version int) *enrollmentModels.FormSchema {
-	return &enrollmentModels.FormSchema{
-		Model:     baseModel.Model{ID: id},
+func makeFormSchema(id int64, name string, version int) *capability.FormSchema {
+	return &capability.FormSchema{
+		ID:        id,
 		Name:      name,
 		Version:   version,
 		IsActive:  true,
 		CreatedBy: 4321,
-		Fields: []enrollmentModels.FormField{
-			{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+		Fields: []capability.FormField{
+			{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
 		},
 	}
 }
@@ -262,7 +262,7 @@ func TestListSchemaVersionsHandler_NilServiceReturns500(t *testing.T) {
 func TestListSchemaVersionsHandler_HappyPath(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockFormSchemaService{listResult: []*enrollmentModels.FormSchema{
+	mock := &mockFormSchemaService{listResult: []*capability.FormSchema{
 		makeFormSchema(2222, "A", 3),
 		makeFormSchema(1111, "A", 2),
 		makeFormSchema(999, "A", 1),
@@ -322,15 +322,21 @@ func TestGetSchemaByIDHandler_HappyPath(t *testing.T) {
 	assert.Contains(t, w.Body.String(), `"id":"1234"`)
 }
 
-func TestGetSchemaByIDHandler_ServiceErrorMappedAs404(t *testing.T) {
+func TestGetSchemaByIDHandler_MissingSchemaMappedAs404(t *testing.T) {
 	t.Parallel()
 
-	// Schema-by-id misses are rare and we already verified the id is
-	// numeric — so any service error here is "not found".
-	mock := &mockFormSchemaService{getByIDErr: errors.New("synthetic boom")}
+	mock := &mockFormSchemaService{getByIDErr: enrollmentService.ErrFormSchemaNotFound}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodGet, "/enrollment/schema/1234", nil)
 	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestGetSchemaByIDHandler_ReadFailureMappedAs500(t *testing.T) {
+	t.Parallel()
+	mock := &mockFormSchemaService{getByIDErr: errors.New("schema storage unavailable")}
+	router := buildSchemaRouter(mock)
+	w := executeSchemaJSON(t, router, http.MethodGet, "/enrollment/schema/1234", nil)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 // --- publishSchema -----------------------------------------------------
@@ -510,7 +516,7 @@ func TestUpdateSchemaHandler_ForwardsCoreRequirementsWhenPresent(t *testing.T) {
 	require.Equal(t, http.StatusCreated, w.Code)
 	require.NotNil(t, mock.publishVersionInput.CoreRequirements,
 		"present core_requirements, even when sparse, must be forwarded so admins can change the matrix")
-	assert.True(t, mock.publishVersionInput.CoreRequirements.Required(enrollmentModels.CoreRequirementGuardianPhone))
+	assert.True(t, mock.publishVersionInput.CoreRequirements.Required(capability.CoreRequirementGuardianPhone))
 }
 
 func TestUpdateSchemaHandler_ForwardsLegalBlocksWhenPresent(t *testing.T) {

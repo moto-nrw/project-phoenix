@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -20,6 +21,7 @@ import (
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -51,10 +53,11 @@ type OperationPersonService interface {
 	FindByAccountID(ctx context.Context, accountID int64) (*usersModel.Person, error)
 	GetByIDs(ctx context.Context, ids []int64) (map[int64]*usersModel.Person, error)
 	GetStaffByPersonID(ctx context.Context, personID int64) (*usersModel.Staff, error)
+	GetStaffWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*usersModel.Staff, error)
 }
 
 type OperationActiveService interface {
-	CreateVisit(ctx context.Context, visit *activeModel.Visit) error
+	CreateVisit(ctx context.Context, visit *studentpresence.Visit) error
 	EndVisit(ctx context.Context, id int64) error
 	MoveStudentsToActiveGroupAuthorized(ctx context.Context, studentIDs []int64, activeGroupID int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error)
 }
@@ -84,6 +87,10 @@ type TimetableOperationsService interface {
 	CheckInStudent(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64) (*OperationRoster, error)
 	CheckOutStudent(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64) (*OperationRoster, error)
 	PatchAttendance(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64, patch scheduleModel.AttendanceFieldPatch) (*OperationRosterRow, error)
+	// EarliestPlannedBlockStartForClass returns the "HH:MM" start of the
+	// first non-cancelled block of the date that addresses the school class,
+	// "" when there is none (#2970).
+	EarliestPlannedBlockStartForClass(ctx context.Context, schoolClass string, date timezone.Date) (string, error)
 }
 
 // PlannedNowScopePast flips PlannedNow to the complement of its default
@@ -92,13 +99,13 @@ type TimetableOperationsService interface {
 // of "planned", so a status filter alone would miss them).
 const PlannedNowScopePast = "past"
 
-// PlannedNowScopeDay returns the caller's OWN assigned blocks for the whole
-// day in every lifecycle state — planned, running, completed, cancelled
-// (#2527). It is the school portal's "Meine Aufsichten heute": no time window,
-// because a Lehrkraft plans her afternoon around the whole day, and no
-// operational-overview widening, because "meine" is the entire promise of the
-// list. The assignment filter therefore applies to this scope unconditionally,
-// even for a caller who would otherwise see every running block of the school.
+// PlannedNowScopeDay returns the day's blocks in every lifecycle state —
+// planned, running, completed, cancelled — with no time window (#2527). Who
+// sees which blocks follows the same operational-overview rule as the default
+// scope (#2383): under operations.operational_overview_scope = all_staff every
+// verified staff member (and every admin) gets the whole day, otherwise only
+// their own assignments. School-portal tokens always collapse to "own"
+// (#2527), which keeps the school list "Meine Aufsichten heute" exactly that.
 const PlannedNowScopeDay = "day"
 
 type PlannedNowOptions struct {
@@ -121,17 +128,20 @@ type TimetableOperationsDependencies struct {
 	PickupService      OperationPickupService
 	CareDayService     CareDayService
 	SupervisorRepo     activeModel.GroupSupervisorRepository
-	VisitRepo          activeModel.VisitRepository
+	Presence           StudentVisitReader
 	StudentRepo        usersModel.StudentRepository
 	EducationGroupRepo educationModel.GroupRepository
 	RoomRepo           facilitiesModel.RoomRepository
 	PersonService      OperationPersonService
-	Settings           OperationSettings
-	Broadcaster        realtime.Broadcaster
-	DB                 *bun.DB
-	Logger             *slog.Logger
-	Now                func() time.Time
-	RecoveryRepo       scheduleModel.ActivityRecoveryRepository
+	// PlanningTrackRepo is optional: without it day-scope blocks simply carry
+	// no planning-track colour (#2383).
+	PlanningTrackRepo scheduleModel.PlanningTrackRepository
+	Settings          OperationSettings
+	Broadcaster       realtime.Broadcaster
+	DB                *bun.DB
+	Logger            *slog.Logger
+	Now               func() time.Time
+	RecoveryRepo      scheduleModel.ActivityRecoveryRepository
 }
 
 type OperationPlannedInstance struct {
@@ -165,6 +175,31 @@ type OperationPlannedInstance struct {
 	CanStart            bool                      `json:"can_start"`
 	StartAvailableAt    string                    `json:"start_available_at"`
 	StartExpiresAt      string                    `json:"start_expires_at"`
+	// ActiveGroupID is the live session behind a running block, so the
+	// Tagesplan (#2383) can jump straight into its supervision list.
+	ActiveGroupID *int64 `json:"active_group_id,omitempty"`
+	// CancelReason explains a cancelled block ("fällt aus: …", #1840).
+	CancelReason *string `json:"cancel_reason,omitempty"`
+	// PlanningTrackName/Color carry the planned colour coding into the
+	// whole-day scope (#2383) — the Tagesplan paints blocks in the same
+	// colours as the Betreuungsplan. Nil outside scope=day and for blocks
+	// without a planning track.
+	PlanningTrackName  *string `json:"planning_track_name,omitempty"`
+	PlanningTrackColor *string `json:"planning_track_color,omitempty"`
+	// GroupName is the education group the block's template targets (the
+	// "Zielgruppe" on a Tagesplan card). Nil outside scope=day and for
+	// blocks without a template group.
+	GroupName *string `json:"group_name,omitempty"`
+	// StaffNames lists the assigned (non-absent) staff, resolved to display
+	// names. Empty outside scope=day.
+	StaffNames []OperationStaffName `json:"staff_names,omitempty"`
+}
+
+// OperationStaffName is one assigned staff member on a day-scope block.
+type OperationStaffName struct {
+	StaffID      int64  `json:"staff_id"`
+	DisplayName  string `json:"display_name"`
+	IsSubstitute bool   `json:"is_substitute"`
 }
 
 // OperationActiveSession is one running instance seen from its live session
@@ -262,10 +297,21 @@ func NewTimetableOperationsService(deps TimetableOperationsDependencies) Timetab
 	if deps.InstanceRepo == nil || deps.InstanceStaffRepo == nil || deps.InstanceStudents == nil ||
 		deps.InstanceService == nil || deps.ActiveGroupRepo == nil || deps.ActivityGroupRepo == nil ||
 		deps.ActiveService == nil || deps.ArrivalService == nil || deps.PickupService == nil || deps.CareDayService == nil || deps.SupervisorRepo == nil ||
-		deps.VisitRepo == nil || deps.StudentRepo == nil || deps.EducationGroupRepo == nil || deps.RoomRepo == nil || deps.PersonService == nil || deps.Settings == nil || deps.DB == nil {
+		deps.Presence == nil || deps.StudentRepo == nil || deps.EducationGroupRepo == nil || deps.RoomRepo == nil || deps.PersonService == nil || deps.Settings == nil || deps.DB == nil {
 		panic("schedule.NewTimetableOperationsService: required dependency is nil")
 	}
 	return &timetableOperationsService{deps: deps}
+}
+
+func (s *timetableOperationsService) now() time.Time {
+	if s.deps.Now != nil {
+		return s.deps.Now()
+	}
+	return time.Now()
+}
+
+func (s *timetableOperationsService) today() timezone.Date {
+	return timezone.DateFromTime(s.now())
 }
 
 func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID int64, isAdmin bool, date timezone.Date, now time.Time, opts PlannedNowOptions) ([]OperationPlannedInstance, error) {
@@ -282,11 +328,12 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 		return nil, err
 	}
 	allOperational := s.operationalOverview(ctx, isAdmin, hasStaff)
-	if !hasStaff && (!allOperational || opts.Scope == PlannedNowScopeDay) {
+	adminActions := s.hasAdministrativeActionAccess(ctx, isAdmin)
+	if !hasStaff && !allOperational {
 		return nil, ErrTimetableOperationForbidden
 	}
 
-	instances, err := s.deps.InstanceRepo.FindByTenantAndDate(ctx, date)
+	instances, err := s.deps.InstanceRepo.FindByTenantAndDate(ctx, scheduleModel.Date(date))
 	if err != nil {
 		return nil, err
 	}
@@ -306,7 +353,7 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 	}
 	past := opts.Scope == PlannedNowScopePast
 	wholeDay := opts.Scope == PlannedNowScopeDay
-	candidates := make([]plannedNowCandidate, 0, len(instances))
+	eligible := make([]*scheduleModel.ActivityInstance, 0, len(instances))
 	for _, inst := range instances {
 		switch {
 		case wholeDay:
@@ -321,27 +368,42 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 				continue
 			}
 		}
-		roomName := roomNames[inst.RoomID]
-		staffRows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, inst.ID)
-		if err != nil {
-			return nil, err
-		}
-		if (wholeDay || !allOperational) && !staffAssigned(staffRows, staffID) {
+		eligible = append(eligible, inst)
+	}
+
+	eligibleIDs := activityInstanceIDs(eligible)
+	staffRows, err := s.deps.InstanceStaffRepo.FindByInstanceIDs(ctx, eligibleIDs)
+	if err != nil {
+		return nil, err
+	}
+	staffByInstance := indexInstanceStaffRows(staffRows)
+
+	candidateInstances := make([]*scheduleModel.ActivityInstance, 0, len(eligible))
+	for _, inst := range eligible {
+		assigned := staffAssigned(staffByInstance[inst.ID], staffID)
+		if !allOperational && !assigned {
 			continue
 		}
-		studentRows, err := s.deps.InstanceStudents.FindByInstanceID(ctx, inst.ID)
-		if err != nil {
-			return nil, err
-		}
-		candidates = append(candidates, plannedNowCandidate{
-			instance:    inst,
-			staffRows:   staffRows,
-			studentRows: studentRows,
-			roomName:    roomName,
-		})
-		if opts.Limit > 0 && len(candidates) >= opts.Limit {
+		candidateInstances = append(candidateInstances, inst)
+		if opts.Limit > 0 && len(candidateInstances) >= opts.Limit {
 			break
 		}
+	}
+	studentRows, err := s.deps.InstanceStudents.FindByInstanceIDs(ctx, activityInstanceIDs(candidateInstances))
+	if err != nil {
+		return nil, err
+	}
+	studentsByInstance := indexInstanceStudentRows(studentRows)
+	candidates := make([]plannedNowCandidate, 0, len(candidateInstances))
+	for _, inst := range candidateInstances {
+		assigned := staffAssigned(staffByInstance[inst.ID], staffID)
+		candidates = append(candidates, plannedNowCandidate{
+			instance:    inst,
+			staffRows:   staffByInstance[inst.ID],
+			studentRows: studentsByInstance[inst.ID],
+			roomName:    roomNames[inst.RoomID],
+			canOperate:  hasStaff && (adminActions || assigned),
+		})
 	}
 
 	careDay, err := s.deps.CareDayService.ResolveForDate(ctx, plannedNowStudentIDs(candidates), date)
@@ -356,7 +418,7 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 		// CanStart/StartAvailableAt/StartExpiresAt say so. The whole-day scope
 		// carries every state, so there the instance's own status decides —
 		// a running, finished or cancelled block is not startable either.
-		if !past && (!wholeDay || candidate.instance.Status == scheduleModel.InstanceStatusPlanned) {
+		if candidate.canOperate && !past && (!wholeDay || candidate.instance.Status == scheduleModel.InstanceStatusPlanned) {
 			availability := EvaluateLifecycleAvailability(candidate.instance, now, startLead, true)
 			mapped.CanStart = availability.CanStart
 			mapped.StartAvailableAt = availability.StartAvailableAt.Format(time.RFC3339)
@@ -374,7 +436,161 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 		}
 		out = append(out, mapped)
 	}
+	if wholeDay {
+		if err := s.enrichDayPlan(ctx, candidates, out); err != nil {
+			return nil, err
+		}
+	}
 	return out, nil
+}
+
+func activityInstanceIDs(instances []*scheduleModel.ActivityInstance) []int64 {
+	ids := make([]int64, 0, len(instances))
+	for _, instance := range instances {
+		ids = append(ids, instance.ID)
+	}
+	return ids
+}
+
+func indexInstanceStaffRows(rows []*scheduleModel.InstanceStaff) map[int64][]*scheduleModel.InstanceStaff {
+	byInstance := make(map[int64][]*scheduleModel.InstanceStaff)
+	for _, row := range rows {
+		byInstance[row.InstanceID] = append(byInstance[row.InstanceID], row)
+	}
+	return byInstance
+}
+
+func indexInstanceStudentRows(rows []*scheduleModel.InstanceStudent) map[int64][]*scheduleModel.InstanceStudent {
+	byInstance := make(map[int64][]*scheduleModel.InstanceStudent)
+	for _, row := range rows {
+		byInstance[row.InstanceID] = append(byInstance[row.InstanceID], row)
+	}
+	return byInstance
+}
+
+// enrichDayPlan decorates whole-day-scope blocks (#2383) with what the
+// Tagesplan cards show beyond the base payload: staff display names, the
+// planning-track colour of the underlying template, and the template's
+// education group ("Zielgruppe"). candidates and out are parallel slices.
+func (s *timetableOperationsService) enrichDayPlan(ctx context.Context, candidates []plannedNowCandidate, out []OperationPlannedInstance) error {
+	staffSeen := map[int64]bool{}
+	staffIDs := make([]int64, 0)
+	for _, candidate := range candidates {
+		for _, row := range candidate.staffRows {
+			if !row.IsAbsent && !staffSeen[row.StaffID] {
+				staffSeen[row.StaffID] = true
+				staffIDs = append(staffIDs, row.StaffID)
+			}
+		}
+	}
+	staffByID := map[int64]*usersModel.Staff{}
+	if len(staffIDs) > 0 {
+		var err error
+		staffByID, err = s.deps.PersonService.GetStaffWithPersonByIDs(ctx, staffIDs)
+		if err != nil {
+			return err
+		}
+	}
+
+	// One IN query per metadata kind instead of one lookup per distinct
+	// template/track: a large school's day plan otherwise fires a query
+	// burst proportional to its module count. Missing IDs are simply absent
+	// from the maps, which the render loop below already treats as "no
+	// metadata" (same behavior as the previous per-ID no-rows handling).
+	groupIDs := make([]int64, 0)
+	groupSeen := map[int64]bool{}
+	for _, candidate := range candidates {
+		groupID := candidate.instance.ActivityGroupID
+		if groupID == nil || *groupID <= 0 || groupSeen[*groupID] {
+			continue
+		}
+		groupSeen[*groupID] = true
+		groupIDs = append(groupIDs, *groupID)
+	}
+	activityGroups := map[int64]*activitiesModel.Group{}
+	educationGroupIDs := make([]int64, 0)
+	trackIDs := make([]int64, 0)
+	if len(groupIDs) > 0 {
+		groups, err := s.deps.ActivityGroupRepo.FindByIDs(ctx, groupIDs)
+		if err != nil {
+			return err
+		}
+		educationSeen := map[int64]bool{}
+		trackSeen := map[int64]bool{}
+		for _, group := range groups {
+			activityGroups[group.ID] = group
+			if group.EducationGroupID != nil && !educationSeen[*group.EducationGroupID] {
+				educationSeen[*group.EducationGroupID] = true
+				educationGroupIDs = append(educationGroupIDs, *group.EducationGroupID)
+			}
+			if group.PlanningTrackID != nil && !trackSeen[*group.PlanningTrackID] {
+				trackSeen[*group.PlanningTrackID] = true
+				trackIDs = append(trackIDs, *group.PlanningTrackID)
+			}
+		}
+	}
+	tracks := map[int64]*scheduleModel.PlanningTrack{}
+	if len(trackIDs) > 0 && s.deps.PlanningTrackRepo != nil {
+		trackRows, err := s.deps.PlanningTrackRepo.FindByIDs(ctx, trackIDs)
+		if err != nil {
+			return err
+		}
+		for _, track := range trackRows {
+			tracks[track.ID] = track
+		}
+	}
+	educationGroups := map[int64]*educationModel.Group{}
+	if len(educationGroupIDs) > 0 {
+		var err error
+		educationGroups, err = s.deps.EducationGroupRepo.FindByIDs(ctx, educationGroupIDs)
+		if err != nil {
+			return err
+		}
+	}
+
+	for i, candidate := range candidates {
+		names := make([]OperationStaffName, 0, len(candidate.staffRows))
+		for _, row := range candidate.staffRows {
+			if row.IsAbsent {
+				continue
+			}
+			staff := staffByID[row.StaffID]
+			if staff == nil || staff.Person == nil {
+				continue
+			}
+			names = append(names, OperationStaffName{
+				StaffID:      row.StaffID,
+				DisplayName:  staff.Person.GetFullName(),
+				IsSubstitute: row.IsSubstitute,
+			})
+		}
+		sort.Slice(names, func(a, b int) bool { return names[a].DisplayName < names[b].DisplayName })
+		out[i].StaffNames = names
+
+		groupID := candidate.instance.ActivityGroupID
+		if groupID == nil {
+			continue
+		}
+		group := activityGroups[*groupID]
+		if group == nil {
+			continue
+		}
+		if group.EducationGroupID != nil {
+			if educationGroup := educationGroups[*group.EducationGroupID]; educationGroup != nil {
+				name := educationGroup.Name
+				out[i].GroupName = &name
+			}
+		}
+		if group.PlanningTrackID != nil {
+			if track := tracks[*group.PlanningTrackID]; track != nil {
+				trackName := track.Name
+				trackColor := track.Color
+				out[i].PlanningTrackName = &trackName
+				out[i].PlanningTrackColor = &trackColor
+			}
+		}
+	}
+	return nil
 }
 
 // plannedNowCandidate is one instance that survived the PlannedNow filters,
@@ -384,6 +600,7 @@ type plannedNowCandidate struct {
 	staffRows   []*scheduleModel.InstanceStaff
 	studentRows []*scheduleModel.InstanceStudent
 	roomName    *string
+	canOperate  bool
 }
 
 func plannedNowStudentIDs(candidates []plannedNowCandidate) []int64 {
@@ -422,7 +639,7 @@ func (s *timetableOperationsService) CreateAndStartSpontaneous(ctx context.Conte
 		tenant.MarkRollback(ctx)
 		return nil, &SpontaneousCreateError{Err: err}
 	}
-	result, err := s.Start(ctx, accountID, isAdmin, inst.ID)
+	result, err := s.Start(withSpontaneousStartWorkdayGuard(ctx), accountID, isAdmin, inst.ID)
 	if err != nil {
 		tenant.MarkRollback(ctx)
 		return nil, err
@@ -463,7 +680,7 @@ func (s *timetableOperationsService) Reopen(ctx context.Context, accountID int64
 }
 
 func (s *timetableOperationsService) Roster(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (*OperationRoster, error) {
-	if _, err := s.requireCanOperate(ctx, accountID, isAdmin, instanceID); err != nil {
+	if _, err := s.requireCanView(ctx, accountID, isAdmin, instanceID); err != nil {
 		return nil, err
 	}
 	return s.buildRoster(ctx, instanceID)
@@ -498,25 +715,23 @@ func (s *timetableOperationsService) CheckInStudent(ctx context.Context, account
 	if err := s.requireRosterStudent(ctx, inst, instanceID, studentID); err != nil {
 		return nil, err
 	}
-	current, err := s.deps.VisitRepo.GetCurrentByStudentID(ctx, studentID)
-	if err != nil && !modelBase.IsNoRows(err) {
+	current, err := s.currentVisit(ctx, studentID)
+	if err != nil {
 		return nil, err
 	}
 	if current != nil {
 		return s.checkInStudentWithCurrentVisit(ctx, staffID, inst, instanceID, studentID, current)
 	}
-	now := time.Now()
-	visit := &activeModel.Visit{
+	now := s.now()
+	visit := &studentpresence.Visit{
 		StudentID:     studentID,
 		ActiveGroupID: *inst.ActiveGroupID,
 		EntryTime:     now,
 	}
-	visit.SetTenantID(tenant.FromContext(ctx))
-	staff := &usersModel.Staff{}
-	staff.ID = staffID
-	visitCtx := context.WithValue(ctx, device.CtxStaff, staff)
+	visit.TenantID = tenant.FromContext(ctx)
+	visitCtx := context.WithValue(ctx, device.CtxStaff, &device.AuthenticatedStaff{ID: staffID, TenantID: visit.TenantID})
 	var createErr error
-	if _, inTx := modelBase.TxFromContext(visitCtx); inTx {
+	if _, inTx := tenant.TransactionFromContext(visitCtx); inTx {
 		createErr = tenant.WithSavepoint(visitCtx, func(savepointCtx context.Context) error {
 			return s.deps.ActiveService.CreateVisit(savepointCtx, visit)
 		})
@@ -528,8 +743,8 @@ func (s *timetableOperationsService) CheckInStudent(ctx context.Context, account
 			return nil, createErr
 		}
 		if errors.Is(createErr, activeSvc.ErrStudentAlreadyActive) {
-			current, lookupErr := s.deps.VisitRepo.GetCurrentByStudentID(ctx, studentID)
-			if lookupErr != nil && !modelBase.IsNoRows(lookupErr) {
+			current, lookupErr := s.currentVisit(ctx, studentID)
+			if lookupErr != nil {
 				return nil, lookupErr
 			}
 			if current != nil {
@@ -549,7 +764,7 @@ func (s *timetableOperationsService) CheckInStudent(ctx context.Context, account
 	return s.buildRoster(ctx, instanceID)
 }
 
-func (s *timetableOperationsService) checkInStudentWithCurrentVisit(ctx context.Context, staffID int64, inst *scheduleModel.ActivityInstance, instanceID, studentID int64, current *activeModel.Visit) (*OperationRoster, error) {
+func (s *timetableOperationsService) checkInStudentWithCurrentVisit(ctx context.Context, staffID int64, inst *scheduleModel.ActivityInstance, instanceID, studentID int64, current *studentpresence.Visit) (*OperationRoster, error) {
 	if current.ActiveGroupID != *inst.ActiveGroupID {
 		return s.moveStudentFromOtherSession(ctx, staffID, inst, instanceID, studentID)
 	}
@@ -655,9 +870,7 @@ func (s *timetableOperationsService) CheckOutStudent(ctx context.Context, accoun
 	if visit == nil {
 		return nil, ErrTimetableOperationNotFound
 	}
-	staff := &usersModel.Staff{}
-	staff.ID = staffID
-	visitCtx := context.WithValue(ctx, device.CtxStaff, staff)
+	visitCtx := context.WithValue(ctx, device.CtxStaff, &device.AuthenticatedStaff{ID: staffID, TenantID: visit.TenantID})
 	if err := s.deps.ActiveService.EndVisit(visitCtx, visit.ID); err != nil {
 		if errors.Is(err, activeSvc.ErrVisitAlreadyEnded) {
 			return s.buildRoster(ctx, instanceID)
@@ -732,7 +945,7 @@ func (s *timetableOperationsService) PatchAttendance(ctx context.Context, accoun
 // they are on her sheet, and a child who turns up anyway must stay one tap
 // away.
 func (s *timetableOperationsService) requireRosterStudent(ctx context.Context, inst *scheduleModel.ActivityInstance, instanceID, studentID int64) error {
-	if !authorize.IsAssignmentBoundPortal(ctx) {
+	if !isAssignmentBoundPortal(ctx) {
 		return nil
 	}
 	planned, err := s.deps.InstanceStudents.FindByInstanceID(ctx, instanceID)
@@ -750,7 +963,7 @@ func (s *timetableOperationsService) requireRosterStudent(ctx context.Context, i
 		return nil
 	}
 	if inst != nil && inst.ActiveGroupID != nil {
-		visits, err := s.deps.VisitRepo.FindByActiveGroupID(ctx, *inst.ActiveGroupID)
+		visits, err := s.deps.Presence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{*inst.ActiveGroupID}})
 		if err != nil {
 			return err
 		}
@@ -779,7 +992,7 @@ func (s *timetableOperationsService) rosterStudentExcluded(ctx context.Context, 
 	if err != nil {
 		return false, err
 	}
-	return rosterExcludedAlumni(inst, students)[studentID], nil
+	return rosterExcludedAlumni(inst, students, s.today())[studentID], nil
 }
 
 func (s *timetableOperationsService) requireCanOperate(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (int64, error) {
@@ -787,13 +1000,42 @@ func (s *timetableOperationsService) requireCanOperate(ctx context.Context, acco
 	if err != nil {
 		return 0, err
 	}
-	if s.operationalOverview(ctx, isAdmin, hasStaff) {
+	if s.hasAdministrativeActionAccess(ctx, isAdmin) {
 		return staffID, nil
 	}
 	if !hasStaff {
 		return 0, ErrTimetableOperationForbidden
 	}
 	return s.requireFixedGroupOperationAccess(ctx, staffID, instanceID)
+}
+
+func (s *timetableOperationsService) requireCanView(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (int64, error) {
+	staffID, hasStaff, err := s.resolveStaffID(ctx, accountID)
+	if err != nil {
+		return 0, err
+	}
+	if s.operationalOverview(ctx, isAdmin, hasStaff) {
+		inst, err := s.loadInstance(ctx, instanceID)
+		if err != nil {
+			return 0, err
+		}
+		if inst.Status != scheduleModel.InstanceStatusActive || inst.ActiveGroupID == nil {
+			return 0, ErrTimetableOperationForbidden
+		}
+		return staffID, nil
+	}
+	if !hasStaff {
+		return 0, ErrTimetableOperationForbidden
+	}
+	return s.requireFixedGroupOperationAccess(ctx, staffID, instanceID)
+}
+
+func (s *timetableOperationsService) hasAdministrativeActionAccess(ctx context.Context, isAdmin bool) bool {
+	if isAssignmentBoundPortal(ctx) {
+		return false
+	}
+	claims := jwt.ClaimsFromCtx(ctx)
+	return isAdmin || claims.IsAdmin || authorize.HasAdminWildcard(jwt.PermissionsFromCtx(ctx))
 }
 
 func (s *timetableOperationsService) requireFixedGroupOperationAccess(ctx context.Context, staffID, instanceID int64) (int64, error) {
@@ -808,7 +1050,7 @@ func (s *timetableOperationsService) requireFixedGroupOperationAccess(ctx contex
 	// she is planned into next week or was planned into in March. Her access
 	// follows the day she stands in front of the children, so the day is part
 	// of the boundary, not just the assignment.
-	if authorize.IsAssignmentBoundPortal(ctx) && inst.Date != timezone.TodayDate() {
+	if isAssignmentBoundPortal(ctx) && timezone.Date(inst.Date) != s.today() {
 		return 0, ErrTimetableOperationForbidden
 	}
 	staffRows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instanceID)
@@ -822,7 +1064,7 @@ func (s *timetableOperationsService) requireFixedGroupOperationAccess(ctx contex
 	// the active group's supervisor list. Starting a block adds its operator
 	// as a supervisor, so using that list here would preserve access after the
 	// assignment has been withdrawn.
-	if authorize.IsAssignmentBoundPortal(ctx) {
+	if isAssignmentBoundPortal(ctx) {
 		return 0, ErrTimetableOperationForbidden
 	}
 	if inst.ActiveGroupID != nil {
@@ -839,6 +1081,11 @@ func (s *timetableOperationsService) requireFixedGroupOperationAccess(ctx contex
 	return 0, ErrTimetableOperationForbidden
 }
 
+func isAssignmentBoundPortal(ctx context.Context) bool {
+	claims := jwt.ClaimsFromCtx(ctx)
+	return claims.IsSchoolScope()
+}
+
 func (s *timetableOperationsService) buildRoster(ctx context.Context, instanceID int64) (*OperationRoster, error) {
 	return s.buildRosterWithCareDay(ctx, instanceID, nil)
 }
@@ -848,7 +1095,7 @@ func (s *timetableOperationsService) buildRoster(ctx context.Context, instanceID
 // therefore soft-deleted from all staff-facing operations. Frozen history —
 // a past-dated, completed, or cancelled instance — excludes nobody so its
 // recorded attendance stays intact (#405).
-func rosterExcludedAlumni(inst *scheduleModel.ActivityInstance, students map[int64]*usersModel.Student) map[int64]bool {
+func rosterExcludedAlumni(inst *scheduleModel.ActivityInstance, students map[int64]*usersModel.Student, today timezone.Date) map[int64]bool {
 	excluded := map[int64]bool{}
 	if inst == nil {
 		return excluded
@@ -856,7 +1103,7 @@ func rosterExcludedAlumni(inst *scheduleModel.ActivityInstance, students map[int
 	if inst.Status == scheduleModel.InstanceStatusCompleted || inst.Status == scheduleModel.InstanceStatusCancelled {
 		return excluded
 	}
-	if inst.Date.Before(timezone.TodayDate()) {
+	if inst.Date.Before(today) {
 		return excluded
 	}
 	for id, st := range students {
@@ -865,7 +1112,7 @@ func rosterExcludedAlumni(inst *scheduleModel.ActivityInstance, students map[int
 		}
 		// Graduated children and children whose care ended before this block
 		// are excluded from the roster of a not-yet-past occurrence (#2487).
-		if st.Status == usersModel.StudentStatusAlumnus || st.CareEndedOn(inst.Date) {
+		if st.Status == usersModel.StudentStatusAlumnus || st.CareEndedOn(timezone.Date(inst.Date)) {
 			excluded[id] = true
 		}
 	}
@@ -886,9 +1133,9 @@ func (s *timetableOperationsService) buildRosterWithCareDay(
 	if err != nil {
 		return nil, err
 	}
-	var visits []*activeModel.Visit
+	var visits []studentpresence.Visit
 	if inst.ActiveGroupID != nil {
-		visits, err = s.deps.VisitRepo.FindByActiveGroupID(ctx, *inst.ActiveGroupID)
+		visits, err = s.deps.Presence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{*inst.ActiveGroupID}})
 		if err != nil {
 			return nil, err
 		}
@@ -916,7 +1163,7 @@ func (s *timetableOperationsService) buildRosterWithCareDay(
 	// roster a supervisor can still act on, so a departed child never appears on
 	// an upcoming staff list nor has their attendance patched. Frozen history
 	// (past-dated or completed/cancelled instances) keeps every row (#405).
-	excludedAlumni := rosterExcludedAlumni(inst, students)
+	excludedAlumni := rosterExcludedAlumni(inst, students, s.today())
 	templateGroup, err := s.loadRosterTemplateGroup(ctx, inst.ActivityGroupID)
 	if err != nil {
 		return nil, err
@@ -940,15 +1187,15 @@ func (s *timetableOperationsService) buildRosterWithCareDay(
 	if err != nil {
 		return nil, err
 	}
-	latestVisits := map[int64]*activeModel.Visit{}
+	latestVisits := map[int64]*studentpresence.Visit{}
 	for _, visit := range visits {
 		if current := latestVisits[visit.StudentID]; current == nil || visit.EntryTime.After(current.EntryTime) {
-			latestVisits[visit.StudentID] = visit
+			latestVisits[visit.StudentID] = &visit
 		}
 	}
 	warningsByStudent := s.rosterWarnings(ctx, inst, studentIDs, students, groups, templateGroup)
 	if careDay == nil {
-		careDay, err = s.deps.CareDayService.ResolveForDate(ctx, studentIDs, inst.Date)
+		careDay, err = s.deps.CareDayService.ResolveForDate(ctx, studentIDs, timezone.Date(inst.Date))
 		if err != nil {
 			return nil, err
 		}
@@ -1002,10 +1249,7 @@ func (s *timetableOperationsService) buildRosterWithCareDay(
 	if err != nil {
 		return nil, fmt.Errorf("%w: resolve planned end policy: %v", ErrLifecycleSettings, err)
 	}
-	now := time.Now()
-	if s.deps.Now != nil {
-		now = s.deps.Now()
-	}
+	now := s.now()
 	availability := EvaluateLifecycleAvailability(inst, now, 15, enforcePlannedEnd)
 	return &OperationRoster{
 		Instance: OperationRosterInstance{
@@ -1035,7 +1279,7 @@ func (s *timetableOperationsService) rosterPickupTimes(
 	if len(studentIDs) == 0 {
 		return map[int64]*EffectivePickupTime{}, true
 	}
-	pickups, err := s.deps.PickupService.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, inst.Date)
+	pickups, err := s.deps.PickupService.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, timezone.Date(inst.Date))
 	if err != nil {
 		s.logger().WarnContext(
 			ctx,
@@ -1060,7 +1304,7 @@ func formatRosterPickupTime(effective *EffectivePickupTime) *string {
 // display metadata (titles + plan windows of running blocks), so it carries
 // no per-caller assignment filter — route-level SchedulesRead gates access.
 func (s *timetableOperationsService) ActiveSessions(ctx context.Context, date timezone.Date) ([]OperationActiveSession, error) {
-	instances, err := s.deps.InstanceRepo.FindByTenantAndDate(ctx, date)
+	instances, err := s.deps.InstanceRepo.FindByTenantAndDate(ctx, scheduleModel.Date(date))
 	if err != nil {
 		return nil, err
 	}
@@ -1108,7 +1352,7 @@ func (s *timetableOperationsService) parallelPresenceByStudent(ctx context.Conte
 	return out, nil
 }
 
-func (s *timetableOperationsService) mapRosterRow(inst *scheduleModel.ActivityInstance, studentID int64, planned *scheduleModel.InstanceStudent, visit *activeModel.Visit, students map[int64]*usersModel.Student, persons map[int64]*usersModel.Person, groups map[int64]*educationModel.Group, warnings []OperationRosterWarning, careDay map[int64]CareDayStatus) OperationRosterRow {
+func (s *timetableOperationsService) mapRosterRow(inst *scheduleModel.ActivityInstance, studentID int64, planned *scheduleModel.InstanceStudent, visit *studentpresence.Visit, students map[int64]*usersModel.Student, persons map[int64]*usersModel.Person, groups map[int64]*educationModel.Group, warnings []OperationRosterWarning, careDay map[int64]CareDayStatus) OperationRosterRow {
 	row := OperationRosterRow{
 		StudentID:        studentID,
 		Planned:          planned != nil && !planned.IsUnplanned,
@@ -1146,7 +1390,7 @@ func rosterCareDayStatus(
 	inst *scheduleModel.ActivityInstance,
 	studentID int64,
 	planned *scheduleModel.InstanceStudent,
-	visit *activeModel.Visit,
+	visit *studentpresence.Visit,
 	careDay map[int64]CareDayStatus,
 ) CareDayStatus {
 	if visit != nil || (planned != nil && planned.Status == scheduleModel.AttendanceStatusPresent) {
@@ -1236,7 +1480,7 @@ func (s *timetableOperationsService) rosterWarnings(
 		return warnings
 	}
 
-	arrivals, err := s.deps.ArrivalService.GetBulkEffectiveArrivalTimesForDate(ctx, studentIDs, inst.Date)
+	arrivals, err := s.deps.ArrivalService.GetBulkEffectiveArrivalTimesForDate(ctx, studentIDs, timezone.Date(inst.Date))
 	if err != nil {
 		s.logger().WarnContext(
 			ctx,
@@ -1322,11 +1566,30 @@ func appendArrivalWarnings(warnings map[int64][]OperationRosterWarning, arrivals
 			continue
 		}
 		arrivalClock := timezone.NormalizeWallClock(*arrival.ArrivalTime)
-		if arrivalClock.After(slotStartClock) {
+		arrivesLate := arrivalClock.After(slotStartClock)
+		if arrivesLate {
 			expectedArrival := arrival.ArrivalTime.Format("15:04")
 			warnings[studentID] = append(warnings[studentID], OperationRosterWarning{
 				Kind:            "arrival_after_slot_start",
 				Message:         "Erwartete Ankunft liegt nach dem Start dieser Betreuung.",
+				ExpectedArrival: &expectedArrival,
+				SlotStart:       &slotStart,
+			})
+		}
+		// A class-wide day exception (#2962) is information, not a warning:
+		// the class arrives at a different time today and the row says why,
+		// so nobody wonders why the child is not under "Kommt später". When
+		// the row already carries "Kommt um HH:MM Uhr" from the late-arrival
+		// warning, the line adds only the reason instead of repeating the time.
+		if arrival.ClassException != nil {
+			expectedArrival := arrival.ClassException.ArrivalTime
+			message := "Kommt heute um " + expectedArrival + " Uhr (" + arrival.ClassException.Label + ")"
+			if arrivesLate {
+				message = arrival.ClassException.Label
+			}
+			warnings[studentID] = append(warnings[studentID], OperationRosterWarning{
+				Kind:            "class_arrival_exception",
+				Message:         message,
 				ExpectedArrival: &expectedArrival,
 				SlotStart:       &slotStart,
 			})
@@ -1397,27 +1660,26 @@ func (s *timetableOperationsService) broadcastAttendanceChanged(ctx context.Cont
 	})
 }
 
-// operationalOverview reports whether this caller may see and operate every
+// operationalOverview reports whether this caller may see every
 // running module of the school (#2380). It reuses the staff record this
 // service already resolved instead of looking it up a second time, but asks
 // the same setting as every other surface, so a module listed by PlannedNow
 // can never 403 on the detail call. Fails closed on a settings fault.
 func (s *timetableOperationsService) operationalOverview(ctx context.Context, isAdmin, hasStaff bool) bool {
-	scope, err := authorize.OperationalOverviewScope(ctx, s.deps.Settings)
+	claims := jwt.ClaimsFromCtx(ctx)
+	allowed, err := authorize.HasOperationalOverviewForResolvedStaff(
+		ctx,
+		s.deps.Settings,
+		claims.IsSchoolScope(),
+		s.hasAdministrativeActionAccess(ctx, isAdmin),
+		hasStaff,
+	)
 	if err != nil {
 		s.logger().WarnContext(ctx, "operational overview scope check failed for timetable operations",
 			slog.String("error", err.Error()))
 		return false
 	}
-	admin := isAdmin || authorize.HasEffectiveAdminScope(ctx)
-	switch scope {
-	case configModel.OverviewScopeAllStaff:
-		return admin || hasStaff
-	case configModel.OverviewScopeAdmins:
-		return admin
-	default:
-		return false
-	}
+	return allowed
 }
 
 func (s *timetableOperationsService) loadInstance(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error) {
@@ -1434,14 +1696,25 @@ func (s *timetableOperationsService) loadInstance(ctx context.Context, instanceI
 	return inst, nil
 }
 
-func (s *timetableOperationsService) findActiveVisitForInstanceStudent(ctx context.Context, activeGroupID, studentID int64) (*activeModel.Visit, error) {
-	visits, err := s.deps.VisitRepo.FindByActiveGroupID(ctx, activeGroupID)
+func (s *timetableOperationsService) currentVisit(ctx context.Context, studentID int64) (*studentpresence.Visit, error) {
+	visits, err := s.deps.Presence.ListVisits(ctx, studentpresence.VisitFilter{StudentIDs: []int64{studentID}, OpenOnly: true, NewestFirst: true, Limit: 1})
+	if err != nil {
+		return nil, err
+	}
+	if len(visits) == 0 {
+		return nil, nil
+	}
+	return &visits[0], nil
+}
+
+func (s *timetableOperationsService) findActiveVisitForInstanceStudent(ctx context.Context, activeGroupID, studentID int64) (*studentpresence.Visit, error) {
+	visits, err := s.deps.Presence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{activeGroupID}})
 	if err != nil {
 		return nil, err
 	}
 	for _, visit := range visits {
 		if visit.StudentID == studentID && visit.ExitTime == nil {
-			return visit, nil
+			return &visit, nil
 		}
 	}
 	return nil, nil
@@ -1484,7 +1757,7 @@ func plannedPastToday(inst *scheduleModel.ActivityInstance, now time.Time) bool 
 }
 
 func instanceEndAt(inst *scheduleModel.ActivityInstance, loc *time.Location) time.Time {
-	return time.Date(inst.Date.Year, inst.Date.Month, inst.Date.Day, inst.EndTime.Hour(), inst.EndTime.Minute(), inst.EndTime.Second(), 0, loc)
+	return time.Date(inst.Date.Year(), inst.Date.Month(), inst.Date.Day(), inst.EndTime.Hour(), inst.EndTime.Minute(), inst.EndTime.Second(), 0, loc)
 }
 
 func mapPlannedInstance(inst *scheduleModel.ActivityInstance, staffRows []*scheduleModel.InstanceStaff, studentRows []*scheduleModel.InstanceStudent, now time.Time, currentStaffID int64, roomName *string, careDay map[int64]CareDayStatus) OperationPlannedInstance {
@@ -1554,6 +1827,8 @@ func mapPlannedInstance(inst *scheduleModel.ActivityInstance, staffRows []*sched
 		IsSubstitute:          isSubstitute,
 		IsAbsent:              isAbsent,
 		Warnings:              []InstanceConflictWarning{},
+		ActiveGroupID:         inst.ActiveGroupID,
+		CancelReason:          inst.CancelReason,
 	}
 }
 
@@ -1574,7 +1849,7 @@ func (s *timetableOperationsService) roomNameMap(ctx context.Context) (map[int64
 }
 
 func instanceStartAt(inst *scheduleModel.ActivityInstance, loc *time.Location) time.Time {
-	return time.Date(inst.Date.Year, inst.Date.Month, inst.Date.Day, inst.StartTime.Hour(), inst.StartTime.Minute(), inst.StartTime.Second(), 0, loc)
+	return time.Date(inst.Date.Year(), inst.Date.Month(), inst.Date.Day(), inst.StartTime.Hour(), inst.StartTime.Minute(), inst.StartTime.Second(), 0, loc)
 }
 
 func staffAssigned(rows []*scheduleModel.InstanceStaff, staffID int64) bool {

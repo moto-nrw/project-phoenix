@@ -164,7 +164,7 @@ export function InvitationForm({
   };
 
   return (
-    <div className="rounded-2xl border border-gray-200/50 bg-white/90 p-4 shadow-sm backdrop-blur-sm md:p-6">
+    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm md:p-6">
       <div className="mb-4 flex items-center gap-2 md:gap-3">
         <div className="rounded-xl bg-gray-100 p-2">
           <Mail

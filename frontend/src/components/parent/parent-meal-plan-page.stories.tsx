@@ -1,7 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { installStorybookFetch, jsonResponse } from "~storybook/mocks/fetch";
 import { ParentMealPlanPage } from "./parent-meal-plan-page";
-import type { Child, ChildFeatures, MealPlanEntry } from "~/lib/parent-api";
+import type {
+  Child,
+  ChildFeatures,
+  MealParticipation,
+  MealPlanEntry,
+} from "~/lib/parent-api";
 
 const baseFeatures = {
   sick_note_enabled: true,
@@ -17,6 +22,7 @@ const baseFeatures = {
   master_data_contact_edit_enabled: true,
   master_data_request_enabled: true,
   meal_plan_enabled: true,
+  meal_registration_enabled: false,
   has_open_change_request: false,
   parent_news_enabled: true,
 } satisfies ChildFeatures;
@@ -105,18 +111,46 @@ function mealPlanForWeek(mondayISO: string): MealPlanEntry[] {
   ];
 }
 
+function participationForTwoWeeks(): MealParticipation {
+  const monday = mondayISOFromOffset(0);
+  const today = toISODate(new Date());
+  const days = Array.from({ length: 12 }, (_, offset) => ({
+    date: dateFromMonday(monday, offset),
+    offset,
+  }))
+    .filter(({ date }) => {
+      const day = new Date(`${date}T12:00:00`).getDay();
+      return day >= 1 && day <= 5;
+    })
+    .map(({ date, offset }) => ({
+      date,
+      participating: offset !== 4,
+      source: offset === 4 ? ("override" as const) : ("regular" as const),
+      changeable: date >= today,
+    }));
+
+  return {
+    weekdays: [1, 2, 3, 4, 5],
+    effective_from: monday,
+    cutoff_time: "09:00",
+    days,
+  };
+}
+
 function mockParentMealPlan({
   childrenData,
   enabledStudentIds = new Set(childrenData.map((child) => child.student_id)),
+  registrationEnabledStudentIds = new Set<string>(),
   entriesByStudent = {},
   shouldFail = false,
 }: {
   childrenData: Child[];
   enabledStudentIds?: ReadonlySet<string>;
+  registrationEnabledStudentIds?: ReadonlySet<string>;
   entriesByStudent?: Record<string, MealPlanEntry[]>;
   shouldFail?: boolean;
 }) {
-  return installStorybookFetch(({ url }) => {
+  return installStorybookFetch(({ url, method }) => {
     const requestUrl = new URL(url, "http://storybook.test");
     const { pathname } = requestUrl;
 
@@ -128,6 +162,16 @@ function mockParentMealPlan({
         );
       }
       return jsonResponse({ data: childrenData });
+    }
+
+    const participationMatch = pathname.match(
+      /^\/api\/parent\/me\/children\/([^/]+)\/meal-participation(?:\/[^/]+)?$/,
+    );
+    if (participationMatch) {
+      if (method === "GET") {
+        return jsonResponse({ data: participationForTwoWeeks() });
+      }
+      return jsonResponse({ data: { effective_from: mondayISOFromOffset(1) } });
     }
 
     const childMatch = pathname.match(
@@ -143,6 +187,8 @@ function mockParentMealPlan({
         data: {
           ...baseFeatures,
           meal_plan_enabled: enabledStudentIds.has(studentId),
+          meal_registration_enabled:
+            registrationEnabledStudentIds.has(studentId),
         },
       });
     }
@@ -176,6 +222,23 @@ export const Populated: Story = {
         "child-2": mealPlanForWeek(mondayISOFromOffset(0)),
       },
     }),
+};
+
+export const WithRegistration: Story = {
+  beforeEach: () => {
+    const felix: Child = {
+      ...childrenWithMealPlans[0]!,
+      first_name: "Felix",
+      last_name: "Schneider",
+    };
+    return mockParentMealPlan({
+      childrenData: [felix],
+      registrationEnabledStudentIds: new Set([felix.student_id]),
+      entriesByStudent: {
+        [felix.student_id]: mealPlanForWeek(mondayISOFromOffset(0)),
+      },
+    });
+  },
 };
 
 export const EmptyWeek: Story = {

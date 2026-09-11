@@ -87,7 +87,7 @@ func (r *MFAEmailChallengeRepository) FindActiveByAccountIDInScope(ctx context.C
 		Limit(1).
 		Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find active mfa email challenge in scope", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find active mfa email challenge in scope", Err: base.TranslateNotFound(err)}
 	}
 	return challenge, nil
 }
@@ -111,7 +111,7 @@ func (r *MFAEmailChallengeRepository) FindActiveByIDForAccount(ctx context.Conte
 		Limit(1).
 		Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find active mfa email challenge by id", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find active mfa email challenge by id", Err: base.TranslateNotFound(err)}
 	}
 	return challenge, nil
 }
@@ -129,9 +129,23 @@ func (r *MFAEmailChallengeRepository) MarkConsumed(ctx context.Context, id int64
 		Where("consumed_at IS NULL").
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "mark mfa email challenge consumed", Err: err}
+		return &modelBase.DatabaseError{Op: "mark mfa email challenge consumed", Err: base.TranslateNotFound(err)}
 	}
 	return base.AssertRowsAffected(res, 1, "mark mfa email challenge consumed")
+}
+
+func (r *MFAEmailChallengeRepository) MarkActive(ctx context.Context, id int64) error {
+	res, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*auth.MFAEmailChallenge)(nil)).
+		ModelTableExpr(mfaEmailChallengeTable).
+		Set("consumed_at = NULL").
+		Where(whereID, id).
+		Where("consumed_at IS NOT NULL").
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "mark mfa email challenge active", Err: base.TranslateNotFound(err)}
+	}
+	return base.AssertRowsAffected(res, 1, "mark mfa email challenge active")
 }
 
 // CountRecentByAccountID returns the number of challenges issued to the account at or after `since`.
@@ -143,7 +157,7 @@ func (r *MFAEmailChallengeRepository) CountRecentByAccountID(ctx context.Context
 		Where("created_at >= ?", since).
 		Count(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "count recent mfa email challenges", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "count recent mfa email challenges", Err: base.TranslateNotFound(err)}
 	}
 	return count, nil
 }

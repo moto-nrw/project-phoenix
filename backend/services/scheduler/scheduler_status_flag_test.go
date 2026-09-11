@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
 	"testing"
 	"testing/synctest"
 	"time"
 
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -22,13 +22,11 @@ import (
 // TestScheduleStatusFlagClearTask_DisabledByEnvVar — the new env kill-switch
 // stops the status-flag task from registering, matching the pattern of every
 // other per-tenant scheduler task.
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleStatusFlagClearTask_DisabledByEnvVar(t *testing.T) {
-	require.NoError(t, os.Setenv("STATUS_FLAG_CLEAR_ENABLED", "false"))
-	defer func() { _ = os.Unsetenv("STATUS_FLAG_CLEAR_ENABLED") }()
-
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		s := newUnitScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
+		s.getenv = testEnv("STATUS_FLAG_CLEAR_ENABLED", "false")
 		s.scheduleStatusFlagClearTask()
 		synctest.Wait()
 
@@ -47,7 +45,7 @@ func TestClearStatusFlag_ClearsSickFlag(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	s := unitScheduler(&Scheduler{db: db, studentStatusDayRepo: activeRepo.NewStudentStatusDayRepository(db)})
+	s := unitScheduler(&Scheduler{db: db, studentStatusDayRepo: statusDayRepository(t, db)})
 
 	// Create two students: one sick, one not, both in tenant 1.
 	sickStudent := testpkg.CreateTestStudent(t, db, "Clear", "SickFlag", "1a")
@@ -93,10 +91,9 @@ func TestClearStatusFlag_ClearsSickFlag(t *testing.T) {
 
 // TestClearStatusFlag_NilDBReturnsError — defensive guard so a misconfigured
 // scheduler fails loudly instead of silently no-oping.
-// Deliberately NOT parallel: the scheduler tick walks EVERY active school, so
-// it also clears the flags of the tenants belonging to tests running beside
-// this one — and those tests' students land in this one's assertions.
 func TestClearStatusFlag_NilDBReturnsError(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	s := unitScheduler(&Scheduler{})
 	_, err := s.clearStatusFlag(context.Background(), "sick", "sick_since")
 	assert.Error(t, err)
@@ -107,6 +104,13 @@ func TestClearStatusFlag_NilDBReturnsError(t *testing.T) {
 // sick_clear_mode, excused_clear_mode.
 type fakeStatusFlagSettings struct {
 	overrides map[string]string
+}
+
+func statusDayRepository(t *testing.T, db *bun.DB) activeModels.StudentStatusDayOverviewRepository {
+	t.Helper()
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
+	require.NoError(t, err)
+	return factory.StudentStatusDay
 }
 
 func (f *fakeStatusFlagSettings) ResolveString(_ context.Context, key string) (string, error) {
@@ -129,10 +133,9 @@ func (f *fakeStatusFlagSettings) HasTenantOverride(_ context.Context, key string
 // TestCheckAndRunStatusFlagClear_SkipsWhenTimeDoesNotMatch — the expensive
 // UPDATE must not run when the current clock doesn't match the tenant's
 // configured status flag clear time.
-// Deliberately NOT parallel: the scheduler tick walks EVERY active school, so
-// it also clears the flags of the tenants belonging to tests running beside
-// this one — and those tests' students land in this one's assertions.
 func TestCheckAndRunStatusFlagClear_SkipsWhenTimeDoesNotMatch(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	// Set the configured time to a value that cannot equal any real minute.
 	// timeMatchesNow returns false, so the task body should short-circuit
 	// without attempting any DB work (db is deliberately nil here to prove
@@ -145,7 +148,7 @@ func TestCheckAndRunStatusFlagClear_SkipsWhenTimeDoesNotMatch(t *testing.T) {
 		}})
 
 	task := &ScheduledTask{Name: "status-flag-clear"}
-	s.checkAndRunStatusFlagClear(task)
+	s.checkAndRunStatusFlagClear(context.Background(), task)
 	// If we reach here without a nil-db panic the short-circuit worked.
 	assert.False(t, task.Running, "task should have reset Running flag")
 }
@@ -153,15 +156,14 @@ func TestCheckAndRunStatusFlagClear_SkipsWhenTimeDoesNotMatch(t *testing.T) {
 // TestCheckAndRunStatusFlagClear_SkipsWhenClearTimeEmpty guards the defensive
 // branch for malformed runtime config. The registered default is 18:00, so
 // real tenants should not hit this path through SettingsService.
-// Deliberately NOT parallel: the scheduler tick walks EVERY active school, so
-// it also clears the flags of the tenants belonging to tests running beside
-// this one — and those tests' students land in this one's assertions.
 func TestCheckAndRunStatusFlagClear_SkipsWhenClearTimeEmpty(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	s := unitScheduler(&Scheduler{
 		settings: &fakeStatusFlagSettings{overrides: map[string]string{}}})
 
 	task := &ScheduledTask{Name: "status-flag-clear"}
-	s.checkAndRunStatusFlagClear(task)
+	s.checkAndRunStatusFlagClear(context.Background(), task)
 	assert.False(t, task.Running)
 }
 
@@ -171,10 +173,9 @@ func TestCheckAndRunStatusFlagClear_SkipsWhenClearTimeEmpty(t *testing.T) {
 // db, which makes clearStatusFlag return an error — this is the exact path
 // we want to cover (error branch) and it also lets us verify the lastRun
 // marker is removed so a retry can happen on the next matching minute.
-// Deliberately NOT parallel: the scheduler tick walks EVERY active school, so
-// it also clears the flags of the tenants belonging to tests running beside
-// this one — and those tests' students land in this one's assertions.
 func TestCheckAndRunStatusFlagClear_FiresBothModesWhenTimeMatches(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	now := time.Now()
 	// Compute HH:MM matching now; if we are within the final second of a
 	// minute, skip to avoid a boundary race.
@@ -193,7 +194,7 @@ func TestCheckAndRunStatusFlagClear_FiresBothModesWhenTimeMatches(t *testing.T) 
 		}})
 
 	task := &ScheduledTask{Name: "status-flag-clear"}
-	s.checkAndRunStatusFlagClear(task)
+	s.checkAndRunStatusFlagClear(context.Background(), task)
 
 	// Since clearStatusFlag returns an error (nil db), the lastStatusFlagClear
 	// entry for tenantID 0 should have been deleted so a retry can happen.
@@ -225,13 +226,12 @@ func TestRunStatusFlagClearTaskPolling_StopsOnDone(t *testing.T) {
 
 // TestClearStatusFlag_ClearsExcusedFlag — mirror of the sick test to exercise
 // the column plumbing for the new excused flag.
-// Deliberately NOT parallel: the scheduler tick walks EVERY active school, so
-// it also clears the flags of the tenants belonging to tests running beside
-// this one — and those tests' students land in this one's assertions.
 func TestClearStatusFlag_ClearsExcusedFlag(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 
-	s := unitScheduler(&Scheduler{db: db, studentStatusDayRepo: activeRepo.NewStudentStatusDayRepository(db)})
+	s := unitScheduler(&Scheduler{db: db, studentStatusDayRepo: statusDayRepository(t, db)})
 
 	excStudent := testpkg.CreateTestStudent(t, db, "Clear", "ExcusedFlag", "1b")
 
@@ -301,10 +301,9 @@ func reloadStudentFlags(t *testing.T, db *bun.DB, studentID int64) (sick, excuse
 // covers the glue that the unit tests split apart: time-match check →
 // forEachTenantSettings iteration → tenant tx → bulk UPDATE → RLS-scoped
 // row visibility.
-// Deliberately NOT parallel: the scheduler tick walks EVERY active school, so
-// it also clears the flags of the tenants belonging to tests running beside
-// this one — and those tests' students land in this one's assertions.
 func TestCheckAndRunStatusFlagClear_EndToEnd_ClearsBothFlags(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 
 	now := time.Now()
@@ -337,10 +336,10 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_ClearsBothFlags(t *testing.T) {
 	// Fully wired scheduler: real db, real school repo (so
 	// forEachTenantSettings iterates every active tenant), fake settings
 	// resolver that pins the clock + both modes to what the task expects.
-	s := unitScheduler(&Scheduler{
+	s := isolatedUnitScheduler(t, db, &Scheduler{
 		db:                   db,
 		schoolRepo:           platformRepo.NewSchoolRepository(db),
-		studentStatusDayRepo: activeRepo.NewStudentStatusDayRepository(db),
+		studentStatusDayRepo: statusDayRepository(t, db),
 		settings: &fakeStatusFlagSettings{
 			overrides: map[string]string{
 				"operations.status_flag_clear_time": nowHHMM,
@@ -352,7 +351,7 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_ClearsBothFlags(t *testing.T) {
 
 	task := &ScheduledTask{Name: "status-flag-clear"}
 
-	s.checkAndRunStatusFlagClear(task)
+	s.checkAndRunStatusFlagClear(context.Background(), task)
 
 	gotSick, _ := reloadStudentFlags(t, db, sickStudent.ID)
 	_, gotExcused := reloadStudentFlags(t, db, excusedStudent.ID)
@@ -365,10 +364,9 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_ClearsBothFlags(t *testing.T) {
 // next_checkin, the scheduler clears sick but leaves excused alone. This
 // exercises the per-mode gate in checkAndRunStatusFlagClear that the
 // unit-level test could not reach (because it ran with a nil db).
-// Deliberately NOT parallel: the scheduler tick walks EVERY active school, so
-// it also clears the flags of the tenants belonging to tests running beside
-// this one — and those tests' students land in this one's assertions.
 func TestCheckAndRunStatusFlagClear_EndToEnd_RespectsModeSetting(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 
 	now := time.Now()
@@ -397,10 +395,10 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_RespectsModeSetting(t *testing.T) {
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	s := unitScheduler(&Scheduler{
+	s := isolatedUnitScheduler(t, db, &Scheduler{
 		db:                   db,
 		schoolRepo:           platformRepo.NewSchoolRepository(db),
-		studentStatusDayRepo: activeRepo.NewStudentStatusDayRepository(db),
+		studentStatusDayRepo: statusDayRepository(t, db),
 		settings: &fakeStatusFlagSettings{
 			overrides: map[string]string{
 				"operations.status_flag_clear_time": nowHHMM,
@@ -412,7 +410,7 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_RespectsModeSetting(t *testing.T) {
 
 	task := &ScheduledTask{Name: "status-flag-clear"}
 
-	s.checkAndRunStatusFlagClear(task)
+	s.checkAndRunStatusFlagClear(context.Background(), task)
 
 	gotSick, _ := reloadStudentFlags(t, db, sickStudent.ID)
 	_, gotExcused := reloadStudentFlags(t, db, excusedStudent.ID)
@@ -426,10 +424,9 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_RespectsModeSetting(t *testing.T) {
 // proves the timeMatchesNow guard short-circuits before touching rows
 // and is the only thing standing between "job fires harmlessly" and
 // "job clears flags at the wrong time of day."
-// Deliberately NOT parallel: the scheduler tick walks EVERY active school, so
-// it also clears the flags of the tenants belonging to tests running beside
-// this one — and those tests' students land in this one's assertions.
 func TestCheckAndRunStatusFlagClear_EndToEnd_DoesNothingWhenTimeDoesNotMatch(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 
 	sickStudent := testpkg.CreateTestStudent(t, db, "E2E", "NoFire", "n1")
@@ -445,10 +442,10 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_DoesNothingWhenTimeDoesNotMatch(t *
 	require.NoError(t, err)
 
 	// Configure a clearly past time so timeMatchesNow always returns false.
-	s := unitScheduler(&Scheduler{
+	s := isolatedUnitScheduler(t, db, &Scheduler{
 		db:                   db,
 		schoolRepo:           platformRepo.NewSchoolRepository(db),
-		studentStatusDayRepo: activeRepo.NewStudentStatusDayRepository(db),
+		studentStatusDayRepo: statusDayRepository(t, db),
 		settings: &fakeStatusFlagSettings{
 			overrides: map[string]string{
 				"operations.status_flag_clear_time": "25:99",
@@ -460,7 +457,7 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_DoesNothingWhenTimeDoesNotMatch(t *
 
 	task := &ScheduledTask{Name: "status-flag-clear"}
 
-	s.checkAndRunStatusFlagClear(task)
+	s.checkAndRunStatusFlagClear(context.Background(), task)
 
 	gotSick, _ := reloadStudentFlags(t, db, sickStudent.ID)
 	assert.True(t, gotSick, "sick must NOT be cleared when clock does not match configured time")

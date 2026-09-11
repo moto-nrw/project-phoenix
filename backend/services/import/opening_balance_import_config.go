@@ -125,7 +125,7 @@ func (c *OpeningBalanceImportConfig) PreloadReferenceData(ctx context.Context) e
 	}
 
 	vacOptions := modelBase.NewQueryOptions()
-	vacOptions.Filter.Equal("year", c.EffectiveDate.Year)
+	vacOptions.Filter.Equal("year", c.EffectiveDate.Year())
 	vacOpenings, err := c.VacationOpeningRepo.List(ctx, vacOptions)
 	if err != nil {
 		return fmt.Errorf("preload vacation openings: %w", err)
@@ -180,7 +180,7 @@ func (c *OpeningBalanceImportConfig) Validate(ctx context.Context, row *importMo
 		if row.VacationRemainingDays != nil && c.staffWithVacOpening[row.StaffID] {
 			errs = append(errs, importModels.ValidationError{
 				Field:    "vacation_remaining",
-				Message:  fmt.Sprintf("Für diese Person existiert bereits eine Urlaubs-Übernahme für %d. Zuerst die bestehende Übernahme löschen.", c.EffectiveDate.Year),
+				Message:  fmt.Sprintf("Für diese Person existiert bereits eine Urlaubs-Übernahme für %d. Zuerst die bestehende Übernahme löschen.", c.EffectiveDate.Year()),
 				Code:     "vacation_opening_exists",
 				Severity: importModels.ErrorSeverityError,
 			})
@@ -213,7 +213,7 @@ func (c *OpeningBalanceImportConfig) validateDerivedVacationOpening(ctx context.
 	if row.StaffID <= 0 || row.VacationRemainingDays == nil || c.StaffAbsenceService == nil {
 		return nil
 	}
-	summary, err := c.StaffAbsenceService.GetVacationQuotaSummary(ctx, row.StaffID, c.EffectiveDate.Year)
+	summary, err := c.StaffAbsenceService.GetVacationQuotaSummary(ctx, row.StaffID, c.EffectiveDate.Year())
 	if err != nil {
 		return []importModels.ValidationError{{
 			Field:    "vacation_remaining",
@@ -231,7 +231,7 @@ func (c *OpeningBalanceImportConfig) validateDerivedVacationOpening(ctx context.
 	}
 	opening := &activeModels.StaffVacationOpening{
 		StaffID:              row.StaffID,
-		Year:                 c.EffectiveDate.Year,
+		Year:                 c.EffectiveDate.Year(),
 		EffectiveDate:        c.EffectiveDate,
 		TakenBeforeDays:      entitled + carryover - *row.VacationRemainingDays,
 		EnteredRemainingDays: *row.VacationRemainingDays,
@@ -525,7 +525,7 @@ func (c *OpeningBalanceImportConfig) applyVacationQuota(ctx context.Context, row
 	if row.VacationEntitledDays == nil && row.VacationCarryoverDays == nil {
 		return nil
 	}
-	summary, err := c.StaffAbsenceService.GetVacationQuotaSummary(ctx, row.StaffID, c.EffectiveDate.Year)
+	summary, err := c.StaffAbsenceService.GetVacationQuotaSummary(ctx, row.StaffID, c.EffectiveDate.Year())
 	if err != nil {
 		return fmt.Errorf("urlaubskonto konnte nicht gelesen werden: %w", err)
 	}
@@ -536,7 +536,7 @@ func (c *OpeningBalanceImportConfig) applyVacationQuota(ctx context.Context, row
 	if row.VacationCarryoverDays != nil {
 		carryover = *row.VacationCarryoverDays
 	}
-	if err := c.StaffAbsenceService.UpsertVacationQuota(ctx, row.StaffID, c.EffectiveDate.Year, entitled, carryover); err != nil {
+	if err := c.StaffAbsenceService.UpsertVacationQuota(ctx, row.StaffID, c.EffectiveDate.Year(), entitled, carryover); err != nil {
 		return fmt.Errorf("urlaubsanspruch konnte nicht gespeichert werden: %w", err)
 	}
 	return nil

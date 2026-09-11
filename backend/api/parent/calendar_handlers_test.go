@@ -6,12 +6,11 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
-	calendarSvc "github.com/moto-nrw/project-phoenix/services/calendar"
+	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -19,8 +18,8 @@ type fakeParentCalendarService struct {
 	parentEvents []calendarSvc.Event
 	parentErr    error
 	gotAccountID int64
-	gotFrom      timezone.Date
-	gotTo        timezone.Date
+	gotFrom      calendarSvc.Date
+	gotTo        calendarSvc.Date
 
 	respondErr        error
 	gotRespondAccount int64
@@ -40,18 +39,11 @@ type fakeParentCalendarService struct {
 	gotRotateAccount int64
 }
 
-// EnqueueDueAppointmentReminders exists only to satisfy the service interface:
-// the guardian reminder scan (#1671) is driven by the scheduler, never by an
-// HTTP handler, so no test in this file calls it.
-func (f *fakeParentCalendarService) EnqueueDueAppointmentReminders(context.Context, time.Time, time.Time) (int, error) {
-	return 0, nil
-}
-
-func (f *fakeParentCalendarService) ListMyStaffEvents(context.Context, timezone.Date, timezone.Date) ([]calendarSvc.Event, error) {
+func (f *fakeParentCalendarService) ListMyStaffEvents(context.Context, calendarSvc.Date, calendarSvc.Date) ([]calendarSvc.Event, error) {
 	return nil, nil
 }
 
-func (f *fakeParentCalendarService) ListMyParentEvents(_ context.Context, accountID int64, from, to timezone.Date) ([]calendarSvc.Event, error) {
+func (f *fakeParentCalendarService) ListMyParentEvents(_ context.Context, accountID int64, from, to calendarSvc.Date) ([]calendarSvc.Event, error) {
 	f.gotAccountID = accountID
 	f.gotFrom = from
 	f.gotTo = to
@@ -78,7 +70,7 @@ func (f *fakeParentCalendarService) DeleteStaffAppointment(context.Context, int6
 	return nil
 }
 
-func (f *fakeParentCalendarService) CancelStaffAppointmentOccurrence(context.Context, int64, timezone.Date) error {
+func (f *fakeParentCalendarService) CancelStaffAppointmentOccurrence(context.Context, int64, calendarSvc.Date) error {
 	return nil
 }
 
@@ -103,6 +95,18 @@ func (f *fakeParentCalendarService) RotateParentCalendarFeed(_ context.Context, 
 }
 
 func (f *fakeParentCalendarService) ParentCalendarFeedByToken(context.Context, string) (string, string, error) {
+	return "", "", nil
+}
+
+func (f *fakeParentCalendarService) StaffCalendarFeedURL(context.Context) (string, string, error) {
+	return "", "", nil
+}
+
+func (f *fakeParentCalendarService) RotateStaffCalendarFeed(context.Context) (string, string, error) {
+	return "", "", nil
+}
+
+func (f *fakeParentCalendarService) StaffCalendarFeedByToken(context.Context, string) (string, string, error) {
 	return "", "", nil
 }
 
@@ -177,6 +181,19 @@ func TestCalendarFeedURLReturnsURLs(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "webcal://parents.test/api/calendar-feed/abc")
 }
 
+func TestCalendarFeedURLReturnsConflictForConcurrentCreation(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeParentCalendarService{feedErr: calendarSvc.ErrConflict}
+	rs := &Resource{CalendarService: service}
+	req := withClaims(httptest.NewRequest(http.MethodGet, "/me/calendar/feed", nil), 77)
+	w := httptest.NewRecorder()
+
+	rs.calendarFeedURL(w, req)
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+}
+
 func TestRotateCalendarFeedPassesAccount(t *testing.T) {
 	t.Parallel()
 
@@ -233,8 +250,8 @@ func TestListMyCalendarParsesRangeAndAccount(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, int64(77), service.gotAccountID)
-	assert.Equal(t, timezone.NewDate(2026, 1, 5), service.gotFrom)
-	assert.Equal(t, timezone.NewDate(2026, 1, 11), service.gotTo)
+	assert.Equal(t, calendarSvc.Date(timezone.NewDate(2026, 1, 5)), service.gotFrom)
+	assert.Equal(t, calendarSvc.Date(timezone.NewDate(2026, 1, 11)), service.gotTo)
 	assert.Contains(t, w.Body.String(), "Parent meeting")
 }
 

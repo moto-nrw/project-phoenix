@@ -31,7 +31,7 @@ export function PickupTimesPanel({ buckets }: PickupTimesPanelProps) {
           {buckets.map((bucket) => (
             <li
               key={bucket.time}
-              className="flex items-center justify-between rounded-2xl border border-gray-200 bg-white p-4"
+              className="moto-content-surface flex items-center justify-between rounded-2xl border p-4 shadow-sm"
             >
               <p
                 className="text-3xl font-bold tabular-nums"

@@ -28,7 +28,7 @@ func TestActiveGroupRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveGroup
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates active group with valid data", func(t *testing.T) {
@@ -85,7 +85,7 @@ func TestActiveGroupRepository_FindActiveSessionsOlderThanPreservesTenant(t *tes
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	ctx := testpkg.TenantContext(tenantID)
-	repo := repositories.NewFactory(db).ActiveGroup
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup
 
 	group := testpkg.CreateTestActiveGroupForTenant(t, db, tenantID)
 	device := testpkg.CreateTestDeviceForTenant(t, db, tenantID, "abandoned-session-tenant")
@@ -127,7 +127,7 @@ func TestActiveGroupRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveGroup
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing active group", func(t *testing.T) {
@@ -164,7 +164,7 @@ func TestActiveGroupRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveGroup
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates active group", func(t *testing.T) {
@@ -197,7 +197,7 @@ func TestActiveGroupRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveGroup
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing active group", func(t *testing.T) {
@@ -232,7 +232,7 @@ func TestActiveGroupRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveGroup
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all active groups", func(t *testing.T) {
@@ -261,7 +261,7 @@ func TestActiveGroupRepository_FindActiveGroups(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveGroup
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds only active groups (no end_time)", func(t *testing.T) {
@@ -304,7 +304,7 @@ func TestActiveGroupRepository_FindActiveByRoomID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveGroup
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds active groups by room ID", func(t *testing.T) {
@@ -351,7 +351,7 @@ func TestActiveGroupRepository_FindActiveByRoomIDAndDeviceID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveGroup
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds active group scoped to device", func(t *testing.T) {
@@ -404,7 +404,7 @@ func TestActiveGroupRepository_FindActiveByGroupID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveGroup
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds active instances of activity group", func(t *testing.T) {
@@ -442,7 +442,7 @@ func TestActiveGroupRepository_FindActiveByGroupIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveGroup
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds active groups for multiple activity group ids", func(t *testing.T) {
@@ -485,7 +485,7 @@ func TestActiveGroupRepository_FindByTimeRange(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveGroup
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds groups active during time range", func(t *testing.T) {
@@ -526,44 +526,12 @@ func TestActiveGroupRepository_FindByTimeRange(t *testing.T) {
 // Session Management Tests
 // ============================================================================
 
-func TestActiveGroupRepository_EndSession(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db).ActiveGroup
-	ctx := testpkg.Ctx(t)
-
-	t.Run("ends active session", func(t *testing.T) {
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "EndSession")
-		room := testpkg.CreateTestRoom(t, db, "EndSessionRoom")
-
-		now := time.Now()
-		group := &active.Group{
-			StartTime:      now,
-			LastActivity:   now,
-			TimeoutMinutes: 30,
-			GroupID:        ptrtest.Ptr(activityGroup.ID),
-			RoomID:         room.ID,
-		}
-		err := repo.Create(ctx, group)
-		require.NoError(t, err)
-
-		err = repo.EndSession(ctx, group.ID)
-		require.NoError(t, err)
-
-		found, err := repo.FindByID(ctx, group.ID)
-		require.NoError(t, err)
-		assert.NotNil(t, found.EndTime)
-	})
-}
-
 func TestActiveGroupRepository_UpdateLastActivity(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveGroup
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates last activity timestamp", func(t *testing.T) {
@@ -607,8 +575,7 @@ func TestActiveGroupRepository_UpdateLastActivity(t *testing.T) {
 		require.NoError(t, err)
 
 		// End the session
-		err = repo.EndSession(ctx, group.ID)
-		require.NoError(t, err)
+		testpkg.EndTestActiveGroup(t, db, testpkg.EndedActiveGroup{GroupID: group.ID})
 
 		// Try to update last activity on ended session
 		err = repo.UpdateLastActivity(ctx, group.ID, time.Now())
@@ -625,7 +592,7 @@ func TestActiveGroupRepository_FindActiveByDeviceID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveGroup
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds active session by device ID", func(t *testing.T) {
@@ -669,7 +636,7 @@ func TestActiveGroupRepository_FindActiveByDeviceIDWithNames(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveGroup
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds active session with activity and room names", func(t *testing.T) {
@@ -711,70 +678,12 @@ func TestActiveGroupRepository_FindActiveByDeviceIDWithNames(t *testing.T) {
 	})
 }
 
-func TestActiveGroupRepository_GetOccupiedRoomIDs(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db).ActiveGroup
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns occupied room IDs", func(t *testing.T) {
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "OccupiedRooms")
-		room1 := testpkg.CreateTestRoom(t, db, "OccupiedRoom1")
-		room2 := testpkg.CreateTestRoom(t, db, "OccupiedRoom2")
-		room3 := testpkg.CreateTestRoom(t, db, "EmptyRoom3")
-
-		now := time.Now()
-		// Create active group in room1
-		group1 := &active.Group{
-			StartTime:      now,
-			LastActivity:   now,
-			TimeoutMinutes: 30,
-			GroupID:        ptrtest.Ptr(activityGroup.ID),
-			RoomID:         room1.ID,
-		}
-		err := repo.Create(ctx, group1)
-		require.NoError(t, err)
-		// Create active group in room2
-		group2 := &active.Group{
-			StartTime:      now,
-			LastActivity:   now,
-			TimeoutMinutes: 30,
-			GroupID:        ptrtest.Ptr(activityGroup.ID),
-			RoomID:         room2.ID,
-		}
-		err = repo.Create(ctx, group2)
-		require.NoError(t, err)
-
-		// Check which rooms are occupied
-		occupiedMap, err := repo.GetOccupiedRoomIDs(ctx, []int64{room1.ID, room2.ID, room3.ID})
-		require.NoError(t, err)
-
-		assert.True(t, occupiedMap[room1.ID], "room1 should be occupied")
-		assert.True(t, occupiedMap[room2.ID], "room2 should be occupied")
-		assert.False(t, occupiedMap[room3.ID], "room3 should not be occupied")
-	})
-
-	t.Run("returns empty map for empty input", func(t *testing.T) {
-		occupiedMap, err := repo.GetOccupiedRoomIDs(ctx, []int64{})
-		require.NoError(t, err)
-		assert.Empty(t, occupiedMap)
-	})
-
-	t.Run("returns empty map for non-existent rooms", func(t *testing.T) {
-		occupiedMap, err := repo.GetOccupiedRoomIDs(ctx, []int64{999997, 999998, 999999})
-		require.NoError(t, err)
-		assert.Empty(t, occupiedMap)
-	})
-}
-
 func TestActiveGroupRepository_GetOccupiedActivityGroupIDs(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveGroup
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns occupied activity group IDs", func(t *testing.T) {
@@ -855,7 +764,7 @@ func TestActiveGroupRepository_CheckRoomConflict(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveGroup
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup
 	ctx := testpkg.Ctx(t)
 
 	t.Run("detects room conflict", func(t *testing.T) {
@@ -922,7 +831,7 @@ func TestActiveGroupRepository_FindByIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveGroup
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds multiple groups by IDs", func(t *testing.T) {
@@ -974,7 +883,7 @@ func TestActiveGroupRepository_FindWithSupervisors(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveGroup
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds group with supervisors", func(t *testing.T) {
@@ -982,7 +891,7 @@ func TestActiveGroupRepository_FindWithSupervisors(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "WithSupervisorsRoom")
 		staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Staff")
 
-		now := time.Now()
+		now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 		group := &active.Group{
 			StartTime:      now,
 			LastActivity:   now,
@@ -1020,7 +929,7 @@ func TestActiveGroupRepository_FindWithSupervisors(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "NoSupervisors")
 		room := testpkg.CreateTestRoom(t, db, "NoSupervisorsRoom")
 
-		now := time.Now()
+		now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 		group := &active.Group{
 			StartTime:      now,
 			LastActivity:   now,
@@ -1043,7 +952,7 @@ func TestActiveGroupRepository_AggregateRoomSessions(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveGroup
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup
 	ctx := testpkg.Ctx(t)
 
 	room := testpkg.CreateTestRoom(t, db, "AggregateRoomSessions")
@@ -1133,7 +1042,7 @@ func TestActiveGroupRepository_AggregateRoomSessions_ReturnsDatabaseError(t *tes
 	t.Parallel()
 
 	db := testpkg.SetupClosableTestDB(t)
-	repo := repositories.NewFactory(db).ActiveGroup
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup
 	require.NoError(t, db.Close())
 
 	_, err := repo.AggregateRoomSessions(

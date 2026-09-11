@@ -48,7 +48,7 @@ func (r *InvitationTokenRepository) FindByToken(ctx context.Context, token strin
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find invitation by token",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -68,7 +68,7 @@ func (r *InvitationTokenRepository) FindByID(ctx context.Context, id interface{}
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find invitation by id",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return entity, nil
@@ -91,7 +91,7 @@ func (r *InvitationTokenRepository) Update(ctx context.Context, token *modelAuth
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update invitation",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -114,7 +114,7 @@ func (r *InvitationTokenRepository) FindValidByToken(ctx context.Context, token 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find valid invitation by token",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -135,7 +135,7 @@ func (r *InvitationTokenRepository) FindByEmail(ctx context.Context, email strin
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find invitations by email",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return tokens, nil
@@ -147,7 +147,8 @@ func (r *InvitationTokenRepository) MarkAsUsed(ctx context.Context, id int64) er
 		Model((*modelAuth.InvitationToken)(nil)).
 		ModelTableExpr(invitationTable).
 		Set(`used_at = NOW()`).
-		Where(`id = ?`, id)
+		Where(`id = ?`, id).
+		Where(`used_at IS NULL`)
 
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
 		query = query.Where("tenant_id = ?", tenantID)
@@ -157,7 +158,7 @@ func (r *InvitationTokenRepository) MarkAsUsed(ctx context.Context, id int64) er
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "mark invitation as used",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -181,7 +182,7 @@ func (r *InvitationTokenRepository) InvalidateByEmail(ctx context.Context, email
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "invalidate invitations by email",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -206,7 +207,7 @@ func (r *InvitationTokenRepository) InvalidateByTenantID(ctx context.Context, te
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "invalidate invitations by tenant ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	count, err := res.RowsAffected()
@@ -221,8 +222,11 @@ func (r *InvitationTokenRepository) DeleteExpired(ctx context.Context, now time.
 	query := base.GetDB(ctx, r.db).NewDelete().
 		Model((*modelAuth.InvitationToken)(nil)).
 		ModelTableExpr(invitationTable).
-		Where(`expires_at <= ?`, now).
-		WhereOr(`used_at IS NOT NULL`)
+		WhereGroup(" AND ", func(group *bun.DeleteQuery) *bun.DeleteQuery {
+			return group.
+				Where(`expires_at <= ?`, now).
+				WhereOr(`used_at IS NOT NULL`)
+		})
 
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
 		query = query.Where("tenant_id = ?", tenantID)
@@ -232,7 +236,7 @@ func (r *InvitationTokenRepository) DeleteExpired(ctx context.Context, now time.
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "delete expired invitations",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -279,7 +283,7 @@ func (r *InvitationTokenRepository) List(ctx context.Context, filters map[string
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list invitation tokens",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -336,13 +340,13 @@ func (r *InvitationTokenRepository) applyUsedFilter(query *bun.SelectQuery, valu
 
 // UpdateDeliveryResult updates the email delivery metadata for an invitation token.
 func (r *InvitationTokenRepository) UpdateDeliveryResult(ctx context.Context, id int64, sentAt *time.Time, emailError *string, retryCount int) error {
-	token := &modelAuth.InvitationToken{Model: modelBase.Model{ID: id}, EmailSentAt: sentAt, EmailRetryCount: retryCount}
+	token := &modelAuth.InvitationToken{Model: modelBase.Model{ID: id, UpdatedAt: time.Now()}, EmailSentAt: sentAt, EmailRetryCount: retryCount}
 	if emailError != nil {
 		truncated := strutil.TruncateBytes(*emailError, maxEmailErrorLength, "")
 		token.EmailError = &truncated
 	}
 
-	n, err := r.UpdateColumns(ctx, token, "email_sent_at", "email_error", "email_retry_count")
+	n, err := r.UpdateColumns(ctx, token, "email_sent_at", "email_error", "email_retry_count", "updated_at")
 	if err != nil {
 		return err
 	}

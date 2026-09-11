@@ -29,7 +29,7 @@ func TestStaffAbsenceTypeRepository_CreateAndListSorted(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StaffAbsenceType
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffAbsenceType
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
 
@@ -62,7 +62,7 @@ func TestStaffAbsenceTypeRepository_RejectsDuplicateNameCaseInsensitively(t *tes
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StaffAbsenceType
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffAbsenceType
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
 
@@ -82,7 +82,7 @@ func TestStaffAbsenceTypeRepository_IsolatesTenants(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StaffAbsenceType
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffAbsenceType
 	otherTenantID, _ := testpkg.CreateTestTenant(t, db)
 
 	tenantAID, _ := testpkg.CreateTestTenant(t, db)
@@ -109,7 +109,7 @@ func TestStaffAbsenceTypeRepository_DeactivateKeepsRowReadable(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StaffAbsenceType
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffAbsenceType
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
 

@@ -8,6 +8,7 @@ import { Pencil, Trash2, Send, Check } from "lucide-react";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { FilterConfig } from "~/components/ui/page-header/types";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Modal, ConfirmationModal } from "~/components/ui/modal";
 import { Skeleton } from "~/components/ui/skeleton";
 import { SkeletonRegion } from "~/components/ui/page-skeletons";
@@ -659,7 +660,7 @@ export default function OperatorAnnouncementsPage() {
                 </svg>
               </button>
               {severityDropdownOpen && (
-                <div className="absolute top-full left-0 z-[10001] mt-1 w-full overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg">
+                <div className="moto-popover-surface absolute top-full left-0 z-[10001] mt-1 w-full overflow-hidden rounded-xl border py-1">
                   {Object.entries(SEVERITY_LABELS).map(([value, label]) => (
                     <button
                       key={value}
@@ -1030,20 +1031,21 @@ export default function OperatorAnnouncementsPage() {
       </Modal>
 
       {/* Delete confirmation */}
-      <ConfirmationModal
+      <ConfirmDeleteModal
         isOpen={!!deleteTarget}
+        title="Ankündigung löschen"
+        description={
+          <p>
+            Die Ankündigung &quot;{deleteTarget?.title}&quot; wird
+            unwiderruflich gelöscht.
+          </p>
+        }
+        gate={{ mode: "twoStep" }}
+        onConfirm={handleDelete}
         onClose={() => setDeleteTarget(null)}
-        onConfirm={() => void handleDelete()}
-        title="Ankündigung löschen?"
-        confirmText="Löschen"
-        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
-        isConfirmLoading={isDeleting}
-      >
-        <p className="text-sm text-gray-600">
-          Die Ankündigung &quot;{deleteTarget?.title}&quot; wird unwiderruflich
-          gelöscht.
-        </p>
-      </ConfirmationModal>
+        loading={isDeleting}
+        error=""
+      />
 
       {/* Publish confirmation */}
       <ConfirmationModal
@@ -1052,7 +1054,7 @@ export default function OperatorAnnouncementsPage() {
         onConfirm={() => void handlePublish()}
         title="Ankündigung veröffentlichen?"
         confirmText="Veröffentlichen"
-        confirmButtonClass="bg-moto-green hover:bg-moto-green-hover hover:shadow-lg"
+        confirmVariant="success"
         isConfirmLoading={isPublishing}
       >
         <p className="text-sm text-gray-600">
@@ -1095,7 +1097,7 @@ function AnnouncementCard({
   }, [announcement.content]);
 
   return (
-    <div className="relative rounded-3xl border border-gray-100/50 bg-white/90 p-5 pr-12 shadow-sm backdrop-blur-md transition-all duration-150">
+    <div className="moto-content-surface relative rounded-2xl border p-5 pr-12 transition-all duration-150">
       {/* Kebab menu - absolute top right */}
       <div className="absolute top-3 right-3">
         <OverflowMenu
@@ -1309,10 +1311,7 @@ function AnnouncementSkeletons() {
   return (
     <div className="mt-4 space-y-4">
       {Array.from({ length: 3 }, (_, i) => (
-        <div
-          key={i}
-          className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-sm"
-        >
+        <div key={i} className="moto-content-surface rounded-2xl border p-5">
           <div className="space-y-3">
             <Skeleton className="h-5 w-3/5 rounded" />
             <div className="flex gap-2">

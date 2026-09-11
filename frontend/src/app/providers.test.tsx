@@ -1,6 +1,12 @@
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
 import { Providers } from "./providers";
+
+const mockSchedulePostHogInitialization = vi.hoisted(() => vi.fn());
+
+vi.mock("~/lib/posthog-client", () => ({
+  schedulePostHogInitialization: mockSchedulePostHogInitialization,
+}));
 
 // Mock all provider components
 vi.mock("@/components/dashboard/modal-context", () => ({
@@ -30,6 +36,10 @@ vi.mock("~/contexts/ToastContext", () => ({
 }));
 
 describe("Providers", () => {
+  beforeEach(() => {
+    mockSchedulePostHogInitialization.mockClear();
+  });
+
   it("renders auth-free root providers in correct nesting order", () => {
     const { getByTestId, getByText } = render(
       <Providers>
@@ -43,6 +53,7 @@ describe("Providers", () => {
 
     // Verify children are rendered
     expect(getByText("Child Content")).toBeInTheDocument();
+    expect(mockSchedulePostHogInitialization).toHaveBeenCalledOnce();
   });
 
   it("wraps children in all context providers", () => {

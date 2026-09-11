@@ -360,7 +360,7 @@ func NewEvent(eventType EventType, activeGroupID string, data EventData) Event {
 }
 
 // NewParentMessageEvent builds the EventParentMessage SSE event shared by both
-// portals' messaging services (staff in services/messaging and parents in
+// portals' messaging services (staff in Communication and parents in
 // services/parent). The guardian account is stamped as Source so the guardian's
 // own tabs can skip a redundant refetch; threadID/studentID (when positive) let
 // an open chat refetch only the affected thread. Centralizing the payload shape

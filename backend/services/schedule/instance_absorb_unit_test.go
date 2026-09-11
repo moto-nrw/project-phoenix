@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,7 +19,6 @@ type absorbGroupRepo struct {
 	openGroups   []*activeModel.Group
 	lockedGroups map[int64]*activeModel.Group
 	lockedIDs    []int64
-	endedIDs     []int64
 }
 
 func (r *absorbGroupRepo) FindActiveByRoomID(_ context.Context, _ int64) ([]*activeModel.Group, error) {
@@ -56,7 +56,7 @@ func TestInstanceStart_DoesNotAbsorbGroupMovedAfterCandidateLookup(t *testing.T)
 		InstanceStudents: &absorbInstanceStudentRepo{},
 		ActiveGroupRepo:  groupRepo,
 		SupervisorRepo:   &absorbSupervisorRepo{},
-		VisitRepo:        visitRepo,
+		Presence:         visitRepo,
 		Logger:           slog.New(slog.DiscardHandler),
 	}}
 
@@ -65,12 +65,7 @@ func TestInstanceStart_DoesNotAbsorbGroupMovedAfterCandidateLookup(t *testing.T)
 	require.NoError(t, err)
 	assert.Equal(t, []int64{candidate.ID}, groupRepo.lockedIDs)
 	assert.Empty(t, visitRepo.transfers)
-	assert.Empty(t, groupRepo.endedIDs)
-}
-
-func (r *absorbGroupRepo) EndSession(_ context.Context, id int64) error {
-	r.endedIDs = append(r.endedIDs, id)
-	return nil
+	assert.Empty(t, visitRepo.endedIDs)
 }
 
 type absorbSupervisorRepo struct {
@@ -83,9 +78,15 @@ func (r *absorbSupervisorRepo) FindByActiveGroupID(_ context.Context, groupID in
 }
 
 type absorbVisitRepo struct {
-	activeModel.VisitRepository
-	visits    []*activeModel.Visit
+	InstancePresence
+	visits    []studentpresence.Visit
 	transfers [][2]int64
+	endedIDs  []int64
+}
+
+func (r *absorbVisitRepo) EndGroup(_ context.Context, id int64, _ time.Time) error {
+	r.endedIDs = append(r.endedIDs, id)
+	return nil
 }
 
 type absorbInstanceRepo struct {
@@ -97,10 +98,11 @@ func (r *absorbInstanceRepo) FindByActiveGroupID(_ context.Context, groupID int6
 	return r.byGroup[groupID], nil
 }
 
-func (r *absorbVisitRepo) TransferActiveVisitsBetweenGroups(_ context.Context, oldGroupID, newGroupID int64) (int, error) {
+func (r *absorbVisitRepo) TransferOpenVisits(_ context.Context, oldGroupID, newGroupID int64) (int64, error) {
 	r.transfers = append(r.transfers, [2]int64{oldGroupID, newGroupID})
-	moved := 0
-	for _, visit := range r.visits {
+	moved := int64(0)
+	for i := range r.visits {
+		visit := &r.visits[i]
 		if visit.ActiveGroupID == oldGroupID && visit.ExitTime == nil {
 			visit.ActiveGroupID = newGroupID
 			moved++
@@ -109,10 +111,10 @@ func (r *absorbVisitRepo) TransferActiveVisitsBetweenGroups(_ context.Context, o
 	return moved, nil
 }
 
-func (r *absorbVisitRepo) FindByActiveGroupID(_ context.Context, groupID int64) ([]*activeModel.Visit, error) {
-	visits := make([]*activeModel.Visit, 0)
+func (r *absorbVisitRepo) ListVisits(_ context.Context, filter studentpresence.VisitFilter) ([]studentpresence.Visit, error) {
+	visits := make([]studentpresence.Visit, 0)
 	for _, visit := range r.visits {
-		if visit.ActiveGroupID == groupID {
+		if visit.ActiveGroupID == filter.ActiveGroupIDs[0] {
 			visits = append(visits, visit)
 		}
 	}
@@ -195,7 +197,7 @@ func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
 		12: {{StaffID: 7, GroupID: 12}},
 	}}
 	entryTime := now.Add(-15 * time.Minute)
-	visitRepo := &absorbVisitRepo{visits: []*activeModel.Visit{
+	visitRepo := &absorbVisitRepo{visits: []studentpresence.Visit{
 		{
 			StudentID:     studentID,
 			ActiveGroupID: unsupervised.ID,
@@ -210,7 +212,7 @@ func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
 	instanceStudents := &absorbInstanceStudentRepo{unplannedStudentID: unplannedStudentID}
 	instanceRepo := &absorbInstanceRepo{byGroup: map[int64]*scheduleModel.ActivityInstance{
 		13: {
-			Date:          timezone.TodayDate(),
+			Date:          scheduleModel.Date(timezone.TodayDate()),
 			Status:        scheduleModel.InstanceStatusActive,
 			ActiveGroupID: &bridged.ID,
 		},
@@ -221,7 +223,7 @@ func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
 		InstanceStudents: instanceStudents,
 		ActiveGroupRepo:  groupRepo,
 		SupervisorRepo:   supervisorRepo,
-		VisitRepo:        visitRepo,
+		Presence:         visitRepo,
 		Logger:           slog.New(slog.DiscardHandler),
 	}}
 
@@ -229,7 +231,7 @@ func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, []int64{11, 12, 13}, groupRepo.lockedIDs, "only today's candidate sessions are locked")
-	assert.Equal(t, []int64{11}, groupRepo.endedIDs, "only the unbridged unsupervised session is ended")
+	assert.Equal(t, []int64{11}, visitRepo.endedIDs, "only the unbridged unsupervised session is ended")
 	assert.Equal(t, [][2]int64{{11, newGroupID}}, visitRepo.transfers, "open visits move through the conditional bulk update")
 	assert.Equal(t, []absorbedAttendanceUpdate{{
 		instanceID: instanceID,

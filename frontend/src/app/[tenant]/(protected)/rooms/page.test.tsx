@@ -33,11 +33,11 @@ vi.mock("~/hooks/useUpdateUrlParams", () => ({
   useUpdateUrlParams: () => mockUpdateUrlParams,
 }));
 
-vi.mock("~/components/rooms/room-detail-modal", () => ({
+vi.mock("~/components/rooms/room-detail-panel", () => ({
   TRANSIT_ROOM_ID: "__transit__",
   // Surface the onClose handler as a clickable element so tests can
   // exercise the modal-close branch (back vs. updateUrlParams).
-  RoomDetailModal: ({
+  RoomDetailPanel: ({
     roomId,
     onClose,
   }: {
@@ -45,10 +45,10 @@ vi.mock("~/components/rooms/room-detail-modal", () => ({
     onClose: () => void;
   }) =>
     roomId ? (
-      <div data-testid="room-detail-modal" data-room-id={roomId}>
+      <div data-testid="room-detail-panel" data-room-id={roomId}>
         <button
           type="button"
-          data-testid="room-detail-modal-close"
+          data-testid="room-detail-panel-close"
           onClick={onClose}
         >
           close
@@ -291,7 +291,7 @@ describe("RoomsPage", () => {
     searchParamsState.roomParam = "1";
     rerender(<RoomsPage />);
 
-    fireEvent.click(screen.getByTestId("room-detail-modal-close"));
+    fireEvent.click(screen.getByTestId("room-detail-panel-close"));
 
     // After open-then-close, history must collapse to a single /rooms
     // entry. Replace would leave [/rooms, /rooms] and Back would appear
@@ -327,7 +327,7 @@ describe("RoomsPage", () => {
 
     // 3. Close from the remounted page. The marker on history.state
     //    survives, so close still pops via router.back.
-    fireEvent.click(screen.getByTestId("room-detail-modal-close"));
+    fireEvent.click(screen.getByTestId("room-detail-panel-close"));
 
     expect(mockBack).toHaveBeenCalledTimes(1);
     expect(mockUpdateUrlParams).not.toHaveBeenCalledWith({ room: null });
@@ -346,7 +346,7 @@ describe("RoomsPage", () => {
 
     render(<RoomsPage />);
 
-    fireEvent.click(screen.getByTestId("room-detail-modal-close"));
+    fireEvent.click(screen.getByTestId("room-detail-panel-close"));
 
     expect(mockUpdateUrlParams).toHaveBeenCalledWith({ room: null });
     expect(mockBack).not.toHaveBeenCalled();
@@ -422,7 +422,12 @@ describe("RoomsPage", () => {
     render(<RoomsPage />);
 
     fireEvent.click(screen.getByTestId("filter-building"));
-    fireEvent.click(screen.getByTestId("overflow-Wer ist wo als PDF"));
+    // Das Exportmenü hängt seit der Kopfkarten-Umstellung an der PageIntro
+    // (echte OverflowMenu), nicht mehr am gemockten Seitenkopf.
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: /Wer ist wo als PDF/ }),
+    );
 
     await waitFor(() => {
       expect(mockExportRoomSnapshot).toHaveBeenCalledWith({
@@ -525,7 +530,7 @@ describe("RoomsPage", () => {
     expect(screen.getByText("Kapazität: 25 Plätze")).toBeInTheDocument();
   });
 
-  it("displays click hint on all room cards", () => {
+  it("traegt keine Tipp-Hinweiszeile mehr auf den Raumkacheln", () => {
     vi.mocked(useSWRAuth).mockReturnValue({
       data: mockRooms,
       isLoading: false,
@@ -534,8 +539,9 @@ describe("RoomsPage", () => {
 
     render(<RoomsPage />);
 
-    const hints = screen.getAllByText("Tippen für mehr Infos");
-    expect(hints).toHaveLength(2);
+    // Die Zeile stand auf jeder Kachel, war am Rechner falsch („Tippen") und
+    // sagte nichts, was die Kachel nicht schon zeigt.
+    expect(screen.queryByText("Tippen für mehr Infos")).not.toBeInTheDocument();
   });
 
   it("displays singular 'Kind' when only one student", () => {

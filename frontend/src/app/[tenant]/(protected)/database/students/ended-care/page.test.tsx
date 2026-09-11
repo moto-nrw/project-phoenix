@@ -138,9 +138,12 @@ describe("Beendete Betreuungen", () => {
     render(<Page />);
     await screen.findByText("Muster, Mia");
 
-    fireEvent.change(screen.getByPlaceholderText("Name oder Klasse suchen…"), {
-      target: { value: "Wirth" },
-    });
+    // Die Kopfkarte rendert die Suchzeile für Mobile und Desktop, deshalb
+    // liegen zwei Eingaben im DOM.
+    fireEvent.change(
+      screen.getAllByPlaceholderText("Name oder Klasse suchen…")[0]!,
+      { target: { value: "Wirth" } },
+    );
 
     await waitFor(() =>
       expect(mockFetchEndedCare).toHaveBeenCalledWith(
@@ -158,7 +161,7 @@ describe("Beendete Betreuungen", () => {
     render(<Page />);
     await screen.findByText("Muster, Mia");
 
-    expect(screen.getByText("137")).toBeVisible();
+    expect(screen.getByText(/137 Kinder/)).toBeVisible();
     expect(screen.getByText("Seite 1 von 3")).toBeVisible();
     expect(
       screen.getByRole("button", { name: "Vorherige Seite" }),

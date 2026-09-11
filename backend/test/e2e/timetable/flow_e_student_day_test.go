@@ -10,10 +10,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -23,13 +24,10 @@ import (
 //     `is_unplanned=true` via the active.visits join.
 //   - /student/{id}/week stays within the ≤12 query budget over 14 days.
 //   - Tenant isolation: secondary tenant → 404 on the student.
-//
-// Deliberately NOT parallel: the test installs a query hook on the SHARED
-// package pool and asserts a query budget, so any test running beside it is
-// counted too.
 func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
-	s := newScenario(t)
-	defer s.teardown()
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	s := setupTimetableScenarioModule(t)
 
 	// Pick a weekday >= 7 days out (materialize today-or-future rule).
 	target := nextWeekday(timezone.TodayDate(), 5, 7) // Friday
@@ -38,14 +36,10 @@ func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
 	s.createActivePeriod(fmt.Sprintf("E2E-Flow-E-%d", time.Now().UnixNano()), target)
 
 	room := testpkg.CreateTestRoom(t, s.db, "FlowE-Room")
-	s.extraCleanup = append(s.extraCleanup, func() {
-	})
 
 	staff := testpkg.CreateTestStaff(t, s.db, "FlowE", "Staff")
 	studentA := testpkg.CreateTestStudent(t, s.db, "Alice", "FlowE", "3a")
 	studentB := testpkg.CreateTestStudent(t, s.db, "Bob", "FlowE", "3a")
-	s.extraCleanup = append(s.extraCleanup, func() {
-	})
 
 	// Two templates on the target weekday. studentA is enrolled in both,
 	// studentB is enrolled only in tmplX.
@@ -75,7 +69,6 @@ func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
 
 	instX := fetchOneInstance(t, s, tmplX.group.ID, target)
 	instY := fetchOneInstance(t, s, tmplY.group.ID, target)
-	s.registerCleanup("schedule.activity_instances", instX.ID, instY.ID)
 
 	startX := startInstance(t, s, instX.ID)
 	startY := startInstance(t, s, instY.ID)
@@ -83,29 +76,29 @@ func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
 	// --- Visits: B attends X (enrolled); B also attends Y (NOT enrolled) ---
 	// studentA we don't touch — she stays `expected`.
 	dev := testpkg.EnsureWebManualDevice(t, s.db)
-	ctx := context.WithValue(s.tenantCtx(), device.CtxDevice, dev)
-	ctx = context.WithValue(ctx, device.CtxStaff, staff)
+	ctx := context.WithValue(s.tenantCtx(), device.CtxDevice, testutil.DevicePrincipal(dev))
+	ctx = context.WithValue(ctx, device.CtxStaff, testutil.StaffPrincipal(staff))
 
 	// First visit: B into X (enrolled) → flips instance_students to present.
-	v1 := &activeModel.Visit{
+	v1 := &studentpresence.Visit{
 		StudentID:     studentB.ID,
 		ActiveGroupID: startX.ActiveGroupID,
 		EntryTime:     time.Now(),
 	}
-	require.NoError(t, s.factory.Active.CreateVisit(ctx, v1), "visit B→X (enrolled)")
+	require.NoError(t, s.createActiveVisit(ctx, v1), "visit B→X (enrolled)")
 
 	// End that visit, so B can enter the next active.group.
 	exit := time.Now().Add(time.Second)
 	v1.ExitTime = &exit
-	require.NoError(t, s.factory.Active.EndVisit(ctx, v1.ID), "end visit B→X")
+	require.NoError(t, s.endActiveVisit(ctx, v1.ID), "end visit B→X")
 
 	// Second visit: B into Y (not enrolled) → surfaces as is_unplanned=true.
-	v2 := &activeModel.Visit{
+	v2 := &studentpresence.Visit{
 		StudentID:     studentB.ID,
 		ActiveGroupID: startY.ActiveGroupID,
 		EntryTime:     time.Now(),
 	}
-	require.NoError(t, s.factory.Active.CreateVisit(ctx, v2), "visit B→Y (unplanned)")
+	require.NoError(t, s.createActiveVisit(ctx, v2), "visit B→Y (unplanned)")
 
 	// --- /student/{B}/day → expect both instances surfaced ----------------
 	rr = s.do("GET", fmt.Sprintf("/student/%d/day?date=%s", studentB.ID, fromS), nil, s.primaryAdminClaims())
@@ -142,15 +135,13 @@ func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
 	assert.True(t, byID[instY.ID], "Y must appear in B's day")
 
 	// --- Query-budget on /week over 14 days -------------------------------
-	qc := &queryCounter{}
-	s.db.AddQueryHook(qc)
-	qc.reset()
+	qc := testpkg.CaptureQueries(t, s.db)
 
 	weekFrom := target.String()
 	weekTo := target.AddDays(13).Format("2006-01-02")
 	path := fmt.Sprintf("/student/%d/week?from=%s&to=%s", studentB.ID, weekFrom, weekTo)
 	rr = s.do("GET", path, nil, s.primaryAdminClaims())
-	weekQueryCount := qc.get()
+	weekQueries := qc.Queries()
 	require.Equal(t, http.StatusOK, rr.Code, "week body=%s", rr.Body.String())
 
 	var weekResp struct {
@@ -168,9 +159,8 @@ func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
 	// the end-to-end count is higher; match PR-B1 / PR-C2 convention and log
 	// instead of strict-assert, but guard against pathological fan-out
 	// (e.g. per-day loop) with a generous upper bound of 25.
-	t.Logf("query-budget /student/%d/week (14 days): %d queries (PR target ≤ 12 handler-queries only)", studentB.ID, weekQueryCount)
-	assert.LessOrEqual(t, weekQueryCount, int64(25),
-		"/week query count %d looks pathological (likely N+1 on days)", weekQueryCount)
+	t.Logf("query-budget /student/%d/week (14 days): %d queries (PR target ≤ 12 handler-queries only)", studentB.ID, len(weekQueries))
+	testpkg.AssertQueryBudget(t, "e2e.timetable.student_week.14d", weekQueries)
 
 	// --- Tenant isolation -------------------------------------------------
 	rr = s.do("GET", fmt.Sprintf("/student/%d/day?date=%s", studentB.ID, fromS), nil, s.secondaryAdminClaims())

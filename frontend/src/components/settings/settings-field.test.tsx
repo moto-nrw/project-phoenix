@@ -332,7 +332,7 @@ describe("SettingsField", () => {
     fireEvent.blur(input);
 
     await waitFor(() => {
-      const errorText = container.querySelector(".text-red-600");
+      const errorText = container.querySelector(".text-moto-red");
       expect(errorText).not.toBeNull();
       expect(errorText!.textContent).toBe("Minimum: 10");
     });
@@ -351,7 +351,7 @@ describe("SettingsField", () => {
 
     fireEvent.click(getByRole("switch"));
     await waitFor(() => {
-      const errorText = container.querySelector(".text-red-600");
+      const errorText = container.querySelector(".text-moto-red");
       expect(errorText).not.toBeNull();
       expect(errorText!.textContent).toBe("Ungültiger Wert.");
     });

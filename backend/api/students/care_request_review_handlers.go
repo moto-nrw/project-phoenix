@@ -112,6 +112,9 @@ type DecideCareRequestBody struct {
 	Approve     *bool   `json:"approve"`
 	Reason      string  `json:"reason"`
 	ImpactToken *string `json:"impact_token"`
+	// ExpectedVersion is the expected_version the list emitted for this row.
+	// Empty is accepted (old clients) and skips the check.
+	ExpectedVersion string `json:"expected_version"`
 }
 
 // decideCareScheduleChangeRequest approves (applies the weekly plan) or
@@ -127,6 +130,7 @@ func (rs *Resource) decideCareScheduleChangeRequest(w http.ResponseWriter, r *ht
 	}
 	claims := jwt.ClaimsFromCtx(r.Context())
 	input.ReviewedBy = int64(claims.ID)
+	input.ReasonRequired = rs.staffReasonRequired(r)
 	item, err := rs.CareRequestService.Decide(r.Context(), input)
 	if err != nil {
 		renderError(w, r, careRequestDecisionErrorRenderer(err))
@@ -152,21 +156,22 @@ func decodeCareRequestDecision(w http.ResponseWriter, r *http.Request) (schedule
 	return scheduleService.CareRequestDecideInput{
 		RequestID: requestID, Approve: *body.Approve, Reason: body.Reason,
 		ExpectedImpactToken: body.ImpactToken, RequireImpactToken: true,
+		ExpectedVersion: body.ExpectedVersion,
 	}, true
 }
 
-var careRequestDecisionErrorRenderer = common.RulesRenderer([]common.ErrorRule{
-	{Target: scheduleModels.ErrCareRequestNotFound, Render: common.ErrorNotFound},
-	{Target: scheduleModels.ErrCareRequestNotPending, Render: conflictWithCode("change_request_not_pending")},
-	{Target: scheduleService.ErrCareRequestGuardianAccessRevoked, Render: conflictWithCode("guardian_access_revoked")},
-	{Target: scheduleService.ErrCareRequestForbidden, Render: common.ErrorForbidden},
-	{Target: scheduleService.ErrPickupChangeConflict, Render: conflictWithCode("pickup_change_conflict")},
-	{Target: scheduleService.ErrPickupChangeAlreadyCompleted, Render: conflictWithCode("pickup_change_completed")},
-	{Target: scheduleService.ErrPickupChangeExpired, Render: conflictWithCode("pickup_change_expired")},
-	{Target: scheduleService.ErrPickupChangeImpactChanged, Render: conflictWithCode("pickup_change_impact_changed")},
-	{Target: scheduleService.ErrCareDayManagedByBooking, Render: conflictWithCode("care_day_managed_by_booking")},
-	{Match: isInvalidCareRequestDecision, Render: common.ErrorInvalidRequest},
-}, careRequestDecisionFallback)
+var careRequestDecisionErrorRenderer = common.RulesRenderer(parentRequestRules(
+	common.ErrorRule{Target: scheduleModels.ErrCareRequestNotFound, Render: common.ErrorNotFound},
+	common.ErrorRule{Target: scheduleModels.ErrCareRequestNotPending, Render: conflictWithCode("change_request_not_pending")},
+	common.ErrorRule{Target: scheduleService.ErrCareRequestGuardianAccessRevoked, Render: conflictWithCode("guardian_access_revoked")},
+	common.ErrorRule{Target: scheduleService.ErrCareRequestForbidden, Render: common.ErrorForbidden},
+	common.ErrorRule{Target: scheduleService.ErrPickupChangeConflict, Render: conflictWithCode("pickup_change_conflict")},
+	common.ErrorRule{Target: scheduleService.ErrPickupChangeAlreadyCompleted, Render: conflictWithCode("pickup_change_completed")},
+	common.ErrorRule{Target: scheduleService.ErrPickupChangeExpired, Render: conflictWithCode("pickup_change_expired")},
+	common.ErrorRule{Target: scheduleService.ErrPickupChangeImpactChanged, Render: conflictWithCode("pickup_change_impact_changed")},
+	common.ErrorRule{Target: scheduleService.ErrCareDayManagedByBooking, Render: conflictWithCode("care_day_managed_by_booking")},
+	common.ErrorRule{Match: isInvalidCareRequestDecision, Render: common.ErrorInvalidRequest},
+), careRequestDecisionFallback)
 
 func conflictWithCode(code string) func(error) render.Renderer {
 	return func(err error) render.Renderer { return common.ErrorConflictWithCode(err, code) }

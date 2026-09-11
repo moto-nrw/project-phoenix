@@ -56,7 +56,7 @@ func postBatchCheckin(t *testing.T, tc *testContext, accountID int64, body map[s
 func TestSchoolCheckinBatch_CheckInMultiple(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	// The virtual WEB-MANUAL device is per tenant, so this test's own
 	// tenant (#2419) needs its own row before a manual check-in.
 	_ = testpkg.EnsureWebManualDevice(t, tc.db)
@@ -85,7 +85,7 @@ func TestSchoolCheckinBatch_CheckInMultiple(t *testing.T) {
 func TestSchoolCheckinBatch_MixedStates_IdempotentPerStudent(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	// The virtual WEB-MANUAL device is per tenant, so this test's own
 	// tenant (#2419) needs its own row before a manual check-in.
 	_ = testpkg.EnsureWebManualDevice(t, tc.db)
@@ -126,7 +126,7 @@ func TestSchoolCheckinBatch_MixedStates_IdempotentPerStudent(t *testing.T) {
 func TestSchoolCheckinBatch_UnknownStudentSkipped_RestProcessed(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	// The virtual WEB-MANUAL device is per tenant, so this test's own
 	// tenant (#2419) needs its own row before a manual check-in.
 	_ = testpkg.EnsureWebManualDevice(t, tc.db)
@@ -161,7 +161,7 @@ func TestSchoolCheckinBatch_UnknownStudentSkipped_RestProcessed(t *testing.T) {
 func TestSchoolCheckinBatch_DuplicateIDsCollapse(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	// The virtual WEB-MANUAL device is per tenant, so this test's own
 	// tenant (#2419) needs its own row before a manual check-in.
 	_ = testpkg.EnsureWebManualDevice(t, tc.db)
@@ -183,7 +183,7 @@ func TestSchoolCheckinBatch_DuplicateIDsCollapse(t *testing.T) {
 func TestSchoolCheckinBatch_InvalidAction_Rejects(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "BatchInvalid", "Target", "5a")
 	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "BatchInvalid", "Caller")
@@ -199,7 +199,7 @@ func TestSchoolCheckinBatch_InvalidAction_Rejects(t *testing.T) {
 func TestSchoolCheckinBatch_MalformedID_Rejects(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "BatchMalformed", "Caller")
 
@@ -217,7 +217,7 @@ func TestSchoolCheckinBatch_MalformedID_Rejects(t *testing.T) {
 func TestSchoolCheckinBatch_TooManyIDs_Rejects(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "BatchCap", "Target", "6a")
 	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "BatchCap", "Caller")
@@ -242,7 +242,7 @@ func TestSchoolCheckinBatch_TooManyIDs_Rejects(t *testing.T) {
 func TestSchoolCheckinBatch_OversizedBody_Rejects(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "BatchBytes", "Target", "6b")
 	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "BatchBytes", "Caller")
@@ -271,7 +271,7 @@ func TestSchoolCheckinBatch_OversizedBody_Rejects(t *testing.T) {
 func TestSchoolCheckinBatch_TrailingBody_Rejects(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "BatchTrail", "Target", "6c")
 	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "BatchTrail", "Caller")
@@ -288,7 +288,7 @@ func TestSchoolCheckinBatch_TrailingBody_Rejects(t *testing.T) {
 func TestSchoolCheckinBatch_EmptyIDs_Rejects(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "BatchEmpty", "Caller")
 

@@ -1,6 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type Dispatch,
+  type SetStateAction,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { AlertCircle, Check, Loader2 } from "lucide-react";
 import { PencilSimpleIcon } from "@phosphor-icons/react/ssr";
 import { useLocale, useTranslations } from "next-intl";
@@ -11,6 +22,8 @@ import { Alert } from "~/components/ui/alert";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { ConfirmationModal } from "~/components/ui/modal";
+import { useNavigationGuard } from "~/lib/hooks/use-navigation-guard";
 import { SUPPORTED_LOCALES } from "~/i18n/locales";
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
@@ -29,6 +42,11 @@ import { OgsVisibleBadge } from "~/components/parent/ogs-visible-badge";
 import { ParentSectionSkeleton } from "~/components/parent/parent-page";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { ChildMasterDataRequestModal } from "~/components/parent/child-master-data-request-modal";
+import {
+  RequestSharingControl,
+  RequestSharingSelector,
+} from "~/components/parent/request-sharing-control";
+import { RequestEditModal } from "~/components/parent/request-edit-modal";
 
 const logger = createLogger({ component: "ChildMasterData" });
 
@@ -39,11 +57,52 @@ const CONTACT_METHODS = ["email", "phone", "mobile", "sms"] as const;
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
+// Auto-Save ist hier benannt („Änderungen werden automatisch gespeichert“),
+// darf aber nichts verlieren (#3112): jedes Feld meldet, ob etwas noch
+// ungespeichert, gerade unterwegs oder fehlgeschlagen ist. Der Abschnitt
+// warnt beim Schließen des Tabs, solange etwas offen ist, und fragt vor einem
+// Seitenwechsel nach, wenn eine Speicherung fehlgeschlagen ist.
+type FieldSaveState = "clean" | "dirty" | "saving" | "error";
+type ReportFieldState = (id: string, state: FieldSaveState) => void;
+const AutoSaveTracker = createContext<ReportFieldState | null>(null);
+
+function useReportFieldState(state: FieldSaveState) {
+  const report = useContext(AutoSaveTracker);
+  const id = useId();
+  useEffect(() => {
+    report?.(id, state);
+  }, [report, id, state]);
+  useEffect(
+    () => () => {
+      report?.(id, "clean");
+    },
+    [report, id],
+  );
+}
+
+function useUnsavedChangesGuard(
+  states: Readonly<Record<string, FieldSaveState>>,
+) {
+  const values = Object.values(states);
+  const hasUnsaved = values.some((state) => state !== "clean");
+
+  return useNavigationGuard(hasUnsaved);
+}
+
 interface Props {
   readonly studentId: string;
   /** Der Name des Kindes fuer die Ueberschrift "Angaben zu {Name}". */
   readonly childName: string;
   readonly area?: "details" | "departure" | "contact";
+  readonly masterData?: ChildMasterDataState;
+}
+
+export interface ChildMasterDataState {
+  readonly data: ChildMasterData | null;
+  readonly features: ChildFeatures | null;
+  readonly loading: boolean;
+  readonly error: string | null;
+  readonly setData: Dispatch<SetStateAction<ChildMasterData | null>>;
 }
 
 /**
@@ -56,38 +115,12 @@ export function ChildMasterDataView({
   studentId,
   childName,
   area = "details",
+  masterData,
 }: Props) {
+  const loadedMasterData = useChildMasterData(studentId, !masterData);
+  const { data, features, loading, error, setData } =
+    masterData ?? loadedMasterData;
   const t = useTranslations("parentMasterData");
-  const [data, setData] = useState<ChildMasterData | null>(null);
-  const [features, setFeatures] = useState<ChildFeatures | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [md, feats] = await Promise.all([
-        getChildMasterData(studentId),
-        getChildFeatures(studentId),
-      ]);
-      setData(md);
-      setFeatures(feats);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      logger.warn("child_master_data_load_failed", {
-        error: message,
-        student_id: studentId,
-      });
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
-  }, [studentId]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
 
   if (loading) {
     if (area === "details") {
@@ -129,6 +162,45 @@ export function ChildMasterDataView({
   );
 }
 
+export function useChildMasterData(
+  studentId: string,
+  enabled = true,
+): ChildMasterDataState {
+  const [data, setData] = useState<ChildMasterData | null>(null);
+  const [features, setFeatures] = useState<ChildFeatures | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [md, feats] = await Promise.all([
+        getChildMasterData(studentId),
+        getChildFeatures(studentId),
+      ]);
+      setData(md);
+      setFeatures(feats);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn("child_master_data_load_failed", {
+        error: message,
+        student_id: studentId,
+      });
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  }, [studentId]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    void load();
+  }, [enabled, load]);
+
+  return { data, features, loading, error, setData };
+}
+
 function ChildMasterDataContent({
   studentId,
   childName,
@@ -168,8 +240,39 @@ function ChildMasterDataContent({
     [studentId, onDirectApplied],
   );
 
+  const [fieldStates, setFieldStates] = useState<
+    Record<string, FieldSaveState>
+  >({});
+  const reportFieldState = useCallback<ReportFieldState>((id, state) => {
+    setFieldStates((prev) => {
+      if (prev[id] === state) return prev;
+      if (state === "clean" && !(id in prev)) return prev;
+      return { ...prev, [id]: state };
+    });
+  }, []);
+  const { pendingHref, confirmNavigation, cancelNavigation } =
+    useUnsavedChangesGuard(fieldStates);
+
+  const guarded = (content: React.ReactNode) => (
+    <AutoSaveTracker.Provider value={reportFieldState}>
+      {content}
+      <ConfirmationModal
+        mobileSheet
+        isOpen={pendingHref !== null}
+        onClose={cancelNavigation}
+        onConfirm={confirmNavigation}
+        title={t("unsaved.title")}
+        confirmText={t("unsaved.leave")}
+        cancelText={t("unsaved.stay")}
+        confirmVariant="danger"
+      >
+        <p className="text-sm leading-6 text-gray-600">{t("unsaved.body")}</p>
+      </ConfirmationModal>
+    </AutoSaveTracker.Provider>
+  );
+
   if (area === "departure") {
-    return (
+    return guarded(
       <DepartureSection
         studentId={studentId}
         childName={childName}
@@ -177,7 +280,7 @@ function ChildMasterDataContent({
         features={features}
         pending={pendingByField.get("departure/allowed_departure_modes")}
         onApplied={onApplied}
-      />
+      />,
     );
   }
 
@@ -257,9 +360,9 @@ function ChildMasterDataContent({
     </ParentSection>
   );
 
-  if (area === "contact") return contactSection;
+  if (area === "contact") return guarded(contactSection);
 
-  return (
+  return guarded(
     <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
       <IdentitySection
         studentId={studentId}
@@ -287,7 +390,7 @@ function ChildMasterDataContent({
           <p className="text-xs text-gray-500">{t("editDisabled")}</p>
         )}
       </ParentSection>
-    </div>
+    </div>,
   );
 }
 
@@ -308,14 +411,34 @@ function IdentitySection({
   const locale = useLocale();
   const [modalOpen, setModalOpen] = useState(false);
 
-  const requestable = features.master_data_request_enabled;
-  const firstNamePending = pendingByField.has("person/first_name");
-  const lastNamePending = pendingByField.has("person/last_name");
-  const birthdayPending = pendingByField.has("person/birthday");
-  const schoolClassPending = pendingByField.has("student/school_class");
+  const refresh = useCallback(() => {
+    void (async () => {
+      try {
+        onApplied(await getChildMasterData(studentId));
+      } catch (err) {
+        logger.warn("master_data_refresh_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          student_id: studentId,
+        });
+      }
+    })();
+  }, [onApplied, studentId]);
 
-  const submit = async (changes: MasterDataChangeInput[]) => {
-    const submitted = await submitMasterDataRequest(studentId, changes);
+  const requestable = features.master_data_request_enabled;
+  const firstNamePending = pendingByField.get("person/first_name");
+  const lastNamePending = pendingByField.get("person/last_name");
+  const birthdayPending = pendingByField.get("person/birthday");
+  const schoolClassPending = pendingByField.get("student/school_class");
+
+  const submit = async (
+    changes: MasterDataChangeInput[],
+    recipientIds: string[],
+  ) => {
+    const submitted = await submitMasterDataRequest(
+      studentId,
+      changes,
+      recipientIds,
+    );
     onApplied({
       ...data,
       pending_changes: mergePendingChanges(data.pending_changes, submitted),
@@ -360,16 +483,21 @@ function IdentitySection({
     >
       <dl className="grid grid-cols-1 gap-5 sm:grid-cols-2">
         <IdentityFact
+          studentId={studentId}
           label={t("fields.firstName")}
           value={data.first_name}
           pending={firstNamePending}
+          onEdited={refresh}
         />
         <IdentityFact
+          studentId={studentId}
           label={t("fields.lastName")}
           value={data.last_name}
           pending={lastNamePending}
+          onEdited={refresh}
         />
         <IdentityFact
+          studentId={studentId}
           label={t("fields.birthday")}
           value={
             data.birthday
@@ -377,11 +505,14 @@ function IdentitySection({
               : t("notSet")
           }
           pending={birthdayPending}
+          onEdited={refresh}
         />
         <IdentityFact
+          studentId={studentId}
           label={t("fields.schoolClass")}
           value={data.school_class || t("notSet")}
           pending={schoolClassPending}
+          onEdited={refresh}
         />
       </dl>
       {!requestable && (
@@ -389,6 +520,7 @@ function IdentitySection({
       )}
       {modalOpen && (
         <ChildMasterDataRequestModal
+          studentId={studentId}
           data={data}
           pendingFields={pendingFields}
           onClose={() => setModalOpen(false)}
@@ -403,17 +535,64 @@ type IdentityFieldKey =
   "first_name" | "last_name" | "birthday" | "school_class";
 
 function IdentityFact({
+  studentId,
   label,
   value,
   pending,
-}: Readonly<{ label: string; value: string; pending: boolean }>) {
+  onEdited,
+}: Readonly<{
+  studentId: string;
+  label: string;
+  value: string;
+  pending?: MasterDataChange;
+  onEdited?: () => void;
+}>) {
   const t = useTranslations("parentMasterData");
+  const [editing, setEditing] = useState(false);
+  // Nur Textwerte lassen sich hier ändern. Die Abholarten sind eine Tabelle
+  // und werden im eigenen Abschnitt geändert.
+  const editableValue =
+    typeof pending?.new_value === "string" ? pending.new_value : null;
   return (
     <div className="min-w-0">
-      <dt className="flex min-h-6 items-center gap-2 text-sm text-gray-500">
+      <dt className="flex min-h-6 flex-wrap items-center gap-2 text-sm text-gray-500">
         <span>{label}</span>
-        {pending && <StatusBadge label={t("pendingBadge")} tone="orange" />}
+        {pending && (
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge label={t("pendingBadge")} tone="orange" />
+            <RequestSharingControl
+              studentId={studentId}
+              requestType="master_data"
+              requestId={pending.id}
+              isSelf={pending.is_self === true}
+            />
+            {pending.is_self === true && editableValue !== null && (
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                className="max-sm:min-h-11"
+                onClick={() => setEditing(true)}
+              >
+                {t("requestEdit")}
+              </Button>
+            )}
+          </div>
+        )}
       </dt>
+      {pending && editing && editableValue !== null && (
+        <RequestEditModal
+          studentId={studentId}
+          request={{
+            type: "master_data",
+            id: pending.id,
+            label,
+            value: editableValue,
+          }}
+          onClose={() => setEditing(false)}
+          onSaved={() => onEdited?.()}
+        />
+      )}
       <dd className="mt-1 text-base font-medium break-words text-gray-900">
         {value}
       </dd>
@@ -442,6 +621,8 @@ function DepartureSection({
   );
   const [status, setStatus] = useState<SaveStatus>("idle");
   const [message, setMessage] = useState<string | null>(null);
+  const [recipientIds, setRecipientIds] = useState<string[]>([]);
+  const [requestSaved, setRequestSaved] = useState(false);
   const current = useMemo(
     () => normalizeDepartureModes(data.allowed_departure_modes),
     [data.allowed_departure_modes],
@@ -454,6 +635,25 @@ function DepartureSection({
   const hasAccompanied = hasDepartureAccompanied(data.allowed_departure_modes);
   const requestable =
     features.master_data_request_enabled && !pending && !hasAccompanied;
+  const displayedModes = hasAccompanied
+    ? [...DEPARTURE_REQUEST_MODES, "accompanied"]
+    : DEPARTURE_REQUEST_MODES;
+  useReportFieldState(
+    !changed || requestSaved
+      ? "clean"
+      : status === "saving"
+        ? "saving"
+        : status === "error"
+          ? "error"
+          : "dirty",
+  );
+
+  useEffect(() => {
+    if (!changed && status === "error") {
+      setStatus("idle");
+      setMessage(null);
+    }
+  }, [changed, status]);
 
   useEffect(() => {
     const previous = departureBase.current;
@@ -483,19 +683,24 @@ function DepartureSection({
     setStatus("saving");
     setMessage(null);
     try {
-      const submitted = await submitMasterDataRequest(studentId, [
-        {
-          target: "departure",
-          field_key: "allowed_departure_modes",
-          value: modes,
-        },
-      ]);
-      setStatus("saved");
-      setMessage(t("requestSubmitted"));
+      const submitted = await submitMasterDataRequest(
+        studentId,
+        [
+          {
+            target: "departure",
+            field_key: "allowed_departure_modes",
+            value: modes,
+          },
+        ],
+        recipientIds,
+      );
       onApplied({
         ...data,
         pending_changes: mergePendingChanges(data.pending_changes, submitted),
       });
+      setRequestSaved(true);
+      setStatus("saved");
+      setMessage(t("requestSubmitted"));
       try {
         const next = await getChildMasterData(studentId);
         onApplied(next);
@@ -525,6 +730,19 @@ function DepartureSection({
       concept="pickup"
     >
       {pending && <StatusBadge label={t("pendingBadge")} tone="orange" />}
+      {pending && (
+        <RequestSharingControl
+          studentId={studentId}
+          requestType="master_data"
+          requestId={pending.id}
+          isSelf={pending.is_self === true}
+        />
+      )}
+      {hasAccompanied && (
+        <p className="text-sm text-gray-600">
+          {t("departureReadOnlyAccompanied")}
+        </p>
+      )}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {DEPARTURE_DAYS.map((day) => (
           <fieldset
@@ -535,16 +753,26 @@ function DepartureSection({
               {t(`departureDays.${day}`)}
             </legend>
             <div className="mt-1 space-y-1">
-              {DEPARTURE_REQUEST_MODES.map((mode) => (
+              {displayedModes.map((mode) => (
                 <label
                   key={mode}
                   htmlFor={`departure-${day}-${mode}`}
-                  className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2 text-sm text-gray-700 hover:bg-white"
+                  className={
+                    hasAccompanied
+                      ? "flex min-h-11 cursor-default items-center gap-3 rounded-lg px-2 text-sm text-gray-700"
+                      : "flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2 text-sm text-gray-700 hover:bg-white"
+                  }
                 >
                   <Checkbox
                     id={`departure-${day}-${mode}`}
                     aria-label={`${t(`departureDays.${day}`)} ${t(`departureModes.${mode}`)}`}
-                    checked={(modes[day] ?? []).includes(mode)}
+                    checked={
+                      mode === "accompanied"
+                        ? (data.allowed_departure_modes?.[day] ?? []).includes(
+                            mode,
+                          )
+                        : (modes[day] ?? []).includes(mode)
+                    }
                     disabled={!requestable}
                     onChange={() => toggle(day, mode)}
                   />
@@ -555,6 +783,13 @@ function DepartureSection({
           </fieldset>
         ))}
       </div>
+      {requestable && !requestSaved && (
+        <RequestSharingSelector
+          studentId={studentId}
+          selected={recipientIds}
+          onChange={setRecipientIds}
+        />
+      )}
       {features.master_data_request_enabled ? (
         <div className="flex flex-col-reverse items-stretch gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:items-center sm:justify-end">
           {message && (
@@ -574,7 +809,9 @@ function DepartureSection({
             variant="primary"
             size="md"
             className="min-h-11 sm:min-h-0"
-            disabled={!changed || !requestable || status === "saving"}
+            disabled={
+              !changed || !requestable || status === "saving" || requestSaved
+            }
             onClick={() => void submit()}
           >
             {t("requestButton")}
@@ -609,6 +846,8 @@ function AutoSaveField({
 }>) {
   const [local, setLocal] = useState(value);
   const [status, setStatus] = useState<SaveStatus>("idle");
+  // Ungespeicherte Eingabe (Debounce läuft oder ein Speichern steht aus).
+  const [dirty, setDirty] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savedValue = useRef(value);
   const latestValue = useRef(value);
@@ -624,6 +863,7 @@ function AutoSaveField({
     ) {
       latestValue.current = value;
       setLocal(value);
+      setDirty(false);
     } else if (
       latestValue.current === value &&
       inFlightValue.current === null
@@ -654,9 +894,12 @@ function AutoSaveField({
         savedValue.current = next;
         if (latestValue.current === next) {
           setStatus("saved");
+          setDirty(false);
         }
       } catch {
-        setStatus("error");
+        if (latestValue.current === next && next !== savedValue.current) {
+          setStatus("error");
+        }
       } finally {
         inFlightValue.current = null;
         const queued = queuedValue.current;
@@ -673,10 +916,27 @@ function AutoSaveField({
     [onSave],
   );
 
+  useReportFieldState(
+    status === "saving"
+      ? "saving"
+      : status === "error"
+        ? "error"
+        : dirty
+          ? "dirty"
+          : "clean",
+  );
+
+  const retry = () => {
+    if (latestValue.current !== savedValue.current) {
+      void doSave(latestValue.current);
+    }
+  };
+
   const handleChange = (next: string) => {
     setLocal(next);
     latestValue.current = next;
     setStatus("idle");
+    setDirty(next !== savedValue.current);
     if (timer.current) clearTimeout(timer.current);
     if (inFlightValue.current !== null) {
       queuedValue.current = next;
@@ -699,7 +959,7 @@ function AutoSaveField({
     <div>
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-gray-700">{label}</span>
-        <SaveIndicator status={status} />
+        <SaveIndicator status={status} onRetry={retry} />
       </div>
       <div className="mt-1">
         {multiline ? (
@@ -746,6 +1006,7 @@ function AutoSaveSelect({
 }>) {
   const [local, setLocal] = useState(value);
   const [status, setStatus] = useState<SaveStatus>("idle");
+  const [dirty, setDirty] = useState(false);
   const savedValue = useRef(value);
   const latestValue = useRef(value);
   const inFlightValue = useRef<string | null>(null);
@@ -760,6 +1021,7 @@ function AutoSaveSelect({
     ) {
       latestValue.current = value;
       setLocal(value);
+      setDirty(false);
     } else if (
       latestValue.current === value &&
       inFlightValue.current === null
@@ -790,9 +1052,12 @@ function AutoSaveSelect({
         savedValue.current = next;
         if (latestValue.current === next) {
           setStatus("saved");
+          setDirty(false);
         }
       } catch {
-        setStatus("error");
+        if (latestValue.current === next && next !== savedValue.current) {
+          setStatus("error");
+        }
       } finally {
         inFlightValue.current = null;
         const queued = queuedValue.current;
@@ -809,10 +1074,27 @@ function AutoSaveSelect({
     [onSave],
   );
 
+  useReportFieldState(
+    status === "saving"
+      ? "saving"
+      : status === "error"
+        ? "error"
+        : dirty
+          ? "dirty"
+          : "clean",
+  );
+
+  const retry = () => {
+    if (latestValue.current !== savedValue.current) {
+      void doSave(latestValue.current);
+    }
+  };
+
   const handleChange = (next: string) => {
     setLocal(next);
     latestValue.current = next;
     setStatus("idle");
+    setDirty(next !== savedValue.current);
     void doSave(next);
   };
 
@@ -820,7 +1102,7 @@ function AutoSaveSelect({
     <div>
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-gray-700">{label}</span>
-        <SaveIndicator status={status} />
+        <SaveIndicator status={status} onRetry={retry} />
       </div>
       <div className="mt-1">
         <CustomSelect
@@ -919,7 +1201,10 @@ function departureModesEqual(
   return true;
 }
 
-function SaveIndicator({ status }: Readonly<{ status: SaveStatus }>) {
+function SaveIndicator({
+  status,
+  onRetry,
+}: Readonly<{ status: SaveStatus; onRetry?: () => void }>) {
   const t = useTranslations("parentMasterData");
   if (status === "saving") {
     return (
@@ -946,10 +1231,21 @@ function SaveIndicator({ status }: Readonly<{ status: SaveStatus }>) {
     return (
       <span
         role="status"
-        className="text-moto-red-strong inline-flex items-center gap-1 text-xs font-medium"
+        className="text-moto-red-strong inline-flex flex-wrap items-center gap-1 text-xs font-medium"
       >
         <AlertCircle className="h-3 w-3" aria-hidden="true" />
         {t("saveError")}
+        {onRetry && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="compact"
+            onClick={onRetry}
+            className="text-moto-red-strong"
+          >
+            {t("unsaved.retry")}
+          </Button>
+        )}
       </span>
     );
   }

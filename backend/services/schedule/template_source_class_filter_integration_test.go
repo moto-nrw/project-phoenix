@@ -88,10 +88,12 @@ func sourcedStudentIDsOn(
 	return ids
 }
 
-// sourcedStudentIDs is the "as planned today" shorthand.
+// sourcedStudentIDs is the "as planned in the fixture" shorthand.
+const classSourceResyncDate timezone.Date = "2030-08-26"
+
 func sourcedStudentIDs(t *testing.T, s *scenarioSetup, templateID int64) []int64 {
 	t.Helper()
-	return sourcedStudentIDsOn(t, s, templateID, timezone.TodayDate())
+	return sourcedStudentIDsOn(t, s, templateID, classSourceResyncDate)
 }
 
 // selectedWeekdaysOn returns the weekday set the child's roster row carries on
@@ -147,7 +149,7 @@ func TestTemplateSourceClassFilter_SeedsOnlyTheFilteredClass(t *testing.T) {
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 
-	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	offering := createSourceCareOffering(t, s, timezone.Date(s.period.StartDate), timezone.Date(s.period.EndDate))
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1a")
 	linkApprovedChildToOffering(t, s, offering, s.students[1], "1b")
 	// Same Jahrgang as the filtered class, different Klasse: the case the
@@ -172,7 +174,7 @@ func TestTemplateSourceClassFilter_MatchesCaseInsensitively(t *testing.T) {
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 
-	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	offering := createSourceCareOffering(t, s, timezone.Date(s.period.StartDate), timezone.Date(s.period.EndDate))
 	linkApprovedChildToOffering(t, s, offering, s.students[0], " 1B ")
 
 	result := createClassSourcedTemplate(t, s, offering, "1b", []string{"1b"}, monday.AddDays(-30))
@@ -189,7 +191,7 @@ func TestTemplateSourceClassFilter_LaterApprovalJoinsTheTermin(t *testing.T) {
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 
-	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	offering := createSourceCareOffering(t, s, timezone.Date(s.period.StartDate), timezone.Date(s.period.EndDate))
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1b")
 
 	result := createClassSourcedTemplate(t, s, offering, "1b", []string{"1b"}, monday.AddDays(-30))
@@ -197,7 +199,7 @@ func TestTemplateSourceClassFilter_LaterApprovalJoinsTheTermin(t *testing.T) {
 
 	// Freigabe nachträglich: a second 1b child joins the Angebot.
 	linkApprovedChildToOffering(t, s, offering, s.students[1], "1b")
-	require.NoError(t, offeringSourceResyncer(t, s).ResyncOfferingSourcedTemplates(s.ctx, timezone.TodayDate()))
+	require.NoError(t, offeringSourceResyncer(t, s).ResyncOfferingSourcedTemplates(s.ctx, classSourceResyncDate))
 
 	got := sourcedStudentIDs(t, s, result.TemplateID)
 	assert.ElementsMatch(t, []int64{s.students[0], s.students[1]}, got,
@@ -213,7 +215,7 @@ func TestTemplateSourceClassFilter_ClassChangeMovesTheChild(t *testing.T) {
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 
-	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	offering := createSourceCareOffering(t, s, timezone.Date(s.period.StartDate), timezone.Date(s.period.EndDate))
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1a")
 
 	rosterFrom := monday.AddDays(-30)
@@ -227,7 +229,7 @@ func TestTemplateSourceClassFilter_ClassChangeMovesTheChild(t *testing.T) {
 		`UPDATE users.students SET school_class = ? WHERE id = ?`, "1b", s.students[0],
 	).Exec(s.ctx)
 	require.NoError(t, err)
-	require.NoError(t, offeringSourceResyncer(t, s).ResyncOfferingSourcedTemplates(s.ctx, timezone.TodayDate()))
+	require.NoError(t, offeringSourceResyncer(t, s).ResyncOfferingSourcedTemplates(s.ctx, classSourceResyncDate))
 
 	assert.Empty(t, sourcedStudentIDs(t, s, terminA.TemplateID),
 		"the child must leave the Termin of its former Klasse")
@@ -245,7 +247,7 @@ func TestTemplateSourceClassFilter_ClassChangeMovesTheChild(t *testing.T) {
 		Scan(s.ctx))
 	require.Len(t, capped, 1)
 	require.NotNil(t, capped[0].ValidUntil)
-	assert.False(t, capped[0].ValidUntil.After(timezone.TodayDate()),
+	assert.False(t, capped[0].ValidUntil.After(classSourceResyncDate),
 		"the retired row must end at the resync boundary, keeping past days planned")
 }
 
@@ -257,7 +259,7 @@ func TestTemplateSourceClassFilter_ReconcilesMaterializedFutureOccurrences(t *te
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 
-	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	offering := createSourceCareOffering(t, s, timezone.Date(s.period.StartDate), timezone.Date(s.period.EndDate))
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1b")
 
 	result := createClassSourcedTemplate(t, s, offering, "1b", []string{"1b"}, monday.AddDays(-30))
@@ -273,7 +275,7 @@ func TestTemplateSourceClassFilter_ReconcilesMaterializedFutureOccurrences(t *te
 
 	// Nachträgliche Freigabe eines zweiten 1b-Kindes.
 	linkApprovedChildToOffering(t, s, offering, s.students[1], "1b")
-	require.NoError(t, offeringSourceResyncer(t, s).ResyncOfferingSourcedTemplates(s.ctx, timezone.TodayDate()))
+	require.NoError(t, offeringSourceResyncer(t, s).ResyncOfferingSourcedTemplates(s.ctx, classSourceResyncDate))
 
 	assert.ElementsMatch(t, []int64{s.students[0], s.students[1]}, instanceStudentIDs(t, s, instanceID),
 		"the already-materialized future occurrence must be reconciled, not left stale")
@@ -287,7 +289,7 @@ func TestTemplateSourceClassFilter_UpdateSwitchesFromGradeToClass(t *testing.T) 
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 
-	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	offering := createSourceCareOffering(t, s, timezone.Date(s.period.StartDate), timezone.Date(s.period.EndDate))
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1a")
 	linkApprovedChildToOffering(t, s, offering, s.students[1], "1b")
 
@@ -347,7 +349,7 @@ func TestTemplateSourceClassFilter_RejectsCombinedFilters(t *testing.T) {
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 
-	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	offering := createSourceCareOffering(t, s, timezone.Date(s.period.StartDate), timezone.Date(s.period.EndDate))
 
 	_, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
 		Name:                  fmt.Sprintf("Randstunde-Konflikt-%d", time.Now().UnixNano()),
@@ -407,7 +409,7 @@ func createMultiDayCareOffering(
 	availableDays []string,
 ) *enrollmentModels.CareOffering {
 	t.Helper()
-	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	offering := createSourceCareOffering(t, s, timezone.Date(s.period.StartDate), timezone.Date(s.period.EndDate))
 	_, err := s.db.NewRaw(
 		`UPDATE enrollment.care_offerings SET available_days = ?::jsonb WHERE id = ?`,
 		mustJSON(t, availableDays), offering.ID,
@@ -511,7 +513,7 @@ func TestTemplateSourceClassFilter_DeregistrationLimitsTheAssignment(t *testing.
 	monday := futureMonday(2)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 
-	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	offering := createSourceCareOffering(t, s, timezone.Date(s.period.StartDate), timezone.Date(s.period.EndDate))
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1b")
 	linkApprovedChildToOffering(t, s, offering, s.students[1], "1b")
 
@@ -522,7 +524,7 @@ func TestTemplateSourceClassFilter_DeregistrationLimitsTheAssignment(t *testing.
 	// Abmeldung zum Montag in zwei Wochen: bis dahin bleibt das Kind geplant.
 	leavingOn := monday
 	endLinkAt(t, s, s.students[1], leavingOn)
-	require.NoError(t, offeringSourceResyncer(t, s).ResyncOfferingSourcedTemplates(s.ctx, timezone.TodayDate()))
+	require.NoError(t, offeringSourceResyncer(t, s).ResyncOfferingSourcedTemplates(s.ctx, classSourceResyncDate))
 
 	assert.ElementsMatch(t, []int64{s.students[0], s.students[1]},
 		sourcedStudentIDsOn(t, s, result.TemplateID, leavingOn.AddDays(-1)),
@@ -562,7 +564,7 @@ func TestTemplateSourceClassFilter_OfferingDayChangeReshapesTheRoster(t *testing
 	})
 	require.NoError(t, err)
 
-	today := timezone.TodayDate()
+	today := timezone.Date(classSourceResyncDate)
 	require.ElementsMatch(t,
 		[]int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayFriday},
 		selectedWeekdaysOn(t, s, result.TemplateID, s.students[0], today))
@@ -575,7 +577,7 @@ func TestTemplateSourceClassFilter_OfferingDayChangeReshapesTheRoster(t *testing
 	require.NoError(t, err)
 
 	require.NoError(t, offeringScopedResyncer(t, s).ResyncTemplatesSourcedFromOffering(
-		s.ctx, offering.ID, timezone.TodayDate(),
+		s.ctx, offering.ID, classSourceResyncDate,
 	))
 
 	// Der Freitag verschwindet ab heute; die bereits verplanten Tage davor

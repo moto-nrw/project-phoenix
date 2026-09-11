@@ -67,18 +67,22 @@ vi.mock("~/lib/tenant-context", () => ({
   TenantProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
+// Der Auslöser existiert pro Breakpoint einmal: als Kopfaktion (inline) und
+// als schwebender Knopf (floating). Die Testkennung trägt deshalb die
+// Variante, damit die Abfragen eindeutig bleiben.
 vi.mock("~/components/students/school-checkin-fab", () => ({
   SchoolCheckinFab: (props: {
     isActive: boolean;
     onToggle: () => void;
     successCount: number;
     pendingCount: number;
+    variant: string;
   }) => {
     mockFab(props);
     return (
       <button
         type="button"
-        data-testid="school-checkin-fab"
+        data-testid={`school-checkin-fab-${props.variant}`}
         data-active={props.isActive}
         data-pending={props.pendingCount}
         data-success-count={props.successCount}
@@ -167,6 +171,7 @@ Object.defineProperty(window, "localStorage", {
 
 vi.mock("~/lib/auth-utils", () => ({
   isAdmin: () => false,
+  hasEffectiveAdminScope: () => false,
   isCaregiver: () => true,
   hasRole: (_: unknown, r: string) => r === "user",
 }));
@@ -270,12 +275,18 @@ vi.mock("~/components/groups/group-transfer-modal", () => ({
   GroupTransferModal: () => null,
 }));
 
-vi.mock("~/lib/group-transfer-api", () => ({
-  groupTransferService: {
-    getAllAvailableStaff: vi.fn(() => Promise.resolve([])),
-    getActiveTransfersForGroup: vi.fn(() => Promise.resolve([])),
-    transferGroup: vi.fn(),
-    cancelTransferBySubstitutionId: vi.fn(),
+vi.mock("~/lib/substitution-api", () => ({
+  substitutionService: {
+    fetchOverview: vi.fn(() =>
+      Promise.resolve({
+        groups: [],
+        targets: [],
+        groupHandovers: [],
+        runningSupervisions: [],
+      }),
+    ),
+    createSubstitution: vi.fn(),
+    deleteSubstitution: vi.fn(),
   },
 }));
 
@@ -368,6 +379,7 @@ describe("OGSGroupPage — school check-in wiring", () => {
             roomId: "10",
             roomName: "Raum 1",
             viaSubstitution: false,
+            isPersonal: true,
           },
         ],
         groupId: "1",
@@ -406,7 +418,7 @@ describe("OGSGroupPage — school check-in wiring", () => {
       expect(screen.getByTestId("student-card-42")).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId("school-checkin-fab")).toBeInTheDocument();
+    expect(screen.getByTestId("school-checkin-fab-inline")).toBeInTheDocument();
   });
 
   it("clicking the FAB calls toggleActive on the hook", async () => {
@@ -416,7 +428,7 @@ describe("OGSGroupPage — school check-in wiring", () => {
       expect(screen.getByTestId("student-card-42")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByTestId("school-checkin-fab"));
+    fireEvent.click(screen.getByTestId("school-checkin-fab-inline"));
     expect(mockToggleActive).toHaveBeenCalledTimes(1);
   });
 
@@ -502,7 +514,7 @@ describe("OGSGroupPage — school check-in wiring", () => {
       expect(screen.getByTestId("student-card-42")).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId("school-checkin-fab")).toHaveAttribute(
+    expect(screen.getByTestId("school-checkin-fab-inline")).toHaveAttribute(
       "data-pending",
       "2",
     );
@@ -524,7 +536,7 @@ describe("OGSGroupPage — school check-in wiring", () => {
       expect(screen.getByTestId("student-card-42")).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId("school-checkin-fab")).toHaveAttribute(
+    expect(screen.getByTestId("school-checkin-fab-inline")).toHaveAttribute(
       "data-success-count",
       "5",
     );

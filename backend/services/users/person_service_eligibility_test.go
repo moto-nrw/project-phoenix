@@ -31,7 +31,7 @@ func TestFilterStudentsStartedOnDate_UsesEnrollmentStartForPastDates(t *testing.
 func TestFilterStudentsEligibleOnDate_IncludesImmediatelyActiveFutureStudentToday(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	tomorrow := today.AddDays(1)
 
 	filtered := filterStudentsStartedOnDate([]*userModels.Student{

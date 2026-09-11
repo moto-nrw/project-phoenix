@@ -20,13 +20,13 @@ func TestCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	service := NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil)
 	studentService := users.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion, nil)
 	student := testpkg.CreateTestStudent(t, db, "StatusConflict", "Student", "SCS1")
 
 	ctx := testpkg.Ctx(t)
-	conflictDate := timezone.TodayDate().AddDays(40)
+	conflictDate := timezone.NewDate(2026, 8, 24).AddDays(40)
 	freshDate := conflictDate.AddDays(1)
 	require.NoError(t, repoFactory.StudentStatusDay.UpsertReported(ctx, &activeModels.StudentStatusDay{
 		StudentID:  student.ID,
@@ -65,7 +65,7 @@ func TestBulkCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	service := NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil)
 	studentService := users.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion, nil)
 
@@ -73,7 +73,7 @@ func TestBulkCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 	clear := testpkg.CreateTestStudent(t, db, "BulkStatusClear", "Student", "BSC2")
 
 	ctx := testpkg.Ctx(t)
-	conflictDate := timezone.TodayDate().AddDays(50)
+	conflictDate := timezone.NewDate(2026, 8, 24).AddDays(50)
 	freshDate := conflictDate.AddDays(1)
 	require.NoError(t, repoFactory.StudentStatusDay.UpsertReported(ctx, &activeModels.StudentStatusDay{
 		StudentID:  withConflict.ID,
@@ -137,7 +137,7 @@ func TestBulkCreateForDates_RejectsUnauthorizedWithoutPartialWrites(t *testing.T
 
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	service := NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil)
 	studentService := users.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion, nil)
 

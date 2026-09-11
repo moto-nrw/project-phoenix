@@ -29,13 +29,7 @@ func TestAutoEnd_UsesAtomicManualCompletionPath(t *testing.T) {
 	started, err := s.svc.Start(s.ctx, instance.ID, s.staffID)
 	require.NoError(t, err)
 
-	visit := &activeModels.Visit{
-		StudentID:     s.student1,
-		ActiveGroupID: started.ActiveGroupID,
-		EntryTime:     autoEndNow.Add(-time.Hour),
-	}
-	visit.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, s.repos.ActiveVisit.Create(s.ctx, visit))
+	visit := testpkg.CreateTestVisit(t, s.db, s.student1, started.ActiveGroupID, autoEndNow.Add(-time.Hour), nil)
 	updated, err := s.repos.InstanceStudent.UpdateAttendanceFromCheckin(
 		s.ctx, instance.ID, s.student1, visit.EntryTime,
 	)
@@ -142,13 +136,15 @@ func TestAutoEnd_ConcurrentManualCompletionHasOneWinner(t *testing.T) {
 	require.NotNil(t, repeated)
 	assert.Zero(t, repeated.Completed)
 
-	completedEvents := 0
-	for _, call := range broadcaster.CallsByMethod("tenant") {
-		if call.Event.Type == realtime.EventInstanceCompleted {
-			completedEvents++
+	require.Eventually(t, func() bool {
+		completedEvents := 0
+		for _, call := range broadcaster.CallsByMethod("tenant") {
+			if call.Event.Type == realtime.EventInstanceCompleted {
+				completedEvents++
+			}
 		}
-	}
-	assert.Equal(t, 1, completedEvents, "parallel completion must emit one completion event")
+		return completedEvents == 1
+	}, time.Second, 10*time.Millisecond, "parallel completion must emit one completion event")
 }
 
 func TestAutoEnd_IsTenantIsolated(t *testing.T) {
@@ -173,7 +169,7 @@ func TestAutoEnd_IsTenantIsolated(t *testing.T) {
 	require.NoError(t, s.repos.ActiveGroup.Create(foreignCtx, foreignGroup))
 
 	foreignInstance := &scheduleModels.ActivityInstance{
-		Date:          timezone.DateFromTime(autoEndNow),
+		Date:          scheduleModels.DateFromTime(autoEndNow),
 		Title:         "Foreign tenant active instance",
 		StartTime:     time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),

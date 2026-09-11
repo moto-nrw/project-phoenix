@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-const mockInit = vi.fn();
 const ANDROID_UA =
   "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.6478.71 Mobile Safari/537.36";
 const SAMSUNG_INTERNET_UA =
@@ -8,18 +7,15 @@ const SAMSUNG_INTERNET_UA =
 const DESKTOP_CHROME_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
-vi.mock("posthog-js", () => ({
-  default: {
-    init: (...args: unknown[]) => mockInit(...args) as void,
-  },
-}));
-
 describe("instrumentation-client", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
     vi.stubEnv("NEXT_PUBLIC_TENANT_DOMAIN", "moto-app.de");
     vi.stubEnv("NEXT_PUBLIC_PARENTS_HOSTNAME", "eltern.moto-app.de");
+    // Seit #2831 fängt auch der Schul-Host den Installationsdialog; der
+    // Hostname wird auf jedem Host geprüft und ist wie die anderen Pflicht.
+    vi.stubEnv("NEXT_PUBLIC_SCHOOL_HOSTNAME", "schule.moto-app.de");
     vi.stubGlobal("navigator", { userAgent: ANDROID_UA });
     window.location.href = "https://school-a.moto-app.de/dashboard";
     localStorage.clear();
@@ -30,57 +26,6 @@ describe("instrumentation-client", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
-  });
-
-  it("initializes PostHog with remote configuration disabled", async () => {
-    vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", "phc_test_key_123");
-    vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://eu.i.posthog.com");
-
-    await import("./instrumentation-client");
-
-    expect(mockInit).toHaveBeenCalledOnce();
-    expect(mockInit).toHaveBeenCalledWith(
-      "phc_test_key_123",
-      expect.objectContaining({
-        api_host: "https://eu.i.posthog.com",
-        defaults: "2026-01-30",
-        autocapture: false,
-        rageclick: false,
-        capture_pageview: false,
-        capture_pageleave: false,
-        capture_performance: false,
-        capture_heatmaps: false,
-        capture_dead_clicks: false,
-        capture_exceptions: false,
-        disable_session_recording: true,
-        persistence: "memory",
-        disable_persistence: true,
-        person_profiles: "never",
-        save_referrer: false,
-        save_campaign_params: false,
-        disable_surveys: true,
-        advanced_disable_flags: true,
-        before_send: expect.any(Function),
-      }),
-    );
-  });
-
-  it("rejects an analytics key without an explicit ingestion host", async () => {
-    vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", "phc_test_key_123");
-    vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "");
-
-    await expect(import("./instrumentation-client")).rejects.toThrow(
-      "NEXT_PUBLIC_POSTHOG_HOST is required when NEXT_PUBLIC_POSTHOG_KEY is set",
-    );
-    expect(mockInit).not.toHaveBeenCalled();
-  });
-
-  it("does not initialize PostHog when NEXT_PUBLIC_POSTHOG_KEY is not set", async () => {
-    vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", "");
-
-    await import("./instrumentation-client");
-
-    expect(mockInit).not.toHaveBeenCalled();
   });
 
   it("captures the install prompt before React hydration", async () => {
@@ -145,7 +90,7 @@ describe("instrumentation-client", () => {
     },
   );
 
-  it("leaves Chrome's native install prompt enabled on desktop tenant hosts", async () => {
+  it("retains Chrome's desktop prompt while leaving its native offer enabled", async () => {
     vi.stubGlobal("navigator", { userAgent: DESKTOP_CHROME_UA });
     await import("./instrumentation-client");
     const { canPromptInstall } = await import("./lib/pwa-install-prompt");
@@ -160,14 +105,73 @@ describe("instrumentation-client", () => {
     window.dispatchEvent(event);
 
     expect(event.defaultPrevented).toBe(false);
+    expect(canPromptInstall()).toBe(true);
+
+    window.location.href = "https://school-a.moto-app.de/profile";
+    expect(canPromptInstall()).toBe(true);
+  });
+
+  it("retains Chrome's desktop prompt from a public portal page", async () => {
+    vi.stubGlobal("navigator", { userAgent: DESKTOP_CHROME_UA });
+    window.location.href = "https://eltern.moto-app.de/login";
+    await import("./instrumentation-client");
+    const { canPromptInstall } = await import("./lib/pwa-install-prompt");
+    const event = new Event("beforeinstallprompt", { cancelable: true });
+
+    window.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(canPromptInstall()).toBe(true);
+  });
+
+  it("leaves Chrome's native prompt enabled on unrelated settings pages", async () => {
+    vi.stubGlobal("navigator", { userAgent: DESKTOP_CHROME_UA });
+    window.location.href = "https://school-a.moto-app.de/settings";
+    await import("./instrumentation-client");
+    const event = new Event("beforeinstallprompt", { cancelable: true });
+
+    window.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it("captures Chrome's install prompt on the path-routed tenant profile", async () => {
+    vi.stubGlobal("navigator", { userAgent: DESKTOP_CHROME_UA });
+    window.location.href = "https://moto-app.de/school-a/profile";
+    await import("./instrumentation-client");
+    const { canPromptInstall } = await import("./lib/pwa-install-prompt");
+    const event = Object.assign(
+      new Event("beforeinstallprompt", { cancelable: true }),
+      {
+        prompt: vi.fn().mockResolvedValue(undefined),
+        userChoice: Promise.resolve({ outcome: "accepted" as const }),
+      },
+    );
+
+    window.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(canPromptInstall()).toBe(true);
+  });
+
+  it("recognizes an installation from the path-routed tenant profile", async () => {
+    vi.stubGlobal("navigator", { userAgent: DESKTOP_CHROME_UA });
+    window.location.href = "https://moto-app.de/school-a/profile";
+    await import("./instrumentation-client");
+    const { canPromptInstall, isInstallationCompleted } =
+      await import("./lib/pwa-install-prompt");
+
+    window.dispatchEvent(new Event("appinstalled"));
+
     expect(canPromptInstall()).toBe(false);
+    expect(isInstallationCompleted()).toBe(true);
   });
 
   it.each([
     "/",
     "/display",
-    "/enroll",
-    "/enroll/phase-1",
+    "/anmeldung",
+    "/anmeldung/phase-1",
     "/invite",
     "/reset-password",
   ])(
@@ -293,7 +297,7 @@ describe("instrumentation-client", () => {
     expect(canPromptInstall()).toBe(true);
   });
 
-  it.each(["/login", "/reset-password", "/enroll/status/abc"])(
+  it.each(["/login", "/reset-password", "/anmeldung/status/abc"])(
     "leaves the native prompt uncaptured on public parent path %s",
     async (path) => {
       window.location.href = `https://eltern.moto-app.de${path}`;

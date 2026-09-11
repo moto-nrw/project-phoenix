@@ -41,6 +41,9 @@ func WithTenantID(ctx context.Context, id int64) context.Context {
 
 // ContextWithoutTenant explicitly masks an inherited tenant for admin work.
 func ContextWithoutTenant(ctx context.Context) context.Context {
+	if uow, ok := ctx.Value(runtimeKey{}).(UnitOfWork); ok && uow.withTenant != nil {
+		ctx = uow.withTenant(ctx, 0)
+	}
 	return context.WithValue(ctx, tenantKey, noTenant{})
 }
 
@@ -48,6 +51,9 @@ func ContextWithoutTenant(ctx context.Context) context.Context {
 func WithTenant(ctx context.Context, id TenantID) context.Context {
 	if id.IsZero() {
 		panic(ErrTenantRequired)
+	}
+	if uow, ok := ctx.Value(runtimeKey{}).(UnitOfWork); ok && uow.withTenant != nil {
+		ctx = uow.withTenant(ctx, id.Int64())
 	}
 	return context.WithValue(ctx, tenantKey, id)
 }

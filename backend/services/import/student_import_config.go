@@ -14,10 +14,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	"github.com/moto-nrw/project-phoenix/models/auth"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -116,7 +118,7 @@ func MapGuardianRole(raw string) (string, bool) {
 // StudentImportConfig implements ImportConfig for student imports
 type StudentImportConfig struct {
 	StudentImportDeps
-	txHandler *base.TxHandler
+	txHandler *tenant.TransactionRunner
 }
 
 // StudentImportDeps contains dependencies for StudentImportConfig
@@ -131,15 +133,16 @@ type StudentImportDeps struct {
 	PickupScheduleRepo  scheduleModels.StudentPickupScheduleRepository
 	// RFIDCardRepo resolves the optional RFID column to a card of this school
 	// (#2600). nil disables RFID import (the column is then rejected).
-	RFIDCardRepo users.RFIDCardRepository
+	RFIDCardRepo auth.RFIDCardRepository
 	Resolver     *RelationshipResolver
+	Consents     usersService.StudentConsentChangeRecorder
 }
 
 // NewStudentImportConfig creates a new student import configuration
 func NewStudentImportConfig(deps StudentImportDeps, db *bun.DB) *StudentImportConfig {
 	return &StudentImportConfig{
 		StudentImportDeps: deps,
-		txHandler:         base.NewTxHandler(db),
+		txHandler:         tenant.NewTransactionRunner(),
 	}
 }
 
@@ -737,20 +740,14 @@ func (c *StudentImportConfig) findStudentByNameAndBirthday(ctx context.Context, 
 // If any step fails (e.g. person created but student fails), ROLLBACK TO SAVEPOINT
 // cleans up partial records while keeping the outer tx alive for other rows.
 func (c *StudentImportConfig) Create(ctx context.Context, row importModels.StudentImportRow) (int64, error) {
-	tx, hasTx := base.TxFromContext(ctx)
-	if hasTx {
-		if _, err := tx.ExecContext(ctx, "SAVEPOINT import_row"); err != nil {
-			return 0, fmt.Errorf("savepoint: %w", err)
-		}
-
-		studentID, err := c.createAllEntities(ctx, row)
-		if err != nil {
-			_, _ = tx.ExecContext(ctx, "ROLLBACK TO SAVEPOINT import_row")
-			return 0, err
-		}
-
-		_, _ = tx.ExecContext(ctx, "RELEASE SAVEPOINT import_row")
-		return studentID, nil
+	if _, hasTx := tenant.TransactionFromContext(ctx); hasTx {
+		var studentID int64
+		err := tenant.WithSavepoint(ctx, func(savepointCtx context.Context) error {
+			var err error
+			studentID, err = c.createAllEntities(savepointCtx, row)
+			return err
+		})
+		return studentID, err
 	}
 
 	// Fallback: no outer tx (shouldn't happen in normal HTTP flow)
@@ -893,12 +890,28 @@ func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID
 	if err := c.StudentRepo.Create(ctx, student); err != nil {
 		return nil, fmt.Errorf("create student: %w", err)
 	}
+	if c.Consents != nil {
+		if err := c.Consents.RecordTransitions(
+			ctx,
+			nil,
+			student,
+			auditModels.StudentConsentSourceImport,
+			nil,
+			time.Now(),
+		); err != nil {
+			return nil, fmt.Errorf("create student consent history: %w", err)
+		}
+	}
 
 	return student, nil
 }
 
 func enrollmentStartsInFuture(enrolledFrom *timezone.Date) bool {
-	return enrolledFrom != nil && enrolledFrom.After(timezone.TodayDate())
+	return enrollmentStartsAfter(enrolledFrom, timezone.TodayDate())
+}
+
+func enrollmentStartsAfter(enrolledFrom *timezone.Date, today timezone.Date) bool {
+	return enrolledFrom != nil && enrolledFrom.After(today)
 }
 
 // createGuardianRelationships creates all guardian relationships
@@ -1225,6 +1238,7 @@ func (c *StudentImportConfig) updatePersonFromRow(ctx context.Context, person *u
 }
 
 func (c *StudentImportConfig) updateStudentFromRow(ctx context.Context, student *users.Student, row importModels.StudentImportRow) error {
+	before := *student
 	if class := strings.TrimSpace(row.SchoolClass); class != "" {
 		student.SchoolClass = class
 	}
@@ -1283,6 +1297,18 @@ func (c *StudentImportConfig) updateStudentFromRow(ctx context.Context, student 
 
 	if err := c.StudentRepo.Update(ctx, student); err != nil {
 		return fmt.Errorf("Kind aktualisieren: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+	}
+	if c.Consents != nil {
+		if err := c.Consents.RecordTransitions(
+			ctx,
+			&before,
+			student,
+			auditModels.StudentConsentSourceImport,
+			nil,
+			time.Now(),
+		); err != nil {
+			return fmt.Errorf("Einwilligungsverlauf aktualisieren: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+		}
 	}
 	return nil
 }
@@ -1390,12 +1416,13 @@ func (c *StudentImportConfig) loadLinkedGuardianProfiles(ctx context.Context, gu
 	if err != nil {
 		return nil, fmt.Errorf("Telefonnummern der Erziehungsberechtigten laden: %w", err) //nolint:staticcheck // ST1005: user-facing German message
 	}
+	profilesByID, err := c.GuardianRepo.FindByIDs(ctx, guardianIDs)
+	if err != nil {
+		return nil, fmt.Errorf("Erziehungsberechtigte konnten nicht geladen werden. Bitte versuchen Sie es noch einmal: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+	}
 	linked := make([]linkedGuardianProfile, 0, len(guardianIDs))
 	for _, id := range guardianIDs {
-		profile, err := c.GuardianRepo.FindByID(ctx, id)
-		if err != nil {
-			return nil, fmt.Errorf("Erziehungsberechtigten %d laden: %w", id, err) //nolint:staticcheck // ST1005: user-facing German message
-		}
+		profile := profilesByID[id]
 		if profile == nil {
 			continue
 		}

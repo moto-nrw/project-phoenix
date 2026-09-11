@@ -2,7 +2,6 @@ package seedtoken
 
 import (
 	"net"
-	"net/http"
 	"strings"
 )
 
@@ -18,17 +17,14 @@ var allowedLocalHostnames = map[string]bool{
 // ShouldExposeInvitationToken gates seed-only raw invitation token exposure.
 // API handlers call this only to support local demo seeding; deployed
 // environments must never receive tokens in normal invitation responses.
-func ShouldExposeInvitationToken(r *http.Request, appEnv string) bool {
-	if r == nil {
-		return false
-	}
-	if !strings.EqualFold(strings.TrimSpace(r.Header.Get(Header)), "true") {
+func ShouldExposeInvitationToken(headerValue, requestHost, appEnv string) bool {
+	if !strings.EqualFold(strings.TrimSpace(headerValue), "true") {
 		return false
 	}
 	if !isAllowedEnvironment(appEnv) {
 		return false
 	}
-	return isLocalHost(requestHostname(r))
+	return isLocalHost(requestHostname(requestHost))
 }
 
 func isAllowedEnvironment(appEnv string) bool {
@@ -40,14 +36,8 @@ func isAllowedEnvironment(appEnv string) bool {
 	}
 }
 
-func requestHostname(r *http.Request) string {
-	host := ""
-	if r != nil {
-		host = strings.TrimSpace(r.Host)
-		if host == "" && r.URL != nil {
-			host = strings.TrimSpace(r.URL.Host)
-		}
-	}
+func requestHostname(requestHost string) string {
+	host := strings.TrimSpace(requestHost)
 	if host == "" {
 		return ""
 	}

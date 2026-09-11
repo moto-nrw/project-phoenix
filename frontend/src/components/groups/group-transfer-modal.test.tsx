@@ -6,33 +6,6 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { GroupTransferModal } from "./group-transfer-modal";
 
-// Mock Modal component
-vi.mock("~/components/ui/modal", () => ({
-  Modal: ({
-    isOpen,
-    onClose,
-    title,
-    children,
-    footer,
-  }: {
-    isOpen: boolean;
-    onClose: () => void;
-    title: string;
-    children: React.ReactNode;
-    footer?: React.ReactNode;
-  }) =>
-    isOpen ? (
-      <div data-testid="modal">
-        <h2>{title}</h2>
-        <button type="button" onClick={onClose} data-testid="modal-close">
-          Close
-        </button>
-        {children}
-        {footer}
-      </div>
-    ) : null,
-}));
-
 const mockGroup = {
   id: "1",
   name: "Gruppe A",
@@ -42,19 +15,11 @@ const mockGroup = {
 const mockAvailableUsers = [
   {
     id: "1",
-    personId: "p1",
-    firstName: "John",
-    lastName: "Doe",
     fullName: "John Doe",
-    email: "john@example.com",
   },
   {
     id: "2",
-    personId: "p2",
-    firstName: "Jane",
-    lastName: "Smith",
     fullName: "Jane Smith",
-    email: "jane@example.com",
   },
 ];
 
@@ -188,7 +153,7 @@ describe("GroupTransferModal", () => {
     fireEvent.click(transferButton);
 
     await waitFor(() => {
-      expect(mockOnTransfer).toHaveBeenCalledWith("p1", "John Doe");
+      expect(mockOnTransfer).toHaveBeenCalledWith("1", "John Doe");
     });
   });
 
@@ -234,7 +199,7 @@ describe("GroupTransferModal", () => {
     });
   });
 
-  it("calls onCancelTransfer when remove button is clicked", async () => {
+  it("calls onCancelTransfer only after the confirmation", async () => {
     render(
       <GroupTransferModal
         isOpen={true}
@@ -247,11 +212,25 @@ describe("GroupTransferModal", () => {
       />,
     );
 
-    const removeButton = await screen.findByText("Entfernen");
-    fireEvent.click(removeButton);
+    // #3109: taking a handover back asks first (ConfirmationModal).
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Zurücknehmen" }),
+    );
+    expect(mockOnCancelTransfer).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("heading", { name: "Übergabe zurücknehmen?" }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Übergabe zurücknehmen" }),
+    );
 
     await waitFor(() => {
       expect(mockOnCancelTransfer).toHaveBeenCalledWith("s1");
+    });
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("heading", { name: "Übergabe zurücknehmen?" }),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -268,6 +247,26 @@ describe("GroupTransferModal", () => {
 
     const transferButton = screen.getByText("Übergeben");
     expect(transferButton).toBeDisabled();
+  });
+
+  it("shows a load failure instead of claiming that no staff are available", () => {
+    render(
+      <GroupTransferModal
+        isOpen={true}
+        onClose={mockOnClose}
+        group={mockGroup}
+        availableUsers={[]}
+        loadError="Fachkräfte konnten nicht geladen werden."
+        onTransfer={mockOnTransfer}
+      />,
+    );
+
+    expect(
+      screen.getByText("Fachkräfte konnten nicht geladen werden."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Keine pädagogische Fachkraft verfügbar/),
+    ).not.toBeInTheDocument();
   });
 
   it("closes modal when cancel is clicked", async () => {
@@ -313,7 +312,11 @@ describe("GroupTransferModal", () => {
       fireEvent.click(transferButton);
 
       await waitFor(() => {
-        expect(screen.getByText("Transfer failed")).toBeInTheDocument();
+        expect(
+          screen.getByText(
+            "Fehler beim Übergeben der Gruppe. Bitte versuchen Sie es erneut.",
+          ),
+        ).toBeInTheDocument();
       });
 
       await waitFor(() => {
@@ -322,6 +325,30 @@ describe("GroupTransferModal", () => {
           block: "start",
         });
       });
+    });
+
+    it("shows a typed server error", async () => {
+      const serverError = new Error("Diese Gruppenübergabe besteht bereits.");
+      serverError.name = "TransferError";
+      mockOnTransfer.mockRejectedValue(serverError);
+
+      render(
+        <GroupTransferModal
+          isOpen={true}
+          onClose={mockOnClose}
+          group={mockGroup}
+          availableUsers={mockAvailableUsers}
+          onTransfer={mockOnTransfer}
+        />,
+      );
+
+      fireEvent.click(await screen.findByRole("combobox"));
+      fireEvent.click(screen.getByRole("option", { name: "John Doe" }));
+      fireEvent.click(screen.getByText("Übergeben"));
+
+      expect(
+        await screen.findByText("Diese Gruppenübergabe besteht bereits."),
+      ).toBeInTheDocument();
     });
   });
 });

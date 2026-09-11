@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -87,9 +89,10 @@ func (s stubAuthLoginAccountTenantRepo) ListTenantAccessByAccountID(context.Cont
 
 func setupInternalAuthService(t *testing.T, db *bun.DB) *Service {
 	t.Helper()
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	cfg, err := NewServiceConfig(nil, email.Email{}, "http://localhost:3000", time.Hour)
 	require.NoError(t, err)
+	cfg.Audit = testpkg.NewAuthEventCommand(repoFactory.AuthEvent)
 	service, err := NewService(repoFactory, cfg, db, slog.Default())
 	require.NoError(t, err)
 	testpkg.SetTenantRuntime(t, service, db)
@@ -108,7 +111,6 @@ func TestRefreshTokenLocksAccountBeforeToken(t *testing.T) {
 	account, err := service.Register(ctx, email, username, "Test1234%", nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	_, refreshJWT, err := service.Login(ctx, email, "Test1234%")
 	require.NoError(t, err)
@@ -150,7 +152,7 @@ func TestRefreshTokenLocksAccountBeforeToken(t *testing.T) {
 	require.NoError(t, err)
 	_, err = probeTx.ExecContext(ctx, `SET LOCAL lock_timeout = '500ms'`)
 	require.NoError(t, err)
-	probeCtx := modelBase.ContextWithTx(ctx, &probeTx)
+	probeCtx := tenant.WithTransactionForTest(ctx, &probeTx)
 	lockedToken, err := service.repos.Token.FindByTokenForUpdate(probeCtx, tokens[0].Token)
 	require.NoError(t, err)
 	require.NotNil(t, lockedToken)
@@ -247,7 +249,6 @@ func TestResolveAccountTenantDefault_ReturnsErrWhenSchoolLookupReturnsNil(t *tes
 func TestResolveAccountTenantDefault_SkipsDeletedSchoolAndFallsThrough(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now()
 	service := &Service{
 		repos: &repositories.Factory{
 			AccountTenant: stubAuthLoginAccountTenantRepo{
@@ -259,11 +260,8 @@ func TestResolveAccountTenantDefault_SkipsDeletedSchoolAndFallsThrough(t *testin
 				},
 			},
 			School: &testpkg.SchoolRepoMock{
-				FindByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
-					if id == 900 {
-						return &platformModels.School{DeletedAt: &now, Active: true, OrganizationID: 10}, nil
-					}
-					return &platformModels.School{Active: true, OrganizationID: 20}, nil
+				FindActiveByAccountIDFn: func(context.Context, int64) ([]platformModels.School, error) {
+					return []platformModels.School{{Model: modelBase.Model{ID: 901}, Active: true, OrganizationID: 20}}, nil
 				},
 			},
 		},
@@ -279,7 +277,6 @@ func TestResolveAccountTenantDefault_SkipsDeletedSchoolAndFallsThrough(t *testin
 func TestResolveAccountTenantDefault_ReturnsErrWhenAllSchoolsDeleted(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now()
 	service := &Service{
 		repos: &repositories.Factory{
 			AccountTenant: stubAuthLoginAccountTenantRepo{
@@ -290,8 +287,8 @@ func TestResolveAccountTenantDefault_ReturnsErrWhenAllSchoolsDeleted(t *testing.
 				},
 			},
 			School: &testpkg.SchoolRepoMock{
-				FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
-					return &platformModels.School{DeletedAt: &now, Active: true, OrganizationID: 10}, nil
+				FindActiveByAccountIDFn: func(context.Context, int64) ([]platformModels.School, error) {
+					return []platformModels.School{}, nil
 				},
 			},
 		},
@@ -569,11 +566,8 @@ func TestResolveAccountTenantDefault_SkipsInactiveSchool(t *testing.T) {
 				},
 			},
 			School: &testpkg.SchoolRepoMock{
-				FindByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
-					if id == 800 {
-						return &platformModels.School{Active: false, OrganizationID: 10}, nil
-					}
-					return &platformModels.School{Active: true, OrganizationID: 20}, nil
+				FindActiveByAccountIDFn: func(context.Context, int64) ([]platformModels.School, error) {
+					return []platformModels.School{{Model: modelBase.Model{ID: 801}, Active: true, OrganizationID: 20}}, nil
 				},
 			},
 		},
@@ -586,9 +580,9 @@ func TestResolveAccountTenantDefault_SkipsInactiveSchool(t *testing.T) {
 	assert.Equal(t, int64(20), orgID)
 }
 
-// TestResolveAccountTenantDefault_DBErrorPropagatedWhenAllLookupsFail verifies that
-// when FindByID returns an error for every mapping, the last DB error is propagated
-// instead of returning ErrTenantNotFound.
+// TestResolveAccountTenantDefault_DBErrorPropagatedWhenAllLookupsFail verifies
+// that a batch school lookup error is propagated instead of returning
+// ErrTenantNotFound.
 func TestResolveAccountTenantDefault_DBErrorPropagatedWhenAllLookupsFail(t *testing.T) {
 	t.Parallel()
 
@@ -604,7 +598,7 @@ func TestResolveAccountTenantDefault_DBErrorPropagatedWhenAllLookupsFail(t *test
 				},
 			},
 			School: &testpkg.SchoolRepoMock{
-				FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+				FindActiveByAccountIDFn: func(context.Context, int64) ([]platformModels.School, error) {
 					return nil, dbErr
 				},
 			},
@@ -811,8 +805,6 @@ func TestRefreshTokenInTransaction_GuardFailureLeavesPresentedTokenUsable(t *tes
 	require.NoError(t, err)
 	// LIFO: the account rows reference the school, so the school teardown has
 	// to be registered first and therefore run last.
-	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, tenantID) })
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
 
 	_, refreshJWT, err := service.Login(ctx, accountEmail, "Test1234%")

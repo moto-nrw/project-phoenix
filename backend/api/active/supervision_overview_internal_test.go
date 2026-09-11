@@ -9,8 +9,12 @@ import (
 	"testing"
 	"time"
 
-	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
+	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/tenant"
+
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
@@ -63,6 +67,10 @@ func (s *stubUserContext) GetCurrentStaff(_ context.Context) (*usersModel.Staff,
 	return s.staff, nil
 }
 
+func (s *stubUserContext) HasCurrentStaff(context.Context) (bool, error) {
+	return s != nil && s.staff != nil, nil
+}
+
 // verifiedStaffContext is a caller with a staff record in the current tenant.
 func verifiedStaffContext() *stubUserContext {
 	return &stubUserContext{staff: &usersModel.Staff{Model: base.Model{ID: 7}}}
@@ -80,7 +88,7 @@ func (s *stubActiveService) GetRoomsByIDs(_ context.Context, _ []int64) ([]*faci
 	return nil, nil
 }
 
-func (s *stubActiveService) GetActiveGroupVisitsWithDisplay(_ context.Context, _ int64) ([]*activeModel.VisitWithStudentDisplay, error) {
+func (s *stubActiveService) GetActiveGroupVisitsWithDisplay(_ context.Context, _ int64) ([]*activeSvc.VisitWithStudentDisplay, error) {
 	return nil, nil
 }
 
@@ -104,7 +112,10 @@ func (s *stubActiveService) GetTrackingIndicators(_ context.Context, _ []int64, 
 	return map[int64][]bool{}, nil
 }
 func (s *stubActiveService) SetSettingsService(_ activeSvc.SettingsResolver) {}
-func (s *stubActiveService) GetPresenceMode(_ context.Context) string        { return "detailed" }
+func (s *stubActiveService) SetTenantRuntime(_ tenant.UnitOfWork)            {}
+func (s *stubActiveService) GetPresenceMode(_ context.Context) (string, error) {
+	return "detailed", nil
+}
 func (s *stubActiveService) GetActiveGroup(_ context.Context, _ int64) (*activeModel.Group, error) {
 	return nil, nil
 }
@@ -125,35 +136,36 @@ func (s *stubActiveService) FindActiveGroupsByGroupID(_ context.Context, _ int64
 	return nil, nil
 }
 func (s *stubActiveService) EndActiveGroupSession(_ context.Context, _ int64) error { return nil }
-func (s *stubActiveService) GetActiveGroupWithVisits(_ context.Context, _ int64) (*activeModel.Group, error) {
+func (s *stubActiveService) GetActiveGroupVisits(_ context.Context, _ int64) ([]studentpresence.Visit, error) {
 	return nil, nil
 }
 func (s *stubActiveService) GetActiveGroupWithSupervisors(_ context.Context, _ int64) (*activeModel.Group, error) {
 	return nil, nil
 }
-func (s *stubActiveService) GetVisit(_ context.Context, _ int64) (*activeModel.Visit, error) {
+func (s *stubActiveService) GetVisit(_ context.Context, _ int64) (*studentpresence.Visit, error) {
 	return nil, nil
 }
-func (s *stubActiveService) CreateVisit(_ context.Context, _ *activeModel.Visit) error { return nil }
-func (s *stubActiveService) UpdateVisit(_ context.Context, _ *activeModel.Visit) error { return nil }
-func (s *stubActiveService) DeleteVisit(_ context.Context, _ int64) error              { return nil }
-func (s *stubActiveService) ListVisits(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Visit, error) {
+func (s *stubActiveService) CreateVisit(_ context.Context, _ *studentpresence.Visit) error {
+	return nil
+}
+func (s *stubActiveService) UpdateVisit(_ context.Context, _ *studentpresence.Visit) error {
+	return nil
+}
+func (s *stubActiveService) DeleteVisit(_ context.Context, _ int64) error { return nil }
+func (s *stubActiveService) FindVisitsByStudentID(_ context.Context, _ int64) ([]studentpresence.Visit, error) {
 	return nil, nil
 }
-func (s *stubActiveService) FindVisitsByStudentID(_ context.Context, _ int64) ([]*activeModel.Visit, error) {
-	return nil, nil
-}
-func (s *stubActiveService) FindVisitsByActiveGroupID(_ context.Context, _ int64) ([]*activeModel.Visit, error) {
+func (s *stubActiveService) FindVisitsByActiveGroupID(_ context.Context, _ int64) ([]studentpresence.Visit, error) {
 	return nil, nil
 }
 func (s *stubActiveService) EndVisit(_ context.Context, _ int64) error { return nil }
-func (s *stubActiveService) GetStudentCurrentVisit(_ context.Context, _ int64) (*activeModel.Visit, error) {
+func (s *stubActiveService) GetStudentCurrentVisit(_ context.Context, _ int64) (*studentpresence.Visit, error) {
 	return nil, nil
 }
-func (s *stubActiveService) GetStudentCurrentVisitWithRoom(_ context.Context, _ int64) (*activeModel.Visit, error) {
+func (s *stubActiveService) GetStudentCurrentVisitWithRoom(_ context.Context, _ int64) (*activeSvc.VisitWithRoom, error) {
 	return nil, nil
 }
-func (s *stubActiveService) GetStudentsCurrentVisits(_ context.Context, _ []int64) (map[int64]*activeModel.Visit, error) {
+func (s *stubActiveService) GetStudentsCurrentVisits(_ context.Context, _ []int64) (map[int64]*studentpresence.Visit, error) {
 	return nil, nil
 }
 func (s *stubActiveService) ListStudentsInTransit(_ context.Context) ([]int64, error) {
@@ -178,6 +190,9 @@ func (s *stubActiveService) CountActiveVisitsByActiveGroupID(_ context.Context, 
 	return 0, nil
 }
 func (s *stubActiveService) ListStudentsPresentInRoom(_ context.Context, _ int64) ([]int64, error) {
+	return nil, nil
+}
+func (s *stubActiveService) ListOpenVisitStudentIDsByRoom(_ context.Context) (map[int64][]int64, error) {
 	return nil, nil
 }
 func (s *stubActiveService) GetGroupSupervisor(_ context.Context, _ int64) (*activeModel.GroupSupervisor, error) {
@@ -326,7 +341,15 @@ func newRequestWithClaims(method, path string, claims jwt.AppClaims) *http.Reque
 }
 
 func claimsCtx(claims jwt.AppClaims) context.Context {
-	return context.WithValue(context.Background(), jwt.CtxClaims, claims)
+	ctx := context.WithValue(context.Background(), jwt.CtxClaims, claims)
+	principal, err := permissions.NewPrincipal(permissions.PrincipalInput{
+		AccountID: int64(claims.ID), TenantID: claims.TenantID, Scope: claims.Scope,
+		Roles: claims.Roles, Permissions: claims.Permissions, Admin: claims.IsAdmin,
+	})
+	if err != nil {
+		panic(err)
+	}
+	return permissions.WithPrincipal(ctx, principal)
 }
 
 func adminClaims() jwt.AppClaims {
@@ -351,7 +374,7 @@ func staffClaims() jwt.AppClaims {
 // TESTS: operationalOverview — the single school-wide access rule (#2380)
 // =============================================================================
 
-func TestOperationalOverview_ScopeOwnDeniesEveryone(t *testing.T) {
+func TestOperationalOverview_ScopeOwnKeepsStaffPersonalButAllowsAdmins(t *testing.T) {
 	t.Parallel()
 
 	rs := &Resource{
@@ -359,7 +382,7 @@ func TestOperationalOverview_ScopeOwnDeniesEveryone(t *testing.T) {
 		UserContextService: verifiedStaffContext(),
 	}
 
-	assert.False(t, rs.operationalOverview(claimsCtx(adminClaims())), "admins stay on their own supervisions")
+	assert.True(t, rs.operationalOverview(claimsCtx(adminClaims())), "admins always have the school-wide overview")
 	assert.False(t, rs.operationalOverview(claimsCtx(staffClaims())), "staff stay on their own supervisions")
 }
 
@@ -408,7 +431,8 @@ func TestOperationalOverview_UnknownScopeFallsBackToOwn(t *testing.T) {
 		UserContextService: verifiedStaffContext(),
 	}
 
-	assert.False(t, rs.operationalOverview(claimsCtx(adminClaims())))
+	assert.True(t, rs.operationalOverview(claimsCtx(adminClaims())))
+	assert.False(t, rs.operationalOverview(claimsCtx(staffClaims())))
 }
 
 func TestOperationalOverview_SettingsFaultFailsClosed(t *testing.T) {
@@ -507,19 +531,20 @@ func TestGetAllActiveSupervisions_ForbiddenWhenSettingsNil(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, w.Code)
 }
 
-func TestGetAllActiveSupervisions_ForbiddenWhenSettingDisabled(t *testing.T) {
+func TestGetAllActiveSupervisions_OwnScopeStillAllowsAdmin(t *testing.T) {
 	t.Parallel()
 
 	rs := &Resource{
 		SettingsService:    scopeSettings(configModel.OverviewScopeOwn),
 		UserContextService: verifiedStaffContext(),
+		ActiveService:      &stubActiveService{},
 	}
 	r := newRequestWithClaims("GET", "/active/supervisors/all", adminClaims())
 	w := httptest.NewRecorder()
 
 	rs.getAllActiveSupervisions(w, r)
 
-	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestGetAllActiveSupervisions_ForbiddenOnSettingError(t *testing.T) {

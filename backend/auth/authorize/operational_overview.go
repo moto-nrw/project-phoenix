@@ -3,9 +3,13 @@ package authorize
 import (
 	"context"
 	"fmt"
+)
 
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+const (
+	operationalOverviewScopeKey = "operations.operational_overview_scope"
+	OverviewScopeOwn            = "own"
+	OverviewScopeAdmins         = "admins"
+	OverviewScopeAllStaff       = "all_staff"
 )
 
 // OverviewSettingsResolver is the narrow slice of the settings service the
@@ -24,11 +28,6 @@ type OverviewSettingsResolver interface {
 // moment a school switches the operational overview to "all_staff" or she
 // signs in with an admin claim set. The portal she came through is the one
 // signal neither can forge, so it — not the role set — decides.
-func IsAssignmentBoundPortal(ctx context.Context) bool {
-	claims := jwt.ClaimsFromCtx(ctx)
-	return claims.IsSchoolScope()
-}
-
 // OperationalOverviewScope reports the tenant's configured scope for the
 // operational overview. An unknown or empty value collapses to
 // OverviewScopeOwn — the restrictive default.
@@ -37,55 +36,81 @@ func IsAssignmentBoundPortal(ctx context.Context) bool {
 // tenant setting: #2380 opens every running module to the OGS staff of a
 // school, #2527 deliberately does NOT extend that to Lehrkräfte, whose reach
 // stays bound to their own assignments.
-func OperationalOverviewScope(ctx context.Context, settings OverviewSettingsResolver) (string, error) {
-	if IsAssignmentBoundPortal(ctx) {
-		return configModel.OverviewScopeOwn, nil
+func OperationalOverviewScope(ctx context.Context, settings OverviewSettingsResolver, assignmentBound bool) (string, error) {
+	if assignmentBound {
+		return OverviewScopeOwn, nil
 	}
 	if settings == nil {
-		return configModel.OverviewScopeOwn, nil
+		return OverviewScopeOwn, nil
 	}
-	scope, err := settings.ResolveString(ctx, configModel.KeyOperationalOverviewScope)
+	scope, err := settings.ResolveString(ctx, operationalOverviewScopeKey)
 	if err != nil {
-		return configModel.OverviewScopeOwn, fmt.Errorf("resolve operational overview scope: %w", err)
+		return OverviewScopeOwn, fmt.Errorf("resolve operational overview scope: %w", err)
 	}
 	switch scope {
-	case configModel.OverviewScopeAdmins, configModel.OverviewScopeAllStaff:
+	case OverviewScopeAdmins, OverviewScopeAllStaff:
 		return scope, nil
 	default:
-		return configModel.OverviewScopeOwn, nil
+		return OverviewScopeOwn, nil
 	}
 }
 
-// HasOperationalOverview is the ONE rule deciding whether the caller may see
-// and operate every running module of the current tenant (#2380): lists,
-// detail reads, SSE topics and the write actions on those modules all ask
-// this same question, so the UI can never show a block whose detail route
-// then answers 403.
+// HasOperationalOverview decides whether the caller may see every running
+// module of the current tenant. Action permissions remain independent.
 //
 // It never grants a permission: route-level middleware still decides WHICH
 // actions the caller may perform, and the tenant transaction still bounds the
 // answer to the caller's own school.
 //
-// The staff lookup is only performed for the all_staff scope, so the common
-// own/admins cases stay free of an extra query.
+// The staff lookup is only performed for ordinary callers in all_staff mode.
 func HasOperationalOverview(
 	ctx context.Context,
 	settings OverviewSettingsResolver,
 	userCtx StudentAccessUserContext,
+	assignmentBound bool,
+	admin bool,
 ) (bool, error) {
-	scope, err := OperationalOverviewScope(ctx, settings)
+	return hasOperationalOverview(ctx, settings, assignmentBound, admin, func() (bool, error) {
+		return isVerifiedStaff(ctx, userCtx), nil
+	})
+}
+
+// HasOperationalOverviewForResolvedStaff applies the same overview policy
+// when the caller's staff identity has already been resolved by the service.
+func HasOperationalOverviewForResolvedStaff(
+	ctx context.Context,
+	settings OverviewSettingsResolver,
+	assignmentBound bool,
+	admin bool,
+	hasStaff bool,
+) (bool, error) {
+	return hasOperationalOverview(ctx, settings, assignmentBound, admin, func() (bool, error) {
+		return hasStaff, nil
+	})
+}
+
+func hasOperationalOverview(
+	ctx context.Context,
+	settings OverviewSettingsResolver,
+	assignmentBound bool,
+	admin bool,
+	staff func() (bool, error),
+) (bool, error) {
+	if settings == nil {
+		return false, nil
+	}
+	scope, err := OperationalOverviewScope(ctx, settings, assignmentBound)
 	if err != nil {
 		return false, err
 	}
-	switch scope {
-	case configModel.OverviewScopeAllStaff:
-		if HasEffectiveAdminScope(ctx) {
-			return true, nil
-		}
-		return isVerifiedStaff(ctx, userCtx), nil
-	case configModel.OverviewScopeAdmins:
-		return HasEffectiveAdminScope(ctx), nil
-	default:
+	if assignmentBound {
 		return false, nil
 	}
+	if admin {
+		return true, nil
+	}
+	if scope != OverviewScopeAllStaff {
+		return false, nil
+	}
+	return staff()
 }

@@ -180,7 +180,10 @@ describe("PersonalInfoFormModal — remote companion changes", () => {
     expect(fetchStudentCompanionsMock).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByText("Speichern"));
-    await waitFor(() => expect(toastErrorMock).toHaveBeenCalled());
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Bitte neu laden und die Änderung wiederholen",
+    );
+    expect(toastErrorMock).not.toHaveBeenCalled();
     expect(onSave).not.toHaveBeenCalled();
 
     // "Neu laden" is the explicit way out: the stored links come back and the
@@ -237,10 +240,10 @@ describe("PersonalInfoFormModal — remote companion changes", () => {
     fireEvent.click(screen.getByTestId("edit-companions"));
     fireEvent.click(screen.getByText("Speichern"));
 
-    await waitFor(() => expect(toastErrorMock).toHaveBeenCalled());
-    expect(toastErrorMock.mock.calls.at(-1)?.[0]).toContain(
+    expect(await screen.findByRole("alert")).toHaveTextContent(
       "zwischenzeitlich geändert",
     );
+    expect(toastErrorMock).not.toHaveBeenCalled();
     // The draft survives, and the form now offers the explicit way out.
     expect(screen.getByTestId("companion-count").textContent).toBe("1");
     expect(
@@ -281,7 +284,10 @@ describe("PersonalInfoFormModal — remote companion changes", () => {
     expect(fetchStudentCompanionsMock).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByText("Speichern"));
-    await waitFor(() => expect(toastErrorMock).toHaveBeenCalled());
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Bitte neu laden und die Änderung wiederholen",
+    );
+    expect(toastErrorMock).not.toHaveBeenCalled();
     expect(onSave).not.toHaveBeenCalled();
   });
 
@@ -302,6 +308,7 @@ describe("PersonalInfoFormModal — remote companion changes", () => {
 
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
     expect(toastErrorMock).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(
       screen.queryByText(/zwischenzeitlich an anderer Stelle geändert/),
     ).not.toBeInTheDocument();

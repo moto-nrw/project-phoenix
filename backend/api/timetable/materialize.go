@@ -155,23 +155,23 @@ func resolveMaterializationWindow(req *materializeRequest, now time.Time) (from,
 	}
 
 	if !bothSet {
-		return timezone.Date{}, timezone.Date{}, errors.New("from_date and to_date must both be present or both omitted")
+		return timezone.Date(""), timezone.Date(""), errors.New("from_date and to_date must both be present or both omitted")
 	}
 
 	from, err = timezone.ParseDate(*req.FromDate)
 	if err != nil {
-		return timezone.Date{}, timezone.Date{}, errors.New("invalid from_date: expected YYYY-MM-DD")
+		return timezone.Date(""), timezone.Date(""), errors.New("invalid from_date: expected YYYY-MM-DD")
 	}
 	to, err = timezone.ParseDate(*req.ToDate)
 	if err != nil {
-		return timezone.Date{}, timezone.Date{}, errors.New("invalid to_date: expected YYYY-MM-DD")
+		return timezone.Date(""), timezone.Date(""), errors.New("invalid to_date: expected YYYY-MM-DD")
 	}
 
 	if to.Before(from) {
-		return timezone.Date{}, timezone.Date{}, errors.New("to_date must not be before from_date")
+		return timezone.Date(""), timezone.Date(""), errors.New("to_date must not be before from_date")
 	}
 	if from.DaysUntil(to)+1 > scheduleSvc.MaxMaterializationWindowDays {
-		return timezone.Date{}, timezone.Date{}, errors.New("window exceeds 56 days (8 weeks)")
+		return timezone.Date(""), timezone.Date(""), errors.New("window exceeds 56 days (8 weeks)")
 	}
 	return from, to, nil
 }

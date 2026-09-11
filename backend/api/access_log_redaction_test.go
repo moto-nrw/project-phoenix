@@ -26,6 +26,8 @@ func TestAccessLogOmitsQueryValues(t *testing.T) {
 	logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
 	router := chi.NewRouter()
+	tracer := newRuntimeTracer(logger)
+	router.Use(func(next http.Handler) http.Handler { return requestIDMiddleware(tracer, next) })
 	setupBasicMiddleware(router, logger, nil)
 	router.Get("/api/students", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)

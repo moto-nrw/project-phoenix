@@ -1,10 +1,9 @@
-package config_test
+package config
 
 import (
 	"encoding/json"
 	"testing"
 
-	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
 	"github.com/moto-nrw/project-phoenix/models/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -24,7 +23,7 @@ func TestSettingValueRepository_Upsert_Insert(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := configRepo.NewSettingValueRepository(db)
+	repo := NewSettingValueRepository(testpkg.ConfigRuntime(db))
 	ctx := testpkg.Ctx(t)
 
 	err := repo.Upsert(ctx, newSV(t, "test.upsert_insert", `"hello"`))
@@ -42,7 +41,7 @@ func TestSettingValueRepository_Upsert_Update(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := configRepo.NewSettingValueRepository(db)
+	repo := NewSettingValueRepository(testpkg.ConfigRuntime(db))
 	ctx := testpkg.Ctx(t)
 
 	require.NoError(t, repo.Upsert(ctx, newSV(t, "test.upsert_update", `"first"`)))
@@ -60,7 +59,7 @@ func TestSettingValueRepository_FindByTenantAndKey_NotFound(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := configRepo.NewSettingValueRepository(db)
+	repo := NewSettingValueRepository(testpkg.ConfigRuntime(db))
 	ctx := testpkg.Ctx(t)
 
 	found, err := repo.FindByTenantAndKey(ctx, testpkg.Tenant(t), "nonexistent.key")
@@ -72,7 +71,7 @@ func TestSettingValueRepository_FindByTenantAndKeys(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := configRepo.NewSettingValueRepository(db)
+	repo := NewSettingValueRepository(testpkg.ConfigRuntime(db))
 	ctx := testpkg.Ctx(t)
 
 	require.NoError(t, repo.Upsert(ctx, newSV(t, "test.batch_one", `true`)))
@@ -102,7 +101,7 @@ func TestSettingValueRepository_Delete(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := configRepo.NewSettingValueRepository(db)
+	repo := NewSettingValueRepository(testpkg.ConfigRuntime(db))
 	ctx := testpkg.Ctx(t)
 
 	require.NoError(t, repo.Upsert(ctx, newSV(t, "test.delete_me", `"bye"`)))
@@ -119,7 +118,7 @@ func TestSettingValueRepository_TenantIsolation(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := configRepo.NewSettingValueRepository(db)
+	repo := NewSettingValueRepository(testpkg.ConfigRuntime(db))
 
 	// Use high tenant IDs to avoid sequence collisions: other tests use
 	// auto-increment (BIGSERIAL) for orgs/schools, so low explicit IDs like
@@ -173,7 +172,7 @@ func TestSettingValueRepository_Validate_RejectsEmpty(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := configRepo.NewSettingValueRepository(db)
+	repo := NewSettingValueRepository(testpkg.ConfigRuntime(db))
 	ctx := testpkg.Ctx(t)
 
 	// Missing key

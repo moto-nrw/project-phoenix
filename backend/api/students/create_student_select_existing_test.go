@@ -49,7 +49,7 @@ func seedExistingGuardian(t *testing.T, tc *testContext, firstName, lastName, em
 func TestCreateStudent_SelectExistingGuardian(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	ctx := context.Background()
 
 	existing := seedExistingGuardian(t, tc, "Sibling", "Parent", "sibling.parent.existing@example.com")
@@ -148,7 +148,7 @@ func TestCreateStudent_SelectExistingGuardian(t *testing.T) {
 func TestCreateStudent_SelectExistingGuardian_DuplicateSkipped(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	ctx := context.Background()
 
 	existing := seedExistingGuardian(t, tc, "Dup", "Selection", "dup.selection.existing@example.com")
@@ -184,7 +184,7 @@ func TestCreateStudent_SelectExistingGuardian_DuplicateSkipped(t *testing.T) {
 func TestCreateStudent_MixedNewAndExistingGuardian(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	ctx := context.Background()
 
 	existing := seedExistingGuardian(t, tc, "Mixed", "Existing", "mixed.existing@example.com")
@@ -237,7 +237,7 @@ func TestCreateStudent_MixedNewAndExistingGuardian(t *testing.T) {
 func TestCreateStudent_SelectExistingGuardian_NotFound(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	const firstName = "GhostRef"
 	const lastName = "Orphan"

@@ -1,8 +1,11 @@
 package defaults
 
-import (
-	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
-	"github.com/moto-nrw/project-phoenix/models/config"
+import "github.com/moto-nrw/project-phoenix/models/config"
+
+const (
+	defaultGradeLevelMax = 4
+	minGradeLevel        = 1
+	maxGradeLevel        = 13
 )
 
 // Parent-enrollment settings registry. Plumbing-only in PR 4 - these values
@@ -183,6 +186,25 @@ func registerEnrollmentCareOfferings() {
 		Category:        "betreuungsangebote",
 		SortOrder:       32,
 		Validation:      &config.ValidationRules{Min: &minLeadDays, Max: &maxLeadDays},
+		DependsOn:       config.DependsOnEq(config.KeyEnrollmentOfferingChangesEnabled, true),
+	})
+
+	// Kursanmeldung durch Eltern (#3075, SH 4.3, ADR 0012). Läuft über den
+	// Angebotsweg: ein Kurs ist ein Betreuungsangebot, das an einer AG hängt,
+	// und die Anfrage ist dieselbe Änderungsanfrage. Deshalb hängt der
+	// Schalter sichtbar an den Änderungsanfragen — ohne sie gibt es keine
+	// Strecke, auf der eine Kursanfrage entschieden werden könnte.
+	config.Register(config.Definition{
+		Key:             config.KeyEnrollmentParentCourseRequestsEnabled,
+		Label:           "Kursanfragen durch Eltern erlauben",
+		Description:     "Eltern sehen in der Eltern-App die Kurse ihrer Schule und können ihr Kind dafür anfragen. Die Anfrage gilt erst nach Freigabe durch die OGS. Ist ein Kurs voll, entsteht ein Platz auf der Warteliste.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "enrollment",
+		Category:        "betreuungsangebote",
+		SortOrder:       33,
 		DependsOn:       config.DependsOnEq(config.KeyEnrollmentOfferingChangesEnabled, true),
 	})
 }
@@ -446,13 +468,13 @@ func registerEnrollmentPublicForm() {
 		Label:           "Höchste Klassenstufe im Formular",
 		Description:     "Eltern können Klassenstufen 1 bis zu diesem Wert auswählen. Standard ist 4 (OGS-Schuljahre 1-4); Schulen mit weiterführenden Stufen erhöhen den Wert entsprechend.",
 		Type:            config.FieldNumber,
-		Default:         schoolclass.DefaultGradeLevelMax,
+		Default:         defaultGradeLevelMax,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "enrollment",
 		Category:        "formular",
 		SortOrder:       22,
-		Validation:      config.Range(schoolclass.MinGradeLevel, schoolclass.MaxGradeLevel),
+		Validation:      config.Range(minGradeLevel, maxGradeLevel),
 		DependsOn:       config.DependsOnEq(config.KeyEnrollmentCollectGradeLevel, true),
 	})
 

@@ -4,9 +4,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -52,7 +53,7 @@ func TestStudentGuardianRepository_FindByStudentID_Success(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentGuardian
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentGuardian
 	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
@@ -81,7 +82,7 @@ func TestStudentGuardianRepository_FindByStudentID_Empty(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentGuardian
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentGuardian
 	ctx := testpkg.Ctx(t)
 
 	// Create student with no guardians
@@ -104,7 +105,7 @@ func TestStudentGuardianRepository_FindByGuardianProfileID_Success(t *testing.T)
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentGuardian
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentGuardian
 	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
@@ -149,7 +150,7 @@ func TestStudentGuardianRepository_SetPrimary_Success(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentGuardian
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentGuardian
 	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
@@ -201,7 +202,7 @@ func TestStudentGuardianRepository_Create_Success(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentGuardian
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentGuardian
 	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
@@ -235,7 +236,7 @@ func TestStudentGuardianRepository_Create_NilReturnsError(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentGuardian
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentGuardian
 	ctx := testpkg.Ctx(t)
 
 	// ACT
@@ -251,7 +252,7 @@ func TestStudentGuardianRepository_Create_ValidationError(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentGuardian
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentGuardian
 	ctx := testpkg.Ctx(t)
 
 	// ACT - Create with invalid data
@@ -279,7 +280,7 @@ func TestStudentGuardianRepository_List_WithFilters(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentGuardian
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentGuardian
 	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
@@ -323,7 +324,7 @@ func TestStudentGuardianRepository_LinkIfNotExists(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentGuardian
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentGuardian
 	ctx := testpkg.Ctx(t)
 
 	t.Run("inserts a new link and reports it as inserted", func(t *testing.T) {
@@ -433,7 +434,7 @@ func TestStudentGuardianRepository_ListLinkedChildrenForGuardians_EmptyInput(t *
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentGuardian
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentGuardian
 	ctx := testpkg.Ctx(t)
 
 	rows, err := repo.ListLinkedChildrenForGuardians(ctx, []int64{})
@@ -456,7 +457,7 @@ func TestStudentGuardianRepository_FindByStudentAndGuardianForUpdate(t *testing.
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentGuardian
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentGuardian
 	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Lock", "Relationship", "1a")
@@ -481,7 +482,7 @@ func TestStudentGuardianRepository_FindByStudentAndGuardianForUpdate(t *testing.
 		tx, err := db.BeginTx(ctx, nil)
 		require.NoError(t, err)
 		defer func() { _ = tx.Rollback() }()
-		holdCtx := modelBase.ContextWithTx(ctx, &tx)
+		holdCtx := tenant.WithTransactionForTest(ctx, &tx)
 
 		locked, err := repo.FindByStudentAndGuardianForUpdate(holdCtx, student.ID, guardian.ID)
 		require.NoError(t, err)
@@ -528,7 +529,7 @@ func TestStudentGuardianRepository_AccountHasStudentPermission(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentGuardian
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentGuardian
 	ctx := testpkg.Ctx(t)
 
 	// Primary guardian (all parent-portal permissions) → chain.StudentID, with an
@@ -586,7 +587,7 @@ func TestStudentGuardianRepository_GuardianEmailHasStudentPermission(t *testing.
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentGuardian
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentGuardian
 	ctx := testpkg.Ctx(t)
 
 	// Guardian WITH an account and an active mapping, primary role on its child.
@@ -676,7 +677,7 @@ func TestStudentGuardianRepository_FilterAccountsWithStudentAccess(t *testing.T)
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentGuardian
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentGuardian
 	ctx := testpkg.Ctx(t)
 	perm := authorize.GuardianPermissionPortalAccess
 

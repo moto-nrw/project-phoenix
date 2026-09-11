@@ -6,18 +6,18 @@ import (
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // This test exercises the schema installed by the normal migration runner. It
 // deliberately does not invoke the migration's Up function, so an already
 // recorded 1.15.182 cannot hide a missing upgrade migration.
 func TestGroupTargetConstraintsRejectInvalidDirectWrites(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	testpkg.CleanupTenantTestData(t, db, tenantID)
+	testpkg.OwnTenantRows(t, db, tenantID)
 	group := testpkg.CreateTestActivityGroupForTenant(t, db, tenantID, "Target-Class-Whitespace")
 
 	require.Error(t, setTargetSchoolClassForConstraintTest(db, tenantID, group.ID, " \t\n\r "))
@@ -26,7 +26,7 @@ func TestGroupTargetConstraintsRejectInvalidDirectWrites(t *testing.T) {
 	require.Error(t, setIncompleteGradeTargetForConstraintTest(db, tenantID, group.ID))
 }
 
-func setIncompleteGradeTargetForConstraintTest(db *bun.DB, tenantID, groupID int64) error {
+func setIncompleteGradeTargetForConstraintTest(db *testpkg.DB, tenantID, groupID int64) error {
 	_, err := db.NewRaw(`
 		UPDATE activities.groups
 		SET target_group_type = 'jahrgang',
@@ -37,7 +37,7 @@ func setIncompleteGradeTargetForConstraintTest(db *bun.DB, tenantID, groupID int
 	return err
 }
 
-func setTargetSchoolClassForConstraintTest(db *bun.DB, tenantID, groupID int64, schoolClass string) error {
+func setTargetSchoolClassForConstraintTest(db *testpkg.DB, tenantID, groupID int64, schoolClass string) error {
 	_, err := db.NewRaw(`
 		UPDATE activities.groups
 		SET target_group_type = 'klasse', target_grade_level = NULL, target_school_class = ?

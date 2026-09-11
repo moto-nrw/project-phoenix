@@ -1,6 +1,6 @@
 module github.com/moto-nrw/project-phoenix/tools
 
-go 1.25.12
+go 1.27.0
 
 tool github.com/loov/goda
 

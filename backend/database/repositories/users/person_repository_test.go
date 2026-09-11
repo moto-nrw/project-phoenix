@@ -38,7 +38,7 @@ func TestPersonRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Person
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person
 	ctx := testpkg.Ctx(t)
 
 	var createdIDs []int64
@@ -73,7 +73,7 @@ func TestPersonRepository_Create(t *testing.T) {
 
 		assert.NotZero(t, person.ID)
 		require.NotNil(t, person.Birthday)
-		assert.Equal(t, birthday.Year, person.Birthday.Year)
+		assert.Equal(t, birthday.Year(), person.Birthday.Year())
 	})
 
 	t.Run("create with nil person should fail", func(t *testing.T) {
@@ -108,7 +108,7 @@ func TestPersonRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Person
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person
 	ctx := testpkg.Ctx(t)
 
 	// Create test person
@@ -140,7 +140,7 @@ func TestPersonRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Person
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person
 	ctx := testpkg.Ctx(t)
 
 	// Create test person
@@ -172,7 +172,7 @@ func TestPersonRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Person
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person
 	ctx := testpkg.Ctx(t)
 
 	// Create test person
@@ -200,7 +200,7 @@ func TestPersonRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Person
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person
 	ctx := testpkg.Ctx(t)
 
 	// Create test persons with unique names for filtering
@@ -241,7 +241,7 @@ func TestPersonRepository_FindByIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Person
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person
 	ctx := testpkg.Ctx(t)
 
 	// Create test persons
@@ -285,7 +285,7 @@ func TestPersonRepository_LinkToAccount(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Person
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person
 	ctx := testpkg.Ctx(t)
 
 	// Create test person and account
@@ -314,7 +314,7 @@ func TestPersonRepository_UnlinkFromAccount(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Person
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person
 	ctx := testpkg.Ctx(t)
 
 	// Create person with account
@@ -341,7 +341,7 @@ func TestPersonRepository_FindByAccountID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Person
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person
 	ctx := testpkg.Ctx(t)
 
 	// Create person with account
@@ -370,7 +370,7 @@ func TestPersonRepository_LinkToRFIDCard(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Person
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person
 	ctx := testpkg.Ctx(t)
 
 	// Create test person and RFID card
@@ -399,7 +399,7 @@ func TestPersonRepository_UnlinkFromRFIDCard(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Person
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person
 	ctx := testpkg.Ctx(t)
 
 	// Create test person with RFID card linked
@@ -431,7 +431,7 @@ func TestPersonRepository_FindByTagID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Person
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person
 	ctx := testpkg.Ctx(t)
 
 	// Create test person with RFID card linked
@@ -473,7 +473,7 @@ func TestPersonRepository_FindWithAccount(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Person
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person
 	ctx := testpkg.Ctx(t)
 
 	t.Run("find person with account", func(t *testing.T) {
@@ -503,9 +503,6 @@ func TestPersonRepository_FindWithAccount(t *testing.T) {
 	})
 }
 
-// NOTE: FindWithRFIDCard exists in the implementation but is not exposed in the
-// PersonRepository interface, so it cannot be tested through the interface.
-
 // ============================================================================
 // Filter Tests
 // ============================================================================
@@ -515,7 +512,7 @@ func TestPersonRepository_ListWithNullableFilters(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Person
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person
 	ctx := testpkg.Ctx(t)
 
 	// Create test persons - one with account, one without
@@ -593,7 +590,7 @@ func TestPersonRepository_EdgeCases(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Person
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person
 	ctx := testpkg.Ctx(t)
 
 	t.Run("create person with unicode names", func(t *testing.T) {

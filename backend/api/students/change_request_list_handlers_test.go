@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"testing"
 	"time"
 
@@ -15,13 +16,13 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	absenceService "github.com/moto-nrw/project-phoenix/services/absence"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
@@ -63,6 +64,19 @@ func keysetPage[T any](
 	return matched, &userService.HistoryCursor{UpdatedAt: instant, ID: id}
 }
 
+func urgencyRows[T any](rows []T, filters modelBase.RequestQueueFilters, urgent func(T) bool) []T {
+	if filters.UrgentOnly == nil {
+		return rows
+	}
+	filtered := make([]T, 0, len(rows))
+	for _, row := range rows {
+		if urgent(row) == *filters.UrgentOnly {
+			filtered = append(filtered, row)
+		}
+	}
+	return filtered
+}
+
 // The aggregate endpoint fakes embed their service interface so only the two
 // read methods the endpoint touches need implementations; anything else
 // panics on a nil interface, which is exactly the failure we want in a test.
@@ -81,7 +95,8 @@ type aggMasterFake struct {
 func (f *aggMasterFake) ListPending(_ context.Context, filters modelBase.RequestQueueFilters) ([]*userService.MasterDataReviewItem, *userService.HistoryCursor, error) {
 	f.pendingCalls++
 	f.gotFilters = append(f.gotFilters, filters)
-	items, next := keysetPage(f.pending, filters,
+	rows := urgencyRows(f.pending, filters, func(*userService.MasterDataReviewItem) bool { return false })
+	items, next := keysetPage(rows, filters,
 		func(it *userService.MasterDataReviewItem) (time.Time, int64) {
 			return it.Request.CreatedAt, it.Request.ID
 		},
@@ -116,7 +131,8 @@ type aggCareFake struct {
 
 func (f *aggCareFake) ListPending(_ context.Context, filters modelBase.RequestQueueFilters) ([]*scheduleService.CareRequestReviewItem, *userService.HistoryCursor, error) {
 	f.pendingCalls++
-	items, next := keysetPage(f.pending, filters,
+	rows := urgencyRows(f.pending, filters, careRequestUrgentToday)
+	items, next := keysetPage(rows, filters,
 		func(it *scheduleService.CareRequestReviewItem) (time.Time, int64) {
 			return it.Request.CreatedAt, it.Request.ID
 		},
@@ -162,7 +178,10 @@ func (f *aggOfferingFake) ListDirectCorrections(_ context.Context, filters model
 
 func (f *aggOfferingFake) ListPending(_ context.Context, filters modelBase.RequestQueueFilters) ([]*enrollmentService.OfferingChangeView, *userService.HistoryCursor, error) {
 	f.pendingCalls++
-	items, next := keysetPage(f.pending, filters,
+	rows := urgencyRows(f.pending, filters, func(item *enrollmentService.OfferingChangeView) bool {
+		return !timezone.Date(item.Request.EffectiveFrom).After(timezone.TodayDate())
+	})
+	items, next := keysetPage(rows, filters,
 		func(it *enrollmentService.OfferingChangeView) (time.Time, int64) {
 			return it.Request.CreatedAt, it.Request.ID
 		},
@@ -185,35 +204,56 @@ func (f *aggOfferingFake) ListHistory(_ context.Context, filters modelBase.Reque
 }
 
 type aggExcusedFake struct {
-	absenceService.ExcusedAbsenceRequestService
-	pending      []*absenceService.ExcusedRequestReviewItem
-	rows         []*absenceService.ExcusedRequestHistoryItem
+	excusedrequests.Service
+	pending      []*excusedrequests.ReviewItem
+	rows         []*excusedrequests.HistoryItem
 	pendingCalls int
 	historyCalls int
 }
 
-func (f *aggExcusedFake) ListPending(_ context.Context, filters modelBase.RequestQueueFilters) ([]*absenceService.ExcusedRequestReviewItem, *userService.HistoryCursor, error) {
+func (f *aggExcusedFake) ListPending(_ context.Context, filter excusedrequests.QueueFilter) ([]*excusedrequests.ReviewItem, *excusedrequests.Cursor, error) {
 	f.pendingCalls++
-	items, next := keysetPage(f.pending, filters,
-		func(it *absenceService.ExcusedRequestReviewItem) (time.Time, int64) {
+	filters := legacyQueueFilters(filter)
+	rows := urgencyRows(f.pending, filters, func(item *excusedrequests.ReviewItem) bool {
+		return slices.Contains(item.Request.Dates, excusedrequests.Date(timezone.TodayDate()))
+	})
+	items, next := keysetPage(rows, filters,
+		func(it *excusedrequests.ReviewItem) (time.Time, int64) {
 			return it.Request.CreatedAt, it.Request.ID
 		},
-		func(it *absenceService.ExcusedRequestReviewItem) (int64, string) {
+		func(it *excusedrequests.ReviewItem) (int64, string) {
 			return it.Request.StudentID, it.FirstName + " " + it.LastName
 		})
-	return items, next, nil
+	return items, excusedCursor(next), nil
 }
 
-func (f *aggExcusedFake) ListHistory(_ context.Context, filters modelBase.RequestQueueFilters) ([]*absenceService.ExcusedRequestHistoryItem, *userService.HistoryCursor, error) {
+func (f *aggExcusedFake) ListHistory(_ context.Context, filter excusedrequests.QueueFilter) ([]*excusedrequests.HistoryItem, *excusedrequests.Cursor, error) {
 	f.historyCalls++
-	items, next := keysetPage(f.rows, filters,
-		func(it *absenceService.ExcusedRequestHistoryItem) (time.Time, int64) {
+	items, next := keysetPage(f.rows, legacyQueueFilters(filter),
+		func(it *excusedrequests.HistoryItem) (time.Time, int64) {
 			return it.Request.UpdatedAt, it.Request.ID
 		},
-		func(it *absenceService.ExcusedRequestHistoryItem) (int64, string) {
+		func(it *excusedrequests.HistoryItem) (int64, string) {
 			return it.Request.StudentID, it.FirstName + " " + it.LastName
 		})
-	return items, next, nil
+	return items, excusedCursor(next), nil
+}
+
+// legacyQueueFilters and excusedCursor bridge the Care Plan queue vocabulary
+// to the shared fake paging helpers above.
+func legacyQueueFilters(filter excusedrequests.QueueFilter) modelBase.RequestQueueFilters {
+	return modelBase.RequestQueueFilters{
+		UrgentOnly: filter.UrgentOnly, UrgentDate: filter.UrgentDate,
+		StudentIDs: filter.StudentIDs, StudentID: filter.StudentID, Search: filter.Search,
+		BeforeInstant: filter.BeforeInstant, BeforeID: filter.BeforeID, Limit: filter.Limit,
+	}
+}
+
+func excusedCursor(next *userService.HistoryCursor) *excusedrequests.Cursor {
+	if next == nil {
+		return nil
+	}
+	return &excusedrequests.Cursor{UpdatedAt: next.UpdatedAt, ID: next.ID}
 }
 
 type aggFakes struct {
@@ -254,7 +294,7 @@ func aggMasterPending(id int64, first, last string, createdAt time.Time) *userSe
 
 func aggCarePending(id int64, first, last string, createdAt time.Time) *scheduleService.CareRequestReviewItem {
 	req := &scheduleModels.CareScheduleChangeRequest{
-		Model:       modelBase.Model{ID: id, CreatedAt: createdAt, UpdatedAt: createdAt},
+		Model:       scheduleModels.Model{ID: id, CreatedAt: createdAt, UpdatedAt: createdAt},
 		StudentID:   200 + id,
 		RequestKind: "weekly_schedule",
 		Status:      "pending",
@@ -274,20 +314,20 @@ func aggCarePending(id int64, first, last string, createdAt time.Time) *schedule
 
 func aggOfferingPending(id int64, name string, createdAt time.Time) *enrollmentService.OfferingChangeView {
 	req := &enrollmentModels.OfferingChangeRequest{
-		Model:     modelBase.Model{ID: id, CreatedAt: createdAt, UpdatedAt: createdAt},
+		ID: id, CreatedAt: createdAt, UpdatedAt: createdAt,
 		StudentID: 300 + id,
 		Status:    "pending",
 	}
 	return &enrollmentService.OfferingChangeView{Request: req, StudentName: name}
 }
 
-func aggExcusedPending(id int64, first, last string, createdAt time.Time) *absenceService.ExcusedRequestReviewItem {
-	req := &activeModels.ExcusedAbsenceRequest{
-		Model:     modelBase.Model{ID: id, CreatedAt: createdAt, UpdatedAt: createdAt},
+func aggExcusedPending(id int64, first, last string, createdAt time.Time) *excusedrequests.ReviewItem {
+	req := &excusedrequests.Request{
+		ID: id, CreatedAt: createdAt, UpdatedAt: createdAt,
 		StudentID: 400 + id,
 		Status:    "pending",
 	}
-	return &absenceService.ExcusedRequestReviewItem{Request: req, FirstName: first, LastName: last}
+	return &excusedrequests.ReviewItem{Request: req, FirstName: first, LastName: last}
 }
 
 func aggMasterHistory(id int64, first, last, status string, decidedAt time.Time) *userService.MasterDataHistoryItem {
@@ -312,11 +352,11 @@ func aggMasterHistory(id int64, first, last, status string, decidedAt time.Time)
 	return item
 }
 
-func aggExcusedHistory(id int64, first, last, status string, decidedAt time.Time) *absenceService.ExcusedRequestHistoryItem {
+func aggExcusedHistory(id int64, first, last, status string, decidedAt time.Time) *excusedrequests.HistoryItem {
 	reviewed := decidedAt
-	item := &absenceService.ExcusedRequestHistoryItem{
-		Request: &activeModels.ExcusedAbsenceRequest{
-			Model:      modelBase.Model{ID: id, CreatedAt: decidedAt.Add(-24 * time.Hour), UpdatedAt: decidedAt},
+	item := &excusedrequests.HistoryItem{
+		Request: &excusedrequests.Request{
+			ID: id, CreatedAt: decidedAt.Add(-24 * time.Hour), UpdatedAt: decidedAt,
 			StudentID:  400 + id,
 			Status:     status,
 			ReviewedAt: &reviewed,
@@ -348,6 +388,7 @@ func aggRequest(t *testing.T, rawQuery string, perms []string) *http.Request {
 type aggPage struct {
 	Items []struct {
 		RequestType string          `json:"request_type"`
+		UrgentToday bool            `json:"urgent_today"`
 		Data        json.RawMessage `json:"data"`
 	} `json:"items"`
 	NextCursor string `json:"next_cursor"`
@@ -397,7 +438,7 @@ func TestAggregatedChangeRequests_OpenMergesAllTypesNewestFirst(t *testing.T) {
 	fakes.master.pending = []*userService.MasterDataReviewItem{aggMasterPending(1, "Anna", "Alt", aggBase.Add(3*time.Hour))}
 	fakes.care.pending = []*scheduleService.CareRequestReviewItem{aggCarePending(2, "Ben", "Berg", aggBase.Add(1*time.Hour))}
 	fakes.offering.pending = []*enrollmentService.OfferingChangeView{aggOfferingPending(3, "Cem Can", aggBase.Add(4*time.Hour))}
-	fakes.excused.pending = []*absenceService.ExcusedRequestReviewItem{aggExcusedPending(4, "Dua", "Deml", aggBase.Add(2*time.Hour))}
+	fakes.excused.pending = []*excusedrequests.ReviewItem{aggExcusedPending(4, "Dua", "Deml", aggBase.Add(2*time.Hour))}
 
 	rr, page := execAggregated(t, rs, "", aggUpdatePerms)
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
@@ -419,13 +460,35 @@ func TestAggregatedChangeRequests_OpenMergesAllTypesNewestFirst(t *testing.T) {
 	assertCareAffectedBlocks(t, page.Items[3].Data)
 }
 
+func TestAggregatedChangeRequests_OpenPaginatesAllUrgentRowsBeforeNewerNormalRows(t *testing.T) {
+	t.Parallel()
+
+	rs, fakes := newAggResource()
+	fakes.master.pending = []*userService.MasterDataReviewItem{
+		aggMasterPending(1, "Neu", "Normal", aggBase.Add(48*time.Hour)),
+	}
+	urgent := aggExcusedPending(2, "Alt", "Dringend", aggBase)
+	urgent.Request.Dates = []excusedrequests.Date{excusedrequests.Date(timezone.TodayDate())}
+	fakes.excused.pending = []*excusedrequests.ReviewItem{urgent}
+
+	rr, page := execAggregated(t, rs, "limit=1", aggUpdatePerms)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	require.Equal(t, []string{"excused"}, aggTypes(page))
+	assert.True(t, page.Items[0].UrgentToday)
+	require.NotEmpty(t, page.NextCursor)
+
+	rr, page = execAggregated(t, rs, "limit=1&cursor="+url.QueryEscape(page.NextCursor), aggUpdatePerms)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Equal(t, []string{"master_data"}, aggTypes(page))
+}
+
 func TestAggregatedChangeRequests_OpenSearchFiltersByChildName(t *testing.T) {
 	t.Parallel()
 
 	rs, fakes := newAggResource()
 	fakes.master.pending = []*userService.MasterDataReviewItem{aggMasterPending(1, "Anna", "Alt", aggBase)}
 	fakes.offering.pending = []*enrollmentService.OfferingChangeView{aggOfferingPending(3, "Anna Alt", aggBase.Add(time.Hour))}
-	fakes.excused.pending = []*absenceService.ExcusedRequestReviewItem{aggExcusedPending(4, "Dua", "Deml", aggBase.Add(2*time.Hour))}
+	fakes.excused.pending = []*excusedrequests.ReviewItem{aggExcusedPending(4, "Dua", "Deml", aggBase.Add(2*time.Hour))}
 
 	rr, page := execAggregated(t, rs, "search="+url.QueryEscape("anna al"), aggUpdatePerms)
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
@@ -436,7 +499,7 @@ func TestAggregatedChangeRequests_OpenTypeFilterSkipsOtherServices(t *testing.T)
 	t.Parallel()
 
 	rs, fakes := newAggResource()
-	fakes.excused.pending = []*absenceService.ExcusedRequestReviewItem{aggExcusedPending(4, "Dua", "Deml", aggBase)}
+	fakes.excused.pending = []*excusedrequests.ReviewItem{aggExcusedPending(4, "Dua", "Deml", aggBase)}
 	fakes.master.pending = []*userService.MasterDataReviewItem{aggMasterPending(1, "Anna", "Alt", aggBase)}
 
 	rr, page := execAggregated(t, rs, "types=excused", aggUpdatePerms)
@@ -455,7 +518,7 @@ func TestAggregatedChangeRequests_OpenCursorPagination(t *testing.T) {
 		aggMasterPending(1, "Anna", "Alt", aggBase.Add(3*time.Hour)),
 		aggMasterPending(2, "Ben", "Berg", aggBase.Add(1*time.Hour)),
 	}
-	fakes.excused.pending = []*absenceService.ExcusedRequestReviewItem{aggExcusedPending(4, "Cem", "Can", aggBase.Add(2*time.Hour))}
+	fakes.excused.pending = []*excusedrequests.ReviewItem{aggExcusedPending(4, "Cem", "Can", aggBase.Add(2*time.Hour))}
 
 	rr, page := execAggregated(t, rs, "limit=2", aggUpdatePerms)
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
@@ -480,7 +543,7 @@ func TestAggregatedChangeRequests_CursorPreservesUnconsumedPrefetchedSource(t *t
 		aggMasterPending(1, "Anna", "Alt", aggBase.Add(2*time.Hour)),
 		aggMasterPending(2, "Ben", "Berg", aggBase.Add(time.Hour)),
 	}
-	fakes.excused.pending = []*absenceService.ExcusedRequestReviewItem{
+	fakes.excused.pending = []*excusedrequests.ReviewItem{
 		aggExcusedPending(3, "Cem", "Can", aggBase.Add(3*time.Hour)),
 	}
 
@@ -504,7 +567,7 @@ func TestAggregatedChangeRequests_AbsenceOnlySeesOnlyExcused(t *testing.T) {
 
 	rs, fakes := newAggResource()
 	fakes.master.pending = []*userService.MasterDataReviewItem{aggMasterPending(1, "Anna", "Alt", aggBase)}
-	fakes.excused.pending = []*absenceService.ExcusedRequestReviewItem{aggExcusedPending(4, "Dua", "Deml", aggBase.Add(time.Hour))}
+	fakes.excused.pending = []*excusedrequests.ReviewItem{aggExcusedPending(4, "Dua", "Deml", aggBase.Add(time.Hour))}
 
 	rr, page := execAggregated(t, rs, "", []string{"users:read", "users:absence"})
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
@@ -522,7 +585,7 @@ func TestAggregatedChangeRequests_HistoryMergesAndPaginates(t *testing.T) {
 		aggMasterHistory(1, "Anna", "Alt", "approved", aggBase.Add(4*time.Hour)),
 		aggMasterHistory(2, "Ben", "Berg", "rejected", aggBase.Add(1*time.Hour)),
 	}
-	fakes.excused.rows = []*absenceService.ExcusedRequestHistoryItem{
+	fakes.excused.rows = []*excusedrequests.HistoryItem{
 		aggExcusedHistory(4, "Cem", "Can", "approved", aggBase.Add(3*time.Hour)),
 		aggExcusedHistory(5, "Dua", "Deml", "rejected", aggBase.Add(2*time.Hour)),
 	}
@@ -587,7 +650,7 @@ func TestAggregatedChangeRequests_HistoryStatusFilter(t *testing.T) {
 		aggMasterHistory(2, "Ben", "Berg", "auto_applied", aggBase.Add(3*time.Hour)),
 		aggMasterHistory(3, "Cem", "Can", "rejected", aggBase.Add(2*time.Hour)),
 	}
-	fakes.excused.rows = []*absenceService.ExcusedRequestHistoryItem{
+	fakes.excused.rows = []*excusedrequests.HistoryItem{
 		aggExcusedHistory(4, "Dua", "Deml", "withdrawn", aggBase.Add(1*time.Hour)),
 	}
 
@@ -685,7 +748,7 @@ func aggOfferingHistory(id int64, name, status string, decidedAt time.Time) *enr
 	reviewed := decidedAt
 	return &enrollmentService.OfferingChangeHistoryItem{
 		Request: &enrollmentModels.OfferingChangeRequest{
-			Model:      modelBase.Model{ID: id, CreatedAt: decidedAt.Add(-24 * time.Hour), UpdatedAt: decidedAt},
+			ID: id, CreatedAt: decidedAt.Add(-24 * time.Hour), UpdatedAt: decidedAt,
 			StudentID:  300 + id,
 			Status:     status,
 			ReviewedAt: &reviewed,
@@ -813,4 +876,112 @@ func TestAggregatedChangeRequests_AbsenceOnlyCallerSeesNoDirectCorrections(t *te
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	assert.Empty(t, aggTypes(page))
 	assert.Zero(t, fakes.offering.correctionsCalls)
+}
+
+// conflictPage decodes just the conflict/current-value fields, so this test
+// keeps working when the shared aggPage grows.
+type conflictPage struct {
+	Items []struct {
+		RequestType         string            `json:"request_type"`
+		ConflictKeys        []string          `json:"conflict_keys"`
+		ConflictKey         string            `json:"conflict_key"`
+		ConflictGroupSize   int               `json:"conflict_group_size"`
+		CurrentValueChanged *bool             `json:"current_value_changed"`
+		CurrentStatusByDate map[string]string `json:"current_status_by_date"`
+		Past                bool              `json:"past"`
+	} `json:"items"`
+	ReviewAccess string `json:"review_access"`
+}
+
+func execConflictPage(t *testing.T, rs *Resource, rawQuery string, perms []string) conflictPage {
+	t.Helper()
+	rr := httptest.NewRecorder()
+	rs.listAggregatedChangeRequests(rr, aggRequest(t, rawQuery, perms))
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	var env struct {
+		Data conflictPage `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &env))
+	return env.Data
+}
+
+// #2267 A12: two absence requests for the same child on the same day
+// contradict each other and must be offered as ONE decision. Deciding them in
+// sequence lets the second silently overwrite the first.
+func TestAggregatedChangeRequests_GroupsContradictingAbsencesOnOneDay(t *testing.T) {
+	t.Parallel()
+
+	rs, fakes := newAggResource()
+	day := timezone.NewDate(2026, 8, 24).AddDays(3)
+	first := aggExcusedPending(1, "Mia", "Muster", aggBase)
+	first.Request.Dates = []excusedrequests.Date{excusedrequests.Date(day)}
+	first.Request.AbsenceStatus = "excused"
+	second := aggExcusedPending(2, "Mia", "Muster", aggBase.Add(-time.Hour))
+	second.Request.StudentID = first.Request.StudentID
+	second.Request.Dates = []excusedrequests.Date{excusedrequests.Date(day)}
+	second.Request.AbsenceStatus = "sick"
+	fakes.excused.pending = []*excusedrequests.ReviewItem{first, second}
+
+	page := execConflictPage(t, rs, "types=excused", aggUpdatePerms)
+	require.Len(t, page.Items, 2)
+	for _, item := range page.Items {
+		assert.Equal(t, []string{"absence:" + day.String()}, item.ConflictKeys)
+		assert.Equal(t, "absence:"+day.String(), item.ConflictKey,
+			"both requests must group on the same key whatever status they ask for")
+		assert.Equal(t, 2, item.ConflictGroupSize)
+	}
+}
+
+// A lone request has nothing to resolve, and says so by omitting the group.
+func TestAggregatedChangeRequests_LoneRequestReportsNoConflictGroup(t *testing.T) {
+	t.Parallel()
+
+	rs, fakes := newAggResource()
+	only := aggExcusedPending(1, "Mia", "Muster", aggBase)
+	only.Request.Dates = []excusedrequests.Date{excusedrequests.Date(timezone.TodayDate().AddDays(3))}
+	fakes.excused.pending = []*excusedrequests.ReviewItem{only}
+
+	page := execConflictPage(t, rs, "types=excused", aggUpdatePerms)
+	require.Len(t, page.Items, 1)
+	assert.Empty(t, page.Items[0].ConflictKey)
+	assert.Zero(t, page.Items[0].ConflictGroupSize)
+}
+
+// current_status_by_date and current_value_changed travel from the excused
+// service to the wire unchanged — the review card shows „Aktuell“ from them.
+func TestAggregatedChangeRequests_EmitsCurrentStatusPerDate(t *testing.T) {
+	t.Parallel()
+
+	rs, fakes := newAggResource()
+	day := timezone.NewDate(2026, 8, 24).AddDays(3)
+	changed := true
+	item := aggExcusedPending(1, "Mia", "Muster", aggBase)
+	item.Request.Dates = []excusedrequests.Date{excusedrequests.Date(day)}
+	item.CurrentStatusByDate = map[string]string{day.String(): "sick"}
+	item.CurrentValueChanged = &changed
+	fakes.excused.pending = []*excusedrequests.ReviewItem{item}
+
+	page := execConflictPage(t, rs, "types=excused", aggUpdatePerms)
+	require.Len(t, page.Items, 1)
+	assert.Equal(t, map[string]string{day.String(): "sick"}, page.Items[0].CurrentStatusByDate)
+	require.NotNil(t, page.Items[0].CurrentValueChanged)
+	assert.True(t, *page.Items[0].CurrentValueChanged)
+}
+
+// A request covering only days that have gone by is marked past, so the client
+// can offer „Als erledigt markieren“ instead of a Freigeben that does nothing.
+func TestAggregatedChangeRequests_MarksPastRequests(t *testing.T) {
+	t.Parallel()
+
+	rs, fakes := newAggResource()
+	past := aggExcusedPending(1, "Mia", "Muster", aggBase)
+	past.Request.Dates = []excusedrequests.Date{excusedrequests.Date(timezone.TodayDate().AddDays(-2))}
+	future := aggExcusedPending(2, "Nils", "Neu", aggBase.Add(-time.Hour))
+	future.Request.Dates = []excusedrequests.Date{excusedrequests.Date(timezone.TodayDate().AddDays(2))}
+	fakes.excused.pending = []*excusedrequests.ReviewItem{past, future}
+
+	page := execConflictPage(t, rs, "types=excused", aggUpdatePerms)
+	require.Len(t, page.Items, 2)
+	assert.True(t, page.Items[0].Past)
+	assert.False(t, page.Items[1].Past)
 }

@@ -251,8 +251,8 @@ func (rs *Resource) newStatusDayCreateWriteContext(r *http.Request, userPermissi
 	writeContext := rs.newStatusDayWriteContext(r, userPermissions)
 	tenantID := tenant.FromContext(r.Context())
 	actorAccountID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
-	writeContext.AfterCreateCommit = func(studentIDs []int64) {
-		rs.notifyAbsenceReported(tenantID, studentIDs, status, dates, false, actorAccountID)
+	writeContext.AfterCreate = func(ctx context.Context, studentIDs []int64) error {
+		return rs.notifyAbsenceReported(ctx, tenantID, studentIDs, status, dates, false, actorAccountID)
 	}
 	return writeContext
 }
@@ -267,20 +267,20 @@ func parseStatusDayRangeAt(r *http.Request, today timezone.Date) (timezone.Date,
 
 	from := today
 	// Two calendar months ahead, mirroring time.Time.AddDate(0, 2, 0).
-	to := timezone.NewDate(today.Year, today.Month+2, today.Day)
+	to := timezone.NewDate(today.Year(), today.Month()+2, today.Day())
 	var err error
 	if fromRaw != "" {
 		if from, err = timezone.ParseDate(fromRaw); err != nil {
-			return timezone.Date{}, timezone.Date{}, errors.New("invalid from date format, expected YYYY-MM-DD")
+			return timezone.Date(""), timezone.Date(""), errors.New("invalid from date format, expected YYYY-MM-DD")
 		}
 	}
 	if toRaw != "" {
 		if to, err = timezone.ParseDate(toRaw); err != nil {
-			return timezone.Date{}, timezone.Date{}, errors.New("invalid to date format, expected YYYY-MM-DD")
+			return timezone.Date(""), timezone.Date(""), errors.New("invalid to date format, expected YYYY-MM-DD")
 		}
 	}
 	if to.Before(from) {
-		return timezone.Date{}, timezone.Date{}, errors.New("to must be after from")
+		return timezone.Date(""), timezone.Date(""), errors.New("to must be after from")
 	}
 	return from, to, nil
 }

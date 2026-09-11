@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -100,10 +99,9 @@ func TestMFAChallengeClaims_ParseClaims_RejectsMFAEnrollmentPending(t *testing.T
 // id/token populated would have slipped through. Post-fix the
 // mfa_pending=true gate fires before any of the structural checks.
 func TestAuthenticateRefreshJWT_RejectsChallengeToken(t *testing.T) {
-	viper.Set("auth_jwt_expiry", 15*time.Minute)
-	viper.Set("auth_jwt_refresh_expiry", 24*time.Hour)
+	t.Parallel()
 
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
 	// Mint a real challenge JWT — what /auth/login returns when MFA is
@@ -136,10 +134,9 @@ func TestAuthenticateRefreshJWT_RejectsChallengeToken(t *testing.T) {
 // TestAuthenticateRefreshJWT_RejectsEnrollmentToken mirrors the previous
 // test for an enrollment JWT.
 func TestAuthenticateRefreshJWT_RejectsEnrollmentToken(t *testing.T) {
-	viper.Set("auth_jwt_expiry", 15*time.Minute)
-	viper.Set("auth_jwt_refresh_expiry", 24*time.Hour)
+	t.Parallel()
 
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
 	enrollmentToken, err := auth.CreateMFAEnrollmentJWT(MFAEnrollmentClaims{

@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { setTestClock } from "~/test/clock";
 
 import type { StaffHistorySession, StaffSchedule } from "~/lib/staff-api";
 import type { DayProjection } from "~/lib/time-tracking-helpers";
@@ -286,13 +287,8 @@ describe("StaffSessionTable Arbeitsblöcke (#2402)", () => {
   // erfindet 23:59.
   describe("gekappte Blöcke", () => {
     beforeEach(() => {
-      vi.useFakeTimers({ toFake: ["Date"] });
       // 06.01.2026, 09:00 Berlin.
-      vi.setSystemTime(new Date("2026-01-06T08:00:00Z"));
-    });
-
-    afterEach(() => {
-      vi.useRealTimers();
+      setTestClock(new Date("2026-01-06T08:00:00Z"));
     });
 
     it("zeigt beim Checkout in der Zukunft das gekappte Ende statt 23:59", () => {
@@ -366,13 +362,7 @@ describe("StaffSessionTable Arbeitsblöcke (#2402)", () => {
   // ohne dass sich die Sessions ändern, muss der laufende Nachtblock trotzdem
   // auf dem neuen Tag ankommen — sonst hängt er für immer am Vortag.
   describe("Tageswechsel bei offener Seite", () => {
-    beforeEach(() => {
-      vi.useFakeTimers({ toFake: ["Date"] });
-    });
-
-    afterEach(() => {
-      vi.useRealTimers();
-    });
+    beforeEach(() => {});
 
     it("zieht einen laufenden Nachtblock nach Mitternacht auf den neuen Tag", () => {
       const runningNight: StaffHistorySession = {
@@ -389,7 +379,7 @@ describe("StaffSessionTable Arbeitsblöcke (#2402)", () => {
         sessions: [runningNight],
       };
 
-      vi.setSystemTime(new Date("2026-01-05T22:30:00Z")); // 23:30 Berlin
+      setTestClock(new Date("2026-01-05T22:30:00Z")); // 23:30 Berlin
       const view = render(
         tableElement({ ...props, today: new Date(2026, 0, 5) }),
       );
@@ -397,7 +387,7 @@ describe("StaffSessionTable Arbeitsblöcke (#2402)", () => {
         "00:00",
       );
 
-      vi.setSystemTime(new Date("2026-01-05T23:30:00Z")); // 00:30 Berlin, neuer Tag
+      setTestClock(new Date("2026-01-05T23:30:00Z")); // 00:30 Berlin, neuer Tag
       view.rerender(tableElement({ ...props, today: new Date(2026, 0, 6) }));
 
       expect(screen.getByText("06.01.").closest("tr")).toHaveTextContent(

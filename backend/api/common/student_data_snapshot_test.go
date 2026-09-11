@@ -1,8 +1,12 @@
 package common_test
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
@@ -12,7 +16,47 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+type failedSnapshotPersons struct {
+	err error
+}
+
+func (s failedSnapshotPersons) GetByIDs(context.Context, []int64) (map[int64]*userModels.Person, error) {
+	return nil, s.err
+}
+
+type failedSnapshotGroups struct {
+	err error
+}
+
+func (s failedSnapshotGroups) GetGroupsByIDs(context.Context, []int64) (map[int64]*educationModels.Group, error) {
+	return nil, s.err
+}
+
+func TestLoadStudentDataSnapshotPropagatesReadFailures(t *testing.T) {
+	t.Parallel()
+	injected := errors.New("snapshot read unavailable")
+	for _, stage := range []string{"persons", "groups", "locations"} {
+		t.Run(stage, func(t *testing.T) {
+			var studentIDs, personIDs, groupIDs []int64
+			switch stage {
+			case "persons":
+				personIDs = []int64{123}
+			case "groups":
+				groupIDs = []int64{456}
+			case "locations":
+				studentIDs = []int64{789}
+			}
+			snapshot, err := common.LoadStudentDataSnapshot(context.Background(),
+				failedSnapshotPersons{err: injected}, failedSnapshotGroups{err: injected},
+				failedPresenceMode{err: injected}, studentIDs, personIDs, groupIDs)
+			require.ErrorIs(t, err, injected)
+			assert.Nil(t, snapshot, "a failed read must not yield a partial snapshot")
+		})
+	}
+}
 
 // =============================================================================
 // StudentDataSnapshot.GetPerson Tests
@@ -187,7 +231,7 @@ func TestStudentDataSnapshot_ResolveLocationWithTime_WithLocationSnapshot(t *tes
 				CheckInTime: &checkinTime,
 			},
 		},
-		Visits: map[int64]*activeModels.Visit{
+		Visits: map[int64]*studentpresence.Visit{
 			123: {
 				StudentID:     123,
 				ActiveGroupID: 456,
@@ -232,7 +276,7 @@ func TestStudentDataSnapshot_ResolveLocationWithTime_NoFullAccess(t *testing.T) 
 				CheckInTime: &checkinTime,
 			},
 		},
-		Visits: make(map[int64]*activeModels.Visit),
+		Visits: make(map[int64]*studentpresence.Visit),
 		Groups: make(map[int64]*activeModels.Group),
 	}
 
@@ -277,7 +321,7 @@ func TestStudentDataSnapshot_CompleteScenario(t *testing.T) {
 			100: {StudentID: 100, Status: "checked_in", CheckInTime: &checkinTime},
 			200: {StudentID: 200, Status: "not_checked_in"},
 		},
-		Visits: map[int64]*activeModels.Visit{
+		Visits: map[int64]*studentpresence.Visit{
 			100: {StudentID: 100, ActiveGroupID: 500, EntryTime: entryTime},
 		},
 		Groups: map[int64]*activeModels.Group{

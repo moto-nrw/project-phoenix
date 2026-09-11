@@ -20,7 +20,7 @@ import (
 func TestCreatePartialAbsenceAppliesOnlyToBlocksStartingAfterTheChosenTime(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	student := testpkg.CreateTestStudent(t, tc.db, "Partial", "Absence", "PA1")
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Partial", "Teacher")
 	room := testpkg.CreateTestRoom(t, tc.db, "Partial absence room")
@@ -101,7 +101,7 @@ func TestCreatePartialAbsenceAppliesOnlyToBlocksStartingAfterTheChosenTime(t *te
 func TestPartialAbsencePreservesAnExplicitPickupOverride(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	student := testpkg.CreateTestStudent(t, tc.db, "Pickup", "Override", "PA2")
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Pickup", "Teacher")
 	date := timezone.NewDate(2026, 9, 16)
@@ -123,7 +123,7 @@ func TestPartialAbsencePreservesAnExplicitPickupOverride(t *testing.T) {
 	deleteRR := authExec(t, tc, deleteReq, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 	require.Equal(t, http.StatusOK, deleteRR.Code, deleteRR.Body.String())
 
-	fresh, err := tc.services.PickupSchedule.GetStudentPickupExceptionByID(testpkg.Ctx(t), exceptionID)
+	fresh, err := tc.resource.PickupScheduleService.GetStudentPickupExceptionByID(testpkg.Ctx(t), exceptionID)
 	require.NoError(t, err)
 	require.NotNil(t, fresh)
 	require.NotNil(t, fresh.PickupTime)
@@ -134,7 +134,7 @@ func TestPartialAbsencePreservesAnExplicitPickupOverride(t *testing.T) {
 func TestFullDayStatusDoesNotOverwritePartialAbsence(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	student := testpkg.CreateTestStudent(t, tc.db, "Conflict", "Partial", "PA3")
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Conflict", "Teacher")
 	date := timezone.NewDate(2026, 9, 17)
@@ -160,7 +160,7 @@ func TestFullDayStatusDoesNotOverwritePartialAbsence(t *testing.T) {
 func TestPartialAbsenceIsAPlannedPickupTimeWithoutAFullDayStatus(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	// Pin the clock to a fixed Monday: the effective-time resolver skips
 	// Saturday/Sunday entirely (weekday > WeekdayFriday), so a real-today
 	// date makes this test fail on every weekend CI run.

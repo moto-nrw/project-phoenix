@@ -5,6 +5,7 @@ import type {
   CompanionExtensionConfirmation,
   StudentCompanion,
 } from "./student-companion-api";
+import type { ConsentRecord } from "./consent-types";
 import {
   LOCATION_STATUSES,
   parseLocation,
@@ -533,9 +534,12 @@ export interface BackendStudent {
   agb_accepted_at?: string;
   data_processing_accepted_at?: string;
   email_contact_accepted_at?: string;
+  consents?: StudentConsent[];
   created_at: string;
   updated_at: string;
 }
+
+export type StudentConsent = ConsentRecord;
 
 /** Backend wire shape for `GET /api/students?view=slim`. */
 export interface BackendSlimStudent {
@@ -748,6 +752,7 @@ export interface Student {
   agb_accepted_at?: string;
   data_processing_accepted_at?: string;
   email_contact_accepted_at?: string;
+  consents?: StudentConsent[];
 }
 
 // Mapping functions
@@ -847,6 +852,7 @@ export function mapStudentResponse(
     agb_accepted_at: backendStudent.agb_accepted_at,
     data_processing_accepted_at: backendStudent.data_processing_accepted_at,
     email_contact_accepted_at: backendStudent.email_contact_accepted_at,
+    consents: backendStudent.consents,
   };
 
   // Add scheduled checkout info if present

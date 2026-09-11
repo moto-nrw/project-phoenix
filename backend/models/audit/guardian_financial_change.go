@@ -4,9 +4,6 @@ import (
 	"context"
 	"errors"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Audited guardian payment fields (#2608). The names are part of the audit
@@ -27,9 +24,8 @@ const (
 // guardian pays for ONE child; the bank fields belong to the guardian and
 // leave it nil. ChangedBy is the authenticated account ID.
 type GuardianFinancialChange struct {
-	bun.BaseModel `bun:"schema:audit,table:guardian_financial_changes"`
-	ID            int64 `bun:"id,pk,autoincrement" json:"id"`
-	base.TenantModel
+	ID int64 `bun:"id,pk,autoincrement" json:"id"`
+	TenantModel
 	GuardianProfileID int64     `bun:"guardian_profile_id,notnull" json:"guardian_profile_id"`
 	StudentID         *int64    `bun:"student_id" json:"student_id,omitempty"`
 	ChangedBy         int64     `bun:"changed_by,notnull" json:"changed_by"`

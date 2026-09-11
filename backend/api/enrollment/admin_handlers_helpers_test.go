@@ -5,30 +5,27 @@ import (
 	"testing"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	baseModel "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
-// mkRequest constructs an enrollment.Request via the embedded
-// base.Model so we can set ID in a struct literal. The Request
-// model embeds base.Model (which owns ID/CreatedAt/UpdatedAt) per
-// the rule 3 in backend-conventions.md — no per-entity ID field.
+// mkRequest constructs an enrollment request with the supplied IDs.
 func mkRequest(id int64, phaseID int64) *enrollmentModels.Request {
 	return &enrollmentModels.Request{
-		Model:   baseModel.Model{ID: id},
+		ID:      id,
 		PhaseID: phaseID,
 	}
 }
 
 // mkChild does the same for RequestChild.
-func mkChild(id int64) *enrollmentModels.RequestChild {
-	return &enrollmentModels.RequestChild{
-		Model: baseModel.Model{ID: id},
+func mkChild(id int64) *enrollmentService.RequestChild {
+	return &enrollmentService.RequestChild{
+		ID: id,
 	}
 }
 
@@ -55,23 +52,23 @@ func TestToAdminRequestSummary_StringifiesIDsAndFormatsDOB(t *testing.T) {
 	child := mkChild(999)
 	child.FirstName = "Lara"
 	child.LastName = "Beispiel"
-	child.DateOfBirth = timezone.NewDate(2018, 3, 4)
+	child.DateOfBirth = "2018-03-04"
 	child.Status = "submitted"
 	child.ActivationMode = "auto"
 
 	in := &enrollmentService.RequestSummary{
 		Request: req,
-		Phase: &enrollmentModels.Phase{
+		Phase: &capability.Phase{
 			Name:                      "Schuljahr 2026/27",
-			CareOfferingSelectionMode: enrollmentModels.PhaseCareOfferingSelectionOptional,
+			CareOfferingSelectionMode: capability.PhaseCareOfferingSelectionOptional,
 		},
-		Children: []*enrollmentModels.RequestChild{child},
+		Children: []*enrollmentService.RequestChild{child},
 	}
 	out := toAdminRequestSummary(in)
 	assert.Equal(t, "1234", out.ID, "int64 ID stringified per CLAUDE rule 4")
 	assert.Equal(t, "5678", out.PhaseID)
 	assert.Equal(t, "Schuljahr 2026/27", out.PhaseName)
-	assert.Equal(t, enrollmentModels.PhaseCareOfferingSelectionOptional, out.CareOfferingSelectionMode)
+	assert.Equal(t, capability.PhaseCareOfferingSelectionOptional, out.CareOfferingSelectionMode)
 	assert.Equal(t, "anna@example.test", out.GuardianEmail)
 	require.NotNil(t, out.GuardianPhone)
 	assert.Equal(t, phone, *out.GuardianPhone)
@@ -92,7 +89,7 @@ func TestToAdminRequestSummary_DoesNotExposeStatusToken(t *testing.T) {
 
 	out := toAdminRequestSummary(&enrollmentService.RequestSummary{
 		Request:  req,
-		Children: []*enrollmentModels.RequestChild{},
+		Children: []*enrollmentService.RequestChild{},
 	})
 	raw, err := json.Marshal(out)
 	require.NoError(t, err)
@@ -109,7 +106,7 @@ func TestToAdminRequestSummary_NilPhaseLeavesPhaseNameEmpty(t *testing.T) {
 	in := &enrollmentService.RequestSummary{
 		Request:  mkRequest(1234, 5678),
 		Phase:    nil,
-		Children: []*enrollmentModels.RequestChild{},
+		Children: []*enrollmentService.RequestChild{},
 	}
 	out := toAdminRequestSummary(in)
 	assert.Equal(t, "", out.PhaseName, "nil phase → empty PhaseName (no panic)")
@@ -142,12 +139,12 @@ func TestToAdminRequestSummary_PreservesNilOptionalPointers(t *testing.T) {
 	child := mkChild(999)
 	child.FirstName = "Lara"
 	child.LastName = "Beispiel"
-	child.DateOfBirth = timezone.NewDate(2018, 3, 4)
+	child.DateOfBirth = "2018-03-04"
 	child.Status = "submitted"
 
 	in := &enrollmentService.RequestSummary{
 		Request:  req,
-		Children: []*enrollmentModels.RequestChild{child},
+		Children: []*enrollmentService.RequestChild{child},
 	}
 	out := toAdminRequestSummary(in)
 	assert.Nil(t, out.GuardianPhone)
@@ -168,7 +165,7 @@ func TestToAdminRequestSummary_TargetGradeLevelPassesThrough(t *testing.T) {
 	child := mkChild(999)
 	child.FirstName = "Lara"
 	child.LastName = "Beispiel"
-	child.DateOfBirth = timezone.NewDate(2018, 3, 4)
+	child.DateOfBirth = "2018-03-04"
 	child.TargetGradeLevel = &g
 	child.Status = "pending_admin_review"
 	child.StatusReason = &reason
@@ -177,7 +174,7 @@ func TestToAdminRequestSummary_TargetGradeLevelPassesThrough(t *testing.T) {
 
 	in := &enrollmentService.RequestSummary{
 		Request:  mkRequest(1234, 5678),
-		Children: []*enrollmentModels.RequestChild{child},
+		Children: []*enrollmentService.RequestChild{child},
 	}
 	out := toAdminRequestSummary(in)
 	require.NotNil(t, out.Children[0].TargetGradeLevel)
@@ -194,12 +191,12 @@ func TestToAdminRequestSummary_PreservesCustomDataMap(t *testing.T) {
 	child := mkChild(999)
 	child.FirstName = "Lara"
 	child.LastName = "Beispiel"
-	child.DateOfBirth = timezone.NewDate(2018, 3, 4)
+	child.DateOfBirth = "2018-03-04"
 	child.CustomData = map[string]any{"allergies": "Nüsse"}
 
 	in := &enrollmentService.RequestSummary{
 		Request:  mkRequest(1234, 5678),
-		Children: []*enrollmentModels.RequestChild{child},
+		Children: []*enrollmentService.RequestChild{child},
 	}
 	out := toAdminRequestSummary(in)
 	require.Len(t, out.Children, 1)

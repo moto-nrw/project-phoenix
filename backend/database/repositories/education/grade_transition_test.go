@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/database/repositories/education"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -19,7 +18,7 @@ func TestGradeTransitionRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	// Create test account for created_by
@@ -67,7 +66,7 @@ func TestGradeTransitionRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-find")
@@ -92,7 +91,7 @@ func TestGradeTransitionRepository_FindByIDWithMappings(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-mappings")
@@ -115,7 +114,7 @@ func TestGradeTransitionRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-update")
@@ -159,7 +158,7 @@ func TestGradeTransitionRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-delete")
@@ -195,7 +194,7 @@ func TestGradeTransitionRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-list")
@@ -216,7 +215,7 @@ func TestGradeTransitionRepository_FindByAcademicYear(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-year")
@@ -241,7 +240,7 @@ func TestGradeTransitionRepository_FindByStatus(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-status")
@@ -264,7 +263,7 @@ func TestGradeTransitionRepository_MappingOperations(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-mapping-ops")
@@ -329,7 +328,7 @@ func TestGradeTransitionRepository_HistoryOperations(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-history-ops")
@@ -394,7 +393,7 @@ func TestGradeTransitionRepository_GetDistinctClasses(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns distinct classes from students", func(t *testing.T) {
@@ -417,7 +416,7 @@ func TestGradeTransitionRepository_GetStudentCountByClass(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("counts students in class", func(t *testing.T) {
@@ -443,7 +442,7 @@ func TestGradeTransitionRepository_GetStudentsByClasses(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("gets students by classes", func(t *testing.T) {
@@ -477,7 +476,7 @@ func TestGradeTransitionRepository_UpdateStudentClasses(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-update-classes")
@@ -564,7 +563,7 @@ func TestGradeTransitionRepository_GraduateStudentsByClasses(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	studentStatus := func(id int64) string {
@@ -650,7 +649,7 @@ func TestGradeTransitionRepository_ReactivateStudentsByIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("restores alumni back to active", func(t *testing.T) {
@@ -703,7 +702,7 @@ func TestGradeTransitionRepository_CreateWithNil(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("create with nil transition returns error", func(t *testing.T) {
@@ -718,7 +717,7 @@ func TestGradeTransitionRepository_UpdateWithNil(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("update with nil transition returns error", func(t *testing.T) {
@@ -733,7 +732,7 @@ func TestGradeTransitionRepository_CreateMappingWithNil(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("create mapping with nil returns error", func(t *testing.T) {
@@ -748,7 +747,7 @@ func TestGradeTransitionRepository_CreateMappingsWithEmpty(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("create mappings with empty slice succeeds", func(t *testing.T) {
@@ -762,7 +761,7 @@ func TestGradeTransitionRepository_CreateHistoryWithNil(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("create history with nil returns error", func(t *testing.T) {
@@ -777,7 +776,7 @@ func TestGradeTransitionRepository_CreateHistoryBatchWithEmpty(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("create history batch with empty slice succeeds", func(t *testing.T) {
@@ -795,7 +794,7 @@ func TestGradeTransitionRepository_CreateWithInvalidData(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("create with invalid academic year format fails", func(t *testing.T) {
@@ -840,7 +839,7 @@ func TestGradeTransitionRepository_CreateMappingWithInvalidData(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "mapping-invalid")
@@ -879,7 +878,7 @@ func TestGradeTransitionRepository_CreateHistoryWithInvalidData(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "history-invalid")

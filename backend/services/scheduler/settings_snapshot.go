@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"time"
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -79,7 +78,7 @@ var schedulerPollingSettingKeys = []string{
 // getMinuteSnapshot coalesces concurrent scheduler goroutines into one active
 // tenant query and one config.setting_values batch query per wall-clock minute.
 func (s *Scheduler) getMinuteSnapshot(ctx context.Context) (*schedulerMinuteSnapshot, error) {
-	ctx = tenant.WithRuntime(ctx, s.tenantRuntime)
+	ctx = s.withUnitOfWork(ctx)
 	now := time.Now
 	if s.minuteSnapshotNow != nil {
 		now = s.minuteSnapshotNow
@@ -121,7 +120,7 @@ func (s *Scheduler) getMinuteSnapshot(ctx context.Context) (*schedulerMinuteSnap
 }
 
 func (s *Scheduler) loadMinuteSnapshot(ctx context.Context) (*schedulerMinuteSnapshot, error) {
-	ctx = tenant.WithRuntime(ctx, s.tenantRuntime)
+	ctx = s.withUnitOfWork(ctx)
 	result := &schedulerMinuteSnapshot{}
 	err := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
 		schools, listErr := s.schoolRepo.ListActive(txCtx)
@@ -155,33 +154,6 @@ func (s *Scheduler) forEachKnownTenant(
 	opName string,
 	fn func(context.Context, int64) error,
 ) []int64 {
-	completed := make([]int64, 0, len(tenantIDs))
-	ctx = tenant.WithRuntime(ctx, s.tenantRuntime)
-	for _, tenantID := range tenantIDs {
-		id, idErr := tenant.NewTenantID(tenantID)
-		if idErr != nil {
-			s.observeTenantRuntime("missing_tenant")
-			s.getLogger().Error("tenant operation rejected",
-				slog.String("entry_point", "worker"),
-				slog.String("operation", opName),
-				slog.Int64("tenant_id", tenantID),
-				slog.String("error", idErr.Error()),
-			)
-			continue
-		}
-		err := tenant.WithinTenant(ctx, id, func(txCtx context.Context) error {
-			return fn(txCtx, tenantID)
-		})
-		if err != nil {
-			s.observeTenantRuntime("transaction_failure")
-			s.getLogger().Error("tenant operation failed, continuing to next tenant",
-				slog.String("operation", opName),
-				slog.Int64("tenant_id", tenantID),
-				slog.String("error", err.Error()),
-			)
-			continue
-		}
-		completed = append(completed, tenantID)
-	}
-	return completed
+	result := s.runTenantBatches(ctx, tenantIDs, opName, adaptTenantCommand(fn))
+	return result.CompletedTenantIDs()
 }

@@ -46,19 +46,25 @@ describe("NfcModeGuard", () => {
     expect(screen.getByText("nfc-content")).toBeInTheDocument();
   });
 
-  it("triggers notFound() when NFC is disabled", () => {
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  // Verhaltensänderung, ausdrücklich freigegeben: eine für die Schule nicht
+  // eingeschaltete Funktion ist ein Zustand, kein „nicht gefunden". Vorher
+  // löste der Wächter notFound() aus, wodurch die Seite behauptete, die
+  // Schule existiere nicht — für jemanden, der angemeldet in seiner eigenen
+  // Schule steht, eine irreführende Auskunft.
+  it('zeigt den Zustand „nicht eingeschaltet" statt einer 404, wenn NFC aus ist', () => {
+    render(
+      <TenantProvider tenantSlug="demo" tenant={makeTenant(false)}>
+        <NfcModeGuard>
+          <div>nfc-content</div>
+        </NfcModeGuard>
+      </TenantProvider>,
+    );
 
-    expect(() =>
-      render(
-        <TenantProvider tenantSlug="demo" tenant={makeTenant(false)}>
-          <NfcModeGuard>
-            <div>nfc-content</div>
-          </NfcModeGuard>
-        </TenantProvider>,
-      ),
-    ).toThrow("NEXT_NOT_FOUND");
-
-    errorSpy.mockRestore();
+    expect(screen.queryByText("nfc-content")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Diese Funktion ist nicht eingeschaltet"),
+    ).toBeInTheDocument();
+    // NFC ist operator-vorbehalten: der Satz darf NICHT die Leitung nennen.
+    expect(screen.getByText(/Wenden Sie sich an moto/)).toBeInTheDocument();
   });
 });

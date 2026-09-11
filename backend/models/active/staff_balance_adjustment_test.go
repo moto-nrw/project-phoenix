@@ -52,7 +52,7 @@ func TestStaffBalanceAdjustmentValidate_Rejects(t *testing.T) {
 		},
 		{
 			name:   "missing effective date",
-			mutate: func(a *StaffBalanceAdjustment) { a.EffectiveDate = timezone.Date{} },
+			mutate: func(a *StaffBalanceAdjustment) { a.EffectiveDate = timezone.Date("") },
 			errMsg: "effective_date is required",
 		},
 		{

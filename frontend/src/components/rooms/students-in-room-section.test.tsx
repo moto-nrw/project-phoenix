@@ -176,6 +176,8 @@ interface MockActiveGroup {
   id: string;
   roomId: string;
   isActive: boolean;
+  /** Running supervisions on the session (any staff), as the API reports. */
+  supervisorCount?: number;
 }
 
 interface MockRoom {
@@ -227,15 +229,16 @@ let activeGroupsState: { data: MockActiveGroup[] };
 let roomsState: { data: MockRoom[] };
 let currentStaffState: { data?: { id: string }; error?: unknown };
 let activeSupervisionsState: { data: MockSupervisor[]; error?: unknown };
+let sourceVisitGroupIDs: Map<string, string> | undefined;
 
 const setSWR = (state: typeof roomStudentsState) => {
   roomStudentsState = state;
 };
 
 const setBulkData = ({
-  // "842" is the active group running in the source room ("42"): the
-  // bulk-move UI only renders when the current staff member supervises
-  // the source room's active group(s) too (backend 403s otherwise).
+  // "842" is the active group running in the source room ("42"). By
+  // default the current staff member supervises every listed session
+  // (makeSupervisions), so both the push and the pull rule (#2969) apply.
   activeGroups = [
     { id: "842", roomId: "42", isActive: true },
     { id: "900", roomId: "9000", isActive: true },
@@ -292,6 +295,7 @@ beforeEach(() => {
   mockUseTenantMutateMatching.mockReturnValue(vi.fn());
   setSWR({ data: { students: [] } });
   setBulkData();
+  sourceVisitGroupIDs = undefined;
   mockUseSWRAuth.mockImplementation((key: string | null) => {
     if (key === null) {
       return { data: undefined, error: null, isLoading: false };
@@ -321,6 +325,26 @@ beforeEach(() => {
       return {
         data: activeSupervisionsState.data,
         error: activeSupervisionsState.error ?? null,
+        isLoading: false,
+      };
+    }
+    if (key.startsWith("room-bulk-source-visits-")) {
+      const supervisedSource = activeGroupsState.data.find(
+        (group) =>
+          group.roomId === "42" &&
+          activeSupervisionsState.data.some(
+            (supervision) => supervision.activeGroupId === group.id,
+          ),
+      );
+      return {
+        data: new Map(
+          (roomStudentsState.data?.students ?? []).flatMap((student) => {
+            const activeGroupId =
+              sourceVisitGroupIDs?.get(student.id) ?? supervisedSource?.id;
+            return activeGroupId ? [[student.id, { activeGroupId }]] : [];
+          }),
+        ),
+        error: null,
         isLoading: false,
       };
     }
@@ -535,6 +559,23 @@ describe("StudentsInRoomSection", () => {
   });
 
   describe("bulk room move", () => {
+    it("uses one source-visit cache key for equivalent source group sets", () => {
+      setSWR({ data: { students: [makeStudent({ id: "7" })] } });
+      setBulkData({
+        activeGroups: [
+          { id: "source-b", roomId: "42", isActive: true },
+          { id: "source-a", roomId: "42", isActive: true },
+        ],
+      });
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+
+      expect(mockUseSWRAuth).toHaveBeenCalledWith(
+        'room-bulk-source-visits-["source-a","source-b"]',
+        expect.any(Function),
+      );
+    });
+
     it("renders the roster read-only when web attendance is disabled", () => {
       vi.mocked(useAttendanceWebEnabled).mockReturnValue(false);
       setSWR({ data: { students: [makeStudent()] } });
@@ -568,7 +609,7 @@ describe("StudentsInRoomSection", () => {
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
 
       expect(mockUseTenantMutateMatching).toHaveBeenCalledWith(
-        expect.arrayContaining(["rooms-list"]),
+        expect.arrayContaining(["rooms-list", "room-bulk-source-visits-"]),
       );
       fireEvent.click(
         screen.getByRole("checkbox", { name: /Anna Müller auswählen/ }),
@@ -748,47 +789,191 @@ describe("StudentsInRoomSection", () => {
       ).toBeInTheDocument();
     });
 
-    it("filters target rooms to the current staff member's active supervisions", () => {
+    it("offers a source supervisor every room a colleague supervises, but no unsupervised room (#2969)", () => {
       setSWR({ data: { students: [makeStudent({ id: "7" })] } });
       setBulkData({
         activeGroups: [
-          { id: "source", roomId: "42", isActive: true },
+          { id: "source", roomId: "42", isActive: true, supervisorCount: 1 },
+          // Running session, but nobody supervises it right now.
           { id: "unsupervised", roomId: "9000", isActive: true },
-          { id: "supervised", roomId: "9001", isActive: true },
+          // Supervised by a colleague only.
+          {
+            id: "colleague",
+            roomId: "9001",
+            isActive: true,
+            supervisorCount: 1,
+          },
+          // Supervised by the current staff member.
+          { id: "own", roomId: "9002", isActive: true, supervisorCount: 1 },
         ],
         rooms: [
           { id: "9000", name: "Aula" },
           { id: "9001", name: "Raum 6" },
+          { id: "9002", name: "Atelier" },
         ],
-        activeSupervisions: [
-          {
-            id: "1",
-            staffId: "20",
-            activeGroupId: "source",
-            startTime: new Date("2026-05-14T08:00:00.000Z"),
-            isActive: true,
-            createdAt: new Date("2026-05-14T08:00:00.000Z"),
-            updatedAt: new Date("2026-05-14T08:00:00.000Z"),
-          },
-          {
-            id: "2",
-            staffId: "20",
-            activeGroupId: "supervised",
-            startTime: new Date("2026-05-14T08:00:00.000Z"),
-            isActive: true,
-            createdAt: new Date("2026-05-14T08:00:00.000Z"),
-            updatedAt: new Date("2026-05-14T08:00:00.000Z"),
-          },
-        ],
+        activeSupervisions: makeSupervisions([
+          { id: "source", roomId: "42", isActive: true },
+          { id: "own", roomId: "9002", isActive: true },
+        ]),
       });
 
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
 
+      expect(
+        screen.getByText("Zur Auswahl stehen Räume mit laufender Aufsicht."),
+      ).toBeInTheDocument();
       fireEvent.click(screen.getByLabelText("Zielraum"));
       expect(screen.queryByRole("option", { name: "Aula" })).toBeNull();
       expect(
         screen.getByRole("option", { name: "Raum 6" }),
       ).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: "Atelier" }),
+      ).toBeInTheDocument();
+    });
+
+    it("keeps push targets available when another source session is not supervised (#2969)", () => {
+      setSWR({ data: { students: [makeStudent({ id: "7" })] } });
+      setBulkData({
+        activeGroups: [
+          {
+            id: "supervised-source",
+            roomId: "42",
+            isActive: true,
+            supervisorCount: 1,
+          },
+          { id: "unsupervised-source", roomId: "42", isActive: true },
+          {
+            id: "colleague",
+            roomId: "9001",
+            isActive: true,
+            supervisorCount: 1,
+          },
+        ],
+        rooms: [{ id: "9001", name: "Raum 6" }],
+        activeSupervisions: makeSupervisions([
+          { id: "supervised-source", roomId: "42", isActive: true },
+        ]),
+      });
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+
+      fireEvent.click(screen.getByLabelText("Zielraum"));
+      expect(
+        screen.getByRole("option", { name: "Raum 6" }),
+      ).toBeInTheDocument();
+    });
+
+    it("selects and clears only children from supervised source sessions for a colleague target (#2969)", () => {
+      sourceVisitGroupIDs = new Map([
+        ["7", "supervised-source"],
+        ["8", "unsupervised-source"],
+      ]);
+      setSWR({
+        data: {
+          students: [
+            makeStudent({ id: "7" }),
+            makeStudent({ id: "8", first_name: "Ben" }),
+          ],
+        },
+      });
+      setBulkData({
+        activeGroups: [
+          {
+            id: "supervised-source",
+            roomId: "42",
+            isActive: true,
+            supervisorCount: 1,
+          },
+          { id: "unsupervised-source", roomId: "42", isActive: true },
+          {
+            id: "colleague",
+            roomId: "9001",
+            isActive: true,
+            supervisorCount: 1,
+          },
+        ],
+        rooms: [{ id: "9001", name: "Raum 6" }],
+        activeSupervisions: makeSupervisions([
+          { id: "supervised-source", roomId: "42", isActive: true },
+        ]),
+      });
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+
+      fireEvent.click(screen.getByLabelText("Zielraum"));
+      fireEvent.click(screen.getByRole("option", { name: "Raum 6" }));
+      fireEvent.click(screen.getByRole("button", { name: "Alle auswählen" }));
+
+      expect(screen.getByText("1 von 1 ausgewählt")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Aufheben" }),
+      ).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Aufheben" }));
+      expect(screen.getByText("Kinder auswählen")).toBeInTheDocument();
+    });
+
+    it("lets a source supervisor push a child into a colleague's room (#2969)", async () => {
+      mockMoveStudentsToActiveGroup.mockResolvedValue({
+        moved: ["7"],
+        unchanged: [],
+        skipped: [],
+      });
+      setSWR({ data: { students: [makeStudent({ id: "7" })] } });
+      setBulkData({
+        activeGroups: [
+          { id: "source", roomId: "42", isActive: true, supervisorCount: 1 },
+          {
+            id: "colleague",
+            roomId: "9001",
+            isActive: true,
+            supervisorCount: 2,
+          },
+        ],
+        rooms: [{ id: "9001", name: "Raum 6" }],
+        activeSupervisions: makeSupervisions([
+          { id: "source", roomId: "42", isActive: true },
+        ]),
+      });
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: /Anna Müller auswählen/ }),
+      );
+      fireEvent.click(screen.getByLabelText("Zielraum"));
+      fireEvent.click(screen.getByRole("option", { name: "Raum 6" }));
+      fireEvent.click(screen.getByRole("button", { name: "In Raum setzen" }));
+
+      await waitFor(() => {
+        expect(mockMoveStudentsToActiveGroup).toHaveBeenCalledWith(
+          ["7"],
+          "colleague",
+        );
+      });
+    });
+
+    it("explains when a source supervisor has no supervised target room right now (#2969)", () => {
+      setSWR({ data: { students: [makeStudent({ id: "7" })] } });
+      setBulkData({
+        activeGroups: [
+          { id: "source", roomId: "42", isActive: true, supervisorCount: 1 },
+          { id: "unsupervised", roomId: "9000", isActive: true },
+        ],
+        rooms: [{ id: "9000", name: "Aula" }],
+        activeSupervisions: makeSupervisions([
+          { id: "source", roomId: "42", isActive: true },
+        ]),
+      });
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+
+      expect(
+        screen.getByText(
+          "Zurzeit hat kein anderer Raum eine laufende Aufsicht.",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText("Zielraum")).toBeDisabled();
     });
 
     it("keeps all active target rooms visible for admins", () => {
@@ -835,12 +1020,15 @@ describe("StudentsInRoomSection", () => {
           { id: "source", roomId: "42", isActive: true },
           { id: "first", roomId: "9000", isActive: true },
           { id: "second", roomId: "9000", isActive: true },
-          { id: "single", roomId: "9001", isActive: true },
+          { id: "single", roomId: "9001", isActive: true, supervisorCount: 1 },
         ],
         rooms: [
           { id: "9000", name: "Raum mit Konflikt" },
           { id: "9001", name: "Raum 6" },
         ],
+        activeSupervisions: makeSupervisions([
+          { id: "source", roomId: "42", isActive: true },
+        ]),
       });
 
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
@@ -854,31 +1042,91 @@ describe("StudentsInRoomSection", () => {
       ).toBeInTheDocument();
     });
 
-    it("hides the bulk-move UI when the source room's active group is not supervised", () => {
+    it("offers an own pull target in an otherwise ambiguous room", () => {
       setSWR({ data: { students: [makeStudent({ id: "7" })] } });
       setBulkData({
         activeGroups: [
+          { id: "source", roomId: "42", isActive: true, supervisorCount: 1 },
+          { id: "mine", roomId: "9000", isActive: true, supervisorCount: 1 },
+          { id: "other", roomId: "9000", isActive: true },
+        ],
+        rooms: [{ id: "9000", name: "Raum mit Konflikt" }],
+        activeSupervisions: makeSupervisions([
           { id: "source", roomId: "42", isActive: true },
-          { id: "target", roomId: "9000", isActive: true },
-        ],
-        rooms: [{ id: "9000", name: "Raum 6" }],
-        activeSupervisions: [
-          {
-            id: "1",
-            staffId: "20",
-            activeGroupId: "target",
-            startTime: new Date("2026-05-14T08:00:00.000Z"),
-            isActive: true,
-            createdAt: new Date("2026-05-14T08:00:00.000Z"),
-            updatedAt: new Date("2026-05-14T08:00:00.000Z"),
-          },
-        ],
+          { id: "mine", roomId: "9000", isActive: true },
+        ]),
       });
 
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
 
-      // Backend rejects moves out of unsupervised source groups with 403,
-      // so neither the toolbar nor the per-row checkboxes may render.
+      fireEvent.click(screen.getByLabelText("Zielraum"));
+      expect(
+        screen.getByRole("option", { name: "Raum mit Konflikt" }),
+      ).toBeInTheDocument();
+    });
+
+    it("lets a target supervisor pull a child out of a colleague's room, limited to own rooms (#2969)", async () => {
+      mockMoveStudentsToActiveGroup.mockResolvedValue({
+        moved: ["7"],
+        unchanged: [],
+        skipped: [],
+      });
+      setSWR({ data: { students: [makeStudent({ id: "7" })] } });
+      setBulkData({
+        activeGroups: [
+          // Source supervised by a colleague, not by the current staff member.
+          { id: "source", roomId: "42", isActive: true, supervisorCount: 1 },
+          { id: "target", roomId: "9000", isActive: true, supervisorCount: 1 },
+          // Another colleague's room: visible to source supervisors only.
+          { id: "foreign", roomId: "9001", isActive: true, supervisorCount: 1 },
+        ],
+        rooms: [
+          { id: "9000", name: "Raum 6" },
+          { id: "9001", name: "Aula" },
+        ],
+        activeSupervisions: makeSupervisions([
+          { id: "target", roomId: "9000", isActive: true },
+        ]),
+      });
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+
+      expect(
+        screen.getByText(
+          "Zur Auswahl stehen nur Räume, die Sie selbst beaufsichtigen.",
+        ),
+      ).toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: /Anna Müller auswählen/ }),
+      );
+      fireEvent.click(screen.getByLabelText("Zielraum"));
+      expect(screen.queryByRole("option", { name: "Aula" })).toBeNull();
+      fireEvent.click(screen.getByRole("option", { name: "Raum 6" }));
+      fireEvent.click(screen.getByRole("button", { name: "In Raum setzen" }));
+
+      await waitFor(() => {
+        expect(mockMoveStudentsToActiveGroup).toHaveBeenCalledWith(
+          ["7"],
+          "target",
+        );
+      });
+    });
+
+    it("hides the bulk-move UI when the staff member supervises neither the source nor a target (#2969)", () => {
+      setSWR({ data: { students: [makeStudent({ id: "7" })] } });
+      setBulkData({
+        activeGroups: [
+          { id: "source", roomId: "42", isActive: true, supervisorCount: 1 },
+          { id: "target", roomId: "9000", isActive: true, supervisorCount: 1 },
+        ],
+        rooms: [{ id: "9000", name: "Raum 6" }],
+        activeSupervisions: [],
+      });
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+
+      // Backend rejects the move with 403 (push-or-pull rule), so neither
+      // the toolbar nor the per-row checkboxes may render.
       expect(
         screen.queryByRole("button", { name: "In Raum setzen" }),
       ).toBeNull();

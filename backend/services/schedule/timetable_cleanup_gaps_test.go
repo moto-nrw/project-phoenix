@@ -15,7 +15,6 @@ import (
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,9 +45,9 @@ func buildSvc(db *bun.DB, settings configSvc.SettingsService) scheduleSvc.Timeta
 	return scheduleSvc.NewTimetableCleanupService(
 		scheduleRepoPkg.NewActivityInstanceRepository(db),
 		scheduleRepoPkg.NewActivityExceptionRepository(db),
-		scheduleRepoPkg.NewInstanceStudentRepository(db),
-		auditRepoPkg.NewDataDeletionRepository(db),
-		auditRepoPkg.NewDeviationEventRepository(db),
+		testInstanceStudents(db),
+		auditRepoPkg.NewDataDeletionRepository(auditRepoPkg.NewRuntime(db, auditModels.TenantIDFromContext)),
+		auditRepoPkg.NewDeviationEventRepository(auditRepoPkg.NewRuntime(db, auditModels.TenantIDFromContext)),
 		settings,
 		slog.Default(),
 	)
@@ -263,7 +262,7 @@ func TestCleanup_NilAuditRepo_ReturnsError(t *testing.T) {
 	svc := scheduleSvc.NewTimetableCleanupService(
 		scheduleRepoPkg.NewActivityInstanceRepository(f.db),
 		scheduleRepoPkg.NewActivityExceptionRepository(f.db),
-		scheduleRepoPkg.NewInstanceStudentRepository(f.db),
+		testInstanceStudents(f.db),
 		nil,
 		nil,
 		nil,
@@ -292,8 +291,8 @@ func TestNewTimetableCleanupService_NilLogger_FallsBackToDefault(t *testing.T) {
 	svc := scheduleSvc.NewTimetableCleanupService(
 		scheduleRepoPkg.NewActivityInstanceRepository(db),
 		scheduleRepoPkg.NewActivityExceptionRepository(db),
-		scheduleRepoPkg.NewInstanceStudentRepository(db),
-		auditRepoPkg.NewDataDeletionRepository(db),
+		testInstanceStudents(db),
+		auditRepoPkg.NewDataDeletionRepository(auditRepoPkg.NewRuntime(db, auditModels.TenantIDFromContext)),
 		nil,
 		nil,
 		nil,
@@ -304,7 +303,7 @@ func TestNewTimetableCleanupService_NilLogger_FallsBackToDefault(t *testing.T) {
 	// aggregate cleanup query isolated from other tests.
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	ctx := tenant.WithTenantID(context.Background(), tenantID)
+	ctx := testpkg.TenantContext(tenantID)
 	_, err := svc.CleanupExpiredTimetableData(ctx)
 	// Real DB under an empty tenant → cleanup succeeds with zeros. The
 	// critical assertion is "no panic".

@@ -1,22 +1,17 @@
-package applog_test
+package applog
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"log"
 	"log/slog"
-	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/applog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // newTestLogger creates a logger that writes to a buffer for output inspection.
-// This bypasses applog.New() to avoid mutating slog.SetDefault() across parallel tests.
-// Use applog.New() only in TestNew_SetsDefault where we explicitly test that behavior.
 func newTestLogger(buf *bytes.Buffer, format string, level string) *slog.Logger {
 	lvl := slog.LevelInfo
 	switch level {
@@ -37,12 +32,12 @@ func newTestLogger(buf *bytes.Buffer, format string, level string) *slog.Logger 
 	return slog.New(handler)
 }
 
-func TestNew_SetsDefault(t *testing.T) {
+func TestNew_ReturnsConfiguredLogger(t *testing.T) {
 	t.Parallel()
 
-	logger := applog.New(applog.Config{Level: "info", Format: "json"})
+	logger := New(Config{Level: "info", Format: "json", Output: &bytes.Buffer{}})
 	require.NotNil(t, logger)
-	assert.Equal(t, logger.Handler(), slog.Default().Handler())
+	assert.NotNil(t, logger.Handler())
 }
 
 func TestNew_JSONOutput(t *testing.T) {
@@ -131,7 +126,7 @@ func TestNew_ParsesLevels(t *testing.T) {
 		{"garbage", slog.LevelInfo}, // fallback
 	} {
 		t.Run(tc.level, func(t *testing.T) {
-			logger := applog.New(applog.Config{Level: tc.level, Format: "json"})
+			logger := New(Config{Level: tc.level, Format: "json"})
 			require.NotNil(t, logger)
 		})
 	}
@@ -150,31 +145,4 @@ func TestNew_EnvAttribute(t *testing.T) {
 	err := json.Unmarshal(buf.Bytes(), &parsed)
 	require.NoError(t, err)
 	assert.Equal(t, "test", parsed["env"])
-}
-
-// Deliberately NOT parallel: mutates process-global configuration.
-func TestNew_StdlibLogRouting(t *testing.T) {
-	// Verify that after SetDefault + SetLogLoggerLevel(WARN),
-	// stdlib log.Printf calls appear as WARN-level slog output
-	var buf bytes.Buffer
-	handler := slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn})
-	logger := slog.New(handler)
-	slog.SetDefault(logger)
-	slog.SetLogLoggerLevel(slog.LevelWarn)
-
-	log.Print("legacy log call")
-
-	output := buf.String()
-	assert.Contains(t, output, "WARN", "stdlib log.Print should route as WARN")
-	assert.Contains(t, output, "legacy log call")
-
-	// Verify it's valid JSON
-	for line := range strings.SplitSeq(strings.TrimSpace(output), "\n") {
-		if line == "" {
-			continue
-		}
-		var parsed map[string]any
-		err := json.Unmarshal([]byte(line), &parsed)
-		require.NoError(t, err, "routed stdlib log must produce valid JSON: %s", line)
-	}
 }

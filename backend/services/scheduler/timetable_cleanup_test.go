@@ -52,21 +52,6 @@ func (f *fakeTimetableCleanup) GetStats(_ context.Context) (*scheduleSvc.Timetab
 }
 
 // -----------------------------------------------------------------------------
-// SetTimetableCleanup — pure setter
-// -----------------------------------------------------------------------------
-
-func TestSetTimetableCleanup(t *testing.T) {
-	t.Parallel()
-
-	s := newUnitScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
-	assert.Nil(t, s.timetableCleanup)
-
-	svc := &fakeTimetableCleanup{}
-	s.SetTimetableCleanup(svc)
-	assert.Same(t, svc, s.timetableCleanup)
-}
-
-// -----------------------------------------------------------------------------
 // scheduleTimetableCleanupTask — nil service vs. registered
 // -----------------------------------------------------------------------------
 
@@ -182,7 +167,7 @@ func TestCheckAndRunTimetableCleanup_AlreadyRunning(t *testing.T) {
 
 	task := &ScheduledTask{Name: "timetable-cleanup", Running: true}
 
-	s.checkAndRunTimetableCleanup(task)
+	s.checkAndRunTimetableCleanup(context.Background(), task)
 
 	assert.Equal(t, 0, svc.cleanupCalls, "must skip work when task is already running")
 }
@@ -205,7 +190,7 @@ func TestCheckAndRunTimetableCleanup_Disabled(t *testing.T) {
 
 	task := &ScheduledTask{Name: "timetable-cleanup"}
 
-	s.checkAndRunTimetableCleanup(task)
+	s.checkAndRunTimetableCleanup(context.Background(), task)
 
 	assert.Equal(t, 0, svc.cleanupCalls, "disabled tenant must not invoke cleanup")
 	task.mu.Lock()
@@ -235,7 +220,7 @@ func TestCheckAndRunTimetableCleanup_WrongTime(t *testing.T) {
 
 	task := &ScheduledTask{Name: "timetable-cleanup"}
 
-	s.checkAndRunTimetableCleanup(task)
+	s.checkAndRunTimetableCleanup(context.Background(), task)
 	assert.Equal(t, 0, svc.cleanupCalls, "wrong time must skip cleanup")
 }
 
@@ -263,7 +248,7 @@ func TestCheckAndRunTimetableCleanup_WasRunToday(t *testing.T) {
 	s.lastTimetableCleanup.Store(schedulerUnitTenantID, time.Now())
 	task := &ScheduledTask{Name: "timetable-cleanup"}
 
-	s.checkAndRunTimetableCleanup(task)
+	s.checkAndRunTimetableCleanup(context.Background(), task)
 	assert.Equal(t, 0, svc.cleanupCalls, "already-ran-today dedupe must skip cleanup")
 }
 
@@ -300,7 +285,7 @@ func TestCheckAndRunTimetableCleanup_HappyPath(t *testing.T) {
 
 	task := &ScheduledTask{Name: "timetable-cleanup"}
 
-	s.checkAndRunTimetableCleanup(task)
+	s.checkAndRunTimetableCleanup(context.Background(), task)
 
 	assert.Equal(t, 1, svc.cleanupCalls, "matching time + enabled + not-run-today → cleanup fires")
 
@@ -330,7 +315,7 @@ func TestCheckAndRunTimetableCleanup_ServiceError_ClearsTodayStamp(t *testing.T)
 	task := &ScheduledTask{Name: "timetable-cleanup"}
 
 	assert.NotPanics(t, func() {
-		s.checkAndRunTimetableCleanup(task)
+		s.checkAndRunTimetableCleanup(context.Background(), task)
 	})
 	assert.Equal(t, 1, svc.cleanupCalls, "cleanup must be attempted")
 
@@ -368,7 +353,7 @@ func TestCheckAndRunTimetableCleanup_ZeroCounters_SuppressesInfoLog(t *testing.T
 
 	task := &ScheduledTask{Name: "timetable-cleanup"}
 
-	s.checkAndRunTimetableCleanup(task)
+	s.checkAndRunTimetableCleanup(context.Background(), task)
 
 	assert.Equal(t, 1, svc.cleanupCalls)
 	_, ok := s.lastTimetableCleanup.Load(schedulerUnitTenantID)

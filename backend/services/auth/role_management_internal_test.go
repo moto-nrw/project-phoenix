@@ -181,10 +181,6 @@ func (r roleManagementRolePermissionRepo) FindByRoleID(context.Context, int64) (
 	panic("FindByRoleID not implemented")
 }
 
-func (r roleManagementRolePermissionRepo) FindByPermissionID(context.Context, int64) ([]*authModel.RolePermission, error) {
-	panic("FindByPermissionID not implemented")
-}
-
 func (r roleManagementRolePermissionRepo) FindByRoleAndPermission(context.Context, int64, int64) (*authModel.RolePermission, error) {
 	panic("FindByRoleAndPermission not implemented")
 }

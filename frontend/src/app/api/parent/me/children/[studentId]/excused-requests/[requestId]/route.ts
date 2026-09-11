@@ -1,35 +1,20 @@
-import {
-  createParentDeleteHandler,
-  parentApiDelete,
-} from "~/lib/parent/route-wrapper.server";
+import { proxyPut } from "~/lib/parent/route-wrapper.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
-interface BackendExcusedRequest {
-  id: string;
-  student_id: string;
-  absence_status: string;
-  status: string;
+interface EditExcusedRequestBody {
   dates: string[];
   note: string;
-  decision_reason?: string;
-  created_at: string;
-  reviewed_at?: string;
-  is_self: boolean;
+  expected_version: string;
 }
 
 /**
- * DELETE /api/parent/me/children/{studentId}/excused-requests/{requestId} →
- * backend. Withdraws the guardian's own still-pending sick or excused absence
- * request and returns the updated request (now `withdrawn`). The route retains
- * its legacy excused-only name. The backend rejects a withdraw once the OGS has
- * decided the request, and verifies guardianship from the JWT.
+ * Proxy PUT /api/parent/me/children/{studentId}/excused-requests/{requestId}
+ * → backend. Changes the guardian's own still-pending sick or excused absence
+ * request. The route retains its legacy excused-only name. The backend answers
+ * 409 `change_request_stale` when `expected_version` no longer matches, and
+ * verifies guardianship from the JWT.
  */
-export const DELETE = createParentDeleteHandler<BackendExcusedRequest>(
-  async (_request, token, params) => {
-    const studentId = String(params.studentId);
-    const requestId = String(params.requestId);
-    return parentApiDelete<BackendExcusedRequest>(
-      `/parent/me/children/${encodeURIComponent(studentId)}/excused-requests/${encodeURIComponent(requestId)}`,
-      token,
-    );
-  },
+export const PUT = proxyPut<unknown, EditExcusedRequestBody>(
+  (params) =>
+    `/parent/me/children/${requirePathSegmentParam(params, "studentId")}/excused-requests/${requirePathSegmentParam(params, "requestId")}`,
 );

@@ -4,14 +4,12 @@ import (
 	"context"
 	"errors"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // WorkSessionEdit records a single field change on a work session for audit trail
 type WorkSessionEdit struct {
 	ID int64 `bun:"id,pk,autoincrement" json:"id"`
-	base.TenantModel
+	TenantModel
 	SessionID int64     `bun:"session_id,notnull" json:"session_id"`
 	StaffID   int64     `bun:"staff_id,notnull" json:"staff_id"`
 	EditedBy  int64     `bun:"edited_by,notnull" json:"edited_by"`

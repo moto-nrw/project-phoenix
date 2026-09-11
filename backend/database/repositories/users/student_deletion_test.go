@@ -5,9 +5,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,7 +18,7 @@ func TestStudentDeletionRepository_RequiresTenantContext(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := repositories.NewFactory(db).StudentDeletion
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentDeletion
 
 	_, err := repo.Preview(context.Background(), 1)
 	assert.ErrorContains(t, err, "tenant context is required")
@@ -53,8 +54,8 @@ func TestStudentDeletionRepository_LockMessageThreadsBlocksNewRead(t *testing.T)
 	tx, err := db.BeginTx(ctx, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = tx.Rollback() })
-	txCtx := modelBase.ContextWithTx(ctx, &tx)
-	repo := repositories.NewFactory(db).StudentDeletion
+	txCtx := tenant.WithTransactionForTest(ctx, &tx)
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentDeletion
 	require.NoError(t, repo.LockMessageThreads(txCtx, target.ID))
 
 	concurrentTx, err := db.BeginTx(ctx, nil)
@@ -85,7 +86,7 @@ func TestStudentDeletionRepository_DeletesOnlyTargetAssignments(t *testing.T) {
 	targetAssignment := testpkg.CreateTestInstanceStudent(t, db, instance.ID, target.ID, "")
 	sparedAssignment := testpkg.CreateTestInstanceStudent(t, db, instance.ID, spared.ID, "")
 
-	repo := repositories.NewFactory(db).StudentDeletion
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentDeletion
 	preview, err := repo.Preview(ctx, target.ID)
 	require.NoError(t, err)
 	assert.Equal(t, 1, preview.TimetableAssignments)
@@ -106,7 +107,7 @@ func TestStudentDeletionRepository_DeletesOnlyTargetAssignments(t *testing.T) {
 	assert.Equal(t, 1, sparedCount)
 	assert.Equal(t, 1, instanceCount)
 
-	person, err := repositories.NewFactory(db).Person.FindByID(ctx, target.PersonID)
+	person, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person.FindByID(ctx, target.PersonID)
 	require.NoError(t, err)
 	_, err = db.NewUpdate().
 		TableExpr(`users.persons AS "person"`).

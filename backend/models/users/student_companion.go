@@ -23,7 +23,7 @@ var (
 	// companion_student_id in the request body decodes to. A sentinel, not a
 	// fresh error: the handler's error table maps it to a 400, whereas an
 	// untyped error would leak malformed client input as a 500.
-	ErrCompanionStudentIDRequired = errors.New("Bitte ein Kind für die Laufgemeinschaft auswählen.") //nolint:staticcheck // ST1005: user-facing German message
+	ErrCompanionStudentIDRequired = errors.New("Bitte ein Kind für die Laufgemeinschaft auswählen.") //nolint:staticcheck // user-facing German message
 
 	// ErrCompanionWouldLoseDeparture indicates that removing a link would leave
 	// the OTHER child with an accompanied ("Anderes Kind") departure plan and no
@@ -335,46 +335,4 @@ func FormatCompanionLinks(links []CompanionLink) string {
 		parts = append(parts, part)
 	}
 	return strings.Join(parts, ", ")
-}
-
-// CompanionLinksFromEdges folds the edges touching studentID into one entry per
-// companion with their weekdays in Mon..Fri order. Edges not touching studentID
-// are ignored.
-func CompanionLinksFromEdges(studentID int64, edges []*StudentCompanion) []CompanionLink {
-	byCompanion := make(map[int64]map[int]bool)
-	for _, edge := range edges {
-		if edge == nil {
-			continue
-		}
-		other, ok := edge.Other(studentID)
-		if !ok {
-			continue
-		}
-		if byCompanion[other] == nil {
-			byCompanion[other] = make(map[int]bool)
-		}
-		byCompanion[other][edge.Weekday] = true
-	}
-
-	links := make([]CompanionLink, 0, len(byCompanion))
-	for companionID, weekdays := range byCompanion {
-		numbers := make([]int, 0, len(weekdays))
-		for number := range weekdays {
-			numbers = append(numbers, number)
-		}
-		sort.Ints(numbers)
-
-		keys := make([]string, 0, len(numbers))
-		for _, number := range numbers {
-			if key, ok := CompanionWeekdayKeys[number]; ok {
-				keys = append(keys, key)
-			}
-		}
-		links = append(links, CompanionLink{CompanionStudentID: companionID, Weekdays: keys})
-	}
-
-	sort.Slice(links, func(i, j int) bool {
-		return links[i].CompanionStudentID < links[j].CompanionStudentID
-	})
-	return links
 }

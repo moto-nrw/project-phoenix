@@ -146,11 +146,11 @@ export function ConceptPageHeader({
       <ConceptIconTile concept={concept} variant="page" />
       <div className="min-w-0">
         {eyebrow ? (
-          <div className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+          <div className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
             {eyebrow}
           </div>
         ) : null}
-        <h1 className="text-2xl font-semibold text-balance text-gray-900 sm:text-3xl">
+        <h1 className="text-2xl font-bold text-balance text-gray-900 sm:text-3xl">
           {title}
         </h1>
         {subtitle ? (

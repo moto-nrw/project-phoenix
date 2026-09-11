@@ -9,7 +9,6 @@
 //
 //	ARRANGE: Create test fixtures (real database records)
 //	  student := testpkg.CreateTestStudent(t, db, "First", "Last", "1a")
-//	  defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 //
 //	ACT: Perform the operation under test
 //	  result, err := service.GetStudentAttendanceStatus(ctx, student.ID)
@@ -39,45 +38,6 @@ import (
 //
 // Attendance fixtures are provided by testpkg:
 // - testpkg.CreateTestAttendance(t, db, studentID, staffID, deviceID, checkInTime, checkOutTime)
-// - testpkg.CleanupActivityFixtures automatically cleans up attendance records by student_id
-
-// =============================================================================
-// Model Tests (No Database Required)
-// =============================================================================
-
-// TestAttendance_IsCheckedIn tests the IsCheckedIn helper method on the Attendance model.
-// This is a pure model test - it doesn't need a database connection.
-func TestAttendance_IsCheckedIn(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name           string
-		checkOutTime   *time.Time
-		expectedResult bool
-	}{
-		{
-			name:           "Student is checked in (no checkout time)",
-			checkOutTime:   nil,
-			expectedResult: true,
-		},
-		{
-			name:           "Student is checked out (has checkout time)",
-			checkOutTime:   func() *time.Time { t := time.Now(); return &t }(),
-			expectedResult: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			attendance := &active.Attendance{
-				CheckOutTime: tt.checkOutTime,
-			}
-
-			result := attendance.IsCheckedIn()
-			assert.Equal(t, tt.expectedResult, result)
-		})
-	}
-}
 
 // =============================================================================
 // Service Integration Tests (Hermetic Pattern with Real Database)
@@ -90,7 +50,7 @@ func TestGetStudentAttendanceStatus_NotCheckedIn(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupActiveService(t, db)
+	service := setupActiveService(t, db, func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC) })
 	ctx := testpkg.Ctx(t)
 
 	// ARRANGE: Create a student (but NO attendance record)
@@ -104,7 +64,7 @@ func TestGetStudentAttendanceStatus_NotCheckedIn(t *testing.T) {
 	assert.Equal(t, student.ID, result.StudentID)
 	assert.Equal(t, "not_checked_in", result.Status)
 	// Service uses timezone.TodayDate() — today's Berlin calendar day
-	expectedDate := timezone.TodayDate()
+	expectedDate := timezone.NewDate(2026, 8, 24)
 	assert.Equal(t, expectedDate, result.Date)
 	assert.Nil(t, result.CheckInTime)
 	assert.Nil(t, result.CheckOutTime)
@@ -777,7 +737,7 @@ func TestToggleStudentAttendance_IoTDevice(t *testing.T) {
 
 		// Create IoT device context using device package constants
 		ctx := context.WithValue(testpkg.Ctx(t), device.CtxIsIoTDevice, true)
-		ctx = context.WithValue(ctx, device.CtxDevice, testDevice)
+		ctx = context.WithValue(ctx, device.CtxDevice, devicePrincipal(testDevice.ID, testDevice.TenantID))
 
 		// ACT: Toggle attendance (check-in)
 		result, err := service.ToggleStudentAttendance(ctx, student.ID, 0, testDevice.ID, false)
@@ -795,7 +755,7 @@ func TestToggleStudentAttendance_IoTDevice(t *testing.T) {
 
 		// Create IoT device context using device package constants
 		ctx := context.WithValue(testpkg.Ctx(t), device.CtxIsIoTDevice, true)
-		ctx = context.WithValue(ctx, device.CtxDevice, testDevice)
+		ctx = context.WithValue(ctx, device.CtxDevice, devicePrincipal(testDevice.ID, testDevice.TenantID))
 
 		// ACT: Toggle attendance
 		_, err := service.ToggleStudentAttendance(ctx, student.ID, 0, testDevice.ID, false)
@@ -979,13 +939,9 @@ func TestCheckOutStudentFromDevice_ClosesOpenRowWithSupervisor(t *testing.T) {
 	assert.Equal(t, "checked_out", result.Action)
 	assert.Equal(t, open.ID, result.AttendanceID)
 
-	var row active.Attendance
-	err = db.NewSelect().
-		Model(&row).
-		ModelTableExpr(`active.attendance AS "attendance"`).
-		Where(`"attendance".id = ?`, open.ID).
-		Scan(context.Background())
+	row, err := testSchoolPresence(t, db).FindAttendance(testpkg.Ctx(t), open.ID)
 	require.NoError(t, err)
+	require.NotNil(t, row)
 	require.NotNil(t, row.CheckOutTime)
 	require.NotNil(t, row.CheckedOutBy)
 	assert.Equal(t, staff.ID, *row.CheckedOutBy)
@@ -1040,13 +996,9 @@ func TestCheckOutStudentFromDevice_ClosesOpenRowWithoutActiveSupervisor(t *testi
 			assert.Equal(t, "checked_out", result.Action)
 			assert.Equal(t, open.ID, result.AttendanceID)
 
-			var row active.Attendance
-			err = db.NewSelect().
-				Model(&row).
-				ModelTableExpr(`active.attendance AS "attendance"`).
-				Where(`"attendance".id = ?`, open.ID).
-				Scan(context.Background())
+			row, err := testSchoolPresence(t, db).FindAttendance(testpkg.Ctx(t), open.ID)
 			require.NoError(t, err)
+			require.NotNil(t, row)
 			require.NotNil(t, row.CheckOutTime)
 			assert.Nil(t, row.CheckedOutBy)
 			require.NotNil(t, row.CheckedOutDeviceID)
@@ -1067,7 +1019,7 @@ func TestCheckOutStudentFromDevice_PrefersAuthenticatedStaff(t *testing.T) {
 	checkInStaff := testpkg.CreateTestStaff(t, db, "Device", "InitialStaff")
 	authenticatedStaff := testpkg.CreateTestStaff(t, db, "Device", "AuthenticatedStaff")
 	open := testpkg.CreateTestAttendance(t, db, student.ID, checkInStaff.ID, deviceRec.ID, time.Now().Add(-time.Hour), nil)
-	ctx = context.WithValue(ctx, device.CtxStaff, authenticatedStaff)
+	ctx = context.WithValue(ctx, device.CtxStaff, staffPrincipal(authenticatedStaff))
 
 	result, err := service.CheckOutStudentFromDevice(ctx, student.ID, deviceRec.ID)
 
@@ -1075,12 +1027,9 @@ func TestCheckOutStudentFromDevice_PrefersAuthenticatedStaff(t *testing.T) {
 	require.NotNil(t, result)
 	assert.Equal(t, open.ID, result.AttendanceID)
 
-	var row active.Attendance
-	require.NoError(t, db.NewSelect().
-		Model(&row).
-		ModelTableExpr(`active.attendance AS "attendance"`).
-		Where(`"attendance".id = ?`, open.ID).
-		Scan(context.Background()))
+	row, err := testSchoolPresence(t, db).FindAttendance(testpkg.Ctx(t), open.ID)
+	require.NoError(t, err)
+	require.NotNil(t, row)
 	require.NotNil(t, row.CheckedOutBy)
 	assert.Equal(t, authenticatedStaff.ID, *row.CheckedOutBy)
 	require.NotNil(t, row.CheckedOutDeviceID)
@@ -1105,12 +1054,9 @@ func TestCheckOutStudentFromDevice_DoesNotSwallowSupervisorLookupFailure(t *test
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "resolve daily checkout staff attribution")
 
-	var row active.Attendance
-	require.NoError(t, db.NewSelect().
-		Model(&row).
-		ModelTableExpr(`active.attendance AS "attendance"`).
-		Where(`"attendance".id = ?`, open.ID).
-		Scan(context.Background()))
+	row, err := testSchoolPresence(t, db).FindAttendance(testpkg.Ctx(t), open.ID)
+	require.NoError(t, err)
+	require.NotNil(t, row)
 	assert.Nil(t, row.CheckOutTime)
 }
 

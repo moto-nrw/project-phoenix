@@ -8,10 +8,15 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { RotateCw, Check } from "lucide-react";
 import { useSWRConfig } from "swr";
 import { useTranslations } from "next-intl";
+import { Button } from "~/components/ui/button";
 
 type ButtonState = "idle" | "spinning" | "success";
 
-export function RefreshButton() {
+export function RefreshButton({
+  drawer = false,
+}: {
+  readonly drawer?: boolean;
+}) {
   // parentNav is provided in every shell (full catalog in the parents portal,
   // German-only mirror via ShellIntlProvider in the staff/operator shells),
   // so the German label is unchanged there and only the parent portal localizes.
@@ -49,13 +54,19 @@ export function RefreshButton() {
   }, [state]);
 
   return (
-    <button
+    <Button
       type="button"
       onClick={handleRefresh}
       disabled={state === "spinning"}
       aria-label={t("refresh")}
       title={t("refresh")}
-      className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 transition-colors duration-200 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50"
+      variant="ghost"
+      size={drawer ? "touch" : "icon"}
+      className={
+        drawer
+          ? "w-full justify-start gap-3 px-4"
+          : "h-10 w-10 text-gray-500 hover:text-gray-700"
+      }
     >
       <div className="relative h-5 w-5">
         <RotateCw
@@ -72,6 +83,7 @@ export function RefreshButton() {
           }`}
         />
       </div>
-    </button>
+      {drawer ? <span>{t("refresh")}</span> : null}
+    </Button>
   );
 }

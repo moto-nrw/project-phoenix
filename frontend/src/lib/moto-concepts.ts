@@ -227,7 +227,7 @@ export const MOTO_CONCEPTS = {
     "planning",
   ),
   groupAccess: concept(
-    "Gruppenzugriff",
+    "Gruppenübergaben",
     UserSwitchIcon,
     "purple",
     "function",

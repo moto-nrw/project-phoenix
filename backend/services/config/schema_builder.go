@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"sort"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/models/config"
 )
 
@@ -42,7 +41,7 @@ func buildSchemaWithScope(
 	userPermissions []string,
 	isOperator bool,
 ) (*SettingsSchema, error) {
-	defs := config.AllDefinitions()
+	defs := svc.registry.AllDefinitions()
 
 	// Resolve all values for dependency evaluation, then filter the output
 	// separately. Tenant-visible settings can depend on operator-only
@@ -103,7 +102,7 @@ func buildSchemaWithScope(
 		// the route level; they bypass WritePermission in SetValue).
 		writable := isOperator ||
 			def.WritePermission == "" ||
-			authorize.HasPermission(def.WritePermission, userPermissions)
+			hasPermission(def.WritePermission, userPermissions)
 
 		resolved := &ResolvedSetting{
 			Key:          key,
@@ -140,7 +139,7 @@ func buildSchemaWithScope(
 	tabSet := make(map[string]bool)
 
 	for _, resolved := range outputMap {
-		def := config.GetDefinition(resolved.Key)
+		def := svc.registry.GetDefinition(resolved.Key)
 		if def == nil {
 			continue
 		}
@@ -216,7 +215,7 @@ func shouldIncludeInSchema(def *config.Definition, userPermissions []string, isO
 	// the per-setting ReadPermission because operator access is route-gated.
 	return isOperator ||
 		def.ReadPermission == "" ||
-		authorize.HasPermission(def.ReadPermission, userPermissions)
+		hasPermission(def.ReadPermission, userPermissions)
 }
 
 // evaluateDependency checks if a setting's dependency condition is met.

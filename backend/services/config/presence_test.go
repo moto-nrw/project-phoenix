@@ -1,4 +1,4 @@
-package config_test
+package config
 
 import (
 	"bytes"
@@ -8,35 +8,34 @@ import (
 	"testing"
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestResolvePresenceModeForTenant_NilService(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, configModel.PresenceModeDetailed, configSvc.ResolvePresenceModeForTenant(context.Background(), nil, 42, nil))
+	assert.Equal(t, configModel.PresenceModeDetailed, ResolvePresenceModeForTenant(context.Background(), nil, 42, nil))
 }
 
 func TestResolvePresenceModeForTenant_OverrideBinary(t *testing.T) {
 	t.Parallel()
 
 	svc := newFakeSettingsService(fakeSettingsServiceOpts{strVal: configModel.PresenceModeBinary})
-	assert.Equal(t, configModel.PresenceModeBinary, configSvc.ResolvePresenceModeForTenant(context.Background(), svc, 42, nil))
+	assert.Equal(t, configModel.PresenceModeBinary, ResolvePresenceModeForTenant(context.Background(), svc, 42, nil))
 }
 
 func TestResolvePresenceModeForTenant_EmptyString_FallsBackToDetailed(t *testing.T) {
 	t.Parallel()
 
 	svc := newFakeSettingsService(fakeSettingsServiceOpts{strVal: ""})
-	assert.Equal(t, configModel.PresenceModeDetailed, configSvc.ResolvePresenceModeForTenant(context.Background(), svc, 42, nil))
+	assert.Equal(t, configModel.PresenceModeDetailed, ResolvePresenceModeForTenant(context.Background(), svc, 42, nil))
 }
 
 func TestResolvePresenceModeForTenant_ResolveError_FallsBackToDetailed(t *testing.T) {
 	t.Parallel()
 
 	svc := newFakeSettingsService(fakeSettingsServiceOpts{strErr: errors.New("tenant not found")})
-	assert.Equal(t, configModel.PresenceModeDetailed, configSvc.ResolvePresenceModeForTenant(context.Background(), svc, 42, nil))
+	assert.Equal(t, configModel.PresenceModeDetailed, ResolvePresenceModeForTenant(context.Background(), svc, 42, nil))
 }
 
 // The test below exercises the `logger != nil` branch inside the resolver's
@@ -51,7 +50,7 @@ func TestResolvePresenceModeForTenant_ErrorWithLogger_LogsWarning(t *testing.T) 
 	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn}))
 	svc := newFakeSettingsService(fakeSettingsServiceOpts{strErr: errors.New("tenant 42 not found")})
 
-	mode := configSvc.ResolvePresenceModeForTenant(context.Background(), svc, 42, logger)
+	mode := ResolvePresenceModeForTenant(context.Background(), svc, 42, logger)
 
 	assert.Equal(t, configModel.PresenceModeDetailed, mode)
 	assert.Contains(t, buf.String(), "presence_mode resolve failed")

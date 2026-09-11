@@ -1,9 +1,4 @@
-// Deliberately NOT parallel (whole package): the settings registry is a
-// package-global map. These tests register, override and reset definitions in
-// it (registerTestSetting and friends), so a test that reads a definition
-// cannot run beside one that replaces it. Said once here instead of above
-// each of the ~147 tests (#2419).
-package config_test
+package config
 
 import (
 	"testing"

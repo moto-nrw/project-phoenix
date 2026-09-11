@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 	"fmt"
+	"slices"
+	"sort"
 )
 
 type healthCheckStep struct{}
@@ -84,6 +86,29 @@ func (markStudentsSickStep) Run(ctx context.Context, rt *Runtime) error {
 	return rt.FixedSeeder.MarkStudentsSick(ctx, rt.Result.Fixed)
 }
 
+type seedFamilyProtectionStep struct{}
+
+func (seedFamilyProtectionStep) Name() string { return "Seeding family protection" }
+
+func (seedFamilyProtectionStep) Run(_ context.Context, rt *Runtime) error {
+	if rt.FixedSeeder == nil {
+		return fmt.Errorf("fixed seeder not available")
+	}
+	studentID, ok := rt.FixedSeeder.studentIDByIndex[1]
+	if !ok {
+		return fmt.Errorf("family protection demo student not available")
+	}
+	_, err := rt.Client.Put(fmt.Sprintf("/api/students/%d/family-protection", studentID), map[string]any{
+		"enabled": true,
+		"reason":  "Demo: private Familienangaben schützen",
+	})
+	if err != nil {
+		return fmt.Errorf("seed family protection: %w", err)
+	}
+	fmt.Println("  1 family protection rule created")
+	return nil
+}
+
 type buildStateStep struct {
 	seeder *Seeder
 }
@@ -96,17 +121,17 @@ func (s buildStateStep) Run(_ context.Context, rt *Runtime) error {
 	}
 
 	state := s.seeder.collectSeedState(rt.FixedSeeder, rt.StaffPIN, rt.Bootstrap)
+	if virtual, ok := rt.Values["profile.virtual_device"].(SeedDevice); ok {
+		state.Devices[virtual.DeviceID] = virtual
+	}
 	state.Credentials.Operator = &SeedOperatorCredentials{
 		Email:    rt.OperatorEmail,
 		Password: rt.OperatorPassword,
 	}
 	state.Topology.Organizations = 1
-	state.Topology.Schools = 1
-	if rt.CareWithdrawals != nil {
-		state.Topology.Schools++
-		state.CareWithdrawals = rt.CareWithdrawals
-	}
-	state.Topology.Mode = "full-demo"
+	state.Topology.Schools = 1 + len(rt.AdditionalProfiles)
+
+	state.Topology.Mode = "profiles"
 	state.Scenarios.DefaultPlayer = "pyreportal"
 	state.Scenarios.DefaultMode = "hybrid"
 	state.Parents = append([]ParentCredentials(nil), rt.Parents...)
@@ -114,13 +139,39 @@ func (s buildStateStep) Run(_ context.Context, rt *Runtime) error {
 	state.Enrollment = cloneEnrollmentState(rt.Enrollment)
 	state.Entities.Enrollment = cloneEnrollmentState(rt.Enrollment)
 	state.Normalize()
+	mergeAdditionalProfiles(state, rt.AdditionalProfiles)
+
+	for _, key := range []string{enrollmentWeeklyProfileKey, enrollmentBookingsProfileKey} {
+		if additional, ok := rt.Values[key].(*SeedState); ok {
+			mergeAdditionalProfiles(state, additional.Profiles)
+		}
+	}
+	state.Topology.Organizations = len(state.Organizations)
+	state.Topology.Schools = len(state.Profiles)
 
 	rt.State = state
-	if err := WriteSeedState(state, DefaultSeedStatePath); err != nil {
+	if err := WriteSeedState(state, s.seeder.statePath); err != nil {
 		return err
 	}
-	fmt.Printf("Seed state written to %s\n", DefaultSeedStatePath)
+	fmt.Printf("Seed state written to %s\n", s.seeder.statePath)
 	return nil
+}
+
+func mergeAdditionalProfiles(state *SeedState, profiles map[string]*SeedProfile) {
+	for key, profile := range profiles {
+		if profile == nil {
+			continue
+		}
+		state.Profiles[key] = profile
+		organization := state.Organizations[profile.Organization.Slug]
+		organization.ID = profile.Organization.ID
+		organization.Name = profile.Organization.Name
+		organization.Slug = profile.Organization.Slug
+		organization.Profiles = append(organization.Profiles, key)
+		sort.Strings(organization.Profiles)
+		organization.Profiles = slices.Compact(organization.Profiles)
+		state.Organizations[organization.Slug] = organization
+	}
 }
 
 type printSummaryStep struct {
@@ -147,21 +198,41 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			healthCheckStep{},
 			operatorLoginStep{},
 			bootstrapTenantStep{seeder: seeder},
+			configureProfileStep{definition: seeder.definition},
 			seedMasterDataStep{seeder: seeder},
+			seedPlanningDemoStep{},
+			seedStudentStatusVariantsStep{},
+			seedOperationsDemoStep{},
+			seedHomeLayoutStep{},
+			seedStaffMasterDataStep{},
+			seedImportAuditStep{},
+			seedAuditLifecycleStep{},
 			seedPrivacyConsentsStep{},
+			seedFamilyProtectionStep{},
 			markStudentsSickStep{},
 			seedCareExitsStep{},
 			seedAnnouncementsStep{},
 			seedStaffMessagingStep{},
+			seedStaffNoticesStep{},
 			seedFileStorageStep{},
-			seedTimeTrackingHistoryStep{},
-			// Nach der Zeiterfassungs-Historie: der Sitzungsstart stempelt die
-			// Aufsicht per NFC ein, und ein Arbeitsblock von heute würde sonst
-			// mit dem heutigen Block der Historie kollidieren.
+			// Vor der App-Historie: der IoT-Sitzungsstart erzeugt den echten
+			// NFC-Arbeitsblock. Nach einem App-Checkout am selben Tag verhindert
+			// die Zeiterfassung bewusst einen erneuten Auto-Check-in.
 			seedStatisticsDemoStep{},
+			seedTimeTrackingHistoryStep{},
+			seedDataAccessAuditStep{},
+			// Rührt weder an der Zeiterfassung noch am NFC-Block: legt nur
+			// vergangene Kurstermine samt Anwesenheit an (#2891).
+			seedCourseParticipationStep{},
 			parentEnrollmentSeedStep{seeder: seeder},
+			seedParentEngagementStep{},
+			seedGradeTransitionStep{},
 			seedParentLetterStep{},
-			seedCareWithdrawalsStep{seeder: seeder},
+			seedInactiveAccountStep{},
+			verifyProfileStep{definition: seeder.definition},
+			manualProfileStep{seeder: seeder},
+			seedEnrollmentWeeklyProfileStep{seeder: seeder},
+			seedEnrollmentBookingsProfileStep{seeder: seeder},
 			buildStateStep{seeder: seeder},
 			printSummaryStep{seeder: seeder},
 		},

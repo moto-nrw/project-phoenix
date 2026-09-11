@@ -121,7 +121,7 @@ export function ChildDayCard({
        umbrechen lassen, obwohl auf dem Schirm Platz war. */
     <article
       data-testid="child-day-card"
-      className="@container relative overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"
+      className="moto-content-surface @container relative overflow-hidden rounded-2xl border shadow-sm"
     >
       <div className="space-y-5 p-5 sm:p-6">
         {hideIdentity && (

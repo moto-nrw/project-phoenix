@@ -1,4 +1,4 @@
-package facilities_test
+package facilities
 
 import (
 	"os"
@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/stretchr/testify/require"
 )
 
@@ -173,7 +172,7 @@ func exposedReservedHexes(t *testing.T) map[string]struct{} {
 
 	out := make(map[string]struct{}, len(knownReserved))
 	for _, hex := range knownReserved {
-		require.True(t, facilities.IsReservedRoomColor(hex),
+		require.True(t, IsReservedRoomColor(hex),
 			"backend room_colors.go knownReserved is out of sync with "+
 				"reservedRoomColors map: %s should be reserved but isn't",
 			hex)
@@ -189,7 +188,7 @@ func exposedReservedHexes(t *testing.T) map[string]struct{} {
 func TestReservedRoomColors_LegacyBugDefault(t *testing.T) {
 	t.Parallel()
 
-	require.True(t, facilities.IsReservedRoomColor("#4F46E5"),
+	require.True(t, IsReservedRoomColor("#4F46E5"),
 		"legacy bug-default #4F46E5 must remain reserved — see "+
 			"migration 1.15.45 / room_colors.go for the rationale")
 }
@@ -209,7 +208,7 @@ func TestReservedRoomColors_RetiredStatusColors(t *testing.T) {
 	for _, hex := range []string{
 		"#FF3130", // previous HOME status color
 	} {
-		require.True(t, facilities.IsReservedRoomColor(hex),
+		require.True(t, IsReservedRoomColor(hex),
 			"retired status color %s must remain reserved — see the "+
 				"reservedRoomColors comment in room_colors.go", hex)
 	}

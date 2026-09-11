@@ -48,6 +48,13 @@ type requestScopedConfig[T any] interface {
 
 type importConfigLocker interface{ ImportLock() *sync.Mutex }
 
+// importModeAuthorizer lets a config veto an import mode for the current
+// importer before any row is validated (#2906). Configs without it accept
+// every mode the route allows.
+type importModeAuthorizer interface {
+	AuthorizeImportMode(ctx context.Context, mode importModels.ImportMode) error
+}
+
 // NewImportService creates a new import service
 func NewImportService[T any](config importModels.ImportConfig[T]) *ImportService[T] {
 	return &ImportService[T]{
@@ -125,6 +132,12 @@ func (s *ImportService[T]) importWithConfig(ctx context.Context, request importM
 	// Store importer's user ID in context for entity creation (e.g. pickup schedules)
 	ctx = ContextWithImporterID(ctx, request.UserID)
 	ctx = context.WithValue(ctx, importModeKey{}, request.Mode)
+
+	if authorizer, ok := s.config.(importModeAuthorizer); ok {
+		if err := authorizer.AuthorizeImportMode(ctx, request.Mode); err != nil {
+			return nil, err
+		}
+	}
 
 	if err := s.config.PreloadReferenceData(ctx); err != nil {
 		return nil, fmt.Errorf("preload reference data: %w", err)

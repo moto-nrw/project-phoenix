@@ -105,10 +105,9 @@ func TestOperatorRefreshTokenRepository_DeleteByFamilyIDAndLatest(t *testing.T) 
 	assert.Nil(t, latest)
 }
 
-// Deliberately NOT parallel: DeleteExpired sweeps the tenant-less operator
-// refresh tokens of the whole clone and the assertion pins how many rows it
-// removed, so a token another test happens to have expired is counted too.
 func TestOperatorRefreshTokenRepository_DeleteExpired(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoplatform.NewOperatorRefreshTokenRepository(db)

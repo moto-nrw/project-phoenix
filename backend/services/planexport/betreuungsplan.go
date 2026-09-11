@@ -80,7 +80,7 @@ type betreuungsplanData struct {
 func (s *service) loadBetreuungsplanData(
 	ctx context.Context, from, to timezone.Date, variant Variant,
 ) (*betreuungsplanData, error) {
-	instances, err := s.deps.Instances.FindByTenantAndDateRange(ctx, from, to)
+	instances, err := s.deps.Instances.FindByTenantAndDateRange(ctx, scheduleModel.Date(from), scheduleModel.Date(to))
 	if err != nil {
 		return nil, fmt.Errorf("load activity instances: %w", err)
 	}
@@ -283,7 +283,7 @@ func (d *betreuungsplanData) rows(w week) []listexport.Row {
 	offerings := map[offeringKey]*offering{}
 
 	for _, instance := range d.instances {
-		index, ok := dayIndex[instance.Date]
+		index, ok := dayIndex[timezone.Date(instance.Date)]
 		if !ok {
 			continue
 		}
@@ -349,7 +349,7 @@ func (d *betreuungsplanData) rows(w week) []listexport.Row {
 func (d *betreuungsplanData) plannedDays() map[timezone.Date]bool {
 	days := make(map[timezone.Date]bool, len(d.instances))
 	for _, instance := range d.instances {
-		days[instance.Date] = true
+		days[timezone.Date(instance.Date)] = true
 	}
 	return days
 }

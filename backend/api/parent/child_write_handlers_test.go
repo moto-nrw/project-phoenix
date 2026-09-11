@@ -19,7 +19,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -46,6 +45,17 @@ func (absenceApprovalOnSettings) ResolveBoolForTenant(_ context.Context, _ int64
 	return true, nil
 }
 
+// ResolveStringForTenant answers the string settings the write paths read
+// (today: the reason policy, #2267). An empty value means "not configured",
+// which the consumers read as the registry default.
+func (absenceApprovalOnSettings) ResolveStringForTenant(_ context.Context, _ int64, _ string) (string, error) {
+	return "", nil
+}
+
+func (alwaysOnSettings) ResolveStringForTenant(_ context.Context, _ int64, _ string) (string, error) {
+	return "", nil
+}
+
 // testJWTSecret must match the constant testpkg.GetTestTokenAuth signs
 // with, so the Router's MustNewTokenAuth (which reads viper) validates the
 // tokens these tests mint.
@@ -57,24 +67,15 @@ func newWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 
 func newWriteRouterWithSettings(t *testing.T, db *bun.DB, settings configService.SettingsService) http.Handler {
 	t.Helper()
-	repos := repositories.NewFactory(db)
-	excused := absenceSvc.NewExcusedAbsenceRequestServiceWithPartialAbsences(
-		repos.ExcusedAbsenceRequest,
-		repos.StudentStatusDay,
-		repos.StudentPickupException,
-		repos.Student,
-		repos.Person,
-		nil, nil, nil,
-		slog.Default(),
-		db,
-	)
+	repos, repoErr := repositories.NewParentRouteTestRepositories(db)
+	require.NoError(t, repoErr)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,
 		StatusDayRepo:       repos.StudentStatusDay,
 		StudentRepo:         repos.Student,
 		PickupExceptionRepo: repos.StudentPickupException,
 		Settings:            settings,
-		ExcusedRequests:     excused,
+		ExcusedRequests:     repos.ExcusedRequests,
 		DB:                  db,
 		Logger:              slog.Default(),
 	})
@@ -213,7 +214,8 @@ func (disabledSettings) ResolveBoolForTenant(_ context.Context, _ int64, _ strin
 
 func newDisabledWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 	t.Helper()
-	repos := repositories.NewFactory(db)
+	repos, repoErr := repositories.NewParentRouteTestRepositories(db)
+	require.NoError(t, repoErr)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:     repos.ParentChild,
 		StatusDayRepo: repos.StudentStatusDay,

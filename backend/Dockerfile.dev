@@ -1,12 +1,14 @@
 # syntax=docker/dockerfile:1
 # Development Dockerfile with hot reload via air
-FROM golang:1.25-alpine
+FROM golang:1.27.0-alpine3.24
 
-# Air v1.67+ requires Go 1.26. Keep this image on a Go-checksum-verified version.
+ENV GOTOOLCHAIN=local
+
+# Keep the container and Devbox hot-reload tool on the same pinned release.
 RUN apk --no-cache add ca-certificates bash tzdata git # NOSONAR
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go install github.com/air-verse/air@v1.63.0
+    go install github.com/air-verse/air@v1.67.4
 
 WORKDIR /app
 

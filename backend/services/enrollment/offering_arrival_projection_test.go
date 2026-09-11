@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -31,7 +33,8 @@ func bookingModeArrivalBaseline(t *testing.T, env *decisionTestEnv, authoritativ
 		env.repos.StudentArrivalSchedule,
 		env.repos.Student,
 		env.repos.ClassArrivalTime,
-		env.repos.RequestChildOffering,
+		env.repos.ClassArrivalException,
+		approvedOfferingTestProjection(env.repos),
 		env.repos.CareOffering,
 		bookingModeSettings(authoritative),
 	)
@@ -64,7 +67,7 @@ func bookingModeCareDays(t *testing.T, env *decisionTestEnv, authoritative bool)
 		ArrivalExceptions: env.repos.StudentArrivalException,
 		PickupBaselines: scheduletest.NewPickupBaselineService(
 			env.repos.StudentPickupSchedule,
-			env.repos.RequestChildOffering,
+			approvedOfferingTestProjection(env.repos),
 			env.repos.CareOffering,
 		),
 		PickupExceptions:  env.repos.StudentPickupException,
@@ -75,7 +78,7 @@ func bookingModeCareDays(t *testing.T, env *decisionTestEnv, authoritative bool)
 func bookingModePickupBaseline(env *decisionTestEnv, authoritative bool) scheduleService.PickupBaselineReader {
 	return scheduleService.NewPickupBaselineServiceWithSettings(
 		env.repos.StudentPickupSchedule,
-		env.repos.RequestChildOffering,
+		approvedOfferingTestProjection(env.repos),
 		env.repos.CareOffering,
 		bookingModeSettings(authoritative),
 	)
@@ -115,7 +118,7 @@ func createArrivalOffering(t *testing.T, env *decisionTestEnv, name string, days
 		IsActive:       true,
 		CountsAsCare:   true,
 	}
-	offering.SetTenantID(testpkg.Tenant(t))
+	offering.TenantID = testpkg.Tenant(t)
 	require.NoError(t, env.repos.CareOffering.Create(testpkg.Ctx(t), offering))
 	return offering
 }
@@ -142,7 +145,7 @@ func TestArrivalProjection_BookingModeLimitsCareDaysToBookedWeekdays(t *testing.
 
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-30))
+	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-30))
 	ctx := testpkg.Ctx(t)
 
 	offering := createArrivalOffering(t, env, "ankunft-montags", []string{"mon"})
@@ -152,7 +155,7 @@ func TestArrivalProjection_BookingModeLimitsCareDaysToBookedWeekdays(t *testing.
 	setStudentClass(t, env, studentID, "3b")
 	setArrivalClassTimes(t, env, "3b", map[string]string{"mon": "11:45", "tue": "11:45"})
 
-	monday := nextWeekday(timezone.TodayDate(), time.Monday)
+	monday := nextWeekday(decisionTestToday, time.Monday)
 	baseline := bookingModeArrivalBaseline(t, env, true)
 	projection, err := baseline.Project(ctx, []int64{studentID}, monday, monday.AddDays(1))
 	require.NoError(t, err)
@@ -192,7 +195,7 @@ func TestArrivalProjection_StaleRowOnUnbookedDayIsIgnored(t *testing.T) {
 
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-30))
+	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-30))
 	ctx := testpkg.Ctx(t)
 
 	offering := createArrivalOffering(t, env, "ankunft-altzeile", []string{"mon"})
@@ -205,7 +208,7 @@ func TestArrivalProjection_StaleRowOnUnbookedDayIsIgnored(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, env.db, "Betreuung", "Altzeile")
 	testpkg.CreateTestArrivalSchedule(t, env.db, studentID, scheduleModels.WeekdayThursday, staff.ID, "11:45")
 
-	monday := nextWeekday(timezone.TodayDate(), time.Monday)
+	monday := nextWeekday(decisionTestToday, time.Monday)
 	thursday := monday.AddDays(3)
 
 	baseline := bookingModeArrivalBaseline(t, env, true)
@@ -226,7 +229,7 @@ func TestArrivalProjection_BookingEndStopsTheArrival(t *testing.T) {
 
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-30))
+	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-30))
 	ctx := testpkg.Ctx(t)
 
 	offering := createArrivalOffering(t, env, "ankunft-abmeldung", []string{"mon"})
@@ -236,17 +239,11 @@ func TestArrivalProjection_BookingEndStopsTheArrival(t *testing.T) {
 	setStudentClass(t, env, studentID, "4a")
 	setArrivalClassTimes(t, env, "4a", map[string]string{"mon": "12:45"})
 
-	firstMonday := nextWeekday(timezone.TodayDate().AddDays(1), time.Monday)
+	firstMonday := nextWeekday(decisionTestToday.AddDays(1), time.Monday)
 	secondMonday := firstMonday.AddDays(7)
 
 	// Abmeldung: the booking stops at the second Monday (half-open window).
-	_, err := env.db.NewUpdate().
-		Model((*enrollmentModels.RequestChildOffering)(nil)).
-		ModelTableExpr(`enrollment.request_child_offerings AS "request_child_offering"`).
-		Set("valid_until = ?", secondMonday).
-		Where(`"request_child_offering".request_child_id = ?`, childID).
-		Where(`"request_child_offering".care_offering_id = ?`, offering.ID).
-		Exec(ctx)
+	err := env.repos.Enrollment().ScheduleRequestChildOfferings(ctx, childID, capability.Date(secondMonday), nil)
 	require.NoError(t, err)
 
 	baseline := bookingModeArrivalBaseline(t, env, true)
@@ -270,7 +267,7 @@ func TestArrivalProjection_StaleRowNoLongerMarksTheChildExpected(t *testing.T) {
 
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-30))
+	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-30))
 	ctx := testpkg.Ctx(t)
 
 	offering := createArrivalOffering(t, env, "erwartet-status", []string{"mon"})
@@ -287,7 +284,7 @@ func TestArrivalProjection_StaleRowNoLongerMarksTheChildExpected(t *testing.T) {
 
 	careDays := bookingModeCareDays(t, env, true)
 
-	monday := nextWeekday(timezone.TodayDate(), time.Monday)
+	monday := nextWeekday(decisionTestToday, time.Monday)
 	thursday := monday.AddDays(3)
 
 	booked, err := careDays.ResolveForDate(ctx, []int64{studentID}, monday)
@@ -305,7 +302,7 @@ func TestPickupProjection_StaleRowCannotAddAuthoritativeCareDay(t *testing.T) {
 
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-30))
+	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-30))
 	ctx := testpkg.Ctx(t)
 
 	offering := createArrivalOffering(t, env, "pickup-boundary", []string{"mon"})
@@ -318,7 +315,7 @@ func TestPickupProjection_StaleRowCannotAddAuthoritativeCareDay(t *testing.T) {
 
 	pickups := bookingModePickupService(env, true)
 
-	tuesday := nextWeekday(timezone.TodayDate(), time.Tuesday)
+	tuesday := nextWeekday(decisionTestToday, time.Tuesday)
 	effective, err := pickups.GetEffectivePickupTimeForDate(ctx, studentID, tuesday)
 	require.NoError(t, err)
 	assert.Nil(t, effective, "an unbooked pickup row must not escape as an effective time")

@@ -7,7 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/api/common"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/stretchr/testify/assert"
 )
@@ -36,10 +36,10 @@ func TestAdminEnrollmentDeletionRoutesRequireConfigManage(t *testing.T) {
 	rs := &Resource{DeletionService: deletionServiceStub{}}
 	router := chi.NewRouter()
 	router.Use(render.SetContentType(render.ContentTypeJSON))
-	router.With(authorize.RequiresPermission("config:manage")).Get("/enrollment/admin/requests/{id}/delete-impact", rs.getAdminRequestDeleteImpact)
-	router.With(authorize.RequiresPermission("config:manage")).Delete("/enrollment/admin/requests/{id}", rs.deleteAdminRequest)
-	router.With(authorize.RequiresPermission("config:manage")).Get("/enrollment/admin/requests/{id}/children/{childId}/delete-impact", rs.getAdminChildDeleteImpact)
-	router.With(authorize.RequiresPermission("config:manage")).Delete("/enrollment/admin/requests/{id}/children/{childId}", rs.deleteAdminChild)
+	router.With(common.RequiresPermission("config:manage")).Get("/enrollment/admin/requests/{id}/delete-impact", rs.getAdminRequestDeleteImpact)
+	router.With(common.RequiresPermission("config:manage")).Delete("/enrollment/admin/requests/{id}", rs.deleteAdminRequest)
+	router.With(common.RequiresPermission("config:manage")).Get("/enrollment/admin/requests/{id}/children/{childId}/delete-impact", rs.getAdminChildDeleteImpact)
+	router.With(common.RequiresPermission("config:manage")).Delete("/enrollment/admin/requests/{id}/children/{childId}", rs.deleteAdminChild)
 
 	for _, test := range []struct {
 		method string

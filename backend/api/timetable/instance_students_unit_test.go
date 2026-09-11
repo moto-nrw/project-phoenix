@@ -3,13 +3,12 @@
 // path and cross-field rule end-to-end; these tests close the coverage gap on
 // the branches SonarQube flagged as missing: repo-not-wired guard, path
 // parsing errors, body decode errors, response mapping, and the
-// DatabaseError-wrapped-ErrNoRows branch in isNotFoundDBError.
+// DatabaseError-wrapped not-found branch in isNotFoundDBError.
 package timetable
 
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,7 +22,6 @@ import (
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelsBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/stretchr/testify/assert"
@@ -76,7 +74,7 @@ func (f *fakeRepo) List(context.Context, *modelsBase.QueryOptions) ([]*schedule.
 func (f *fakeRepo) FindByInstanceID(context.Context, int64) ([]*schedule.InstanceStudent, error) {
 	panic("unused")
 }
-func (f *fakeRepo) FindPresentInOtherActiveInstances(context.Context, int64, timezone.Date, []int64) ([]schedule.ParallelPresence, error) {
+func (f *fakeRepo) FindPresentInOtherActiveInstances(context.Context, int64, schedule.Date, []int64) ([]schedule.ParallelPresence, error) {
 	panic("unused")
 }
 func (f *fakeRepo) FindByInstanceIDs(context.Context, []int64) ([]*schedule.InstanceStudent, error) {
@@ -91,10 +89,10 @@ func (f *fakeRepo) FindNotScheduledCandidatesByInstanceIDs(context.Context, []in
 func (f *fakeRepo) CountNonAbsentByInstanceIDs(context.Context, []int64) (map[int64]int, error) {
 	panic("unused")
 }
-func (f *fakeRepo) FindByStudentIDsAndDate(context.Context, []int64, timezone.Date) ([]*schedule.InstanceStudent, error) {
+func (f *fakeRepo) FindByStudentIDsAndDate(context.Context, []int64, schedule.Date) ([]*schedule.InstanceStudent, error) {
 	panic("unused")
 }
-func (f *fakeRepo) FindCurrentCandidatesByStudentIDs(context.Context, []int64, timezone.Date, time.Time) ([]*schedule.InstanceStudent, error) {
+func (f *fakeRepo) FindCurrentCandidatesByStudentIDs(context.Context, []int64, schedule.Date, time.Time) ([]*schedule.InstanceStudent, error) {
 	panic("unused")
 }
 func (f *fakeRepo) UpdateAttendanceFromCheckinBatch(context.Context, []schedule.InstanceStudentKey, time.Time) error {
@@ -103,17 +101,17 @@ func (f *fakeRepo) UpdateAttendanceFromCheckinBatch(context.Context, []schedule.
 func (f *fakeRepo) UpdateAttendanceCheckoutBatch(context.Context, []schedule.InstanceStudentKey, time.Time) error {
 	panic("unused")
 }
-func (f *fakeRepo) FindByStudentAndDateRange(context.Context, int64, timezone.Date, timezone.Date) ([]*schedule.InstanceStudent, error) {
+func (f *fakeRepo) FindByStudentAndDateRange(context.Context, int64, schedule.Date, schedule.Date) ([]*schedule.InstanceStudent, error) {
 	panic("unused")
 }
-func (f *fakeRepo) FindPlannedStudentIDsByDate(context.Context, []int64, timezone.Date) ([]int64, error) {
+func (f *fakeRepo) FindPlannedStudentIDsByDate(context.Context, []int64, schedule.Date) ([]int64, error) {
 	panic("unused")
 }
 func (f *fakeRepo) DeleteByInstanceID(context.Context, int64) error { panic("unused") }
-func (f *fakeRepo) ArchivePlannedByStudentIDsFrom(context.Context, int64, []int64, timezone.Date, time.Time) (int, error) {
+func (f *fakeRepo) ArchivePlannedByStudentIDsFrom(context.Context, int64, []int64, schedule.Date, time.Time) (int, error) {
 	panic("unused")
 }
-func (f *fakeRepo) RestoreArchivedByTransition(context.Context, int64, []int64, timezone.Date) (int, error) {
+func (f *fakeRepo) RestoreArchivedByTransition(context.Context, int64, []int64, schedule.Date) (int, error) {
 	panic("unused")
 }
 func (f *fakeRepo) BulkUpdateStatus(context.Context, int64, string, string, []int64) (int, error) {
@@ -124,11 +122,11 @@ func (f *fakeRepo) MarkNotScheduled(context.Context, []schedule.StudentInstanceR
 	panic("unused")
 }
 
-func (f *fakeRepo) FindInstancesWithAttendanceByStudentAndDateRange(context.Context, int64, timezone.Date, timezone.Date) ([]*schedule.ScheduledInstanceRow, error) {
+func (f *fakeRepo) FindInstancesWithAttendanceByStudentAndDateRange(context.Context, int64, schedule.Date, schedule.Date) ([]*schedule.ScheduledInstanceRow, error) {
 	panic("unused")
 }
 
-func (f *fakeRepo) HasPlannedSlotsInRange(context.Context, timezone.Date, timezone.Date) (bool, error) {
+func (f *fakeRepo) HasPlannedSlotsInRange(context.Context, schedule.Date, schedule.Date) (bool, error) {
 	panic("unused")
 }
 
@@ -144,16 +142,16 @@ func (f *fakeRepo) UpdateAttendanceCheckout(context.Context, int64, int64, time.
 func (f *fakeRepo) ReconcileAttendanceInterval(context.Context, int64, int64, time.Time, *time.Time, time.Time, *time.Time) (bool, error) {
 	panic("unused")
 }
-func (f *fakeRepo) FindCurrentCandidates(context.Context, int64, timezone.Date, time.Time) ([]*schedule.InstanceStudent, error) {
+func (f *fakeRepo) FindCurrentCandidates(context.Context, int64, schedule.Date, time.Time) ([]*schedule.InstanceStudent, error) {
 	panic("unused")
 }
-func (f *fakeRepo) ApplyStatusDay(context.Context, int64, timezone.Date, int64, string) (int, error) {
+func (f *fakeRepo) ApplyStatusDay(context.Context, int64, schedule.Date, int64, string) (int, error) {
 	panic("unused")
 }
 func (f *fakeRepo) ReleaseStatusDay(context.Context, int64) (int, error) {
 	panic("unused")
 }
-func (f *fakeRepo) ApplyActiveStatusDaysForInstance(context.Context, int64, timezone.Date) (int, error) {
+func (f *fakeRepo) ApplyActiveStatusDaysForInstance(context.Context, int64, schedule.Date) (int, error) {
 	panic("unused")
 }
 func (f *fakeRepo) ApplyPartialAbsence(context.Context, int64) (int, error) {
@@ -162,7 +160,7 @@ func (f *fakeRepo) ApplyPartialAbsence(context.Context, int64) (int, error) {
 func (f *fakeRepo) ReleasePartialAbsence(context.Context, int64) (int, error) {
 	panic("unused")
 }
-func (f *fakeRepo) ApplyActivePartialAbsencesForInstance(context.Context, int64, timezone.Date) (int, error) {
+func (f *fakeRepo) ApplyActivePartialAbsencesForInstance(context.Context, int64, schedule.Date) (int, error) {
 	panic("unused")
 }
 
@@ -327,12 +325,12 @@ func (brokenReader) Close() error               { return nil }
 // Full handler flow via fake repo (no DB)
 // -----------------------------------------------------------------------------
 
-func TestPatchHandler_404_NotFound_ErrNoRows(t *testing.T) {
+func TestPatchHandler_404_NotFound(t *testing.T) {
 	t.Parallel()
 
 	repo := &fakeRepo{
 		findByInstanceAndStudent: func(context.Context, int64, int64) (*schedule.InstanceStudent, error) {
-			return nil, sql.ErrNoRows
+			return nil, modelsBase.ErrNotFound
 		},
 	}
 	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: repo})}}
@@ -346,11 +344,10 @@ func TestPatchHandler_404_NotFound_ErrNoRows(t *testing.T) {
 func TestPatchHandler_404_NotFound_WrappedDatabaseError(t *testing.T) {
 	t.Parallel()
 
-	// DatabaseError wrapping sql.ErrNoRows — matches the wrapping style used
-	// by the repo layer. Covered by isNotFoundDBError's errors.As branch.
+	// Repositories expose the model-level sentinel through their error wrapper.
 	repo := &fakeRepo{
 		findByInstanceAndStudent: func(context.Context, int64, int64) (*schedule.InstanceStudent, error) {
-			return nil, &modelsBase.DatabaseError{Op: "find", Err: sql.ErrNoRows}
+			return nil, &modelsBase.DatabaseError{Op: "find", Err: modelsBase.ErrNotFound}
 		},
 	}
 	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: repo})}}
@@ -737,6 +734,6 @@ func (f *fakeRepo) CloseOpenCheckoutsByActiveGroupIDs(context.Context, []int64, 
 	panic("unused")
 }
 
-func (f *fakeRepo) ListStudentInstanceRefsBefore(context.Context, timezone.Date) ([]schedule.StudentInstanceRef, error) {
+func (f *fakeRepo) ListStudentInstanceRefsBefore(context.Context, schedule.Date) ([]schedule.StudentInstanceRef, error) {
 	panic("unused")
 }

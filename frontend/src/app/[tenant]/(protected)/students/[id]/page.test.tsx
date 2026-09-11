@@ -5,6 +5,7 @@ import {
   waitFor,
   cleanup,
   act,
+  within,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import StudentDetailPage from "./page";
@@ -85,10 +86,10 @@ vi.mock("~/components/ui/alert", () => ({
   ),
 }));
 
-// Mock BackButton component
-vi.mock("~/components/ui/back-button", () => ({
-  BackButton: ({ referrer }: { referrer: string }) => (
-    <button type="button" data-testid="back-button" data-referrer={referrer}>
+// TenantPage owns the mobile back button.
+vi.mock("~/components/ui/mobile-back-button", () => ({
+  MobileBackButton: ({ href }: { href?: string }) => (
+    <button type="button" data-testid="back-button" data-referrer={href}>
       Zurück
     </button>
   ),
@@ -134,16 +135,15 @@ vi.mock("~/components/ui/modal", () => ({
 
 // Mock student detail components
 vi.mock("~/components/students/student-detail-components", () => ({
-  StudentDetailHeader: ({
-    student,
-  }: {
-    student: { name: string; school_class: string };
-  }) => (
-    <div data-testid="student-header">
-      <h1 data-testid="student-name">{student.name}</h1>
-      <span data-testid="student-class">{student.school_class}</span>
-    </div>
+  // Der Entitätskopf ist seit dem Gerüstumbau in seine Teile zerlegt: die
+  // Seite setzt Foto, Titel, Statuszeile und Aufenthaltsort in TenantPage
+  // zusammen.
+  StudentHeaderAvatar: () => <div data-testid="student-header" />,
+  studentHeaderTitle: (student: { name: string }) => student.name,
+  StudentHeaderStats: ({ student }: { student: { school_class: string } }) => (
+    <span data-testid="student-class">{student.school_class}</span>
   ),
+  StudentHeaderLocation: () => <span data-testid="student-location" />,
   SupervisorsCard: ({
     supervisors,
     studentName,
@@ -198,19 +198,19 @@ vi.mock("~/components/students/student-detail-components", () => ({
   ),
 }));
 
-// Mock PersonalInfoFormModal
+// Mock des Bearbeiten-Zustands im Stammdaten-Reiter (kein Modal mehr).
 vi.mock("~/components/students/personal-info-form-modal", () => ({
-  PersonalInfoFormModal: ({
-    isOpen,
-    onClose,
+  PersonalInfoEditPanel: ({
+    onCancel,
     student,
     onSave,
   }: {
-    isOpen: boolean;
-    onClose: () => void;
+    onCancel: () => void;
     student: { name: string };
     onSave: (student: { name: string }) => Promise<void>;
   }) => {
+    const isOpen = true;
+    const onClose = onCancel;
     const handleSave = async () => {
       try {
         await onSave(student);
@@ -570,7 +570,6 @@ const mockStudentAtHome = {
 describe("StudentDetailPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.useRealTimers();
     mockSearchParams.delete("from");
     mockSearchParams.delete("tab");
     vi.mocked(useSession).mockReturnValue({
@@ -633,6 +632,14 @@ describe("StudentDetailPage", () => {
 
       expect(screen.getByTestId("student-detail-skeleton")).toBeInTheDocument();
       expect(screen.getByLabelText("Kind wird geladen")).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { level: 1, name: "Kindakte" }),
+      ).toBeInTheDocument();
+      expect(screen.getByTestId("back-button")).toHaveAttribute(
+        "data-referrer",
+        "/students/search",
+      );
+      expect(screen.getByRole("tablist")).toBeInTheDocument();
     });
   });
 
@@ -678,7 +685,7 @@ describe("StudentDetailPage", () => {
       expect(screen.getByTestId("alert-error")).toBeInTheDocument();
     });
 
-    it("navigates back when back button is clicked in error state", async () => {
+    it("rendert im Fehlerfall den Rückweg zur Herkunftsliste", async () => {
       mockUseStudentData.mockReturnValue({
         student: null,
         loading: false,
@@ -695,10 +702,12 @@ describe("StudentDetailPage", () => {
 
       render(<StudentDetailPage />);
 
-      const backButton = screen.getByRole("button", { name: /zurück/i });
-      fireEvent.click(backButton);
-
-      expect(mockPush).toHaveBeenCalledWith("/test-tenant/students/search");
+      // Der Desktop-Rückweg ist die Breadcrumb; mobil trägt das Seitengerüst
+      // den Referrer der Herkunftsliste.
+      expect(screen.getByTestId("back-button")).toHaveAttribute(
+        "data-referrer",
+        "/students/search",
+      );
     });
   });
 
@@ -707,9 +716,10 @@ describe("StudentDetailPage", () => {
       render(<StudentDetailPage />);
 
       expect(screen.getByTestId("student-header")).toBeInTheDocument();
-      expect(screen.getByTestId("student-name")).toHaveTextContent(
-        "Max Mustermann",
-      );
+      // Der Name ist der Titel der Kopfkarte.
+      expect(
+        screen.getByRole("heading", { level: 1, name: "Max Mustermann" }),
+      ).toBeInTheDocument();
     });
 
     it("renders full access personal info section", () => {
@@ -718,6 +728,40 @@ describe("StudentDetailPage", () => {
       expect(
         screen.getByTestId("full-access-personal-info"),
       ).toBeInTheDocument();
+    });
+
+    it("shows a withdrawn consent in the Stammdaten tab", () => {
+      mockUseStudentData.mockReturnValue({
+        student: {
+          ...mockStudent,
+          consents: [
+            {
+              key: "photo",
+              state: "withdrawn",
+              changed_at: "2026-08-31T15:00:00Z",
+            },
+          ],
+        },
+        loading: false,
+        error: null,
+        hasFullAccess: true,
+        hasWriteAccess: true,
+        hasAbsenceWriteAccess: true,
+        supervisors: [],
+        myGroups: ["1"],
+        myGroupRooms: ["Raum 101"],
+        mySupervisedRooms: ["Raum 101"],
+        refreshData: mockRefreshData,
+      });
+
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.getByRole("heading", {
+          name: "Einwilligungen und Bestätigungen",
+        }),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Widerrufen am 31.08.2026")).toBeInTheDocument();
     });
 
     it("passes enrollment extra fields into full access personal info", () => {
@@ -1080,7 +1124,14 @@ describe("StudentDetailPage", () => {
 
       const confirmButton = await screen.findByTestId("modal-confirm");
       expect(confirmButton).toBeEnabled();
-      expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+      // Im Dialog steht keine Raum- oder Geräteauswahl. Innerhalb des Dialogs
+      // geprüft: die Reiterleiste des Seitengerüsts rendert unter sm selbst
+      // eine Auswahlliste.
+      expect(
+        within(screen.getByTestId("modal-kind-anmelden")).queryByRole(
+          "combobox",
+        ),
+      ).not.toBeInTheDocument();
 
       await act(async () => {
         fireEvent.click(confirmButton);
@@ -1252,7 +1303,7 @@ describe("StudentDetailPage", () => {
       });
     });
 
-    it("shows error toast when sick toggle fails", async () => {
+    it("does not emit a toast when planned sickness saving fails", async () => {
       mockCreateStudentStatusDays.mockRejectedValue(new Error("Toggle failed"));
 
       render(<StudentDetailPage />);
@@ -1271,12 +1322,10 @@ describe("StudentDetailPage", () => {
         fireEvent.click(confirmButton);
       });
 
-      await waitFor(() => {
-        expect(mockToastError).toHaveBeenCalled();
-      });
+      expect(mockToastError).not.toHaveBeenCalled();
     });
 
-    it("explains an atomic conflict without reporting a successful save", async () => {
+    it("does not emit a toast for an atomic conflict", async () => {
       mockCreateStudentStatusDays.mockRejectedValue(
         new MockStudentStatusDayConflictError([
           {
@@ -1298,11 +1347,10 @@ describe("StudentDetailPage", () => {
       });
       fireEvent.click(screen.getByTestId("planned-status-submit"));
 
-      await waitFor(() => {
-        expect(mockToastWarning).toHaveBeenCalledWith(
-          "25.05.2026 (entschuldigt) wurde zwischenzeitlich eingetragen und nicht überschrieben. Bitte Auswahl prüfen.",
-        );
-      });
+      await waitFor(() =>
+        expect(mockCreateStudentStatusDays).toHaveBeenCalled(),
+      );
+      expect(mockToastWarning).not.toHaveBeenCalled();
       expect(mockToastSuccess).not.toHaveBeenCalled();
     });
 
@@ -1571,7 +1619,7 @@ describe("StudentDetailPage", () => {
       });
     });
 
-    it("shows error toast when excused toggle fails", async () => {
+    it("does not emit a toast when planned excusal saving fails", async () => {
       mockCreateStudentStatusDays.mockRejectedValue(new Error("fail"));
       render(<StudentDetailPage />);
       fireEvent.click(screen.getByTestId("excused-toggle-button"));
@@ -1583,9 +1631,7 @@ describe("StudentDetailPage", () => {
       await act(async () => {
         fireEvent.click(screen.getByTestId("planned-status-submit"));
       });
-      await waitFor(() => {
-        expect(mockToastError).toHaveBeenCalled();
-      });
+      expect(mockToastError).not.toHaveBeenCalled();
     });
 
     it("shows aufheben modal when student is already excused", async () => {
@@ -1859,31 +1905,41 @@ describe("StudentDetailPage", () => {
       refreshData: mockRefreshData,
     };
 
-    // Radix activates a tab on pointer-down (mouseDown is the legacy fallback).
-    // Fire both, mirroring the precedent in ui/tabs.test.tsx, so these tests
-    // don't hinge on a single internal Radix event path and survive a bump.
+    // Die Reiter des Seitengerüsts sind einfache Schaltflächen und schalten
+    // auf click (kein Radix, das auf pointerDown reagiert). Seit der Kindakte
+    // höchstens vier Seitenreiter trägt (BAUARTEN-SPEC, Teil 3), stehen die
+    // selten gebrauchten als Menüeinträge hinter dem Reiter „Verwaltung" —
+    // die Helfer unten finden einen Bereich in beiden Formen.
+    const openBundledTabs = () => {
+      // Der gebündelte Reiter meldet sich als Reiter, nicht als Schaltfläche.
+      const trigger = screen.queryByRole("tab", { name: "Verwaltung" });
+      if (trigger && trigger.getAttribute("aria-expanded") !== "true") {
+        fireEvent.click(trigger);
+      }
+    };
+    const queryTab = (name: string) => {
+      const direct = screen.queryByRole("tab", { name });
+      if (direct) return direct;
+      openBundledTabs();
+      return screen.queryByRole("menuitem", { name });
+    };
+    const getTab = (name: string) => {
+      const found = queryTab(name);
+      if (!found) throw new Error(`Bereich "${name}" nicht gefunden`);
+      return found;
+    };
     const selectTab = (name: string) => {
-      const tab = screen.getByRole("tab", { name });
-      fireEvent.pointerDown(tab, { button: 0, pointerType: "mouse" });
-      fireEvent.mouseDown(tab, { button: 0 });
+      fireEvent.click(getTab(name));
     };
 
     it("renders all section tabs in the full access view", () => {
       render(<StudentDetailPage />);
 
-      expect(
-        screen.getByRole("tab", { name: "Stammdaten" }),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole("tab", { name: "Erziehungsberechtigte" }),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole("tab", { name: "Betreuungszeiten" }),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole("tab", { name: "Anmeldungen" }),
-      ).toBeInTheDocument();
-      expect(screen.getByRole("tab", { name: "Historie" })).toBeInTheDocument();
+      expect(getTab("Stammdaten")).toBeInTheDocument();
+      expect(getTab("Erziehungsberechtigte")).toBeInTheDocument();
+      expect(getTab("Betreuungszeiten")).toBeInTheDocument();
+      expect(getTab("Anmeldungen")).toBeInTheDocument();
+      expect(getTab("Historie")).toBeInTheDocument();
     });
 
     it("shows the Änderungsprotokoll tab with users:update", () => {
@@ -1899,9 +1955,7 @@ describe("StudentDetailPage", () => {
 
       render(<StudentDetailPage />);
 
-      expect(
-        screen.getByRole("tab", { name: "Änderungsprotokoll" }),
-      ).toBeInTheDocument();
+      expect(getTab("Änderungsprotokoll")).toBeInTheDocument();
     });
 
     it("hides the Änderungsprotokoll tab without users:update or users:absence", () => {
@@ -1909,9 +1963,7 @@ describe("StudentDetailPage", () => {
       // würde 403 antworten, also gibt es den Reiter gar nicht erst (#2437).
       render(<StudentDetailPage />);
 
-      expect(
-        screen.queryByRole("tab", { name: "Änderungsprotokoll" }),
-      ).not.toBeInTheDocument();
+      expect(queryTab("Änderungsprotokoll")).not.toBeInTheDocument();
     });
 
     it("hides the enrollment tab without config:manage", () => {
@@ -1922,9 +1974,7 @@ describe("StudentDetailPage", () => {
 
       render(<StudentDetailPage />);
 
-      expect(
-        screen.queryByRole("tab", { name: "Anmeldungen" }),
-      ).not.toBeInTheDocument();
+      expect(queryTab("Anmeldungen")).not.toBeInTheDocument();
     });
 
     it("hides the Betreuungsplan tab without schedules:read", () => {
@@ -2092,13 +2142,9 @@ describe("StudentDetailPage", () => {
 
       render(<StudentDetailPage />);
 
-      expect(
-        screen.queryByRole("tab", { name: "Betreuungszeiten" }),
-      ).not.toBeInTheDocument();
-      expect(
-        screen.getByRole("tab", { name: "Stammdaten" }),
-      ).toBeInTheDocument();
-      expect(screen.getByRole("tab", { name: "Historie" })).toBeInTheDocument();
+      expect(queryTab("Betreuungszeiten")).not.toBeInTheDocument();
+      expect(getTab("Stammdaten")).toBeInTheDocument();
+      expect(getTab("Historie")).toBeInTheDocument();
     });
 
     it("falls back to the default tab when deep-linking a tab the access level lacks", () => {

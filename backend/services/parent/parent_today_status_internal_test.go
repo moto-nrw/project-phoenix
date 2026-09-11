@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 // berlinClock baut einen Zeitpunkt an einem festen Tag in Europe/Berlin. Der
@@ -195,7 +195,7 @@ func TestApplyAttendanceRowsPrefersOpenRow(t *testing.T) {
 	t.Parallel()
 
 	closedOut := berlinClock(t, 11, 40)
-	rows := []*activeModels.Attendance{
+	rows := []studentpresence.Attendance{
 		{CheckInTime: berlinClock(t, 8, 5), CheckOutTime: &closedOut},
 		{CheckInTime: berlinClock(t, 13, 5), CheckOutTime: nil},
 	}

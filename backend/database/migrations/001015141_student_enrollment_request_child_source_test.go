@@ -8,15 +8,15 @@ import (
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 func TestStudentEnrollmentRequestChildSourceDoesNotBackfillAmbiguousManualRows(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	tenantID := time.Now().UnixNano()
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	testpkg.CleanupTenantTestData(t, db, tenantID)
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Manual", "Roster", "2a")
 	group := testpkg.CreateTestActivityGroupForTenant(t, db, tenantID, "ManualRoster")
@@ -39,11 +39,12 @@ func TestStudentEnrollmentRequestChildSourceDoesNotBackfillAmbiguousManualRows(t
 }
 
 func TestStudentEnrollmentRequestChildSourceBackfillsUnambiguousApprovalRows(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	tenantID := time.Now().UnixNano()
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	testpkg.CleanupTenantTestData(t, db, tenantID)
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Legacy", "Roster", "2a")
 	group := testpkg.CreateTestActivityGroupForTenant(t, db, tenantID, "LegacyRoster")
@@ -72,7 +73,7 @@ func TestStudentEnrollmentRequestChildSourceBackfillsUnambiguousApprovalRows(t *
 	require.Equal(t, childID, *sourceID)
 }
 
-func insertRequestChildSourcePhase(t *testing.T, db *bun.DB, tenantID int64) int64 {
+func insertRequestChildSourcePhase(t *testing.T, db *testpkg.DB, tenantID int64) int64 {
 	t.Helper()
 	var id int64
 	require.NoError(t, db.NewRaw(`
@@ -86,7 +87,7 @@ func insertRequestChildSourcePhase(t *testing.T, db *bun.DB, tenantID int64) int
 	return id
 }
 
-func insertRequestChildSourceRequest(t *testing.T, db *bun.DB, tenantID, phaseID int64) int64 {
+func insertRequestChildSourceRequest(t *testing.T, db *testpkg.DB, tenantID, phaseID int64) int64 {
 	t.Helper()
 	var id int64
 	require.NoError(t, db.NewRaw(`
@@ -100,7 +101,7 @@ func insertRequestChildSourceRequest(t *testing.T, db *bun.DB, tenantID, phaseID
 	return id
 }
 
-func insertRequestChildSourceChild(t *testing.T, db *bun.DB, tenantID, requestID, studentID int64) int64 {
+func insertRequestChildSourceChild(t *testing.T, db *testpkg.DB, tenantID, requestID, studentID int64) int64 {
 	t.Helper()
 	var id int64
 	require.NoError(t, db.NewRaw(`
@@ -114,7 +115,7 @@ func insertRequestChildSourceChild(t *testing.T, db *bun.DB, tenantID, requestID
 	return id
 }
 
-func insertRequestChildSourceOffering(t *testing.T, db *bun.DB, tenantID, phaseID, groupID int64) int64 {
+func insertRequestChildSourceOffering(t *testing.T, db *testpkg.DB, tenantID, phaseID, groupID int64) int64 {
 	t.Helper()
 	var id int64
 	require.NoError(t, db.NewRaw(`
@@ -128,7 +129,7 @@ func insertRequestChildSourceOffering(t *testing.T, db *bun.DB, tenantID, phaseI
 	return id
 }
 
-func insertRequestChildSourceOfferingLink(t *testing.T, db *bun.DB, tenantID, childID, offeringID int64) {
+func insertRequestChildSourceOfferingLink(t *testing.T, db *testpkg.DB, tenantID, childID, offeringID int64) {
 	t.Helper()
 	_, err := db.NewRaw(`
 		INSERT INTO enrollment.request_child_offerings (
@@ -139,7 +140,7 @@ func insertRequestChildSourceOfferingLink(t *testing.T, db *bun.DB, tenantID, ch
 	require.NoError(t, err)
 }
 
-func insertRequestChildSourceManualEnrollment(t *testing.T, db *bun.DB, tenantID, studentID, groupID int64) int64 {
+func insertRequestChildSourceManualEnrollment(t *testing.T, db *testpkg.DB, tenantID, studentID, groupID int64) int64 {
 	t.Helper()
 	var id int64
 	require.NoError(t, db.NewRaw(`

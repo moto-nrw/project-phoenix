@@ -1,13 +1,17 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { BellSimpleRingingIcon, CaretRightIcon } from "@phosphor-icons/react";
+import { CollectionGrid } from "~/components/ui/collection-grid";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { TenantPage } from "~/components/ui/tenant-page";
+import { TileCard } from "~/components/ui/tile-card";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { Alert } from "~/components/ui/alert";
+import { EmptyState } from "~/components/ui/empty-state";
+import { SectionCard } from "~/components/ui/section-card";
 import { NotificationBadge } from "~/components/ui/notification-badge";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -43,7 +47,6 @@ import {
 } from "~/components/staff/staff-time-accounts-table";
 import { MonthCloseReasonModal } from "~/components/staff/month-close-modal";
 import { StaffTimeExportModal } from "~/components/staff/staff-time-export-modal";
-import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useSWRConfig } from "swr";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { staffOverviewService } from "~/lib/staff-overview-api";
@@ -68,32 +71,25 @@ function DocumentDirectory({
     entry.name.toLocaleLowerCase("de-DE").includes(normalizedSearch),
   );
 
-  return (
-    <div className="-mt-1.5 w-full">
-      {!embedded && (
-        <PageHeaderWithSearch
-          title="Personalunterlagen"
-          search={{
-            value: search,
-            onChange: setSearch,
-            placeholder: "Mitarbeiter/in suchen...",
-          }}
-        />
-      )}
+  const card = (
+    // Der Erklärtext ist die description der Karte, die die Personenliste
+    // trägt. Eingebettet steht der Titel „Personalunterlagen" schon auf dem
+    // Reiter, dort benennt die Karte ihren Inhalt (kein doppelter Titel).
+    <SectionCard
+      title={embedded ? "Personen" : "Personalunterlagen"}
+      description="Wählen Sie eine Person, um die für Sie freigegebenen Dokumente zu sehen."
+    >
       {embedded && (
         <div className="mb-4">
           <Input
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Mitarbeiter/in suchen..."
+            placeholder="Person suchen…"
             className="w-full"
           />
         </div>
       )}
-      <p className="mb-4 text-sm text-gray-600">
-        Wählen Sie eine Person, um die für Sie freigegebenen Dokumente zu sehen.
-      </p>
       {error ? (
         <Alert
           type="error"
@@ -110,13 +106,13 @@ function DocumentDirectory({
           }
         />
       ) : (
-        <div className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
+        <div className="divide-y divide-gray-100 overflow-hidden rounded-xl border border-gray-200">
           {filteredEntries.map((entry) => (
             <button
               key={entry.id}
               type="button"
               onClick={() => router.push(`/staff/${entry.id}?tab=dokumente`)}
-              className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-gray-900 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#5080D8]"
+              className="focus-visible:outline-moto-blue flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-gray-900 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
             >
               {entry.name}
               <span aria-hidden="true" className="text-gray-400">
@@ -125,13 +121,33 @@ function DocumentDirectory({
             </button>
           ))}
           {filteredEntries.length === 0 ? (
-            <p className="px-4 py-8 text-center text-sm text-gray-500">
-              Keine Mitarbeiter/innen gefunden.
-            </p>
+            <EmptyState
+              variant="compact"
+              className="px-4 py-6"
+              title="Keine Personen gefunden."
+              description="Passen Sie die Suche an."
+            />
           ) : null}
         </div>
       )}
-    </div>
+    </SectionCard>
+  );
+
+  // Eingebettet steht das Verzeichnis schon im Seitengerüst des Reiters.
+  if (embedded) return card;
+
+  return (
+    <TenantPage
+      title="Personalunterlagen"
+      stats={`${entries.length} ${entries.length === 1 ? "Person" : "Personen"} mit Unterlagen`}
+      search={{
+        value: search,
+        onChange: setSearch,
+        placeholder: "Person suchen…",
+      }}
+    >
+      {card}
+    </TenantPage>
   );
 }
 
@@ -154,9 +170,20 @@ function StaffPageContent() {
   // users:read: sie zeigt Arbeitszeitdaten identifizierbarer Personen.
   const canManageTimeTracking = hasPermission(session, "time_tracking:manage");
   const canReadUsers = hasPermission(session, "users:read");
+  // Personalstammdaten und Mitarbeiter-Datensatz (#2906). Beide Rechte
+  // beziehen sich auf eine bestimmte Person, sind also nur zu gebrauchen,
+  // wenn man diese Person auch finden kann — deshalb öffnen sie wie
+  // users:read die Mitarbeiterliste. Das Backend gatet GET /api/staff
+  // seit #2906 identisch.
+  const canEditStammdaten = hasPermission(session, "staff:stammdaten");
+  const canManageStaffRecords = hasPermission(session, "staff:manage");
+  const canListStaff =
+    canReadUsers || canEditStammdaten || canManageStaffRecords;
+  // Personalunterlagen hängen an staff:documents, nicht mehr an users:update
+  // (#2906): users:update hält die Betreuer-Standardrolle für die Kinderdaten.
   const canAccessDocuments =
     userIsAdmin ||
-    hasPermission(session, "users:update") ||
+    hasPermission(session, "staff:documents") ||
     hasPermission(session, "staff:financial") ||
     hasPermission(session, "staff_documents:health");
   // Document-only roles have no other staff view to navigate from. Roles that
@@ -165,13 +192,12 @@ function StaffPageContent() {
   const documentDirectoryOnly =
     canAccessDocuments &&
     !userIsAdmin &&
-    !canReadUsers &&
+    !canListStaff &&
     !canManageTimeTracking;
 
   // State variables for filters
   const [searchTerm, setSearchTerm] = useState("");
   const [locationFilter, setLocationFilter] = useState("all");
-  const [isMobile, setIsMobile] = useState(false);
   const [selectedView, setSelectedView] = useState<
     "status" | "accounts" | "audit" | "documents"
   >("status");
@@ -191,26 +217,16 @@ function StaffPageContent() {
   const [saldoPreset, setSaldoPreset] = useState<SaldoPresetId>("all");
   const [customSaldoHours, setCustomSaldoHours] = useState("");
   const [showCustomSaldo, setShowCustomSaldo] = useState(false);
-  // Ohne users:read ist die Statusansicht nicht erlaubt. Manage-only-Konten
-  // landen deshalb direkt in den Zeitkonten, können aber zwischen Zeitkonten
-  // und Änderungsprotokoll wechseln.
+  // Ohne Zugriff auf die Mitarbeiterliste ist die Statusansicht nicht
+  // erlaubt. Zeitkonten-Konten landen deshalb direkt in den Zeitkonten,
+  // können aber zwischen Zeitkonten und Änderungsprotokoll wechseln.
   const view =
-    canReadUsers || selectedView === "audit" || selectedView === "documents"
+    canListStaff || selectedView === "audit" || selectedView === "documents"
       ? selectedView
       : "accounts";
   const showDocumentDirectory =
     documentDirectoryOnly ||
     (canManageTimeTracking && canAccessDocuments && view === "documents");
-
-  // Handle mobile detection
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
 
   // Fetch staff data with SWR (automatic caching, deduplication, revalidation)
   // Global SSE in TenantAuthWrapper handles cache invalidation automatically
@@ -219,7 +235,7 @@ function StaffPageContent() {
     isLoading,
     error: staffError,
   } = useSWRAuth<Staff[]>(
-    canReadUsers ? "staff-list" : null,
+    canListStaff ? "staff-list" : null,
     async () => {
       const staffData = await staffService.getAllStaff({});
       return sortStaff(staffData);
@@ -264,7 +280,7 @@ function StaffPageContent() {
       : (saldoBounds.max ?? undefined);
 
   const needsAuditStaffOptions =
-    canManageTimeTracking && view === "audit" && !canReadUsers;
+    canManageTimeTracking && view === "audit" && !canListStaff;
   const accountsKey =
     canManageTimeTracking && view === "accounts"
       ? `staff-time-accounts-${monthAnchor.year}-${monthAnchor.month}-${employmentFilter}-${saldoMin ?? ""}-${saldoMax ?? ""}`
@@ -359,13 +375,13 @@ function StaffPageContent() {
   }, [accounts, searchTerm]);
   const auditStaffOptions = useMemo(
     () =>
-      canReadUsers
+      canListStaff
         ? (staffData ?? []).map((row) => ({ id: row.id, name: row.name }))
         : (accounts?.rows ?? []).map((row) => ({
             id: row.staffId,
             name: row.name,
           })),
-    [accounts?.rows, canReadUsers, staffData],
+    [accounts?.rows, canListStaff, staffData],
   );
 
   // Open absence requests (#1419): feeds the per-card pending indicators and
@@ -575,11 +591,55 @@ function StaffPageContent() {
     view,
   ]);
 
+  // Statuszeile unter dem Seitentitel: nur aus den Daten, die die Seite
+  // ohnehin lädt (Personalliste bzw. Zeitkonten-Tabelle).
+  const staffSummary = (() => {
+    // Die Zeile beschreibt, was gerade zu sehen ist: in den Personalunterlagen
+    // also die Zahl der Personen mit Unterlagen, nicht die Personalliste.
+    if (view === "documents") {
+      const count = documentDirectory?.length ?? 0;
+      return `${count} ${count === 1 ? "Person" : "Personen"} mit Unterlagen`;
+    }
+    if (view === "accounts") {
+      const count = accounts?.rows?.length ?? 0;
+      return `${count} ${count === 1 ? "Zeitkonto" : "Zeitkonten"}`;
+    }
+    if (canReadUsers) {
+      // Dieselben Zustände wie die Badges auf den Karten: "Abwesend" ist der
+      // Standard für "nicht eingestempelt", gemeldete Arten (Krank, Urlaub …)
+      // tragen ihren eigenen Namen. So passt die Zeile zu dem, was man sieht.
+      const byLocation = new Map<string, number>();
+      let clockedIn = 0;
+      for (const member of filteredStaff) {
+        // Die Kopfkarte zählt die Bezeichnungen der Karten. Dadurch ist etwa
+        // „Zuhause“ wie auf der Karte „Anwesend“ und verschwindet nicht aus
+        // der Zusammenfassung.
+        const location = getStaffLocationStatus(member).label;
+        if (location === "Anwesend") {
+          clockedIn += 1;
+        } else {
+          byLocation.set(location, (byLocation.get(location) ?? 0) + 1);
+        }
+      }
+      const parts = [
+        `${filteredStaff.length} ${filteredStaff.length === 1 ? "Person" : "Personen"}`,
+        `${clockedIn} anwesend`,
+        `${byLocation.get("Abwesend") ?? 0} abwesend`,
+      ];
+      for (const [location, count] of byLocation) {
+        if (location !== "Abwesend") parts.push(`${count} ${location}`);
+      }
+      return parts.join(" · ");
+    }
+    const count = documentDirectory?.length ?? 0;
+    return `${count} ${count === 1 ? "Person" : "Personen"} mit Unterlagen`;
+  })();
+
   const showSkeleton =
     status === "loading" || isLoading || isDocumentDirectoryLoading;
 
   if (!showSkeleton) {
-    if (!canReadUsers && !canManageTimeTracking && !canAccessDocuments) {
+    if (!canListStaff && !canManageTimeTracking && !canAccessDocuments) {
       return <ForbiddenPage />;
     }
 
@@ -594,112 +654,184 @@ function StaffPageContent() {
     }
   }
 
+  // Leerzustand der Karten-Ansicht: Er nennt den nächsten Schritt, nicht nur
+  // die Feststellung. Filtert die Suche alles weg, ist der nächste Schritt das
+  // Zurücksetzen; ist wirklich niemand angelegt, führt er in die Stammdaten,
+  // wo Mitarbeitende entstehen. Eine noch nicht geladene
+  // Liste (staffData === undefined) ist kein Leerzustand.
+  const staffFilterActive = searchTerm !== "" || locationFilter !== "all";
+  const statusEmptyState =
+    view === "status" &&
+    !showSkeleton &&
+    !error &&
+    staffData !== undefined &&
+    filteredStaff.length === 0
+      ? {
+          title: "Kein Personal gefunden",
+          description: staffFilterActive
+            ? "Zu dieser Suche gibt es keine Person. Setzen Sie die Suche zurück, um alle zu sehen."
+            : "Es ist noch niemand angelegt. Mitarbeitende legen Sie im Reiter „Stammdaten“ an.",
+          icon: <MotoConceptIcon concept="staff" size={48} />,
+          action: staffFilterActive ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={() => {
+                setSearchTerm("");
+                setLocationFilter("all");
+              }}
+            >
+              Suche zurücksetzen
+            </Button>
+          ) : userIsAdmin ? (
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              onClick={() => router.push("/database/personal")}
+            >
+              Zur Datenverwaltung
+            </Button>
+          ) : undefined,
+        }
+      : null;
+
+  // Seitenreiter: Status (Karten), Zeitkonten (Tabelle), Änderungsprotokoll
+  // und Personalunterlagen beantworten verschiedene Fragen. Nur mit
+  // time_tracking:manage gibt es überhaupt etwas zu wechseln.
+  // Was man selten braucht, steht gebündelt hinter „Verwaltung": Protokoll
+  // und Unterlagen sind Verwaltungsflächen und gehören nicht gleichrangig
+  // neben die tägliche Ansicht.
+  const tabItems = [
+    ...(canListStaff ? [{ value: "status", label: "Status" }] : []),
+    { value: "accounts", label: "Zeitkonten" },
+    { value: "audit", label: "Änderungsprotokoll" },
+    ...(canAccessDocuments
+      ? [{ value: "documents", label: "Personalunterlagen" }]
+      : []),
+  ];
+
   return (
-    <div className="-mt-1.5 w-full">
-      {/* PageHeaderWithSearch - Title only on mobile */}
-      <PageHeaderWithSearch
-        title={isMobile ? "Mitarbeiter" : ""}
-        badge={
-          showSkeleton
-            ? undefined
-            : {
-                icon: <MotoConceptIcon concept="staff" size={20} />,
-                count:
-                  view === "accounts"
-                    ? accountRows.length
-                    : view === "documents"
-                      ? (documentDirectory?.length ?? 0)
-                      : filteredStaff.length,
+    <TenantPage
+      title="Mitarbeitende"
+      stats={staffSummary}
+      statsLoading={showSkeleton}
+      search={
+        // Im Änderungsprotokoll und in den Personalunterlagen filtern die
+        // Ansichten selbst; ein wirkungsloses Suchfeld wäre irreführend.
+        view === "audit" || view === "documents"
+          ? undefined
+          : {
+              value: searchTerm,
+              onChange: setSearchTerm,
+              placeholder: "Name suchen…",
+            }
+      }
+      filters={filterConfigs}
+      activeFilters={activeFilters}
+      onClearAllFilters={() => {
+        setSearchTerm("");
+        setLocationFilter("all");
+        setEmploymentFilter("all");
+        setSaldoPreset("all");
+        setCustomSaldoHours("");
+        setShowCustomSaldo(false);
+      }}
+      tabs={
+        canManageTimeTracking
+          ? {
+              value: view,
+              onChange: (value) => {
+                setSelectedView(
+                  value as "status" | "accounts" | "audit" | "documents",
+                );
+              },
+              items: tabItems,
+            }
+          : undefined
+      }
+      // Der Ladefehler der Personalliste gehört ins Gerüst. Ihr Leerzustand
+      // bleibt dagegen bei den Karten, damit unabhängige Bereiche sichtbar
+      // bleiben.
+      error={view === "status" ? error : null}
+      overlays={
+        <>
+          {showCloseModal && (
+            <MonthCloseReasonModal
+              title={`Monat abschließen: ${String(monthAnchor.month).padStart(2, "0")}/${monthAnchor.year}`}
+              description={
+                <>
+                  <p>
+                    Der Abschluss friert den Saldo zum Monatsende für{" "}
+                    <strong>alle Mitarbeitenden</strong> ein. Spätere Monate
+                    rechnen ab dann mit diesem eingefrorenen Übertrag weiter.
+                  </p>
+                  <p>
+                    Werden danach noch Zeiten in diesem Monat geändert, bleibt
+                    der Übertrag stehen; die Abweichung wird auf der Monatskarte
+                    der Person angezeigt.
+                  </p>
+                  <p>
+                    Bereits abgeschlossene Konten bleiben unverändert; nur
+                    offene Konten werden eingefroren.
+                  </p>
+                </>
               }
-        }
-        search={
-          // Im Änderungsprotokoll filtert die Komponente selbst; ein
-          // wirkungsloses Suchfeld wäre irreführend.
-          view === "audit" || view === "documents"
-            ? undefined
-            : {
-                value: searchTerm,
-                onChange: setSearchTerm,
-                placeholder: "Name suchen...",
-              }
-        }
-        filters={filterConfigs}
-        activeFilters={activeFilters}
-        onClearAllFilters={() => {
-          setSearchTerm("");
-          setLocationFilter("all");
-          setEmploymentFilter("all");
-          setSaldoPreset("all");
-          setCustomSaldoHours("");
-          setShowCustomSaldo(false);
-        }}
-      />
+              submitLabel="Monat abschließen"
+              successMessage="Monat abgeschlossen."
+              onSubmit={handleCloseMonth}
+              onClose={() => setShowCloseModal(false)}
+            />
+          )}
+
+          {/* Cross-MA-Export (#1417 2b): Query-Bau im Dialog, Zahlen und Datei
+              komplett aus dem Backend. */}
+          <StaffTimeExportModal
+            isOpen={showExportModal}
+            onClose={() => setShowExportModal(false)}
+            year={accounts?.year ?? monthAnchor.year}
+            month={accounts?.month ?? monthAnchor.month}
+          />
+        </>
+      }
+    >
+      {/* Verweis auf die Anfragen (#2433): Urlaub, Krank und Fortbildung
+          werden dort entschieden, nicht hier. */}
+      {!showSkeleton && canReviewAbsences && (
+        <TileCard
+          href={tenantPath("/anfragen")}
+          className="flex items-center justify-between gap-3"
+        >
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-gray-900">
+              Anträge von Mitarbeitenden
+            </p>
+            <p className="text-sm text-gray-600">
+              Urlaub, Krank und Fortbildung entscheiden Sie unter Anfragen.
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <NotificationBadge
+              count={pendingAbsences.length}
+              tone="staff"
+              ariaLabel={`${pendingAbsences.length} ${pendingAbsences.length === 1 ? "offener Antrag" : "offene Anträge"}`}
+            />
+            <CaretRightIcon
+              size={18}
+              className="text-gray-400"
+              aria-hidden="true"
+            />
+          </div>
+        </TileCard>
+      )}
 
       {showSkeleton ? (
         <StaffCardsSkeleton />
       ) : (
         <>
-          {/* Sektion 1 — Verweis auf das Anfragen-Modul (#2433). Die frühere
-              Inbox stand hier; entschieden wird jetzt zentral unter Anfragen,
-              der Zähler zeigt weiter, ob Arbeit wartet. */}
-          {canReviewAbsences && (
-            <Link
-              href={tenantPath("/anfragen")}
-              className="moto-content-surface mb-6 flex items-center justify-between gap-3 rounded-2xl border p-4 shadow-sm transition-colors hover:bg-gray-50/60 sm:p-5"
-            >
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-gray-900">
-                  Anträge von Mitarbeitenden
-                </p>
-                <p className="text-sm text-gray-600">
-                  Urlaub, Krank und Fortbildung entscheiden Sie unter Anfragen.
-                </p>
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <NotificationBadge
-                  count={pendingAbsences.length}
-                  tone="staff"
-                  ariaLabel={`${pendingAbsences.length} ${pendingAbsences.length === 1 ? "offener Antrag" : "offene Anträge"}`}
-                />
-                <CaretRightIcon
-                  size={18}
-                  className="text-gray-400"
-                  aria-hidden="true"
-                />
-              </div>
-            </Link>
-          )}
-
-          {/* Sektion 2 — Einrichtungs-Übersicht (#1417 Tranche 2a), läuft mit users:read */}
+          {/* Sektion 2: Einrichtungs-Übersicht (#1417 Tranche 2a), läuft mit users:read */}
           {canReadUsers && <SchoolOverviewSection />}
-
-          {/* Sektion 3 — Mitarbeitende. Status (Karten) und Zeitkonten (Tabelle)
-              beantworten verschiedene Fragen; der Umschalter erscheint nur mit
-              time_tracking:manage. */}
-          {canManageTimeTracking && (
-            <Tabs
-              value={view}
-              onValueChange={(value) =>
-                setSelectedView(
-                  value as "status" | "accounts" | "audit" | "documents",
-                )
-              }
-              className="mb-4"
-            >
-              <TabsList variant="line">
-                {canReadUsers && (
-                  <TabsTrigger value="status">Status</TabsTrigger>
-                )}
-                <TabsTrigger value="accounts">Zeitkonten</TabsTrigger>
-                <TabsTrigger value="audit">Änderungsprotokoll</TabsTrigger>
-                {canAccessDocuments && (
-                  <TabsTrigger value="documents">
-                    Personalunterlagen
-                  </TabsTrigger>
-                )}
-              </TabsList>
-            </Tabs>
-          )}
 
           {/* Änderungsprotokoll (#1417): cross-MA audit feed, eigene Filter in der
               Komponente. Nur mit time_tracking:manage erreichbar (Tab-Gate oben). */}
@@ -762,69 +894,13 @@ function StaffPageContent() {
             />
           )}
 
-          {showCloseModal && (
-            <MonthCloseReasonModal
-              title={`Monat abschließen — ${String(monthAnchor.month).padStart(2, "0")}/${monthAnchor.year}`}
-              description={
-                <>
-                  <p>
-                    Der Abschluss friert den Saldo zum Monatsende für{" "}
-                    <strong>alle Mitarbeitenden</strong> ein. Spätere Monate
-                    rechnen ab dann mit diesem eingefrorenen Übertrag weiter.
-                  </p>
-                  <p>
-                    Werden danach noch Zeiten in diesem Monat geändert, bleibt
-                    der Übertrag stehen; die Abweichung wird auf der Monatskarte
-                    der Person angezeigt.
-                  </p>
-                  <p>
-                    Bereits abgeschlossene Konten bleiben unverändert; nur
-                    offene Konten werden eingefroren.
-                  </p>
-                </>
-              }
-              submitLabel="Monat abschließen"
-              successMessage="Monat abgeschlossen."
-              onSubmit={handleCloseMonth}
-              onClose={() => setShowCloseModal(false)}
-            />
-          )}
-
-          {/* Cross-MA-Export (#1417 2b): Query-Bau im Dialog, Zahlen und Datei
-              komplett aus dem Backend. */}
-          <StaffTimeExportModal
-            isOpen={showExportModal}
-            onClose={() => setShowExportModal(false)}
-            year={accounts?.year ?? monthAnchor.year}
-            month={accounts?.month ?? monthAnchor.month}
-          />
-
-          {/* Error Display */}
-          {view === "status" && error && (
-            <div className="border-moto-red/20 bg-moto-red-soft text-moto-red-strong mb-4 rounded-lg border p-4">
-              {error}
-            </div>
-          )}
-
           {/* Staff Grid */}
           {view === "status" &&
-            (filteredStaff.length === 0 ? (
-              <div className="py-12 text-center">
-                <div className="flex flex-col items-center gap-4">
-                  <MotoConceptIcon concept="staff" size={48} />
-                  <div>
-                    <h3 className="text-lg font-medium text-gray-900">
-                      Kein Personal gefunden
-                    </h3>
-                    <p className="text-gray-600">
-                      Versuchen Sie Ihre Suchkriterien anzupassen.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ) : (
+            (statusEmptyState ? (
+              <EmptyState {...statusEmptyState} />
+            ) : filteredStaff.length > 0 ? (
               <div>
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
+                <CollectionGrid>
                   {filteredStaff.map((staffMember) => {
                     const locationStatus = getStaffLocationStatus(staffMember);
                     const displayType = getStaffDisplayType(staffMember);
@@ -834,69 +910,68 @@ function StaffPageContent() {
                     const pendingRequestCount =
                       pendingByStaff.get(Number(staffMember.id)) ?? 0;
 
+                    // Die Karte führt nur dann weiter, wenn dort auch etwas
+                    // freigeschaltet ist: das Profil mit Unterlagen oder
+                    // Stammdaten, sonst der Personal-Datensatz in der
+                    // Datenverwaltung (staff:manage, #2906).
+                    const profileTabAvailable =
+                      userIsAdmin || canAccessDocuments || canEditStammdaten;
                     const canNavigateToStaff =
-                      userIsAdmin || canAccessDocuments;
-                    const cardClassName = `group moto-content-surface moto-hover-elevated relative w-full overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none active:shadow-[0_10px_26px_rgba(15,23,42,0.1)] ${canNavigateToStaff ? "cursor-pointer" : ""}`;
-                    const navigateToStaff = () =>
+                      profileTabAvailable || canManageStaffRecords;
+                    const navigateToStaff = () => {
+                      if (!profileTabAvailable) {
+                        router.push(
+                          `/database/personal?staff=${staffMember.id}`,
+                        );
+                        return;
+                      }
                       router.push(
                         `/staff/${staffMember.id}${canAccessDocuments && !userIsAdmin ? "?tab=dokumente" : ""}`,
                       );
+                    };
 
                     return (
-                      <div
+                      <TileCard
                         key={staffMember.id}
-                        {...(canNavigateToStaff
-                          ? {
-                              role: "button" as const,
-                              tabIndex: 0,
-                              onClick: navigateToStaff,
-                              onKeyDown: (e: React.KeyboardEvent) => {
-                                if (e.key === "Enter" || e.key === " ") {
-                                  e.preventDefault();
-                                  navigateToStaff();
-                                }
-                              },
-                            }
-                          : {})}
-                        className={cardClassName}
+                        onClick={
+                          canNavigateToStaff ? navigateToStaff : undefined
+                        }
+                        disabled={!canNavigateToStaff}
+                        ariaLabel={
+                          canNavigateToStaff
+                            ? `${staffMember.firstName} ${staffMember.lastName} - ${
+                                userIsAdmin
+                                  ? "Details öffnen"
+                                  : "Personalunterlagen öffnen"
+                              }`
+                            : undefined
+                        }
                       >
-                        <div className="relative p-4">
+                        <div className="relative">
                           <div className="relative flex min-h-[104px] flex-col">
                             <div className="mb-3 flex items-start justify-between gap-3">
                               <div className="min-w-0 flex-1">
                                 {/* Ein Name, eine Zeile: der Umbruch zwischen Vor-
                                 und Nachname ließ jede Karte wie zwei Personen
-                                aussehen. */}
-                                <div className="flex min-w-0 items-center gap-1.5">
-                                  <h3 className="truncate text-base font-bold text-gray-900">
-                                    {staffMember.firstName}{" "}
-                                    {staffMember.lastName}
-                                  </h3>
-                                  {canNavigateToStaff && (
-                                    <CaretRightIcon
-                                      className="h-4 w-4 flex-shrink-0 text-gray-300 transition-colors duration-200 md:group-hover:text-gray-500"
-                                      aria-hidden="true"
-                                    />
-                                  )}
-                                </div>
+                                aussehen. Wohin die Kachel führt, sagt ihr
+                                aria-label, kein Pfeil-Ornament. */}
+                                <h3 className="truncate text-base font-bold text-gray-900">
+                                  {staffMember.firstName} {staffMember.lastName}
+                                </h3>
                                 <p className="mt-0.5 truncate text-xs text-gray-500">
                                   {staffMember.specialization ?? displayType}
                                 </p>
                               </div>
 
                               <span className="flex flex-shrink-0 flex-col items-end gap-1.5">
-                                {/* Kein Glow, kein Pulsieren: 20 gleichzeitig
-                                leuchtende Badges sind Lärm, kein Status. */}
-                                <span
-                                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${locationStatus.badgeColor}`}
-                                  style={{
-                                    backgroundColor:
-                                      locationStatus.customBgColor,
-                                  }}
-                                >
-                                  <span className="h-1.5 w-1.5 rounded-full bg-white/80"></span>
-                                  {locationStatus.label}
-                                </span>
+                                {/* Dieselbe Pille wie beim Kind: helle Fläche,
+                                dunkle farbige Schrift. Vollflächige Badges in
+                                Signalfarbe waren auf einer Liste mit 24
+                                Personen eine Wand aus Rot. */}
+                                <StatusColorBadge
+                                  label={locationStatus.label}
+                                  color={locationStatus.customBgColor}
+                                />
                               </span>
                             </div>
 
@@ -940,7 +1015,7 @@ function StaffPageContent() {
                                   {cardInfo.map((info) => (
                                     <span
                                       key={info}
-                                      className="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700"
+                                      className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700"
                                     >
                                       {info}
                                     </span>
@@ -949,30 +1024,20 @@ function StaffPageContent() {
                               )}
 
                               {notes && (
-                                <p className="text-xs text-gray-500 italic transition-colors duration-300 md:group-hover:text-gray-600">
-                                  {notes}
-                                </p>
+                                <p className="text-xs text-gray-500">{notes}</p>
                               )}
                             </div>
-
-                            {canNavigateToStaff && (
-                              <p className="mt-2 text-xs text-gray-400 transition-colors duration-150 md:group-hover:text-gray-500">
-                                {userIsAdmin
-                                  ? "Tippen für mehr Infos"
-                                  : "Tippen für Personalunterlagen"}
-                              </p>
-                            )}
                           </div>
                         </div>
-                      </div>
+                      </TileCard>
                     );
                   })}
-                </div>
+                </CollectionGrid>
               </div>
-            ))}
+            ) : null)}
         </>
       )}
-    </div>
+    </TenantPage>
   );
 }
 

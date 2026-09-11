@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
@@ -223,21 +222,11 @@ func (rs *Resource) listInstances(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	enriched := make([]enrichedInstance, 0, len(instances))
-	conflictInputs := make([]scheduleSvc.WindowConflictInput, 0, len(instances))
-	for _, inst := range instances {
-		item, staffRows, studentRows, err := rs.enrichInstance(ctx, inst, roomCache, typeCache, planningTrackCache, offeringSourceCache, ratio, careDays)
-		if err != nil {
-			common.RenderError(w, r, common.ErrorInternalServerWrap(
-				"enrich instance failed", err))
-			return
-		}
-		enriched = append(enriched, item)
-		conflictInputs = append(conflictInputs, scheduleSvc.WindowConflictInput{
-			Instance: inst,
-			Staff:    staffRows,
-			Students: studentRows,
-		})
+	enriched, conflictInputs, err := rs.enrichInstances(ctx, instances, roomCache, typeCache, planningTrackCache, offeringSourceCache, ratio, careDays)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap(
+			"enrich instances failed", err))
+		return
 	}
 
 	// Window-wide person double-bookings (#2139): the banner's "diese Woche" /
@@ -336,7 +325,8 @@ func (rs *Resource) careDaysForInstance(
 	if inst == nil {
 		return map[int64]map[timezone.Date]scheduleSvc.CareDayStatus{}, nil
 	}
-	careDays, err := rs.resolveCareDays(ctx, []*scheduleModel.ActivityInstance{inst}, inst.Date, inst.Date)
+	date := timezone.Date(inst.Date)
+	careDays, err := rs.resolveCareDays(ctx, []*scheduleModel.ActivityInstance{inst}, date, date)
 	if err != nil {
 		return nil, fmt.Errorf("resolve care days for instance %d: %w", inst.ID, err)
 	}
@@ -359,7 +349,7 @@ func instanceStudentCareDay(
 	return scheduleSvc.AttendanceRowCareDay(
 		inst.Status == scheduleModel.InstanceStatusCompleted,
 		row,
-		careDays[row.StudentID][inst.Date],
+		careDays[row.StudentID][timezone.Date(inst.Date)],
 	)
 }
 
@@ -446,23 +436,37 @@ func summarizeInstanceStudents(
 // instance's assigned children (one query per instance — same accepted N+1
 // shape as the staff/student loads above). Nil-service facades in unit tests
 // simply produce no markers.
-func (rs *Resource) pickupCutoffsForRows(
+// enrichInstances projects a list window: the per-instance rows come from one
+// batched read per kind (#2940), the caches are shared across the window.
+func (rs *Resource) enrichInstances(
 	ctx context.Context,
-	inst *scheduleModel.ActivityInstance,
-	studentRows []*scheduleModel.InstanceStudent,
-) (map[int64]time.Time, error) {
-	if rs.TimetableData == nil || len(studentRows) == 0 {
-		return map[int64]time.Time{}, nil
-	}
-	studentIDs := make([]int64, 0, len(studentRows))
-	for _, row := range studentRows {
-		studentIDs = append(studentIDs, row.StudentID)
-	}
-	cutoffs, err := rs.TimetableData.GetPartialAbsenceCutoffsForDate(ctx, studentIDs, inst.Date)
+	instances []*scheduleModel.ActivityInstance,
+	roomCache map[int64]string,
+	metaCache map[int64]templateMeta,
+	planningTrackCache map[int64]*scheduleModel.PlanningTrack,
+	offeringSourceCache map[int64][]enrollmentSvc.OfferingSourceOption,
+	childrenPerStaffRatio int,
+	careDays map[int64]map[timezone.Date]scheduleSvc.CareDayStatus,
+) ([]enrichedInstance, []scheduleSvc.WindowConflictInput, error) {
+	rows, err := rs.TimetableData.GetInstanceRows(ctx, instances)
 	if err != nil {
-		return nil, fmt.Errorf("load pickup cutoffs for instance %d: %w", inst.ID, err)
+		return nil, nil, fmt.Errorf("load instance rows: %w", err)
 	}
-	return cutoffs, nil
+	enriched := make([]enrichedInstance, 0, len(instances))
+	conflictInputs := make([]scheduleSvc.WindowConflictInput, 0, len(instances))
+	for _, inst := range instances {
+		item, staffRows, studentRows, err := rs.enrichInstance(ctx, inst, rows, roomCache, metaCache, planningTrackCache, offeringSourceCache, childrenPerStaffRatio, careDays)
+		if err != nil {
+			return nil, nil, err
+		}
+		enriched = append(enriched, item)
+		conflictInputs = append(conflictInputs, scheduleSvc.WindowConflictInput{
+			Instance: inst,
+			Staff:    staffRows,
+			Students: studentRows,
+		})
+	}
+	return enriched, conflictInputs, nil
 }
 
 // earlyPickupWithin reports the child's pickup cutoff as HH:MM when it falls
@@ -494,6 +498,7 @@ func earlyPickupWithin(
 func (rs *Resource) enrichInstance(
 	ctx context.Context,
 	inst *scheduleModel.ActivityInstance,
+	rows *scheduleSvc.InstanceRows,
 	roomCache map[int64]string,
 	metaCache map[int64]templateMeta,
 	planningTrackCache map[int64]*scheduleModel.PlanningTrack,
@@ -508,10 +513,7 @@ func (rs *Resource) enrichInstance(
 	roomName := rs.lookupRoomName(ctx, inst.RoomID, roomCache)
 	meta := rs.lookupTemplateMeta(ctx, inst.ActivityGroupID, metaCache, planningTrackCache)
 
-	staffRows, err := rs.TimetableData.GetInstanceStaff(ctx, inst.ID)
-	if err != nil {
-		return enrichedInstance{}, nil, nil, fmt.Errorf("load staff for instance %d: %w", inst.ID, err)
-	}
+	staffRows := rows.Staff[inst.ID]
 	staff := make([]instanceStaffSummary, 0, len(staffRows))
 	absentCount := 0
 	for _, row := range staffRows {
@@ -528,15 +530,8 @@ func (rs *Resource) enrichInstance(
 		})
 	}
 
-	studentRows, err := rs.TimetableData.GetInstanceStudents(ctx, inst.ID)
-	if err != nil {
-		return enrichedInstance{}, nil, nil, fmt.Errorf("load students for instance %d: %w", inst.ID, err)
-	}
-	pickupCutoffs, err := rs.pickupCutoffsForRows(ctx, inst, studentRows)
-	if err != nil {
-		return enrichedInstance{}, nil, nil, err
-	}
-	attendance := summarizeInstanceStudents(inst, studentRows, careDays, pickupCutoffs)
+	studentRows := rows.Students[inst.ID]
+	attendance := summarizeInstanceStudents(inst, studentRows, careDays, rows.Cutoffs[timezone.Date(inst.Date)])
 	emptyRosterReason := rs.resolveEmptyRosterReason(ctx, inst, meta, studentRows, offeringSourceCache)
 
 	assignedStaff := len(staffRows) - absentCount
@@ -595,7 +590,7 @@ func (rs *Resource) enrichInstance(
 
 func reopenEligibility(ctx context.Context, inst *scheduleModel.ActivityInstance, attendance []*scheduleModel.InstanceStudent) bool {
 	claims := jwt.ClaimsFromCtx(ctx)
-	return scheduleSvc.CanReopenInstance(inst, int64(claims.ID), authorize.HasEffectiveAdminScope(ctx), time.Now()) &&
+	return scheduleSvc.CanReopenInstance(inst, int64(claims.ID), common.HasEffectiveAdminScope(ctx), time.Now()) &&
 		scheduleSvc.AttendanceUnchangedSinceCompletion(inst, attendance)
 }
 
@@ -612,7 +607,8 @@ func (rs *Resource) dayConflictWarningsFor(
 	if inst == nil || rs.TimetableData == nil {
 		return empty
 	}
-	dayInstances, err := rs.TimetableData.GetActivityInstancesByDateRange(ctx, inst.Date, inst.Date)
+	date := timezone.Date(inst.Date)
+	dayInstances, err := rs.TimetableData.GetActivityInstancesByDateRange(ctx, date, date)
 	if err != nil {
 		rs.getLogger().Warn("day conflict detection: load day instances failed",
 			slog.Int64("instance_id", inst.ID),
@@ -777,7 +773,7 @@ func (rs *Resource) resolveEmptyRosterReason(
 		}
 		cache[periodKey] = options
 	}
-	explanation := enrollmentSvc.ExplainEmptyOfferingRoster(options, meta.sourceCareOfferingIDs, inst.Date)
+	explanation := enrollmentSvc.ExplainEmptyOfferingRoster(options, meta.sourceCareOfferingIDs, timezone.Date(inst.Date))
 	if explanation == nil {
 		return nil
 	}

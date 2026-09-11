@@ -140,6 +140,32 @@ describe("DataTable keyboard navigation", () => {
       expect(r.getAttribute("role")).not.toBe("button");
     }
   });
+
+  it("does not turn rows with controls into nested buttons", () => {
+    render(
+      <DataTable
+        columns={[
+          ...columns,
+          {
+            key: "actions",
+            header: "Aktionen",
+            render: () => <button type="button">Anzeigen</button>,
+          },
+        ]}
+        rows={rows}
+        getRowKey={(row) => row.id}
+        onRowClick={vi.fn()}
+        rowHasInteractiveControls
+        stackedOnMobile
+      />,
+    );
+
+    const stacked = screen.getByTestId("data-table-stacked");
+    const row = stacked.querySelector("li");
+    expect(row).not.toHaveAttribute("role", "button");
+    expect(row).not.toHaveAttribute("tabindex");
+    expect(screen.getAllByRole("button", { name: "Anzeigen" })).toHaveLength(4);
+  });
 });
 
 describe("DataTable pagination", () => {

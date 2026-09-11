@@ -44,7 +44,7 @@ import { useTenantRouter } from "~/lib/tenant-router";
 import { getWeekNumber } from "~/lib/time-tracking-helpers";
 import { parseTimeToMinutes } from "~/lib/timetable-helpers";
 
-// Half-year view (docs/05-dienstplan.md Abschnitt 3): rows are staff, columns
+// Half-year view: rows are staff, columns
 // are the calendar weeks of the planning period containing the anchor date `d`.
 // A pure read-and-jump surface — no editing, no blocks, no menus. Each cell is
 // the person's planned weekly sum with the same delta coloring as the week

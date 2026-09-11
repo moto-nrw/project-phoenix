@@ -3,8 +3,10 @@
 
 import { getActivePlanningSubPage } from "~/lib/planning-navigation";
 import {
+  COMMUNICATION_SECTION,
   DATABASE_SECTION,
   ENROLLMENT_SECTION,
+  getActiveCommunicationSubPage,
   getActiveDatabaseSubPage,
   getActiveEnrollmentSubPage,
   getActiveParentSubPage,
@@ -32,16 +34,6 @@ const detailRouteTitles: Array<{
     basePath: "/staff/",
     rootPath: "/staff",
     title: "Mitarbeiter Details",
-  },
-  // Eine Unterhaltung im Team-Chat (#2598). Ohne diesen Eintrag fiele
-  // /team-chat/{id} auf den "Home"-Fallback zurück, obwohl die Übersicht
-  // /team-chat ihren Titel aus STAFF_FLAT_PAGES bekommt. Bewusst derselbe
-  // Titel wie die Übersicht: der Name des Gegenübers steht schon in der
-  // Seitenüberschrift, ein zweites Mal in der Kopfzeile wäre doppelt.
-  {
-    basePath: "/team-chat/",
-    rootPath: "/team-chat",
-    title: STAFF_FLAT_PAGES.teamChat.label,
   },
 ];
 
@@ -81,9 +73,9 @@ const mainRoutes: Record<string, string> = {
   // (#2429). Der Eintrag verhindert, dass während des Client-Redirects kurz
   // "Home" aufblitzt.
   "/admin/change-requests": STAFF_FLAT_PAGES.anfragen.label,
-  // Die Sektions-Hubs; ihre Unterseiten kommen aus den Katalogen.
+  // Der Sektions-Hub der Datenverwaltung; die Unterseiten kommen aus dem
+  // Katalog. Eltern und Team haben keine Hub-Seite (#2826).
   [DATABASE_SECTION.href]: DATABASE_SECTION.label,
-  [PARENT_SECTION.href]: PARENT_SECTION.label,
   // Operator-Seiten setzen ihren Titel selbst per useSetBreadcrumb. Diese
   // Einträge sind der Wert für den ersten Frame davor und müssen deshalb
   // wörtlich mit dem Seitentitel übereinstimmen, sonst blitzt beim Laden
@@ -101,7 +93,7 @@ const mainRoutes: Record<string, string> = {
   // ihn im Elternmodus mit dem übersetzten parentNav-Eintrag.
   "/parents/messages": "Nachrichten",
   "/parents/news": "Neuigkeiten",
-  "/parents/meal-plan": "Essensplan",
+  "/parents/meal-plan": "Mittagessen",
 };
 
 const subPageLabels: Record<string, string> = {
@@ -150,6 +142,7 @@ const BREADCRUMB_SECTIONS: readonly {
   },
   { root: PLANNING_SECTION, getActivePage: getActivePlanningSubPage },
   { root: PARENT_SECTION, getActivePage: getActiveParentSubPage },
+  { root: COMMUNICATION_SECTION, getActivePage: getActiveCommunicationSubPage },
 ];
 
 /**
@@ -157,8 +150,8 @@ const BREADCRUMB_SECTIONS: readonly {
  * Katalogen, aus denen die Seitenleiste rendert, damit Seitenleisten-Eintrag
  * und Breadcrumb nicht auseinanderlaufen können.
  *
- * Die Hub-Seiten selbst (/database, /eltern) liefern bewusst `null`: sie zeigen
- * nur ihren Sektionsnamen, keine Breadcrumb auf sich selbst.
+ * Die Hub-Seite selbst (/database) liefert bewusst `null`: sie zeigt nur
+ * ihren Sektionsnamen, keine Breadcrumb auf sich selbst.
  */
 export function getSectionBreadcrumb(
   pathname: string,

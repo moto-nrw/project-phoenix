@@ -3,6 +3,7 @@ package importapi
 import (
 	"context"
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -209,11 +210,25 @@ func (rs *Resource) PreviewStaffImport(w http.ResponseWriter, r *http.Request) {
 		// GDPR Compliance: Audit log for preview (Article 30).
 		return rs.staffImportService.RecordAuditInTransaction(ctx, "staff", uploadResult.Filename, result, accountID, true, tenantID)
 	}); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("Import-Vorschau fehlgeschlagen", err))
+		renderStaffImportError(w, r, err, "Import-Vorschau fehlgeschlagen")
 		return
 	}
 
 	common.Respond(w, r, http.StatusOK, result, "Import-Vorschau erfolgreich")
+}
+
+// msgStaffImportModeForbidden is shown when a create-only importer asks for
+// update or upsert mode (#2906).
+const msgStaffImportModeForbidden = "Bestehende Mitarbeiter ändern geht mit Ihren Berechtigungen nicht. Wählen Sie „Nur neue anlegen“ oder fragen Sie die Leitung."
+
+// renderStaffImportError maps a refused import mode to 403 and everything
+// else to a 500 with the given client message.
+func renderStaffImportError(w http.ResponseWriter, r *http.Request, err error, clientMsg string) {
+	if errors.Is(err, importService.ErrImportModeForbidden) {
+		common.RenderError(w, r, common.ErrorForbiddenMessage(msgStaffImportModeForbidden))
+		return
+	}
+	common.RenderError(w, r, common.ErrorInternalServerWrap(clientMsg, err))
 }
 
 // ImportStaff handles the actual staff import (Stammdatensätze plus optional invitations).
@@ -256,7 +271,7 @@ func (rs *Resource) ImportStaff(w http.ResponseWriter, r *http.Request) {
 		// once its audit record is persisted.
 		return rs.staffImportService.RecordAuditInTransaction(ctx, "staff", uploadResult.Filename, result, accountID, false, tenantID)
 	}); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("Import fehlgeschlagen", err))
+		renderStaffImportError(w, r, err, "Import fehlgeschlagen")
 		return
 	}
 

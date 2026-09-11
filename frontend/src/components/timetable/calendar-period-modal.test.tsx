@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockToastSuccess, mockToastError, mockCreate, mockUpdate, mockDelete } =
@@ -14,6 +20,50 @@ const { mockToastSuccess, mockToastError, mockCreate, mockUpdate, mockDelete } =
 // them settable via fireEvent.change and forwards min/max so the bound
 // assertions below still pin what the component computes. Imported inside the
 // factory because vi.mock is hoisted above the imports.
+// Vaul (SlideOver) rendert in jsdom nichts. Derselbe Ersatz wie in
+// components/ui/slide-over.test.tsx — die Struktur bleibt, nur die
+// Animationsschicht fällt weg.
+vi.mock("vaul", async () => {
+  const React = await import("react");
+
+  return {
+    Drawer: {
+      Root: ({
+        children,
+        open,
+      }: {
+        children: React.ReactNode;
+        open?: boolean;
+      }) => (open === false ? null : <div>{children}</div>),
+      Portal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+      Overlay: React.forwardRef<
+        HTMLDivElement,
+        React.HTMLAttributes<HTMLDivElement>
+      >((props, ref) => <div ref={ref} {...props} />),
+      Content: React.forwardRef<
+        HTMLDivElement,
+        React.HTMLAttributes<HTMLDivElement>
+      >((props, ref) => <div ref={ref} {...props} />),
+      Close: React.forwardRef<
+        HTMLButtonElement,
+        React.ButtonHTMLAttributes<HTMLButtonElement>
+      >((props, ref) => <button ref={ref} {...props} />),
+      Title: React.forwardRef<
+        HTMLHeadingElement,
+        React.HTMLAttributes<HTMLHeadingElement>
+      >(({ children, ...props }, ref) => (
+        <h2 ref={ref} {...props}>
+          {children ?? "Titel"}
+        </h2>
+      )),
+      Description: React.forwardRef<
+        HTMLParagraphElement,
+        React.HTMLAttributes<HTMLParagraphElement>
+      >((props, ref) => <p ref={ref} {...props} />),
+    },
+  };
+});
+
 vi.mock("~/components/ui/date-picker", async (importOriginal) => {
   const { isoDatePickerMock } = await import("~/test/mocks/date-picker");
   return { ...(await importOriginal<object>()), ...isoDatePickerMock() };
@@ -157,22 +207,30 @@ describe("CalendarPeriodModal", () => {
         initial={period}
       />,
     );
+    // Löschen bestätigt die ConfirmDeleteModal statt einer Umschaltung der
+    // Fusszeile (#3110).
     fireEvent.click(screen.getByRole("button", { name: "Löschen" }));
+    const dialog = screen.getByRole("dialog", {
+      name: "Kalenderzeitraum löschen",
+    });
     expect(
-      screen.getByText(/Beim Löschen werden bestehende Verknüpfungen/),
+      within(dialog).getByText(/Beim Löschen werden bestehende Verknüpfungen/),
     ).toBeInTheDocument();
-    expect(
-      screen
-        .getByRole("button", { name: "Löschen bestätigen" })
-        .closest("div.flex.w-full"),
-    ).toHaveClass("flex-col");
-    fireEvent.click(screen.getByRole("button", { name: "Löschen abbrechen" }));
-    expect(
-      screen.queryByText(/Beim Löschen werden bestehende Verknüpfungen/),
-    ).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Abbrechen" }));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Kalenderzeitraum löschen" }),
+      ).not.toBeInTheDocument(),
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Löschen" }));
-    fireEvent.click(screen.getByRole("button", { name: "Löschen bestätigen" }));
+    const reopened = screen.getByRole("dialog", {
+      name: "Kalenderzeitraum löschen",
+    });
+    fireEvent.click(within(reopened).getByRole("button", { name: "Löschen" }));
+    fireEvent.click(
+      within(reopened).getByRole("button", { name: "Endgültig löschen" }),
+    );
     await waitFor(() => expect(mockDelete).toHaveBeenCalledWith("5"));
     expect(onDeleted).toHaveBeenCalledWith(period);
   });
@@ -216,13 +274,120 @@ describe("CalendarPeriodModal", () => {
     expect(checkboxes[1]).toBeChecked();
     expect(checkboxes[2]).not.toBeChecked();
 
+    // Die Checkbox ändert nur den Entwurf; geschrieben wird mit „Speichern“
+    // (#3112, Bauart 2 Regel 4).
     fireEvent.click(checkboxes[1]!);
+    expect(checkboxes[1]).not.toBeChecked();
+    expect(onToggle).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
     await waitFor(() =>
       expect(onToggle).toHaveBeenCalledWith(
         expect.objectContaining({ id: "7" }),
         false,
       ),
     );
+    expect(onToggle).toHaveBeenCalledTimes(1);
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps only failed phase links in the draft after saving the period", async () => {
+    const onClose = vi.fn();
+    const onSaved = vi.fn();
+    const onToggle = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("Zweite Verknüpfung fehlgeschlagen"))
+      .mockResolvedValueOnce(undefined);
+    render(
+      <CalendarPeriodModal
+        isOpen
+        onClose={onClose}
+        onSaved={onSaved}
+        initial={period}
+        phaseLink={{
+          phases: [
+            {
+              id: "7",
+              name: "Demo Anmeldung",
+              calendar_period_id: period.id,
+              is_active: true,
+            },
+            {
+              id: "8",
+              name: "Ferienbetreuung",
+              calendar_period_id: period.id,
+              is_active: true,
+            },
+          ],
+          onToggle,
+        }}
+      />,
+    );
+
+    const checkboxes = screen.getAllByRole("checkbox");
+    fireEvent.click(checkboxes[1]!);
+    fireEvent.click(checkboxes[2]!);
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Zweite Verknüpfung fehlgeschlagen",
+    );
+    expect(onSaved).toHaveBeenCalledWith(period);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(onToggle).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ id: "7" }),
+      false,
+    );
+    expect(onToggle).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ id: "8" }),
+      false,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+    expect(onToggle).toHaveBeenCalledTimes(3);
+    expect(onToggle).toHaveBeenLastCalledWith(
+      expect.objectContaining({ id: "8" }),
+      false,
+    );
+    expect(onSaved).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not write a phase link that was toggled back before Speichern", async () => {
+    const onToggle = vi.fn().mockResolvedValue(undefined);
+    render(
+      <CalendarPeriodModal
+        isOpen
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+        initial={period}
+        phaseLink={{
+          phases: [
+            {
+              id: "7",
+              name: "Demo Anmeldung",
+              calendar_period_id: period.id,
+              is_active: true,
+            },
+          ],
+          onToggle,
+        }}
+      />,
+    );
+
+    const checkbox = screen.getAllByRole("checkbox")[1]!;
+    fireEvent.click(checkbox);
+    fireEvent.click(checkbox);
+    expect(checkbox).toBeChecked();
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
+    expect(onToggle).not.toHaveBeenCalled();
   });
 
   it("hides the phase link section in create mode", () => {
@@ -404,6 +569,7 @@ describe("CalendarPeriodModal", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Periode ueberlappt",
     );
-    expect(mockToastError).toHaveBeenCalledWith("Periode ueberlappt");
+    // Der Alert oben im Panel ist die einzige Meldung (Bauart 2 Regel 5).
+    expect(mockToastError).not.toHaveBeenCalled();
   });
 });

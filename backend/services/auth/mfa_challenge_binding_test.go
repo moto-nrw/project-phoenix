@@ -166,7 +166,6 @@ func TestVerifyChallengeForOwner_ForeignChallengeRefusedAndLeftRedeemable(t *tes
 
 	db := testpkg.SetupTestDB(t)
 	caller := testpkg.CreateTestAccount(t, db, "mfa-owner-mismatch")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, caller.ID) })
 	require.NotEqual(t, victimID, caller.ID)
 
 	victimChallenge := seedChallenge(t, repos.MFAEmailChallenge, victimID, "424242", auth.MFAChallengeTTL)

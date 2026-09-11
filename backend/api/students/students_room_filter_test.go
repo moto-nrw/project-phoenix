@@ -22,7 +22,7 @@ import (
 func TestListStudents_RoomFilter_ReturnsOnlyStudentsInRoom(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	// Room A has an active group with two students currently checked-in.
 	roomA := testpkg.CreateTestRoom(t, tc.db, "RoomFilterA")
@@ -70,7 +70,7 @@ func TestListStudents_RoomFilter_ReturnsOnlyStudentsInRoom(t *testing.T) {
 func TestListStudents_RoomFilter_IntersectsWithGroupFilter(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	roomA := testpkg.CreateTestRoom(t, tc.db, "RoomFilterIntersect")
 	activityA := testpkg.CreateTestActivityGroup(t, tc.db, "RoomFilterIntersectActivity")
@@ -118,7 +118,7 @@ func TestListStudents_RoomFilter_IntersectsWithGroupFilter(t *testing.T) {
 func TestListStudents_RoomFilter_EmptyRoomReturnsEmpty(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	emptyRoom := testpkg.CreateTestRoom(t, tc.db, "EmptyFilterRoom")
 	// Create an unrelated student so "all students" would be non-empty if the
@@ -140,7 +140,7 @@ func TestListStudents_RoomFilter_EmptyRoomReturnsEmpty(t *testing.T) {
 func TestListStudents_LocationStateTransit_ReturnsCheckedInStudentsWithoutActiveVisit(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	staff := testpkg.CreateTestStaff(t, tc.db, "TransitFilter", "Staff")
 	device := testpkg.CreateTestDevice(t, tc.db, "transit-filter-device")
@@ -186,7 +186,7 @@ func TestListStudents_LocationStateTransit_ReturnsCheckedInStudentsWithoutActive
 func TestListStudents_LocationStatePresent_ReturnsStudentsWithOpenAttendance(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	staff := testpkg.CreateTestStaff(t, tc.db, "PresentFilter", "Staff")
 	device := testpkg.CreateTestDevice(t, tc.db, "present-filter-device")
@@ -237,7 +237,7 @@ func TestListStudents_LocationStatePresent_ReturnsStudentsWithOpenAttendance(t *
 func TestListStudents_LocationStateTransitWithGroupID_IntersectsFilters(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	ctx := context.Background()
 
 	staff := testpkg.CreateTestStaff(t, tc.db, "TransitGroupFilter", "Staff")
@@ -291,7 +291,7 @@ func TestListStudents_LocationStateTransitWithGroupID_IntersectsFilters(t *testi
 func TestListStudents_LocationStateTransit_InvalidFilters(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	tests := []struct {
 		name string
@@ -324,7 +324,7 @@ func TestListStudents_LocationStateTransit_InvalidFilters(t *testing.T) {
 func TestListStudents_LocationStateTransit_EmptyReturnsEmpty(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	bystander := testpkg.CreateTestStudent(t, tc.db, "TransitEmpty", "Bystander", "TEB1")
 
@@ -351,7 +351,7 @@ func TestListStudents_LocationStateTransit_EmptyReturnsEmpty(t *testing.T) {
 func TestListStudents_LocationStateTransitWithGroupID_NoIntersectionReturnsEmpty(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	ctx := context.Background()
 
 	staff := testpkg.CreateTestStaff(t, tc.db, "TransitNoMatch", "Staff")

@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/uptrace/bun"
 )
 
 const (
 	roomsColorUniqueVersion     = "1.15.45"
 	roomsColorUniqueDescription = "Add partial UNIQUE(tenant_id, lower(color)) on facilities.rooms; back up + clear legacy bug-defaults (#4F46E5 from rooms.config.tsx, #FFFFFF from the 1.1.1 NOT NULL DEFAULT) into audit.room_color_migration_backup. Rollback drops the index but does NOT restore cleared colors — use the backup table for manual restore."
+	roomsColorUniqueIndex       = "uniq_facilities_rooms_tenant_color"
 )
 
 func init() {
@@ -127,9 +127,9 @@ func roomsColorUniqueUp(ctx context.Context, db *bun.DB) error {
 		CREATE UNIQUE INDEX IF NOT EXISTS %s
 		ON facilities.rooms (tenant_id, LOWER(color))
 		WHERE color IS NOT NULL;
-	`, facilities.RoomColorUniqueConstraintName)
+	`, roomsColorUniqueIndex)
 	if _, err := db.NewRaw(createSQL).Exec(ctx); err != nil {
-		return fmt.Errorf("failed creating %s: %w", facilities.RoomColorUniqueConstraintName, err)
+		return fmt.Errorf("failed creating %s: %w", roomsColorUniqueIndex, err)
 	}
 
 	return nil
@@ -153,11 +153,11 @@ func roomsColorUniqueUp(ctx context.Context, db *bun.DB) error {
 // foot-gun this whole table exists to prevent.
 func roomsColorUniqueDown(ctx context.Context, db *bun.DB) error {
 	fmt.Printf("Rolling back migration 1.15.45: dropping %s (cleared colours not auto-restored — see audit.room_color_migration_backup)...\n",
-		facilities.RoomColorUniqueConstraintName)
+		roomsColorUniqueIndex)
 
-	dropSQL := fmt.Sprintf(`DROP INDEX IF EXISTS facilities.%s;`, facilities.RoomColorUniqueConstraintName)
+	dropSQL := fmt.Sprintf(`DROP INDEX IF EXISTS facilities.%s;`, roomsColorUniqueIndex)
 	if _, err := db.NewRaw(dropSQL).Exec(ctx); err != nil {
-		return fmt.Errorf("failed dropping %s: %w", facilities.RoomColorUniqueConstraintName, err)
+		return fmt.Errorf("failed dropping %s: %w", roomsColorUniqueIndex, err)
 	}
 	return nil
 }

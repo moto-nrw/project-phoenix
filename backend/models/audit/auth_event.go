@@ -3,14 +3,12 @@ package audit
 import (
 	"errors"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // AuthEvent represents an authentication event for security auditing
 type AuthEvent struct {
 	ID int64 `bun:"id,pk,autoincrement" json:"id"`
-	base.TenantModel
+	TenantModel
 	AccountID    int64                  `bun:"account_id,notnull" json:"account_id"`
 	EventType    string                 `bun:"event_type,notnull" json:"event_type"`
 	Success      bool                   `bun:"success,notnull" json:"success"`
@@ -28,6 +26,7 @@ const (
 	EventTypeTokenRefresh                = "token_refresh"
 	EventTypeTokenExpired                = "token_expired"
 	EventTypeTokenRevoked                = "token_revoked"
+	EventTypeAccountWideWipeCompleted    = "account_wide_wipe_completed"
 	EventTypePasswordReset               = "password_reset"
 	EventTypeAccountLocked               = "account_locked"
 	EventTypeTenantSwitch                = "tenant_switch"
@@ -50,6 +49,12 @@ const (
 	EventTypeTenantAccessGranted = "tenant_access_granted"
 	EventTypeTenantAccessRevoked = "tenant_access_revoked"
 	EventTypeTenantRoleChanged   = "tenant_role_changed"
+
+	// Admin staff-view preview (#2893). Written against the ADMIN's account —
+	// never the previewed staff member's — with the target in the metadata,
+	// so the trail shows who looked through whose eyes and when.
+	EventTypeStaffPreviewStarted = "staff_preview_started"
+	EventTypeStaffPreviewEnded   = "staff_preview_ended"
 )
 
 // Validate ensures auth event is valid
@@ -64,7 +69,7 @@ func (ae *AuthEvent) Validate() error {
 
 	// Validate event type
 	switch ae.EventType {
-	case EventTypeLogin, EventTypeLogout, EventTypeTokenRefresh, EventTypeTokenRevoked,
+	case EventTypeLogin, EventTypeLogout, EventTypeTokenRefresh, EventTypeTokenRevoked, EventTypeAccountWideWipeCompleted,
 		EventTypeTokenExpired, EventTypePasswordReset, EventTypeAccountLocked,
 		EventTypeTenantSwitch, EventTypeCaregiverCapabilityEnabled,
 		EventTypeCaregiverCapabilityDisabled,
@@ -78,10 +83,17 @@ func (ae *AuthEvent) Validate() error {
 		EventTypeMFALocked, EventTypeMFARecoveryUsed, EventTypeMFADisabled,
 		EventTypeMFATrustedDeviceAdded, EventTypeMFAAdminOverride,
 		EventTypeTenantAccessGranted, EventTypeTenantAccessRevoked,
-		EventTypeTenantRoleChanged:
+		EventTypeTenantRoleChanged,
+		EventTypeStaffPreviewStarted, EventTypeStaffPreviewEnded:
 		// Valid types
 	default:
 		return errors.New("invalid event type")
+	}
+	if ae.EventType == EventTypeStaffPreviewEnded {
+		previewID, _ := ae.Metadata["preview_id"].(string)
+		if previewID == "" {
+			return errors.New("preview_id metadata is required")
+		}
 	}
 
 	if ae.IPAddress == "" {
@@ -93,21 +105,6 @@ func (ae *AuthEvent) Validate() error {
 	}
 
 	return nil
-}
-
-// GetID implements the base.Entity interface
-func (ae *AuthEvent) GetID() interface{} {
-	return ae.ID
-}
-
-// GetCreatedAt implements the base.Entity interface
-func (ae *AuthEvent) GetCreatedAt() time.Time {
-	return ae.CreatedAt
-}
-
-// GetUpdatedAt implements the base.Entity interface
-func (ae *AuthEvent) GetUpdatedAt() time.Time {
-	return ae.CreatedAt
 }
 
 // GetMetadata returns the metadata map

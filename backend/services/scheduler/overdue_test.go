@@ -49,7 +49,7 @@ type overdueSetup struct {
 func buildOverdue(t *testing.T) *overdueSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	spy := testpkg.NewRecordingBroadcaster()
 	sched := unitScheduler(&Scheduler{
@@ -57,7 +57,9 @@ func buildOverdue(t *testing.T) *overdueSetup {
 		done:   make(chan struct{}),
 		logger: slog.Default()})
 
-	sched.SetInstanceOverdueDeps(repoFactory.ActivityInstance, repoFactory.Room, spy)
+	sched.instanceRepo = repoFactory.ActivityInstance
+	sched.instanceRoomRepo = repoFactory.Room
+	sched.overdueBroadcaster = spy
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("OVR-Room-%d", time.Now().UnixNano()))
 	today := time.Now().UTC()
@@ -82,7 +84,7 @@ func seedPlanned(t *testing.T, s *overdueSetup, minutesAgo int) *scheduleModels.
 	start := s.now.Add(-time.Duration(minutesAgo) * time.Minute)
 
 	ai := &scheduleModels.ActivityInstance{
-		Date:          timezone.DateFromTime(s.now),
+		Date:          scheduleModels.DateFromTime(s.now),
 		Title:         fmt.Sprintf("OVR-%d", time.Now().UnixNano()),
 		StartTime:     time.Date(1, 1, 1, start.Hour(), start.Minute(), start.Second(), 0, time.UTC),
 		EndTime:       time.Date(1, 1, 1, 23, 59, 0, 0, time.UTC),

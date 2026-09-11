@@ -71,7 +71,7 @@ describe("ParentSidebar", () => {
       "Nachrichten",
       "Kalender",
       "Elternbriefe",
-      "Essensplan",
+      "Mittagessen",
       "Neue Anmeldung",
       "Einstellungen",
       "Abmelden",

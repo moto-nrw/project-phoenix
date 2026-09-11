@@ -50,7 +50,7 @@ func (r *AccountRoleRepository) FindByAccountID(ctx context.Context, accountID i
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by account ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -80,7 +80,7 @@ func (r *AccountRoleRepository) FindByAccountIDForTenant(ctx context.Context, ac
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by account ID for tenant",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -119,7 +119,7 @@ func (r *AccountRoleRepository) FindByAccountIDForTenantForShare(ctx context.Con
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by account ID for tenant for share",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -146,7 +146,7 @@ func (r *AccountRoleRepository) FindByAccountAndRole(ctx context.Context, accoun
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by account and role",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -173,7 +173,7 @@ func (r *AccountRoleRepository) Create(ctx context.Context, accountRole *auth.Ac
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "create",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -204,7 +204,7 @@ func (r *AccountRoleRepository) Update(ctx context.Context, accountRole *auth.Ac
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -225,7 +225,7 @@ func (r *AccountRoleRepository) DeleteByAccountAndRole(ctx context.Context, acco
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "delete by account and role",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -246,7 +246,7 @@ func (r *AccountRoleRepository) DeleteByAccountRoleAndTenant(ctx context.Context
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "delete by account, role and tenant",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -267,7 +267,7 @@ func (r *AccountRoleRepository) DeleteByAccountID(ctx context.Context, accountID
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "delete by account ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -288,7 +288,7 @@ func (r *AccountRoleRepository) DeleteByRoleID(ctx context.Context, roleID int64
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "delete by role ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

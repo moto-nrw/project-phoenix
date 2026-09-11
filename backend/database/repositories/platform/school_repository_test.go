@@ -30,7 +30,7 @@ func TestSchoolRepository_Create(t *testing.T) {
 			Slug:   fmt.Sprintf("org-%d", now),
 			Active: true,
 		}
-		require.NoError(t, platformRepo.NewOrganizationRepository(db).Create(ctx, org))
+		testpkg.CreateTestOrganization(t, db, org)
 
 		school := &platformModels.School{
 			Model:          modelBase.Model{ID: now + 1},
@@ -65,14 +65,13 @@ func TestSchoolRepository_QueryMethods(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := platformRepo.NewSchoolRepository(db)
-	orgRepo := platformRepo.NewOrganizationRepository(db)
 	ctx := testpkg.Ctx(t)
 	now := time.Now().UnixNano()
 
 	orgA := &platformModels.Organization{Model: modelBase.Model{ID: now}, Name: fmt.Sprintf("OrgA %d", now), Slug: fmt.Sprintf("orga-%d", now), Active: true}
 	orgB := &platformModels.Organization{Model: modelBase.Model{ID: now + 1}, Name: fmt.Sprintf("OrgB %d", now), Slug: fmt.Sprintf("orgb-%d", now), Active: true}
-	require.NoError(t, orgRepo.Create(ctx, orgA))
-	require.NoError(t, orgRepo.Create(ctx, orgB))
+	testpkg.CreateTestOrganization(t, db, orgA)
+	testpkg.CreateTestOrganization(t, db, orgB)
 
 	schoolA := &platformModels.School{
 		Model:          modelBase.Model{ID: now + 2},
@@ -467,27 +466,4 @@ func TestSchoolRepository_QueryMethods(t *testing.T) {
 		assert.Nil(t, found)
 	})
 
-	t.Run("CountNonDeletedByOrganizationID counts live schools", func(t *testing.T) {
-		count, err := repo.CountNonDeletedByOrganizationID(ctx, orgA.ID)
-		require.NoError(t, err)
-		assert.Equal(t, 1, count, "orgA has one live school (schoolA)")
-	})
-
-	t.Run("CountNonDeletedByOrganizationID excludes soft-deleted schools", func(t *testing.T) {
-		_, err := db.ExecContext(ctx, `UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, schoolA.ID)
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			_, _ = db.ExecContext(ctx, `UPDATE platform.schools SET deleted_at = NULL WHERE id = ?`, schoolA.ID)
-		})
-
-		count, err := repo.CountNonDeletedByOrganizationID(ctx, orgA.ID)
-		require.NoError(t, err)
-		assert.Equal(t, 0, count, "soft-deleted school must not count — allowing parent org to be deleted")
-	})
-
-	t.Run("CountNonDeletedByOrganizationID returns zero for organization with no schools", func(t *testing.T) {
-		count, err := repo.CountNonDeletedByOrganizationID(ctx, 999999999)
-		require.NoError(t, err)
-		assert.Equal(t, 0, count)
-	})
 }

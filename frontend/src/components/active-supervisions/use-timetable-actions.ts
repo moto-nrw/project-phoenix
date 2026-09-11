@@ -20,7 +20,6 @@ import {
   runRosterActionRequest,
   type RosterAction,
 } from "~/components/active-supervisions/timetable-roster";
-import { spontaneousActivityWindow } from "~/components/active-supervisions/spontaneous-window";
 import type { SpontaneousActivityStartPayload } from "~/components/active-supervisions/spontaneous-activity-start";
 import type { ActiveSupervisionRoom } from "~/components/active-supervisions/view-model";
 
@@ -62,6 +61,7 @@ export interface TimetableActions {
   readonly setShowCompleteConfirmation: (open: boolean) => void;
   readonly moveNotice: string | null;
   readonly addStudentSearch: string;
+  readonly addStudentError: string | null;
   readonly addStudentResults: Student[];
   readonly handleAddStudentSearchChange: (value: string) => void;
   readonly handleStartPlannedInstance: (
@@ -126,6 +126,9 @@ export function useTimetableActions(
     readonly students: Student[];
   } | null>(null);
   const [isAddingStudent, setIsAddingStudent] = useState(false);
+  // Fehler des Nachtragens stehen im Dialog „Kind ungeplant hinzufügen“, nicht
+  // in der Seiten-Meldung dahinter (#3112).
+  const [addStudentError, setAddStudentError] = useState<string | null>(null);
   // Info notice after a check-in auto-moved the child out of another running
   // session (#2386). Cleared by the next roster action.
   const [moveNotice, setMoveNotice] = useState<string | null>(null);
@@ -135,10 +138,11 @@ export function useTimetableActions(
       ? addStudentResult.students
       : [];
 
-  // The move notice belongs to the session it happened in — drop it when the
-  // supervisor switches to another session tab.
+  // Hinweise und Fehler gehören zur aktiven Sitzung und dürfen nicht in eine
+  // andere Aufsicht übernommen werden.
   useEffect(() => {
     setMoveNotice(null);
+    setAddStudentError(null);
   }, [activeTimetableInstanceId]);
 
   useEffect(() => {
@@ -181,6 +185,7 @@ export function useTimetableActions(
   const handleAddStudentSearchChange = useCallback((value: string) => {
     setAddStudentSearch(value);
     setAddStudentResult(null);
+    setAddStudentError(null);
   }, []);
 
   const handleStartPlannedInstance = useCallback(
@@ -226,7 +231,6 @@ export function useTimetableActions(
 
       try {
         setIsStartingSpontaneous(true);
-        const window = spontaneousActivityWindow(new Date());
         const staffIds = Array.from(
           new Set([currentStaffId, ...payload.additionalStaffIds]),
         )
@@ -236,16 +240,12 @@ export function useTimetableActions(
           throw new Error("current staff id is not numeric");
         }
         const result = await timetableOperationsApi.createAndStartSpontaneous({
-          date: window.date,
-          start_time: window.startTime,
-          end_time: window.endTime,
           title: payload.title,
           room_id: Number(payload.roomId),
           activity_group_id: payload.activityGroupId
             ? Number(payload.activityGroupId)
             : undefined,
           staff_ids: staffIds,
-          student_ids: [],
         });
         adoptSession(result.activeGroupId, result.instanceId);
         router.push(`/active-supervisions?session=${result.activeGroupId}`);
@@ -449,6 +449,7 @@ export function useTimetableActions(
       if (!activeTimetableInstanceId) return false;
       const instanceId = activeTimetableInstanceId;
       setMoveNotice(null);
+      setAddStudentError(null);
       try {
         setIsAddingStudent(true);
         const rosterResult = await runOwnAttendanceMutation(
@@ -468,18 +469,15 @@ export function useTimetableActions(
           student_id: studentId,
           error: err instanceof Error ? err.message : String(err),
         });
-        setError("Kind konnte nicht zur Aktivität hinzugefügt werden.");
+        setAddStudentError(
+          "Kind konnte nicht zur Aktivität hinzugefügt werden.",
+        );
         return false;
       } finally {
         setIsAddingStudent(false);
       }
     },
-    [
-      activeTimetableInstanceId,
-      activeTimetableInstanceIdRef,
-      mutateRoster,
-      setError,
-    ],
+    [activeTimetableInstanceId, activeTimetableInstanceIdRef, mutateRoster],
   );
 
   return {
@@ -492,6 +490,7 @@ export function useTimetableActions(
     setShowCompleteConfirmation,
     moveNotice,
     addStudentSearch,
+    addStudentError,
     addStudentResults,
     handleAddStudentSearchChange,
     handleStartPlannedInstance,

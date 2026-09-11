@@ -9,7 +9,8 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	model "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
@@ -21,7 +22,7 @@ type planningTrackServiceStub struct {
 
 func (s *planningTrackServiceStub) ListPlanningTracks(context.Context) ([]*model.PlanningTrack, error) {
 	return []*model.PlanningTrack{{
-		Model: modelBase.Model{ID: 4}, Name: "Früh", Color: "#5080D8", SortOrder: 0,
+		Model: model.Model{ID: 4}, Name: "Früh", Color: "#5080D8", SortOrder: 0,
 	}}, nil
 }
 
@@ -32,7 +33,7 @@ func (s *planningTrackServiceStub) GetPlanningTrack(context.Context, int64) (*mo
 func (s *planningTrackServiceStub) CreatePlanningTrack(_ context.Context, input scheduleSvc.PlanningTrackInput) (*model.PlanningTrack, error) {
 	s.created = input
 	return &model.PlanningTrack{
-		Model: modelBase.Model{ID: 5}, Name: input.Name, Color: input.Color, SortOrder: input.SortOrder,
+		Model: model.Model{ID: 5}, Name: input.Name, Color: input.Color, SortOrder: input.SortOrder,
 	}, nil
 }
 
@@ -55,6 +56,28 @@ func (s *planningTrackServiceStub) RestorePlanningTrack(context.Context, int64) 
 
 func (s *planningTrackServiceStub) ValidatePlanningTrackAssignment(context.Context, *int64) error {
 	return nil
+}
+
+func TestPlanningTrackListRouteAllowsSchedulesManage(t *testing.T) {
+	t.Parallel()
+
+	db, _ := testutil.SetupTimetableModule(t)
+	resource := NewResource(Dependencies{
+		DB:                   db,
+		PlanningTrackService: new(planningTrackServiceStub),
+	})
+	router := chi.NewRouter()
+	router.Mount("/timetable", resource.Router())
+	request := httptest.NewRequest(http.MethodGet, "/timetable/planning-tracks/", nil)
+
+	response := testutil.ExecuteWithAuthPermissions(
+		t, router, request, testutil.AdminTestClaims(999999),
+		[]string{permissions.SchedulesManage},
+	)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
 }
 
 func TestPlanningTrackHandlersCreateAndReorder(t *testing.T) {

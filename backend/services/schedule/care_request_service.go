@@ -28,10 +28,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
@@ -59,10 +59,73 @@ const (
 const (
 	careRequestCreatedBody     = "Anfrage: Dauerhafte Betreuungszeiten ändern"
 	careRequestConfirmedBody   = "Anfrage bestätigt, Betreuungszeiten übernommen"
-	careRequestWithdrawnBody   = "Anfrage zurückgezogen"
-	pickupRequestCreatedBody   = "Anfrage: Abholzeit ändern"
+	pickupRequestCreatedBody   = "Abholzeit angefragt"
 	pickupRequestConfirmedBody = "Abholzeit bestätigt"
+	pickupRequestRejectedBody  = "Abholzeit abgelehnt"
 )
+
+// pickupPillTerms reads the requested day and time of a pickup-change
+// request. It is deliberately lenient about everything else in the payload:
+// the reason may be blank under a school's reason policy, and a pill that
+// cannot name the day must fall back to the plain body rather than fail.
+func pickupPillTerms(req *scheduleModels.CareScheduleChangeRequest) (timezone.Date, time.Time, bool) {
+	if req == nil || req.RequestKind != scheduleModels.CareRequestKindPickupChange {
+		return timezone.Date(""), time.Time{}, false
+	}
+	return pickupTermsFromPayload(req.Payload)
+}
+
+func pickupTermsFromPayload(payload map[string]any) (timezone.Date, time.Time, bool) {
+	dateRaw, _ := payload["date"].(string)
+	pickupRaw, _ := payload["pickup_time"].(string)
+	date, dateErr := timezone.ParseDate(dateRaw)
+	pickup, pickupErr := parseCareWallClock(pickupRaw)
+	if dateErr != nil || pickupErr != nil {
+		return timezone.Date(""), time.Time{}, false
+	}
+	return date, pickup, true
+}
+
+// pickupPillDetail names the requested day and time of a pickup change the
+// way the staff thread shows it ("15.09.2026, 14:30 Uhr"), or "" when the
+// payload does not carry both. The pill names the pickup appointment; the
+// message timestamp stays the moment of the event (#3135).
+func pickupPillDetail(req *scheduleModels.CareScheduleChangeRequest) string {
+	date, pickup, ok := pickupPillTerms(req)
+	if !ok {
+		return ""
+	}
+	return date.Format(germanDateLayout) + ", " + pickup.Format("15:04") + " Uhr"
+}
+
+// withPickupDetail appends the requested day and time to a pickup pill body.
+// Weekly-plan requests and undecodable payloads keep the body unchanged.
+func withPickupDetail(body string, req *scheduleModels.CareScheduleChangeRequest) string {
+	if detail := pickupPillDetail(req); detail != "" {
+		return body + ": " + detail
+	}
+	return body
+}
+
+// pickupPillPayload is the structured twin of pickupPillDetail: the requested
+// calendar day, the requested time and, when the request recorded one, the
+// pickup time that applied before. Clients that localize render from it; the
+// German body stays authoritative for the staff portal. nil for weekly-plan
+// requests and undecodable payloads.
+func pickupPillPayload(req *scheduleModels.CareScheduleChangeRequest) map[string]any {
+	terms := pickupChangeTerms(req)
+	if terms == nil {
+		return nil
+	}
+	payload := map[string]any{
+		"date":        terms.Date.String(),
+		"pickup_time": terms.PickupTime,
+	}
+	if terms.PreviousPickupTime != "" {
+		payload["previous_pickup_time"] = terms.PreviousPickupTime
+	}
+	return payload
+}
 
 // careRequestPillType maps a request kind to the pill's request_type token.
 // The German bodies above are authoritative only for the staff portal; the
@@ -171,6 +234,39 @@ type CareRequestHistoryItem struct {
 	ReviewerName string // "" when the row carries no reviewer (withdrawn)
 	Requested    []RequestDiffEntry
 	Diff         []RequestDiffEntry // frozen alt → neu, nil without a snapshot
+	// RequestReason is the guardian's reason for a pickup change, nil for
+	// weekly-plan rows and blank reasons.
+	RequestReason *string
+	// PickupChange names the requested day and time of a pickup change as
+	// stored on the row (plus the pickup time recorded at submission), nil
+	// for weekly-plan rows. Set by GetForReview for the detail view (#3135).
+	PickupChange *PickupChangeTerms
+}
+
+// PickupChangeTerms is the stored ask of a pickup-change request: nothing in
+// it is recomputed from today's plan.
+type PickupChangeTerms struct {
+	Date               timezone.Date
+	PickupTime         string // "15:04"
+	PreviousPickupTime string // "15:04", "" when the request recorded none
+}
+
+// pickupChangeTerms reads the stored terms of a pickup-change request; nil
+// for other kinds and undecodable payloads.
+func pickupChangeTerms(req *scheduleModels.CareScheduleChangeRequest) *PickupChangeTerms {
+	date, pickup, ok := pickupPillTerms(req)
+	if !ok {
+		return nil
+	}
+	terms := &PickupChangeTerms{Date: date, PickupTime: pickup.Format("15:04")}
+	// The previous time is validated like the requested one: a malformed
+	// stored value is dropped, never rendered as a clock.
+	if raw, ok := req.Payload["previous_pickup_time"].(string); ok {
+		if previous, err := parseCareWallClock(raw); err == nil {
+			terms.PreviousPickupTime = previous.Format("15:04")
+		}
+	}
+	return terms
 }
 
 // CareRequestDecideInput carries a staff decision on one pending request.
@@ -178,6 +274,9 @@ type CareRequestDecideInput struct {
 	RequestID int64
 	Approve   bool
 	Reason    string
+	// ReasonRequired says the school's reason policy asks the deciding staff
+	// member for a reason on an APPROVAL; a rejection always needs one (#2267).
+	ReasonRequired bool
 	// ReviewedBy is the acting staff ACCOUNT id (auth.accounts), stamped as
 	// reviewed_by and used as the pill's actor.
 	ReviewedBy int64
@@ -187,6 +286,9 @@ type CareRequestDecideInput struct {
 	// RequireImpactToken distinguishes untrusted HTTP approvals from internal
 	// service callers. It is enforced only for pickup-change requests.
 	RequireImpactToken bool
+	// ExpectedVersion pins the request row the caller decided on. Empty skips
+	// the check (internal callers); a mismatch is ErrParentRequestStale.
+	ExpectedVersion string
 }
 
 // CareScheduleRequestService owns the care-schedule change-request lifecycle.
@@ -198,11 +300,6 @@ type CareScheduleRequestService interface {
 	// commit) posts the "Anfrage erstellt" pill. The caller has already
 	// authorized the guardian for this child.
 	CreateRequest(ctx context.Context, studentID, guardianAccountID int64, payload map[string]any) (*scheduleModels.CareScheduleChangeRequest, error)
-	// WithdrawRequest moves the submitter's own pending request to withdrawn
-	// and (after commit) posts the withdrawal pill. studentID pins the request
-	// to the child the caller was authorized for.
-	WithdrawRequest(ctx context.Context, requestID, studentID, guardianAccountID int64) (*scheduleModels.CareScheduleChangeRequest, error)
-	WithdrawPickupChangeRequest(ctx context.Context, requestID, studentID, guardianAccountID int64) (*scheduleModels.CareScheduleChangeRequest, error)
 	// GetPendingForStudent returns the child's open request (nil when none)
 	// with its live "current → requested" diff, for the parent read view.
 	GetPendingForStudent(ctx context.Context, studentID int64) (*scheduleModels.CareScheduleChangeRequest, []RequestDiffEntry, error)
@@ -216,7 +313,16 @@ type CareScheduleRequestService interface {
 	// BeforeInstant returns the first page; next is nil when no older rows
 	// exist beyond this page.
 	ListHistory(ctx context.Context, filters modelBase.RequestQueueFilters) (items []*CareRequestHistoryItem, next *usersService.HistoryCursor, err error)
+	// GetForReview returns ONE request of any status for a staff reader who
+	// may review the child, with the same enrichment as the history: child
+	// name, reviewer name, the payload-derived requested summary, the frozen
+	// decision diff and the guardian's reason. It backs the "Anfrage
+	// ansehen" action of the staff message thread (#3135) and never writes.
+	GetForReview(ctx context.Context, requestID int64) (*CareRequestHistoryItem, error)
 	CreatePickupChangeRequest(ctx context.Context, studentID, guardianAccountID int64, date timezone.Date, pickupTime time.Time, reason string) (*scheduleModels.CareScheduleChangeRequest, error)
+	// CreatePickupChange is the create path that carries the school's reason
+	// policy; CreatePickupChangeRequest stays the mandatory-reason entry point.
+	CreatePickupChange(ctx context.Context, input PickupChangeCreateInput) (*scheduleModels.CareScheduleChangeRequest, error)
 	ListPendingPickupChanges(ctx context.Context) ([]*CareRequestReviewItem, error)
 	ListPickupChangeRequests(ctx context.Context, studentID int64, since time.Time) ([]*scheduleModels.CareScheduleChangeRequest, error)
 	// Decide approves (applies the weekly plan, then stamps) or rejects
@@ -224,6 +330,10 @@ type CareScheduleRequestService interface {
 	// After commit it posts the decision pill and fires the schedule cache
 	// invalidations.
 	Decide(ctx context.Context, input CareRequestDecideInput) (*CareRequestReviewItem, error)
+	// EditRequest lets the submitting guardian correct their own still-pending
+	// request (weekly plan or pickup change) instead of withdrawing and
+	// refiling it (#2267).
+	EditRequest(ctx context.Context, input CareRequestEditInput) (*scheduleModels.CareScheduleChangeRequest, error)
 }
 
 type careScheduleRequestService struct {
@@ -233,52 +343,71 @@ type careScheduleRequestService struct {
 	arrival           ArrivalScheduleService
 	pickup            PickupScheduleService
 	pickupExceptions  scheduleModels.StudentPickupExceptionRepository
-	attendance        activeModels.AttendanceRepository
+	attendance        PickupChangePresence
 	pickupAutoExcusal *PickupAutoExcusalSyncer
 	userContext       userContextService.UserContextService
 	emitter           *parentmessaging.Emitter
 	broadcaster       realtime.Broadcaster
 	studentAudit      usersService.StudentChangeRecorder
 	logger            *slog.Logger
+	reviewPolicy      RequestReviewPolicy
+	// shareVisibility answers who the parent explicitly shared a request
+	// with; nil means nobody was, so every co-guardian gets the neutral line.
+	shareVisibility parentmessaging.ShareVisibilityResolver
+	events          usersService.ParentRequestEventRecorder
+	today           func() timezone.Date
 }
 
-// NewCareScheduleRequestServiceWithPickupChanges wires one-day pickup requests
-// in addition to the recurring weekly schedule requests.
-func NewCareScheduleRequestServiceWithPickupChanges(
+func (s *careScheduleRequestService) SetTodayDate(today func() timezone.Date) {
+	s.today = today
+}
+
+func (s *careScheduleRequestService) todayDate() timezone.Date {
+	if s.today != nil {
+		return s.today()
+	}
+	return timezone.TodayDate()
+}
+
+type RequestReviewPolicy interface {
+	StudentFilter(context.Context, []string) (func(*usersModels.Student) bool, error)
+	Allows(context.Context, []string, *usersModels.Student) (bool, error)
+}
+
+// NewCareScheduleRequestServiceWithPickupChangesAndPolicy requires the
+// production review policy at construction, so missing wiring cannot widen
+// reviewer access.
+func NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 	requestRepo scheduleModels.CareScheduleChangeRequestRepository,
 	studentRepo usersModels.StudentRepository,
 	personRepo usersModels.PersonRepository,
 	arrival ArrivalScheduleService,
 	pickup PickupScheduleService,
 	pickupExceptions scheduleModels.StudentPickupExceptionRepository,
-	attendance activeModels.AttendanceRepository,
+	attendance PickupChangePresence,
 	pickupAutoExcusal *PickupAutoExcusalSyncer,
 	userContext userContextService.UserContextService,
 	emitter *parentmessaging.Emitter,
 	broadcaster realtime.Broadcaster,
+	reviewPolicy RequestReviewPolicy,
+	events usersService.ParentRequestEventRecorder,
 	logger *slog.Logger,
 	studentAudits ...usersService.StudentChangeRecorder,
 ) CareScheduleRequestService {
-	svc := NewCareScheduleRequestService(
-		requestRepo,
-		studentRepo,
-		personRepo,
-		arrival,
-		pickup,
-		userContext,
-		emitter,
-		broadcaster,
-		logger,
-		studentAudits...,
+	if reviewPolicy == nil {
+		panic("care schedule request review policy is required")
+	}
+	svc := newCareScheduleRequestService(
+		requestRepo, studentRepo, personRepo, arrival, pickup, userContext,
+		emitter, broadcaster, reviewPolicy, events, logger, studentAudits...,
 	)
-	svc.(*careScheduleRequestService).pickupExceptions = pickupExceptions
-	svc.(*careScheduleRequestService).attendance = attendance
-	svc.(*careScheduleRequestService).pickupAutoExcusal = pickupAutoExcusal
+	svc.pickupExceptions = pickupExceptions
+	svc.attendance = attendance
+	svc.pickupAutoExcusal = pickupAutoExcusal
 	return svc
 }
 
-// NewCareScheduleRequestService wires the care-request service.
-func NewCareScheduleRequestService(
+func newCareScheduleRequestService(
 	requestRepo scheduleModels.CareScheduleChangeRequestRepository,
 	studentRepo usersModels.StudentRepository,
 	personRepo usersModels.PersonRepository,
@@ -287,9 +416,11 @@ func NewCareScheduleRequestService(
 	userContext userContextService.UserContextService,
 	emitter *parentmessaging.Emitter,
 	broadcaster realtime.Broadcaster,
+	reviewPolicy RequestReviewPolicy,
+	events usersService.ParentRequestEventRecorder,
 	logger *slog.Logger,
 	studentAudits ...usersService.StudentChangeRecorder,
-) CareScheduleRequestService {
+) *careScheduleRequestService {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -307,6 +438,8 @@ func NewCareScheduleRequestService(
 		emitter:      emitter,
 		broadcaster:  broadcaster,
 		studentAudit: studentAudit,
+		reviewPolicy: reviewPolicy,
+		events:       events,
 		logger:       logger,
 	}
 }
@@ -329,26 +462,77 @@ func (s *careScheduleRequestService) CreateRequest(ctx context.Context, studentI
 		}
 		return nil, fmt.Errorf("schedule: create care request: %w", err)
 	}
-	s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
+	if err := s.recordCareRequestEvent(ctx, req, usersModels.ParentRequestEventSubmitted, guardianAccountID, nil); err != nil {
+		return nil, err
+	}
+	if err := s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
 		EventType:      "request_created",
 		ActorKind:      usersModels.ParentMessageSenderGuardian,
 		ActorAccountID: guardianAccountID,
 		Body:           careRequestCreatedBody,
 		RequestType:    usersModels.ParentMessageRequestCareSchedule,
 		RequestStatus:  usersModels.ParentMessageRequestStatusOpen,
-	})
+	}); err != nil {
+		return nil, err
+	}
 	s.wakeGuardiansAfterCommit(ctx, req)
 	return req, nil
 }
 
-func (s *careScheduleRequestService) CreatePickupChangeRequest(ctx context.Context, studentID, guardianAccountID int64, date timezone.Date, pickupTime time.Time, reason string) (*scheduleModels.CareScheduleChangeRequest, error) {
+// validatePickupChangeInput is the shared gate of the create and the guardian
+// edit path: same date window, same reason bound, so an edit can never produce
+// a request the create path would have refused.
+// reasonRequired carries the school's reason policy
+// (operations.parent_request_reason_policy, #2267 story 28); a school that
+// asks nobody for a reason accepts a blank one, everything else is validated
+// the same either way.
+func validatePickupChangeInput(
+	studentID, guardianAccountID int64, date timezone.Date, pickupTime time.Time, reason string, reasonRequired bool,
+	today timezone.Date,
+) (string, error) {
 	reason = strings.TrimSpace(reason)
-	if studentID <= 0 || guardianAccountID <= 0 || date.IsZero() || pickupTime.IsZero() || reason == "" || utf8.RuneCountInString(reason) > 255 {
-		return nil, ErrInvalidCareRequestPayload
+	if studentID <= 0 || guardianAccountID <= 0 || date.IsZero() || pickupTime.IsZero() ||
+		(reason == "" && reasonRequired) || utf8.RuneCountInString(reason) > 255 {
+		return "", ErrInvalidCareRequestPayload
 	}
-	today := timezone.TodayDate()
-	if date.Before(today) || date.After(timezone.NewDate(today.Year, today.Month+2, today.Day)) {
-		return nil, ErrInvalidCareRequestPayload
+	if date.Before(today) || date.After(timezone.NewDate(today.Year(), today.Month()+2, today.Day())) {
+		return "", ErrInvalidCareRequestPayload
+	}
+	return reason, nil
+}
+
+// CreatePickupChangeRequest keeps the mandatory-reason behaviour every
+// existing caller relies on. A caller that has resolved the school's reason
+// policy uses CreatePickupChange instead.
+func (s *careScheduleRequestService) CreatePickupChangeRequest(ctx context.Context, studentID, guardianAccountID int64, date timezone.Date, pickupTime time.Time, reason string) (*scheduleModels.CareScheduleChangeRequest, error) {
+	return s.CreatePickupChange(ctx, PickupChangeCreateInput{
+		StudentID: studentID, GuardianAccountID: guardianAccountID,
+		Date: date, PickupTime: pickupTime, Reason: reason, ReasonRequired: true,
+	})
+}
+
+// PickupChangeCreateInput is one guardian one-day pickup change. ReasonRequired
+// carries the school's reason policy, resolved by the caller that knows the
+// tenant.
+type PickupChangeCreateInput struct {
+	StudentID         int64
+	GuardianAccountID int64
+	Date              timezone.Date
+	PickupTime        time.Time
+	Reason            string
+	ReasonRequired    bool
+}
+
+func (s *careScheduleRequestService) CreatePickupChange(
+	ctx context.Context, input PickupChangeCreateInput,
+) (*scheduleModels.CareScheduleChangeRequest, error) {
+	studentID, guardianAccountID, date, pickupTime := input.StudentID, input.GuardianAccountID, input.Date, input.PickupTime
+	reason, err := validatePickupChangeInput(
+		studentID, guardianAccountID, date, pickupTime, input.Reason, input.ReasonRequired,
+		s.todayDate(),
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	payload := map[string]any{
@@ -379,62 +563,151 @@ func (s *careScheduleRequestService) CreatePickupChangeRequest(ctx context.Conte
 		}
 		return nil, fmt.Errorf("schedule: create pickup change request: %w", err)
 	}
-	s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
+	if err := s.recordCareRequestEvent(ctx, req, usersModels.ParentRequestEventSubmitted, guardianAccountID, nil); err != nil {
+		return nil, err
+	}
+	if err := s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
 		EventType:      "request_created",
 		ActorKind:      usersModels.ParentMessageSenderGuardian,
 		ActorAccountID: guardianAccountID,
-		Body:           pickupRequestCreatedBody,
+		Body:           withPickupDetail(pickupRequestCreatedBody, req),
 		RequestType:    usersModels.ParentMessageRequestPickupChange,
 		RequestStatus:  usersModels.ParentMessageRequestStatusOpen,
-	})
+		Payload:        pickupPillPayload(req),
+	}); err != nil {
+		return nil, err
+	}
 	s.wakeGuardiansAfterCommit(ctx, req)
 	return req, nil
 }
 
-func (s *careScheduleRequestService) WithdrawRequest(ctx context.Context, requestID, studentID, guardianAccountID int64) (*scheduleModels.CareScheduleChangeRequest, error) {
-	return s.withdrawRequestOfKind(ctx, requestID, studentID, guardianAccountID, scheduleModels.CareRequestKindWeeklySchedule)
+// CareRequestEditInput is one guardian edit of their own still-open care
+// request (#2267, story 37). Exactly one of Payload (weekly plan) or the
+// pickup triple is used, decided by the locked row's kind — the caller cannot
+// turn one request kind into the other.
+type CareRequestEditInput struct {
+	RequestID         int64
+	StudentID         int64
+	GuardianAccountID int64
+	ExpectedVersion   string
+	// ReasonRequired carries the school's reason policy for the pickup kind,
+	// resolved by the caller that knows the tenant (#2267, story 28).
+	ReasonRequired bool
+	// Payload is the weekly-plan proposal (care_schedule requests).
+	Payload map[string]any
+	// Date, PickupTime and Reason are the pickup-change proposal.
+	Date       timezone.Date
+	PickupTime time.Time
+	Reason     string
 }
 
-func (s *careScheduleRequestService) WithdrawPickupChangeRequest(ctx context.Context, requestID, studentID, guardianAccountID int64) (*scheduleModels.CareScheduleChangeRequest, error) {
-	return s.withdrawRequestOfKind(ctx, requestID, studentID, guardianAccountID, scheduleModels.CareRequestKindPickupChange)
-}
-
-func (s *careScheduleRequestService) withdrawRequestOfKind(ctx context.Context, requestID, studentID, guardianAccountID int64, requestKind string) (*scheduleModels.CareScheduleChangeRequest, error) {
-	// Lock the row regardless of status so ownership is checked BEFORE the
-	// pending-status distinction — FindPendingByIDForUpdate would collapse a
-	// terminal (already decided/withdrawn) row into ErrCareRequestNotPending
-	// before the ownership check below runs, letting a stranger probe a foreign
-	// child's decided request id via a 409 instead of the intended 404.
-	req, err := s.requestRepo.FindByIDForUpdate(ctx, requestID)
+// EditRequest rewrites the submitter's own pending care request — weekly plan
+// or one-day pickup change, whichever the row is. It replaces the withdraw
+// flow, so the request keeps its id, its share and its history. A request that
+// is not the caller's own is reported as not found, never as forbidden.
+func (s *careScheduleRequestService) EditRequest(
+	ctx context.Context, input CareRequestEditInput,
+) (*scheduleModels.CareScheduleChangeRequest, error) {
+	// Lock regardless of status so ownership is checked BEFORE the
+	// pending-status distinction — a foreign child's decided request id must
+	// surface as not-found, not not-pending.
+	req, err := s.requestRepo.FindByIDForUpdate(ctx, input.RequestID)
 	if err != nil {
 		return nil, err
 	}
-	// Only the submitting guardian withdraws their own request, and only under
-	// the child the caller was authorized for. Report a foreign request as
-	// not-found rather than forbidden so the id space is not probeable.
-	if req.SubmittedBy != guardianAccountID || req.StudentID != studentID || req.RequestKind != requestKind {
+	if req.SubmittedBy != input.GuardianAccountID || req.StudentID != input.StudentID {
 		return nil, scheduleModels.ErrCareRequestNotFound
 	}
-	// The caller owns a real request; only a still-pending one can be withdrawn.
-	// A caller's own already-terminal request surfaces as not-pending (409),
-	// distinct from the not-found (404) a foreign id gets above.
 	if req.Status != scheduleModels.CareRequestStatusPending {
 		return nil, scheduleModels.ErrCareRequestNotPending
 	}
-	if err := s.requestRepo.Decide(ctx, req.ID, scheduleModels.CareRequestStatusWithdrawn, nil, nil, false); err != nil {
+	if input.ExpectedVersion != "" && usersService.ParentRequestVersion(req.UpdatedAt) != input.ExpectedVersion {
+		return nil, usersService.ErrParentRequestStale
+	}
+	payload, err := s.editedCarePayload(ctx, req, input)
+	if err != nil {
 		return nil, err
 	}
-	req.Status = scheduleModels.CareRequestStatusWithdrawn
-	s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
-		EventType:      "request_status",
-		ActorKind:      usersModels.ParentMessageSenderGuardian,
-		ActorAccountID: guardianAccountID,
-		Body:           careRequestWithdrawnBody,
-		RequestType:    careRequestPillType(req.RequestKind),
-		RequestStatus:  usersModels.ParentMessageRequestStatusWithdrawn,
-	})
-	s.wakeGuardiansAfterCommit(ctx, req)
-	return req, nil
+	if err := s.requestRepo.UpdatePending(ctx, req.ID, payload); err != nil {
+		return nil, err
+	}
+	row, err := s.requestRepo.FindByID(ctx, req.ID)
+	if err != nil {
+		return nil, fmt.Errorf("schedule: reload edited care request: %w", err)
+	}
+	if err := s.recordCareRequestEvent(
+		ctx, row, usersModels.ParentRequestEventGuardianEdit, input.GuardianAccountID, nil,
+	); err != nil {
+		return nil, err
+	}
+	return row, nil
+}
+
+// editedCarePayload re-runs the create-path validators of the row's own kind
+// and returns the payload to store.
+func (s *careScheduleRequestService) editedCarePayload(
+	ctx context.Context, req *scheduleModels.CareScheduleChangeRequest, input CareRequestEditInput,
+) (map[string]any, error) {
+	if req.RequestKind != scheduleModels.CareRequestKindPickupChange {
+		return canonicalizeCareSchedulePayload(input.Payload)
+	}
+	reason, err := validatePickupChangeInput(
+		input.StudentID, input.GuardianAccountID, input.Date, input.PickupTime, input.Reason, input.ReasonRequired,
+		s.todayDate(),
+	)
+	if err != nil {
+		return nil, err
+	}
+	payload := map[string]any{
+		"date":        input.Date.String(),
+		"pickup_time": input.PickupTime.Format("15:04"),
+		"reason":      reason,
+	}
+	// The "vorher" line staff read is recomputed against the edited date, not
+	// carried over from the original submission.
+	if s.pickup != nil {
+		effective, err := s.pickup.GetEffectivePickupTimeForDate(ctx, input.StudentID, input.Date)
+		if err != nil {
+			return nil, fmt.Errorf("schedule: resolve current pickup time: %w", err)
+		}
+		if effective != nil && effective.PickupTime != nil {
+			payload["previous_pickup_time"] = effective.PickupTime.Format("15:04")
+		}
+	}
+	return payload, nil
+}
+
+// careRequestLedgerType maps the two care request kinds onto the ledger's
+// request types. The weekly plan and the one-day pickup change are separate
+// request types everywhere else too, so the history reads the same.
+func careRequestLedgerType(req *scheduleModels.CareScheduleChangeRequest) string {
+	if req.RequestKind == scheduleModels.CareRequestKindPickupChange {
+		return usersModels.ParentRequestTypePickupChange
+	}
+	return usersModels.ParentRequestTypeCareSchedule
+}
+
+// recordCareRequestEvent writes one ledger entry inside the ambient
+// transaction of the change it describes.
+func (s *careScheduleRequestService) recordCareRequestEvent(
+	ctx context.Context,
+	req *scheduleModels.CareScheduleChangeRequest,
+	eventType string,
+	actorAccountID int64,
+	payload map[string]any,
+) error {
+	if err := usersService.RecordParentRequestEvent(ctx, s.events, usersService.ParentRequestEventInput{
+		StudentID:      req.StudentID,
+		RequestType:    careRequestLedgerType(req),
+		RequestID:      req.ID,
+		EventType:      eventType,
+		ActorAccountID: actorAccountID,
+		UpdatedAt:      req.UpdatedAt,
+		Payload:        payload,
+	}); err != nil {
+		return fmt.Errorf("schedule: record care request event: %w", err)
+	}
+	return nil
 }
 
 func (s *careScheduleRequestService) GetPendingForStudent(ctx context.Context, studentID int64) (*scheduleModels.CareScheduleChangeRequest, []RequestDiffEntry, error) {
@@ -461,7 +734,7 @@ func (s *careScheduleRequestService) GetPendingForStudent(ctx context.Context, s
 
 func (s *careScheduleRequestService) ListPending(ctx context.Context, filters modelBase.RequestQueueFilters) ([]*CareRequestReviewItem, *usersService.HistoryCursor, error) {
 	// limit+1 probes for an older page without a second count query.
-	rows, err := s.requestRepo.ListPendingForTenant(ctx, probeLimit(filters))
+	rows, err := s.requestRepo.ListPendingForTenant(ctx, scheduleQueueFilters(probeLimit(filters)))
 	if err != nil {
 		return nil, nil, fmt.Errorf("schedule: list pending care requests: %w", err)
 	}
@@ -485,9 +758,22 @@ func probeLimit(filters modelBase.RequestQueueFilters) modelBase.RequestQueueFil
 	return filters
 }
 
+func scheduleQueueFilters(filters modelBase.RequestQueueFilters) scheduleModels.RequestQueueFilters {
+	return scheduleModels.RequestQueueFilters{
+		UrgentOnly:    filters.UrgentOnly,
+		UrgentDate:    filters.UrgentDate,
+		StudentIDs:    filters.StudentIDs,
+		StudentID:     filters.StudentID,
+		Search:        filters.Search,
+		BeforeInstant: filters.BeforeInstant,
+		BeforeID:      filters.BeforeID,
+		Limit:         filters.Limit,
+	}
+}
+
 func (s *careScheduleRequestService) ListHistory(ctx context.Context, filters modelBase.RequestQueueFilters) ([]*CareRequestHistoryItem, *usersService.HistoryCursor, error) {
 	// limit+1 probes for an older page without a second count query.
-	rows, err := s.requestRepo.ListDecidedForTenant(ctx, probeLimit(filters))
+	rows, err := s.requestRepo.ListDecidedForTenant(ctx, scheduleQueueFilters(probeLimit(filters)))
 	if err != nil {
 		return nil, nil, fmt.Errorf("schedule: list decided care requests: %w", err)
 	}
@@ -536,7 +822,10 @@ func (s *careScheduleRequestService) ListHistory(ctx context.Context, filters mo
 
 	// Same per-child scope as ListPending: write gate + alumnus skip, so the
 	// history shows exactly the children the caller may act on.
-	writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userContext)
+	writable, err := s.reviewableFilter(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	items := make([]*CareRequestHistoryItem, 0, len(rows))
 	for _, r := range rows {
@@ -559,12 +848,72 @@ func (s *careScheduleRequestService) ListHistory(ctx context.Context, filters mo
 	return items, next, nil
 }
 
+// GetForReview loads one request row (tenant-scoped by the ambient
+// transaction) and authorizes the reader per child exactly like a decision:
+// the review policy (admin, or a group leader the school allowed). A row of
+// another school is simply not found; a child outside the reader's scope is
+// forbidden. Decided, withdrawn and pending rows all read the same way, so a
+// message pill keeps opening its request after the decision.
+func (s *careScheduleRequestService) GetForReview(ctx context.Context, requestID int64) (*CareRequestHistoryItem, error) {
+	if requestID <= 0 {
+		return nil, scheduleModels.ErrCareRequestNotFound
+	}
+	req, err := s.requestRepo.FindByID(ctx, requestID)
+	if err != nil {
+		if errors.Is(err, modelBase.ErrNotFound) {
+			return nil, scheduleModels.ErrCareRequestNotFound
+		}
+		return nil, fmt.Errorf("schedule: load care request: %w", err)
+	}
+	student, err := s.studentRepo.FindByID(ctx, req.StudentID)
+	if err != nil {
+		if errors.Is(err, modelBase.ErrNotFound) {
+			return nil, scheduleModels.ErrCareRequestNotFound
+		}
+		return nil, fmt.Errorf("schedule: load student for care request: %w", err)
+	}
+	if student == nil {
+		return nil, scheduleModels.ErrCareRequestNotFound
+	}
+	allowed, err := s.canReviewStudent(ctx, student)
+	if err != nil {
+		return nil, err
+	}
+	if !allowed {
+		return nil, ErrCareRequestForbidden
+	}
+	item := &CareRequestHistoryItem{
+		Request:       req,
+		Requested:     careRequestedSummaryFrom(req.Payload),
+		Diff:          careDiffEntriesFromSnapshot(req.DecisionSnapshot),
+		RequestReason: pickupChangeReason(req),
+		PickupChange:  pickupChangeTerms(req),
+	}
+	person, err := s.personRepo.FindByID(ctx, student.PersonID)
+	if err != nil {
+		return nil, fmt.Errorf("schedule: load person for care request: %w", err)
+	}
+	if person != nil {
+		item.FirstName, item.LastName = person.FirstName, person.LastName
+	}
+	if req.ReviewedBy != nil && *req.ReviewedBy > 0 {
+		reviewers, err := s.personRepo.FindByAccountIDs(ctx, []int64{*req.ReviewedBy})
+		if err != nil {
+			return nil, fmt.Errorf("schedule: load reviewer for care request: %w", err)
+		}
+		item.ReviewerName = usersService.ReviewerDisplayName(reviewers, req.ReviewedBy)
+	}
+	return item, nil
+}
+
 // careRequestedSummaryFrom renders the REQUESTED side of a decided
 // weekly-schedule or pickup-change payload, with no live reads: the "current" side has moved on
 // since the decision, so unlike careScheduleDiffFrom the Old fields stay empty.
 // An undecodable payload yields an empty summary (the row still lists).
 func careRequestedSummaryFrom(payload map[string]any) []RequestDiffEntry {
-	if date, pickup, _, err := parsePickupChangePayload(payload); err == nil {
+	// Day and time alone identify a pickup change; a blank reason (allowed by
+	// a school's reason policy) must not turn the summary empty.
+	if date, pickup, ok := pickupTermsFromPayload(payload); ok {
 		return []RequestDiffEntry{{
 			Label:    date.Format(germanDateLayout) + " · Abholzeit",
 			New:      pickup.Format("15:04"),
@@ -678,7 +1027,7 @@ func careDiffEntriesFromSnapshot(snapshot *scheduleModels.CareRequestDecisionSna
 }
 
 func (s *careScheduleRequestService) ListPendingPickupChanges(ctx context.Context) ([]*CareRequestReviewItem, error) {
-	rows, err := s.requestRepo.ListPendingForTenantAndKind(ctx, scheduleModels.CareRequestKindPickupChange, modelBase.RequestQueueFilters{})
+	rows, err := s.requestRepo.ListPendingForTenantAndKind(ctx, scheduleModels.CareRequestKindPickupChange, scheduleModels.RequestQueueFilters{})
 	if err != nil {
 		return nil, fmt.Errorf("schedule: list pending pickup change requests: %w", err)
 	}
@@ -697,7 +1046,10 @@ func (s *careScheduleRequestService) buildPendingItems(ctx context.Context, rows
 	if err != nil {
 		return nil, err
 	}
-	writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userContext)
+	writable, err := s.reviewableFilter(ctx)
+	if err != nil {
+		return nil, err
+	}
 	items := make([]*CareRequestReviewItem, 0, len(rows))
 	sources := map[int64]*careDiffSource{}
 	for _, r := range rows {
@@ -705,7 +1057,7 @@ func (s *careScheduleRequestService) buildPendingItems(ctx context.Context, rows
 		// A child whose care has ended leaves the pending queue: the
 		// effect-day pass closes their open requests, and until it runs the
 		// queue must not offer a decision on a departed child (#2487).
-		if !writable(student) || student.IsAlumnus() || student.CareEndedOn(timezone.TodayDate()) {
+		if !writable(student) || student.IsAlumnus() || student.CareEndedOn(s.todayDate()) {
 			continue
 		}
 		items = append(items, s.buildPendingItem(ctx, r, student, persons, sources))
@@ -814,7 +1166,7 @@ func (s *careScheduleRequestService) pickupChangeDiff(ctx context.Context, req *
 	}
 	old, _ := req.Payload["previous_pickup_time"].(string)
 	if old == "" && s.pickupExceptions != nil {
-		existing, findErr := s.pickupExceptions.FindByStudentIDAndDate(ctx, req.StudentID, date)
+		existing, findErr := s.pickupExceptions.FindByStudentIDAndDate(ctx, req.StudentID, scheduleModels.Date(date))
 		if findErr != nil {
 			return nil, findErr
 		}
@@ -844,12 +1196,28 @@ func (s *careScheduleRequestService) Decide(ctx context.Context, input CareReque
 	if err != nil {
 		return nil, err
 	}
-	req, err := s.loadAuthorizedCareDecision(ctx, input.RequestID)
+	var result *CareRequestReviewItem
+	err = tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
+		var decisionErr error
+		result, decisionErr = s.decide(txCtx, input, reason)
+		return decisionErr
+	})
 	if err != nil {
 		return nil, err
 	}
+	return result, nil
+}
+
+func (s *careScheduleRequestService) decide(ctx context.Context, input CareRequestDecideInput, reason string) (*CareRequestReviewItem, error) {
+	req, err := s.loadAuthorizedCareDecision(ctx, input.RequestID, input.ExpectedVersion)
+	if err != nil {
+		return nil, err
+	}
+	// A past pickup-change is already refused by applyPickupChangeRequest with
+	// ErrPickupChangeExpired, which says more than the generic past code and
+	// carries its own wire code — no second guard here (#2267, story 14).
 	snapshot := s.buildDecisionSnapshot(ctx, req)
-	companionsChanged, err := s.applyApprovedCareDecision(ctx, req, input)
+	companionsChanged, pickupExceptionID, err := s.applyApprovedCareDecision(ctx, req, input)
 	if err != nil {
 		return nil, err
 	}
@@ -857,8 +1225,25 @@ func (s *careScheduleRequestService) Decide(ctx context.Context, input CareReque
 	if err := s.persistCareDecision(ctx, req, input, state, snapshot); err != nil {
 		return nil, err
 	}
-	s.registerCareDecisionEffects(ctx, req, input, state, companionsChanged)
-	return s.reloadCareDecisionItem(ctx, req.ID)
+	if err := s.registerCareDecisionEffects(ctx, req, input, state, companionsChanged); err != nil {
+		return nil, err
+	}
+	item, err := s.reloadCareDecisionItem(ctx, req.ID)
+	if err != nil {
+		return nil, err
+	}
+	payload := map[string]any{"approve": input.Approve, "reason": reason}
+	// The created exception row id travels with the decision so a later
+	// correction can delete exactly the row this approval wrote (#2267).
+	if pickupExceptionID > 0 {
+		payload["pickup_exception_id"] = pickupExceptionID
+	}
+	if err := s.recordCareRequestEvent(
+		ctx, item.Request, usersModels.ParentRequestEventDecided, input.ReviewedBy, payload,
+	); err != nil {
+		return nil, err
+	}
+	return item, nil
 }
 
 func validateCareRequestDecision(input CareRequestDecideInput) (string, error) {
@@ -866,22 +1251,35 @@ func validateCareRequestDecision(input CareRequestDecideInput) (string, error) {
 		return "", scheduleModels.ErrCareRequestNotFound
 	}
 	reason := strings.TrimSpace(input.Reason)
-	if input.Approve {
-		return reason, nil
-	}
-	if reason == "" {
+	if !input.Approve && reason == "" {
 		return "", ErrCareRequestRejectReasonRequired
 	}
+	// An approval needs a reason only while the school's policy asks staff for
+	// one; a rejection always does (#2267, story 28).
+	if input.Approve && input.ReasonRequired && reason == "" {
+		return "", usersService.ErrParentRequestReasonRequired
+	}
+	// The bound applies to both verdicts: an approval reason is stored and
+	// shown in the history exactly like a rejection reason (#2267).
 	if utf8.RuneCountInString(reason) > careRequestMaxReasonLen {
 		return "", ErrCareRequestRejectReasonTooLong
 	}
 	return reason, nil
 }
 
-func (s *careScheduleRequestService) loadAuthorizedCareDecision(ctx context.Context, requestID int64) (*scheduleModels.CareScheduleChangeRequest, error) {
+func (s *careScheduleRequestService) loadAuthorizedCareDecision(
+	ctx context.Context,
+	requestID int64,
+	expectedVersion string,
+) (*scheduleModels.CareScheduleChangeRequest, error) {
 	req, err := s.requestRepo.FindPendingByIDForUpdate(ctx, requestID)
 	if err != nil {
 		return nil, err
+	}
+	// Staleness is decided under the row lock and before any authorization or
+	// apply work, so a decision taken on an outdated view never lands (#2267).
+	if expectedVersion != "" && usersService.ParentRequestVersion(req.UpdatedAt) != expectedVersion {
+		return nil, usersService.ErrParentRequestStale
 	}
 	student, err := s.studentRepo.FindByIDForUpdate(ctx, req.StudentID)
 	if err != nil {
@@ -892,33 +1290,64 @@ func (s *careScheduleRequestService) loadAuthorizedCareDecision(ctx context.Cont
 	}
 	// The child left the OGS after filing this request; approving it would
 	// write a weekly plan nobody will follow (#2487).
-	if student.CareEndedOn(timezone.TodayDate()) {
+	if student.CareEndedOn(s.todayDate()) {
 		return nil, scheduleModels.ErrCareRequestNotFound
 	}
-	if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.userContext); !ok {
+	allowed, authErr := s.canReviewStudent(ctx, student)
+	if authErr != nil {
+		return nil, authErr
+	}
+	if !allowed {
 		return nil, ErrCareRequestForbidden
 	}
 	return req, nil
 }
 
-func (s *careScheduleRequestService) applyApprovedCareDecision(ctx context.Context, req *scheduleModels.CareScheduleChangeRequest, input CareRequestDecideInput) (bool, error) {
+func (s *careScheduleRequestService) reviewableFilter(ctx context.Context) (func(*usersModels.Student) bool, error) {
+	if s.reviewPolicy == nil {
+		writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userContext)
+		return func(student *usersModels.Student) bool { return writable(student) }, nil
+	}
+	filter, err := s.reviewPolicy.StudentFilter(ctx, jwt.PermissionsFromCtx(ctx))
+	if err != nil {
+		return nil, fmt.Errorf("schedule: resolve request reviewer scope: %w", err)
+	}
+	return filter, nil
+}
+
+func (s *careScheduleRequestService) canReviewStudent(ctx context.Context, student *usersModels.Student) (bool, error) {
+	if s.reviewPolicy == nil {
+		ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.userContext)
+		return ok, nil
+	}
+	ok, err := s.reviewPolicy.Allows(ctx, jwt.PermissionsFromCtx(ctx), student)
+	if err != nil {
+		return false, fmt.Errorf("schedule: resolve request reviewer scope: %w", err)
+	}
+	return ok, nil
+}
+
+// applyApprovedCareDecision returns whether companion links changed and, for a
+// pickup change, the id of the exception row the approval wrote (0 otherwise).
+func (s *careScheduleRequestService) applyApprovedCareDecision(ctx context.Context, req *scheduleModels.CareScheduleChangeRequest, input CareRequestDecideInput) (bool, int64, error) {
 	if !input.Approve {
-		return false, nil
+		return false, 0, nil
 	}
 	if s.emitter != nil {
 		hasAccess, err := s.emitter.GuardianHasChildAccess(ctx, req.StudentID, req.SubmittedBy)
 		if err != nil {
-			return false, fmt.Errorf("schedule: care request guardian link check: %w", err)
+			return false, 0, fmt.Errorf("schedule: care request guardian link check: %w", err)
 		}
 		if !hasAccess {
-			return false, ErrCareRequestGuardianAccessRevoked
+			return false, 0, ErrCareRequestGuardianAccessRevoked
 		}
 	}
 	if req.RequestKind == scheduleModels.CareRequestKindPickupChange {
-		err := s.applyPickupChangeRequest(ctx, req, input.ExpectedImpactToken, input.RequireImpactToken)
-		return false, err
+		exceptionID, err := s.applyPickupChangeRequest(ctx, req, input.ExpectedImpactToken, input.RequireImpactToken)
+		return false, exceptionID, err
 	}
-	return s.applyCareScheduleRequest(ctx, req, input.ReviewedBy)
+	companionsChanged, err := s.applyCareScheduleRequest(ctx, req, input.ReviewedBy)
+	return companionsChanged, 0, err
 }
 
 type careDecisionState struct {
@@ -931,13 +1360,25 @@ type careDecisionState struct {
 
 func newCareDecisionState(req *scheduleModels.CareScheduleChangeRequest, approve bool, reason string) careDecisionState {
 	body := careRequestConfirmedBody
+	rejectedBody := "Anfrage abgelehnt: " + reason
 	if req.RequestKind == scheduleModels.CareRequestKindPickupChange {
-		body = pickupRequestConfirmedBody
+		body = withPickupDetail(pickupRequestConfirmedBody, req)
+		// The staff thread must show WHICH day was refused, not only that
+		// something was (#3135). Without a decodable day the generic line stays.
+		if detail := pickupPillDetail(req); detail != "" {
+			rejectedBody = pickupRequestRejectedBody + ": " + detail + ". Grund: " + reason
+		}
 	}
 	if approve {
-		return careDecisionState{scheduleModels.CareRequestStatusApproved, usersModels.ParentMessageRequestStatusDone, body, reason, nil}
+		// The staff reason is persisted on approvals too — without it the
+		// history shows a decision with no explanation (#2267).
+		var reasonPtr *string
+		if reason != "" {
+			reasonPtr = &reason
+		}
+		return careDecisionState{scheduleModels.CareRequestStatusApproved, usersModels.ParentMessageRequestStatusDone, body, reason, reasonPtr}
 	}
-	return careDecisionState{scheduleModels.CareRequestStatusRejected, usersModels.ParentMessageRequestStatusRejected, "Anfrage abgelehnt: " + reason, reason, &reason}
+	return careDecisionState{scheduleModels.CareRequestStatusRejected, usersModels.ParentMessageRequestStatusRejected, rejectedBody, reason, &reason}
 }
 
 func (s *careScheduleRequestService) persistCareDecision(ctx context.Context, req *scheduleModels.CareScheduleChangeRequest, input CareRequestDecideInput, state careDecisionState, snapshot *scheduleModels.CareRequestDecisionSnapshot) error {
@@ -954,7 +1395,7 @@ func (s *careScheduleRequestService) persistCareDecision(ctx context.Context, re
 	return nil
 }
 
-func (s *careScheduleRequestService) registerCareDecisionEffects(ctx context.Context, req *scheduleModels.CareScheduleChangeRequest, input CareRequestDecideInput, state careDecisionState, companionsChanged bool) {
+func (s *careScheduleRequestService) registerCareDecisionEffects(ctx context.Context, req *scheduleModels.CareScheduleChangeRequest, input CareRequestDecideInput, state careDecisionState, companionsChanged bool) error {
 	if input.Approve {
 		tenant.RegisterAfterCommit(ctx, func() { s.recordApplyAudit(req, input.ReviewedBy) })
 		s.broadcastCareScheduleChanges(ctx, req.TenantID, req.StudentID, companionsChanged)
@@ -968,13 +1409,21 @@ func (s *careScheduleRequestService) registerCareDecisionEffects(ctx context.Con
 			)
 		})
 	}
-	s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
+	decisionPill := parentmessaging.ChildEvent{
 		EventType: "request_status", ActorKind: usersModels.ParentMessageSenderStaff,
 		ActorAccountID: input.ReviewedBy, Body: state.pillBody,
 		RequestType: careRequestPillType(req.RequestKind), RequestStatus: state.pillStatus,
 		DecisionReason: state.reason,
-	})
+		Payload:        pickupPillPayload(req),
+	}
+	if err := s.emitRequestPillAfterCommit(ctx, req, decisionPill); err != nil {
+		return err
+	}
+	// Every other guardian of this child hears about the decision: the full
+	// pill for explicit share recipients, a neutral line for the rest.
+	s.notifyOtherGuardiansAfterCommit(ctx, req, decisionPill)
 	s.wakeGuardiansAfterCommit(ctx, req)
+	return nil
 }
 
 func (s *careScheduleRequestService) reloadCareDecisionItem(ctx context.Context, requestID int64) (*CareRequestReviewItem, error) {
@@ -1005,7 +1454,7 @@ func parsePickupChangePayload(payload map[string]any) (timezone.Date, time.Time,
 	pickup, pickupErr := parseCareWallClock(pickupRaw)
 	reason = strings.TrimSpace(reason)
 	if !dateOK || !pickupOK || !reasonOK || dateErr != nil || pickupErr != nil || reason == "" || utf8.RuneCountInString(reason) > 255 {
-		return timezone.Date{}, time.Time{}, "", ErrInvalidCareRequestPayload
+		return timezone.Date(""), time.Time{}, "", ErrInvalidCareRequestPayload
 	}
 	return date, pickup, reason, nil
 }
@@ -1027,45 +1476,45 @@ func (s *careScheduleRequestService) applyPickupChangeRequest(
 	req *scheduleModels.CareScheduleChangeRequest,
 	expectedImpactToken *string,
 	requireImpactToken bool,
-) error {
+) (int64, error) {
 	if s.pickupExceptions == nil || s.attendance == nil || s.pickupAutoExcusal == nil || s.userContext == nil {
-		return errors.New("schedule: pickup change request dependencies not configured")
+		return 0, errors.New("schedule: pickup change request dependencies not configured")
 	}
 	date, pickupTime, reason, err := parsePickupChangePayload(req.Payload)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	if date.Before(timezone.TodayDate()) {
-		return ErrPickupChangeExpired
+	if date.Before(s.todayDate()) {
+		return 0, ErrPickupChangeExpired
 	}
 	student, err := s.studentRepo.FindByID(ctx, req.StudentID)
 	if err != nil {
-		return fmt.Errorf("schedule: reload student for pickup request decision: %w", err)
+		return 0, fmt.Errorf("schedule: reload student for pickup request decision: %w", err)
 	}
 	if student.EnrolledUntil != nil && date.After(*student.EnrolledUntil) {
-		return scheduleModels.ErrCareRequestNotFound
+		return 0, scheduleModels.ErrCareRequestNotFound
 	}
 	if err := LockCareExceptionDay(ctx, s.pickupAutoExcusal.db, req.StudentID, date); err != nil {
-		return fmt.Errorf("schedule: lock pickup request care day: %w", err)
+		return 0, fmt.Errorf("schedule: lock pickup request care day: %w", err)
 	}
 	if err := s.verifyPickupChangeImpact(ctx, req.StudentID, date, pickupTime, expectedImpactToken, requireImpactToken); err != nil {
-		return err
+		return 0, err
 	}
 	if err := s.ensurePickupChangeNotCompleted(ctx, req.StudentID, date); err != nil {
-		return err
+		return 0, err
 	}
 	staff, err := s.resolvePickupChangeStaff(ctx)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	exceptionID, err := s.saveApprovedPickupException(ctx, req, date, pickupTime, reason, staff.ID)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if _, err := s.pickupAutoExcusal.Sync(ctx, exceptionID); err != nil {
-		return fmt.Errorf("schedule: sync approved pickup exception: %w", err)
+		return 0, fmt.Errorf("schedule: sync approved pickup exception: %w", err)
 	}
-	return nil
+	return exceptionID, nil
 }
 
 func (s *careScheduleRequestService) verifyPickupChangeImpact(
@@ -1105,7 +1554,7 @@ func pickupImpactToken(blocks []scheduleModels.PartialAbsenceBlock) string {
 }
 
 func (s *careScheduleRequestService) saveApprovedPickupException(ctx context.Context, req *scheduleModels.CareScheduleChangeRequest, date timezone.Date, pickupTime time.Time, reason string, staffID int64) (int64, error) {
-	existing, err := s.pickupExceptions.FindByStudentIDAndDate(ctx, req.StudentID, date)
+	existing, err := s.pickupExceptions.FindByStudentIDAndDate(ctx, req.StudentID, scheduleModels.Date(date))
 	if err != nil {
 		return 0, fmt.Errorf("schedule: load pickup exception for request: %w", err)
 	}
@@ -1125,9 +1574,9 @@ func (s *careScheduleRequestService) saveApprovedPickupException(ctx context.Con
 		return existing.ID, nil
 	}
 	exception := &scheduleModels.StudentPickupException{
-		TenantModel:   modelBase.TenantModel{TenantID: req.TenantID},
+		TenantModel:   scheduleModels.TenantModel{TenantID: req.TenantID},
 		StudentID:     req.StudentID,
-		ExceptionDate: date,
+		ExceptionDate: scheduleModels.Date(date),
 		PickupTime:    &pickupTime,
 		Reason:        &reason,
 		Source:        scheduleModels.ExceptionSourceStaff,
@@ -1145,22 +1594,21 @@ func (s *careScheduleRequestService) saveApprovedPickupException(ctx context.Con
 func (s *careScheduleRequestService) ensurePickupChangeNotCompleted(
 	ctx context.Context, studentID int64, date timezone.Date,
 ) error {
-	if date != timezone.TodayDate() {
+	if date != s.todayDate() {
 		return nil
 	}
 	if err := s.attendance.LockStudentAttendance(ctx, studentID); err != nil {
 		return fmt.Errorf("schedule: lock attendance for pickup request: %w", err)
 	}
-	rows, err := s.attendance.FindByStudentAndDate(ctx, studentID, date)
+	rows, err := s.attendance.ListAttendance(ctx, studentpresence.AttendanceFilter{
+		StudentIDs: []int64{studentID}, FromDate: date.String(), UntilDate: date.String(),
+	})
 	if err != nil {
 		return fmt.Errorf("schedule: load attendance for pickup request: %w", err)
 	}
 	hasOpenAttendance := false
 	hasCompletedAttendance := false
 	for _, row := range rows {
-		if row == nil {
-			continue
-		}
 		if row.CheckOutTime == nil {
 			hasOpenAttendance = true
 		} else {
@@ -1187,12 +1635,11 @@ func (s *careScheduleRequestService) resolvePickupChangeStaff(ctx context.Contex
 	return staff, nil
 }
 
-// emitRequestPillAfterCommit schedules the notification pill for after the
-// ambient transaction commits. The emitter is best-effort and opens its own
-// tenant transaction; ref fields always point at the request row.
-func (s *careScheduleRequestService) emitRequestPillAfterCommit(ctx context.Context, req *scheduleModels.CareScheduleChangeRequest, ev parentmessaging.ChildEvent) {
+// emitRequestPillAfterCommit writes the durable decision intent in the ambient
+// transaction, then schedules the best-effort chat pill after commit.
+func (s *careScheduleRequestService) emitRequestPillAfterCommit(ctx context.Context, req *scheduleModels.CareScheduleChangeRequest, ev parentmessaging.ChildEvent) error {
 	if s.emitter == nil {
-		return
+		return nil
 	}
 	tenantID := req.TenantID
 	if tenantID <= 0 {
@@ -1203,9 +1650,13 @@ func (s *careScheduleRequestService) emitRequestPillAfterCommit(ctx context.Cont
 	ev.RefID = &refID
 	studentID := req.StudentID
 	guardianAccountID := req.SubmittedBy
+	if err := s.emitter.EnqueueRequestDecision(ctx, tenantID, studentID, guardianAccountID, ev); err != nil {
+		return fmt.Errorf("schedule: enqueue care request decision: %w", err)
+	}
 	tenant.RegisterAfterCommit(ctx, func() {
 		s.emitter.EmitChildEvent(tenantID, studentID, guardianAccountID, ev)
 	})
+	return nil
 }
 
 // wakeGuardiansAfterCommit fans a message-INDEPENDENT parent_child_updated out to
@@ -1961,3 +2412,372 @@ func isCareRequestPendingUniqueViolation(err error) bool {
 	return modelBase.IsUniqueViolationOn(err, careRequestPendingUniqueIndex) ||
 		modelBase.IsUniqueViolationOn(err, pickupChangePendingUniqueIndex)
 }
+
+// parentRequestDoneBody is the neutral close for a request whose days have
+// passed: nothing was applied and nothing was refused.
+const parentRequestDoneBody = "Anfrage abgeschlossen"
+
+// careRequestScopeEnd is the last day this request covers. Only a
+// pickup-change names one; a weekly plan applies from the decision onwards and
+// has no end, so it is never past.
+func careRequestScopeEnd(req *scheduleModels.CareScheduleChangeRequest) timezone.Date {
+	if req.RequestKind != scheduleModels.CareRequestKindPickupChange {
+		return timezone.Date("")
+	}
+	raw, _ := req.Payload["date"].(string)
+	date, err := timezone.ParseDate(raw)
+	if err != nil {
+		return timezone.Date("")
+	}
+	return date
+}
+
+// MarkDone closes a pickup-change request whose day has passed. See the
+// excused twin for why this is its own terminal state; it applies nothing.
+func (s *careScheduleRequestService) MarkDone(
+	ctx context.Context,
+	requestID int64,
+	expectedVersion, reason string,
+	reviewedBy int64,
+) error {
+	if requestID <= 0 {
+		return scheduleModels.ErrCareRequestNotFound
+	}
+	req, err := s.loadAuthorizedCareDecision(ctx, requestID, expectedVersion)
+	if err != nil {
+		return err
+	}
+	if !usersService.ParentRequestIsPast(careRequestScopeEnd(req), s.todayDate()) {
+		return usersService.ErrParentRequestNotPast
+	}
+	trimmed := strings.TrimSpace(reason)
+	if utf8.RuneCountInString(trimmed) > careRequestMaxReasonLen {
+		return ErrCareRequestRejectReasonTooLong
+	}
+	var reasonPtr *string
+	if trimmed != "" {
+		reasonPtr = &trimmed
+	}
+	reviewer := reviewedBy
+	if err := s.requestRepo.Decide(
+		ctx, req.ID, scheduleModels.CareRequestStatusDone, reasonPtr, &reviewer, false,
+	); err != nil {
+		return err
+	}
+	if err := s.recordCareRequestEvent(ctx, req, usersModels.ParentRequestEventMarkedDone,
+		reviewedBy, map[string]any{"reason": trimmed}); err != nil {
+		return err
+	}
+	if err := s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
+		EventType: "request_status", ActorKind: usersModels.ParentMessageSenderStaff,
+		ActorAccountID: reviewedBy, Body: withPickupDetail(parentRequestDoneBody, req),
+		RequestType:    careRequestPillType(req.RequestKind),
+		RequestStatus:  usersModels.ParentMessageRequestStatusDone,
+		DecisionReason: trimmed,
+		Payload:        pickupPillPayload(req),
+	}); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Correct rewrites a decision staff already took (#2267, stories 21-23).
+//
+// Only a pickup-change can be corrected. A weekly-plan approval writes the
+// child's plan directly and keeps no pre-decision copy of it, so "undo" would
+// mean guessing what the plan looked like before — the service refuses and
+// tells staff to edit the plan instead.
+//
+// approved → rejected removes exactly the exception row this approval created:
+// its id travelled with the `decided` ledger event for this purpose. If that
+// row was edited after the decision, somebody else's change is sitting in it
+// and deleting it would drop their edit, so the correction refuses.
+//
+// rejected → approved re-runs the ordinary approve path, so every guard a
+// fresh approval passes — expiry, capacity, impact token — runs again.
+func (s *careScheduleRequestService) Correct(
+	ctx context.Context,
+	requestID int64,
+	approve bool,
+	expectedVersion, reason string,
+	reviewedBy int64,
+) error {
+	if requestID <= 0 {
+		return scheduleModels.ErrCareRequestNotFound
+	}
+	trimmed := strings.TrimSpace(reason)
+	if utf8.RuneCountInString(trimmed) > careRequestMaxReasonLen {
+		return ErrCareRequestRejectReasonTooLong
+	}
+	req, err := s.requestRepo.FindByIDForUpdate(ctx, requestID)
+	if err != nil {
+		return err
+	}
+	if !isCorrectableCareStatus(req.Status) {
+		return usersService.ErrParentRequestNotDecided
+	}
+	if expectedVersion != "" && usersService.ParentRequestVersion(req.UpdatedAt) != expectedVersion {
+		return usersService.ErrParentRequestStale
+	}
+	if req.RequestKind != scheduleModels.CareRequestKindPickupChange {
+		return fmt.Errorf("%w: Betreuungszeiten speichern keinen Stand von vor der Entscheidung. "+
+			"Bitte ändern Sie den Wochenplan des Kindes direkt",
+			usersService.ErrParentRequestCorrectionUnsupported)
+	}
+	// Re-authorize against the CURRENT policy: a group leader who has since
+	// lost the group must not be able to correct its decisions.
+	student, err := s.studentRepo.FindByIDForUpdate(ctx, req.StudentID)
+	if err != nil {
+		return fmt.Errorf("schedule: load student for care request correction: %w", err)
+	}
+	allowed, authErr := s.canReviewStudent(ctx, student)
+	if authErr != nil {
+		return authErr
+	}
+	if !allowed {
+		return ErrCareRequestForbidden
+	}
+
+	var pickupExceptionID int64
+	if approve {
+		pickupExceptionID, err = s.applyPickupChangeRequest(ctx, req, nil, false)
+	} else {
+		err = s.revertApprovedPickupChange(ctx, req)
+	}
+	if err != nil {
+		return err
+	}
+
+	var reasonPtr *string
+	if trimmed != "" {
+		reasonPtr = &trimmed
+	}
+	newStatus := scheduleModels.CareRequestStatusRejected
+	pillStatus := usersModels.ParentMessageRequestStatusRejected
+	if approve {
+		newStatus = scheduleModels.CareRequestStatusApproved
+		pillStatus = usersModels.ParentMessageRequestStatusDone
+	}
+	if err := s.requestRepo.Redecide(ctx, req.ID, newStatus, reasonPtr, reviewedBy, approve); err != nil {
+		return err
+	}
+
+	payload := map[string]any{"approve": approve, "reason": trimmed, "from": req.Status, "to": newStatus}
+	if req.ReviewedBy != nil {
+		payload["prior_reviewer"] = *req.ReviewedBy
+	}
+	if req.DecisionReason != nil {
+		payload["prior_reason"] = *req.DecisionReason
+	}
+	if pickupExceptionID > 0 {
+		payload["pickup_exception_id"] = pickupExceptionID
+	}
+	if err := s.recordCareRequestEvent(
+		ctx, req, usersModels.ParentRequestEventCorrected, reviewedBy, payload,
+	); err != nil {
+		return err
+	}
+	if err := s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
+		EventType:      usersModels.ParentMessageEventRequestStatus,
+		ActorKind:      usersModels.ParentMessageSenderStaff,
+		ActorAccountID: reviewedBy,
+		Body:           "Entscheidung geändert. " + correctedCarePillBody(req, approve),
+		RequestType:    careRequestPillType(req.RequestKind),
+		RequestStatus:  pillStatus,
+		DecisionReason: trimmed,
+		Payload:        pickupPillPayload(req),
+	}); err != nil {
+		return err
+	}
+	return nil
+}
+
+func isCorrectableCareStatus(status string) bool {
+	return status == scheduleModels.CareRequestStatusApproved ||
+		status == scheduleModels.CareRequestStatusRejected
+}
+
+func correctedCarePillBody(req *scheduleModels.CareScheduleChangeRequest, approve bool) string {
+	if approve {
+		return withPickupDetail(pickupRequestConfirmedBody, req)
+	}
+	return withPickupDetail(pickupRequestRejectedBody, req)
+}
+
+// revertApprovedPickupChange deletes the exception row this approval created,
+// and only while it is provably untouched since. The id comes from the
+// `decided` ledger event, so the revert targets exactly that row rather than
+// "whatever exception sits on that day now" — which after a staff edit would
+// be somebody else's.
+func (s *careScheduleRequestService) revertApprovedPickupChange(
+	ctx context.Context,
+	req *scheduleModels.CareScheduleChangeRequest,
+) error {
+	if req.Status != scheduleModels.CareRequestStatusApproved {
+		return nil
+	}
+	exceptionID, found, err := s.decidedPickupExceptionID(ctx, req)
+	if err != nil {
+		return err
+	}
+	if !found {
+		// The decision predates the ledger (or recorded no row), so there is
+		// nothing this correction can safely remove.
+		return fmt.Errorf("%w: zu dieser Entscheidung ist kein Eintrag gespeichert, "+
+			"der zurückgenommen werden kann. Bitte ändern Sie die Abholzeit direkt",
+			usersService.ErrParentRequestCorrectionUnsupported)
+	}
+	row, err := s.pickupExceptions.FindByIDForUpdate(ctx, exceptionID)
+	if err != nil {
+		return err
+	}
+	if row == nil {
+		// Already gone — the desired end state, so the correction proceeds.
+		return nil
+	}
+	if req.ReviewedAt != nil && row.UpdatedAt.After(*req.ReviewedAt) {
+		return fmt.Errorf("%w: die Abholzeit am %s wurde nach der Entscheidung geändert",
+			usersService.ErrParentRequestCorrectionUnsupported,
+			row.ExceptionDate.Format("02.01.2006"))
+	}
+	return s.pickupExceptions.Delete(ctx, row.ID)
+}
+
+// decidedPickupExceptionID reads the exception id the approval recorded. The
+// newest `decided` event wins: a request that was corrected before carries
+// several.
+func (s *careScheduleRequestService) decidedPickupExceptionID(
+	ctx context.Context,
+	req *scheduleModels.CareScheduleChangeRequest,
+) (int64, bool, error) {
+	if s.events == nil {
+		return 0, false, nil
+	}
+	events, err := s.events.ListForRequest(ctx, careRequestLedgerType(req), req.ID)
+	if err != nil {
+		return 0, false, fmt.Errorf("schedule: read care request ledger: %w", err)
+	}
+	var exceptionID int64
+	var found bool
+	for _, event := range events {
+		if event == nil || event.EventType != usersModels.ParentRequestEventDecided {
+			continue
+		}
+		if id, ok := jsonNumberAsInt64(event.Payload["pickup_exception_id"]); ok {
+			exceptionID, found = id, true
+		}
+	}
+	return exceptionID, found, nil
+}
+
+// jsonNumberAsInt64 reads an id back out of a jsonb payload, which round-trips
+// numbers as float64 through encoding/json.
+func jsonNumberAsInt64(value any) (int64, bool) {
+	switch typed := value.(type) {
+	case float64:
+		return int64(typed), typed > 0
+	case int64:
+		return typed, typed > 0
+	default:
+		return 0, false
+	}
+}
+
+// Co-guardian notices (#2267, story 47). A staff decision on one parent's
+// request changes the child's care for the whole family; the other guardians
+// used to hear nothing. See the excused twin for the full rationale — the
+// split is identical, only the wording differs per request kind.
+
+// SetRequestShareVisibility wires the sharing resolver after construction, so
+// every existing construction site keeps working.
+func (s *careScheduleRequestService) SetRequestShareVisibility(resolver parentmessaging.ShareVisibilityResolver) {
+	if s != nil {
+		s.shareVisibility = resolver
+	}
+}
+
+// sharedRecipients resolves the explicit recipients of one request, tolerating
+// an unwired resolver. An error is not fatal: the fallback is that everyone
+// gets the neutral line, which is the safe direction.
+func (s *careScheduleRequestService) sharedRecipients(
+	ctx context.Context, req *scheduleModels.CareScheduleChangeRequest,
+) []int64 {
+	if s.shareVisibility == nil {
+		return nil
+	}
+	accountIDs, err := s.shareVisibility.SharedRecipientAccountIDs(
+		ctx, req.StudentID, careRequestLedgerType(req), req.ID,
+	)
+	if err != nil {
+		s.logger.Warn("resolving explicit request recipients failed, falling back to neutral notices",
+			"request_id", req.ID,
+			"student_id", req.StudentID,
+			"error", err.Error(),
+		)
+		return nil
+	}
+	return accountIDs
+}
+
+// notifyOtherGuardiansAfterCommit posts the decision to the child's other
+// guardians: the full pill to whoever the parent shared the request with, the
+// neutral line to everyone else. The audience is resolved inside the
+// transaction (a tenant-scoped read); only the pills go out after commit.
+func (s *careScheduleRequestService) notifyOtherGuardiansAfterCommit(
+	ctx context.Context,
+	req *scheduleModels.CareScheduleChangeRequest,
+	ev parentmessaging.ChildEvent,
+) {
+	if s.emitter == nil {
+		return
+	}
+	audience, err := s.emitter.ResolveDecisionAudience(
+		ctx, req.StudentID, req.SubmittedBy, s.sharedRecipients(ctx, req),
+	)
+	if err != nil {
+		s.logger.Warn("co-guardian notice: resolving guardians failed",
+			"request_id", req.ID,
+			"student_id", req.StudentID,
+			"error", err.Error(),
+		)
+		return
+	}
+	if len(audience.Full) == 0 && len(audience.Neutral) == 0 {
+		return
+	}
+	tenantID := req.TenantID
+	if tenantID <= 0 {
+		tenantID = tenant.FromContext(ctx)
+	}
+	neutral := ev
+	neutral.Body = careCoGuardianNoticeBody(req)
+	// The neutral line names the day but nothing the parent did not share:
+	// no requested time, no previous time (#3135).
+	neutral.Payload = nil
+	studentID := req.StudentID
+	tenant.RegisterAfterCommit(ctx, func() {
+		s.emitter.EmitDecisionAudience(tenantID, studentID, audience, ev, neutral)
+	})
+}
+
+// careCoGuardianNoticeBody names WHAT changed and, for a pickup change, WHEN.
+// A weekly plan has no single date, so it names the area alone — enough for a
+// co-guardian to know to look, which is the whole purpose of the line.
+func careCoGuardianNoticeBody(req *scheduleModels.CareScheduleChangeRequest) string {
+	if req.RequestKind != scheduleModels.CareRequestKindPickupChange {
+		return "Betreuungsstand geändert: Betreuungszeiten"
+	}
+	raw, _ := req.Payload["date"].(string)
+	if date, err := timezone.ParseDate(raw); err == nil {
+		return "Betreuungsstand geändert: Abholzeit " + date.Format("02.01.2006")
+	}
+	return "Betreuungsstand geändert: Abholzeit"
+}
+
+// The factory wires the co-guardian resolver by type assertion, so a service
+// that silently stopped satisfying this setter would leave its domain's
+// co-guardians hearing nothing, with nothing failing. This makes that a
+// compile error instead (#2267, story 47).
+var _ interface {
+	SetRequestShareVisibility(parentmessaging.ShareVisibilityResolver)
+} = (*careScheduleRequestService)(nil)

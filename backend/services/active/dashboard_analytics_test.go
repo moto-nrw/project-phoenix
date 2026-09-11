@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -163,7 +164,7 @@ func TestCountStudentsInIndoorRooms(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		activeVisits  []*active.Visit
+		activeVisits  []studentpresence.Visit
 		activeGroups  []*active.Group
 		rooms         []*facilityModels.Room
 		expectedCount int
@@ -171,7 +172,7 @@ func TestCountStudentsInIndoorRooms(t *testing.T) {
 	}{
 		{
 			name: "Students in indoor rooms only",
-			activeVisits: []*active.Visit{
+			activeVisits: []studentpresence.Visit{
 				{StudentID: 1, ActiveGroupID: 100},
 				{StudentID: 2, ActiveGroupID: 100},
 			},
@@ -179,14 +180,14 @@ func TestCountStudentsInIndoorRooms(t *testing.T) {
 				{Model: base.Model{ID: 100}, RoomID: 10},
 			},
 			rooms: []*facilityModels.Room{
-				{Model: base.Model{ID: 10}, Name: "Raum 101", Category: ptrtest.Ptr("Klassenraum")},
+				{ID: 10, Name: "Raum 101", Category: ptrtest.Ptr("Klassenraum")},
 			},
 			expectedCount: 2,
 			description:   "Both students in an indoor room should be counted",
 		},
 		{
 			name: "Students in playground excluded",
-			activeVisits: []*active.Visit{
+			activeVisits: []studentpresence.Visit{
 				{StudentID: 1, ActiveGroupID: 100},
 				{StudentID: 2, ActiveGroupID: 200},
 			},
@@ -195,15 +196,15 @@ func TestCountStudentsInIndoorRooms(t *testing.T) {
 				{Model: base.Model{ID: 200}, RoomID: 20},
 			},
 			rooms: []*facilityModels.Room{
-				{Model: base.Model{ID: 10}, Name: "Raum 101", Category: ptrtest.Ptr("Klassenraum")},
-				{Model: base.Model{ID: 20}, Name: "Schulhof", Category: ptrtest.Ptr("Schulhof")},
+				{ID: 10, Name: "Raum 101", Category: ptrtest.Ptr("Klassenraum")},
+				{ID: 20, Name: "Schulhof", Category: ptrtest.Ptr("Schulhof")},
 			},
 			expectedCount: 1,
 			description:   "Student on playground should NOT be counted, only indoor student",
 		},
 		{
 			name: "All students on playground",
-			activeVisits: []*active.Visit{
+			activeVisits: []studentpresence.Visit{
 				{StudentID: 1, ActiveGroupID: 200},
 				{StudentID: 2, ActiveGroupID: 200},
 			},
@@ -211,42 +212,42 @@ func TestCountStudentsInIndoorRooms(t *testing.T) {
 				{Model: base.Model{ID: 200}, RoomID: 20},
 			},
 			rooms: []*facilityModels.Room{
-				{Model: base.Model{ID: 20}, Name: "Schulhof", Category: ptrtest.Ptr("Schulhof")},
+				{ID: 20, Name: "Schulhof", Category: ptrtest.Ptr("Schulhof")},
 			},
 			expectedCount: 0,
 			description:   "No students should be counted when all are on playground",
 		},
 		{
 			name: "Visit with ended group excluded",
-			activeVisits: []*active.Visit{
+			activeVisits: []studentpresence.Visit{
 				{StudentID: 1, ActiveGroupID: 100},
 			},
 			activeGroups: []*active.Group{
 				{Model: base.Model{ID: 100}, RoomID: 10, EndTime: ptrtest.Ptr(time.Now())},
 			},
 			rooms: []*facilityModels.Room{
-				{Model: base.Model{ID: 10}, Name: "Raum 101", Category: ptrtest.Ptr("Klassenraum")},
+				{ID: 10, Name: "Raum 101", Category: ptrtest.Ptr("Klassenraum")},
 			},
 			expectedCount: 0,
 			description:   "Students in ended groups should not be counted",
 		},
 		{
 			name: "Exited visit excluded",
-			activeVisits: []*active.Visit{
+			activeVisits: []studentpresence.Visit{
 				{StudentID: 1, ActiveGroupID: 100, ExitTime: ptrtest.Ptr(time.Now())},
 			},
 			activeGroups: []*active.Group{
 				{Model: base.Model{ID: 100}, RoomID: 10},
 			},
 			rooms: []*facilityModels.Room{
-				{Model: base.Model{ID: 10}, Name: "Raum 101", Category: ptrtest.Ptr("Klassenraum")},
+				{ID: 10, Name: "Raum 101", Category: ptrtest.Ptr("Klassenraum")},
 			},
 			expectedCount: 0,
 			description:   "Exited visits should not be counted",
 		},
 		{
 			name:          "Empty visits and groups",
-			activeVisits:  []*active.Visit{},
+			activeVisits:  []studentpresence.Visit{},
 			activeGroups:  []*active.Group{},
 			rooms:         []*facilityModels.Room{},
 			expectedCount: 0,
@@ -254,14 +255,14 @@ func TestCountStudentsInIndoorRooms(t *testing.T) {
 		},
 		{
 			name: "Visit to group not in active groups (outdoor/unknown)",
-			activeVisits: []*active.Visit{
+			activeVisits: []studentpresence.Visit{
 				{StudentID: 1, ActiveGroupID: 999},
 			},
 			activeGroups: []*active.Group{
 				{Model: base.Model{ID: 100}, RoomID: 10},
 			},
 			rooms: []*facilityModels.Room{
-				{Model: base.Model{ID: 10}, Name: "Raum 101", Category: ptrtest.Ptr("Klassenraum")},
+				{ID: 10, Name: "Raum 101", Category: ptrtest.Ptr("Klassenraum")},
 			},
 			expectedCount: 0,
 			description:   "Visit to a group not in the active groups list should not be counted",

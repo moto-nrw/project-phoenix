@@ -82,7 +82,7 @@ func TestUpdatePlanned_DateMove_WritesExceptionAndBlocksRematerialization(t *tes
 
 	excs := loadExceptions(t, s, s.template.ID)
 	require.Len(t, excs, 1, "date move must consume the original slot")
-	assert.Equal(t, origDate, excs[0].ExceptionDate)
+	assert.Equal(t, scheduleModels.Date(origDate), excs[0].ExceptionDate)
 	assert.Equal(t, scheduleModels.ActivityExceptionCancelled, excs[0].ExceptionType)
 	require.NotNil(t, excs[0].Reason)
 	assert.NotEmpty(t, *excs[0].Reason)
@@ -113,7 +113,7 @@ func TestDeletePlanned_WritesExceptionAndBlocksRematerialization(t *testing.T) {
 
 	excs := loadExceptions(t, s, s.template.ID)
 	require.Len(t, excs, 1, "delete must consume the original slot")
-	assert.Equal(t, origDate, excs[0].ExceptionDate)
+	assert.Equal(t, scheduleModels.Date(origDate), excs[0].ExceptionDate)
 	assert.Equal(t, scheduleModels.ActivityExceptionCancelled, excs[0].ExceptionType)
 
 	r1, err := s.svc.MaterializeForTenant(s.ctx, origDate, origDate, scheduleSvc.MaterializationSourceManual)
@@ -143,7 +143,7 @@ func TestUpdatePlanned_StartTimeOnlyMove_WritesException(t *testing.T) {
 
 	excs := loadExceptions(t, s, s.template.ID)
 	require.Len(t, excs, 1, "start-time move vacates the original slot key too")
-	assert.Equal(t, origDate, excs[0].ExceptionDate)
+	assert.Equal(t, scheduleModels.Date(origDate), excs[0].ExceptionDate)
 	assert.Equal(t, scheduleModels.ActivityExceptionCancelled, excs[0].ExceptionType)
 
 	// The exception consumes the (template, date): re-materialization must

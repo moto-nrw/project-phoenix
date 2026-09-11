@@ -8,12 +8,13 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	active "github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // =============================================================================
@@ -87,10 +88,10 @@ func TestActiveService_CreateVisit(t *testing.T) {
 		iotDevice := testpkg.CreateTestDevice(t, db, "create-visit-device")
 
 		// CreateVisit requires staff and device context for attendance FK constraints
-		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
-		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
+		staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
+		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(iotDevice.ID, iotDevice.TenantID))
 
-		visit := &activeModels.Visit{
+		visit := &studentpresence.Visit{
 			StudentID:     student.ID,
 			ActiveGroupID: activeGroup.ID,
 			EntryTime:     time.Now(),
@@ -121,10 +122,10 @@ func TestActiveService_CreateVisit(t *testing.T) {
 		iotDevice := testpkg.CreateTestDevice(t, db, "invalid-student-device")
 
 		// CreateVisit requires staff and device context for attendance FK constraints
-		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
-		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
+		staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
+		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(iotDevice.ID, iotDevice.TenantID))
 
-		visit := &activeModels.Visit{
+		visit := &studentpresence.Visit{
 			StudentID:     99999999, // invalid
 			ActiveGroupID: activeGroup.ID,
 			EntryTime:     time.Now(),
@@ -146,9 +147,9 @@ func TestActiveService_CreateVisit(t *testing.T) {
 		iotDevice := testpkg.CreateTestDevice(t, db, "ended-group-visit-device")
 
 		require.NoError(t, service.EndActiveGroupSession(ctx, activeGroup.ID))
-		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
-		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
-		visit := &activeModels.Visit{
+		staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
+		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(iotDevice.ID, iotDevice.TenantID))
+		visit := &studentpresence.Visit{
 			StudentID:     student.ID,
 			ActiveGroupID: activeGroup.ID,
 			EntryTime:     time.Now(),
@@ -176,10 +177,10 @@ func TestActiveService_CreateVisit(t *testing.T) {
 		iotDevice := testpkg.CreateTestDevice(t, db, "dup-visit-device")
 		testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now().Add(-5*time.Minute), nil)
 
-		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
-		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
+		staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
+		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(iotDevice.ID, iotDevice.TenantID))
 
-		duplicate := &activeModels.Visit{
+		duplicate := &studentpresence.Visit{
 			StudentID:     student.ID,
 			ActiveGroupID: activeGroup.ID,
 			EntryTime:     time.Now(),
@@ -211,9 +212,9 @@ func TestActiveService_CreateVisit(t *testing.T) {
 		iotDevice := testpkg.CreateTestDevice(t, db, "capacity-device")
 		testpkg.CreateTestVisit(t, db, existingStudent.ID, sourceGroup.ID, time.Now().Add(-time.Minute), nil)
 
-		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
-		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
-		visit := &activeModels.Visit{
+		staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
+		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(iotDevice.ID, iotDevice.TenantID))
+		visit := &studentpresence.Visit{
 			StudentID:     incomingStudent.ID,
 			ActiveGroupID: targetGroup.ID,
 			EntryTime:     time.Now(),
@@ -244,10 +245,10 @@ func TestActiveService_CreateVisit(t *testing.T) {
 		iotDevice := testpkg.CreateTestDevice(t, db, "historical-capacity-device")
 		testpkg.CreateTestVisit(t, db, presentStudent.ID, activeGroup.ID, time.Now().Add(-time.Hour), nil)
 
-		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
-		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
+		staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
+		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(iotDevice.ID, iotDevice.TenantID))
 		exitTime := time.Now().Add(-30 * time.Minute)
-		visit := &activeModels.Visit{
+		visit := &studentpresence.Visit{
 			StudentID:     historicalStudent.ID,
 			ActiveGroupID: activeGroup.ID,
 			EntryTime:     exitTime.Add(-time.Hour),
@@ -360,7 +361,7 @@ func TestActiveService_UpdateVisit(t *testing.T) {
 
 	t.Run("returns error for visit with zero ID", func(t *testing.T) {
 		// ARRANGE
-		visit := &activeModels.Visit{}
+		visit := &studentpresence.Visit{}
 		visit.ID = 0 // Set ID via embedded base.Model
 
 		// ACT
@@ -375,7 +376,7 @@ func TestActiveService_UpdateVisit(t *testing.T) {
 		failingDB := testpkg.SetupClosableTestDB(t)
 		serviceWithClosedDB := setupActiveService(t, failingDB)
 		require.NoError(t, failingDB.Close())
-		visit := &activeModels.Visit{
+		visit := &studentpresence.Visit{
 			StudentID:     99999998,
 			ActiveGroupID: 99999997,
 			EntryTime:     time.Now(),
@@ -443,12 +444,12 @@ func TestActiveService_DeleteVisit(t *testing.T) {
 // ListVisits Tests
 // =============================================================================
 
-func TestActiveService_ListVisits(t *testing.T) {
+func TestPresence_ListVisits(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupActiveService(t, db)
+	service := testSchoolPresence(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns visits with no options", func(t *testing.T) {
@@ -460,7 +461,7 @@ func TestActiveService_ListVisits(t *testing.T) {
 		testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
 
 		// ACT
-		result, err := service.ListVisits(ctx, nil)
+		result, err := service.ListVisits(ctx, studentpresence.VisitFilter{})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -470,11 +471,10 @@ func TestActiveService_ListVisits(t *testing.T) {
 
 	t.Run("returns visits with pagination", func(t *testing.T) {
 		// ARRANGE
-		options := base.NewQueryOptions()
-		options.WithPagination(1, 5)
+		filter := studentpresence.VisitFilter{Limit: 5}
 
 		// ACT
-		result, err := service.ListVisits(ctx, options)
+		result, err := service.ListVisits(ctx, filter)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -820,11 +820,11 @@ func TestActiveService_CheckIn_RejectsAlumnus(t *testing.T) {
 		Exec(ctx)
 	require.NoError(t, err)
 
-	staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
-	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
+	staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
+	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(iotDevice.ID, iotDevice.TenantID))
 
 	t.Run("CreateVisit rejects alumnus", func(t *testing.T) {
-		visit := &activeModels.Visit{
+		visit := &studentpresence.Visit{
 			StudentID:     student.ID,
 			ActiveGroupID: activeGroup.ID,
 			EntryTime:     time.Now(),
@@ -839,4 +839,11 @@ func TestActiveService_CheckIn_RejectsAlumnus(t *testing.T) {
 		require.Error(t, err)
 		assert.ErrorIs(t, err, active.ErrStudentGraduated)
 	})
+}
+
+func testSchoolPresence(t *testing.T, db *bun.DB) *studentpresence.Module {
+	t.Helper()
+	module, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
+	return module
 }

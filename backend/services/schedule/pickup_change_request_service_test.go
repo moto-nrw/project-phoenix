@@ -12,12 +12,21 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
+
+func newPickupChangeFixture(t *testing.T) *careFixture {
+	f := newCareFixture(t)
+	setter, ok := f.svc.(interface{ SetTodayDate(func() timezone.Date) })
+	require.True(t, ok)
+	setter.SetTodayDate(func() timezone.Date { return timezone.NewDate(2026, 8, 24) })
+	return f
+}
 
 // nextSchoolDay moves a date off the weekend. A pickup schedule only knows
 // Monday to Friday, so a plain "today + 2" made this test fail every Thursday
@@ -33,9 +42,9 @@ func nextSchoolDay(d timezone.Date) timezone.Date {
 func TestPickupChangeRequestAppliesOnlyAfterStaffApproval(t *testing.T) {
 	t.Parallel()
 
-	f := newCareFixture(t)
+	f := newPickupChangeFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
-	date := nextSchoolDay(timezone.TodayDate().AddDays(2))
+	date := nextSchoolDay(timezone.NewDate(2026, 8, 24).AddDays(2))
 	pickup := time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC)
 	weekday := int(date.Weekday())
 	require.NoError(t, f.sf.PickupSchedule.UpsertStudentPickupSchedule(ctx, &scheduleModels.StudentPickupSchedule{
@@ -60,7 +69,7 @@ func TestPickupChangeRequestAppliesOnlyAfterStaffApproval(t *testing.T) {
 	assert.Equal(t, scheduleModels.CareRequestKindPickupChange, req.RequestKind)
 	assert.Equal(t, "15:30", req.Payload["previous_pickup_time"])
 
-	before, err := f.repos.StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, date)
+	before, err := f.repos.StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, scheduleModels.Date(date))
 	require.NoError(t, err)
 	assert.Nil(t, before)
 
@@ -79,7 +88,7 @@ func TestPickupChangeRequestAppliesOnlyAfterStaffApproval(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.CareRequestStatusApproved, decided.Request.Status)
 
-	applied, err := f.repos.StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, date)
+	applied, err := f.repos.StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, scheduleModels.Date(date))
 	require.NoError(t, err)
 	require.NotNil(t, applied)
 	require.NotNil(t, applied.PickupTime)
@@ -120,7 +129,7 @@ func TestPickupChangeApprovalExcusesBlocksAfterEarlierPickup(t *testing.T) {
 	assert.Equal(t, scheduleModels.AttendanceSubstatusExcused, *got.Substatus)
 	require.NotNil(t, got.PickupExceptionID)
 
-	exception, err := f.repos.StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, date)
+	exception, err := f.repos.StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, scheduleModels.Date(date))
 	require.NoError(t, err)
 	require.NotNil(t, exception)
 	assert.True(t, exception.ExcusedAuto)
@@ -239,7 +248,7 @@ func TestPickupChangeApprovalReleasesAutoExcusalAfterLaterPickup(t *testing.T) {
 	assert.Equal(t, scheduleModels.AttendanceStatusExpected, got.Status)
 	assert.Nil(t, got.PickupExceptionID)
 
-	exception, err := f.repos.StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, date)
+	exception, err := f.repos.StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, scheduleModels.Date(date))
 	require.NoError(t, err)
 	require.NotNil(t, exception)
 	assert.False(t, exception.ExcusedAuto)
@@ -282,7 +291,7 @@ func assertPickupApprovalRolledBack(
 	t *testing.T, f *careFixture, ctx context.Context, date timezone.Date, slotID, requestID int64,
 ) {
 	t.Helper()
-	exception, err := f.repos.StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, date)
+	exception, err := f.repos.StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, scheduleModels.Date(date))
 	require.NoError(t, err)
 	assert.Nil(t, exception, "the exception write must roll back with the failed sync")
 	request, err := f.repos.CareScheduleChangeRequest.FindByID(ctx, requestID)
@@ -334,9 +343,9 @@ func holdInstanceStudentLock(t *testing.T, f *careFixture, slotID int64) func() 
 
 func newPickupApprovalAutoExcusalScenario(t *testing.T) (*careFixture, timezone.Date, int64) {
 	t.Helper()
-	f := newCareFixture(t)
+	f := newPickupChangeFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
-	date := nextSchoolDay(timezone.TodayDate().AddDays(2))
+	date := nextSchoolDay(timezone.NewDate(2026, 8, 24).AddDays(2))
 	require.NoError(t, f.sf.PickupSchedule.UpsertStudentPickupSchedule(ctx, &scheduleModels.StudentPickupSchedule{
 		StudentID:  f.chain.StudentID,
 		Weekday:    int(date.Weekday()),
@@ -380,17 +389,17 @@ func seedPickupChangeRequest(t *testing.T, f *careFixture, date timezone.Date) *
 func TestPickupChangeApprovalYieldsToStaffException(t *testing.T) {
 	t.Parallel()
 
-	f := newCareFixture(t)
+	f := newPickupChangeFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
-	date := timezone.TodayDate().AddDays(3)
+	date := timezone.NewDate(2026, 8, 24).AddDays(3)
 	req := seedPickupChangeRequest(t, f, date)
 
 	staffPickup := time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC)
 	staffReason := "Von der OGS gesetzt"
 	require.NoError(t, f.repos.StudentPickupException.Create(ctx, &scheduleModels.StudentPickupException{
-		TenantModel:   modelBase.TenantModel{TenantID: f.chain.TenantID},
+		TenantModel:   scheduleModels.TenantModel{TenantID: f.chain.TenantID},
 		StudentID:     f.chain.StudentID,
-		ExceptionDate: date,
+		ExceptionDate: scheduleModels.Date(date),
 		PickupTime:    &staffPickup,
 		Reason:        &staffReason,
 		Source:        scheduleModels.ExceptionSourceStaff,
@@ -404,7 +413,7 @@ func TestPickupChangeApprovalYieldsToStaffException(t *testing.T) {
 	})
 	require.ErrorIs(t, err, schedule.ErrPickupChangeConflict)
 
-	kept, findErr := f.repos.StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, date)
+	kept, findErr := f.repos.StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, scheduleModels.Date(date))
 	require.NoError(t, findErr)
 	require.NotNil(t, kept)
 	require.NotNil(t, kept.PickupTime)
@@ -417,9 +426,9 @@ func TestPickupChangeApprovalYieldsToStaffException(t *testing.T) {
 func TestPickupChangeApprovalYieldsToExcusedAbsence(t *testing.T) {
 	t.Parallel()
 
-	f := newCareFixture(t)
+	f := newPickupChangeFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
-	date := timezone.TodayDate().AddDays(4)
+	date := timezone.NewDate(2026, 8, 24).AddDays(4)
 	req := seedPickupChangeRequest(t, f, date)
 
 	// Source stays "guardian" on purpose: that isolates the excusal rule from
@@ -427,9 +436,9 @@ func TestPickupChangeApprovalYieldsToExcusedAbsence(t *testing.T) {
 	excusedFrom := time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC)
 	excusedReason := "Entschuldigt ab 13 Uhr"
 	require.NoError(t, f.repos.StudentPickupException.Create(ctx, &scheduleModels.StudentPickupException{
-		TenantModel:       modelBase.TenantModel{TenantID: f.chain.TenantID},
+		TenantModel:       scheduleModels.TenantModel{TenantID: f.chain.TenantID},
 		StudentID:         f.chain.StudentID,
-		ExceptionDate:     date,
+		ExceptionDate:     scheduleModels.Date(date),
 		PickupTime:        &excusedFrom,
 		ExcusedFrom:       &excusedFrom,
 		ExcusedReason:     &excusedReason,
@@ -449,9 +458,9 @@ func TestPickupChangeApprovalYieldsToExcusedAbsence(t *testing.T) {
 func TestPickupChangeApprovalRejectsCompletedSameDayPickup(t *testing.T) {
 	t.Parallel()
 
-	f := newCareFixture(t)
+	f := newPickupChangeFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
-	date := timezone.TodayDate()
+	date := timezone.NewDate(2026, 8, 24)
 	req, err := f.svc.CreatePickupChangeRequest(
 		ctx,
 		f.chain.StudentID,
@@ -463,15 +472,18 @@ func TestPickupChangeApprovalRejectsCompletedSameDayPickup(t *testing.T) {
 	require.NoError(t, err)
 	device := testpkg.CreateTestDeviceForTenant(t, f.db, f.chain.TenantID, "pickup-review-checkout")
 	checkedOutAt := timezone.Now()
-	attendance := &activeModels.Attendance{
+	attendance := studentpresence.Attendance{
+		TenantID:     f.chain.TenantID,
 		StudentID:    f.chain.StudentID,
-		Date:         date,
+		Date:         date.String(),
 		CheckInTime:  checkedOutAt.Add(-time.Hour),
 		CheckOutTime: &checkedOutAt,
 		DeviceID:     device.ID,
 	}
-	attendance.SetTenantID(f.chain.TenantID)
-	require.NoError(t, f.repos.Attendance.Create(ctx, attendance))
+	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: f.db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
+	_, err = presence.RecordAttendance(ctx, attendance)
+	require.NoError(t, err)
 
 	_, err = f.svc.Decide(ctx, schedule.CareRequestDecideInput{
 		RequestID:  req.ID,
@@ -485,9 +497,9 @@ func TestPickupChangeApprovalRejectsCompletedSameDayPickup(t *testing.T) {
 func TestPickupChangeApprovalRejectsDateAfterPlannedCareEnd(t *testing.T) {
 	t.Parallel()
 
-	f := newCareFixture(t)
+	f := newPickupChangeFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
-	date := timezone.TodayDate().AddDays(4)
+	date := timezone.NewDate(2026, 8, 24).AddDays(4)
 	req := seedPickupChangeRequest(t, f, date)
 	lastCareDay := date.AddDays(-1)
 	_, err := f.db.NewUpdate().
@@ -502,7 +514,7 @@ func TestPickupChangeApprovalRejectsDateAfterPlannedCareEnd(t *testing.T) {
 	})
 	require.ErrorIs(t, err, scheduleModels.ErrCareRequestNotFound)
 
-	exception, findErr := f.repos.StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, date)
+	exception, findErr := f.repos.StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, scheduleModels.Date(date))
 	require.NoError(t, findErr)
 	assert.Nil(t, exception, "approval must not create a pickup exception after care ends")
 }
@@ -515,9 +527,9 @@ func TestPickupChangeApprovalRejectsDateAfterPlannedCareEnd(t *testing.T) {
 func TestPickupChangeRequestsForDifferentDaysCoexist(t *testing.T) {
 	t.Parallel()
 
-	f := newCareFixture(t)
+	f := newPickupChangeFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
-	tuesday := timezone.TodayDate().AddDays(7)
+	tuesday := timezone.NewDate(2026, 8, 24).AddDays(7)
 	wednesday := tuesday.AddDays(1)
 
 	first := seedPickupChangeRequest(t, f, tuesday)
@@ -550,7 +562,7 @@ func TestPickupChangeRequestsForDifferentDaysCoexist(t *testing.T) {
 func TestPickupChangeApprovalRejectsExpiredRequest(t *testing.T) {
 	t.Parallel()
 
-	f := newCareFixture(t)
+	f := newPickupChangeFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
 	// CreatePickupChangeRequest refuses past dates, so an expired request can
 	// only exist by aging in the queue — seed it directly at the repo.
@@ -559,7 +571,7 @@ func TestPickupChangeApprovalRejectsExpiredRequest(t *testing.T) {
 		SubmittedBy: f.chain.AccountID,
 		RequestKind: scheduleModels.CareRequestKindPickupChange,
 		Payload: map[string]any{
-			"date":        timezone.TodayDate().AddDays(-1).String(),
+			"date":        timezone.NewDate(2026, 8, 24).AddDays(-1).String(),
 			"pickup_time": "14:30",
 			"reason":      "Arzttermin",
 		},
@@ -584,39 +596,14 @@ func TestPickupChangeApprovalRejectsExpiredRequest(t *testing.T) {
 	assert.Equal(t, scheduleModels.CareRequestStatusRejected, decided.Request.Status)
 }
 
-// TestWithdrawPickupChangeRequestClosesIt: a parent may take a request back
-// while it is still pending, and it must not stay in the staff queue afterwards.
-func TestWithdrawPickupChangeRequestClosesIt(t *testing.T) {
-	t.Parallel()
-
-	f := newCareFixture(t)
-	ctx := f.staffCtx(f.staffAccount)
-	date := timezone.TodayDate().AddDays(5)
-	req := seedPickupChangeRequest(t, f, date)
-
-	withdrawn, err := f.svc.WithdrawPickupChangeRequest(ctx, req.ID, f.chain.StudentID, f.chain.AccountID)
-	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.CareRequestStatusWithdrawn, withdrawn.Status)
-
-	pending, err := f.svc.ListPendingPickupChanges(ctx)
-	require.NoError(t, err)
-	for _, item := range pending {
-		assert.NotEqual(t, req.ID, item.Request.ID, "eine zurueckgezogene Anfrage bleibt nicht in der Liste")
-	}
-
-	applied, err := f.repos.StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, date)
-	require.NoError(t, err)
-	assert.Nil(t, applied, "eine zurueckgezogene Anfrage aendert keine Abholzeit")
-}
-
 // TestListPickupChangeRequestsReturnsTheParentsOwn covers the read the parents
 // app uses for its status list.
 func TestListPickupChangeRequestsReturnsTheParentsOwn(t *testing.T) {
 	t.Parallel()
 
-	f := newCareFixture(t)
+	f := newPickupChangeFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
-	date := timezone.TodayDate().AddDays(6)
+	date := timezone.NewDate(2026, 8, 24).AddDays(6)
 	req := seedPickupChangeRequest(t, f, date)
 
 	rows, err := f.svc.ListPickupChangeRequests(ctx, f.chain.StudentID, time.Now().AddDate(0, -2, 0))
@@ -630,4 +617,93 @@ func TestListPickupChangeRequestsReturnsTheParentsOwn(t *testing.T) {
 		}
 	}
 	assert.True(t, found, "die eigene Anfrage muss in der Liste stehen")
+}
+
+// pickupCorrecter is the correction port the staff route asserts on the care
+// service; declared here so the test does not depend on the concrete type.
+type pickupCorrecter interface {
+	Correct(ctx context.Context, requestID int64, approve bool, expectedVersion, reason string, reviewedBy int64) error
+}
+
+// approvedPickupChange files a pickup change and approves it, returning the
+// request and the day it covers.
+func approvedPickupChange(t *testing.T, f *careFixture) (*scheduleModels.CareScheduleChangeRequest, timezone.Date) {
+	t.Helper()
+	ctx := f.staffCtx(f.staffAccount)
+	date := nextSchoolDay(timezone.NewDate(2026, 8, 24).AddDays(2))
+	req, err := f.svc.CreatePickupChangeRequest(
+		ctx, f.chain.StudentID, f.chain.AccountID, date,
+		time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC), "Arzttermin",
+	)
+	require.NoError(t, err)
+	_, err = f.svc.Decide(ctx, schedule.CareRequestDecideInput{
+		RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount,
+	})
+	require.NoError(t, err)
+	return req, date
+}
+
+// #2267 A11: turning a pickup-change approval into a rejection removes the
+// exception row the approval created — identified by the id the `decided`
+// ledger event recorded, so the revert targets exactly that row and not
+// "whatever exception sits on that day now".
+//
+// Without a ledger the revert has nothing safe to remove, and refusing is the
+// only honest answer: deleting the day.s current exception could drop an entry
+// somebody else made. This fixture wires no recorder (a schedule test may not
+// import services/users — architecture ratchet), so it pins that refusal; the
+// happy path is covered where the ledger is wired.
+func TestPickupChangeCorrectRefusesWithoutALedgerEntry(t *testing.T) {
+	t.Parallel()
+
+	f := newPickupChangeFixture(t)
+	ctx := f.staffCtx(f.staffAccount)
+	req, date := approvedPickupChange(t, f)
+
+	applied, err := f.repos.StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, scheduleModels.Date(date))
+	require.NoError(t, err)
+	require.NotNil(t, applied)
+
+	err = f.svc.(pickupCorrecter).Correct(ctx, req.ID, false, "", "Doch nicht genehmigt", f.staffAccount)
+	require.ErrorContains(t, err, "cannot be corrected")
+
+	survivor, ferr := f.repos.StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, scheduleModels.Date(date))
+	require.NoError(t, ferr)
+	assert.NotNil(t, survivor, "nothing is deleted when the revert cannot prove what to delete")
+}
+
+// A weekly plan keeps no pre-decision copy of the child's schedule, so its
+// decisions cannot be reverted — the service says so instead of guessing.
+func TestCareScheduleCorrectIsUnsupported(t *testing.T) {
+	t.Parallel()
+
+	f := newPickupChangeFixture(t)
+	ctx := f.staffCtx(f.staffAccount)
+	req, err := f.svc.CreateRequest(ctx, f.chain.StudentID, f.chain.AccountID,
+		careWeekdays(map[string]any{"weekday": 1, "pickup": "15:00"}))
+	require.NoError(t, err)
+	_, err = f.svc.Decide(ctx, schedule.CareRequestDecideInput{
+		RequestID: req.ID, Approve: false, Reason: "Nicht möglich", ReviewedBy: f.staffAccount,
+	})
+	require.NoError(t, err)
+
+	err = f.svc.(pickupCorrecter).Correct(ctx, req.ID, true, "", "Doch genehmigen", f.staffAccount)
+	require.ErrorContains(t, err, "cannot be corrected")
+	assert.Contains(t, err.Error(), "Wochenplan", "the message must say what to do instead")
+}
+
+// A request nobody decided yet has nothing to correct.
+func TestPickupChangeCorrectRefusesAnUndecidedRequest(t *testing.T) {
+	t.Parallel()
+
+	f := newPickupChangeFixture(t)
+	ctx := f.staffCtx(f.staffAccount)
+	req, err := f.svc.CreatePickupChangeRequest(
+		ctx, f.chain.StudentID, f.chain.AccountID, nextSchoolDay(timezone.NewDate(2026, 8, 24).AddDays(2)),
+		time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC), "Arzttermin",
+	)
+	require.NoError(t, err)
+
+	err = f.svc.(pickupCorrecter).Correct(ctx, req.ID, false, "", "Korrektur", f.staffAccount)
+	require.ErrorContains(t, err, "not decided")
 }

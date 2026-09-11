@@ -18,6 +18,7 @@ import (
 
 // Mock is a func-field test double for config.SettingsService.
 type Mock struct {
+	EnrollmentEnabledForTenantsFn  func(ctx context.Context, tenantIDs []int64) (map[int64]bool, error)
 	GetSchemaFn                    func(ctx context.Context, userPermissions []string) (*config.SettingsSchema, error)
 	GetSchemaForOperatorFn         func(ctx context.Context, userPermissions []string) (*config.SettingsSchema, error)
 	ResolveFn                      func(ctx context.Context, key string) (any, error)
@@ -44,6 +45,13 @@ type Mock struct {
 	LockClassCollectionPairFn      func(ctx context.Context) error
 	LockMFAPolicyFn                func(ctx context.Context) error
 	LockMFAPolicySharedForTenantFn func(ctx context.Context, tenantID int64) error
+}
+
+func (m *Mock) EnrollmentEnabledForTenants(ctx context.Context, tenantIDs []int64) (map[int64]bool, error) {
+	if m.EnrollmentEnabledForTenantsFn != nil {
+		return m.EnrollmentEnabledForTenantsFn(ctx, tenantIDs)
+	}
+	return map[int64]bool{}, nil
 }
 
 var _ config.SettingsService = (*Mock)(nil)

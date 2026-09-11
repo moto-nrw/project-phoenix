@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { cn } from "~/lib/utils";
+
 // Centered empty-state block: optional muted icon, title, description, and an
 // optional action slot. Extracted from the operator provisioning pages and the
 // tenant list pages, which all hand-rolled this same column (#1629). Pass the
@@ -22,7 +24,7 @@ export function EmptyState({
 }) {
   if (variant === "compact") {
     return (
-      <div className={`flex items-start gap-3 py-2 text-left ${className}`}>
+      <div className={cn("flex items-start gap-3 py-2 text-left", className)}>
         {icon != null ? (
           <span className="mt-0.5 shrink-0 text-gray-400" aria-hidden="true">
             {icon}
@@ -42,8 +44,14 @@ export function EmptyState({
   }
 
   return (
+    // cn statt Aneinanderreihung: sonst gewinnt bei einer Kollision nicht die
+    // uebergebene Klasse, sondern die, die in der erzeugten CSS-Datei spaeter
+    // steht — `py-4` von aussen blieb gegen das eigene `py-12` wirkungslos.
     <div
-      className={`flex flex-col items-center gap-3 py-12 text-center ${className}`}
+      className={cn(
+        "flex flex-col items-center gap-3 py-12 text-center",
+        className,
+      )}
     >
       {icon != null ? (
         <span className="text-gray-400" aria-hidden="true">

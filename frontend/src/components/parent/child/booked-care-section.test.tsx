@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import deMessages from "~/i18n/messages/de.json";
@@ -8,8 +8,8 @@ import { BookedCareSection } from "./booked-care-section";
 vi.mock("~/lib/parent-api", () => ({
   getChildCareOfferings: vi.fn(),
   getChildCareSchedule: vi.fn(),
+  submitCareScheduleRequest: vi.fn(),
   submitOfferingChangeRequest: vi.fn(),
-  withdrawOfferingChangeRequest: vi.fn(),
 }));
 
 vi.mock("~/lib/hooks/use-messages-activity", () => ({
@@ -18,6 +18,14 @@ vi.mock("~/lib/hooks/use-messages-activity", () => ({
 
 vi.mock("~/components/parent/offering-change-request-modal", () => ({
   OfferingChangeRequestModal: () => <div data-testid="offering-modal" />,
+}));
+
+vi.mock("~/components/parent/request-sharing-control", () => ({
+  RequestSharingControl: () => <div data-testid="request-sharing" />,
+}));
+
+vi.mock("~/components/parent/care-schedule-request-modal", () => ({
+  CareScheduleRequestModal: () => <div data-testid="care-schedule-modal" />,
 }));
 
 const mockedOfferings = vi.mocked(getChildCareOfferings);
@@ -48,7 +56,15 @@ function pendingSchedule() {
     pending_request: {
       id: "r1",
       created_at: "2026-08-16T08:00:00Z",
-      diff: [],
+      diff: [
+        {
+          label: "Montag · Abholzeit",
+          old: "16:00",
+          new: "15:30",
+          weekday: 1,
+          care_kind: "pickup",
+        },
+      ],
       submitted_by_self: true,
     },
     today_absent: false,
@@ -233,6 +249,107 @@ describe("BookedCareSection", () => {
     expect(screen.getByText("In Prüfung")).toBeInTheDocument();
   });
 
+  it("zeigt eine gemischte Kurs- und Betreuungsanfrage bei der Betreuung", async () => {
+    mockedOfferings.mockResolvedValue({
+      offerings: [
+        {
+          id: "o1",
+          name: "Ganztag bis 16 Uhr",
+          weekdays: [1, 2, 3, 4, 5],
+          includes_lunch: true,
+          includes_holiday_care: false,
+        },
+      ],
+      groups: [],
+      can_request: false,
+      pending_request: {
+        id: "p1",
+        created_at: "2026-08-16T08:00:00Z",
+        effective_from: "2026-09-01",
+        submitted_by_self: true,
+        diff: [
+          {
+            label: "Fußball-AG",
+            old_state: "not_booked",
+            old_days: [],
+            new_state: "booked",
+            new_days: ["wed"],
+            is_course: true,
+          },
+          {
+            label: "Ganztag bis 16 Uhr",
+            old_state: "booked",
+            old_days: ["mon", "tue", "wed", "thu", "fri"],
+            new_state: "booked",
+            new_days: ["mon", "tue", "wed"],
+            is_course: false,
+          },
+        ],
+      },
+    } as unknown as Awaited<ReturnType<typeof getChildCareOfferings>>);
+
+    renderSection();
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Beantragte Änderung",
+        level: 3,
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Fußball-AG")).toBeInTheDocument();
+    expect(screen.getAllByText("Ganztag bis 16 Uhr")).not.toHaveLength(0);
+  });
+
+  it("zeigt eine reine Kursanfrage mit automatisch abgeleitetem Angebot nicht doppelt", async () => {
+    mockedOfferings.mockResolvedValue({
+      offerings: [
+        {
+          id: "o1",
+          name: "Ganztag bis 16 Uhr",
+          weekdays: [1, 2, 3, 4, 5],
+          includes_lunch: true,
+          includes_holiday_care: false,
+        },
+      ],
+      groups: [],
+      can_request: false,
+      pending_request: {
+        id: "p1",
+        created_at: "2026-08-16T08:00:00Z",
+        effective_from: "2026-09-01",
+        submitted_by_self: true,
+        diff: [
+          {
+            label: "Fußball-AG",
+            old_state: "not_booked",
+            old_days: [],
+            new_state: "booked",
+            new_days: ["wed"],
+            is_course: true,
+          },
+          {
+            label: "Mittagessen",
+            old_state: "not_booked",
+            old_days: [],
+            new_state: "booked",
+            new_days: ["wed"],
+            new_automatic_days: ["wed"],
+          },
+        ],
+      },
+    } as unknown as Awaited<ReturnType<typeof getChildCareOfferings>>);
+
+    renderSection();
+
+    await screen.findByRole("heading", { name: "Gebuchte Betreuung" });
+    expect(
+      screen.queryByRole("heading", {
+        name: "Beantragte Änderung",
+        level: 3,
+      }),
+    ).not.toBeInTheDocument();
+  });
+
   it("zeigt nach dem Betreuungsende keine Angebotsaktionen", async () => {
     mockedOfferings.mockResolvedValue({
       offerings: [
@@ -369,7 +486,7 @@ describe("BookedCareSection", () => {
     expect(screen.getByText("16:00 Uhr")).toBeInTheDocument();
   });
 
-  it("bietet im Wochenplan keine dauerhafte Änderungsanfrage an", async () => {
+  it("bietet bei wochenplangeführter Betreuung eine dauerhafte Änderungsanfrage an", async () => {
     mockedSchedule.mockResolvedValue({
       weekdays: [
         {
@@ -391,19 +508,87 @@ describe("BookedCareSection", () => {
 
     renderSection();
     await screen.findByText("Montag");
-    expect(
-      screen.queryByRole("button", { name: "Änderungen anfragen" }),
-    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen anfragen" }),
+    );
+    expect(screen.getByTestId("care-schedule-modal")).toBeInTheDocument();
   });
 
-  it("zeigt alte offene Wochenplananfragen nicht als Elternaktion", async () => {
+  it("zeigt alte offene Wochenplananfragen nur lesbar mit ihrem Status", async () => {
     mockedSchedule.mockResolvedValue(pendingSchedule());
     renderSection();
 
     await screen.findByText("Montag");
-    expect(screen.queryByText("In Prüfung")).not.toBeInTheDocument();
+    expect(screen.getByText("In Prüfung")).toBeInTheDocument();
+    expect(screen.getByTestId("request-sharing")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Anfrage zurückziehen" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("bietet bei buchungsgeführter Betreuung keine Wochenplananfrage an", async () => {
+    mockedSchedule.mockResolvedValue({
+      ...pendingSchedule(),
+      can_request: false,
+      request_capabilities: {
+        arrival: false,
+        pickup: false,
+        departure_mode: false,
+      },
+      pending_request: undefined,
+    });
+    renderSection();
+
+    await screen.findByText("Montag");
+    expect(
+      screen.queryByRole("button", { name: "Änderungen anfragen" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Den Wochenplan können Sie hier nicht ändern. Änderungen an gebuchten Angeboten finden Sie im nächsten Abschnitt.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("erklärt fehlende Berechtigung bei wochenplangeführter Betreuung", async () => {
+    mockedSchedule.mockResolvedValue({
+      ...pendingSchedule(),
+      can_request: false,
+      pending_request: undefined,
+    });
+    renderSection();
+
+    await screen.findByText("Montag");
+    expect(
+      screen.queryByRole("button", { name: "Änderungen anfragen" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Sie können hier keine Änderung anfragen. Bitte fragen Sie bei der OGS nach.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Den Wochenplan können Sie hier nicht ändern/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("zeigt eine alte offene Wochenplananfrage weiter an", async () => {
+    mockedSchedule.mockResolvedValue({
+      ...pendingSchedule(),
+      can_request: false,
+      request_capabilities: {
+        arrival: false,
+        pickup: false,
+        departure_mode: false,
+      },
+    });
+    renderSection();
+
+    await screen.findByText("Montag");
+    expect(screen.getByText("In Prüfung")).toBeInTheDocument();
+    expect(screen.getByText("Montag · Abholzeit")).toBeInTheDocument();
+    // Zurückziehen wurde durch das Bearbeiten der eigenen Anfrage ersetzt
+    // (#2267); sichtbar bleibt die Freigabe an andere Sorgeberechtigte.
+    expect(screen.getByTestId("request-sharing")).toBeInTheDocument();
   });
 });

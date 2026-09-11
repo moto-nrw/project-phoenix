@@ -1,5 +1,6 @@
 import { apiGet } from "~/lib/api-helpers.server";
 import { createGetHandler } from "~/lib/route-wrapper.server";
+import { proxyPost } from "~/lib/route-proxy.server";
 
 interface BackendEnvelope<T> {
   data: T;
@@ -37,3 +38,5 @@ export const GET = createGetHandler<unknown>(async (request, token) => {
   );
   return response.data;
 });
+
+export const POST = proxyPost("/api/students/change-requests/bulk-approve");

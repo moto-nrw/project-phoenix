@@ -21,7 +21,7 @@ func TestStaffShiftSeries_SplitAppliesNewWeekdaysFromEffectiveDate(t *testing.T)
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	periodEnd := today.AddDays(28)
 	periodID := env.createPeriod(t, today.AddDays(-7), periodEnd, 1, nil)
 
@@ -66,7 +66,7 @@ func TestStaffShiftSeries_SplitShortensValidityAndDropsLaterShifts(t *testing.T)
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	periodEnd := today.AddDays(28)
 	periodID := env.createPeriod(t, today.AddDays(-1), periodEnd, 1, nil)
 
@@ -101,7 +101,7 @@ func TestStaffShiftSeries_SplitKeepsStoredValidityWhenUnset(t *testing.T) {
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	periodID := env.createPeriod(t, today.AddDays(-1), today.AddDays(28), 1, nil)
 
 	storedEnd := today.AddDays(10)
@@ -127,7 +127,7 @@ func TestStaffShiftSeries_SplitKeepsStoredValidityWhenUnset(t *testing.T) {
 	})
 	require.NotNil(t, result.Series)
 	require.NotNil(t, result.Series.ValidUntil)
-	assert.Equal(t, storedEnd, *result.Series.ValidUntil)
+	assert.Equal(t, scheduleModels.Date(storedEnd), *result.Series.ValidUntil)
 	assert.Empty(t, env.shiftsInRange(t, storedEnd, today.AddDays(28)))
 }
 
@@ -135,7 +135,7 @@ func TestStaffShiftSeries_SplitRejectsValidityBeyondCalendarPeriod(t *testing.T)
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	periodEnd := today.AddDays(14)
 	periodID := env.createPeriod(t, today.AddDays(-1), periodEnd, 1, nil)
 	series := env.buildSeries(t, periodID, today.AddDays(-1), nil, scheduleModels.WeekPatternEvery)
@@ -165,7 +165,7 @@ func TestStaffShiftSeries_SplitBoundsEarlierSegmentAtNextSuccessor(t *testing.T)
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	periodEnd := today.AddDays(28)
 	periodID := env.createPeriod(t, today.AddDays(-1), periodEnd, 1, nil)
 	series := env.buildSeries(t, periodID, today.AddDays(-1), nil, scheduleModels.WeekPatternEvery)
@@ -205,14 +205,14 @@ func TestStaffShiftSeries_SplitBoundsEarlierSegmentAtNextSuccessor(t *testing.T)
 	})
 
 	require.NotNil(t, result.Series.ValidUntil)
-	assert.Equal(t, downstreamFrom, *result.Series.ValidUntil)
+	assert.Equal(t, scheduleModels.Date(downstreamFrom), *result.Series.ValidUntil)
 }
 
 func TestStaffShiftSeries_SplitRejectsWhenNextSegmentLeavesNoOccurrence(t *testing.T) {
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	periodEnd := today.AddDays(28)
 	periodID := env.createPeriod(t, today.AddDays(-1), periodEnd, 1, nil)
 	effective := today.AddDays(1)
@@ -259,7 +259,7 @@ func TestStaffShiftSeries_SplitRejectsSupersededSegment(t *testing.T) {
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	periodEnd := today.AddDays(28)
 	periodID := env.createPeriod(t, today.AddDays(-7), periodEnd, 1, nil)
 	effective := today.AddDays(1)
@@ -304,7 +304,7 @@ func TestStaffShiftSeries_SplitExtendsSeriesEndingToday(t *testing.T) {
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	periodEnd := today.AddDays(28)
 	periodID := env.createPeriod(t, today.AddDays(-7), periodEnd, 1, nil)
 
@@ -335,9 +335,9 @@ func TestStaffShiftSeries_SplitExtendsSeriesEndingToday(t *testing.T) {
 	})
 
 	require.NotNil(t, result.Series)
-	assert.Equal(t, today.AddDays(1), result.Series.ValidFrom)
+	assert.Equal(t, scheduleModels.Date(today.AddDays(1)), result.Series.ValidFrom)
 	require.NotNil(t, result.Series.ValidUntil)
-	assert.Equal(t, newEnd, *result.Series.ValidUntil)
+	assert.Equal(t, scheduleModels.Date(newEnd), *result.Series.ValidUntil)
 	assert.NotEmpty(t, env.shiftsInRange(t, today.AddDays(1), today.AddDays(14)),
 		"the extended segment must materialize shifts")
 	assert.Empty(t, env.shiftsInRange(t, newEnd, periodEnd),
@@ -350,7 +350,7 @@ func TestStaffShiftSeries_SplitRejectsWhenNoOccurrenceRemains(t *testing.T) {
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(28), 1, nil)
 
 	storedEnd := today.AddDays(1)
@@ -378,7 +378,7 @@ func TestStaffShiftSeries_SplitRejectsExtensionWithoutRecurrenceOccurrence(t *te
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(28), 1, nil)
 	effective := today.AddDays(1)
 	newEnd := effective.AddDays(2)

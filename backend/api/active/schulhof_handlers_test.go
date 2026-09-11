@@ -18,6 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	usercontextsvc "github.com/moto-nrw/project-phoenix/services/usercontext"
 )
@@ -29,7 +30,7 @@ import (
 // mockSchulhofService implements facilities.SchulhofService for testing
 type mockSchulhofService struct {
 	getStatusFunc            func(ctx context.Context, staffID int64) (*facilities.SchulhofStatus, error)
-	ensureInfrastructureFunc func(ctx context.Context, createdBy int64) (*activityModels.Group, error)
+	ensureInfrastructureFunc func(ctx context.Context, createdBy int64) (*facilities.SystemActivity, error)
 }
 
 func (m *mockSchulhofService) GetSchulhofStatus(ctx context.Context, staffID int64) (*facilities.SchulhofStatus, error) {
@@ -39,7 +40,7 @@ func (m *mockSchulhofService) GetSchulhofStatus(ctx context.Context, staffID int
 	return nil, errors.New("not implemented")
 }
 
-func (m *mockSchulhofService) EnsureInfrastructure(ctx context.Context, createdBy int64) (*activityModels.Group, error) {
+func (m *mockSchulhofService) EnsureInfrastructure(ctx context.Context, createdBy int64) (*facilities.SystemActivity, error) {
 	if m.ensureInfrastructureFunc != nil {
 		return m.ensureInfrastructureFunc(ctx, createdBy)
 	}
@@ -56,6 +57,11 @@ func (m *mockUserContextService) GetCurrentStaff(ctx context.Context) (*users.St
 		return m.getCurrentStaffFunc(ctx)
 	}
 	return nil, errors.New("not implemented")
+}
+
+func (m *mockUserContextService) HasCurrentStaff(ctx context.Context) (bool, error) {
+	staff, err := m.GetCurrentStaff(ctx)
+	return err == nil && staff != nil, err
 }
 
 func (m *mockUserContextService) GetNavigationContext(context.Context) (*usercontextsvc.NavigationContext, error) {
@@ -106,7 +112,7 @@ func (m *mockUserContextService) GetGroupStudents(ctx context.Context, groupID i
 	return nil, errors.New("not implemented")
 }
 
-func (m *mockUserContextService) GetGroupVisits(ctx context.Context, groupID int64) ([]*active.Visit, error) {
+func (m *mockUserContextService) GetGroupVisits(ctx context.Context, groupID int64) ([]studentpresence.Visit, error) {
 	return nil, errors.New("not implemented")
 }
 

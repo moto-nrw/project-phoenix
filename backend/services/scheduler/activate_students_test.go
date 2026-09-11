@@ -89,21 +89,6 @@ func (f *fakeStudentLifecycleRepo) TransitionStatus(
 }
 
 // -----------------------------------------------------------------------------
-// SetStudentLifecycleRepo — pure setter
-// -----------------------------------------------------------------------------
-
-func TestSetStudentLifecycleRepo(t *testing.T) {
-	t.Parallel()
-
-	s := newUnitScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
-	assert.Nil(t, s.studentLifecycleRepo)
-
-	repo := &fakeStudentLifecycleRepo{}
-	s.SetStudentLifecycleRepo(repo)
-	assert.Same(t, repo, s.studentLifecycleRepo)
-}
-
-// -----------------------------------------------------------------------------
 // scheduleActivateStudentsTask — nil repo vs. registered
 // -----------------------------------------------------------------------------
 

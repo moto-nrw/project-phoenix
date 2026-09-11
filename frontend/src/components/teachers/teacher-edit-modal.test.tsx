@@ -13,28 +13,36 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { TeacherEditModal } from "./teacher-edit-modal";
 import type { Teacher } from "@/lib/teacher-api";
 
-// Mock Modal component
-vi.mock("~/components/ui/modal", () => ({
-  Modal: ({
-    isOpen,
-    onClose,
-    title,
+// Mock SlideOver: das Panel ersetzt das zentrierte Fenster, die Testselektoren
+// bleiben dieselben.
+vi.mock("~/components/ui/slide-over", () => ({
+  SlideOver: ({
+    open,
+    onOpenChange,
     children,
   }: {
-    isOpen: boolean;
-    onClose: () => void;
-    title: string;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
     children: React.ReactNode;
   }) =>
-    isOpen ? (
+    open ? (
       <div data-testid="modal">
-        <h2>{title}</h2>
-        <button type="button" onClick={onClose}>
+        <button type="button" onClick={() => onOpenChange(false)}>
           Close
         </button>
         {children}
       </div>
     ) : null,
+  SlideOverContent: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  SlideOverHeader: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  SlideOverTitle: ({ children }: { children: React.ReactNode }) => (
+    <h2>{children}</h2>
+  ),
+  SlideOverCloseButton: () => null,
 }));
 
 // Mock TeacherForm component

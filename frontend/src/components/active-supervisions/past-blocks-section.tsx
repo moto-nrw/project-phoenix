@@ -11,7 +11,7 @@ import {
 } from "~/components/ui/page-skeletons";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import { rosterPickupTimeLabel } from "~/lib/timetable-roster-helpers";
@@ -95,7 +95,6 @@ export function PastBlocksSection() {
 
   return (
     <SectionCard
-      kicker="Rückblick"
       title="Beendete und abgelaufene Blöcke"
       icon={History}
       collapsible
@@ -283,7 +282,7 @@ function PastRosterRow({
           )}
         </div>
         {showStatus ? (
-          <StatusDotBadge
+          <StatusColorBadge
             label={pastRosterStatusLabel(row)}
             color={pastRosterDotColor(row)}
           />

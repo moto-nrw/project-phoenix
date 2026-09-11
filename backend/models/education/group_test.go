@@ -69,10 +69,7 @@ func TestGroup_SetRoom(t *testing.T) {
 
 	t.Run("set room", func(t *testing.T) {
 		group := &Group{Name: "Test Group"}
-		room := &facilities.Room{
-			Model: base.Model{ID: 42},
-			Name:  "Room 101",
-		}
+		room := &facilities.Room{ID: 42, Name: "Room 101"}
 
 		group.SetRoom(room)
 

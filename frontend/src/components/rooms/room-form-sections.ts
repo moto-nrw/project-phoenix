@@ -3,7 +3,12 @@
 import { roomsConfig } from "@/components/database/configs/rooms.config";
 import { configToFormSection } from "@/lib/database/types";
 import { LOCATION_COLORS } from "@/lib/location-helper";
-import { isColorLockedRoom, isSystemRoom, type Room } from "@/lib/room-helpers";
+import {
+  isColorLockedRoom,
+  isSystemRoom,
+  isToiletRoom,
+  type Room,
+} from "@/lib/room-helpers";
 import type { FormSection } from "~/components/ui/database/database-form";
 
 /**
@@ -11,7 +16,7 @@ import type { FormSection } from "~/components/ui/database/database-form";
  * chosen colour the Schulhof badge renders orange, not the generic room blue,
  * so "Standard" has to preview orange and the copy has to say so.
  *
- * Bound through the field config, so the shared RoomColorField is reused as
+ * Bound through the field config, so the shared CatalogColorField is reused as
  * is. The copy travels as a prop because custom fields do not render
  * `helperText`.
  */
@@ -56,6 +61,16 @@ export function buildRoomFormSections(
           ],
         };
       }),
+    }));
+  }
+
+  // Toilet rooms can never be an open room — the backend refuses the release
+  // with ErrToiletRoomNotReleasable. A switch that always fails is worse than
+  // no switch, so it is dropped rather than disabled (#3064).
+  if (isToiletRoom(room)) {
+    sections = sections.map((section) => ({
+      ...section,
+      fields: section.fields.filter((field) => field.name !== "isOpenRoom"),
     }));
   }
 

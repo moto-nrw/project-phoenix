@@ -14,9 +14,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// The second school every access test grants into. High ID so it cannot
-// collide with the default test tenant or with other packages' fixtures.
-const accessTargetTenantID int64 = 1021001
+// accessTargetTenantID derives a stable second school from the test's owned
+// school. The offset keeps it away from every primary tenant in this process.
+func accessTargetTenantID(t *testing.T) int64 {
+	t.Helper()
+	return testpkg.Tenant(t) + 500_000_000
+}
 
 // systemRoleID resolves a platform system role by name from the live schema
 // instead of hardcoding the seeded IDs.
@@ -45,6 +48,8 @@ func createTenantRole(t *testing.T, db *bun.DB, name string, tenantID int64, bas
 func cleanupTenantRole(t *testing.T, db *bun.DB, roleID int64) {
 	t.Helper()
 	_, err := db.NewDelete().TableExpr(`auth.account_roles`).Where("role_id = ?", roleID).Exec(context.Background())
+	require.NoError(t, err)
+	_, err = db.NewDelete().TableExpr(`auth.roles`).Where("id = ?", roleID).Exec(context.Background())
 	require.NoError(t, err)
 }
 
@@ -77,7 +82,7 @@ func setupAccessTestAccount(t *testing.T, db *bun.DB) (*authModels.Account, func
 	t.Helper()
 	account := testpkg.CreateTestAccount(t, db, "access-target")
 	testpkg.EnsureAccountTenant(t, db, account.ID, testSchoolID(t))
-	testpkg.EnsureTestTenant(t, db, accessTargetTenantID)
+	testpkg.EnsureTestTenant(t, db, accessTargetTenantID(t))
 
 	person := testpkg.CreateTestPerson(t, db, "Zugriff", "Testperson")
 	linkPersonToAccount(t, db, person.ID, account.ID)
@@ -129,15 +134,15 @@ func TestIntegration_GrantAccountTenantAccess_AddsSchoolWithRole(t *testing.T) {
 	operator := testpkg.CreateTestOperator(t, db)
 	adminRoleID := systemRoleID(t, db, "admin")
 
-	entries, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
+	entries, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
 		platformSvc.GrantAccountTenantAccessRequest{RoleID: adminRoleID},
 		operator.ID, testClientIP)
 	require.NoError(t, err)
 
-	granted := entryFor(entries, accessTargetTenantID)
+	granted := entryFor(entries, accessTargetTenantID(t))
 	require.NotNil(t, granted, "the new school must show up in the returned access list")
 	assert.Equal(t, authModels.AccountTenantStatusActive, granted.Status)
-	assert.Equal(t, []string{"admin"}, roleNamesAt(entries, accessTargetTenantID))
+	assert.Equal(t, []string{"admin"}, roleNamesAt(entries, accessTargetTenantID(t)))
 
 	// The account must be usable at the new school, which means a person and a
 	// staff record carrying its name.
@@ -163,20 +168,20 @@ func TestIntegration_GrantAccountTenantAccess_CustomUserBaseCreatesCaregiverProf
 	defer cleanupAccount()
 	operator := testpkg.CreateTestOperator(t, db)
 	baseRole := authModels.BaseRoleUser
-	role := createTenantRole(t, db, "zugriff-custom-user", accessTargetTenantID, &baseRole)
+	role := createTenantRole(t, db, "zugriff-custom-user", accessTargetTenantID(t), &baseRole)
 	defer cleanupTenantRole(t, db, role.ID)
 
-	entries, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
+	entries, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
 		platformSvc.GrantAccountTenantAccessRequest{RoleID: role.ID}, operator.ID, testClientIP)
 	require.NoError(t, err)
-	assert.Equal(t, []string{role.Name}, roleNamesAt(entries, accessTargetTenantID))
+	assert.Equal(t, []string{role.Name}, roleNamesAt(entries, accessTargetTenantID(t)))
 
 	teacherCount, err := db.NewSelect().
 		TableExpr(`users.teachers AS "t"`).
 		Join(`JOIN users.staff AS "s" ON "s".id = "t".staff_id`).
 		Join(`JOIN users.persons AS "p" ON "p".id = "s".person_id`).
 		Where(`"p".account_id = ?`, account.ID).
-		Where(`"p".tenant_id = ?`, accessTargetTenantID).
+		Where(`"p".tenant_id = ?`, accessTargetTenantID(t)).
 		Count(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 1, teacherCount, "custom user-base roles need the caregiver profile their tier reads through")
@@ -193,11 +198,11 @@ func TestIntegration_GrantAccountTenantAccess_RejectsDuplicate(t *testing.T) {
 	operator := testpkg.CreateTestOperator(t, db)
 	adminRoleID := systemRoleID(t, db, "admin")
 
-	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
+	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
 		platformSvc.GrantAccountTenantAccessRequest{RoleID: adminRoleID}, operator.ID, testClientIP)
 	require.NoError(t, err)
 
-	_, err = service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
+	_, err = service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
 		platformSvc.GrantAccountTenantAccessRequest{RoleID: adminRoleID}, operator.ID, testClientIP)
 	var conflict *platformSvc.ConflictError
 	require.ErrorAs(t, err, &conflict, "granting the same school twice must conflict")
@@ -214,7 +219,7 @@ func TestIntegration_GrantAccountTenantAccess_RejectsGuardianRole(t *testing.T) 
 	operator := testpkg.CreateTestOperator(t, db)
 	guardianRoleID := systemRoleID(t, db, authModels.BaseRoleGuardian)
 
-	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
+	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
 		platformSvc.GrantAccountTenantAccessRequest{RoleID: guardianRoleID}, operator.ID, testClientIP)
 
 	var invalid *platformSvc.InvalidDataError
@@ -234,7 +239,7 @@ func TestIntegration_GrantAccountTenantAccess_RejectsForeignTenantRole(t *testin
 	// A custom role that exists only at the ORIGINAL school.
 	foreignRole := testpkg.CreateTestRoleForTenant(t, db, "zugriff-fremdrolle", testSchoolID(t))
 
-	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
+	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
 		platformSvc.GrantAccountTenantAccessRequest{RoleID: foreignRole.ID}, operator.ID, testClientIP)
 
 	var invalid *platformSvc.InvalidDataError
@@ -253,20 +258,20 @@ func TestIntegration_UpdateAccountTenantRole_ReplacesAdminKeepsCaregiver(t *test
 	adminRoleID := systemRoleID(t, db, "admin")
 	userRoleID := systemRoleID(t, db, "user")
 
-	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
+	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
 		platformSvc.GrantAccountTenantAccessRequest{RoleID: userRoleID}, operator.ID, testClientIP)
 	require.NoError(t, err)
 
 	// user -> admin: the caregiver role stays, because removing it has to run
 	// through the caregiver capability checks.
-	entries, err := service.UpdateAccountTenantRole(ctx, account.ID, accessTargetTenantID, adminRoleID, operator.ID, testClientIP)
+	entries, err := service.UpdateAccountTenantRole(ctx, account.ID, accessTargetTenantID(t), adminRoleID, operator.ID, testClientIP)
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []string{"user", "admin"}, roleNamesAt(entries, accessTargetTenantID))
+	assert.ElementsMatch(t, []string{"user", "admin"}, roleNamesAt(entries, accessTargetTenantID(t)))
 
 	// admin -> user: the administrative role IS removed.
-	entries, err = service.UpdateAccountTenantRole(ctx, account.ID, accessTargetTenantID, userRoleID, operator.ID, testClientIP)
+	entries, err = service.UpdateAccountTenantRole(ctx, account.ID, accessTargetTenantID(t), userRoleID, operator.ID, testClientIP)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"user"}, roleNamesAt(entries, accessTargetTenantID))
+	assert.Equal(t, []string{"user"}, roleNamesAt(entries, accessTargetTenantID(t)))
 }
 
 func TestIntegration_GrantAccountTenantAccess_RejectsLehrkraftForCaregiverProfile(t *testing.T) {
@@ -276,15 +281,15 @@ func TestIntegration_GrantAccountTenantAccess_RejectsLehrkraftForCaregiverProfil
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
 	account := testpkg.CreateTestAccount(t, db, "access-lehrkraft-regrant")
-	testpkg.EnsureTestTenant(t, db, accessTargetTenantID)
+	testpkg.EnsureTestTenant(t, db, accessTargetTenantID(t))
 	// A live caregiver identity at the target school WITHOUT an active
 	// mapping — exactly the state a revoke leaves behind (person, staff and
 	// teacher rows are deliberately kept for the history, see
 	// RevokeAccountTenantAccess).
-	staff := testpkg.CreateTestStaffForTenant(t, db, accessTargetTenantID, "Gestrandet", "Betreuung")
+	staff := testpkg.CreateTestStaffForTenant(t, db, accessTargetTenantID(t), "Gestrandet", "Betreuung")
 	linkPersonToAccount(t, db, staff.PersonID, account.ID)
 	teacher := &userModels.Teacher{StaffID: staff.ID}
-	teacher.SetTenantID(accessTargetTenantID)
+	teacher.SetTenantID(accessTargetTenantID(t))
 	require.NoError(t, db.NewInsert().Model(teacher).ModelTableExpr(`users.teachers`).Scan(ctx))
 	defer func() {
 		cleanupAccessFixtures(t, db, account.ID)
@@ -294,7 +299,7 @@ func TestIntegration_GrantAccountTenantAccess_RejectsLehrkraftForCaregiverProfil
 	// Granting the school as Lehrkraft would revive the stranded caregiver
 	// profile under a class_day-only JWT — must be rejected like on the
 	// role-update path.
-	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
+	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
 		platformSvc.GrantAccountTenantAccessRequest{RoleID: systemRoleID(t, db, "lehrkraft")}, operator.ID, testClientIP)
 
 	var invalid *platformSvc.InvalidDataError
@@ -313,13 +318,13 @@ func TestIntegration_UpdateAccountTenantRole_RejectsLehrkraftForCaregiverProfile
 
 	// Granting the caregiver role materializes the local person/staff/teacher
 	// identity at the target school.
-	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
+	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
 		platformSvc.GrantAccountTenantAccessRequest{RoleID: systemRoleID(t, db, "user")}, operator.ID, testClientIP)
 	require.NoError(t, err)
 
 	// Switching that account to Lehrkraft would strand the users.teachers
 	// profile and its supervisions — the UI blocks it, the service must too.
-	_, err = service.UpdateAccountTenantRole(ctx, account.ID, accessTargetTenantID,
+	_, err = service.UpdateAccountTenantRole(ctx, account.ID, accessTargetTenantID(t),
 		systemRoleID(t, db, "lehrkraft"), operator.ID, testClientIP)
 
 	var invalid *platformSvc.InvalidDataError
@@ -337,7 +342,7 @@ func TestIntegration_UpdateAccountTenantRole_RequiresExistingAccess(t *testing.T
 	operator := testpkg.CreateTestOperator(t, db)
 	adminRoleID := systemRoleID(t, db, "admin")
 
-	_, err := service.UpdateAccountTenantRole(ctx, account.ID, accessTargetTenantID, adminRoleID, operator.ID, testClientIP)
+	_, err := service.UpdateAccountTenantRole(ctx, account.ID, accessTargetTenantID(t), adminRoleID, operator.ID, testClientIP)
 
 	var notFound *platformSvc.AccountTenantAccessNotFoundError
 	require.ErrorAs(t, err, &notFound)
@@ -354,17 +359,17 @@ func TestIntegration_RevokeAccountTenantAccess_DeactivatesMappingAndRoles(t *tes
 	operator := testpkg.CreateTestOperator(t, db)
 	adminRoleID := systemRoleID(t, db, "admin")
 
-	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
+	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
 		platformSvc.GrantAccountTenantAccessRequest{RoleID: adminRoleID}, operator.ID, testClientIP)
 	require.NoError(t, err)
 
-	entries, err := service.RevokeAccountTenantAccess(ctx, account.ID, accessTargetTenantID, operator.ID, testClientIP)
+	entries, err := service.RevokeAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t), operator.ID, testClientIP)
 	require.NoError(t, err)
 
-	revoked := entryFor(entries, accessTargetTenantID)
+	revoked := entryFor(entries, accessTargetTenantID(t))
 	require.NotNil(t, revoked, "a revoked mapping stays visible as inactive")
 	assert.Equal(t, authModels.AccountTenantStatusInactive, revoked.Status)
-	assert.Empty(t, roleNamesAt(entries, accessTargetTenantID), "tenant-scoped roles must be removed")
+	assert.Empty(t, roleNamesAt(entries, accessTargetTenantID(t)), "tenant-scoped roles must be removed")
 
 	// The account keeps its original school and therefore stays active.
 	assert.NotNil(t, entryFor(entries, testSchoolID(t)))
@@ -380,16 +385,16 @@ func TestIntegration_RevokeAccountTenantAccess_AllowsCustomRoleNamedUser(t *test
 	account, cleanupAccount := setupAccessTestAccount(t, db)
 	defer cleanupAccount()
 	operator := testpkg.CreateTestOperator(t, db)
-	role := createTenantRole(t, db, authModels.BaseRoleUser, accessTargetTenantID, nil)
+	role := createTenantRole(t, db, authModels.BaseRoleUser, accessTargetTenantID(t), nil)
 	defer cleanupTenantRole(t, db, role.ID)
 
-	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
+	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
 		platformSvc.GrantAccountTenantAccessRequest{RoleID: role.ID}, operator.ID, testClientIP)
 	require.NoError(t, err)
 
-	entries, err := service.RevokeAccountTenantAccess(ctx, account.ID, accessTargetTenantID, operator.ID, testClientIP)
+	entries, err := service.RevokeAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t), operator.ID, testClientIP)
 	require.NoError(t, err)
-	assert.Equal(t, authModels.AccountTenantStatusInactive, entryFor(entries, accessTargetTenantID).Status)
+	assert.Equal(t, authModels.AccountTenantStatusInactive, entryFor(entries, accessTargetTenantID(t)).Status)
 }
 
 func TestIntegration_RevokeAccountTenantAccess_RejectsRolesOwnedByOtherFeatures(t *testing.T) {
@@ -404,7 +409,7 @@ func TestIntegration_RevokeAccountTenantAccess_RejectsRolesOwnedByOtherFeatures(
 			defer cleanupAccount()
 			operator := testpkg.CreateTestOperator(t, db)
 
-			_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
+			_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
 				platformSvc.GrantAccountTenantAccessRequest{RoleID: systemRoleID(t, db, "admin")}, operator.ID, testClientIP)
 			require.NoError(t, err)
 
@@ -415,26 +420,23 @@ func TestIntegration_RevokeAccountTenantAccess_RejectsRolesOwnedByOtherFeatures(
 				legacyRole := &authModels.Role{Name: "teacher", IsSystem: true}
 				require.NoError(t, db.NewInsert().Model(legacyRole).ModelTableExpr(`auth.roles`).Scan(ctx))
 				roleID = legacyRole.ID
-				defer func() {
-					_, deleteErr := db.NewDelete().TableExpr(`auth.account_roles`).Where("role_id = ?", legacyRole.ID).Exec(ctx)
-					require.NoError(t, deleteErr)
-				}()
+				defer cleanupTenantRole(t, db, legacyRole.ID)
 			} else {
 				roleID = systemRoleID(t, db, roleName)
 			}
 
 			assignment := &authModels.AccountRole{AccountID: account.ID, RoleID: roleID}
-			assignment.SetTenantID(accessTargetTenantID)
+			assignment.SetTenantID(accessTargetTenantID(t))
 			_, err = db.NewInsert().Model(assignment).ModelTableExpr(`auth.account_roles`).Exec(ctx)
 			require.NoError(t, err)
 
-			_, err = service.RevokeAccountTenantAccess(ctx, account.ID, accessTargetTenantID, operator.ID, testClientIP)
+			_, err = service.RevokeAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t), operator.ID, testClientIP)
 			var invalid *platformSvc.InvalidDataError
 			require.ErrorAs(t, err, &invalid)
 
 			entries, err := service.ListAccountTenantAccess(ctx, account.ID)
 			require.NoError(t, err)
-			assert.Equal(t, authModels.AccountTenantStatusActive, entryFor(entries, accessTargetTenantID).Status)
+			assert.Equal(t, authModels.AccountTenantStatusActive, entryFor(entries, accessTargetTenantID(t)).Status)
 		})
 	}
 }
@@ -450,15 +452,16 @@ func TestIntegration_RevokeAccountTenantAccess_DeactivatesAccountWithoutRemainin
 	// This test's subject is the account's ONLY school, so the mapping
 	// CreateTestAccount adds for the test's own tenant has to go (#2419).
 	testpkg.UnclaimTestAccount(t, db, account.ID)
-	testpkg.EnsureTestTenant(t, db, accessTargetTenantID)
-	testpkg.MapAccountToTenant(t, db, account.ID, accessTargetTenantID)
+	testpkg.OwnTestAccount(t, db, account.ID)
+	testpkg.EnsureTestTenant(t, db, accessTargetTenantID(t))
+	testpkg.MapAccountToTenant(t, db, account.ID, accessTargetTenantID(t))
 	defer func() {
 		cleanupAccessFixtures(t, db, account.ID)
 	}()
 
 	operator := testpkg.CreateTestOperator(t, db)
 
-	_, err := service.RevokeAccountTenantAccess(ctx, account.ID, accessTargetTenantID, operator.ID, testClientIP)
+	_, err := service.RevokeAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t), operator.ID, testClientIP)
 	require.NoError(t, err)
 
 	assertAccountActive(t, db, account.ID, false)
@@ -487,16 +490,16 @@ func TestIntegration_ListAccountTenantAccess_ReturnsSchoolsWithRoles(t *testing.
 	operator := testpkg.CreateTestOperator(t, db)
 	adminRoleID := systemRoleID(t, db, "admin")
 
-	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
+	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
 		platformSvc.GrantAccountTenantAccessRequest{RoleID: adminRoleID}, operator.ID, testClientIP)
 	require.NoError(t, err)
 
 	entries, err := service.ListAccountTenantAccess(ctx, account.ID)
 	require.NoError(t, err)
 
-	granted := entryFor(entries, accessTargetTenantID)
+	granted := entryFor(entries, accessTargetTenantID(t))
 	require.NotNil(t, granted)
-	assert.Equal(t, []string{"admin"}, roleNamesAt(entries, accessTargetTenantID))
+	assert.Equal(t, []string{"admin"}, roleNamesAt(entries, accessTargetTenantID(t)))
 	assert.NotEmpty(t, granted.SchoolName)
 	assert.NotEmpty(t, granted.OrganizationName)
 	assert.True(t, granted.SchoolActive)
@@ -526,14 +529,14 @@ func TestIntegration_GrantAccountTenantAccess_RequiresNamesWithoutPerson(t *test
 	// the operator has to supply one.
 	account := testpkg.CreateTestAccount(t, db, "access-nameless")
 	testpkg.EnsureAccountTenant(t, db, account.ID, testSchoolID(t))
-	testpkg.EnsureTestTenant(t, db, accessTargetTenantID)
+	testpkg.EnsureTestTenant(t, db, accessTargetTenantID(t))
 	defer func() {
 		cleanupAccessFixtures(t, db, account.ID)
 	}()
 
 	operator := testpkg.CreateTestOperator(t, db)
 
-	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
+	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
 		platformSvc.GrantAccountTenantAccessRequest{RoleID: systemRoleID(t, db, "admin")},
 		operator.ID, testClientIP)
 
@@ -542,7 +545,7 @@ func TestIntegration_GrantAccountTenantAccess_RequiresNamesWithoutPerson(t *test
 
 	entries, listErr := service.ListAccountTenantAccess(ctx, account.ID)
 	require.NoError(t, listErr)
-	assert.Empty(t, roleNamesAt(entries, accessTargetTenantID))
+	assert.Empty(t, roleNamesAt(entries, accessTargetTenantID(t)))
 }
 
 func TestIntegration_GrantAccountTenantAccess_ReactivatesAccountAfterRestoringLastRevokedSchool(t *testing.T) {
@@ -556,8 +559,9 @@ func TestIntegration_GrantAccountTenantAccess_ReactivatesAccountAfterRestoringLa
 	// This test's subject is the account's ONLY school, so the mapping
 	// CreateTestAccount adds for the test's own tenant has to go (#2419).
 	testpkg.UnclaimTestAccount(t, db, account.ID)
-	testpkg.EnsureTestTenant(t, db, accessTargetTenantID)
-	testpkg.MapAccountToTenant(t, db, account.ID, accessTargetTenantID)
+	testpkg.OwnTestAccount(t, db, account.ID)
+	testpkg.EnsureTestTenant(t, db, accessTargetTenantID(t))
+	testpkg.MapAccountToTenant(t, db, account.ID, accessTargetTenantID(t))
 	defer func() {
 		cleanupAccessFixtures(t, db, account.ID)
 	}()
@@ -565,12 +569,12 @@ func TestIntegration_GrantAccountTenantAccess_ReactivatesAccountAfterRestoringLa
 	operator := testpkg.CreateTestOperator(t, db)
 
 	// Revoking the only school deactivates the account...
-	_, err := service.RevokeAccountTenantAccess(ctx, account.ID, accessTargetTenantID, operator.ID, testClientIP)
+	_, err := service.RevokeAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t), operator.ID, testClientIP)
 	require.NoError(t, err)
 	assertAccountActive(t, db, account.ID, false)
 
 	// Restoring the final revoked school access also restores login capability.
-	entries, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
+	entries, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
 		platformSvc.GrantAccountTenantAccessRequest{
 			RoleID:    systemRoleID(t, db, "user"),
 			FirstName: "Wieder",
@@ -579,7 +583,7 @@ func TestIntegration_GrantAccountTenantAccess_ReactivatesAccountAfterRestoringLa
 		}, operator.ID, testClientIP)
 	require.NoError(t, err)
 
-	granted := entryFor(entries, accessTargetTenantID)
+	granted := entryFor(entries, accessTargetTenantID(t))
 	require.NotNil(t, granted)
 	assert.Equal(t, authModels.AccountTenantStatusActive, granted.Status)
 	assertAccountActive(t, db, account.ID, true)
@@ -614,7 +618,7 @@ func TestIntegration_GrantAccountTenantAccess_DoesNotReactivateManuallyDeactivat
 		Exec(ctx)
 	require.NoError(t, err)
 
-	_, err = service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
+	_, err = service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
 		platformSvc.GrantAccountTenantAccessRequest{RoleID: systemRoleID(t, db, "admin")},
 		operator.ID, testClientIP)
 	require.NoError(t, err)
@@ -645,7 +649,7 @@ func TestIntegration_RevokeAccountTenantAccess_WithoutExistingAccess(t *testing.
 	defer cleanupAccount()
 	operator := testpkg.CreateTestOperator(t, db)
 
-	_, err := service.RevokeAccountTenantAccess(context.Background(), account.ID, accessTargetTenantID, operator.ID, testClientIP)
+	_, err := service.RevokeAccountTenantAccess(context.Background(), account.ID, accessTargetTenantID(t), operator.ID, testClientIP)
 
 	var notFound *platformSvc.AccountTenantAccessNotFoundError
 	require.ErrorAs(t, err, &notFound)
@@ -659,8 +663,8 @@ func TestIntegration_UpdateAccountTenantRole_ToCaregiverCreatesLocalIdentity(t *
 	ctx := context.Background()
 
 	account := testpkg.CreateTestAccount(t, db, "access-no-person")
-	testpkg.EnsureTestTenant(t, db, accessTargetTenantID)
-	testpkg.MapAccountToTenant(t, db, account.ID, accessTargetTenantID)
+	testpkg.EnsureTestTenant(t, db, accessTargetTenantID(t))
+	testpkg.MapAccountToTenant(t, db, account.ID, accessTargetTenantID(t))
 	source := testpkg.CreateTestPerson(t, db, "Bestehend", "Betreuung")
 	linkPersonToAccount(t, db, source.ID, account.ID)
 	defer func() {
@@ -669,12 +673,12 @@ func TestIntegration_UpdateAccountTenantRole_ToCaregiverCreatesLocalIdentity(t *
 
 	operator := testpkg.CreateTestOperator(t, db)
 
-	entries, err := service.UpdateAccountTenantRole(ctx, account.ID, accessTargetTenantID,
+	entries, err := service.UpdateAccountTenantRole(ctx, account.ID, accessTargetTenantID(t),
 		systemRoleID(t, db, "user"), operator.ID, testClientIP)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"user"}, roleNamesAt(entries, accessTargetTenantID))
+	assert.Equal(t, []string{"user"}, roleNamesAt(entries, accessTargetTenantID(t)))
 
-	updated := entryFor(entries, accessTargetTenantID)
+	updated := entryFor(entries, accessTargetTenantID(t))
 	require.NotNil(t, updated)
 	assert.True(t, updated.HasPerson, "the caregiver role requires a local person record")
 	assert.True(t, updated.HasStaff, "the caregiver role requires a local staff record")
@@ -684,7 +688,7 @@ func TestIntegration_UpdateAccountTenantRole_ToCaregiverCreatesLocalIdentity(t *
 		Join(`JOIN users.staff AS "s" ON "s".id = "t".staff_id`).
 		Join(`JOIN users.persons AS "p" ON "p".id = "s".person_id`).
 		Where(`"p".account_id = ?`, account.ID).
-		Where(`"p".tenant_id = ?`, accessTargetTenantID).
+		Where(`"p".tenant_id = ?`, accessTargetTenantID(t)).
 		Count(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 1, teacherCount)
@@ -697,14 +701,14 @@ func TestIntegration_UpdateAccountTenantRole_ToCaregiverRequiresIdentity(t *test
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
 	account := testpkg.CreateTestAccount(t, db, "access-no-caregiver-identity")
-	testpkg.EnsureTestTenant(t, db, accessTargetTenantID)
-	testpkg.MapAccountToTenant(t, db, account.ID, accessTargetTenantID)
+	testpkg.EnsureTestTenant(t, db, accessTargetTenantID(t))
+	testpkg.MapAccountToTenant(t, db, account.ID, accessTargetTenantID(t))
 	defer func() {
 		cleanupAccessFixtures(t, db, account.ID)
 	}()
 
 	operator := testpkg.CreateTestOperator(t, db)
-	_, err := service.UpdateAccountTenantRole(ctx, account.ID, accessTargetTenantID,
+	_, err := service.UpdateAccountTenantRole(ctx, account.ID, accessTargetTenantID(t),
 		systemRoleID(t, db, "user"), operator.ID, testClientIP)
 
 	var invalid *platformSvc.InvalidDataError
@@ -724,8 +728,8 @@ func TestIntegration_UpdateAccountTenantRole_RefusesStudentAsNameSource(t *testi
 
 	// A child's person record that happens to carry an account.
 	student, account := testpkg.CreateTestStudentWithAccount(t, db, "Kind", "Datensatz", "2a")
-	testpkg.EnsureTestTenant(t, db, accessTargetTenantID)
-	testpkg.MapAccountToTenant(t, db, account.ID, accessTargetTenantID)
+	testpkg.EnsureTestTenant(t, db, accessTargetTenantID(t))
+	testpkg.MapAccountToTenant(t, db, account.ID, accessTargetTenantID(t))
 	defer func() {
 		_, err := db.ExecContext(ctx, `DELETE FROM users.students WHERE id = ?`, student.ID)
 		require.NoError(t, err)
@@ -733,7 +737,7 @@ func TestIntegration_UpdateAccountTenantRole_RefusesStudentAsNameSource(t *testi
 	}()
 
 	operator := testpkg.CreateTestOperator(t, db)
-	_, err := service.UpdateAccountTenantRole(ctx, account.ID, accessTargetTenantID,
+	_, err := service.UpdateAccountTenantRole(ctx, account.ID, accessTargetTenantID(t),
 		systemRoleID(t, db, "user"), operator.ID, testClientIP)
 
 	var invalid *platformSvc.InvalidDataError
@@ -741,7 +745,7 @@ func TestIntegration_UpdateAccountTenantRole_RefusesStudentAsNameSource(t *testi
 	assert.Contains(t, err.Error(), "unambiguous name",
 		"the refusal must come from the name resolution, not from an unrelated failure")
 
-	assertNoPersonAt(t, db, account.ID, accessTargetTenantID)
+	assertNoPersonAt(t, db, account.ID, accessTargetTenantID(t))
 }
 
 // Two schools carrying two different names is an ambiguity this path is not
@@ -755,14 +759,14 @@ func TestIntegration_UpdateAccountTenantRole_RefusesAmbiguousNameSource(t *testi
 	ctx := context.Background()
 
 	account := testpkg.CreateTestAccount(t, db, "access-ambiguous-name")
-	testpkg.EnsureTestTenant(t, db, accessTargetTenantID)
-	testpkg.MapAccountToTenant(t, db, account.ID, accessTargetTenantID)
+	testpkg.EnsureTestTenant(t, db, accessTargetTenantID(t))
+	testpkg.MapAccountToTenant(t, db, account.ID, accessTargetTenantID(t))
 
 	// One identity per school, disagreeing on the name. The partial unique index
 	// on (tenant_id, account_id) is why they have to sit at different tenants.
 	first := testpkg.CreateTestPerson(t, db, "Anna", "Beispiel")
 	linkPersonToAccount(t, db, first.ID, account.ID)
-	second := createPersonAtTenant(t, db, ambiguousNameTenantID, "Bea", "Beispiel")
+	second := createPersonAtTenant(t, db, ambiguousNameTenantID(t), "Bea", "Beispiel")
 	linkPersonToAccount(t, db, second.ID, account.ID)
 
 	defer func() {
@@ -770,7 +774,7 @@ func TestIntegration_UpdateAccountTenantRole_RefusesAmbiguousNameSource(t *testi
 	}()
 
 	operator := testpkg.CreateTestOperator(t, db)
-	_, err := service.UpdateAccountTenantRole(ctx, account.ID, accessTargetTenantID,
+	_, err := service.UpdateAccountTenantRole(ctx, account.ID, accessTargetTenantID(t),
 		systemRoleID(t, db, "user"), operator.ID, testClientIP)
 
 	var invalid *platformSvc.InvalidDataError
@@ -778,7 +782,7 @@ func TestIntegration_UpdateAccountTenantRole_RefusesAmbiguousNameSource(t *testi
 	assert.Contains(t, err.Error(), "unambiguous name",
 		"the refusal must come from the name resolution, not from an unrelated failure")
 
-	assertNoPersonAt(t, db, account.ID, accessTargetTenantID)
+	assertNoPersonAt(t, db, account.ID, accessTargetTenantID(t))
 }
 
 // The ambiguity above must not reach a request that needs no name at all.
@@ -799,12 +803,12 @@ func TestIntegration_GrantAccountTenantAccess_ReGrantReusesLocalIdentityDespiteA
 
 	account := testpkg.CreateTestAccount(t, db, "access-regrant-ambiguous")
 	testpkg.EnsureAccountTenant(t, db, account.ID, testSchoolID(t))
-	testpkg.EnsureTestTenant(t, db, accessTargetTenantID)
+	testpkg.EnsureTestTenant(t, db, accessTargetTenantID(t))
 
 	// Two other schools that disagree on the name, so no name can be borrowed.
 	first := testpkg.CreateTestPerson(t, db, "Anna", "Beispiel")
 	linkPersonToAccount(t, db, first.ID, account.ID)
-	second := createPersonAtTenant(t, db, ambiguousNameTenantID, "Bea", "Beispiel")
+	second := createPersonAtTenant(t, db, ambiguousNameTenantID(t), "Bea", "Beispiel")
 	linkPersonToAccount(t, db, second.ID, account.ID)
 
 	defer func() {
@@ -815,7 +819,7 @@ func TestIntegration_GrantAccountTenantAccess_ReGrantReusesLocalIdentityDespiteA
 	adminRoleID := systemRoleID(t, db, "admin")
 
 	// The first grant carries its own name, so the ambiguity never comes up.
-	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
+	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
 		platformSvc.GrantAccountTenantAccessRequest{
 			RoleID:    adminRoleID,
 			FirstName: "Carla",
@@ -823,15 +827,15 @@ func TestIntegration_GrantAccountTenantAccess_ReGrantReusesLocalIdentityDespiteA
 		}, operator.ID, testClientIP)
 	require.NoError(t, err)
 
-	_, err = service.RevokeAccountTenantAccess(ctx, account.ID, accessTargetTenantID, operator.ID, testClientIP)
+	_, err = service.RevokeAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t), operator.ID, testClientIP)
 	require.NoError(t, err)
 
 	// The re-grant brings no name — and must not need one.
-	entries, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
+	entries, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
 		platformSvc.GrantAccountTenantAccessRequest{RoleID: adminRoleID}, operator.ID, testClientIP)
 	require.NoError(t, err, "the retained identity answers the question the other schools cannot")
 
-	granted := entryFor(entries, accessTargetTenantID)
+	granted := entryFor(entries, accessTargetTenantID(t))
 	require.NotNil(t, granted)
 	assert.Equal(t, authModels.AccountTenantStatusActive, granted.Status)
 
@@ -845,7 +849,7 @@ func TestIntegration_GrantAccountTenantAccess_ReGrantReusesLocalIdentityDespiteA
 		ColumnExpr("first_name, last_name").
 		TableExpr(`users.persons`).
 		Where(`account_id = ?`, account.ID).
-		Where(`tenant_id = ?`, accessTargetTenantID).
+		Where(`tenant_id = ?`, accessTargetTenantID(t)).
 		Where(`deleted_at IS NULL`).
 		Scan(ctx, &names)
 	require.NoError(t, err)
@@ -854,9 +858,12 @@ func TestIntegration_GrantAccountTenantAccess_ReGrantReusesLocalIdentityDespiteA
 	assert.Equal(t, "Beispiel", names[0].LastName)
 }
 
-// A second school for the ambiguity case; kept apart from accessTargetTenantID
-// so the disagreement is between two schools that are neither the target.
-const ambiguousNameTenantID int64 = 1021002
+// ambiguousNameTenantID is a third school in a range separate from the target
+// range, so parallel tests with consecutive primary tenant IDs cannot collide.
+func ambiguousNameTenantID(t *testing.T) int64 {
+	t.Helper()
+	return testpkg.Tenant(t) + 600_000_000
+}
 
 func createPersonAtTenant(t *testing.T, db *bun.DB, tenantID int64, firstName, lastName string) *userModels.Person {
 	t.Helper()

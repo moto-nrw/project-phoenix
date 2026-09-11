@@ -7,8 +7,8 @@ import (
 	"fmt"
 
 	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -37,10 +37,7 @@ func (r *GuardianPhoneNumberRepository) Create(ctx context.Context, phone *users
 	repoBase.EnsureTenantID(ctx, phone)
 
 	// Get the database connection (or transaction if in context)
-	var db bun.IDB = r.db
-	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
-		db = tx
-	}
+	db := repoBase.GetDB(ctx, r.db)
 
 	_, err := db.NewInsert().
 		Model(phone).
@@ -179,22 +176,12 @@ func (r *GuardianPhoneNumberRepository) Delete(ctx context.Context, id int64) er
 func (r *GuardianPhoneNumberRepository) SetPrimary(ctx context.Context, id int64, guardianProfileID int64) error {
 	// If already in a transaction (from middleware or service), reuse it.
 	// Otherwise start one to keep both updates atomic.
-	if _, hasTx := modelBase.TxFromContext(ctx); hasTx {
+	if _, hasTx := tenant.TransactionFromContext(ctx); hasTx {
 		return r.setPrimaryInTx(ctx, id, guardianProfileID)
 	}
-
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	txCtx := modelBase.ContextWithTx(ctx, &tx)
-	if err := r.setPrimaryInTx(txCtx, id, guardianProfileID); err != nil {
-		return err
-	}
-
-	return tx.Commit()
+	return tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		return r.setPrimaryInTx(txCtx, id, guardianProfileID)
+	})
 }
 
 // setPrimaryInTx performs the two-step primary flag update within the current transaction.

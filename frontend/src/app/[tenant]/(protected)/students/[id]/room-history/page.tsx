@@ -7,29 +7,21 @@ import React, {
   useMemo,
   useState,
 } from "react";
+import dynamic from "next/dynamic";
 import { useParams, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
-import { ChevronRight } from "lucide-react";
-import {
-  type ChartConfig,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "~/components/ui/chart";
-import { useTenantRouter } from "~/lib/tenant-router";
+import { ChevronRight, Download } from "lucide-react";
 import { BackButton } from "~/components/ui/back-button";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
-import {
-  ConceptPageHeader,
-  ConceptSectionHeader,
-} from "~/components/ui/concept-section-header";
+import { Skeleton } from "~/components/ui/skeleton";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { SectionCard } from "~/components/ui/section-card";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { createLogger } from "~/lib/logger";
 import { todayISO } from "~/lib/date-helpers";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import {
   type AttendanceHistory,
   type AttendanceHistoryDay,
@@ -40,7 +32,13 @@ import {
   formatTime,
   mapAttendanceHistoryResponse,
 } from "~/lib/attendance-history-helpers";
+import {
+  AttendanceCorrectionModal,
+  type CorrectableSlot,
+} from "~/components/students/attendance-correction-modal";
+import { hasPermission } from "~/lib/auth-utils";
 import { RoomHistorySkeleton } from "./page-skeleton";
+import type { HistoryChartPoint } from "./history-charts";
 
 const logger = createLogger({ component: "StudentRoomHistoryPage" });
 
@@ -62,6 +60,9 @@ interface Student {
 type ErrorCode =
   "feature_disabled" | "not_group_supervisor" | "not_found" | "generic";
 
+const ROOM_HISTORY_DESCRIPTION =
+  "Wo dieses Kind an einem Tag war und wer es ein- und ausgecheckt hat.";
+
 const ERROR_MESSAGES: Record<ErrorCode, string> = {
   feature_disabled:
     "Diese Funktion ist für Ihre Schule deaktiviert. Bitte wenden Sie sich an Ihre Administration.",
@@ -71,21 +72,15 @@ const ERROR_MESSAGES: Record<ErrorCode, string> = {
   generic: "Fehler beim Laden des Anwesenheitsprotokolls.",
 };
 
-// ─── Chart config ────────────────────────────────────────────────────────────
-
-const durationChartConfig: ChartConfig = {
-  duration: {
-    label: "Stunden",
-    color: MOTO_COLOR_PALETTE.green.base,
-  },
-};
-
-const activityChartConfig: ChartConfig = {
-  visits: {
-    label: "Raumwechsel",
-    color: MOTO_COLOR_PALETTE.blue.base,
-  },
-};
+const LazyHistoryCharts = dynamic(() => import("./history-charts"), {
+  ssr: false,
+  loading: () => (
+    <Skeleton
+      className="h-[404px] w-full rounded-2xl md:h-[200px]"
+      aria-hidden
+    />
+  ),
+});
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -104,58 +99,10 @@ function formatWeekday(dateKey: string): string {
   });
 }
 
-// ─── Shared chart tick ───────────────────────────────────────────────────────
-
-function TodayTick({
-  chartData,
-  props,
-}: {
-  readonly chartData: ReadonlyArray<{ date: string; isToday: boolean }>;
-  readonly props: Record<string, unknown>;
-}) {
-  const x = Number(props.x);
-  const y = Number(props.y);
-  const idx = (props.payload as { index?: number })?.index ?? 0;
-  const item = chartData[idx];
-  const isToday = item?.isToday;
-  return (
-    <g>
-      <text
-        x={x}
-        y={y + 12}
-        textAnchor="middle"
-        fontSize={11}
-        fontWeight={isToday ? 700 : 400}
-        fill={
-          isToday
-            ? MOTO_COLOR_PALETTE.neutral.strong
-            : MOTO_COLOR_PALETTE.neutral.light
-        }
-      >
-        {item?.date}
-      </text>
-      {isToday && (
-        <text
-          x={x}
-          y={y + 24}
-          textAnchor="middle"
-          fontSize={9}
-          fontWeight={500}
-          fill={MOTO_COLOR_PALETTE.green.base}
-        >
-          heute
-        </text>
-      )}
-    </g>
-  );
-}
-
-// ─── Charts ─────────────────────────────────────────────────────────────────
-
 function HistoryCharts({ days }: { readonly days: AttendanceHistoryDay[] }) {
   const todayKey = todayISO();
 
-  const chartData = useMemo(() => {
+  const chartData = useMemo<HistoryChartPoint[]>(() => {
     return days
       .filter((day) => day.attendance)
       .slice()
@@ -171,156 +118,8 @@ function HistoryCharts({ days }: { readonly days: AttendanceHistoryDay[] }) {
       }));
   }, [days, todayKey]);
 
-  // Filter out days where room details are unavailable (retention cap),
-  // so the activity chart doesn't show misleading zero-height bars.
-  const activityChartData = useMemo(
-    () => chartData.filter((d) => d.roomDetailAvailable),
-    [chartData],
-  );
-  const renderDurationTick = useCallback(
-    (p: Record<string, unknown>) => (
-      <TodayTick chartData={chartData} props={p} />
-    ),
-    [chartData],
-  );
-  const renderActivityTick = useCallback(
-    (p: Record<string, unknown>) => (
-      <TodayTick chartData={activityChartData} props={p} />
-    ),
-    [activityChartData],
-  );
-  const renderDurationTooltipValue = useCallback(
-    (value: string | number) => (
-      <span className="font-medium">{value} Std</span>
-    ),
-    [],
-  );
-  const renderActivityTooltipValue = useCallback(
-    (value: string | number) => (
-      <span className="font-medium">{value} Wechsel</span>
-    ),
-    [],
-  );
-
   if (chartData.length === 0) return null;
-
-  return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
-      {/* Anwesenheit */}
-      <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
-        <div className="p-4 sm:p-6">
-          <ConceptSectionHeader
-            className="mb-3"
-            title="Anwesenheit"
-            concept="present"
-            subtitle="Tägliche Aufenthaltsdauer in Stunden"
-          />
-          <ChartContainer
-            config={durationChartConfig}
-            className="h-[180px] w-full sm:h-[200px]"
-          >
-            <BarChart
-              data={chartData}
-              margin={{ top: 4, right: 4, bottom: 0, left: -20 }}
-              barCategoryGap="20%"
-            >
-              <CartesianGrid vertical={false} />
-              <XAxis
-                dataKey="date"
-                tickLine={false}
-                axisLine={false}
-                tickMargin={8}
-                fontSize={11}
-                interval={0}
-                tick={renderDurationTick}
-              />
-              <YAxis
-                tickLine={false}
-                axisLine={false}
-                tickMargin={4}
-                fontSize={12}
-                tickFormatter={(v: number) => `${v}h`}
-              />
-              <ChartTooltip
-                content={
-                  <ChartTooltipContent
-                    labelFormatter={(label) => `Tag: ${label}`}
-                    formatter={renderDurationTooltipValue}
-                  />
-                }
-              />
-              <Bar
-                dataKey="duration"
-                fill="var(--color-duration)"
-                radius={[6, 6, 6, 6]}
-              />
-            </BarChart>
-          </ChartContainer>
-        </div>
-      </div>
-
-      {/* Aktivität (Raumwechsel) */}
-      <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
-        <div className="p-4 sm:p-6">
-          <ConceptSectionHeader
-            className="mb-3"
-            title="Aktivität"
-            concept="rooms"
-            subtitle="Raumwechsel pro Tag"
-          />
-          {activityChartData.length === 0 ? (
-            <div className="flex h-[180px] items-center justify-center sm:h-[200px]">
-              <p className="text-sm text-gray-400">
-                Keine Raumdetails verfügbar (Aufbewahrungsfrist überschritten).
-              </p>
-            </div>
-          ) : (
-            <ChartContainer
-              config={activityChartConfig}
-              className="h-[180px] w-full sm:h-[200px]"
-            >
-              <BarChart
-                data={activityChartData}
-                margin={{ top: 4, right: 4, bottom: 0, left: -20 }}
-                barCategoryGap="20%"
-              >
-                <CartesianGrid vertical={false} />
-                <XAxis
-                  dataKey="date"
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  fontSize={11}
-                  interval={0}
-                  tick={renderActivityTick}
-                />
-                <YAxis
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={4}
-                  fontSize={12}
-                  allowDecimals={false}
-                />
-                <ChartTooltip
-                  content={
-                    <ChartTooltipContent
-                      labelFormatter={(label) => `Tag: ${label}`}
-                      formatter={renderActivityTooltipValue}
-                    />
-                  }
-                />
-                <Bar
-                  dataKey="visits"
-                  fill="var(--color-visits)"
-                  radius={[6, 6, 6, 6]}
-                />
-              </BarChart>
-            </ChartContainer>
-          )}
-        </div>
-      </div>
-    </div>
-  );
+  return <LazyHistoryCharts data={chartData} />;
 }
 
 // ─── DayCard (mobile) ────────────────────────────────────────────────────────
@@ -328,9 +127,13 @@ function HistoryCharts({ days }: { readonly days: AttendanceHistoryDay[] }) {
 function DayCard({
   day,
   isToday,
+  canCorrect,
+  onCorrect,
 }: {
   readonly day: AttendanceHistoryDay;
   readonly isToday: boolean;
+  readonly canCorrect: boolean;
+  readonly onCorrect: (slot: CorrectableSlot) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const statusLabel = day.statusEntries.map((entry) => entry.label).join(", ");
@@ -340,7 +143,7 @@ function DayCard({
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
-        className={`flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-gray-50 ${isToday ? "bg-blue-50/50" : ""}`}
+        className={`flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-gray-50 ${isToday ? "bg-moto-blue-soft/60" : ""}`}
       >
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-xs font-medium text-gray-600">
@@ -359,7 +162,7 @@ function DayCard({
               </span>
             )}
             {!day.attendance && statusLabel && (
-              <span className="ml-2 text-xs font-medium text-amber-700">
+              <span className="text-moto-amber-strong ml-2 text-xs font-medium">
                 {statusLabel}
               </span>
             )}
@@ -372,7 +175,7 @@ function DayCard({
             </span>
           )}
           {!day.attendance && (
-            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+            <span className="bg-moto-amber-soft text-moto-amber-strong rounded-full px-2 py-0.5 text-xs font-medium">
               {statusLabel || "Keine Daten"}
             </span>
           )}
@@ -390,24 +193,53 @@ function DayCard({
                 Betreuungsangebote
               </p>
               {day.slots.map((slot) => (
-                <div
-                  key={slot.instanceId}
-                  className="flex items-center justify-between text-xs"
-                >
-                  <div>
-                    <span className="font-medium text-gray-800">
-                      {slot.title}
+                <div key={slot.instanceId} className="text-xs">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-medium text-gray-800">
+                        {slot.title}
+                      </span>
+                      <span className="ml-2 text-gray-500">
+                        {slot.startTime}–{slot.endTime}
+                      </span>
+                      {slot.isUnplanned && (
+                        <span className="text-moto-orange ml-2">ungeplant</span>
+                      )}
+                    </div>
+                    <span className="font-medium text-gray-600">
+                      {formatAttendanceSlotStatus(slot.status, slot.substatus)}
                     </span>
-                    <span className="ml-2 text-gray-500">
-                      {slot.startTime}–{slot.endTime}
-                    </span>
-                    {slot.isUnplanned && (
-                      <span className="text-moto-orange ml-2">ungeplant</span>
-                    )}
                   </div>
-                  <span className="font-medium text-gray-600">
-                    {formatAttendanceSlotStatus(slot.status, slot.substatus)}
-                  </span>
+                  {/* Die Bemerkung aus der Betreuung (#2898): ruhige
+                      Information unter ihrem Block, nicht klickbar. */}
+                  {slot.note && (
+                    <p className="mt-0.5 pl-1 text-gray-500 italic">
+                      Bemerkung: {slot.note}
+                    </p>
+                  )}
+                  {/* Korrigieren nur mit Recht und nach Abschluss. Der fehlende
+                      Instanzstatus synthetischer "Ohne Zuordnung"-Zeilen
+                      schließt sie ebenfalls aus. */}
+                  {canCorrect && slot.instanceStatus === "completed" && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onCorrect({
+                          instanceId: slot.instanceId,
+                          title: slot.title,
+                          date: formatDateShort(day.date),
+                          startTime: slot.startTime,
+                          endTime: slot.endTime,
+                          status: slot.status,
+                          substatus: slot.substatus,
+                          note: slot.note,
+                        })
+                      }
+                      className="mt-0.5 pl-1 text-gray-500 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-600"
+                    >
+                      Korrigieren
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -419,7 +251,7 @@ function DayCard({
                   key={`${day.date}-${entry.status}`}
                   className="flex items-center justify-between text-xs"
                 >
-                  <span className="font-medium text-amber-800">
+                  <span className="text-moto-amber-strong font-medium">
                     {entry.label}
                   </span>
                   <span className="text-gray-500">
@@ -480,277 +312,317 @@ function DayCard({
 function HistoryTable({
   days,
   caps,
+  studentId,
+  onCorrected,
 }: {
   readonly days: AttendanceHistoryDay[];
   readonly caps: { attendanceDays: number; roomDetailDays: number };
+  readonly studentId: string;
+  readonly onCorrected: () => void;
 }) {
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
   const todayKey = todayISO();
+  // Korrigieren darf nur, wer den Plan verwaltet (#2898) — dieselbe
+  // Berechtigung, die das Backend auf der Korrektur-Route verlangt.
+  const { data: session } = useSession();
+  const canCorrect = hasPermission(session, "schedules:manage");
+  const [correcting, setCorrecting] = useState<CorrectableSlot | null>(null);
 
   return (
-    <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
-      <div className="border-b border-gray-100 px-4 py-3 sm:px-6 sm:py-4">
-        <ConceptSectionHeader
-          title="Anwesenheitsprotokoll"
-          concept="changeHistory"
-          subtitle={
-            <>
-              Letzte {caps.attendanceDays} Tage · Raumdetails für{" "}
-              {caps.roomDetailDays} Tage
-            </>
-          }
-        />
-      </div>
-
-      {days.length === 0 ? (
-        <div className="px-6 py-12 text-center">
-          <p className="text-sm text-gray-500">
-            Keine Anwesenheitsdaten für den ausgewählten Zeitraum verfügbar.
-          </p>
-        </div>
-      ) : (
-        <>
-          {/* Desktop table */}
-          <div className="hidden md:block">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-100 text-left text-xs font-medium text-gray-500">
-                  <th className="px-6 py-3">Tag</th>
-                  <th className="px-6 py-3">Ankunft</th>
-                  <th className="px-6 py-3">Abmeldung</th>
-                  <th className="px-6 py-3">Dauer</th>
-                  <th className="px-6 py-3">Angebote / Räume</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {days.map((day) => {
-                  const isExpanded = expandedDate === day.date;
-                  const isToday = day.date === todayKey;
-                  const statusLabel = day.statusEntries
-                    .map((entry) => entry.label)
-                    .join(", ");
-                  return (
-                    <React.Fragment key={day.date}>
-                      <tr
-                        onClick={() =>
-                          setExpandedDate(isExpanded ? null : day.date)
-                        }
-                        onKeyDown={(event) => {
-                          if (event.key !== "Enter" && event.key !== " ")
-                            return;
-                          event.preventDefault();
-                          setExpandedDate(isExpanded ? null : day.date);
-                        }}
-                        tabIndex={0}
-                        aria-expanded={isExpanded}
-                        aria-label={`${formatDate(day.date)}: Details ${isExpanded ? "schließen" : "öffnen"}`}
-                        className={`cursor-pointer text-sm transition-colors hover:bg-gray-50 ${isToday ? "bg-blue-50/50" : ""}`}
-                      >
-                        <td className="px-6 py-3">
-                          <div className="flex items-center gap-2">
-                            <ChevronRight
-                              className={`h-3.5 w-3.5 text-gray-400 transition-transform ${isExpanded ? "rotate-90" : ""}`}
-                            />
-                            <span className="font-medium text-gray-900">
-                              {formatDate(day.date)}
-                            </span>
-                            {statusLabel && (
-                              <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
-                                {statusLabel}
+    <>
+      {/* bodyClassName hebt die Kartenpolsterung wieder auf: die Tabelle bringt
+          ihre eigene Zellpolsterung mit und läuft randlos bis zur Kartenkante. */}
+      <SectionCard
+        title="Anwesenheitsprotokoll"
+        description={`${ROOM_HISTORY_DESCRIPTION} Letzte ${caps.attendanceDays} Tage · Raumdetails für ${caps.roomDetailDays} Tage`}
+        leading={<ConceptIconTile concept="changeHistory" variant="section" />}
+        bodyClassName="mt-4 -mx-5 -mb-5"
+      >
+        {days.length === 0 ? null : (
+          <>
+            {/* Desktop table */}
+            <div className="hidden md:block">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-100 text-left text-xs font-medium text-gray-500">
+                    <th className="px-6 py-3">Tag</th>
+                    <th className="px-6 py-3">Ankunft</th>
+                    <th className="px-6 py-3">Abmeldung</th>
+                    <th className="px-6 py-3">Dauer</th>
+                    <th className="px-6 py-3">Angebote / Räume</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {days.map((day) => {
+                    const isExpanded = expandedDate === day.date;
+                    const isToday = day.date === todayKey;
+                    const statusLabel = day.statusEntries
+                      .map((entry) => entry.label)
+                      .join(", ");
+                    return (
+                      <React.Fragment key={day.date}>
+                        <tr
+                          onClick={() =>
+                            setExpandedDate(isExpanded ? null : day.date)
+                          }
+                          onKeyDown={(event) => {
+                            if (event.key !== "Enter" && event.key !== " ")
+                              return;
+                            event.preventDefault();
+                            setExpandedDate(isExpanded ? null : day.date);
+                          }}
+                          tabIndex={0}
+                          aria-expanded={isExpanded}
+                          aria-label={`${formatDate(day.date)}: Details ${isExpanded ? "schließen" : "öffnen"}`}
+                          className={`cursor-pointer text-sm transition-colors hover:bg-gray-50 ${isToday ? "bg-moto-blue-soft/60" : ""}`}
+                        >
+                          <td className="px-6 py-3">
+                            <div className="flex items-center gap-2">
+                              <ChevronRight
+                                className={`h-3.5 w-3.5 text-gray-400 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                              />
+                              <span className="font-medium text-gray-900">
+                                {formatDate(day.date)}
                               </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-3 text-gray-600 tabular-nums">
-                          {day.attendance
-                            ? formatTime(day.attendance.checkInTime)
-                            : "–"}
-                        </td>
-                        <td className="px-6 py-3 text-gray-600 tabular-nums">
-                          {day.attendance
-                            ? day.attendance.checkOutTime
-                              ? formatTime(day.attendance.checkOutTime)
-                              : "Noch anwesend"
-                            : "–"}
-                        </td>
-                        <td className="px-6 py-3">
-                          {day.attendance ? (
-                            <span className="bg-moto-green/10 text-moto-green-strong rounded-full px-2.5 py-0.5 text-xs font-medium">
-                              {formatDuration(day.attendance.durationMinutes)}
-                            </span>
-                          ) : (
-                            <span className="text-gray-400">–</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-3 text-gray-500">
-                          {`${day.slots.length} Angebot${day.slots.length !== 1 ? "e" : ""}`}
-                          {day.roomDetailAvailable &&
-                            ` · ${day.visits.length} Raum${day.visits.length !== 1 ? "wechsel" : ""}`}
-                        </td>
-                      </tr>
-
-                      {/* Expanded care-offering slots */}
-                      {isExpanded &&
-                        day.slots.map((slot) => (
-                          <tr
-                            key={`${day.date}-slot-${slot.instanceId}`}
-                            className="bg-gray-50/70 text-xs"
-                          >
-                            <td className="py-2 pr-6 pl-12">
-                              <div className="flex items-center gap-2">
-                                <div className="bg-moto-green h-1.5 w-1.5 shrink-0 rounded-full" />
-                                <span className="font-medium text-gray-700">
-                                  {slot.title}
+                              {statusLabel && (
+                                <span className="bg-moto-amber-soft text-moto-amber-strong rounded-full px-2 py-0.5 text-xs font-medium">
+                                  {statusLabel}
                                 </span>
-                                <span className="text-gray-400 tabular-nums">
-                                  {slot.startTime}
-                                  {slot.endTime && <>–{slot.endTime}</>}
-                                </span>
-                                {slot.isUnplanned && (
-                                  <span className="text-moto-orange">
-                                    ungeplant
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-6 py-2 text-gray-500 tabular-nums">
-                              {slot.checkedInAt
-                                ? formatTime(slot.checkedInAt)
-                                : "–"}
-                            </td>
-                            <td className="px-6 py-2 text-gray-500 tabular-nums">
-                              {slot.checkedOutAt
-                                ? formatTime(slot.checkedOutAt)
-                                : "–"}
-                            </td>
-                            <td className="px-6 py-2 text-gray-600">
-                              {formatAttendanceSlotStatus(
-                                slot.status,
-                                slot.substatus,
                               )}
-                            </td>
-                            <td className="px-6 py-2" />
-                          </tr>
-                        ))}
+                            </div>
+                          </td>
+                          <td className="px-6 py-3 text-gray-600 tabular-nums">
+                            {day.attendance
+                              ? formatTime(day.attendance.checkInTime)
+                              : "–"}
+                          </td>
+                          <td className="px-6 py-3 text-gray-600 tabular-nums">
+                            {day.attendance
+                              ? day.attendance.checkOutTime
+                                ? formatTime(day.attendance.checkOutTime)
+                                : "Noch anwesend"
+                              : "–"}
+                          </td>
+                          <td className="px-6 py-3">
+                            {day.attendance ? (
+                              <span className="bg-moto-green/10 text-moto-green-strong rounded-full px-2.5 py-0.5 text-xs font-medium">
+                                {formatDuration(day.attendance.durationMinutes)}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">–</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-3 text-gray-500">
+                            {`${day.slots.length} Angebot${day.slots.length !== 1 ? "e" : ""}`}
+                            {day.roomDetailAvailable &&
+                              ` · ${day.visits.length} Raum${day.visits.length !== 1 ? "wechsel" : ""}`}
+                          </td>
+                        </tr>
 
-                      {/* Expanded room visits */}
-                      {isExpanded &&
-                        (!day.roomDetailAvailable ? (
-                          <tr>
-                            <td
-                              colSpan={5}
-                              className="bg-gray-50/70 px-6 py-3 text-xs text-gray-500 italic"
+                        {/* Expanded care-offering slots */}
+                        {isExpanded &&
+                          day.slots.map((slot) => (
+                            <tr
+                              key={`${day.date}-slot-${slot.instanceId}`}
+                              className="bg-gray-50/70 text-xs"
                             >
-                              Raumdetails nicht mehr verfügbar
-                              (Aufbewahrungsfrist überschritten).
-                            </td>
-                          </tr>
-                        ) : day.visits.length === 0 ? (
-                          <>
-                            {day.statusEntries.map((entry) => (
-                              <tr
-                                key={`${day.date}-${entry.status}`}
-                                className="bg-gray-50/70 text-xs"
-                              >
-                                <td className="py-2 pr-6 pl-12 font-medium text-amber-800">
-                                  {entry.label}
-                                </td>
-                                <td className="px-6 py-2 text-gray-500 tabular-nums">
-                                  {formatTime(entry.reportedAt)}
-                                </td>
-                                <td className="px-6 py-2 text-gray-500 tabular-nums">
-                                  {entry.clearedAt
-                                    ? formatTime(entry.clearedAt)
-                                    : "–"}
-                                </td>
-                                <td className="px-6 py-2 text-gray-400">–</td>
-                                <td className="px-6 py-2" />
-                              </tr>
-                            ))}
+                              <td className="py-2 pr-6 pl-12">
+                                <div className="flex items-center gap-2">
+                                  <div className="bg-moto-green h-1.5 w-1.5 shrink-0 rounded-full" />
+                                  <span className="font-medium text-gray-700">
+                                    {slot.title}
+                                  </span>
+                                  <span className="text-gray-400 tabular-nums">
+                                    {slot.startTime}
+                                    {slot.endTime && <>–{slot.endTime}</>}
+                                  </span>
+                                  {slot.isUnplanned && (
+                                    <span className="text-moto-orange">
+                                      ungeplant
+                                    </span>
+                                  )}
+                                </div>
+                                {/* Die Bemerkung aus der Betreuung (#2898):
+                                  ruhige Information unter ihrem Block, nicht
+                                  klickbar. Korrigieren ist nur mit Recht und
+                                  nach Abschluss des Termins sichtbar. */}
+                                {slot.note && (
+                                  <p className="mt-1 pl-4 text-gray-500 italic">
+                                    Bemerkung: {slot.note}
+                                  </p>
+                                )}
+                                {canCorrect &&
+                                  slot.instanceStatus === "completed" && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setCorrecting({
+                                          instanceId: slot.instanceId,
+                                          title: slot.title,
+                                          date: formatDateShort(day.date),
+                                          startTime: slot.startTime,
+                                          endTime: slot.endTime,
+                                          status: slot.status,
+                                          substatus: slot.substatus,
+                                          note: slot.note,
+                                        })
+                                      }
+                                      className="mt-1 pl-4 text-gray-500 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-600"
+                                    >
+                                      Korrigieren
+                                    </button>
+                                  )}
+                              </td>
+                              <td className="px-6 py-2 text-gray-500 tabular-nums">
+                                {slot.checkedInAt
+                                  ? formatTime(slot.checkedInAt)
+                                  : "–"}
+                              </td>
+                              <td className="px-6 py-2 text-gray-500 tabular-nums">
+                                {slot.checkedOutAt
+                                  ? formatTime(slot.checkedOutAt)
+                                  : "–"}
+                              </td>
+                              <td className="px-6 py-2 text-gray-600">
+                                {formatAttendanceSlotStatus(
+                                  slot.status,
+                                  slot.substatus,
+                                )}
+                              </td>
+                              <td className="px-6 py-2" />
+                            </tr>
+                          ))}
+
+                        {/* Expanded room visits */}
+                        {isExpanded &&
+                          (!day.roomDetailAvailable ? (
                             <tr>
                               <td
                                 colSpan={5}
-                                className="bg-gray-50/70 px-6 py-3 text-xs text-gray-500"
+                                className="bg-gray-50/70 px-6 py-3 text-xs text-gray-500 italic"
                               >
-                                Keine Raumwechsel an diesem Tag.
+                                Raumdetails nicht mehr verfügbar
+                                (Aufbewahrungsfrist überschritten).
                               </td>
                             </tr>
-                          </>
-                        ) : (
-                          <>
-                            {day.statusEntries.map((entry) => (
-                              <tr
-                                key={`${day.date}-${entry.status}`}
-                                className="bg-gray-50/70 text-xs"
-                              >
-                                <td className="py-2 pr-6 pl-12 font-medium text-amber-800">
-                                  {entry.label}
+                          ) : day.visits.length === 0 ? (
+                            <>
+                              {day.statusEntries.map((entry) => (
+                                <tr
+                                  key={`${day.date}-${entry.status}`}
+                                  className="bg-gray-50/70 text-xs"
+                                >
+                                  <td className="text-moto-amber-strong py-2 pr-6 pl-12 font-medium">
+                                    {entry.label}
+                                  </td>
+                                  <td className="px-6 py-2 text-gray-500 tabular-nums">
+                                    {formatTime(entry.reportedAt)}
+                                  </td>
+                                  <td className="px-6 py-2 text-gray-500 tabular-nums">
+                                    {entry.clearedAt
+                                      ? formatTime(entry.clearedAt)
+                                      : "–"}
+                                  </td>
+                                  <td className="px-6 py-2 text-gray-400">–</td>
+                                  <td className="px-6 py-2" />
+                                </tr>
+                              ))}
+                              <tr>
+                                <td
+                                  colSpan={5}
+                                  className="bg-gray-50/70 px-6 py-3 text-xs text-gray-500"
+                                >
+                                  Keine Raumwechsel an diesem Tag.
                                 </td>
-                                <td className="px-6 py-2 text-gray-500 tabular-nums">
-                                  {formatTime(entry.reportedAt)}
-                                </td>
-                                <td className="px-6 py-2 text-gray-500 tabular-nums">
-                                  {entry.clearedAt
-                                    ? formatTime(entry.clearedAt)
-                                    : "–"}
-                                </td>
-                                <td className="px-6 py-2 text-gray-400">–</td>
-                                <td className="px-6 py-2" />
                               </tr>
-                            ))}
-                            {day.visits.map((v, i) => (
-                              <tr
-                                key={`${day.date}-${i}-${v.entryTime.toISOString()}`}
-                                className="border-b border-gray-50 bg-gray-50/70 text-xs"
-                              >
-                                <td className="py-2 pr-6 pl-12">
-                                  <div className="flex items-center gap-2">
-                                    <div className="bg-moto-blue h-1.5 w-1.5 shrink-0 rounded-full" />
-                                    <span className="font-medium text-gray-700">
-                                      {v.roomName || "Unbekannt"}
-                                    </span>
-                                  </div>
-                                </td>
-                                <td className="px-6 py-2 text-gray-500 tabular-nums">
-                                  {formatTime(v.entryTime)}
-                                </td>
-                                <td className="px-6 py-2 text-gray-500 tabular-nums">
-                                  {v.exitTime ? formatTime(v.exitTime) : "–"}
-                                </td>
-                                <td className="px-6 py-2">
-                                  {v.durationMinutes != null ? (
-                                    <span className="rounded bg-gray-200/60 px-1.5 py-0.5 text-gray-600 tabular-nums">
-                                      {formatDuration(v.durationMinutes)}
-                                    </span>
-                                  ) : (
-                                    <span className="text-gray-400">–</span>
-                                  )}
-                                </td>
-                                <td className="px-6 py-2" />
-                              </tr>
-                            ))}
-                          </>
-                        ))}
-                    </React.Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                            </>
+                          ) : (
+                            <>
+                              {day.statusEntries.map((entry) => (
+                                <tr
+                                  key={`${day.date}-${entry.status}`}
+                                  className="bg-gray-50/70 text-xs"
+                                >
+                                  <td className="text-moto-amber-strong py-2 pr-6 pl-12 font-medium">
+                                    {entry.label}
+                                  </td>
+                                  <td className="px-6 py-2 text-gray-500 tabular-nums">
+                                    {formatTime(entry.reportedAt)}
+                                  </td>
+                                  <td className="px-6 py-2 text-gray-500 tabular-nums">
+                                    {entry.clearedAt
+                                      ? formatTime(entry.clearedAt)
+                                      : "–"}
+                                  </td>
+                                  <td className="px-6 py-2 text-gray-400">–</td>
+                                  <td className="px-6 py-2" />
+                                </tr>
+                              ))}
+                              {day.visits.map((v, i) => (
+                                <tr
+                                  key={`${day.date}-${i}-${v.entryTime.toISOString()}`}
+                                  className="border-b border-gray-50 bg-gray-50/70 text-xs"
+                                >
+                                  <td className="py-2 pr-6 pl-12">
+                                    <div className="flex items-center gap-2">
+                                      <div className="bg-moto-blue h-1.5 w-1.5 shrink-0 rounded-full" />
+                                      <span className="font-medium text-gray-700">
+                                        {v.roomName || "Unbekannt"}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-2 text-gray-500 tabular-nums">
+                                    {formatTime(v.entryTime)}
+                                  </td>
+                                  <td className="px-6 py-2 text-gray-500 tabular-nums">
+                                    {v.exitTime ? formatTime(v.exitTime) : "–"}
+                                  </td>
+                                  <td className="px-6 py-2">
+                                    {v.durationMinutes != null ? (
+                                      <span className="rounded bg-gray-200/60 px-1.5 py-0.5 text-gray-600 tabular-nums">
+                                        {formatDuration(v.durationMinutes)}
+                                      </span>
+                                    ) : (
+                                      <span className="text-gray-400">–</span>
+                                    )}
+                                  </td>
+                                  <td className="px-6 py-2" />
+                                </tr>
+                              ))}
+                            </>
+                          ))}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
 
-          {/* Mobile card layout */}
-          <div className="md:hidden">
-            {days.map((day) => (
-              <DayCard
-                key={day.date}
-                day={day}
-                isToday={day.date === todayKey}
-              />
-            ))}
-          </div>
-        </>
+            {/* Mobile card layout */}
+            <div className="md:hidden">
+              {days.map((day) => (
+                <DayCard
+                  key={day.date}
+                  day={day}
+                  isToday={day.date === todayKey}
+                  canCorrect={canCorrect}
+                  onCorrect={setCorrecting}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </SectionCard>
+      {correcting && (
+        <AttendanceCorrectionModal
+          isOpen
+          onClose={() => setCorrecting(null)}
+          studentId={studentId}
+          slot={correcting}
+          onCorrected={onCorrected}
+        />
       )}
-    </div>
+    </>
   );
 }
 
@@ -758,14 +630,13 @@ function HistoryTable({
 
 export default function StudentRoomHistoryPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<RoomHistorySkeleton />}>
       <StudentRoomHistoryPageContent />
     </Suspense>
   );
 }
 
 function StudentRoomHistoryPageContent() {
-  const router = useTenantRouter();
   const params = useParams();
   const searchParams = useSearchParams();
   const studentId = params.id as string;
@@ -892,97 +763,105 @@ function StudentRoomHistoryPageContent() {
     };
   }, [fetchStudent, fetchHistory]);
 
-  if (loading) {
-    return <RoomHistorySkeleton />;
-  }
-
-  if (errorCode !== null && errorCode !== "feature_disabled") {
-    return (
-      <>
-        <BackButton referrer={referrer} />
-        <div className="flex min-h-[50vh] flex-col items-center justify-center">
-          <Alert type="error" message={ERROR_MESSAGES[errorCode]} />
-          <Button
-            type="button"
-            onClick={() => router.push(referrer)}
-            variant="secondary"
-            size="md"
-            className="mt-4"
-          >
-            Zurück
-          </Button>
-        </div>
-      </>
-    );
-  }
-
   const displayName = student
     ? (student.name ?? `${student.first_name} ${student.second_name}`)
     : "";
+  // Statuszeile: Klasse, Gruppe und die Zahl der protokollierten Tage, alles
+  // aus den Daten, die die Seite ohnehin geladen hat.
+  const dayCount = history?.days.length ?? 0;
+  const studentMeta = student
+    ? [
+        student.school_class,
+        student.group_name,
+        `${dayCount} ${dayCount === 1 ? "Tag" : "Tage"} erfasst`,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : "";
+  // „feature_disabled" ist kein Fehlerzustand der Seite, sondern ein Hinweis
+  // über dem Inhalt; alle anderen Codes ersetzen den Inhalt.
+  const errorMessage =
+    errorCode !== null && errorCode !== "feature_disabled"
+      ? ERROR_MESSAGES[errorCode]
+      : null;
+  // Im Fehlerfall führt der Rückweg auf die Liste, sonst auf die Kindakte in
+  // den Reiter, aus dem diese Unterseite geöffnet wurde.
+  const backReferrer =
+    errorMessage !== null
+      ? referrer
+      : `/students/${studentId}?from=${referrer}&tab=historie`;
 
   return (
-    <div className="w-full">
+    <>
       {/* Back button (mobile only). tab=historie returns to the originating tab
           on the detail page (this sub-page lives under Historie, issue #1501);
           from= still drives the detail page's own back button to the list. */}
-      <BackButton
-        referrer={`/students/${studentId}?from=${referrer}&tab=historie`}
-      />
+      <BackButton referrer={backReferrer} />
 
-      {student && (
-        <ConceptPageHeader
-          className="mb-6 ml-6"
-          title={displayName}
-          eyebrow="Anwesenheitsprotokoll"
-          concept="changeHistory"
-          subtitle={
-            <>
-              {student.school_class}
-              {student.group_name ? ` · ${student.group_name}` : null}
-            </>
-          }
-        />
-      )}
+      {/* Der Entitätskopf ist die Kopfkarte der Seite. */}
+      <TenantPage
+        leading={<ConceptIconTile concept="changeHistory" variant="page" />}
+        title={displayName || "Anwesenheitsprotokoll"}
+        stats={
+          studentMeta ||
+          `${dayCount} ${dayCount === 1 ? "Tag" : "Tage"} erfasst`
+        }
+        statsLoading={loading}
+        loading={loading}
+        error={errorMessage}
+        // Herunterladen steht im Kebab der Kopfkarte, wie auf jeder anderen
+        // Werkzeugfläche -- keine eigene Knopfreihe je Format.
+        actions={
+          history && history.days.length > 0 ? (
+            <OverflowMenu
+              items={[
+                { kind: "header", label: "Herunterladen" },
+                ...EXPORT_FORMATS.map((format) => ({
+                  label:
+                    exporting === format
+                      ? "Wird exportiert…"
+                      : format.toUpperCase(),
+                  icon: <Download className="h-4 w-4" aria-hidden />,
+                  onClick: () => void downloadExport(format),
+                  disabled: exporting !== null,
+                })),
+              ]}
+              ariaLabel="Weitere Aktionen"
+            />
+          ) : undefined
+        }
+        // Eine ausgeschaltete Funktion ist ein Zustand, kein Fehler; ebenso ein
+        // Zeitraum ohne Eintrag. Beide nennen den nächsten Schritt.
+        empty={
+          errorCode === "feature_disabled"
+            ? {
+                title: "Anwesenheitsprotokoll ist ausgeschaltet",
+                description: ERROR_MESSAGES.feature_disabled,
+              }
+            : history && history.days.length === 0
+              ? {
+                  title:
+                    "Keine Anwesenheitsdaten für den ausgewählten Zeitraum verfügbar",
+                  description: `Letzte ${history.caps.attendanceDays} Tage · Raumdetails für ${history.caps.roomDetailDays} Tage. Sobald das Kind an- oder abgemeldet wird, erscheint der Tag hier.`,
+                }
+              : null
+        }
+      >
+        {history && history.days.length > 0 && (
+          <>
+            {exportError && <Alert type="error" message={exportError} />}
 
-      {/* Feature disabled banner */}
-      {errorCode === "feature_disabled" && (
-        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 md:mb-6">
-          {ERROR_MESSAGES.feature_disabled}
-        </div>
-      )}
-
-      {history && (
-        <>
-          {exportError && (
-            <div className="mb-4">
-              <Alert type="error" message={exportError} />
-            </div>
-          )}
-          <div className="mb-4 flex flex-wrap justify-end gap-2">
-            {EXPORT_FORMATS.map((format) => (
-              <Button
-                key={format}
-                type="button"
-                variant="outline"
-                size="compact"
-                disabled={exporting !== null}
-                onClick={() => void downloadExport(format)}
-              >
-                {exporting === format
-                  ? "Wird exportiert…"
-                  : `${format.toUpperCase()} exportieren`}
-              </Button>
-            ))}
-          </div>
-          {/* Charts */}
-          <div className="mb-4 md:mb-6">
             <HistoryCharts days={history.days} />
-          </div>
 
-          {/* History table */}
-          <HistoryTable days={history.days} caps={history.caps} />
-        </>
-      )}
-    </div>
+            <HistoryTable
+              days={history.days}
+              caps={history.caps}
+              studentId={studentId}
+              onCorrected={() => void fetchHistory()}
+            />
+          </>
+        )}
+      </TenantPage>
+    </>
   );
 }

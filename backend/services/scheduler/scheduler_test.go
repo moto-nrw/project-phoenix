@@ -5,11 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 	"sync"
 	"testing"
 	"testing/synctest"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
@@ -125,46 +126,31 @@ func TestNewScheduler_OnlyInvitationService(t *testing.T) {
 	assert.Len(t, s.cleanupJobs, 1) // 1 invitation job only
 }
 
-func TestIsoWeekdayMatchesNow(t *testing.T) {
+func TestIsoWeekdayMatches(t *testing.T) {
 	t.Parallel()
 
-	// This test checks the mapping from Go's Sunday=0 to ISO Sunday=7
-	// via the helper's sole branch point. It does not assert a specific
-	// day (that would depend on when the test runs) but asserts the
-	// function's contract for the current day.
-	today := time.Now().Weekday()
-	var iso int
-	if today == time.Sunday {
-		iso = 7
-	} else {
-		iso = int(today)
-	}
-	assert.True(t, isoWeekdayMatchesNow(iso), "current day must match its ISO weekday")
-	// A day that is definitely not today
-	other := iso + 1
-	if other > 7 {
-		other = 1
-	}
-	assert.False(t, isoWeekdayMatchesNow(other), "non-current day must not match")
+	monday := time.Date(2024, time.January, 1, 12, 0, 0, 0, timezone.Berlin)
+	sunday := time.Date(2024, time.January, 7, 12, 0, 0, 0, timezone.Berlin)
+
+	assert.True(t, isoWeekdayMatches(1, monday))
+	assert.False(t, isoWeekdayMatches(2, monday))
+	assert.True(t, isoWeekdayMatches(7, sunday))
+	assert.False(t, isoWeekdayMatches(1, sunday))
 }
 
 // =============================================================================
 // Start/Stop Lifecycle Tests
 // =============================================================================
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduler_StartStop(t *testing.T) {
-	// Disable all scheduled tasks to test pure lifecycle
-	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "false"))
-	require.NoError(t, os.Setenv("SESSION_END_SCHEDULER_ENABLED", "false"))
-	require.NoError(t, os.Setenv("SESSION_CLEANUP_ENABLED", "false"))
-	defer func() {
-		_ = os.Unsetenv("CLEANUP_SCHEDULER_ENABLED")
-		_ = os.Unsetenv("SESSION_END_SCHEDULER_ENABLED")
-		_ = os.Unsetenv("SESSION_CLEANUP_ENABLED")
-	}()
+	t.Parallel()
 
 	s := newUnitScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
+	s.getenv = testEnv(
+		"CLEANUP_SCHEDULER_ENABLED", "false",
+		"SESSION_END_SCHEDULER_ENABLED", "false",
+		"SESSION_CLEANUP_ENABLED", "false",
+	)
 
 	// Start should not panic
 	assert.NotPanics(t, func() {
@@ -197,17 +183,8 @@ func TestScheduler_StopWithoutStart(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduler_StartWithTokenCleanupOnly(t *testing.T) {
-	// Enable only token cleanup (runs immediately then every hour)
-	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "false"))
-	require.NoError(t, os.Setenv("SESSION_END_SCHEDULER_ENABLED", "false"))
-	require.NoError(t, os.Setenv("SESSION_CLEANUP_ENABLED", "false"))
-	defer func() {
-		_ = os.Unsetenv("CLEANUP_SCHEDULER_ENABLED")
-		_ = os.Unsetenv("SESSION_END_SCHEDULER_ENABLED")
-		_ = os.Unsetenv("SESSION_CLEANUP_ENABLED")
-	}()
+	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
 		auth := &fakeAuthCleanup{
@@ -217,6 +194,11 @@ func TestScheduler_StartWithTokenCleanupOnly(t *testing.T) {
 		}
 
 		s := newUnitScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
+		s.getenv = testEnv(
+			"CLEANUP_SCHEDULER_ENABLED", "false",
+			"SESSION_END_SCHEDULER_ENABLED", "false",
+			"SESSION_CLEANUP_ENABLED", "false",
+		)
 		s.Start()
 
 		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
@@ -304,11 +286,14 @@ func TestRunCleanupJobsRejectsMissingRuntime(t *testing.T) {
 	t.Parallel()
 
 	auth := &fakeAuthCleanup{}
-	s := NewScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
 	var outcomes []string
-	s.SetTenantRuntimeObserver(func(entryPoint, outcome string) {
-		assert.Equal(t, "worker", entryPoint)
-		outcomes = append(outcomes, outcome)
+	s := newScheduler(WorkerDependencies{
+		Logger:      slog.Default(),
+		AuthCleanup: auth,
+		TenantRuntimeObserver: func(entryPoint, outcome string) {
+			assert.Equal(t, "worker", entryPoint)
+			outcomes = append(outcomes, outcome)
+		},
 	})
 
 	err := s.RunCleanupJobs()
@@ -542,22 +527,17 @@ func TestCleanupJob_RunReturnsError(t *testing.T) {
 // Environment Variable Tests
 // =============================================================================
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduler_DisabledByEnvVars(t *testing.T) {
-	// Disable all tasks via environment
-	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "false"))
-	require.NoError(t, os.Setenv("SESSION_END_SCHEDULER_ENABLED", "false"))
-	require.NoError(t, os.Setenv("SESSION_CLEANUP_ENABLED", "false"))
-	require.NoError(t, os.Setenv("STATUS_FLAG_CLEAR_ENABLED", "false"))
-	defer func() {
-		_ = os.Unsetenv("CLEANUP_SCHEDULER_ENABLED")
-		_ = os.Unsetenv("SESSION_END_SCHEDULER_ENABLED")
-		_ = os.Unsetenv("SESSION_CLEANUP_ENABLED")
-		_ = os.Unsetenv("STATUS_FLAG_CLEAR_ENABLED")
-	}()
+	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
 		s := newUnitScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
+		s.getenv = testEnv(
+			"CLEANUP_SCHEDULER_ENABLED", "false",
+			"SESSION_END_SCHEDULER_ENABLED", "false",
+			"SESSION_CLEANUP_ENABLED", "false",
+			"STATUS_FLAG_CLEAR_ENABLED", "false",
+		)
 		s.Start()
 
 		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
@@ -580,19 +560,8 @@ func TestScheduler_DisabledByEnvVars(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestScheduler_DefaultEnvValues(t *testing.T) {
-	// Clear all env vars to test defaults
-	_ = os.Unsetenv("CLEANUP_SCHEDULER_ENABLED")
-	_ = os.Unsetenv("CLEANUP_SCHEDULER_TIME")
-	_ = os.Unsetenv("SESSION_END_SCHEDULER_ENABLED")
-	_ = os.Unsetenv("SESSION_END_TIME")
-	_ = os.Unsetenv("SESSION_CLEANUP_ENABLED")
-	_ = os.Unsetenv("SESSION_CLEANUP_INTERVAL_MINUTES")
-	_ = os.Unsetenv("SESSION_ABANDONED_THRESHOLD_MINUTES")
-
+	t.Parallel()
 	s := newUnitScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
 
 	// Default values should be set
@@ -623,19 +592,13 @@ func TestInvitationCleaner_InterfaceCompliance(t *testing.T) {
 // management, and scheduler lifecycle.
 // =============================================================================
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleCleanupTask_InvalidTimeFormat(t *testing.T) {
-	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "true"))
-	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_TIME", "invalid"))
-	defer func() {
-		_ = os.Unsetenv("CLEANUP_SCHEDULER_ENABLED")
-		_ = os.Unsetenv("CLEANUP_SCHEDULER_TIME")
-	}()
-
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		s := unitScheduler(&Scheduler{
 			tasks: make(map[string]*ScheduledTask),
 			done:  make(chan struct{})})
+		s.getenv = testEnv("CLEANUP_SCHEDULER_ENABLED", "true", "CLEANUP_SCHEDULER_TIME", "invalid")
 
 		// Schedule cleanup task with invalid time
 		s.scheduleCleanupTask()
@@ -655,19 +618,13 @@ func TestScheduleCleanupTask_InvalidTimeFormat(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleCleanupTask_InvalidHour(t *testing.T) {
-	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "true"))
-	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_TIME", "25:00"))
-	defer func() {
-		_ = os.Unsetenv("CLEANUP_SCHEDULER_ENABLED")
-		_ = os.Unsetenv("CLEANUP_SCHEDULER_TIME")
-	}()
-
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		s := unitScheduler(&Scheduler{
 			tasks: make(map[string]*ScheduledTask),
 			done:  make(chan struct{})})
+		s.getenv = testEnv("CLEANUP_SCHEDULER_ENABLED", "true", "CLEANUP_SCHEDULER_TIME", "25:00")
 
 		// Schedule cleanup task with invalid hour
 		s.scheduleCleanupTask()
@@ -681,19 +638,13 @@ func TestScheduleCleanupTask_InvalidHour(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleCleanupTask_InvalidMinute(t *testing.T) {
-	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "true"))
-	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_TIME", "02:99"))
-	defer func() {
-		_ = os.Unsetenv("CLEANUP_SCHEDULER_ENABLED")
-		_ = os.Unsetenv("CLEANUP_SCHEDULER_TIME")
-	}()
-
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		s := unitScheduler(&Scheduler{
 			tasks: make(map[string]*ScheduledTask),
 			done:  make(chan struct{})})
+		s.getenv = testEnv("CLEANUP_SCHEDULER_ENABLED", "true", "CLEANUP_SCHEDULER_TIME", "02:99")
 
 		// Schedule cleanup task with invalid minute
 		s.scheduleCleanupTask()
@@ -707,19 +658,13 @@ func TestScheduleCleanupTask_InvalidMinute(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleCleanupTask_NonNumericHour(t *testing.T) {
-	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "true"))
-	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_TIME", "aa:00"))
-	defer func() {
-		_ = os.Unsetenv("CLEANUP_SCHEDULER_ENABLED")
-		_ = os.Unsetenv("CLEANUP_SCHEDULER_TIME")
-	}()
-
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		s := unitScheduler(&Scheduler{
 			tasks: make(map[string]*ScheduledTask),
 			done:  make(chan struct{})})
+		s.getenv = testEnv("CLEANUP_SCHEDULER_ENABLED", "true", "CLEANUP_SCHEDULER_TIME", "aa:00")
 
 		// Schedule cleanup task with non-numeric hour
 		s.scheduleCleanupTask()
@@ -733,19 +678,13 @@ func TestScheduleCleanupTask_NonNumericHour(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleCleanupTask_NonNumericMinute(t *testing.T) {
-	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "true"))
-	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_TIME", "02:bb"))
-	defer func() {
-		_ = os.Unsetenv("CLEANUP_SCHEDULER_ENABLED")
-		_ = os.Unsetenv("CLEANUP_SCHEDULER_TIME")
-	}()
-
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		s := unitScheduler(&Scheduler{
 			tasks: make(map[string]*ScheduledTask),
 			done:  make(chan struct{})})
+		s.getenv = testEnv("CLEANUP_SCHEDULER_ENABLED", "true", "CLEANUP_SCHEDULER_TIME", "02:bb")
 
 		// Schedule cleanup task with non-numeric minute
 		s.scheduleCleanupTask()
@@ -759,19 +698,13 @@ func TestScheduleCleanupTask_NonNumericMinute(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleCleanupTask_NegativeHour(t *testing.T) {
-	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "true"))
-	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_TIME", "-1:00"))
-	defer func() {
-		_ = os.Unsetenv("CLEANUP_SCHEDULER_ENABLED")
-		_ = os.Unsetenv("CLEANUP_SCHEDULER_TIME")
-	}()
-
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		s := unitScheduler(&Scheduler{
 			tasks: make(map[string]*ScheduledTask),
 			done:  make(chan struct{})})
+		s.getenv = testEnv("CLEANUP_SCHEDULER_ENABLED", "true", "CLEANUP_SCHEDULER_TIME", "-1:00")
 
 		// Schedule cleanup task with negative hour
 		s.scheduleCleanupTask()
@@ -785,19 +718,13 @@ func TestScheduleCleanupTask_NegativeHour(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleCleanupTask_NegativeMinute(t *testing.T) {
-	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "true"))
-	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_TIME", "02:-5"))
-	defer func() {
-		_ = os.Unsetenv("CLEANUP_SCHEDULER_ENABLED")
-		_ = os.Unsetenv("CLEANUP_SCHEDULER_TIME")
-	}()
-
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		s := unitScheduler(&Scheduler{
 			tasks: make(map[string]*ScheduledTask),
 			done:  make(chan struct{})})
+		s.getenv = testEnv("CLEANUP_SCHEDULER_ENABLED", "true", "CLEANUP_SCHEDULER_TIME", "02:-5")
 
 		// Schedule cleanup task with negative minute
 		s.scheduleCleanupTask()
@@ -811,19 +738,13 @@ func TestScheduleCleanupTask_NegativeMinute(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleSessionEndTask_InvalidTimeFormat(t *testing.T) {
-	require.NoError(t, os.Setenv("SESSION_END_SCHEDULER_ENABLED", "true"))
-	require.NoError(t, os.Setenv("SESSION_END_TIME", "invalid"))
-	defer func() {
-		_ = os.Unsetenv("SESSION_END_SCHEDULER_ENABLED")
-		_ = os.Unsetenv("SESSION_END_TIME")
-	}()
-
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		s := unitScheduler(&Scheduler{
 			tasks: make(map[string]*ScheduledTask),
 			done:  make(chan struct{})})
+		s.getenv = testEnv("SESSION_END_SCHEDULER_ENABLED", "true", "SESSION_END_TIME", "invalid")
 
 		// Schedule session end task with invalid time
 		s.scheduleSessionEndTask()
@@ -837,19 +758,13 @@ func TestScheduleSessionEndTask_InvalidTimeFormat(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleSessionEndTask_InvalidHour(t *testing.T) {
-	require.NoError(t, os.Setenv("SESSION_END_SCHEDULER_ENABLED", "true"))
-	require.NoError(t, os.Setenv("SESSION_END_TIME", "30:00"))
-	defer func() {
-		_ = os.Unsetenv("SESSION_END_SCHEDULER_ENABLED")
-		_ = os.Unsetenv("SESSION_END_TIME")
-	}()
-
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		s := unitScheduler(&Scheduler{
 			tasks: make(map[string]*ScheduledTask),
 			done:  make(chan struct{})})
+		s.getenv = testEnv("SESSION_END_SCHEDULER_ENABLED", "true", "SESSION_END_TIME", "30:00")
 
 		// Schedule session end task with invalid hour
 		s.scheduleSessionEndTask()
@@ -863,19 +778,13 @@ func TestScheduleSessionEndTask_InvalidHour(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleSessionEndTask_InvalidMinute(t *testing.T) {
-	require.NoError(t, os.Setenv("SESSION_END_SCHEDULER_ENABLED", "true"))
-	require.NoError(t, os.Setenv("SESSION_END_TIME", "18:99"))
-	defer func() {
-		_ = os.Unsetenv("SESSION_END_SCHEDULER_ENABLED")
-		_ = os.Unsetenv("SESSION_END_TIME")
-	}()
-
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		s := unitScheduler(&Scheduler{
 			tasks: make(map[string]*ScheduledTask),
 			done:  make(chan struct{})})
+		s.getenv = testEnv("SESSION_END_SCHEDULER_ENABLED", "true", "SESSION_END_TIME", "18:99")
 
 		// Schedule session end task with invalid minute
 		s.scheduleSessionEndTask()
@@ -889,19 +798,13 @@ func TestScheduleSessionEndTask_InvalidMinute(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleSessionEndTask_NonNumericHour(t *testing.T) {
-	require.NoError(t, os.Setenv("SESSION_END_SCHEDULER_ENABLED", "true"))
-	require.NoError(t, os.Setenv("SESSION_END_TIME", "xx:00"))
-	defer func() {
-		_ = os.Unsetenv("SESSION_END_SCHEDULER_ENABLED")
-		_ = os.Unsetenv("SESSION_END_TIME")
-	}()
-
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		s := unitScheduler(&Scheduler{
 			tasks: make(map[string]*ScheduledTask),
 			done:  make(chan struct{})})
+		s.getenv = testEnv("SESSION_END_SCHEDULER_ENABLED", "true", "SESSION_END_TIME", "xx:00")
 
 		// Schedule session end task with non-numeric hour
 		s.scheduleSessionEndTask()
@@ -915,19 +818,13 @@ func TestScheduleSessionEndTask_NonNumericHour(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleSessionEndTask_NonNumericMinute(t *testing.T) {
-	require.NoError(t, os.Setenv("SESSION_END_SCHEDULER_ENABLED", "true"))
-	require.NoError(t, os.Setenv("SESSION_END_TIME", "18:yy"))
-	defer func() {
-		_ = os.Unsetenv("SESSION_END_SCHEDULER_ENABLED")
-		_ = os.Unsetenv("SESSION_END_TIME")
-	}()
-
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		s := unitScheduler(&Scheduler{
 			tasks: make(map[string]*ScheduledTask),
 			done:  make(chan struct{})})
+		s.getenv = testEnv("SESSION_END_SCHEDULER_ENABLED", "true", "SESSION_END_TIME", "18:yy")
 
 		// Schedule session end task with non-numeric minute
 		s.scheduleSessionEndTask()
@@ -941,19 +838,13 @@ func TestScheduleSessionEndTask_NonNumericMinute(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleSessionEndTask_NegativeHour(t *testing.T) {
-	require.NoError(t, os.Setenv("SESSION_END_SCHEDULER_ENABLED", "true"))
-	require.NoError(t, os.Setenv("SESSION_END_TIME", "-2:00"))
-	defer func() {
-		_ = os.Unsetenv("SESSION_END_SCHEDULER_ENABLED")
-		_ = os.Unsetenv("SESSION_END_TIME")
-	}()
-
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		s := unitScheduler(&Scheduler{
 			tasks: make(map[string]*ScheduledTask),
 			done:  make(chan struct{})})
+		s.getenv = testEnv("SESSION_END_SCHEDULER_ENABLED", "true", "SESSION_END_TIME", "-2:00")
 
 		// Schedule session end task with negative hour
 		s.scheduleSessionEndTask()
@@ -967,19 +858,13 @@ func TestScheduleSessionEndTask_NegativeHour(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleSessionEndTask_NegativeMinute(t *testing.T) {
-	require.NoError(t, os.Setenv("SESSION_END_SCHEDULER_ENABLED", "true"))
-	require.NoError(t, os.Setenv("SESSION_END_TIME", "18:-3"))
-	defer func() {
-		_ = os.Unsetenv("SESSION_END_SCHEDULER_ENABLED")
-		_ = os.Unsetenv("SESSION_END_TIME")
-	}()
-
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		s := unitScheduler(&Scheduler{
 			tasks: make(map[string]*ScheduledTask),
 			done:  make(chan struct{})})
+		s.getenv = testEnv("SESSION_END_SCHEDULER_ENABLED", "true", "SESSION_END_TIME", "18:-3")
 
 		// Schedule session end task with negative minute
 		s.scheduleSessionEndTask()
@@ -1000,17 +885,12 @@ func TestScheduleSessionEndTask_NegativeMinute(t *testing.T) {
 // To fully test session cleanup execution, you would need to inject mock active.Service
 // interfaces which requires significant refactoring of the scheduler package.
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleSessionCleanupTask_Disabled(t *testing.T) {
-	// Test that session cleanup can be disabled via env var
-	require.NoError(t, os.Setenv("SESSION_CLEANUP_ENABLED", "false"))
-	defer func() {
-		_ = os.Unsetenv("SESSION_CLEANUP_ENABLED")
-	}()
-
+	t.Parallel()
 	s := unitScheduler(&Scheduler{
 		tasks: make(map[string]*ScheduledTask),
 		done:  make(chan struct{})})
+	s.getenv = testEnv("SESSION_CLEANUP_ENABLED", "false")
 
 	// Schedule session cleanup task (should be disabled)
 	s.scheduleSessionCleanupTask()
@@ -1041,7 +921,7 @@ func (m *mockActiveService) GetRoomsByIDs(_ context.Context, _ []int64) ([]*faci
 	return nil, nil
 }
 
-func (m *mockActiveService) GetActiveGroupVisitsWithDisplay(_ context.Context, _ int64) ([]*active.VisitWithStudentDisplay, error) {
+func (m *mockActiveService) GetActiveGroupVisitsWithDisplay(_ context.Context, _ int64) ([]*activeService.VisitWithStudentDisplay, error) {
 	return nil, nil
 }
 
@@ -1091,38 +971,36 @@ func (m *mockActiveService) FindActiveGroupsByTimeRange(_ context.Context, _, _ 
 	return nil, nil
 }
 func (m *mockActiveService) EndActiveGroupSession(_ context.Context, _ int64) error { return nil }
-func (m *mockActiveService) GetActiveGroupWithVisits(_ context.Context, _ int64) (*active.Group, error) {
+func (m *mockActiveService) GetActiveGroupVisits(_ context.Context, _ int64) ([]studentpresence.Visit, error) {
 	return nil, nil
 }
 func (m *mockActiveService) GetActiveGroupWithSupervisors(_ context.Context, _ int64) (*active.Group, error) {
 	return nil, nil
 }
-func (m *mockActiveService) GetVisit(_ context.Context, _ int64) (*active.Visit, error) {
+func (m *mockActiveService) GetVisit(_ context.Context, _ int64) (*studentpresence.Visit, error) {
 	return nil, nil
 }
-func (m *mockActiveService) CreateVisit(_ context.Context, _ *active.Visit) error { return nil }
-func (m *mockActiveService) UpdateVisit(_ context.Context, _ *active.Visit) error { return nil }
-func (m *mockActiveService) DeleteVisit(_ context.Context, _ int64) error         { return nil }
-func (m *mockActiveService) ListVisits(_ context.Context, _ *base.QueryOptions) ([]*active.Visit, error) {
+func (m *mockActiveService) CreateVisit(_ context.Context, _ *studentpresence.Visit) error {
+	return nil
+}
+func (m *mockActiveService) UpdateVisit(_ context.Context, _ *studentpresence.Visit) error {
+	return nil
+}
+func (m *mockActiveService) DeleteVisit(_ context.Context, _ int64) error { return nil }
+func (m *mockActiveService) FindVisitsByStudentID(_ context.Context, _ int64) ([]studentpresence.Visit, error) {
 	return nil, nil
 }
-func (m *mockActiveService) FindVisitsByStudentID(_ context.Context, _ int64) ([]*active.Visit, error) {
-	return nil, nil
-}
-func (m *mockActiveService) FindVisitsByActiveGroupID(_ context.Context, _ int64) ([]*active.Visit, error) {
-	return nil, nil
-}
-func (m *mockActiveService) FindVisitsByTimeRange(_ context.Context, _, _ time.Time) ([]*active.Visit, error) {
+func (m *mockActiveService) FindVisitsByActiveGroupID(_ context.Context, _ int64) ([]studentpresence.Visit, error) {
 	return nil, nil
 }
 func (m *mockActiveService) EndVisit(_ context.Context, _ int64) error { return nil }
-func (m *mockActiveService) GetStudentCurrentVisit(_ context.Context, _ int64) (*active.Visit, error) {
+func (m *mockActiveService) GetStudentCurrentVisit(_ context.Context, _ int64) (*studentpresence.Visit, error) {
 	return nil, nil
 }
-func (m *mockActiveService) GetStudentsCurrentVisits(_ context.Context, _ []int64) (map[int64]*active.Visit, error) {
+func (m *mockActiveService) GetStudentsCurrentVisits(_ context.Context, _ []int64) (map[int64]*studentpresence.Visit, error) {
 	return nil, nil
 }
-func (m *mockActiveService) GetStudentCurrentVisitWithRoom(_ context.Context, _ int64) (*active.Visit, error) {
+func (m *mockActiveService) GetStudentCurrentVisitWithRoom(_ context.Context, _ int64) (*activeService.VisitWithRoom, error) {
 	return nil, nil
 }
 func (m *mockActiveService) GetGroupSupervisor(_ context.Context, _ int64) (*active.GroupSupervisor, error) {
@@ -1231,6 +1109,9 @@ func (m *mockActiveService) CountActiveVisitsByActiveGroupID(_ context.Context, 
 func (m *mockActiveService) ListStudentsPresentInRoom(_ context.Context, _ int64) ([]int64, error) {
 	return nil, nil
 }
+func (m *mockActiveService) ListOpenVisitStudentIDsByRoom(context.Context) (map[int64][]int64, error) {
+	return nil, nil
+}
 func (m *mockActiveService) ListStudentsInTransit(_ context.Context) ([]int64, error) {
 	return nil, nil
 }
@@ -1295,7 +1176,10 @@ func (m *mockActiveService) GetTrackingIndicators(_ context.Context, _ []int64, 
 	return nil, nil
 }
 func (m *mockActiveService) SetSettingsService(_ activeService.SettingsResolver) {}
-func (m *mockActiveService) GetPresenceMode(_ context.Context) string            { return "detailed" }
+func (m *mockActiveService) SetTenantRuntime(_ tenant.UnitOfWork)                {}
+func (m *mockActiveService) GetPresenceMode(_ context.Context) (string, error) {
+	return "detailed", nil
+}
 
 // =============================================================================
 // Mock Cleanup Service for Execute Tests
@@ -1491,7 +1375,7 @@ func TestCheckAndRunSessionEnd_AlreadyRunning(t *testing.T) {
 	task := &ScheduledTask{Name: "test-session-end", Running: true}
 
 	// Check session end (should skip because already running)
-	s.checkAndRunSessionEnd(task)
+	s.checkAndRunSessionEnd(context.Background(), task)
 
 	// Verify service was NOT called
 	activeSvc.mu.Lock()
@@ -1499,13 +1383,8 @@ func TestCheckAndRunSessionEnd_AlreadyRunning(t *testing.T) {
 	activeSvc.mu.Unlock()
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestExecuteSessionEndForTenant_CustomTimeout(t *testing.T) {
-	require.NoError(t, os.Setenv("SESSION_END_TIMEOUT_MINUTES", "30"))
-	defer func() {
-		_ = os.Unsetenv("SESSION_END_TIMEOUT_MINUTES")
-	}()
-
+	t.Parallel()
 	activeSvc := &mockActiveService{
 		endDailySessionsResult: &activeService.DailySessionCleanupResult{
 			SessionsEnded: 5,
@@ -1516,6 +1395,7 @@ func TestExecuteSessionEndForTenant_CustomTimeout(t *testing.T) {
 	s := unitScheduler(&Scheduler{
 		activeService: activeSvc,
 		done:          make(chan struct{})})
+	s.getenv = testEnv("SESSION_END_TIMEOUT_MINUTES", "30")
 
 	ok, err := s.executeSessionEndForTenant(context.Background(), 0)
 	require.NoError(t, err)
@@ -1541,7 +1421,7 @@ func TestExecuteTokenCleanup_Success(t *testing.T) {
 	task := &ScheduledTask{Name: "token-cleanup"}
 
 	// Execute token cleanup
-	s.executeTokenCleanup(task)
+	s.executeTokenCleanup(context.Background(), task)
 
 	// Verify all cleanup jobs were called
 	auth.mu.Lock()
@@ -1566,7 +1446,7 @@ func TestExecuteTokenCleanup_AlreadyRunning(t *testing.T) {
 	task := &ScheduledTask{Name: "token-cleanup", Running: true}
 
 	// Execute token cleanup (should skip because already running)
-	s.executeTokenCleanup(task)
+	s.executeTokenCleanup(context.Background(), task)
 
 	// Verify no cleanup jobs were called
 	auth.mu.Lock()
@@ -1586,7 +1466,7 @@ func TestExecuteTokenCleanup_Error(t *testing.T) {
 	task := &ScheduledTask{Name: "token-cleanup"}
 
 	// Execute token cleanup (should handle error gracefully)
-	s.executeTokenCleanup(task)
+	s.executeTokenCleanup(context.Background(), task)
 
 	// Verify cleanup was attempted
 	auth.mu.Lock()
@@ -1608,7 +1488,7 @@ func TestCheckAndRunSessionCleanup_Success(t *testing.T) {
 	task := &ScheduledTask{Name: "session-cleanup"}
 
 	// Run session cleanup (threshold falls back to the 60-minute default)
-	s.checkAndRunSessionCleanup(task)
+	s.checkAndRunSessionCleanup(context.Background(), task)
 
 	// Verify service was called
 	activeSvc.mu.Lock()
@@ -1622,9 +1502,8 @@ func TestCheckAndRunSessionCleanup_Success(t *testing.T) {
 	task.mu.Unlock()
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestCheckAndRunSessionCleanup_NoAbandoned(t *testing.T) {
-	t.Setenv("SESSION_ABANDONED_THRESHOLD_MINUTES", "30")
+	t.Parallel()
 
 	activeSvc := &mockActiveService{
 		cleanupAbandonedResult: 0,
@@ -1633,11 +1512,12 @@ func TestCheckAndRunSessionCleanup_NoAbandoned(t *testing.T) {
 	s := unitScheduler(&Scheduler{
 		activeService: activeSvc,
 		done:          make(chan struct{})})
+	s.getenv = testEnv("SESSION_ABANDONED_THRESHOLD_MINUTES", "30")
 
 	task := &ScheduledTask{Name: "session-cleanup"}
 
 	// Run session cleanup
-	s.checkAndRunSessionCleanup(task)
+	s.checkAndRunSessionCleanup(context.Background(), task)
 
 	// Verify service was called with the env-configured threshold
 	activeSvc.mu.Lock()
@@ -1660,7 +1540,7 @@ func TestCheckAndRunSessionCleanup_Error(t *testing.T) {
 	task := &ScheduledTask{Name: "session-cleanup"}
 
 	// Run session cleanup (should handle error gracefully)
-	s.checkAndRunSessionCleanup(task)
+	s.checkAndRunSessionCleanup(context.Background(), task)
 
 	// Verify service was called
 	activeSvc.mu.Lock()
@@ -1680,7 +1560,7 @@ func TestCheckAndRunSessionCleanup_AlreadyRunning(t *testing.T) {
 	task := &ScheduledTask{Name: "session-cleanup", Running: true}
 
 	// Run session cleanup (should skip because already running)
-	s.checkAndRunSessionCleanup(task)
+	s.checkAndRunSessionCleanup(context.Background(), task)
 
 	// Verify service was NOT called
 	activeSvc.mu.Lock()
@@ -1692,20 +1572,14 @@ func TestCheckAndRunSessionCleanup_AlreadyRunning(t *testing.T) {
 // Configuration Parsing Tests
 // =============================================================================
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleSessionCleanupTask_CustomInterval(t *testing.T) {
-	require.NoError(t, os.Setenv("SESSION_CLEANUP_ENABLED", "true"))
-	require.NoError(t, os.Setenv("SESSION_CLEANUP_INTERVAL_MINUTES", "30"))
-	defer func() {
-		_ = os.Unsetenv("SESSION_CLEANUP_ENABLED")
-		_ = os.Unsetenv("SESSION_CLEANUP_INTERVAL_MINUTES")
-	}()
-
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		s := unitScheduler(&Scheduler{
 			activeService: &mockActiveService{},
 			tasks:         make(map[string]*ScheduledTask),
 			done:          make(chan struct{})})
+		s.getenv = testEnv("SESSION_CLEANUP_ENABLED", "true", "SESSION_CLEANUP_INTERVAL_MINUTES", "30")
 
 		// Schedule session cleanup task
 		s.scheduleSessionCleanupTask()
@@ -1722,20 +1596,14 @@ func TestScheduleSessionCleanupTask_CustomInterval(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleSessionCleanupTask_CustomThreshold(t *testing.T) {
-	require.NoError(t, os.Setenv("SESSION_CLEANUP_ENABLED", "true"))
-	require.NoError(t, os.Setenv("SESSION_ABANDONED_THRESHOLD_MINUTES", "120"))
-	defer func() {
-		_ = os.Unsetenv("SESSION_CLEANUP_ENABLED")
-		_ = os.Unsetenv("SESSION_ABANDONED_THRESHOLD_MINUTES")
-	}()
-
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		s := unitScheduler(&Scheduler{
 			activeService: &mockActiveService{},
 			tasks:         make(map[string]*ScheduledTask),
 			done:          make(chan struct{})})
+		s.getenv = testEnv("SESSION_CLEANUP_ENABLED", "true", "SESSION_ABANDONED_THRESHOLD_MINUTES", "120")
 
 		// Schedule session cleanup task
 		s.scheduleSessionCleanupTask()
@@ -1752,20 +1620,14 @@ func TestScheduleSessionCleanupTask_CustomThreshold(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleSessionCleanupTask_InvalidInterval(t *testing.T) {
-	require.NoError(t, os.Setenv("SESSION_CLEANUP_ENABLED", "true"))
-	require.NoError(t, os.Setenv("SESSION_CLEANUP_INTERVAL_MINUTES", "invalid"))
-	defer func() {
-		_ = os.Unsetenv("SESSION_CLEANUP_ENABLED")
-		_ = os.Unsetenv("SESSION_CLEANUP_INTERVAL_MINUTES")
-	}()
-
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		s := unitScheduler(&Scheduler{
 			activeService: &mockActiveService{},
 			tasks:         make(map[string]*ScheduledTask),
 			done:          make(chan struct{})})
+		s.getenv = testEnv("SESSION_CLEANUP_ENABLED", "true", "SESSION_CLEANUP_INTERVAL_MINUTES", "invalid")
 
 		// Schedule session cleanup task
 		s.scheduleSessionCleanupTask()
@@ -1782,20 +1644,14 @@ func TestScheduleSessionCleanupTask_InvalidInterval(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleSessionCleanupTask_NegativeInterval(t *testing.T) {
-	require.NoError(t, os.Setenv("SESSION_CLEANUP_ENABLED", "true"))
-	require.NoError(t, os.Setenv("SESSION_CLEANUP_INTERVAL_MINUTES", "-5"))
-	defer func() {
-		_ = os.Unsetenv("SESSION_CLEANUP_ENABLED")
-		_ = os.Unsetenv("SESSION_CLEANUP_INTERVAL_MINUTES")
-	}()
-
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		s := unitScheduler(&Scheduler{
 			activeService: &mockActiveService{},
 			tasks:         make(map[string]*ScheduledTask),
 			done:          make(chan struct{})})
+		s.getenv = testEnv("SESSION_CLEANUP_ENABLED", "true", "SESSION_CLEANUP_INTERVAL_MINUTES", "-5")
 
 		// Schedule session cleanup task
 		s.scheduleSessionCleanupTask()
@@ -1812,19 +1668,13 @@ func TestScheduleSessionCleanupTask_NegativeInterval(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleCleanupTask_CustomTime(t *testing.T) {
-	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "true"))
-	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_TIME", "03:30"))
-	defer func() {
-		_ = os.Unsetenv("CLEANUP_SCHEDULER_ENABLED")
-		_ = os.Unsetenv("CLEANUP_SCHEDULER_TIME")
-	}()
-
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		s := unitScheduler(&Scheduler{
 			tasks: make(map[string]*ScheduledTask),
 			done:  make(chan struct{})})
+		s.getenv = testEnv("CLEANUP_SCHEDULER_ENABLED", "true", "CLEANUP_SCHEDULER_TIME", "03:30")
 
 		// Schedule cleanup task
 		s.scheduleCleanupTask()
@@ -1846,19 +1696,13 @@ func TestScheduleCleanupTask_CustomTime(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleSessionEndTask_CustomTime(t *testing.T) {
-	require.NoError(t, os.Setenv("SESSION_END_SCHEDULER_ENABLED", "true"))
-	require.NoError(t, os.Setenv("SESSION_END_TIME", "17:00"))
-	defer func() {
-		_ = os.Unsetenv("SESSION_END_SCHEDULER_ENABLED")
-		_ = os.Unsetenv("SESSION_END_TIME")
-	}()
-
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		s := unitScheduler(&Scheduler{
 			tasks: make(map[string]*ScheduledTask),
 			done:  make(chan struct{})})
+		s.getenv = testEnv("SESSION_END_SCHEDULER_ENABLED", "true", "SESSION_END_TIME", "17:00")
 
 		// Schedule session end task
 		s.scheduleSessionEndTask()
@@ -1880,13 +1724,8 @@ func TestScheduleSessionEndTask_CustomTime(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestScheduleSessionEndTask_DefaultEnabled(t *testing.T) {
-	// Clear env var to test default behavior (enabled)
-	_ = os.Unsetenv("SESSION_END_SCHEDULER_ENABLED")
-
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		s := unitScheduler(&Scheduler{
 			tasks: make(map[string]*ScheduledTask),
@@ -1910,13 +1749,8 @@ func TestScheduleSessionEndTask_DefaultEnabled(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestScheduleSessionCleanupTask_DefaultEnabled(t *testing.T) {
-	// Clear env var to test default behavior (enabled)
-	_ = os.Unsetenv("SESSION_CLEANUP_ENABLED")
-
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		s := unitScheduler(&Scheduler{
 			activeService: &mockActiveService{},
@@ -1959,16 +1793,8 @@ func TestMockCleanupService_ImplementsInterface(t *testing.T) {
 // Goroutine Run Loop Tests (synctest)
 // =============================================================================
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestRunCleanupTask_DefaultScheduleTime(t *testing.T) {
-	// Enable cleanup but do NOT set CLEANUP_SCHEDULER_TIME
-	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "true"))
-	// Explicitly unset the time to test default "02:00"
-	_ = os.Unsetenv("CLEANUP_SCHEDULER_TIME")
-	defer func() {
-		_ = os.Unsetenv("CLEANUP_SCHEDULER_ENABLED")
-	}()
-
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		cleanupSvc := &mockCleanupService{
 			cleanupResult: &activeService.CleanupResult{
@@ -1982,6 +1808,7 @@ func TestRunCleanupTask_DefaultScheduleTime(t *testing.T) {
 			cleanupService: cleanupSvc,
 			tasks:          make(map[string]*ScheduledTask),
 			done:           make(chan struct{})})
+		s.getenv = testEnv("CLEANUP_SCHEDULER_ENABLED", "true")
 
 		// Schedule cleanup task (should use default "02:00")
 		s.scheduleCleanupTask()
@@ -2000,16 +1827,8 @@ func TestRunCleanupTask_DefaultScheduleTime(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestRunCleanupTask_ExecutesOnSchedule(t *testing.T) {
-	// Set env vars before synctest.Test
-	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "true"))
-	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_TIME", "02:00"))
-	defer func() {
-		_ = os.Unsetenv("CLEANUP_SCHEDULER_ENABLED")
-		_ = os.Unsetenv("CLEANUP_SCHEDULER_TIME")
-	}()
-
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		cleanupSvc := &mockCleanupService{
 			cleanupResult: &activeService.CleanupResult{
@@ -2023,6 +1842,7 @@ func TestRunCleanupTask_ExecutesOnSchedule(t *testing.T) {
 			cleanupService: cleanupSvc,
 			tasks:          make(map[string]*ScheduledTask),
 			done:           make(chan struct{})})
+		s.getenv = testEnv("CLEANUP_SCHEDULER_ENABLED", "true", "CLEANUP_SCHEDULER_TIME", "02:00")
 
 		// Schedule cleanup task (spawns goroutine)
 		// Task is scheduled for 02:00, and synctest starts at 01:00:00
@@ -2046,15 +1866,8 @@ func TestRunCleanupTask_ExecutesOnSchedule(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestRunCleanupTask_StopsOnDone(t *testing.T) {
-	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "true"))
-	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_TIME", "02:00"))
-	defer func() {
-		_ = os.Unsetenv("CLEANUP_SCHEDULER_ENABLED")
-		_ = os.Unsetenv("CLEANUP_SCHEDULER_TIME")
-	}()
-
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		cleanupSvc := &mockCleanupService{
 			cleanupResult: &activeService.CleanupResult{Success: true},
@@ -2064,6 +1877,7 @@ func TestRunCleanupTask_StopsOnDone(t *testing.T) {
 			cleanupService: cleanupSvc,
 			tasks:          make(map[string]*ScheduledTask),
 			done:           make(chan struct{})})
+		s.getenv = testEnv("CLEANUP_SCHEDULER_ENABLED", "true", "CLEANUP_SCHEDULER_TIME", "02:00")
 
 		// Schedule cleanup task
 		s.scheduleCleanupTask()
@@ -2087,14 +1901,8 @@ func TestRunCleanupTask_StopsOnDone(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestRunSessionEndTask_ExecutesOnSchedule(t *testing.T) {
-	// SESSION_END_SCHEDULER_ENABLED defaults to enabled (only disabled if explicitly "false")
-	require.NoError(t, os.Setenv("SESSION_END_TIME", "18:00"))
-	defer func() {
-		_ = os.Unsetenv("SESSION_END_TIME")
-	}()
-
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		activeSvc := &mockActiveService{
 			endDailySessionsResult: &activeService.DailySessionCleanupResult{
@@ -2109,6 +1917,7 @@ func TestRunSessionEndTask_ExecutesOnSchedule(t *testing.T) {
 			activeService: activeSvc,
 			tasks:         make(map[string]*ScheduledTask),
 			done:          make(chan struct{})})
+		s.getenv = testEnv("SESSION_END_TIME", "18:00")
 
 		// Schedule session end task
 		// Task is scheduled for 18:00, and synctest starts at 01:00:00
@@ -2132,13 +1941,8 @@ func TestRunSessionEndTask_ExecutesOnSchedule(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestRunSessionEndTask_StopsOnDone(t *testing.T) {
-	require.NoError(t, os.Setenv("SESSION_END_TIME", "18:00"))
-	defer func() {
-		_ = os.Unsetenv("SESSION_END_TIME")
-	}()
-
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		activeSvc := &mockActiveService{
 			endDailySessionsResult: &activeService.DailySessionCleanupResult{Success: true},
@@ -2148,6 +1952,7 @@ func TestRunSessionEndTask_StopsOnDone(t *testing.T) {
 			activeService: activeSvc,
 			tasks:         make(map[string]*ScheduledTask),
 			done:          make(chan struct{})})
+		s.getenv = testEnv("SESSION_END_TIME", "18:00")
 
 		// Schedule session end task
 		s.scheduleSessionEndTask()
@@ -2171,13 +1976,8 @@ func TestRunSessionEndTask_StopsOnDone(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestRunSessionCleanupTask_ExecutesAfterDelay(t *testing.T) {
-	// SESSION_CLEANUP_ENABLED defaults to enabled
-	_ = os.Unsetenv("SESSION_CLEANUP_ENABLED")
-
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		activeSvc := &mockActiveService{
 			cleanupAbandonedResult: 5,
@@ -2203,6 +2003,30 @@ func TestRunSessionCleanupTask_ExecutesAfterDelay(t *testing.T) {
 		// Stop scheduler
 		close(s.done)
 		s.wg.Wait()
+	})
+}
+
+func TestRunSessionCleanupTask_StopsDuringStartupDelay(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		s := &Scheduler{done: make(chan struct{})}
+		s.wg.Add(1)
+		go s.runSessionCleanupTaskPolling(&ScheduledTask{Name: "session-cleanup"})
+
+		synctest.Wait()
+		close(s.done)
+
+		done := make(chan struct{})
+		go func() {
+			s.wg.Wait()
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(100 * time.Millisecond):
+			t.Fatal("session cleanup did not stop during startup delay")
+		}
 	})
 }
 
@@ -2249,13 +2073,8 @@ func TestRunTokenCleanupTask_TickerRepeat(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestRunSessionCleanupTask_StopsOnDoneAfterSleep(t *testing.T) {
-	// Enable session cleanup
-	_ = os.Unsetenv("SESSION_CLEANUP_ENABLED")
-
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		activeSvc := &mockActiveService{
 			cleanupAbandonedResult: 3,
@@ -2322,25 +2141,25 @@ func TestWaitUntilNextMinute_ShutdownDuringWait(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleCleanupTask_DisabledByEnv(t *testing.T) {
-	t.Setenv("CLEANUP_SCHEDULER_ENABLED", "false")
+	t.Parallel()
 	s := unitScheduler(&Scheduler{
 		done:   make(chan struct{}),
 		logger: slog.Default(),
 		tasks:  make(map[string]*ScheduledTask)})
+	s.getenv = testEnv("CLEANUP_SCHEDULER_ENABLED", "false")
 
 	s.scheduleCleanupTask()
 	assert.Empty(t, s.tasks, "cleanup task should not be registered when disabled")
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleSessionEndTask_DisabledByEnv(t *testing.T) {
-	t.Setenv("SESSION_END_SCHEDULER_ENABLED", "false")
+	t.Parallel()
 	s := unitScheduler(&Scheduler{
 		done:   make(chan struct{}),
 		logger: slog.Default(),
 		tasks:  make(map[string]*ScheduledTask)})
+	s.getenv = testEnv("SESSION_END_SCHEDULER_ENABLED", "false")
 
 	s.scheduleSessionEndTask()
 	assert.Empty(t, s.tasks, "session end task should not be registered when disabled")
@@ -2370,6 +2189,18 @@ func TestExecuteCleanupForTenant_ReturnsTrueOnSuccess(t *testing.T) {
 
 	result := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
 	assert.True(t, result)
+}
+
+func TestExecuteCleanupForTenant_ReturnsFalseOnFeedbackFailure(t *testing.T) {
+	t.Parallel()
+	wantErr := errors.New("feedback database unavailable")
+	s := unitScheduler(&Scheduler{
+		cleanupService:  &mockCleanupService{cleanupResult: &activeService.CleanupResult{}},
+		feedbackCleaner: &fakeFeedbackCleaner{err: wantErr},
+		logger:          slog.Default(),
+	})
+
+	assert.False(t, s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t)))
 }
 
 func TestExecuteCleanupForTenant_AttendanceError(t *testing.T) {
@@ -2477,8 +2308,9 @@ func TestWasRunToday_RanToday(t *testing.T) {
 	t.Parallel()
 
 	var m sync.Map
-	markRunToday(&m, 1)
-	assert.True(t, wasRunToday(&m, 1))
+	tenantID := testpkg.UniqueTestTenantID(t)
+	m.Store(tenantID, time.Now())
+	assert.True(t, wasRunToday(&m, tenantID))
 }
 
 func TestWasRunToday_RanYesterday(t *testing.T) {
@@ -2503,8 +2335,10 @@ func TestWasRunToday_DifferentTenant(t *testing.T) {
 	t.Parallel()
 
 	var m sync.Map
-	markRunToday(&m, 1)
-	assert.False(t, wasRunToday(&m, 2))
+	tenantID := testpkg.UniqueTestTenantID(t)
+	otherTenantID := testpkg.UniqueTestTenantID(t)
+	m.Store(tenantID, time.Now())
+	assert.False(t, wasRunToday(&m, otherTenantID))
 }
 
 func TestResolveStringSetting_NoSettings(t *testing.T) {
@@ -2531,34 +2365,34 @@ func TestResolveIntSetting_NoSettings(t *testing.T) {
 	assert.Equal(t, 42, val)
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestResolveStringSetting_FromEnv(t *testing.T) {
-	t.Setenv("TEST_RESOLVE_STR", "from_env")
+	t.Parallel()
 	s := unitScheduler(&Scheduler{logger: slog.Default()})
+	s.getenv = testEnv("TEST_RESOLVE_STR", "from_env")
 	val := s.resolveStringSetting(context.Background(), "key", "TEST_RESOLVE_STR", "default")
 	assert.Equal(t, "from_env", val)
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestResolveBoolSetting_FromEnv(t *testing.T) {
-	t.Setenv("TEST_RESOLVE_BOOL", "true")
+	t.Parallel()
 	s := unitScheduler(&Scheduler{logger: slog.Default()})
+	s.getenv = testEnv("TEST_RESOLVE_BOOL", "true")
 	val := s.resolveBoolSetting(context.Background(), "key", "TEST_RESOLVE_BOOL", false)
 	assert.True(t, val)
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestResolveIntSetting_FromEnv(t *testing.T) {
-	t.Setenv("TEST_RESOLVE_INT", "99")
+	t.Parallel()
 	s := unitScheduler(&Scheduler{logger: slog.Default()})
+	s.getenv = testEnv("TEST_RESOLVE_INT", "99")
 	val := s.resolveIntSetting(context.Background(), "key", "TEST_RESOLVE_INT", 10)
 	assert.Equal(t, 99, val)
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestResolveIntSetting_InvalidEnv(t *testing.T) {
-	t.Setenv("TEST_RESOLVE_INT_BAD", "notanumber")
+	t.Parallel()
 	s := unitScheduler(&Scheduler{logger: slog.Default()})
+	s.getenv = testEnv("TEST_RESOLVE_INT_BAD", "notanumber")
 	val := s.resolveIntSetting(context.Background(), "key", "TEST_RESOLVE_INT_BAD", 10)
 	assert.Equal(t, 10, val)
 }
@@ -2575,15 +2409,15 @@ func TestScheduleBreakAutoEndTask_NilBreakAutoEnder(t *testing.T) {
 	assert.Empty(t, s.tasks, "should not register task without break auto-ender")
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleBreakAutoEndTask_CustomInterval(t *testing.T) {
-	t.Setenv("BREAK_AUTO_END_INTERVAL_SECONDS", "30")
+	t.Parallel()
 	s := unitScheduler(&Scheduler{
 		done:           make(chan struct{}),
 		logger:         slog.Default(),
 		tasks:          make(map[string]*ScheduledTask),
 		wg:             sync.WaitGroup{},
 		breakAutoEnder: &mockBreakAutoEnder{}})
+	s.getenv = testEnv("BREAK_AUTO_END_INTERVAL_SECONDS", "30")
 
 	s.scheduleBreakAutoEndTask()
 	defer close(s.done)
@@ -2639,39 +2473,6 @@ func TestBuildCleanupJobs_EmailChangeCleanerPropagatesError(t *testing.T) {
 	_, err := jobs[0].Run(context.Background())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cleanup failed")
-}
-
-// =============================================================================
-// FeedbackCleaner Tests
-// =============================================================================
-
-type fakeFeedbackCleaner struct {
-	mu       sync.Mutex
-	calls    int
-	result   int
-	callErr  error
-	lastDays int
-}
-
-func (f *fakeFeedbackCleaner) DeleteEntriesOlderThan(_ context.Context, days int) (int, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.calls++
-	f.lastDays = days
-	return f.result, f.callErr
-}
-
-func TestSetFeedbackCleaner(t *testing.T) {
-	t.Parallel()
-
-	s := newUnitScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
-
-	assert.Nil(t, s.feedbackCleaner)
-
-	fc := &fakeFeedbackCleaner{}
-	s.SetFeedbackCleaner(fc)
-
-	assert.NotNil(t, s.feedbackCleaner)
 }
 
 // =============================================================================
@@ -2782,34 +2583,10 @@ func (f *fakeSettingsResolver) ResolveString(_ context.Context, key string) (str
 	return "", fmt.Errorf("no value for key %s", key)
 }
 
-// currentISOWeekday returns today's ISO 8601 weekday (1=Mon…7=Sun).
-// Mirrors the math in isoWeekdayMatchesNow so tests stay day-of-week agnostic.
-func currentISOWeekday() int {
-	today := time.Now().Weekday()
-	if today == time.Sunday {
-		return 7
-	}
-	return int(today)
-}
+const materializationTestWeekday = 1
 
-// otherISOWeekday returns an ISO weekday guaranteed to differ from today.
-func otherISOWeekday() int {
-	wd := currentISOWeekday() + 1
-	if wd > 7 {
-		wd = 1
-	}
-	return wd
-}
-
-func TestSetMaterializer(t *testing.T) {
-	t.Parallel()
-
-	s := newUnitScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
-	assert.Nil(t, s.materializer)
-
-	m := &fakeMaterializer{}
-	s.SetMaterializer(m)
-	assert.NotNil(t, s.materializer)
+func fixedMaterializationTime() time.Time {
+	return time.Date(2024, time.January, 1, 12, 0, 0, 0, timezone.Berlin)
 }
 
 func TestScheduleMaterializationTask_NilMaterializer(t *testing.T) {
@@ -2856,7 +2633,7 @@ func TestCheckAndRunMaterialization_AlreadyRunning(t *testing.T) {
 
 	task := &ScheduledTask{Name: "test", Running: true}
 
-	s.checkAndRunMaterialization(task)
+	s.checkAndRunMaterializationWithContext(context.Background(), task)
 
 	assert.Equal(t, 0, m.materializeCalls, "must skip work when task already running")
 }
@@ -2868,17 +2645,18 @@ func TestCheckAndRunMaterialization_EnabledByDefault(t *testing.T) {
 	// the defaultVal (true) — materializer runs on the configured weekday.
 	m := &fakeMaterializer{}
 	s := unitScheduler(&Scheduler{
-		logger:       slog.Default(),
-		materializer: m,
+		logger:             slog.Default(),
+		materializer:       m,
+		materializationNow: fixedMaterializationTime,
 		settings: &fakeSettingsResolver{
 			intValues: map[string]int{
-				configModel.KeyTimetableMaterializationWeekday: currentISOWeekday(),
+				configModel.KeyTimetableMaterializationWeekday: materializationTestWeekday,
 			},
 		}})
 
 	task := &ScheduledTask{Name: "test"}
 
-	s.checkAndRunMaterialization(task)
+	s.checkAndRunMaterializationWithContext(context.Background(), task)
 
 	assert.Equal(t, 1, m.materializeCalls, "default-enabled tenant must invoke materializer")
 	// Task running flag must be cleared via the deferred unlock.
@@ -2892,20 +2670,21 @@ func TestCheckAndRunMaterialization_EnabledWrongWeekday(t *testing.T) {
 
 	m := &fakeMaterializer{}
 	s := unitScheduler(&Scheduler{
-		logger:       slog.Default(),
-		materializer: m,
+		logger:             slog.Default(),
+		materializer:       m,
+		materializationNow: fixedMaterializationTime,
 		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
 				configModel.KeyTimetableMaterializationEnabled: true,
 			},
 			intValues: map[string]int{
-				configModel.KeyTimetableMaterializationWeekday: otherISOWeekday(),
+				configModel.KeyTimetableMaterializationWeekday: materializationTestWeekday + 1,
 			},
 		}})
 
 	task := &ScheduledTask{Name: "test"}
 
-	s.checkAndRunMaterialization(task)
+	s.checkAndRunMaterializationWithContext(context.Background(), task)
 
 	assert.Equal(t, 0, m.materializeCalls, "wrong weekday must skip materialization")
 }
@@ -2915,23 +2694,24 @@ func TestCheckAndRunMaterialization_WasRunToday(t *testing.T) {
 
 	m := &fakeMaterializer{}
 	s := unitScheduler(&Scheduler{
-		logger:       slog.Default(),
-		materializer: m,
+		logger:             slog.Default(),
+		materializer:       m,
+		materializationNow: fixedMaterializationTime,
 		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
 				configModel.KeyTimetableMaterializationEnabled: true,
 			},
 			intValues: map[string]int{
-				configModel.KeyTimetableMaterializationWeekday: currentISOWeekday(),
+				configModel.KeyTimetableMaterializationWeekday: materializationTestWeekday,
 			},
 		}})
 
 	// Seed lastMaterialization with today's timestamp — simulates a prior run.
 	// Unit scheduler composition supplies one validated tenant.
-	s.lastMaterialization.Store(schedulerUnitTenantID, time.Now())
+	s.lastMaterialization.Store(schedulerUnitTenantID, fixedMaterializationTime())
 	task := &ScheduledTask{Name: "test"}
 
-	s.checkAndRunMaterialization(task)
+	s.checkAndRunMaterializationWithContext(context.Background(), task)
 
 	assert.Equal(t, 0, m.materializeCalls, "must skip when already ran today")
 }
@@ -2947,21 +2727,22 @@ func TestCheckAndRunMaterialization_HappyPath(t *testing.T) {
 		},
 	}
 	s := unitScheduler(&Scheduler{
-		logger:       slog.Default(),
-		materializer: m,
+		logger:             slog.Default(),
+		materializer:       m,
+		materializationNow: fixedMaterializationTime,
 		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
 				configModel.KeyTimetableMaterializationEnabled: true,
 			},
 			intValues: map[string]int{
-				configModel.KeyTimetableMaterializationWeekday:    currentISOWeekday(),
+				configModel.KeyTimetableMaterializationWeekday:    materializationTestWeekday,
 				configModel.KeyTimetableMaterializationWeeksAhead: 3,
 			},
 		}})
 
 	task := &ScheduledTask{Name: "test"}
 
-	s.checkAndRunMaterialization(task)
+	s.checkAndRunMaterializationWithContext(context.Background(), task)
 
 	assert.Equal(t, 1, m.materializeCalls, "materializer must be called exactly once")
 	assert.Equal(t, 1, m.resolveCalls, "ResolveWindow must be called exactly once")
@@ -2986,20 +2767,21 @@ func TestCheckAndRunMaterialization_ZeroCounters(t *testing.T) {
 		},
 	}
 	s := unitScheduler(&Scheduler{
-		logger:       slog.Default(),
-		materializer: m,
+		logger:             slog.Default(),
+		materializer:       m,
+		materializationNow: fixedMaterializationTime,
 		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
 				configModel.KeyTimetableMaterializationEnabled: true,
 			},
 			intValues: map[string]int{
-				configModel.KeyTimetableMaterializationWeekday: currentISOWeekday(),
+				configModel.KeyTimetableMaterializationWeekday: materializationTestWeekday,
 			},
 		}})
 
 	task := &ScheduledTask{Name: "test"}
 
-	s.checkAndRunMaterialization(task)
+	s.checkAndRunMaterializationWithContext(context.Background(), task)
 
 	assert.Equal(t, 1, m.materializeCalls)
 }
@@ -3011,21 +2793,22 @@ func TestCheckAndRunMaterialization_MaterializerError(t *testing.T) {
 		returnErr: errors.New("materialization exploded"),
 	}
 	s := unitScheduler(&Scheduler{
-		logger:       slog.Default(),
-		materializer: m,
+		logger:             slog.Default(),
+		materializer:       m,
+		materializationNow: fixedMaterializationTime,
 		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
 				configModel.KeyTimetableMaterializationEnabled: true,
 			},
 			intValues: map[string]int{
-				configModel.KeyTimetableMaterializationWeekday: currentISOWeekday(),
+				configModel.KeyTimetableMaterializationWeekday: materializationTestWeekday,
 			},
 		}})
 
 	task := &ScheduledTask{Name: "test"}
 
 	assert.NotPanics(t, func() {
-		s.checkAndRunMaterialization(task)
+		s.checkAndRunMaterializationWithContext(context.Background(), task)
 	})
 	assert.Equal(t, 1, m.materializeCalls, "materializer is invoked even if it errors")
 }
@@ -3042,41 +2825,23 @@ func TestCheckAndRunMaterialization_OnlyRacedCounter(t *testing.T) {
 		},
 	}
 	s := unitScheduler(&Scheduler{
-		logger:       slog.Default(),
-		materializer: m,
+		logger:             slog.Default(),
+		materializer:       m,
+		materializationNow: fixedMaterializationTime,
 		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
 				configModel.KeyTimetableMaterializationEnabled: true,
 			},
 			intValues: map[string]int{
-				configModel.KeyTimetableMaterializationWeekday: currentISOWeekday(),
+				configModel.KeyTimetableMaterializationWeekday: materializationTestWeekday,
 			},
 		}})
 
 	task := &ScheduledTask{Name: "test"}
 
-	s.checkAndRunMaterialization(task)
+	s.checkAndRunMaterializationWithContext(context.Background(), task)
 
 	assert.Equal(t, 1, m.materializeCalls)
-}
-
-func TestIsoWeekdayMatchesNow_NonSundayMismatch(t *testing.T) {
-	t.Parallel()
-
-	// Exercises the "today != Sunday" branch explicitly with a mismatch.
-	// Combined with the existing TestIsoWeekdayMatchesNow, this covers both
-	// branches deterministically regardless of the day the suite runs.
-	wd := otherISOWeekday()
-	// Wrap around so the mismatch value is deterministic even if it happens
-	// to be 7 (Sunday mapping would pass on Sundays).
-	if currentISOWeekday() == 7 {
-		// On Sundays: a non-7 value is guaranteed false.
-		assert.False(t, isoWeekdayMatchesNow(1))
-		assert.False(t, isoWeekdayMatchesNow(6))
-	} else {
-		// On non-Sundays: wd (today+1 mod 7) never equals today's weekday.
-		assert.False(t, isoWeekdayMatchesNow(wd))
-	}
 }
 
 func TestRunMaterializationTaskPolling_ExitsOnDone(t *testing.T) {

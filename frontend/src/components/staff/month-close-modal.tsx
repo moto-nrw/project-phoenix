@@ -8,7 +8,10 @@
 import { useState, type ReactNode } from "react";
 
 import { Button } from "~/components/ui/button";
+import { useFormError } from "~/components/ui/form-error";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Modal } from "~/components/ui/modal";
+import { Textarea } from "~/components/ui/textarea";
 import { useToast } from "~/contexts/ToastContext";
 
 export function MonthCloseReasonModal({
@@ -33,6 +36,7 @@ export function MonthCloseReasonModal({
 }) {
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useFormError();
   const toast = useToast();
 
   const canSubmit = !submitting && reason.trim() !== "";
@@ -40,14 +44,13 @@ export function MonthCloseReasonModal({
   const handleSubmit = async () => {
     if (!canSubmit) return;
     setSubmitting(true);
+    setError(null);
     try {
       await onSubmit(reason.trim());
       if (successMessage) toast.success(successMessage);
       onClose();
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Aktion fehlgeschlagen.",
-      );
+      setError(err instanceof Error ? err.message : "Aktion fehlgeschlagen.");
       setSubmitting(false);
     }
   };
@@ -81,6 +84,7 @@ export function MonthCloseReasonModal({
       }
     >
       <div className="space-y-4">
+        <FormErrorAlert message={error} />
         <div className="space-y-2 text-sm text-gray-600">{description}</div>
         <div>
           <label
@@ -89,13 +93,12 @@ export function MonthCloseReasonModal({
           >
             Begründung (Pflicht)
           </label>
-          <textarea
+          <Textarea
             id="month-close-reason"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={2}
             placeholder="z. B. Monatsabschluss für die Lohnabrechnung"
-            className="focus:border-moto-green w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none"
           />
         </div>
       </div>

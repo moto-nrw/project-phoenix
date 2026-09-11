@@ -15,7 +15,7 @@ import (
 func TestGetArrivalSettings(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("weekly plan supplies care days by default", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/arrival-settings", nil)
@@ -27,7 +27,7 @@ func TestGetArrivalSettings(t *testing.T) {
 
 	t.Run("bookings supply care days in booking mode", func(t *testing.T) {
 		ctx := testpkg.Ctx(t)
-		require.NoError(t, tc.services.Settings.SetValue(
+		require.NoError(t, tc.resource.SettingsService.SetValue(
 			ctx,
 			configModel.KeyEnrollmentBookingsAuthoritative,
 			true,
@@ -35,7 +35,7 @@ func TestGetArrivalSettings(t *testing.T) {
 			nil,
 		))
 		t.Cleanup(func() {
-			require.NoError(t, tc.services.Settings.ResetValue(
+			require.NoError(t, tc.resource.SettingsService.ResetValue(
 				testpkg.Ctx(t),
 				configModel.KeyEnrollmentBookingsAuthoritative,
 				nil,
@@ -54,7 +54,7 @@ func TestGetArrivalSettings(t *testing.T) {
 func TestGetClassArrivalTimesUsesStandardEnvelope(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	req := testutil.NewRequest("GET", "/class-arrival-times/Klasse%201b", nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"users:read"})
 

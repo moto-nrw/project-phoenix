@@ -71,7 +71,7 @@ export default function StartPage() {
               Wir melden uns danach persönlich und schauen gemeinsam, welche
               Abläufe moto zuerst abbilden soll.
             </p>
-            <div className="relative z-10 mt-8 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+            <div className="moto-content-surface relative z-10 mt-8 rounded-2xl border p-6 shadow-sm">
               <h2 className="text-lg font-semibold text-gray-950">
                 Was wir zum Start wissen wollen
               </h2>
@@ -91,7 +91,7 @@ export default function StartPage() {
 
           <form
             onSubmit={handleSubmit}
-            className="relative z-10 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8"
+            className="moto-content-surface relative z-10 rounded-2xl border p-6 shadow-sm sm:p-8"
           >
             <div>
               <h2 className="text-xl font-semibold text-gray-950">

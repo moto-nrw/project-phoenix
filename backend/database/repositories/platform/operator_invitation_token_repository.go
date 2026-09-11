@@ -47,7 +47,7 @@ func (r *OperatorInvitationTokenRepository) FindByID(ctx context.Context, id int
 		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "find invitation token by ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -70,7 +70,7 @@ func (r *OperatorInvitationTokenRepository) FindValidByToken(ctx context.Context
 		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "find valid invitation token",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -96,7 +96,7 @@ func (r *OperatorInvitationTokenRepository) ConsumeByToken(ctx context.Context, 
 		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "consume invitation token",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -116,7 +116,7 @@ func (r *OperatorInvitationTokenRepository) MarkAsUsed(ctx context.Context, id i
 	if err != nil {
 		return false, &modelBase.DatabaseError{
 			Op:  "mark invitation token as used",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -124,7 +124,7 @@ func (r *OperatorInvitationTokenRepository) MarkAsUsed(ctx context.Context, id i
 	if err != nil {
 		return false, &modelBase.DatabaseError{
 			Op:  "count affected rows",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -144,7 +144,7 @@ func (r *OperatorInvitationTokenRepository) ListPending(ctx context.Context) ([]
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list pending invitation tokens",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -164,7 +164,7 @@ func (r *OperatorInvitationTokenRepository) ExtendExpiry(ctx context.Context, id
 	if err != nil {
 		return false, &modelBase.DatabaseError{
 			Op:  "extend invitation token expiry",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -172,7 +172,7 @@ func (r *OperatorInvitationTokenRepository) ExtendExpiry(ctx context.Context, id
 	if err != nil {
 		return false, &modelBase.DatabaseError{
 			Op:  "count affected rows",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -191,7 +191,7 @@ func (r *OperatorInvitationTokenRepository) InvalidateByEmail(ctx context.Contex
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "invalidate invitation tokens by email",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -199,7 +199,7 @@ func (r *OperatorInvitationTokenRepository) InvalidateByEmail(ctx context.Contex
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "count affected rows",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -231,7 +231,7 @@ func (r *OperatorInvitationTokenRepository) CountRecentByCreatedBy(ctx context.C
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "count recent invitation tokens",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -249,7 +249,7 @@ func (r *OperatorInvitationTokenRepository) DeleteExpired(ctx context.Context) (
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "delete expired invitation tokens",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -257,7 +257,7 @@ func (r *OperatorInvitationTokenRepository) DeleteExpired(ctx context.Context) (
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "count affected rows",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

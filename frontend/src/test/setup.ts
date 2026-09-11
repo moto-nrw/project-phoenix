@@ -1,4 +1,4 @@
-import "@testing-library/jest-dom/vitest";
+import "./setup-jest-dom";
 import type React from "react";
 import { beforeEach, vi } from "vitest";
 
@@ -145,6 +145,8 @@ const tenantProviderMock = vi.hoisted(() => ({
   // that default here so unrelated tests don't accidentally exercise the
   // hidden nav item. Tests covering the feature override this mock locally.
   useDisplayEnabled: vi.fn(() => false),
+  // Personal CalDAV is opt-in and hidden unless a test enables it.
+  useCalDAVEnabled: vi.fn(() => false),
   // Tagesauswertung / Anwesenheitsprotokoll (#1456) is opt-in and defaults
   // off; same reasoning as useDisplayEnabled above.
   useAttendanceLogEnabled: vi.fn(() => false),
@@ -158,6 +160,9 @@ const tenantProviderMock = vi.hoisted(() => ({
   useOpenCareGroupMode: vi.fn(() => false),
   useOperationalOverviewScope: vi.fn(() => "own"),
   useShowTimetableCounts: vi.fn(() => true),
+  // Betreuungsplan (timetable.enabled) defaults ON like the registry default
+  // (#2383). Tests covering the switched-off branch override this locally.
+  useTimetableEnabled: vi.fn(() => true),
   useWaitlistEnabled: vi.fn(() => true),
   // The health column on the printed Notfallliste (#2609) defaults ON, like
   // the registry default. Tests covering the switched-off branch override

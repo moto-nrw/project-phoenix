@@ -49,7 +49,7 @@ func birthdayExportClaims(tb testing.TB, accountID int64) jwt.AppClaims {
 func TestBirthdayExportRequiresUsersReadPermission(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-export@example.com")
 
 	body := `{"format":"xlsx","preset":"birthday_list","filters":{"months":["09"]}}`
@@ -75,7 +75,7 @@ func TestBirthdayExportRequiresUsersReadPermission(t *testing.T) {
 func TestBirthdayExportRejectsUnauthenticated(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	body := `{"format":"xlsx","preset":"birthday_list"}`
 	rr := testutil.ExecuteRequest(tc.resource.Router(), birthdayExportRequest(t, body))
@@ -88,7 +88,7 @@ func TestBirthdayExportRejectsUnauthenticated(t *testing.T) {
 func TestBirthdayExportEmptyResultStillRendersDocument(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-export@example.com")
 
 	// Every fixture child is created without a birthday, so a month filter can
@@ -111,7 +111,7 @@ func TestBirthdayExportEmptyResultStillRendersDocument(t *testing.T) {
 func TestBirthdayExportRejectsInvalidMonth(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-export@example.com")
 
 	body := `{"format":"xlsx","preset":"birthday_list","filters":{"months":["13"]}}`

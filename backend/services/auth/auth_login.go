@@ -401,25 +401,30 @@ func (e *mintGuardError) Unwrap() error { return e.err }
 
 // createRefreshTokenWithRetry creates a refresh token with retry logic for concurrent logins
 func (s *Service) createRefreshTokenWithRetry(ctx context.Context, account *auth.Account, tenantID int64, scope string) (*auth.Token, error) {
-	return s.createRefreshTokenWithRetryGuarded(ctx, account, tenantID, scope, nil)
+	return s.createRefreshTokenWithRetryGuarded(ctx, account, tenantID, scope, nil, "")
 }
 
 // createRefreshTokenWithRetryGuarded is createRefreshTokenWithRetry with an
 // authorization re-check that runs inside the persistence transaction. A guard
 // failure is terminal — the retry loop only exists for token-family
 // collisions, and re-running a guard that just said "no" would be pointless.
+//
+// retireFamilyID (optional) names the caller's current family; it is retired
+// in the same transaction, before the session cap runs, so the new token
+// replaces that session instead of adding to it (tenant switch, #2952).
 func (s *Service) createRefreshTokenWithRetryGuarded(
 	ctx context.Context,
 	account *auth.Account,
 	tenantID int64,
 	scope string,
 	guard mintGuard,
+	retireFamilyID string,
 ) (*auth.Token, error) {
 	token := s.newRefreshToken(account.ID, scope)
 
 	maxRetries := 3
 	for attempt := 0; attempt < maxRetries; attempt++ {
-		err := s.persistTokenInTransaction(ctx, account, token, tenantID, guard)
+		err := s.persistTokenInTransaction(ctx, account, token, tenantID, guard, retireFamilyID)
 
 		if err == nil {
 			return token, nil
@@ -448,10 +453,12 @@ func (s *Service) createRefreshTokenWithRetryGuarded(
 // newRefreshToken creates a new refresh token for the given account
 func (s *Service) newRefreshToken(accountID int64, scope string) *auth.Token {
 	identifier := "Service login"
+	now := time.Now()
 	return &auth.Token{
+		Model:       modelBase.Model{CreatedAt: now, UpdatedAt: now},
 		Token:       uuid.Must(uuid.NewV4()).String(),
 		AccountID:   accountID,
-		Expiry:      time.Now().Add(s.jwtRefreshExpiry),
+		Expiry:      now.Add(s.jwtRefreshExpiry),
 		Mobile:      false,
 		Identifier:  &identifier,
 		FamilyID:    uuid.Must(uuid.NewV4()).String(),
@@ -468,7 +475,7 @@ func (s *Service) newRefreshToken(accountID int64, scope string) *auth.Token {
 //
 // guard (optional) re-validates the caller's authorization inside this
 // transaction, before anything is written — see mintGuard.
-func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.Account, token *auth.Token, tenantID int64, guard mintGuard) error {
+func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.Account, token *auth.Token, tenantID int64, guard mintGuard, retireFamilyID string) error {
 	err := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(ctx context.Context, tx bun.Tx) error {
 		if err := s.applyMintGuard(ctx, account, guard); err != nil {
 			return err
@@ -482,6 +489,15 @@ func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.A
 		}
 		loginTime := time.Now()
 		account.LastLogin = &loginTime
+
+		// The replaced session keeps the rotation recovery grace for requests
+		// still carrying the old cookie. Retiring it here, after the account
+		// lock and before the cap, makes it the cap's first candidate.
+		if retireFamilyID != "" {
+			if err := s.repos.Token.RetireFamily(ctx, account.ID, retireFamilyID, loginTime.Add(rotation.RecoveryGrace)); err != nil {
+				return fmt.Errorf("retire replaced refresh-token family: %w", err)
+			}
+		}
 
 		// Set tenant ID from DB resolution (not from context — login is a public route)
 		token.SetTenantID(tenantID)
@@ -1006,37 +1022,22 @@ func (s *Service) resolveAccountTenantDefault(ctx context.Context, accountID int
 		return 0, 0, &AuthError{Op: "resolve tenant", Err: ErrTenantNotFound}
 	}
 
-	// Iterate all mappings — skip deleted or inactive schools, use the first valid one.
-	// Track lookup errors separately so we don't mask DB failures as "not found".
-	var lastLookupErr error
-	for _, t := range tenants {
-		school, err := s.repos.School.FindByID(ctx, t.TenantID)
-		if err != nil {
-			s.getLogger().Warn("failed to resolve school for tenant",
-				slog.Int64("tenant_id", t.TenantID),
-				slog.Any("error", err),
-			)
-			lastLookupErr = err
-			continue
-		}
-		if school == nil {
-			continue
-		}
-		if school.IsDeleted() || !school.Active {
-			s.getLogger().Debug("skipping deleted or inactive tenant during default resolution",
-				slog.Int64("account_id", accountID),
-				slog.Int64("tenant_id", t.TenantID),
-				slog.Bool("deleted", school.IsDeleted()),
-				slog.Bool("active", school.Active),
-			)
-			continue
-		}
-		return t.TenantID, school.OrganizationID, nil
+	schools, err := s.repos.School.FindActiveByAccountID(ctx, accountID)
+	if err != nil {
+		return 0, 0, fmt.Errorf("resolve account schools: %w", err)
+	}
+	organizationBySchool := make(map[int64]int64, len(schools))
+	for _, school := range schools {
+		organizationBySchool[school.ID] = school.OrganizationID
 	}
 
-	// If every lookup failed with a DB error, propagate it instead of masking as not-found.
-	if lastLookupErr != nil {
-		return 0, 0, fmt.Errorf("resolve school for tenant: %w", lastLookupErr)
+	// Preserve account-tenant mapping order after resolving the valid schools
+	// in one query.
+	for _, t := range tenants {
+		organizationID, ok := organizationBySchool[t.TenantID]
+		if ok {
+			return t.TenantID, organizationID, nil
+		}
 	}
 
 	// All mappings point to deleted/inactive schools — no valid tenant available.
@@ -1078,7 +1079,10 @@ func (s *Service) buildJWTClaims(
 	return appClaims, refreshClaims
 }
 
-// generateAndLogTokens generates JWT token pair and logs the authentication event
+// generateAndLogTokens generates JWT token pair and records the authentication
+// event. Token persistence has already committed before this function runs, so
+// audit failures are best effort: reporting one as a login failure would leave
+// the caller with an issued refresh token but no successful response.
 func (s *Service) generateAndLogTokens(
 	ctx context.Context,
 	accountID int64,
@@ -1092,7 +1096,13 @@ func (s *Service) generateAndLogTokens(
 	}
 
 	if ipAddress != "" {
-		s.logAuthEvent(ctx, accountID, eventType, true, ipAddress, userAgent, "")
+		if err := s.logAuthEvent(ctx, accountID, eventType, true, ipAddress, userAgent, ""); err != nil {
+			s.getLogger().Error("failed to audit authenticated session",
+				slog.Int64("account_id", accountID),
+				slog.String("event_type", eventType),
+				slog.Any("error", err),
+			)
+		}
 	}
 
 	return accessToken, refreshToken, nil
@@ -1101,7 +1111,9 @@ func (s *Service) generateAndLogTokens(
 // logFailedLogin logs a failed login attempt if IP address is provided
 func (s *Service) logFailedLogin(ctx context.Context, accountID int64, ipAddress, userAgent, reason string) {
 	if ipAddress != "" {
-		s.logAuthEvent(ctx, accountID, audit.EventTypeLogin, false, ipAddress, userAgent, reason)
+		if err := s.logAuthEvent(ctx, accountID, audit.EventTypeLogin, false, ipAddress, userAgent, reason); err != nil {
+			s.getLogger().Error("failed to audit rejected login", slog.Any("error", err))
+		}
 	}
 }
 
@@ -1390,7 +1402,7 @@ func (s *Service) resolveAssignableSchoolRole(ctx context.Context, roleID, tenan
 		return ValidateAssignableSchoolRole(lookupCtx, s.repos.Role, roleID, tenantID)
 	}
 
-	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+	if tx, ok := tenant.TransactionFromContext(ctx); ok && tx != nil {
 		return lookup(ctx)
 	}
 
@@ -1509,6 +1521,9 @@ func (s *Service) parseRefreshTokenClaims(refreshTokenStr string) (*jwt.RefreshC
 		return nil, &AuthError{Op: "parse refresh claims", Err: ErrInvalidToken}
 	}
 
+	if expiry, ok := jwtToken.Expiration(); ok {
+		refreshClaims.ExpiresAt = expiry.Unix()
+	}
 	return &refreshClaims, nil
 }
 
@@ -1655,6 +1670,14 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 	})
 
 	if err != nil {
+		if errors.Is(err, ErrAccountInactive) && ipAddress != "" {
+			if auditErr := s.logAuthEvent(ctx, int64(refreshClaims.ID), audit.EventTypeTokenRefresh, false, ipAddress, userAgent, "Account inactive"); auditErr != nil {
+				s.getLogger().Error("failed to audit rejected refresh",
+					slog.Int("account_id", refreshClaims.ID),
+					slog.Any("error", auditErr),
+				)
+			}
+		}
 		return nil, nil, false, &AuthError{Op: "refresh transaction", Err: err}
 	}
 	if revokedForPush != nil {
@@ -1678,9 +1701,6 @@ func (s *Service) fetchAndValidateAccountForUpdate(ctx context.Context, accountI
 		return nil, &AuthError{Op: opGetAccount, Err: fmt.Errorf("account lookup failed: %w", err)}
 	}
 	if !account.Active {
-		if ipAddress != "" {
-			s.logAuthEvent(ctx, account.ID, audit.EventTypeTokenRefresh, false, ipAddress, userAgent, "Account inactive")
-		}
 		return nil, &AuthError{Op: "check account status", Err: ErrAccountInactive}
 	}
 	return account, nil
@@ -1730,15 +1750,21 @@ func (s *Service) resolveRefreshHandoff(ctx context.Context, presented *auth.Tok
 // createAndPersistNewToken creates a successor and persists the bounded
 // predecessor handoff atomically.
 func (s *Service) createAndPersistNewToken(ctx context.Context, oldToken *auth.Token, accountID int64, tenantID int64, scope string, now time.Time) (*auth.Token, error) {
+	expiry := now.Add(s.jwtRefreshExpiry)
+	if oldToken.FamilyExpiryCap != nil && oldToken.FamilyExpiryCap.Before(expiry) {
+		expiry = *oldToken.FamilyExpiryCap
+	}
 	newToken := &auth.Token{
-		Token:       uuid.Must(uuid.NewV4()).String(),
-		AccountID:   accountID,
-		Expiry:      now.Add(s.jwtRefreshExpiry),
-		Mobile:      oldToken.Mobile,
-		Identifier:  oldToken.Identifier,
-		FamilyID:    oldToken.FamilyID,
-		Generation:  oldToken.Generation + 1,
-		PortalScope: persistedPortalScope(scope),
+		Model:           modelBase.Model{CreatedAt: now, UpdatedAt: now},
+		Token:           uuid.Must(uuid.NewV4()).String(),
+		AccountID:       accountID,
+		Expiry:          expiry,
+		Mobile:          oldToken.Mobile,
+		Identifier:      oldToken.Identifier,
+		FamilyID:        oldToken.FamilyID,
+		FamilyExpiryCap: oldToken.FamilyExpiryCap,
+		Generation:      oldToken.Generation + 1,
+		PortalScope:     persistedPortalScope(scope),
 	}
 
 	// Set tenant ID from refresh claims (not from context — refresh is a public route)
@@ -1778,6 +1804,7 @@ func refreshSingleflightKey(refreshToken string, proofHash []byte) string {
 // RefreshTokenWithAudit generates new token pair from a refresh token with audit logging.
 // Concurrent calls with the same refresh token are deduplicated via singleflight.
 func (s *Service) RefreshTokenWithAudit(ctx context.Context, refreshTokenStr, ipAddress, userAgent string) (string, string, error) {
+	ctx = s.withTenantRuntime(ctx)
 	// Use the caller's context so cancellation propagates to the DB transaction.
 	// If the first caller disconnects (e.g. frontend 5s timeout), the transaction
 	// rolls back and the old refresh token is preserved — callers retry safely.
@@ -2064,6 +2091,7 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 
 	// Use WithAdminTx to bypass RLS on auth.tokens (same pattern as refreshTokenInTransaction).
 	var revoked *auth.Token
+	var revokedTokens []*auth.Token
 	err = tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(ctx context.Context, tx bun.Tx) error {
 		// Get token from database to find the account ID
 		dbToken, err := s.repos.Token.FindByToken(ctx, refreshClaims.Token)
@@ -2072,32 +2100,15 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 			return nil
 		}
 
-		if err := s.deleteFamilyWithAudit(ctx, dbToken, "logout", ipAddress, userAgent); err != nil {
-			s.getLogger().Warn("failed to delete refresh-token family during logout",
-				slog.Int64("account_id", dbToken.AccountID),
-				slog.Any("error", err),
-			)
-			return &AuthError{Op: "delete token family with audit", Err: err}
+		var deleteErr error
+		if dbToken.FamilyID == "" {
+			deleteErr = s.repos.Token.Delete(ctx, dbToken.ID)
+			revokedTokens = []*auth.Token{dbToken}
+		} else {
+			revokedTokens, deleteErr = s.repos.Token.DeleteByFamilyIDReturning(ctx, dbToken.FamilyID)
 		}
-
-		// Log successful logout against the school the session actually
-		// belonged to. /auth/logout is a pre-deauthentication route with no
-		// tenant in context, and logAuthEvent then falls back to the account's
-		// FIRST active mapping — for a Lehrkraft or a caregiver mapped to
-		// several schools that files the logout under a school they were never
-		// logged into. The token row carries the tenant the session was minted
-		// for; the claims are the fallback for pre-tenant-claim legacy rows.
-		auditCtx := ctx
-		switch {
-		case dbToken.TenantID > 0:
-			auditCtx = tenant.WithTenantID(ctx, dbToken.TenantID)
-		case refreshClaims.TenantID > 0:
-			auditCtx = tenant.WithTenantID(ctx, refreshClaims.TenantID)
-		}
-
-		// Log successful logout
-		if ipAddress != "" {
-			s.logAuthEvent(auditCtx, dbToken.AccountID, audit.EventTypeLogout, true, ipAddress, userAgent, "")
+		if deleteErr != nil {
+			return &AuthError{Op: "delete token family", Err: deleteErr}
 		}
 
 		revoked = dbToken
@@ -2105,8 +2116,41 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 	})
 	if err == nil && revoked != nil {
 		s.queuePushCleanup(ctx, revoked.AccountID, []*auth.Token{revoked}, "family")
+		s.auditLogout(ctx, revoked, revokedTokens, refreshClaims.TenantID, ipAddress, userAgent)
 	}
 	return err
+}
+
+// auditLogout appends audit records after the token-family deletion commits.
+// Logout must never leave a usable session because the audit store is down.
+func (s *Service) auditLogout(ctx context.Context, revoked *auth.Token, tokens []*auth.Token, claimTenantID int64, ipAddress, userAgent string) {
+	tenantID := revoked.TenantID
+	if tenantID == 0 {
+		tenantID = claimTenantID
+	}
+	if tenantID == 0 {
+		s.getLogger().Error("failed to audit logout",
+			slog.Int64("account_id", revoked.AccountID),
+			slog.String("error", "tenant is required"),
+		)
+		return
+	}
+	auditCtx := tenant.WithTenantID(s.withTenantRuntime(ctx), tenantID)
+	err := tenant.WithTenantTx(auditCtx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.auditRevokedTokens(txCtx, tokens, "logout", ipAddress, userAgent); err != nil {
+			return err
+		}
+		if ipAddress == "" {
+			return nil
+		}
+		return s.logAuthEvent(txCtx, revoked.AccountID, audit.EventTypeLogout, true, ipAddress, userAgent, "")
+	})
+	if err != nil {
+		s.getLogger().Error("failed to audit logout",
+			slog.Int64("account_id", revoked.AccountID),
+			slog.Any("error", err),
+		)
+	}
 }
 
 // ChangePassword updates an account's password

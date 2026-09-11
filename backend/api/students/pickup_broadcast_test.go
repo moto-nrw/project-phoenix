@@ -73,7 +73,7 @@ func hasGlobalPickupScheduleBroadcast(b *testpkg.RecordingBroadcaster) bool {
 func TestStaffPickupWrite_BroadcastsPickupScheduleChanged(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "PickupCast", "Teacher")
 	claims := testutil.AdminTestClaims(int(account.ID))

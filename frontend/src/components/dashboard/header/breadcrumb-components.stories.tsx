@@ -58,11 +58,7 @@ export const SectionPlanungWithoutHub: Story = {
 
 export const SectionEltern: Story = {
   render: () => (
-    <SectionBreadcrumb
-      sectionLabel="Eltern"
-      sectionHref="/eltern"
-      pageLabel="Nachrichten"
-    />
+    <SectionBreadcrumb sectionLabel="Eltern" pageLabel="Nachrichten" />
   ),
 };
 

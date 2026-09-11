@@ -56,7 +56,7 @@ func (r *RoleRepository) FindByName(ctx context.Context, name string) (*auth.Rol
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by name",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -80,7 +80,7 @@ func (r *RoleRepository) FindByAccountID(ctx context.Context, accountID int64) (
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by account ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -115,7 +115,7 @@ func (r *RoleRepository) FindRoleNamesByAccountIDs(ctx context.Context, accountI
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find role names by account IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -169,7 +169,7 @@ func (r *RoleRepository) FindByID(ctx context.Context, id any) (*auth.Role, erro
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by id",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -192,7 +192,7 @@ func (r *RoleRepository) Delete(ctx context.Context, id any) error {
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "delete",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -200,7 +200,7 @@ func (r *RoleRepository) Delete(ctx context.Context, id any) error {
 	if affected == 0 {
 		return &modelBase.DatabaseError{
 			Op:  "delete",
-			Err: sql.ErrNoRows,
+			Err: base.TranslateNotFound(sql.ErrNoRows),
 		}
 	}
 
@@ -233,7 +233,7 @@ func (r *RoleRepository) Update(ctx context.Context, role *auth.Role) error {
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -241,7 +241,7 @@ func (r *RoleRepository) Update(ctx context.Context, role *auth.Role) error {
 	if affected == 0 {
 		return &modelBase.DatabaseError{
 			Op:  "update",
-			Err: sql.ErrNoRows,
+			Err: base.TranslateNotFound(sql.ErrNoRows),
 		}
 	}
 
@@ -273,7 +273,7 @@ func (r *RoleRepository) List(ctx context.Context, filters map[string]interface{
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

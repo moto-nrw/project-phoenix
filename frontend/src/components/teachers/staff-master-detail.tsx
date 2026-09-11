@@ -20,7 +20,10 @@ import {
   DataGrid,
   InfoSection,
 } from "~/components/ui/detail-modal-components";
+import { Button } from "~/components/ui/button";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import { SectionCard } from "~/components/ui/section-card";
 import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { createLogger } from "~/lib/logger";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
@@ -34,9 +37,11 @@ interface StaffMasterDetailProps {
   selectedId: string | null;
   selectedTeacher: Teacher | null;
   onSelect: (id: string | null) => void;
-  onEditClick: () => void;
-  onDeleteClick: () => void;
-  onUpdateNotes: (notes: string) => Promise<void>;
+  // Optional: ohne staff:manage gibt PUT /api/staff/{id} 403, deshalb wird
+  // die Bearbeiten-Schaltflaeche dann gar nicht erst angeboten (#2906).
+  onEditClick?: () => void;
+  onDeleteClick?: () => void;
+  onUpdateNotes?: (notes: string) => Promise<void>;
   onManageCaregiver?: () => void;
   onManageMFA?: () => void;
   onManageRole?: () => void;
@@ -87,7 +92,7 @@ function buildSubtitle(teacher: Teacher): string {
   const roleLine = buildRoleLine(teacher);
   if (roleLine) return roleLine;
   if (teacher.email) return teacher.email;
-  return "—";
+  return "–";
 }
 
 export function StaffMasterDetail({
@@ -157,9 +162,9 @@ export function StaffMasterDetail({
 
 interface StaffDetailContentProps {
   teacher: Teacher;
-  onEditClick: () => void;
-  onDeleteClick: () => void;
-  onUpdateNotes: (notes: string) => Promise<void>;
+  onEditClick?: () => void;
+  onDeleteClick?: () => void;
+  onUpdateNotes?: (notes: string) => Promise<void>;
   onManageCaregiver?: () => void;
   onManageMFA?: () => void;
   onManageRole?: () => void;
@@ -178,15 +183,17 @@ function StaffDetailContent({
 
   const headerActions = (
     <>
-      <button
-        type="button"
-        onClick={onEditClick}
-        className="flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-      >
-        <Pencil className="h-3.5 w-3.5" aria-hidden />
-        Bearbeiten
-      </button>
-      <DetailDeleteButton onClick={onDeleteClick} />
+      {onEditClick ? (
+        <button
+          type="button"
+          onClick={onEditClick}
+          className="flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+          <Pencil className="h-3.5 w-3.5" aria-hidden />
+          Bearbeiten
+        </button>
+      ) : null}
+      {onDeleteClick ? <DetailDeleteButton onClick={onDeleteClick} /> : null}
     </>
   );
 
@@ -225,7 +232,7 @@ function StaffDetailContent({
 
 interface StaffStammdatenTabProps {
   teacher: Teacher;
-  onUpdateNotes: (notes: string) => Promise<void>;
+  onUpdateNotes?: (notes: string) => Promise<void>;
   onManageCaregiver?: () => void;
   onManageMFA?: () => void;
   onManageRole?: () => void;
@@ -239,6 +246,25 @@ function StaffStammdatenTab({
   onManageRole,
 }: StaffStammdatenTabProps) {
   const trimmedQualifications = teacher.qualifications?.trim() ?? "";
+  // Kontoaktionen gehören in den Kopf ihres Abschnitts, nicht in eine eigene
+  // Zeile aus Buttons. Die erste bleibt sichtbar, der Rest wandert ins Menü.
+  const accountActions: Array<{ label: string; onClick: () => void }> = [];
+  if (onManageRole) {
+    accountActions.push({ label: "Rolle verwalten", onClick: onManageRole });
+  }
+  if (onManageMFA) {
+    accountActions.push({
+      label: "Zwei-Faktor-Authentifizierung verwalten",
+      onClick: onManageMFA,
+    });
+  }
+  if (onManageCaregiver) {
+    accountActions.push({
+      label: "Betreuung verwalten",
+      onClick: onManageCaregiver,
+    });
+  }
+  const primaryAccountAction = accountActions[0];
 
   return (
     <div className="space-y-4">
@@ -307,22 +333,28 @@ function StaffStammdatenTab({
         </InfoSection>
       ) : null}
 
-      <InfoSection
-        title="Notizen"
-        icon={
-          <MotoDuotoneIcon
-            icon={MOTO_CONCEPTS.feedback.icon}
-            tone={MOTO_CONCEPTS.feedback.tone}
-            size={18}
+      {/* Personalnotizen gehören zum Mitarbeiter-Datensatz und brauchen
+          staff:manage (#2906). Ohne die Berechtigung liefert das Backend das
+          Feld gar nicht erst aus, also entfällt die Sektion komplett statt
+          eine Bearbeiten-Schaltfläche anzubieten, die 403 zurückgibt. */}
+      {onUpdateNotes ? (
+        <InfoSection
+          title="Notizen"
+          icon={
+            <MotoDuotoneIcon
+              icon={MOTO_CONCEPTS.feedback.icon}
+              tone={MOTO_CONCEPTS.feedback.tone}
+              size={18}
+            />
+          }
+          accentColor="green"
+        >
+          <InlineNotesEditor
+            initialNotes={teacher.staff_notes ?? ""}
+            onSave={onUpdateNotes}
           />
-        }
-        accentColor="green"
-      >
-        <InlineNotesEditor
-          initialNotes={teacher.staff_notes ?? ""}
-          onSave={onUpdateNotes}
-        />
-      </InfoSection>
+        </InfoSection>
+      ) : null}
 
       {teacher.created_at || teacher.updated_at ? (
         <InfoSection
@@ -365,37 +397,30 @@ function StaffStammdatenTab({
         </InfoSection>
       ) : null}
 
-      {(onManageCaregiver || onManageMFA || onManageRole) && (
-        <div className="flex flex-wrap justify-end gap-2">
-          {onManageRole ? (
-            <button
-              type="button"
-              onClick={onManageRole}
-              className="border-moto-purple/30 text-moto-purple hover:bg-moto-purple/10 rounded-lg border px-3 py-2 text-xs font-medium transition-all duration-200 md:text-sm"
-            >
-              Rolle verwalten
-            </button>
-          ) : null}
-          {onManageMFA ? (
-            <button
-              type="button"
-              onClick={onManageMFA}
-              className="border-moto-blue/30 text-moto-blue hover:bg-moto-blue/10 rounded-lg border px-3 py-2 text-xs font-medium transition-all duration-200 md:text-sm"
-            >
-              Zwei-Faktor-Authentifizierung verwalten
-            </button>
-          ) : null}
-          {onManageCaregiver ? (
-            <button
-              type="button"
-              onClick={onManageCaregiver}
-              className="border-moto-orange/30 text-moto-orange hover:bg-moto-orange/10 rounded-lg border px-3 py-2 text-xs font-medium transition-all duration-200 md:text-sm"
-            >
-              Betreuung verwalten
-            </button>
-          ) : null}
-        </div>
-      )}
+      {primaryAccountAction ? (
+        <SectionCard
+          title="Konto und Zugriff"
+          titleClassName="text-sm"
+          headingLevel={3}
+          description="Rolle, Zwei-Faktor-Authentifizierung und Betreuungszugriff dieser Person."
+          actions={
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={primaryAccountAction.onClick}
+              >
+                {primaryAccountAction.label}
+              </Button>
+              <OverflowMenu
+                ariaLabel="Weitere Kontoaktionen"
+                items={accountActions.slice(1)}
+              />
+            </>
+          }
+        />
+      ) : null}
     </div>
   );
 }

@@ -8,7 +8,15 @@ import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
-import { Modal } from "~/components/ui/modal";
+import {
+  SlideOver,
+  SlideOverCloseButton,
+  SlideOverContent,
+  SlideOverDescription,
+  SlideOverFooter,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
 import { createLogger } from "~/lib/logger";
 import {
   createGradeTransition,
@@ -223,15 +231,170 @@ export function TransitionEditor({
   };
 
   return (
-    <Modal
-      isOpen
-      onClose={onClose}
-      title={
-        existingDraft ? "Jahrgangswechsel bearbeiten" : "Neuer Jahrgangswechsel"
-      }
-      widthClass="mx-4 w-[calc(100%-2rem)] max-w-3xl"
-      footer={
-        <div className="flex justify-end gap-2">
+    <SlideOver
+      open
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) onClose();
+      }}
+    >
+      <SlideOverContent widthClass="sm:w-[760px]">
+        <SlideOverHeader className="flex-row items-start justify-between gap-3">
+          <div className="min-w-0">
+            <SlideOverTitle>
+              {existingDraft
+                ? "Jahrgangswechsel bearbeiten"
+                : "Neuer Jahrgangswechsel"}
+            </SlideOverTitle>
+            <SlideOverDescription>
+              Festlegen, wohin die Kinder jeder Klasse versetzt werden.
+            </SlideOverDescription>
+          </div>
+          <SlideOverCloseButton />
+        </SlideOverHeader>
+        <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label
+                htmlFor="transition-academic-year"
+                className="mb-1 block text-sm font-medium text-gray-700"
+              >
+                Schuljahr (neu)
+              </label>
+              <Input
+                id="transition-academic-year"
+                value={academicYear}
+                onChange={(e) => setAcademicYear(e.target.value)}
+                placeholder="2026-2027"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="transition-notes"
+                className="mb-1 block text-sm font-medium text-gray-700"
+              >
+                Notiz (optional)
+              </label>
+              <Input
+                id="transition-notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="z. B. Schuljahreswechsel Sommer"
+              />
+            </div>
+          </div>
+
+          <p className="text-sm text-gray-600">
+            Für jede Klasse festlegen, wohin die Kinder versetzt werden. Abgang
+            bedeutet: Die Kinder verlassen die OGS und werden aus der App
+            ausgeblendet. Das lässt sich über Zurücksetzen wieder rückgängig
+            machen.
+          </p>
+
+          {loadError && <p className="text-moto-red text-sm">{loadError}</p>}
+          {rows === null && !loadError && (
+            <SkeletonRegion label="Klassenvorschläge werden geladen">
+              <ListSkeleton rows={5} avatar={false} />
+            </SkeletonRegion>
+          )}
+
+          {rows !== null && (
+            <ul className="divide-y divide-gray-100 rounded-xl border border-gray-200">
+              {rows.length === 0 && (
+                <li className="p-4 text-sm text-gray-500">
+                  Keine Klassen mit Kindern gefunden.
+                </li>
+              )}
+              {rows.map((row, index) => (
+                <li
+                  key={row.fromClass}
+                  className="flex flex-wrap items-center gap-3 p-3"
+                >
+                  <div className="w-20 shrink-0">
+                    <span className="font-medium text-gray-900">
+                      {row.fromClass}
+                    </span>
+                    {row.studentCount !== null && (
+                      <span className="ml-1 text-xs text-gray-500">
+                        ({row.studentCount})
+                      </span>
+                    )}
+                  </div>
+                  <div className="w-56 shrink-0">
+                    <CustomSelect
+                      ariaLabel={`Aktion für Klasse ${row.fromClass}`}
+                      value={row.mode}
+                      options={MODE_OPTIONS.map((o) => ({
+                        value: o.value,
+                        label: o.label,
+                      }))}
+                      onChange={(value) =>
+                        updateRow(index, {
+                          mode: value as EditorRow["mode"],
+                        })
+                      }
+                    />
+                  </div>
+                  {row.mode === "promote" ? (
+                    <div className="w-28">
+                      <Input
+                        aria-label={`Zielklasse für ${row.fromClass}`}
+                        value={row.toClass}
+                        onChange={(e) =>
+                          updateRow(index, { toClass: e.target.value })
+                        }
+                        placeholder="z. B. 2a"
+                      />
+                    </div>
+                  ) : (
+                    <span className="text-moto-red text-sm font-medium">
+                      Abgang
+                    </span>
+                  )}
+                  <div className="ml-auto">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="compact"
+                      onClick={() => removeRow(index)}
+                      aria-label={`Klasse ${row.fromClass} nicht ändern`}
+                    >
+                      Nicht ändern
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {rows !== null && addableClasses.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="w-56">
+                <CustomSelect
+                  ariaLabel="Klasse hinzufügen"
+                  value={classToAdd}
+                  placeholder="Klasse hinzufügen …"
+                  options={addableClasses.map((c) => ({ value: c, label: c }))}
+                  onChange={(value) => setClassToAdd(value)}
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={() => addRow(classToAdd)}
+                disabled={!classToAdd}
+              >
+                Hinzufügen
+              </Button>
+            </div>
+          )}
+
+          {validationError && rows !== null && rows.length > 0 && (
+            <p className="text-moto-orange text-sm">{validationError}</p>
+          )}
+          {saveError && <p className="text-moto-red text-sm">{saveError}</p>}
+        </div>
+        <SlideOverFooter className="flex-row justify-end gap-2">
           <Button type="button" variant="outline" size="md" onClick={onClose}>
             Abbrechen
           </Button>
@@ -243,152 +406,8 @@ export function TransitionEditor({
           >
             {saving ? "Speichern …" : "Weiter zur Vorschau"}
           </Button>
-        </div>
-      }
-    >
-      <div className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label
-              htmlFor="transition-academic-year"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Schuljahr (neu)
-            </label>
-            <Input
-              id="transition-academic-year"
-              value={academicYear}
-              onChange={(e) => setAcademicYear(e.target.value)}
-              placeholder="2026-2027"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="transition-notes"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Notiz (optional)
-            </label>
-            <Input
-              id="transition-notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="z. B. Schuljahreswechsel Sommer"
-            />
-          </div>
-        </div>
-
-        <p className="text-sm text-gray-600">
-          Für jede Klasse festlegen, wohin die Kinder versetzt werden. Abgang
-          bedeutet: Die Kinder verlassen die OGS und werden aus der App
-          ausgeblendet. Das lässt sich über Zurücksetzen wieder rückgängig
-          machen.
-        </p>
-
-        {loadError && <p className="text-moto-red text-sm">{loadError}</p>}
-        {rows === null && !loadError && (
-          <SkeletonRegion label="Klassenvorschläge werden geladen">
-            <ListSkeleton rows={5} avatar={false} />
-          </SkeletonRegion>
-        )}
-
-        {rows !== null && (
-          <ul className="divide-y divide-gray-100 rounded-xl border border-gray-200">
-            {rows.length === 0 && (
-              <li className="p-4 text-sm text-gray-500">
-                Keine Klassen mit Kindern gefunden.
-              </li>
-            )}
-            {rows.map((row, index) => (
-              <li
-                key={row.fromClass}
-                className="flex flex-wrap items-center gap-3 p-3"
-              >
-                <div className="w-20 shrink-0">
-                  <span className="font-medium text-gray-900">
-                    {row.fromClass}
-                  </span>
-                  {row.studentCount !== null && (
-                    <span className="ml-1 text-xs text-gray-500">
-                      ({row.studentCount})
-                    </span>
-                  )}
-                </div>
-                <div className="w-56 shrink-0">
-                  <CustomSelect
-                    ariaLabel={`Aktion für Klasse ${row.fromClass}`}
-                    value={row.mode}
-                    options={MODE_OPTIONS.map((o) => ({
-                      value: o.value,
-                      label: o.label,
-                    }))}
-                    onChange={(value) =>
-                      updateRow(index, {
-                        mode: value as EditorRow["mode"],
-                      })
-                    }
-                  />
-                </div>
-                {row.mode === "promote" ? (
-                  <div className="w-28">
-                    <Input
-                      aria-label={`Zielklasse für ${row.fromClass}`}
-                      value={row.toClass}
-                      onChange={(e) =>
-                        updateRow(index, { toClass: e.target.value })
-                      }
-                      placeholder="z. B. 2a"
-                    />
-                  </div>
-                ) : (
-                  <span className="text-moto-red text-sm font-medium">
-                    Abgang
-                  </span>
-                )}
-                <div className="ml-auto">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="compact"
-                    onClick={() => removeRow(index)}
-                    aria-label={`Klasse ${row.fromClass} nicht ändern`}
-                  >
-                    Nicht ändern
-                  </Button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {rows !== null && addableClasses.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="w-56">
-              <CustomSelect
-                ariaLabel="Klasse hinzufügen"
-                value={classToAdd}
-                placeholder="Klasse hinzufügen …"
-                options={addableClasses.map((c) => ({ value: c, label: c }))}
-                onChange={(value) => setClassToAdd(value)}
-              />
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={() => addRow(classToAdd)}
-              disabled={!classToAdd}
-            >
-              Hinzufügen
-            </Button>
-          </div>
-        )}
-
-        {validationError && rows !== null && rows.length > 0 && (
-          <p className="text-moto-orange text-sm">{validationError}</p>
-        )}
-        {saveError && <p className="text-moto-red text-sm">{saveError}</p>}
-      </div>
-    </Modal>
+        </SlideOverFooter>
+      </SlideOverContent>
+    </SlideOver>
   );
 }

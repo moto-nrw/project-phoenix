@@ -1,11 +1,10 @@
-package config_test
+package config
 
 import (
 	"encoding/json"
 	"testing"
 	"time"
 
-	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
 	"github.com/moto-nrw/project-phoenix/models/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -16,7 +15,7 @@ func TestSettingAuditRepository_Create(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := configRepo.NewSettingAuditRepository(db)
+	repo := NewSettingAuditRepository(testpkg.ConfigRuntime(db))
 	ctx := testpkg.Ctx(t)
 
 	entry := &config.SettingAuditEntry{
@@ -37,7 +36,7 @@ func TestSettingAuditRepository_Create_ValidatesEntry(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := configRepo.NewSettingAuditRepository(db)
+	repo := NewSettingAuditRepository(testpkg.ConfigRuntime(db))
 	ctx := testpkg.Ctx(t)
 
 	// Missing key
@@ -60,7 +59,7 @@ func TestSettingAuditRepository_CreateNil(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := configRepo.NewSettingAuditRepository(db)
+	repo := NewSettingAuditRepository(testpkg.ConfigRuntime(db))
 	ctx := testpkg.Ctx(t)
 
 	err := repo.Create(ctx, nil)

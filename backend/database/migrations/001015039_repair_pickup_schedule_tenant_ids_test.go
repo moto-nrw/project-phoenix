@@ -8,16 +8,17 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 func TestRepairPickupScheduleTenantIDs(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	tenantID := testpkg.UniqueTestTenantID(t)
 
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	staffID := createTenantStaff(t, db, tenantID)
 	studentID := createTenantStudent(t, db, tenantID)
@@ -36,16 +37,17 @@ func TestRepairPickupScheduleTenantIDs(t *testing.T) {
 }
 
 func TestRepairPickupScheduleTenantIDsRejectsCrossTenantCreator(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	tenantID := testpkg.UniqueTestTenantID(t)
 
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	studentID := createTenantStudent(t, db, tenantID)
 	staff := testpkg.CreateTestStaff(t, db, "PickupRepair", "WrongTenant")
-	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
 	defer cleanupPickupTenantRepairRows(t, db, 0, studentID)
 
 	insertHistoricalPickupScheduleWithTenant(t, db, 1, studentID, staff.ID)
@@ -56,12 +58,14 @@ func TestRepairPickupScheduleTenantIDsRejectsCrossTenantCreator(t *testing.T) {
 }
 
 func TestRepairPickupScheduleTenantIDsRejectsUniqueConflicts(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	tenantID := testpkg.UniqueTestTenantID(t)
 
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	staffID := createTenantStaff(t, db, tenantID)
 	studentID := createTenantStudent(t, db, tenantID)
@@ -75,7 +79,7 @@ func TestRepairPickupScheduleTenantIDsRejectsUniqueConflicts(t *testing.T) {
 	assert.Contains(t, err.Error(), "would conflict")
 }
 
-func withReplicaTriggers(t *testing.T, db *bun.DB, fn func(tx bun.Tx)) {
+func withReplicaTriggers(t *testing.T, db *testpkg.DB, fn func(tx testpkg.Tx)) {
 	t.Helper()
 
 	ctx := context.Background()
@@ -90,7 +94,7 @@ func withReplicaTriggers(t *testing.T, db *bun.DB, fn func(tx bun.Tx)) {
 	require.NoError(t, tx.Commit())
 }
 
-func createTenantStaff(t *testing.T, db *bun.DB, tenantID int64) int64 {
+func createTenantStaff(t *testing.T, db *testpkg.DB, tenantID int64) int64 {
 	t.Helper()
 
 	person := testpkg.CreateTestPersonForTenant(t, db, tenantID, "PickupRepair", "Staff")
@@ -105,7 +109,7 @@ func createTenantStaff(t *testing.T, db *bun.DB, tenantID int64) int64 {
 	return staffID
 }
 
-func createTenantStudent(t *testing.T, db *bun.DB, tenantID int64) int64 {
+func createTenantStudent(t *testing.T, db *testpkg.DB, tenantID int64) int64 {
 	t.Helper()
 
 	person := testpkg.CreateTestPersonForTenant(t, db, tenantID, "PickupRepair", "Student")
@@ -120,7 +124,7 @@ func createTenantStudent(t *testing.T, db *bun.DB, tenantID int64) int64 {
 	return studentID
 }
 
-func insertPickupScheduleWithTenant(t *testing.T, db *bun.DB, tenantID, studentID, staffID int64) int64 {
+func insertPickupScheduleWithTenant(t *testing.T, db *testpkg.DB, tenantID, studentID, staffID int64) int64 {
 	t.Helper()
 
 	var id int64
@@ -135,11 +139,11 @@ func insertPickupScheduleWithTenant(t *testing.T, db *bun.DB, tenantID, studentI
 	return id
 }
 
-func insertHistoricalPickupScheduleWithTenant(t *testing.T, db *bun.DB, tenantID, studentID, staffID int64) int64 {
+func insertHistoricalPickupScheduleWithTenant(t *testing.T, db *testpkg.DB, tenantID, studentID, staffID int64) int64 {
 	t.Helper()
 
 	var id int64
-	withReplicaTriggers(t, db, func(tx bun.Tx) {
+	withReplicaTriggers(t, db, func(tx testpkg.Tx) {
 		err := tx.QueryRowContext(context.Background(), `
 			INSERT INTO schedule.student_pickup_schedules
 				(tenant_id, student_id, weekday, pickup_time, created_by, created_at, updated_at)
@@ -152,11 +156,11 @@ func insertHistoricalPickupScheduleWithTenant(t *testing.T, db *bun.DB, tenantID
 	return id
 }
 
-func insertHistoricalPickupExceptionWithTenant(t *testing.T, db *bun.DB, tenantID, studentID, staffID int64) int64 {
+func insertHistoricalPickupExceptionWithTenant(t *testing.T, db *testpkg.DB, tenantID, studentID, staffID int64) int64 {
 	t.Helper()
 
 	var id int64
-	withReplicaTriggers(t, db, func(tx bun.Tx) {
+	withReplicaTriggers(t, db, func(tx testpkg.Tx) {
 		err := tx.QueryRowContext(context.Background(), `
 			INSERT INTO schedule.student_pickup_exceptions
 				(tenant_id, student_id, exception_date, pickup_time, reason, created_by, created_at, updated_at)
@@ -169,11 +173,11 @@ func insertHistoricalPickupExceptionWithTenant(t *testing.T, db *bun.DB, tenantI
 	return id
 }
 
-func insertHistoricalPickupNoteWithTenant(t *testing.T, db *bun.DB, tenantID, studentID, staffID int64) int64 {
+func insertHistoricalPickupNoteWithTenant(t *testing.T, db *testpkg.DB, tenantID, studentID, staffID int64) int64 {
 	t.Helper()
 
 	var id int64
-	withReplicaTriggers(t, db, func(tx bun.Tx) {
+	withReplicaTriggers(t, db, func(tx testpkg.Tx) {
 		err := tx.QueryRowContext(context.Background(), `
 			INSERT INTO schedule.student_pickup_notes
 				(tenant_id, student_id, note_date, content, created_by, created_at, updated_at)
@@ -186,7 +190,7 @@ func insertHistoricalPickupNoteWithTenant(t *testing.T, db *bun.DB, tenantID, st
 	return id
 }
 
-func assertTenantID(t *testing.T, db *bun.DB, table string, id, expectedTenantID int64) {
+func assertTenantID(t *testing.T, db *testpkg.DB, table string, id, expectedTenantID int64) {
 	t.Helper()
 
 	var tenantID int64
@@ -195,7 +199,7 @@ func assertTenantID(t *testing.T, db *bun.DB, table string, id, expectedTenantID
 	assert.Equal(t, expectedTenantID, tenantID)
 }
 
-func cleanupPickupTenantRepairRows(t *testing.T, db *bun.DB, staffID, studentID int64) {
+func cleanupPickupTenantRepairRows(t *testing.T, db *testpkg.DB, staffID, studentID int64) {
 	t.Helper()
 
 	_, _ = db.ExecContext(context.Background(), `DELETE FROM schedule.student_pickup_notes WHERE student_id = ?`, studentID)

@@ -9,6 +9,12 @@ import (
 // SettingsService defines operations for the schema-driven settings system.
 // All settings are tenant-scoped with a registry default fallback.
 type SettingsService interface {
+	// EnrollmentEnabledForTenants is the typed cross-tenant query used by
+	// enrollment discovery. Every requested positive tenant is present in the
+	// result with either its explicit override or the registered platform
+	// default.
+	EnrollmentEnabledForTenants(ctx context.Context, tenantIDs []int64) (map[int64]bool, error)
+
 	// GetSchema returns the full settings schema with resolved values for the
 	// current tenant, filtered by the user's permissions. Excludes settings
 	// marked AccessOperatorOnly — they are only visible via GetSchemaForOperator.
@@ -43,7 +49,7 @@ type SettingsService interface {
 	// earlier, so a cached re-read would return the stale value it is meant
 	// to replace.
 	//
-	// Requires an ambient transaction (base.ContextWithTx) whose role can
+	// Requires an ambient transaction (tenant.WithTransactionForTest) whose role can
 	// read config.setting_values for tenantID — phoenix_admin, or a tenant
 	// transaction on the same tenant. Without one it returns an error rather
 	// than silently falling back to an RLS-filtered read that would report
@@ -110,14 +116,14 @@ type SettingsService interface {
 	// LockSlotListCutoffPair takes the per-tenant transaction-scoped advisory lock
 	// that guards the Ganztag pickup-cutoff pair. The cutoff writer holds it while
 	// it validates the pair; a reader that must observe both cutoffs consistently
-	// (services/slotlists) takes it before resolving them, so a concurrent lowering
+	// (the class-day projection, modules/classday) takes it before resolving them, so a concurrent lowering
 	// of both boundaries cannot interleave with the read and expose an inverted
 	// short/long pair under READ COMMITTED. Best-effort: without an ambient
 	// transaction the xact lock is meaningless, so it is skipped rather than failing.
 	LockSlotListCutoffPair(ctx context.Context) error
 
 	// LockSlotListCutoffPairShared is the SHARED-mode counterpart taken by read
-	// paths (services/slotlists pickupBuckets). Shared holders do not block one
+	// paths (the class-day projection, modules/classday). Shared holders do not block one
 	// another, so concurrent option loads, pickup previews and exports run in
 	// parallel instead of serializing behind the exclusive writer lock; it still
 	// conflicts with LockSlotListCutoffPair so a cutoff write cannot expose a

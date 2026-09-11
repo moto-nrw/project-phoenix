@@ -198,32 +198,6 @@ describe("roomsConfig", () => {
     expect(emoji).toBe("🏃");
   });
 
-  it("shows occupied badge when room is occupied", () => {
-    const mockRoom: Room = {
-      id: "1",
-      name: "Room 101",
-      category: "Normaler Raum",
-      isOccupied: true,
-    };
-
-    const badges = roomsConfig.list.item.badges ?? [];
-    const occupiedBadge = badges.find((b) => b.label === "Belegt");
-    expect(occupiedBadge?.showWhen!(mockRoom)).toBe(true);
-  });
-
-  it("shows free badge when room is not occupied", () => {
-    const mockRoom: Room = {
-      id: "1",
-      name: "Room 101",
-      category: "Normaler Raum",
-      isOccupied: false,
-    };
-
-    const badges = roomsConfig.list.item.badges ?? [];
-    const freeBadge = badges.find((b) => b.label === "Frei");
-    expect(freeBadge?.showWhen!(mockRoom)).toBe(true);
-  });
-
   it("has custom labels", () => {
     expect(roomsConfig.labels?.createButton).toBe("Neuen Raum erstellen");
     expect(roomsConfig.labels?.deleteConfirmation).toContain("löschen");

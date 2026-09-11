@@ -61,12 +61,21 @@ export interface Teacher {
 export interface BackendEducationalGroup {
   id: number;
   name: string;
+  via_substitution?: boolean;
   room_id?: number;
   room?: {
     id: number;
     name: string;
   };
+}
+
+export interface NavigationEducationalGroup {
+  id: string;
+  name: string;
   via_substitution?: boolean;
+  is_personal?: boolean;
+  room_id?: string;
+  room_name?: string;
 }
 
 export interface BackendActivityGroup {
@@ -134,6 +143,21 @@ export function mapEducationalGroupResponse(
           name: data.room.name,
         }
       : undefined,
+    viaSubstitution: data.via_substitution ?? false,
+  };
+}
+
+export function mapNavigationEducationalGroupResponse(
+  data: NavigationEducationalGroup,
+): EducationalGroup {
+  return {
+    id: data.id,
+    name: data.name,
+    roomId: data.room_id,
+    room:
+      data.room_id && data.room_name
+        ? { id: data.room_id, name: data.room_name }
+        : undefined,
     viaSubstitution: data.via_substitution ?? false,
   };
 }

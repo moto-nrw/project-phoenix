@@ -67,7 +67,7 @@ func assignStudentGroup(t *testing.T, tc *testContext, studentID, groupID int64)
 func TestListStudents_MultiValueClassGroupAndGradeFilters(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	// The suffix keeps the class names unique in the shared test database while
 	// the leading digit still carries the grade schoolclass.GradePrefix reads.
@@ -216,7 +216,7 @@ func TestListStudents_MultiValueClassGroupAndGradeFilters(t *testing.T) {
 func TestListStudents_ClassNameContainingTheSeparator(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	suffix := time.Now().UnixNano()
 	commaClass := fmt.Sprintf("A,B-%d", suffix)

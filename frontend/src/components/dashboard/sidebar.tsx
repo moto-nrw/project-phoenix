@@ -1,8 +1,15 @@
 // components/dashboard/sidebar.tsx
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo } from "react";
-import Link from "next/link";
+import {
+  Fragment,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { NavLink } from "~/components/ui/nav-link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { normalizeTenantPathname, useTenantAwarePath } from "~/lib/tenant-path";
@@ -15,26 +22,47 @@ import {
   usePresenceMode,
   useTenantRoutingModeSafe,
   useTenantSlugSafe,
+  useTimetableEnabled,
 } from "~/lib/tenant-context";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import { hasPermission, hasRole, isCaregiver } from "~/lib/auth-utils";
-import { canOpenRequestsPage } from "~/lib/change-request-access";
+import {
+  hasEffectiveAdminScope,
+  hasPermission,
+  hasRole,
+  isCaregiver,
+} from "~/lib/auth-utils";
 import { useCareWithdrawalsPending } from "~/lib/hooks/use-care-withdrawals-pending";
+import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
 import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
+import { useSidebarGroups } from "~/lib/hooks/use-sidebar-groups";
+import { useSidebarCollapsed } from "~/lib/hooks/use-sidebar-collapsed";
+import { useSidebarCollapseTransition } from "~/lib/hooks/use-sidebar-collapse-transition";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
 import { useStaffAbsencesPending } from "~/lib/hooks/use-staff-absences-pending";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import { useStaffMessagesUnread } from "~/lib/hooks/use-staff-messages-unread";
+import { useStaffNoticesPending } from "~/lib/hooks/use-staff-notices-pending";
 import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
 import { useEnrollmentRequestsPending } from "~/lib/hooks/use-enrollment-requests-pending";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 import { SidebarAccordionSection } from "~/components/dashboard/sidebar-accordion-section";
+import { SidebarGroup } from "~/components/dashboard/sidebar-group";
 import { SidebarSubItem } from "~/components/dashboard/sidebar-sub-item";
+import {
+  SIDEBAR_ICON_CLASSES,
+  SIDEBAR_NAV_GAP,
+  SIDEBAR_NAV_PADDING,
+  SIDEBAR_WIDTH_COLLAPSED,
+  SIDEBAR_WIDTH_EXPANDED,
+  SIDEBAR_WIDTH_TRANSITION,
+  sidebarLabelClasses,
+  sidebarRowClasses,
+} from "~/components/dashboard/sidebar-geometry";
 import { navigationIcons } from "~/lib/navigation-icons";
 import { getSettingValue } from "~/lib/settings-api";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
@@ -42,26 +70,34 @@ import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { NotificationBadge } from "~/components/ui/notification-badge";
 import {
   getActivePlanningSubPageHref,
+  isPlanningPageHref,
   PLANNING_SUB_PAGES,
 } from "~/lib/planning-navigation";
 import {
+  COMMUNICATION_SUB_PAGES,
   DATABASE_SECTION,
   DATABASE_SUB_PAGES,
   ENROLLMENT_SECTION,
   ENROLLMENT_SUB_PAGES,
   getActiveEnrollmentSubPageHref,
-  getActiveParentSubPageHref,
-  PARENT_SECTION,
   PARENT_SUB_PAGES,
-  PLANNING_SECTION,
   STAFF_FLAT_PAGES,
 } from "~/lib/section-navigation";
+import {
+  STAFF_NAV_BOTTOM,
+  STAFF_NAV_CONCEPTS,
+  STAFF_NAV_GROUPS,
+  STAFF_NAV_TOP,
+  type StaffNavEntry,
+  type StaffNavSectionKey,
+} from "~/lib/staff-navigation";
 
 // Type für Navigation Items
 interface NavItem {
   href: string;
   label: string;
-  icon: string;
+  // SVG path; only drawn when the item has no concept icon.
+  icon?: string;
   concept?: MotoConceptKey;
   requiresAdmin?: boolean;
   // Show when the caller holds this tenant permission (admins always pass). Use
@@ -80,14 +116,34 @@ interface NavItem {
   newTab?: boolean;
 }
 
-// Flat navigation items (excludes accordion sections: ogs-groups, active-supervisions, database)
+// Flat navigation items with their icon, colour and visibility rule. WHERE a
+// page sits in the sidebar (group and order) is decided by the tree in
+// ~/lib/staff-navigation (#2826); a page missing there never renders.
 const NAV_ITEMS: NavItem[] = [
   {
+    // Startseite aller Rollen (#2180): sie setzt sich aus Bausteinen
+    // zusammen, die jeder für sich am Recht der Person hängen. Deshalb steht
+    // der Eintrag für alle da — auch für eine Rolle, die nur einen einzigen
+    // Baustein sieht.
     ...STAFF_FLAT_PAGES.dashboard,
     icon: "M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z",
     concept: "dashboard",
     activeColor: "text-moto-blue",
-    requiresAdmin: true,
+    alwaysShow: true,
+  },
+  {
+    // Tages-Betreuungsplan (#2383): Einstieg der Betreuungskräfte in den
+    // laufenden Tag. Für Admins versteckt — sie haben den vollen
+    // Betreuungsplan im Planungsbereich. schedules:read spiegelt das Gate
+    // der Route (/timetable/operations/planned-now); ohne das Recht wäre
+    // der Eintrag nur ein sicherer 403. Weiteres Gating (binary,
+    // timetable.enabled) siehe filteredNavItems.
+    ...STAFF_FLAT_PAGES.tagesplan,
+    icon: navigationIcons.betreuungsplan,
+    concept: "carePlan",
+    activeColor: "text-moto-green",
+    requiresPermission: "schedules:read",
+    hideForAdmin: true,
   },
   {
     ...STAFF_FLAT_PAGES.studentSearch,
@@ -117,15 +173,6 @@ const NAV_ITEMS: NavItem[] = [
     alwaysShow: true,
   },
   {
-    ...STAFF_FLAT_PAGES.teamChat,
-    // Kein eigenes moto-Konzept-Icon: der Team-Chat ist eine neue Fläche und
-    // teilt sich die Sprechblasen-Form mit den Eltern-Nachrichten, nur in der
-    // Mitarbeitenden-Farbe statt in Blau.
-    icon: "M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z",
-    activeColor: "text-moto-orange",
-    alwaysShow: true,
-  },
-  {
     ...STAFF_FLAT_PAGES.calendar,
     icon: navigationIcons.calendar,
     concept: "calendar",
@@ -135,16 +182,12 @@ const NAV_ITEMS: NavItem[] = [
     requiresPermission: "calendar:own",
   },
   {
-    // Alt-Seite mit eigenem Datenmodell (education.group_substitution):
-    // vergibt temporären Gruppen-Datenzugriff, keine Personalplanung — daher
-    // "Gruppenzugriff" zur Abgrenzung vom Planungsbereich "Vertretung"
-    // (#1940). Nur relevant bei festen Gruppen (operations.group_mode);
-    // Gating siehe substitutionsItem-Rendering unten.
+    // Gemeinsame Übersicht für Gruppenübergaben, Terminvertretungen und
+    // zusätzliche Aufsichten. Einzelne Aktionen bleiben serverseitig geprüft.
     ...STAFF_FLAT_PAGES.substitutions,
     icon: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15",
     concept: "groupAccess",
     activeColor: "text-moto-purple",
-    requiresAdmin: true,
   },
   {
     ...STAFF_FLAT_PAGES.infoDisplays,
@@ -316,7 +359,7 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
         label: "Operatoren",
         icon: navigationIcons.group,
         concept: "operators",
-        activeColor: "text-violet-500",
+        activeColor: "text-moto-purple",
         alwaysShow: true,
       },
     ],
@@ -329,11 +372,73 @@ const NFC_ONLY_HREFS = new Set<string>([
   "/database/devices",
 ]);
 
+/**
+ * Die Stammdaten-Kataloge der Datenverwaltung (#3114) und das Recht, das ihre
+ * Route verlangt. Dieselbe Zuordnung steht im Guard der Route
+ * (`database/layout.tsx`); hier entscheidet sie nur, ob der Eintrag sichtbar
+ * ist.
+ */
+const DATABASE_CATALOG_PERMISSIONS: Readonly<Record<string, string>> = {
+  "/database/categories": "activities:manage_categories",
+  "/database/planning-tracks": "schedules:manage",
+  "/database/shift-types": "time_tracking:manage",
+  "/database/absence-types": "time_tracking:manage",
+};
+
+/** Rechte, die den Personalbereich auch ohne Leitungsrolle öffnen. */
+const PERSONNEL_PAGE_PERMISSIONS = [
+  "staff:manage",
+  "staff:stammdaten",
+] as const;
+
+/** Kataloge, die ohne den Planungsbereich nichts zu ordnen haben. */
+const PLANNING_CATALOG_HREFS = new Set<string>([
+  "/database/planning-tracks",
+  "/database/shift-types",
+]);
+
 // Nav items hidden in binary-mode tenants. Rooms and Activities are room/visit
 // concepts with no operational meaning when the tenant only tracks
 // in-school/out-of-school on active.attendance. The Aktuelle-Aufsicht
 // accordion is gated separately below (it's not in NAV_ITEMS).
-const BINARY_HIDDEN_HREFS = new Set<string>(["/rooms", "/activities"]);
+const BINARY_HIDDEN_HREFS = new Set<string>([
+  "/rooms",
+  "/activities",
+  "/tagesplan",
+]);
+const GROUP_NAV_ICON =
+  "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z";
+// Icon paths shared between the expanded accordion headers and the collapsed
+// icon rail (#2825), so both renderings can never drift apart.
+const SUPERVISION_NAV_ICON =
+  "M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z";
+const DATABASE_NAV_ICON =
+  "M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4";
+const ENROLLMENT_NAV_ICON =
+  "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z";
+
+// Tenant-scoped [tenant]/… routes. In path-routing mode a bare "/messages"
+// leaves the current tenant path entirely and a bare "/eltern/…" is read as
+// the tenant slug, so these hrefs go through tenantPath — matching what the
+// former Eltern/Kommunikation/Planung accordions did for their sub-items.
+// Everything else stays bare: /help is host-agnostic and must not carry the
+// slug. No-op in subdomain mode.
+const TENANT_SCOPED_HREFS = new Set<string>([
+  "/anfragen",
+  ...PARENT_SUB_PAGES.map((page) => page.href),
+  ...COMMUNICATION_SUB_PAGES.map((page) => page.href),
+  ...PLANNING_SUB_PAGES.map((page) => page.href),
+]);
+
+// Rows that carry a counter, with the wording a screen reader gets.
+const ROW_BADGE_LABELS: Readonly<
+  Record<string, { readonly tone: "staff" | "parents"; readonly noun: string }>
+> = {
+  "/anfragen": { tone: "staff", noun: "offene Anfragen" },
+  "/messages": { tone: "parents", noun: "ungelesene Nachrichten" },
+  "/team-chat": { tone: "staff", noun: "ungelesene Nachrichten" },
+  "/tagesinformationen": { tone: "staff", noun: "offene Tagesinformationen" },
+};
 
 /** Determine if a group sub-item should be highlighted as active */
 function isGroupSubItemActive(
@@ -376,8 +481,63 @@ interface SidebarProps {
   readonly className?: string;
 }
 
-function SidebarContent({ className = "" }: SidebarProps) {
+// Auf-/Zuklappen als 200ms-Breiten-Slide (#2825, explizit gewünschte Motion;
+// bewusste, dokumentierte Abweichung von "compositor properties only" — die
+// Breiten-Animation ist das etablierte Sidebar-Muster, z. B. shadcn).
+//
+// Hülle und Sticky-Inhalt animieren gemeinsam (#2923). Früher rendete der
+// eingeklappte Zustand einen eigenen Icon-Streifen: der Inhalt wechselte
+// schlagartig, während nur die Hülle glitt — das war der zweite Sprung.
+// Jetzt sind es dieselben Zeilen in beiden Zuständen; sie wandern mit der
+// Kante, ihre Bezeichnungen bleiben einzeilig (truncate) und blenden aus,
+// statt umzubrechen. motion-safe respektiert prefers-reduced-motion.
+function asideClasses(collapsed: boolean, className: string): string {
+  // Kein overflow-hidden auf der Hülle: das machte sie zum Scroll-Container
+  // und hebelte das position:sticky des Innenbereichs aus. Nötig ist es auch
+  // nicht — der Inhalt ist in jeder Phase genau so breit wie die Hülle.
+  return `min-h-screen shrink-0 border-r border-gray-200/70 bg-white/95 ${
+    collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED
+  } ${SIDEBAR_WIDTH_TRANSITION} ${className}`;
+}
+
+// Der klebende Innenbereich beginnt unter der 73px hohen Kopfzeile und trägt
+// dieselbe Breite und dieselbe Bewegung wie die Hülle.
+//
+// Mitarbeiter-Vorschau (#2893): der feste Hinweisstreifen (h-12 = 48px)
+// schiebt die Kopfzeile nach unten. Die klebende Seitennavigation muss um
+// dieselbe Höhe mitwandern, sonst schiebt sich die Kopfzeile beim Scrollen
+// über ihre obersten Einträge.
+function stickyClasses(
+  collapsed: boolean,
+  isPreview: boolean | undefined,
+): string {
+  const offset = isPreview
+    ? "top-[121px] h-[calc(100vh-121px)]"
+    : "top-[73px] h-[calc(100vh-73px)]";
+  return `sticky ${offset} flex flex-col ${
+    collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED
+  } ${SIDEBAR_WIDTH_TRANSITION}`;
+}
+
+interface SidebarContentProps extends SidebarProps {
+  // Einklappbare Seitenleiste (#2825): der Zustand lebt im äußeren Sidebar-
+  // Wrapper (useSidebarCollapsed), damit auch der Suspense-Fallback die
+  // richtige Breite rendert. Umgeschaltet wird über den Toggle-Button in
+  // der Kopfzeile (header.tsx), der denselben Store nutzt.
+  readonly collapsed: boolean;
+  readonly onExpandSidebar: () => void;
+}
+
+function SidebarContent({
+  className = "",
+  collapsed,
+  onExpandSidebar,
+}: SidebarContentProps) {
   const tParentNav = useTranslations("parentNav");
+  // Bezeichnungen, Chevrons und Zähler folgen der Breitenänderung, statt am
+  // Anfang oder Ende aufzublitzen (#2923).
+  const { labelsMounted, labelsVisible } =
+    useSidebarCollapseTransition(collapsed);
   const rawPathname = usePathname();
   const tenantSlug = useTenantSlugSafe();
   const routingMode = useTenantRoutingModeSafe();
@@ -387,7 +547,8 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // subdomain/operator mode). Used for tenant-scoped navigation links.
   const tenantPath = useTenantAwarePath();
   const { data: session } = useSession();
-  const { mode } = useShellAuth();
+  const { mode, isPreview } = useShellAuth();
+  const changeRequestAccess = useChangeRequestAccess();
   // Compare every active state against clean tenant-internal paths. The helper
   // only strips in path-routing mode, avoiding slug/route collisions on tenant
   // subdomains.
@@ -415,6 +576,10 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // Ungelesene Team-Chat-Nachrichten (#2598). Eigener Zähler, damit eine
   // Eltern-Nachricht nie den Team-Badge hochzählt und umgekehrt.
   const { unreadCount: teamChatUnreadCount } = useStaffMessagesUnread();
+  // Tagesinformationen (#2180): heutige Hinweise, deren Kenntnisnahme noch
+  // aussteht. Ohne Startseite für alle ist das Badge der einzige Weg, wie ein
+  // Hinweis der Leitung einem begegnet, statt gesucht werden zu müssen.
+  const { unreadCount: staffNoticesPendingCount } = useStaffNoticesPending();
   // Pending parent change-requests badge (Änderungsanfragen; users:update,
   // scoped per child in the backend so the count reflects the caller's own
   // group's requests)
@@ -435,9 +600,17 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // Accordion state passes `from` param so child pages (e.g. student detail)
   // keep the originating accordion section open
   const fromParam = searchParams.get("from");
-  const { expanded, toggle } = useSidebarAccordion(pathname, fromParam);
+  const { expanded, toggle } = useSidebarAccordion(
+    pathname,
+    fromParam,
+    "groups",
+  );
+  // Die fünf Gruppen der Seitenleiste (#2826): Tagesbetrieb offen, der Rest
+  // zu, bis die Person etwas aufklappt oder eine Seite darin öffnet.
+  const { isGroupOpen, toggleGroup } = useSidebarGroups(pathname, fromParam);
 
   const userIsAdmin = hasRole(session, "admin");
+  const userHasEffectiveAdminScope = hasEffectiveAdminScope(session);
   const userIsCaregiver = isCaregiver(session);
   // Elternmitteilungen (#1669) authoring is ADMIN-ONLY in v1: every
   // /api/parent-announcements route is guarded by the admin:* wildcard
@@ -451,6 +624,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const nfcEnabled = useNFCEnabled();
   const displayEnabled = useDisplayEnabled();
   const attendanceLogEnabled = useAttendanceLogEnabled();
+  // Betreuungsplan-Flag für den Tagesplan-Eintrag (#2383): vom Tenant-Resolve,
+  // damit es auch für Betreuungskräfte ohne config:read aufgelöst ist.
+  const tagesplanEnabled = useTimetableEnabled();
   const staffMessagingEnabled = useStaffMessagingEnabled();
   const { counts: groupAttendanceCounts } = useGroupAttendanceCounts();
   const canShowGroupAttendanceCounts = pathname.startsWith("/ogs-groups");
@@ -502,12 +678,12 @@ function SidebarContent({ className = "" }: SidebarProps) {
     );
   });
 
-  // Gruppenzugriff (#1940): temporäre Gruppen-Datenzugriffe sind nur bei
+  // Gruppenübergaben (#1940) sind nur bei
   // festen Gruppen sinnvoll; bei offener Betreuung arbeiten ohnehin alle
   // Berechtigten mit allen Kindern.
   const openCareGroupMode = useOpenCareGroupMode();
 
-  const formatGroupAttendanceCount = (groupId: string | number) => {
+  const formatGroupAttendanceCount = (groupId: string) => {
     if (!canShowGroupAttendanceCounts) return undefined;
     const count = groupAttendanceCounts[groupId.toString()];
     return count ? `${count.present}/${count.total}` : undefined;
@@ -521,12 +697,37 @@ function SidebarContent({ className = "" }: SidebarProps) {
         // it isn't sent to a page that only 403s.
         if (page.href === "/database/grade-transitions") {
           return (
-            userIsAdmin || hasPermission(session, "grade_transitions:read")
+            userHasEffectiveAdminScope ||
+            hasPermission(session, "grade_transitions:read")
           );
         }
-        return true;
+        if (page.href === "/database/personal") {
+          return (
+            userHasEffectiveAdminScope ||
+            PERSONNEL_PAGE_PERMISSIONS.some((permission) =>
+              hasPermission(session, permission),
+            )
+          );
+        }
+        // Die Stammdaten-Kataloge (#3114) tragen dasselbe Recht wie ihre
+        // Schreibzugriffe; ohne es führt der Eintrag nur auf ein 403.
+        const catalogPermission = DATABASE_CATALOG_PERMISSIONS[page.href];
+        if (catalogPermission !== undefined) {
+          if (
+            !userHasEffectiveAdminScope &&
+            !hasPermission(session, catalogPermission)
+          ) {
+            return false;
+          }
+          // Planungsspuren und Schichtarten gehören zum Planungsbereich; ist
+          // er ausgeschaltet, gibt es nichts zu ordnen.
+          if (PLANNING_CATALOG_HREFS.has(page.href)) return timetableEnabled;
+          return true;
+        }
+        // Alle übrigen Datenverwaltungsseiten bleiben der Leitungsbereich.
+        return userHasEffectiveAdminScope;
       }),
-    [nfcEnabled, userIsAdmin, session],
+    [nfcEnabled, userHasEffectiveAdminScope, session, timetableEnabled],
   );
 
   // Visible "Eltern" accordion sub-pages. Same per-item gating the flat
@@ -536,7 +737,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
     () =>
       PARENT_SUB_PAGES.filter((page) => {
         switch (page.feature) {
-          case "overview":
           case "messages":
             return true;
           case "approvals":
@@ -555,16 +755,40 @@ function SidebarContent({ className = "" }: SidebarProps) {
     [userIsAdmin, session, canAnnounce, parentNewsEnabled, mealPlanEnabled],
   );
 
-  // Eltern badge: unread messages. Die Elternanfragen zählen seit #2429 am
-  // Top-Level-Eintrag "Anfragen", nicht mehr hier.
-  const parentSectionBadgeCount = messagesUnreadCount;
+  // Team-interne Seiten: Team-Chat ist Opt-in (operations.
+  // staff_messaging_enabled, Default aus) und fällt fail-closed weg; die
+  // Tagesinformationen liest jede Mitarbeiterin.
+  const communicationSubPages = useMemo(
+    () =>
+      COMMUNICATION_SUB_PAGES.filter((page) => {
+        switch (page.feature) {
+          case "teamChat":
+            return staffMessagingEnabled;
+          case "staffNotices":
+            return hasPermission(session, "users:read");
+        }
+      }),
+    [staffMessagingEnabled, session],
+  );
+
+  // Zähler an einzelnen Zeilen. Eine zugeklappte Gruppe summiert die Zähler
+  // ihrer Zeilen auf ihre Kopfzeile; die Elternanfragen zählen seit #2429 am
+  // Eintrag "Anfragen", nicht bei Nachrichten.
+  const rowBadgeCounts: Readonly<Record<string, number>> = {
+    "/anfragen": requestsPendingCount,
+    "/messages": messagesUnreadCount,
+    "/team-chat": teamChatUnreadCount,
+    "/tagesinformationen": staffNoticesPendingCount,
+  };
 
   // Filter flat navigation items based on permissions
   const filteredNavItems = NAV_ITEMS.filter((item) => {
-    // Anfragen (#2429): zwei Reiter mit getrennten Rechten. Die geteilte Regel
-    // deckt users:update, das Paar users:absence+users:read und
-    // vacation:approve ab — als requiresPermission nicht ausdrückbar.
-    if (item.href === "/anfragen") return canOpenRequestsPage(session);
+    // Anfragen (#2429/#2911): JWT-Rechte allein reichen nicht. Für
+    // Elternanfragen muss zusätzlich der aktuelle serverseitige Prüfbereich
+    // (Admin, Gruppenleitung oder Vertretung) gelten.
+    if (item.href === "/anfragen") {
+      return changeRequestAccess.canOpenRequestsPage;
+    }
     if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) return false;
     if (!nfcEnabled && NFC_ONLY_HREFS.has(item.href)) return false;
     if (isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) return false;
@@ -574,9 +798,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
     // Tagesauswertung (#1456) hängt am Anwesenheitsprotokoll-Gate
     // (gdpr.attendance_log_enabled, Opt-in, Default aus).
     if (!attendanceLogEnabled && item.href === "/day-log") return false;
-    // Team-Chat (#2598) ist Opt-in (operations.staff_messaging_enabled,
-    // Default aus): ohne Einschalten taucht der Eintrag gar nicht erst auf.
-    if (!staffMessagingEnabled && item.href === "/team-chat") return false;
+    // Tagesplan (#2383) nur an Schulen, die den Betreuungsplan nutzen. Das
+    // Flag kommt vom Tenant-Resolve und ist damit auch ohne config:read da.
+    if (!tagesplanEnabled && item.href === "/tagesplan") return false;
     if (item.alwaysShow) return true;
     // Permission-gated items (e.g. Änderungsanfragen on users:update): show for
     // admins or anyone holding the permission (any of them, for arrays),
@@ -649,8 +873,14 @@ function SidebarContent({ className = "" }: SidebarProps) {
     if (operatorDrillInHref) {
       return href === operatorDrillInHref;
     }
-    if (href === "/dashboard") return pathname === "/dashboard";
+    if (href === "/home") return pathname === "/home";
     if (href === "/parents") return pathname === "/parents" || pathname === "/";
+    // Planungsseiten zählen mit ihren Alt-Pfaden (/timetables,
+    // /staff/dienstplan, /vertretungsplan), damit ein alter Link die richtige
+    // Zeile markiert.
+    if (isPlanningPageHref(href)) {
+      return getActivePlanningSubPageHref(pathname) === href;
+    }
     // Schul-Portal (#2207): auf dem Schul-Host ist die Klassenansicht die
     // /staff/dienstplan has its own sidebar entry — don't also light up "Mitarbeiter"
     if (href === "/staff") {
@@ -695,32 +925,17 @@ function SidebarContent({ className = "" }: SidebarProps) {
     return !hasSubItemSelected;
   };
 
-  const getLinkClasses = (href: string, comingSoon?: boolean) => {
-    const baseClasses =
-      "flex items-center px-3 py-2.5 text-sm lg:px-4 lg:py-3 lg:text-base xl:px-3 xl:py-2.5 xl:text-sm rounded-lg transition-colors";
-
-    if (comingSoon) {
-      return `${baseClasses} text-gray-400 cursor-not-allowed`;
-    }
-
-    const activeClasses = "bg-gray-100 text-gray-900 font-semibold";
-    const inactiveClasses =
-      "text-gray-600 hover:bg-gray-50 hover:text-gray-900 font-medium";
-
-    return `${baseClasses} ${isActiveLink(href) ? activeClasses : inactiveClasses}`;
-  };
-
-  // Split items into main (scrollable) and bottom (pinned) sections
-  const mainNavItems = filteredNavItems.filter((item) => !item.bottomPinned);
-  const bottomNavItems = filteredNavItems.filter((item) => item.bottomPinned);
+  const getLinkClasses = (href: string, comingSoon?: boolean) =>
+    sidebarRowClasses({
+      isActive: isActiveLink(href),
+      isDisabled: comingSoon,
+    });
 
   const getIconClasses = (item: NavItem) => {
-    const base =
-      "mr-3 h-5 w-5 shrink-0 lg:mr-3.5 lg:h-[22px] lg:w-[22px] xl:mr-3 xl:h-5 xl:w-5 transition-colors";
     if (!item.comingSoon && item.activeColor && isActiveLink(item.href)) {
-      return `${base} ${item.activeColor}`;
+      return `${SIDEBAR_ICON_CLASSES} ${item.activeColor}`;
     }
-    return base;
+    return SIDEBAR_ICON_CLASSES;
   };
 
   const renderNavIcon = (item: NavItem) => {
@@ -732,8 +947,8 @@ function SidebarContent({ className = "" }: SidebarProps) {
           <MotoDuotoneIcon
             icon={concept.icon}
             tone={concept.tone}
-            size={22}
-            className="mr-3 h-5 w-5 lg:mr-3.5 lg:h-[22px] lg:w-[22px] xl:mr-3 xl:h-5 xl:w-5"
+            size={20}
+            className={SIDEBAR_ICON_CLASSES}
           />
         );
       }
@@ -741,7 +956,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
       const ConceptIcon = concept.icon;
       return (
         <ConceptIcon
-          size={22}
+          size={20}
           weight="regular"
           className={getIconClasses(item)}
           aria-hidden="true"
@@ -761,92 +976,174 @@ function SidebarContent({ className = "" }: SidebarProps) {
           strokeLinecap="round"
           strokeLinejoin="round"
           strokeWidth={2}
-          d={item.icon}
+          d={item.icon ?? ""}
         />
       </svg>
     );
   };
 
-  const renderNavItem = (item: NavItem) => (
-    <div key={item.comingSoon ? item.label : item.href}>
-      {item.comingSoon ? (
-        <div
-          className={`group ${getLinkClasses(item.href, true)}`}
-          title={tParentNav("comingSoonTooltip")}
-        >
-          {renderNavIcon(item)}
-          <span>{item.label}</span>
-          <span className="ml-2 rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-500 opacity-0 transition-opacity group-hover:opacity-100">
-            Bald
+  // Zähler an der Zeile. Ausgeklappt steht er rechts neben der Bezeichnung
+  // und blendet mit ihr aus; eingeklappt sitzt er als Punkt auf der Ecke des
+  // Icons und blendet gegengleich ein. Zwei Blenden über dieselbe Dauer statt
+  // eines Sprungs von rechts auf die Ecke (#2923). Für die Dauer der Blende
+  // stehen beide im Baum; der ausblendende ist `aria-hidden`, sonst läse ein
+  // Vorleseprogramm die Zahl zweimal.
+  const renderRowBadge = (href: string) => {
+    const count = rowBadgeCounts[href] ?? 0;
+    const badge = ROW_BADGE_LABELS[href];
+    if (count <= 0 || !badge) return null;
+    const ariaLabel =
+      href === "/anfragen" && count === 1
+        ? "1 offene Anfrage"
+        : `${count} ${badge.noun}`;
+    return (
+      <>
+        {labelsMounted && (
+          <span
+            aria-hidden={!labelsVisible}
+            className={`ml-2 shrink-0 motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-100" : "opacity-0"}`}
+          >
+            <NotificationBadge
+              count={count}
+              tone={badge.tone}
+              ariaLabel={ariaLabel}
+            />
           </span>
-        </div>
-      ) : (
-        <Link
-          href={
-            item.href === "/anfragen" || item.href === "/team-chat"
-              ? tenantPath(item.href)
-              : item.href
-          }
-          className={getLinkClasses(item.href)}
-          {...(item.newTab
-            ? { target: "_blank", rel: "noopener noreferrer" }
-            : {})}
-        >
-          {renderNavIcon(item)}
-          <span className="flex flex-1 items-center justify-between">
-            {item.label}
-            {item.href === "/anfragen" && (
-              <NotificationBadge
-                count={requestsPendingCount}
-                tone="staff"
-                ariaLabel={`${requestsPendingCount} ${requestsPendingCount === 1 ? "offene Anfrage" : "offene Anfragen"}`}
-                className="ml-2"
-              />
-            )}
-            {item.href === "/team-chat" && (
-              <NotificationBadge
-                count={teamChatUnreadCount}
-                tone="staff"
-                ariaLabel={`${teamChatUnreadCount} ungelesene Nachrichten im Team-Chat`}
-                className="ml-2"
-              />
-            )}
+        )}
+        {collapsed && (
+          <span
+            aria-hidden={labelsVisible}
+            className={`absolute top-1 right-1 motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-0" : "opacity-100"}`}
+          >
+            <NotificationBadge
+              count={count}
+              tone={badge.tone}
+              size="sm"
+              ariaLabel={ariaLabel}
+            />
           </span>
-        </Link>
-      )}
-    </div>
-  );
+        )}
+      </>
+    );
+  };
 
-  // Determine which flat items come before / after the accordion insertion points
-  // Order: Home, groups, supervisions, search, activities, rooms, staff,
-  // substitutions, database, coming soon, bottom pinned.
-  const beforeAccordionItems = mainNavItems.filter(
-    (item) =>
-      item.href === "/dashboard" ||
-      (item.href === "/students/search" && !item.comingSoon),
-  );
+  // Gemeinsame Klapp-Eigenschaften jedes Akkordeon-Bereichs. Der Klick aus
+  // dem eingeklappten Streifen heraus klappt die Leiste auf und öffnet den
+  // Bereich — sein Inhalt passt nicht in 64px Breite. `onExpandFromRail`
+  // räumt dabei den Unterzustand des Bereichs auf, den der Streifen nicht
+  // zeigen konnte.
+  const sectionProps = (
+    accordion: string,
+    onToggle: () => void,
+    onExpandFromRail?: () => void,
+  ) => ({
+    collapsed,
+    labelsMounted,
+    labelsVisible,
+    onToggle: () => {
+      if (!collapsed) {
+        onToggle();
+        return;
+      }
+      onExpandSidebar();
+      onExpandFromRail?.();
+      if (expanded !== accordion) onToggle();
+    },
+  });
 
-  // Items between Kindersuche and Database accordion
-  const middleItems = mainNavItems.filter(
-    (item) =>
-      !item.comingSoon &&
-      item.href !== "/dashboard" &&
-      item.href !== "/students/search" &&
-      item.href !== "/substitutions",
-  );
+  const renderNavItem = (item: NavItem) => {
+    // "Bald"-Einträge sagen im Streifen nichts aus: ein Icon ohne Ziel und
+    // ohne Hinweis. Sie bleiben der ausgeklappten Leiste vorbehalten.
+    if (item.comingSoon && collapsed && !labelsMounted) return null;
 
-  // Gruppenzugriff (admin only, flat) — nur bei festen Gruppen relevant
-  const substitutionsItem = mainNavItems.find(
-    (item) => item.href === "/substitutions",
-  );
+    return (
+      <div key={item.comingSoon ? item.label : item.href}>
+        {item.comingSoon ? (
+          <div
+            className={getLinkClasses(item.href, true)}
+            title={tParentNav("comingSoonTooltip")}
+          >
+            {renderNavIcon(item)}
+            {labelsMounted && (
+              <>
+                <span className={sidebarLabelClasses(labelsVisible)}>
+                  {item.label}
+                </span>
+                <span className="ml-2 shrink-0 rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-500 opacity-0 transition-opacity group-hover:opacity-100">
+                  Bald
+                </span>
+              </>
+            )}
+          </div>
+        ) : (
+          <NavLink
+            href={
+              TENANT_SCOPED_HREFS.has(item.href)
+                ? tenantPath(item.href)
+                : item.href
+            }
+            className={getLinkClasses(item.href)}
+            {...(collapsed
+              ? { title: item.label, "aria-label": item.label }
+              : {})}
+            {...(item.newTab
+              ? { target: "_blank", rel: "noopener noreferrer" }
+              : {})}
+          >
+            {renderNavIcon(item)}
+            {labelsMounted && (
+              <span className={sidebarLabelClasses(labelsVisible)}>
+                {item.label}
+              </span>
+            )}
+            {renderRowBadge(item.href)}
+          </NavLink>
+        )}
+      </div>
+    );
+  };
 
-  // Coming soon items
-  const comingSoonItems = mainNavItems.filter((item) => item.comingSoon);
+  // Die Katalogseiten der Gruppen Eltern, Team und Planung als Zeilen, mit
+  // denselben Sichtbarkeitsregeln wie früher als Unterpunkte ihrer
+  // Akkordeons. Symbol aus dem geteilten Baum, damit Desktop und Mobil
+  // dasselbe Bild zeigen.
+  const catalogNavItems: NavItem[] = [
+    ...parentSubPages,
+    ...communicationSubPages,
+    ...planningSubPages,
+  ].map((page) => ({
+    href: page.href,
+    label: page.label,
+    concept: STAFF_NAV_CONCEPTS[page.href],
+  }));
+
+  // Alles, was die Person sehen darf, nach Pfad. Der Baum in
+  // staff-navigation.ts bestimmt, wo (und ob) eine Zeile erscheint.
+  const visibleItemsByHref = new Map<string, NavItem>();
+  for (const item of [...filteredNavItems, ...catalogNavItems]) {
+    visibleItemsByHref.set(item.href, item);
+  }
 
   // Get current search params for group/room selection
   const currentGroupParam = searchParams.get("group");
   const currentRoomParam = searchParams.get("room");
   const currentSessionParam = searchParams.get("session");
+  const personalGroups = useMemo(
+    () => groups.filter((group) => group.is_personal !== false),
+    [groups],
+  );
+  const otherGroups = useMemo(
+    () => groups.filter((group) => group.is_personal === false),
+    [groups],
+  );
+  // `null` heißt: der Unterbereich richtet sich nach der geöffneten Gruppe.
+  // Ein Klick setzt ihn auf `true`/`false` und übersteuert die Auswahl damit.
+  // Ohne diese Übersteuerung hielte eine geöffnete fremde Gruppe "Weitere
+  // Gruppen" dauerhaft offen — "Meine Gruppen" ließe sich dann gar nicht mehr
+  // aufklappen, auch nicht über das Icon im eingeklappten Streifen (#2923).
+  const [otherGroupsExpanded, setOtherGroupsExpanded] = useState<
+    boolean | null
+  >(null);
 
   // On child pages (e.g. student detail with ?from=/ogs-groups), determine
   // which sub-item should stay highlighted using the last selection from localStorage.
@@ -857,6 +1154,13 @@ function SidebarContent({ className = "" }: SidebarProps) {
     "sidebar-last-group",
     childFromParam?.startsWith("/ogs-groups") ?? false,
   );
+  const hasSelectedOtherGroup = otherGroups.some(
+    (group) =>
+      group.id.toString() === currentGroupParam ||
+      group.id.toString() === childGroupId,
+  );
+  const areOtherGroupsExpanded =
+    expanded === "groups" && (otherGroupsExpanded ?? hasSelectedOtherGroup);
   const childRoomId = useLocalStorageValue(
     "sidebar-last-room",
     childFromParam?.startsWith("/active-supervisions") ?? false,
@@ -865,6 +1169,12 @@ function SidebarContent({ className = "" }: SidebarProps) {
     "supervision-last-session",
     childFromParam?.startsWith("/active-supervisions") ?? false,
   );
+
+  useEffect(() => {
+    if (expanded !== "groups") {
+      setOtherGroupsExpanded(null);
+    }
+  }, [expanded]);
 
   // Persist last selected sub-item per accordion section to localStorage.
   // Pages read this on mount to restore the user's last selection.
@@ -904,20 +1214,33 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // Toggle accordion AND navigate to the correct URL (with last-selected sub-item).
   // Reads localStorage at click-time so the page loads with the right param immediately.
   const handleGroupsToggle = useCallback(() => {
+    if (
+      expanded === "groups" &&
+      (otherGroupsExpanded ?? hasSelectedOtherGroup)
+    ) {
+      setOtherGroupsExpanded(false);
+      return;
+    }
     toggle("groups");
     if (!pathname.startsWith("/ogs-groups")) {
       const savedGroupId = localStorage.getItem("sidebar-last-group");
       const targetGroup = savedGroupId
-        ? groups.find((g) => g.id.toString() === savedGroupId)
-        : groups[0];
-      const groupId = targetGroup?.id ?? groups[0]?.id;
+        ? personalGroups.find((g) => g.id.toString() === savedGroupId)
+        : personalGroups[0];
+      const groupId = targetGroup?.id ?? personalGroups[0]?.id;
       if (groupId) {
         router.push(`/ogs-groups?group=${groupId}`);
-      } else {
-        router.push("/ogs-groups");
       }
     }
-  }, [toggle, pathname, groups, router]);
+  }, [
+    expanded,
+    hasSelectedOtherGroup,
+    otherGroupsExpanded,
+    pathname,
+    personalGroups,
+    router,
+    toggle,
+  ]);
 
   const handleSupervisionsToggle = useCallback(() => {
     toggle("supervisions");
@@ -950,18 +1273,29 @@ function SidebarContent({ className = "" }: SidebarProps) {
   }, [toggle, pathname, supervisedRooms, router]);
 
   const handleDatabaseToggle = useCallback(() => {
+    // Der Hub ist dem Leitungsbereich vorbehalten. Delegierte Personen haben
+    // nur einen oder mehrere Kataloge und starten deshalb beim ersten
+    // erreichbaren Unterpunkt statt auf einer gesperrten Hub-Seite.
+    const databaseLandingPath = userHasEffectiveAdminScope
+      ? "/database"
+      : databaseSubPages[0]?.href;
     if (!pathname.startsWith("/database")) {
-      // Not on any database page, expand accordion and navigate to hub
+      // Not on any database page, expand accordion and navigate to its
+      // reachable landing page.
       toggle("database");
-      router.push("/database");
+      if (databaseLandingPath) router.push(databaseLandingPath);
     } else if (pathname === "/database") {
       // On hub page, just toggle collapse or expand
+      toggle("database");
+    } else if (!userHasEffectiveAdminScope) {
+      // Delegated users have no hub to return to; keep them on their allowed
+      // catalog and let the control act as the accordion toggle.
       toggle("database");
     } else {
       // On a sub-page like /database/rooms, navigate back to hub
       router.push("/database");
     }
-  }, [toggle, pathname, router]);
+  }, [databaseSubPages, toggle, pathname, router, userHasEffectiveAdminScope]);
 
   const activeEnrollmentSubPageHref = getActiveEnrollmentSubPageHref(pathname);
   const isOnEnrollmentsPage = activeEnrollmentSubPageHref !== null;
@@ -981,50 +1315,12 @@ function SidebarContent({ className = "" }: SidebarProps) {
     }
   }, [toggle, pathname, router]);
 
-  const activePlanningSubPageHref = getActivePlanningSubPageHref(pathname);
-  const isOnPlanningPage = activePlanningSubPageHref !== null;
-
-  // Hub = die erste sichtbare Unterseite: der Betreuungsplan, bzw. bei
-  // abgeschaltetem timetable.enabled die Kalenderzeiträume — sonst führte der
-  // Header-Klick auf die "deaktiviert"-Hinweisseite.
-  const planningHubHref = planningSubPages[0]?.href ?? "/betreuungsplan";
-
-  const handlePlanningToggle = useCallback(() => {
-    // Navigate-on-expand wie bei den anderen Akkordeons, damit der Klick auf
-    // den Bereichs-Header immer auf einer nützlichen Seite landet.
-    const onSection = getActivePlanningSubPageHref(pathname) !== null;
-    if (!onSection) {
-      toggle("planning");
-      router.push(planningHubHref);
-    } else if (pathname === planningHubHref) {
-      toggle("planning");
-    } else {
-      router.push(planningHubHref);
-    }
-  }, [toggle, pathname, router, planningHubHref]);
-
-  const activeParentSubPageHref = getActiveParentSubPageHref(pathname);
-  const isOnParentPage = activeParentSubPageHref !== null;
-
-  const handleParentToggle = useCallback(() => {
-    // Hub = the /eltern overview. Mirrors the other accordions'
-    // navigate-on-expand behavior so the section label lands on a real page.
-    const onSection = getActiveParentSubPageHref(pathname) !== null;
-    if (!onSection) {
-      toggle("eltern");
-      router.push("/eltern");
-    } else if (pathname === "/eltern") {
-      toggle("eltern");
-    } else {
-      router.push("/eltern");
-    }
-  }, [toggle, pathname, router]);
-
   // Caregivers see their own supervision. A successful overview request also
   // covers effective admins and verified staff under all_staff (#2380).
   // overviewEnabled avoids the synthetic Schulhof entry triggering the
   // accordion when the school keeps everyone on their own supervisions.
   const showStaffAccordions = userIsCaregiver || overviewEnabled;
+  const showGroupAccordion = showStaffAccordions || userHasEffectiveAdminScope;
 
   // Resolve operator nav hrefs once (operatorPath is deterministic for the page lifetime)
   const resolvedOperatorSections = useMemo(
@@ -1041,33 +1337,43 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // Operator mode: sectioned navigation (static labels, no accordions)
   if (mode === "operator") {
     const renderOperatorItem = (item: NavItem) => (
-      <Link
+      <NavLink
         key={item.href}
         href={item.href}
         className={getLinkClasses(item.href)}
+        {...(collapsed ? { title: item.label, "aria-label": item.label } : {})}
       >
         {renderNavIcon(item)}
-        <span className="flex flex-1 items-center justify-between">
-          {item.label}
-        </span>
-      </Link>
+        {labelsMounted && (
+          <span className={sidebarLabelClasses(labelsVisible)}>
+            {item.label}
+          </span>
+        )}
+      </NavLink>
     );
 
     return (
-      <aside
-        className={`min-h-screen w-64 border-r border-gray-200/70 bg-white/95 ${className}`}
-      >
-        <div className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col">
-          <nav className="flex-1 overflow-y-auto p-3 lg:p-4 xl:p-3">
+      <aside className={asideClasses(collapsed, className)}>
+        <div className={stickyClasses(collapsed, isPreview)}>
+          <nav
+            className={`${collapsed ? "scrollbar-hidden" : ""} flex-1 overflow-y-auto ${SIDEBAR_NAV_PADDING}`}
+          >
             {resolvedOperatorSections.map((section, index) => (
               <div
                 key={section.label}
                 className={index > 0 ? "mt-5" : undefined}
               >
-                <p className="mb-1.5 px-3 text-[10px] font-semibold tracking-wider text-gray-400 uppercase lg:px-4 xl:px-3">
+                {/* Die Bereichsüberschrift behält im Streifen ihre Höhe und
+                    blendet nur aus: so bleibt die Gruppierung als Abstand
+                    erhalten und die Icons darunter springen beim Klappen
+                    nicht nach oben. */}
+                <p
+                  className={`mb-1.5 truncate px-3 text-xs font-semibold tracking-wider text-gray-400 uppercase motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-100" : "opacity-0"}`}
+                  aria-hidden={collapsed}
+                >
                   {section.label}
                 </p>
-                <div className="space-y-1">
+                <div className={SIDEBAR_NAV_GAP}>
                   {section.items.map(renderOperatorItem)}
                 </div>
               </div>
@@ -1078,310 +1384,383 @@ function SidebarContent({ className = "" }: SidebarProps) {
     );
   }
 
-  return (
-    <aside
-      className={`min-h-screen w-64 border-r border-gray-200/70 bg-white/95 ${className}`}
-    >
-      <div className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col">
-        {/* Main navigation, scrollable */}
-        <nav className="flex-1 space-y-1 overflow-y-auto p-3 lg:p-4 xl:p-3">
-          {/* Home (admin only) */}
-          {beforeAccordionItems
-            .filter((item) => item.href === "/dashboard")
-            .map(renderNavItem)}
-
-          {/* Meine Gruppen accordion (staff only; hidden in open-care group
-              mode because there is no concept of "meine Gruppe" — staff work
-              with all children instead, #1544) */}
-          {showStaffAccordions && !openCareGroupMode && (
-            <SidebarAccordionSection
-              icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-              concept="groups"
-              label={
-                groups.length > 1
-                  ? "Meine Gruppen"
-                  : [
-                      "Meine Gruppe",
-                      formatGroupAttendanceCount(groups[0]?.id ?? ""),
-                    ]
-                      .filter(Boolean)
-                      .join(" ")
-              }
-              activeColor="text-moto-green"
-              isExpanded={expanded === "groups"}
-              onToggle={handleGroupsToggle}
-              isActive={isAccordionSectionActive(
-                "/ogs-groups",
-                Boolean(currentGroupParam) ||
-                  Boolean(childGroupId) ||
-                  groups.length > 0,
-              )}
-              isIconActive={
-                pathname.startsWith("/ogs-groups") || Boolean(childGroupId)
-              }
-              isLoading={isLoadingGroups}
-              emptyText="Keine Gruppen zugeordnet"
-              hasChildren={groups.length > 0}
-            >
-              {groups.map((group, index) => (
-                <SidebarSubItem
-                  key={group.id}
-                  href={`/ogs-groups?group=${group.id}`}
-                  label={group.name}
-                  count={formatGroupAttendanceCount(group.id)}
-                  isActive={isGroupSubItemActive(
-                    childGroupId,
-                    group.id.toString(),
-                    pathname,
-                    currentGroupParam,
-                    index,
-                  )}
-                />
-              ))}
-            </SidebarAccordionSection>
+  // Die vier Akkordeon-Bereiche, jeder als Zeile innerhalb seiner Gruppe
+  // (#2826). Meine Gruppen mit Weitere Gruppen darunter: tenant staff/admin,
+  // hidden in open-care mode.
+  const renderGroupsSection = () =>
+    showGroupAccordion && !openCareGroupMode ? (
+      <>
+        <SidebarAccordionSection
+          icon={GROUP_NAV_ICON}
+          concept="groups"
+          label="Meine Gruppen"
+          activeColor="text-moto-green"
+          isExpanded={expanded === "groups" && !areOtherGroupsExpanded}
+          {...sectionProps("groups", handleGroupsToggle, () =>
+            // Das Icon im Streifen heißt "Meine Gruppen". Ohne diesen
+            // Rücksetzer öffnet es die Leiste im zuletzt gewählten
+            // Unterbereich "Weitere Gruppen" — die eigenen Gruppen
+            // blieben dann zu, obwohl man sie angeklickt hat.
+            setOtherGroupsExpanded(false),
           )}
-
-          {/* Aktuelle Aufsicht accordion (staff only; hidden in binary mode
-              because room-level supervision has no meaning without visits) */}
-          {showStaffAccordions && !isBinaryMode && (
-            <SidebarAccordionSection
-              icon="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-              concept="supervision"
-              label={
-                supervisedRooms.length > 1
-                  ? "Aktuelle Aufsichten"
-                  : "Aktuelle Aufsicht"
-              }
-              activeColor="text-violet-500"
-              isExpanded={expanded === "supervisions"}
-              onToggle={handleSupervisionsToggle}
-              isActive={isAccordionSectionActive(
-                "/active-supervisions",
-                Boolean(currentRoomParam) ||
-                  Boolean(childRoomId) ||
-                  supervisedRooms.length > 0,
-              )}
-              isIconActive={
-                pathname.startsWith("/active-supervisions") ||
-                Boolean(childRoomId)
-              }
-              isLoading={isLoadingSupervision}
-              emptyText="Keine aktive Aufsicht"
-              hasChildren={supervisedRooms.length > 0}
-            >
-              {supervisedRooms.map((room, index) => (
-                <SidebarSubItem
-                  key={`${room.id}-${room.groupId ?? index}`}
-                  href={
-                    room.isSchulhof
-                      ? `/active-supervisions?session=schulhof`
-                      : `/active-supervisions?session=${room.groupId}`
-                  }
-                  label={room.name}
-                  isActive={isRoomSubItemActive(
-                    childSessionId,
-                    childRoomId,
-                    room.isSchulhof ? "schulhof" : room.groupId,
-                    room.isSchulhof ? "schulhof" : room.id,
-                    pathname,
-                    currentSessionParam,
-                    currentRoomParam,
-                    index,
-                  )}
-                />
-              ))}
-            </SidebarAccordionSection>
+          isActive={isAccordionSectionActive(
+            "/ogs-groups",
+            Boolean(currentGroupParam) ||
+              Boolean(childGroupId) ||
+              groups.length > 0,
           )}
-
-          {/* Alle Kinder (flat) */}
-          {beforeAccordionItems
-            .filter((item) => item.href === "/students/search")
-            .map(renderNavItem)}
-
-          {/* Flat middle items: Aktivitaten, Raume, Mitarbeiter */}
-          {middleItems.map(renderNavItem)}
-
-          {/* Gruppenzugriff (admin, flat) — nur bei festen Gruppen (#1940) */}
-          {substitutionsItem &&
-            !openCareGroupMode &&
-            renderNavItem(substitutionsItem)}
-
-          {/* Eltern accordion — bundles the parent-communication surfaces
-              (Nachrichten, Konto-Anfragen, Mitteilungen, Essensplan) behind an
-              overview hub. Shown to all staff; sub-items are gated per item.
-              Die Elternanfragen leben seit #2429 im Top-Level-Modul
-              "Anfragen". */}
-          <SidebarAccordionSection
-            icon={navigationIcons.parents}
-            concept="parents"
-            label={PARENT_SECTION.label}
-            activeColor="text-moto-blue"
-            isExpanded={expanded === "eltern"}
-            onToggle={handleParentToggle}
-            isActive={isOnParentPage}
-            isIconActive={isOnParentPage}
-            hasChildren={parentSubPages.length > 0}
-            badgeCount={parentSectionBadgeCount}
+          isIconActive={
+            pathname.startsWith("/ogs-groups") || Boolean(childGroupId)
+          }
+          isLoading={isLoadingGroups}
+          emptyText="Keine eigenen Gruppen"
+          hasChildren={personalGroups.length > 0}
+        >
+          {personalGroups.map((group, index) => (
+            <SidebarSubItem
+              key={group.id}
+              href={`/ogs-groups?group=${group.id}`}
+              label={group.name}
+              count={formatGroupAttendanceCount(group.id)}
+              isActive={isGroupSubItemActive(
+                childGroupId,
+                group.id.toString(),
+                pathname,
+                currentGroupParam,
+                index,
+              )}
+            />
+          ))}
+        </SidebarAccordionSection>
+        {/* "Weitere Gruppen" trägt dasselbe Icon wie "Meine Gruppen".
+                  Ausgeklappt trennen die Bezeichnungen die beiden Bereiche;
+                  im Streifen stünden zwei nicht unterscheidbare Icons
+                  untereinander, deshalb bleibt der zweite dort weg.
+                  Er verschwindet aber nicht schlagartig: für die Dauer der
+                  Bewegung bleibt der Bereich mit seinen offenen Unterpunkten
+                  stehen, blendet aus und zieht seine ganze Höhe mit derselben
+                  Kurve auf null wie die Breite der Leiste. Ohne das sprängen
+                  die Zeilen darunter im ersten Bild um die volle Höhe des
+                  offenen Bereichs hoch — genau der zweite Sprung, den dieser
+                  PR beseitigt. Beim Aufklappen läuft dieselbe Bewegung
+                  rückwärts: der Bereich wächst mit der Breite auf und wird
+                  erst dabei durch seine Bezeichnung unterscheidbar. */}
+        {otherGroups.length > 0 && (!collapsed || labelsMounted) && (
+          <div
+            aria-hidden={!labelsVisible}
+            className={`grid motion-safe:transition-[grid-template-rows,opacity] motion-safe:duration-200 motion-safe:ease-in-out ${
+              labelsVisible
+                ? "grid-rows-[1fr] opacity-100"
+                : "grid-rows-[0fr] opacity-0"
+            }`}
           >
-            {parentSubPages.map((page) => (
-              <SidebarSubItem
-                key={page.href}
-                // Every Eltern sub-page is a tenant-scoped [tenant]/… route
-                // (/eltern, /messages, /admin/guardian-approvals, /meal-plan,
-                // …). In path-routing mode a bare href is either captured as
-                // the tenant slug ("/eltern") or leaves the current tenant path
-                // entirely ("/messages" → wrong slug / missing route), so
-                // prefix all of them via tenantPath — matching the accordion
-                // header's tenant-aware router.push and the /eltern page's
-                // card links. No-op in subdomain mode.
-                href={tenantPath(page.href)}
-                label={page.label}
-                isActive={activeParentSubPageHref === page.href}
-                badgeCount={
-                  page.feature === "messages" ? messagesUnreadCount : 0
+            {/* inert: der ausblendende Bereich darf keinen
+                      Tastaturfokus mehr fangen. */}
+            <div className="overflow-hidden" inert={!labelsVisible}>
+              <SidebarAccordionSection
+                icon={GROUP_NAV_ICON}
+                concept="groups"
+                label="Weitere Gruppen"
+                activeColor="text-moto-green"
+                isExpanded={areOtherGroupsExpanded}
+                collapsed={collapsed}
+                labelsMounted={labelsMounted}
+                labelsVisible={labelsVisible}
+                // Die Hülle darüber zieht die ganze Höhe des offenen
+                // Bereichs zusammen. Der Inhalt behält seine Höhe
+                // solange bei, sonst liefen zwei geschachtelte
+                // Höhenbewegungen und die Zeilen darunter bewegten sich
+                // zweimal (#2923).
+                keepBodyExpandedWhileCollapsing={labelsMounted}
+                onToggle={() => {
+                  // Aus dem Streifen heraus zuerst aufklappen: die
+                  // Untergruppen sind sonst nicht sichtbar.
+                  if (collapsed) onExpandSidebar();
+                  if (expanded !== "groups") {
+                    toggle("groups");
+                  }
+                  setOtherGroupsExpanded(
+                    (current) => !(current ?? hasSelectedOtherGroup),
+                  );
+                }}
+                isActive={isAccordionSectionActive(
+                  "/ogs-groups",
+                  Boolean(currentGroupParam) || Boolean(childGroupId),
+                )}
+                isIconActive={
+                  pathname.startsWith("/ogs-groups") || Boolean(childGroupId)
                 }
-              />
-            ))}
-          </SidebarAccordionSection>
+                hasChildren
+              >
+                {otherGroups.map((group, index) => (
+                  <SidebarSubItem
+                    key={group.id}
+                    href={`/ogs-groups?group=${group.id}`}
+                    label={group.name}
+                    count={formatGroupAttendanceCount(group.id)}
+                    isActive={isGroupSubItemActive(
+                      childGroupId,
+                      group.id.toString(),
+                      pathname,
+                      currentGroupParam,
+                      personalGroups.length + index,
+                    )}
+                  />
+                ))}
+              </SidebarAccordionSection>
+            </div>
+          </div>
+        )}
+      </>
+    ) : null;
 
-          {/* Datenverwaltung accordion (admin only) */}
-          {userIsAdmin && (
-            <SidebarAccordionSection
-              icon="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"
-              concept="database"
-              label={DATABASE_SECTION.label}
-              activeColor="text-gray-500"
-              isExpanded={expanded === "database"}
-              onToggle={handleDatabaseToggle}
-              isActive={isAccordionSectionActive(
-                "/database",
-                databaseSubPages.some((p) => pathname === p.href),
-              )}
-              isIconActive={pathname.startsWith("/database")}
-              hasChildren={databaseSubPages.length > 0}
-            >
-              {databaseSubPages.map((page) => (
-                <SidebarSubItem
-                  key={page.href}
-                  // Tenant-scoped [tenant]/… routes: in path-routing mode a
-                  // bare "/database/exports" makes the router read "database"
-                  // as the tenant slug, so prefix via tenantPath like the
-                  // Eltern accordion. No-op in subdomain mode.
-                  href={tenantPath(page.href)}
-                  label={page.label}
-                  isActive={pathname === page.href}
-                />
-              ))}
-            </SidebarAccordionSection>
-          )}
+  // Aktuelle Aufsicht (staff only; hidden in binary mode because room-level
+  // supervision has no meaning without visits).
+  const renderSupervisionsSection = () =>
+    showStaffAccordions && !isBinaryMode ? (
+      <SidebarAccordionSection
+        icon={SUPERVISION_NAV_ICON}
+        concept="supervision"
+        label={
+          supervisedRooms.length > 1
+            ? "Aktuelle Aufsichten"
+            : "Aktuelle Aufsicht"
+        }
+        activeColor="text-moto-purple"
+        isExpanded={expanded === "supervisions"}
+        {...sectionProps("supervisions", handleSupervisionsToggle)}
+        isActive={isAccordionSectionActive(
+          "/active-supervisions",
+          Boolean(currentRoomParam) ||
+            Boolean(childRoomId) ||
+            supervisedRooms.length > 0,
+        )}
+        isIconActive={
+          pathname.startsWith("/active-supervisions") || Boolean(childRoomId)
+        }
+        isLoading={isLoadingSupervision}
+        emptyText="Keine aktive Aufsicht"
+        hasChildren={supervisedRooms.length > 0}
+      >
+        {supervisedRooms.map((room, index) => (
+          <SidebarSubItem
+            key={`${room.id}-${room.groupId ?? index}`}
+            href={
+              room.isSchulhof
+                ? `/active-supervisions?session=schulhof`
+                : `/active-supervisions?session=${room.groupId}`
+            }
+            label={room.name}
+            isActive={isRoomSubItemActive(
+              childSessionId,
+              childRoomId,
+              room.isSchulhof ? "schulhof" : room.groupId,
+              room.isSchulhof ? "schulhof" : room.id,
+              pathname,
+              currentSessionParam,
+              currentRoomParam,
+              index,
+            )}
+          />
+        ))}
+      </SidebarAccordionSection>
+    ) : null;
 
-          {/* Planung accordion (#1946) — bündelt Betreuungsplan, Dienstplan,
-              Vertretung und Kalenderzeiträume für Admins. Bei explizit
-              ausgeschaltetem timetable.enabled bleiben für Admins
-              Kalenderzeiträume und Abrechnung übrig.
+  // Datenverwaltung: Hub-Seite plus Unterseiten für berechtigte Personen.
+  const renderDatabaseSection = () =>
+    databaseSubPages.length > 0 ? (
+      <SidebarAccordionSection
+        icon={DATABASE_NAV_ICON}
+        concept="database"
+        label={DATABASE_SECTION.label}
+        activeColor="text-gray-500"
+        isExpanded={expanded === "database"}
+        {...sectionProps("database", handleDatabaseToggle)}
+        isActive={isAccordionSectionActive(
+          "/database",
+          databaseSubPages.some((p) => pathname === p.href),
+        )}
+        isIconActive={pathname.startsWith("/database")}
+        hasChildren={databaseSubPages.length > 0}
+      >
+        {databaseSubPages.map((page) => (
+          <SidebarSubItem
+            key={page.href}
+            // Tenant-scoped [tenant]/… routes: in path-routing mode a
+            // bare "/database/exports" makes the router read "database"
+            // as the tenant slug, so prefix via tenantPath like the
+            // Eltern accordion. No-op in subdomain mode.
+            href={tenantPath(page.href)}
+            label={page.label}
+            isActive={pathname === page.href}
+          />
+        ))}
+      </SidebarAccordionSection>
+    ) : null;
 
-              Nicht-Admins erreichen die Betreuungsplan-Leseansicht (#2283)
-              als Tab in "Mein Kalender"; das Akkordeon zeigt ihnen nur
-              Seiten mit gehaltener nonAdminPermission (heute: Abrechnung
-              über config:manage). */}
-          {planningSubPages.length > 0 && (
-            <SidebarAccordionSection
-              icon={navigationIcons.betreuungsplan}
-              concept="carePlan"
-              label={PLANNING_SECTION.label}
-              activeColor="text-moto-blue"
-              isExpanded={expanded === "planning"}
-              onToggle={handlePlanningToggle}
-              isActive={isOnPlanningPage}
-              isIconActive={isOnPlanningPage}
-              hasChildren={planningSubPages.length > 0}
-            >
-              {planningSubPages.map((page) => (
-                <SidebarSubItem
-                  key={page.href}
-                  // Tenant-scoped [tenant]/… Routen: im Path-Routing-Modus
-                  // via tenantPath prefixen (No-op im Subdomain-Modus),
-                  // wie beim Eltern-/Datenverwaltung-Akkordeon.
-                  href={tenantPath(page.href)}
-                  label={page.label}
-                  isActive={activePlanningSubPageHref === page.href}
-                />
-              ))}
-            </SidebarAccordionSection>
-          )}
+  // Anmeldungen (admin only): the setup hub, enrollment periods, offers and
+  // enrollment forms. Sits in the Eltern group, below the parent pages.
+  const renderEnrollmentsSection = () =>
+    userIsAdmin ? (
+      <SidebarAccordionSection
+        icon={ENROLLMENT_NAV_ICON}
+        concept="enrollments"
+        label={ENROLLMENT_SECTION.label}
+        activeColor="text-moto-green"
+        isExpanded={expanded === "enrollments"}
+        {...sectionProps("enrollments", handleEnrollmentsToggle)}
+        isActive={isOnEnrollmentsPage}
+        isIconActive={isOnEnrollmentsPage}
+        hasChildren={ENROLLMENT_SUB_PAGES.length > 0}
+      >
+        {ENROLLMENT_SUB_PAGES.map((page) => (
+          <SidebarSubItem
+            key={page.href}
+            href={page.href}
+            label={page.label}
+            isActive={activeEnrollmentSubPageHref === page.href}
+          />
+        ))}
+      </SidebarAccordionSection>
+    ) : null;
 
-          {/* Anmeldungen accordion (admin only). Bundles the setup hub,
-              enrollment periods, offers and enrollment forms for admins. */}
-          {userIsAdmin && (
-            <SidebarAccordionSection
-              icon="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-              concept="enrollments"
-              label={ENROLLMENT_SECTION.label}
-              activeColor="text-moto-green"
-              isExpanded={expanded === "enrollments"}
-              onToggle={handleEnrollmentsToggle}
-              isActive={isOnEnrollmentsPage}
-              isIconActive={isOnEnrollmentsPage}
-              hasChildren={ENROLLMENT_SUB_PAGES.length > 0}
-            >
-              {ENROLLMENT_SUB_PAGES.map((page) => (
-                <SidebarSubItem
-                  key={page.href}
-                  href={page.href}
-                  label={page.label}
-                  isActive={activeEnrollmentSubPageHref === page.href}
-                />
-              ))}
-            </SidebarAccordionSection>
-          )}
+  const renderSection = (key: StaffNavSectionKey) => {
+    switch (key) {
+      case "groups":
+        return renderGroupsSection();
+      case "supervisions":
+        return renderSupervisionsSection();
+      case "database":
+        return renderDatabaseSection();
+      case "enrollments":
+        return renderEnrollmentsSection();
+    }
+  };
 
-          {/* Coming soon items */}
-          {comingSoonItems.map(renderNavItem)}
+  // Eine Zeile des Baums: eine sichtbare Seite oder ein Akkordeon-Bereich.
+  // `null`, wenn die Person die Seite nicht sehen darf — die Gruppe rückt
+  // dann zusammen.
+  const renderEntry = (entry: StaffNavEntry) => {
+    if (entry.kind === "page") {
+      const item = visibleItemsByHref.get(entry.href);
+      return item ? renderNavItem(item) : null;
+    }
+    const node = renderSection(entry.section);
+    return node ? <Fragment key={entry.section}>{node}</Fragment> : null;
+  };
+
+  // Steht die aktuelle Seite in diesem Eintrag? Die Kopfzeile einer
+  // zugeklappten Gruppe zeigt das an ihrem Icon.
+  const isEntryActive = (entry: StaffNavEntry): boolean => {
+    if (entry.kind === "page") return isActiveLink(entry.href);
+    switch (entry.section) {
+      case "groups":
+        return pathname.startsWith("/ogs-groups") || Boolean(childGroupId);
+      case "supervisions":
+        return (
+          pathname.startsWith("/active-supervisions") || Boolean(childRoomId)
+        );
+      case "database":
+        return pathname.startsWith("/database");
+      case "enrollments":
+        return isOnEnrollmentsPage;
+    }
+  };
+
+  const entryBadgeCount = (entry: StaffNavEntry) =>
+    entry.kind === "page" && visibleItemsByHref.has(entry.href)
+      ? (rowBadgeCounts[entry.href] ?? 0)
+      : 0;
+
+  return (
+    <aside className={asideClasses(collapsed, className)}>
+      <div className={stickyClasses(collapsed, isPreview)}>
+        {/* Main navigation, scrollable.
+            Der Rollbalken bleibt ausgeklappt sichtbar — er ist dort der
+            einzige Hinweis, dass unten noch Einträge folgen. Nur im
+            64px-Streifen wird er ausgeblendet, wo er ein Viertel der Breite
+            einnähme (Muster: VS-Code-Aktivitätsleiste). */}
+        <nav
+          className={`${collapsed ? "scrollbar-hidden" : ""} flex-1 overflow-y-auto ${SIDEBAR_NAV_GAP} ${SIDEBAR_NAV_PADDING}`}
+        >
+          {/* Startseite der Rolle: Home für Admins, Tagesplan (#2383) für
+              Betreuungskräfte — über den Gruppen, wie bisher. */}
+          {STAFF_NAV_TOP.map(renderEntry)}
+
+          {/* Die fünf Gruppen (#2826), in der Reihenfolge des Baums. Eine
+              Gruppe ohne sichtbare Zeile fällt weg. */}
+          {STAFF_NAV_GROUPS.map((group) => {
+            const rows = group.entries.map(renderEntry);
+            if (!rows.some(Boolean)) return null;
+            return (
+              <div key={group.key} className="pt-2">
+                <SidebarGroup
+                  label={group.label}
+                  icon={group.icon}
+                  isOpen={isGroupOpen(group.key)}
+                  onToggle={() => toggleGroup(group.key)}
+                  containsActive={group.entries.some(isEntryActive)}
+                  badgeCount={group.entries.reduce(
+                    (sum, entry) => sum + entryBadgeCount(entry),
+                    0,
+                  )}
+                  badgeTone={group.key === "eltern" ? "parents" : "staff"}
+                  collapsed={collapsed}
+                  labelsMounted={labelsMounted}
+                  labelsVisible={labelsVisible}
+                >
+                  {rows}
+                </SidebarGroup>
+              </div>
+            );
+          })}
         </nav>
 
-        {/* Bottom pinned items */}
-        {bottomNavItems.length > 0 && (
-          <nav className="space-y-1 border-t border-gray-200 p-3 lg:p-4 xl:p-3">
-            {bottomNavItems.map(renderNavItem)}
-          </nav>
-        )}
+        {/* Bottom pinned items — gleiches Raster wie oben, damit der untere
+            Block in beiden Zuständen zur Hauptnavigation passt. */}
+        <nav
+          className={`border-t border-gray-200 ${SIDEBAR_NAV_GAP} ${SIDEBAR_NAV_PADDING}`}
+        >
+          {STAFF_NAV_BOTTOM.map(renderEntry)}
+        </nav>
       </div>
     </aside>
   );
 }
 
 export function Sidebar({ className = "" }: SidebarProps) {
+  // Klappzustand lebt hier statt in SidebarContent, damit der Suspense-
+  // Fallback dieselbe Breite rendert und beim Laden nichts springt.
+  const { collapsed, expandSidebar } = useSidebarCollapsed();
   return (
     <Suspense
       fallback={
-        <aside
-          className={`min-h-screen w-64 border-r border-gray-200/70 bg-white/95 ${className}`}
-        >
-          <div className="sticky top-[73px] p-3">
-            <nav className="space-y-0.5">
-              {/* Skeleton placeholders matching nav item height */}
-              <div className="flex items-center px-3 py-2">
-                <div className="mr-3 h-5 w-5 animate-pulse rounded bg-gray-200" />
-                <div className="h-4 w-24 animate-pulse rounded bg-gray-200" />
-              </div>
-              <div className="flex items-center px-3 py-2">
-                <div className="mr-3 h-5 w-5 animate-pulse rounded bg-gray-200" />
-                <div className="h-4 w-28 animate-pulse rounded bg-gray-200" />
-              </div>
-              <div className="flex items-center px-3 py-2">
-                <div className="mr-3 h-5 w-5 animate-pulse rounded bg-gray-200" />
-                <div className="h-4 w-20 animate-pulse rounded bg-gray-200" />
-              </div>
-              <div className="flex items-center px-3 py-2">
-                <div className="mr-3 h-5 w-5 animate-pulse rounded bg-gray-200" />
-                <div className="h-4 w-24 animate-pulse rounded bg-gray-200" />
-              </div>
+        <aside className={asideClasses(collapsed, className)}>
+          <div className={`sticky top-[73px] ${SIDEBAR_NAV_PADDING}`}>
+            {/* Platzhalter im selben Raster wie die fertigen Zeilen: 40px
+                hoch, Icon an derselben Stelle — der Wechsel vom Platzhalter
+                zur Navigation verschiebt nichts. */}
+            <nav className={SIDEBAR_NAV_GAP}>
+              {["w-24", "w-28", "w-20", "w-24"].map((widthClass, index) => (
+                <div key={index} className="flex h-10 items-center px-3">
+                  <div className="h-5 w-5 shrink-0 animate-pulse rounded bg-gray-200" />
+                  {!collapsed && (
+                    <div
+                      className={`ml-3 h-4 ${widthClass} animate-pulse rounded bg-gray-200`}
+                    />
+                  )}
+                </div>
+              ))}
             </nav>
           </div>
         </aside>
       }
     >
-      <SidebarContent className={className} />
+      <SidebarContent
+        className={className}
+        collapsed={collapsed}
+        onExpandSidebar={expandSidebar}
+      />
     </Suspense>
   );
 }

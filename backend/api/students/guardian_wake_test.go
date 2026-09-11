@@ -23,7 +23,7 @@ import (
 func TestStaffCareWrite_WakesChildGuardians(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
 
@@ -67,7 +67,7 @@ func TestStaffCareWrite_WakesChildGuardians(t *testing.T) {
 func TestStaffStatusUpdate_WakesChildGuardians(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
 

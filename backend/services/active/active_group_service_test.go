@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -22,8 +24,8 @@ import (
 
 // createActiveService creates an Active Service with real database connection
 func createActiveService(t *testing.T, db *bun.DB) active.Service {
-	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.Active
 }
@@ -562,10 +564,10 @@ func TestActiveService_EndActiveGroupSession(t *testing.T) {
 }
 
 // =============================================================================
-// GetActiveGroupWithVisits Tests
+// GetActiveGroupVisits Tests
 // =============================================================================
 
-func TestActiveService_GetActiveGroupWithVisits(t *testing.T) {
+func TestActiveService_GetActiveGroupVisits(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -579,22 +581,24 @@ func TestActiveService_GetActiveGroupWithVisits(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "Visits Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		student := testpkg.CreateTestStudent(t, db, "Visit", "Student", "1a")
-		testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
+		visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now().UTC().Truncate(time.Microsecond), nil)
 
 		// ACT
-		result, err := service.GetActiveGroupWithVisits(ctx, activeGroup.ID)
+		result, err := service.GetActiveGroupVisits(ctx, activeGroup.ID)
 
 		// ASSERT
 		require.NoError(t, err)
 		assert.NotNil(t, result)
-		assert.Equal(t, activeGroup.ID, result.ID)
-		// Visits relation should be loaded
-		assert.NotNil(t, result.Visits)
+		require.Len(t, result, 1)
+		// Compare the stored instant independently of the database session timezone.
+		actual := result[0]
+		actual.EntryTime = actual.EntryTime.UTC()
+		assert.Equal(t, *visit, actual)
 	})
 
 	t.Run("returns error when not found", func(t *testing.T) {
 		// ACT
-		result, err := service.GetActiveGroupWithVisits(ctx, 99999999)
+		result, err := service.GetActiveGroupVisits(ctx, 99999999)
 
 		// ASSERT
 		require.Error(t, err)
@@ -1096,10 +1100,10 @@ func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
 		require.NotNil(t, session)
 
 		// Create visits for students using context with device/staff
-		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
-		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
+		staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
+		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(iotDevice.ID, iotDevice.TenantID))
 
-		visit1 := &activeModels.Visit{
+		visit1 := &studentpresence.Visit{
 			StudentID:     student1.ID,
 			ActiveGroupID: session.ID,
 			EntryTime:     time.Now(),
@@ -1107,7 +1111,7 @@ func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
 		err = service.CreateVisit(deviceCtx, visit1)
 		require.NoError(t, err)
 
-		visit2 := &activeModels.Visit{
+		visit2 := &studentpresence.Visit{
 			StudentID:     student2.ID,
 			ActiveGroupID: session.ID,
 			EntryTime:     time.Now(),
@@ -1269,9 +1273,9 @@ func TestActiveService_EndDailySessions_WithActiveData(t *testing.T) {
 		require.NoError(t, err)
 
 		// Add a visit to session1
-		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
-		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, device1)
-		visit := &activeModels.Visit{
+		staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
+		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(device1.ID, device1.TenantID))
+		visit := &studentpresence.Visit{
 			StudentID:     student.ID,
 			ActiveGroupID: session1.ID,
 			EntryTime:     time.Now(),
@@ -1294,4 +1298,36 @@ func TestActiveService_EndDailySessions_WithActiveData(t *testing.T) {
 		assert.NotNil(t, ended1.EndTime)
 		assert.NotNil(t, ended2.EndTime)
 	})
+}
+
+// Deviceless claiming is limited to rooms named "Schulhof"; the filter moved
+// from the former INNER JOIN into the owner-backed read.
+func TestFindUnclaimedKeepsOnlySchulhofGroups(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	tenantID := testpkg.Tenant(t)
+	service := createActiveService(t, db)
+
+	var schulhofID int64
+	err := db.NewRaw("INSERT INTO facilities.rooms (tenant_id, name) VALUES (?, ?) RETURNING id", tenantID, "Schulhof").Scan(testpkg.Ctx(t), &schulhofID)
+	require.NoError(t, err)
+	other := testpkg.CreateTestRoom(t, db, "Igelraum")
+	activity := testpkg.CreateTestActivityGroup(t, db, "Unclaimed Activity")
+	yard := testpkg.CreateTestActiveGroup(t, db, activity.ID, schulhofID)
+	testpkg.CreateTestActiveGroup(t, db, activity.ID, other.ID)
+
+	err = testpkg.WithinTenantContext(t, context.Background(), db, tenantID, func(ctx context.Context) error {
+		groups, err := service.GetUnclaimedActiveGroups(ctx)
+		require.NoError(t, err)
+		require.Len(t, groups, 1)
+		assert.Equal(t, yard.ID, groups[0].ID)
+		require.NotNil(t, groups[0].Room)
+		assert.Equal(t, "Schulhof", groups[0].Room.Name)
+		require.NotNil(t, groups[0].ActualGroup)
+		assert.Equal(t, activity.ID, groups[0].ActualGroup.ID)
+		assert.Equal(t, activity.Name, groups[0].ActualGroup.Name)
+		assert.Nil(t, groups[0].ActualGroup.Category, "preserve the endpoint's template relation shape")
+		return nil
+	})
+	require.NoError(t, err)
 }

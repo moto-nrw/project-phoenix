@@ -3,13 +3,19 @@ import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 
 // Use vi.hoisted for mock values referenced in vi.mock
-const { mockUseSession, mockSignOut, mockClearSessionCache } = vi.hoisted(
-  () => ({
-    mockUseSession: vi.fn(),
-    mockSignOut: vi.fn(),
-    mockClearSessionCache: vi.fn(),
-  }),
-);
+const {
+  mockUseSession,
+  mockSignOut,
+  mockClearSessionCache,
+  mockEndStaffPreview,
+  mockSchoolPortalLoginUrl,
+} = vi.hoisted(() => ({
+  mockUseSession: vi.fn(),
+  mockSignOut: vi.fn(),
+  mockClearSessionCache: vi.fn(),
+  mockEndStaffPreview: vi.fn(),
+  mockSchoolPortalLoginUrl: vi.fn(),
+}));
 
 const mockProfile = {
   firstName: "John",
@@ -43,8 +49,22 @@ vi.mock("~/lib/operator-url", () => ({
   operatorPath: (path: string) => path,
 }));
 
+vi.mock("~/lib/school-url", () => ({
+  schoolAbsoluteUrl: (path: string) => path,
+  schoolPath: (path: string) => path,
+  schoolPortalLoginUrl: mockSchoolPortalLoginUrl,
+}));
+
 vi.mock("~/lib/session-cache", () => ({
   clearSessionCache: mockClearSessionCache,
+}));
+
+vi.mock("~/lib/staff-preview-api", () => ({
+  performEndStaffPreview: mockEndStaffPreview,
+}));
+
+vi.mock("~/lib/swr", () => ({
+  mutate: vi.fn(),
 }));
 
 import {
@@ -57,6 +77,9 @@ describe("TeacherShellProvider", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSignOut.mockResolvedValue(undefined);
+    mockSchoolPortalLoginUrl.mockReturnValue(
+      "https://schule.example.test/login",
+    );
   });
 
   const wrapper = ({ children }: { children: ReactNode }) => (
@@ -70,6 +93,7 @@ describe("TeacherShellProvider", () => {
           name: "John Doe",
           email: "john@example.com",
           roles: ["teacher", "admin"],
+          permissions: ["schedules:read"],
         },
       },
       status: "authenticated",
@@ -85,8 +109,100 @@ describe("TeacherShellProvider", () => {
     expect(result.current.status).toBe("authenticated");
     expect(result.current.isSessionExpired).toBe(false);
     expect(result.current.mode).toBe("teacher");
-    expect(result.current.homeUrl).toBe("/dashboard");
+    // Das Logo führt für jede Rolle auf die Startseite (#2180).
+    expect(result.current.homeUrl).toBe("/home");
     expect(result.current.profileUrl).toBe("/profile");
+  });
+
+  it("keeps the start page as home for admin-only accounts (#2180)", () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          name: "Admin Only",
+          email: "admin@example.com",
+          roles: ["admin"],
+        },
+      },
+      status: "authenticated",
+    });
+
+    const { result } = renderHook(() => useShellAuth(), { wrapper });
+
+    expect(result.current.homeUrl).toBe("/home");
+  });
+
+  it("keeps the start page as home for caregivers without schedules:read (#2180)", () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          name: "Ohne Recht",
+          email: "user@example.com",
+          roles: ["user"],
+          permissions: [],
+        },
+      },
+      status: "authenticated",
+    });
+
+    const { result } = renderHook(() => useShellAuth(), { wrapper });
+
+    expect(result.current.homeUrl).toBe("/home");
+  });
+
+  it("hands existing school-only sessions to the school portal", () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          name: "Lehrkraft",
+          email: "lehrkraft@example.com",
+          roles: ["lehrkraft"],
+        },
+      },
+      status: "authenticated",
+    });
+
+    const { result } = renderHook(() => useShellAuth(), { wrapper });
+
+    expect(result.current.homeUrl).toBe("/school/login");
+    expect(mockSchoolPortalLoginUrl).not.toHaveBeenCalled();
+  });
+
+  it("keeps the school-only hand-off safe during server rendering", () => {
+    mockSchoolPortalLoginUrl.mockImplementation(() => {
+      throw new Error("schoolPortalLoginUrl() is client-only.");
+    });
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          name: "Lehrkraft",
+          email: "lehrkraft@example.com",
+          roles: ["lehrkraft"],
+        },
+      },
+      status: "authenticated",
+    });
+
+    const { result } = renderHook(() => useShellAuth(), { wrapper });
+
+    expect(result.current.homeUrl).toBe("/school/login");
+    expect(mockSchoolPortalLoginUrl).not.toHaveBeenCalled();
+  });
+
+  it("keeps dual-role lehrkraft accounts in the staff portal", () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          name: "Lehrkraft mit Betreuung",
+          email: "lehrkraft@example.com",
+          roles: ["lehrkraft", "user"],
+        },
+      },
+      status: "authenticated",
+    });
+
+    const { result } = renderHook(() => useShellAuth(), { wrapper });
+
+    expect(result.current.homeUrl).toBe("/home");
   });
 
   it("provides profile data from context", () => {
@@ -219,6 +335,83 @@ describe("TeacherShellProvider", () => {
     expect(mockClearSessionCache).toHaveBeenCalled();
 
     vi.unstubAllGlobals();
+  });
+
+  // Abmelden aus einer laufenden Vorschau (#2893): die Vorschau endet damit
+  // genauso wie per Klick — und muss deshalb auch im Protokoll enden, bevor
+  // der Logout die Admin-Familie widerruft.
+  it("ends a running staff preview before logging out", async () => {
+    const mockFetch = vi.fn().mockResolvedValue(new Response(null));
+    vi.stubGlobal("fetch", mockFetch);
+    mockEndStaffPreview.mockResolvedValue(undefined);
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          name: "Erika Beispiel",
+          email: "erika@example.com",
+          roles: [],
+          isPreview: true,
+          token: "preview-token",
+        },
+      },
+      status: "authenticated",
+    });
+
+    try {
+      const { result } = renderHook(() => useShellAuth(), { wrapper });
+
+      await result.current.logout();
+
+      // Das aktive Token IST das Vorschau-Token: es ist der Beweis, welche
+      // Vorschau endet, und wird vor dem Zurückschalten gelesen.
+      expect(mockEndStaffPreview.mock.calls[0]?.[0]).toBe("preview-token");
+      expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("does not end a preview on a regular logout", async () => {
+    const mockFetch = vi.fn().mockResolvedValue(new Response(null));
+    vi.stubGlobal("fetch", mockFetch);
+    mockUseSession.mockReturnValue({
+      data: { user: { name: "User", email: "user@example.com", roles: [] } },
+      status: "authenticated",
+    });
+
+    try {
+      const { result } = renderHook(() => useShellAuth(), { wrapper });
+      await result.current.logout();
+      expect(mockEndStaffPreview).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("logs out even when ending the preview fails", async () => {
+    const mockFetch = vi.fn().mockResolvedValue(new Response(null));
+    vi.stubGlobal("fetch", mockFetch);
+    mockEndStaffPreview.mockRejectedValue(new Error("audit endpoint down"));
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          name: "Erika Beispiel",
+          email: "erika@example.com",
+          roles: [],
+          isPreview: true,
+          token: "preview-token",
+        },
+      },
+      status: "authenticated",
+    });
+
+    try {
+      const { result } = renderHook(() => useShellAuth(), { wrapper });
+      await result.current.logout();
+      expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("handles backend logout failure gracefully", async () => {

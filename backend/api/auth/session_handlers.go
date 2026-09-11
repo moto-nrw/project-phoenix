@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
-	"github.com/moto-nrw/project-phoenix/internal/clientip"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -499,5 +498,5 @@ func (rs *Resource) changePassword(w http.ResponseWriter, r *http.Request) {
 
 // getClientIP extracts the real client IP address from the request
 func getClientIP(r *http.Request) string {
-	return clientip.GetClientIPString(r)
+	return common.GetClientIPString(r)
 }

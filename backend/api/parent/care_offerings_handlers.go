@@ -105,6 +105,7 @@ func offeringDecisionResponse(decision *enrollmentService.OfferingChangeDecision
 		EffectiveFrom:      decision.EffectiveFrom.String(),
 		Reason:             decision.Reason,
 		CompleteWithdrawal: decision.CompleteWithdrawal,
+		SubmittedBySelf:    decision.SubmittedBySelf,
 		Requested:          make([]OfferingRequestedItemResponse, 0, len(decision.Requested)),
 	}
 	for _, item := range decision.Requested {
@@ -155,6 +156,7 @@ func offeringDiffResponse(entry enrollmentService.OfferingChangeDiffEntry) Offer
 		OldDays:  append([]string{}, entry.OldDays...),
 		NewState: entry.NewState,
 		NewDays:  append([]string{}, entry.NewDays...),
+		IsCourse: entry.IsCourse,
 	}
 	if len(entry.NewAutomaticDays) > 0 {
 		resp.NewAutomaticDays = append([]string{}, entry.NewAutomaticDays...)
@@ -220,6 +222,7 @@ type OfferingDecisionResponse struct {
 	// OverriddenNames lists rule-added offerings the school excluded for this
 	// one request at approval time (#2370).
 	OverriddenNames []string `json:"overridden_names,omitempty"`
+	SubmittedBySelf bool     `json:"submitted_by_self"`
 }
 
 // OfferingRequestedItemResponse is one offering of a decided request.
@@ -245,6 +248,10 @@ type OfferingDiffResponse struct {
 	// AutoTriggerNames names the selected offerings that triggered the
 	// rule-specific share, so the portal can say WHY those days appeared.
 	AutoTriggerNames []string `json:"auto_trigger_names,omitempty"`
+	// IsCourse marks a line about a Kurs. The parents portal owns courses in
+	// its own section (#3075) and must not show the same request twice, in two
+	// different wordings, with two different buttons.
+	IsCourse bool `json:"is_course,omitempty"`
 }
 
 // OfferingCatalogResponse is the selectable catalog for the request modal.
@@ -286,6 +293,9 @@ type OfferingChangeRequestBody struct {
 	EffectiveFrom               string `json:"effective_from"`
 	Note                        string `json:"note"`
 	CompleteWithdrawalConfirmed bool   `json:"complete_withdrawal_confirmed,omitempty"`
+	// RecipientGuardianProfileIDs travel with the creation so the share is
+	// written in the same transaction (#2267); empty shares with nobody.
+	RecipientGuardianProfileIDs []string `json:"recipient_guardian_profile_ids"`
 }
 
 // getChildCareOfferings returns what the child is booked into.
@@ -368,37 +378,18 @@ func (rs *Resource) createOfferingChangeRequest(w http.ResponseWriter, r *http.R
 			SelectedDays: entry.SelectedDays,
 		})
 	}
+	recipients, ok := parseCreateRecipients(w, r, body.RecipientGuardianProfileIDs)
+	if !ok {
+		return
+	}
 	view, err := rs.ParentService.CreateOfferingChangeRequest(
-		r.Context(), accountID, studentID, selections, effectiveFrom, body.Note, body.CompleteWithdrawalConfirmed,
+		r.Context(), accountID, studentID, selections, effectiveFrom, body.Note, body.CompleteWithdrawalConfirmed, recipients,
 	)
 	if err != nil {
-		renderParentWriteError(w, r, err)
+		renderParentRequestError(w, r, err)
 		return
 	}
 	common.Respond(w, r, http.StatusCreated, toCareOfferingsResponse(view), "Care offering change requested")
-}
-
-// withdrawOfferingChangeRequest flips the caller's own pending request to
-// withdrawn.
-func (rs *Resource) withdrawOfferingChangeRequest(w http.ResponseWriter, r *http.Request) {
-	accountID, ok := rs.parentAccountID(w, r)
-	if !ok {
-		return
-	}
-	studentID, ok := parsePathStudentID(w, r)
-	if !ok {
-		return
-	}
-	requestID, ok := common.ParsePositiveInt64IDWithError(w, r, "requestId", "invalid request ID")
-	if !ok {
-		return
-	}
-	view, err := rs.ParentService.WithdrawOfferingChangeRequest(r.Context(), accountID, studentID, requestID)
-	if err != nil {
-		renderParentWriteError(w, r, err)
-		return
-	}
-	common.Respond(w, r, http.StatusOK, toCareOfferingsResponse(view), "Care offering change request withdrawn")
 }
 
 func toOfferingCatalogResponse(catalog *enrollmentService.OfferingChangeCatalog) OfferingCatalogResponse {

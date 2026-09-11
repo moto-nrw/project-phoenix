@@ -6,14 +6,40 @@ import (
 	"strings"
 )
 
-func ComparePolicyStrictness(base, candidate *Policy) error {
+// CompareCandidatePolicyStrictness applies the strict base-policy comparison
+// while allowing ownership declarations for tables that a new migration file
+// in this candidate actually creates. Without this narrow exception the
+// ratchet would freeze the schema: a table cannot exist in the base policy
+// before the migration that introduces it. Existing tables and ownership
+// changes remain strict policy loosenings.
+func CompareCandidatePolicyStrictness(project, baseRef string, base, candidate *Policy) error {
+	createdDataObjects, err := candidateMigrationDataObjects(project, baseRef)
+	if err != nil {
+		return err
+	}
+	createdPackages, err := candidateGoPackages(project, baseRef, candidate)
+	if err != nil {
+		return err
+	}
+	candidateOnlyExternal, err := candidateOnlyExternalPackages(project, candidate, createdPackages)
+	if err != nil {
+		return err
+	}
+	deletedLegacySymbols, err := candidateDeletedLegacySymbols(project, base, candidate)
+	if err != nil {
+		return err
+	}
+	return comparePolicyStrictness(base, candidate, createdDataObjects, createdPackages, candidateOnlyExternal, deletedLegacySymbols)
+}
+
+func comparePolicyStrictness(base, candidate *Policy, createdDataObjects, createdPackages, candidateOnlyExternal, deletedLegacySymbols map[string]struct{}) error {
 	problems := modulePathLoosenings(base, candidate)
-	problems = append(problems, ownershipLoosenings(base, candidate)...)
-	problems = append(problems, classificationLoosenings(base, candidate)...)
-	problems = append(problems, readProjectionLoosenings(base, candidate)...)
-	problems = append(problems, compositionLoosenings(base, candidate)...)
+	problems = append(problems, ownershipLoosenings(base, candidate, createdDataObjects, createdPackages)...)
+	problems = append(problems, classificationLoosenings(base, candidate, createdPackages, candidateOnlyExternal)...)
+	problems = append(problems, readProjectionLoosenings(base, candidate, createdPackages)...)
+	problems = append(problems, compositionLoosenings(base, candidate, deletedLegacySymbols)...)
 	problems = append(problems, importLoosenings(base, candidate)...)
-	problems = append(problems, ruleLoosenings(base, candidate)...)
+	problems = append(problems, ruleLoosenings(base, candidate, candidateOnlyRolePoints(candidate, createdPackages))...)
 	if len(problems) == 0 {
 		return nil
 	}
@@ -28,13 +54,30 @@ func modulePathLoosenings(base, candidate *Policy) []string {
 	return []string{fmt.Sprintf("module_path changed from %s to %s", base.ModulePath, candidate.ModulePath)}
 }
 
-func ownershipLoosenings(base, candidate *Policy) []string {
+func ownershipLoosenings(base, candidate *Policy, createdDataObjects, createdPackages map[string]struct{}) []string {
 	var problems []string
+	candidateObjects := dataObjectsByName(candidate)
+	for name := range createdDataObjects {
+		if _, exists := candidateObjects[name]; !exists {
+			problems = append(problems, fmt.Sprintf("new writable data object %s has no write owner", name))
+		}
+	}
 	baseOwners := ownersByID(base)
 	candidateOwners := ownersByID(candidate)
 	for id, owner := range candidateOwners {
 		if _, exists := baseOwners[id]; !exists {
-			problems = append(problems, fmt.Sprintf("owner %s with kind %s was added", id, owner.Kind))
+			candidateOnlyOwner := ownerPackagesAreCandidateCreated(candidate, id, createdPackages)
+			approvedCanonicalAddition := candidate.ModulePath == "github.com/moto-nrw/project-phoenix" &&
+				candidate.PolicyEpoch > base.PolicyEpoch && candidateOnlyOwner &&
+				(owner.Kind == "domain" || owner.Kind == "platform")
+			// Workflows are non-owning coordinators. A reviewed epoch may add
+			// one only for new packages; all existing import/classification and
+			// data-ownership guards below still apply (#3130).
+			approvedWorkflowAddition := owner.Kind == "workflow" && candidateOnlyOwner &&
+				candidate.PolicyEpoch > base.PolicyEpoch
+			if (owner.Kind != "projection" || !candidateOnlyOwner) && !approvedCanonicalAddition && !approvedWorkflowAddition {
+				problems = append(problems, fmt.Sprintf("owner %s with kind %s was added", id, owner.Kind))
+			}
 		}
 	}
 	for id, baseOwner := range baseOwners {
@@ -43,24 +86,31 @@ func ownershipLoosenings(base, candidate *Policy) []string {
 		}
 	}
 	baseObjects := dataObjectsByName(base)
-	for name, current := range dataObjectsByName(candidate) {
+	for name, current := range candidateObjects {
 		baseObject, exists := baseObjects[name]
+		_, createdByCandidateMigration := createdDataObjects[name]
 		if !exists {
-			problems = append(problems, fmt.Sprintf("data object %s was newly assigned to owner %s", name, current.WriteOwner))
-		} else if current.WriteOwner != baseObject.WriteOwner {
+			if !createdByCandidateMigration {
+				problems = append(problems, fmt.Sprintf("data object %s was newly assigned to owner %s", name, current.WriteOwner))
+			}
+			continue
+		}
+		if current.WriteOwner != baseObject.WriteOwner {
 			problems = append(problems, fmt.Sprintf("data object %s changed write owner from %s to %s", name, baseObject.WriteOwner, current.WriteOwner))
 		}
 	}
 	return problems
 }
 
-func classificationLoosenings(base, candidate *Policy) []string {
+func classificationLoosenings(base, candidate *Policy, createdPackages, candidateOnlyExternal map[string]struct{}) []string {
 	basePackages := base.packageMap()
 	var problems []string
 	for path, current := range candidate.packageMap() {
 		previous, exists := basePackages[path]
 		if !exists {
-			problems = append(problems, fmt.Sprintf("package %s was newly classified", path))
+			if _, created := createdPackages[path]; !created {
+				problems = append(problems, fmt.Sprintf("package %s was newly classified", path))
+			}
 			continue
 		}
 		if current.Owner != previous.Owner {
@@ -84,7 +134,9 @@ func classificationLoosenings(base, candidate *Policy) []string {
 	for path, current := range candidate.externalPackageMap() {
 		previous, exists := baseExternal[path]
 		if !exists {
-			problems = append(problems, fmt.Sprintf("external package %s was newly classified as %s", path, current.Class))
+			if _, candidateOnly := candidateOnlyExternal[path]; !candidateOnly {
+				problems = append(problems, fmt.Sprintf("external package %s was newly classified as %s", path, current.Class))
+			}
 		} else if current.Class != previous.Class {
 			problems = append(problems, fmt.Sprintf("external package %s changed class from %s to %s", path, previous.Class, current.Class))
 		}
@@ -102,23 +154,49 @@ func semanticRoleLoosens(base, candidate string) bool {
 	return (baseContract && !candidateContract) || (baseRuntime && !candidateRuntime) || (!baseDirectDB && candidateDirectDB)
 }
 
-func readProjectionLoosenings(base, candidate *Policy) []string {
+func ownerPackagesAreCandidateCreated(candidate *Policy, owner string, createdPackages map[string]struct{}) bool {
+	found := false
+	for path, pkg := range candidate.packageMap() {
+		if pkg.Owner != owner {
+			continue
+		}
+		found = true
+		if _, created := createdPackages[path]; !created {
+			return false
+		}
+	}
+	return found
+}
+
+func readProjectionLoosenings(base, candidate *Policy, createdPackages map[string]struct{}) []string {
 	baseGrants := projectionGrants(base)
+	baseOwners := ownersByID(base)
+	candidatePackages := candidate.packageMap()
+	candidateOwners := ownersByID(candidate)
 	var problems []string
 	for grant := range projectionGrants(candidate) {
 		if _, exists := baseGrants[grant]; !exists {
-			problems = append(problems, "new tenant-safe read projection grant "+grant)
+			packagePath := strings.SplitN(grant, "|", 2)[0]
+			pkg, classified := candidatePackages[packagePath]
+			_, packageCreated := createdPackages[packagePath]
+			owner, ownerExists := candidateOwners[pkg.Owner]
+			_, ownerExisted := baseOwners[pkg.Owner]
+			if !classified || !packageCreated || !ownerExists || ownerExisted || owner.Kind != "projection" {
+				problems = append(problems, "new tenant-safe read projection grant "+grant)
+			}
 		}
 	}
 	return problems
 }
 
-func compositionLoosenings(base, candidate *Policy) []string {
+func compositionLoosenings(base, candidate *Policy, deletedSymbols map[string]struct{}) []string {
 	candidateSymbols := compositionSymbols(candidate)
 	var problems []string
 	for symbol := range compositionSymbols(base) {
 		if _, exists := candidateSymbols[symbol]; !exists {
-			problems = append(problems, "legacy composition symbol is no longer guarded: "+symbol)
+			if _, deleted := deletedSymbols[symbol]; !deleted {
+				problems = append(problems, "legacy composition symbol is no longer guarded: "+symbol)
+			}
 		}
 	}
 	return problems
@@ -139,7 +217,7 @@ func importLoosenings(base, candidate *Policy) []string {
 	return uniqueStrings(problems)
 }
 
-func ruleLoosenings(base, candidate *Policy) []string {
+func ruleLoosenings(base, candidate *Policy, candidateOnlyPoints map[string]struct{}) []string {
 	owners := ruleUniverseOwners(base, candidate)
 	roles := sortedAllowedRoles()
 	baseEvaluator := policyWithOwners(base, owners)
@@ -150,10 +228,55 @@ func ruleLoosenings(base, candidate *Policy) []string {
 			continue
 		}
 		if problem := uncoveredRulePermission(rule, baseEvaluator, candidateEvaluator, owners, roles); problem != "" {
-			problems = append(problems, problem)
+			if !ruleAnchoredToCandidateOnlyPoint(rule, candidateOnlyPoints) {
+				problems = append(problems, problem)
+			}
 		}
 	}
 	return problems
+}
+
+func candidateOnlyRolePoints(candidate *Policy, createdPackages map[string]struct{}) map[string]struct{} {
+	created := make(map[string]struct{})
+	existing := make(map[string]struct{})
+	for path, pkg := range candidate.packageMap() {
+		target := existing
+		if _, ok := createdPackages[path]; ok {
+			target = created
+		}
+		for _, scope := range allScopes() {
+			scoped := pkg.inScope(scope)
+			target[rolePointKey("source", scope, scoped.Owner, scoped.Role)] = struct{}{}
+			target[rolePointKey("target", scope, pkg.Owner, pkg.Role)] = struct{}{}
+		}
+	}
+	for point := range existing {
+		delete(created, point)
+	}
+	return created
+}
+
+func ruleAnchoredToCandidateOnlyPoint(rule Rule, candidateOnlyPoints map[string]struct{}) bool {
+	if rule.SourceOwnerKind != "" || rule.TargetOwnerKind != "" || rule.SourceOwner == "" || rule.SourceRole == "" {
+		return false
+	}
+	for _, rawScope := range rule.Scopes {
+		scope := Scope(rawScope)
+		_, sourceCreated := candidateOnlyPoints[rolePointKey("source", scope, rule.SourceOwner, rule.SourceRole)]
+		targetOwner := rule.TargetOwner
+		if targetOwner == "" && rule.SameOwner {
+			targetOwner = rule.SourceOwner
+		}
+		_, targetCreated := candidateOnlyPoints[rolePointKey("target", scope, targetOwner, rule.TargetRole)]
+		if !sourceCreated && (rule.TargetClass != "" || !targetCreated) {
+			return false
+		}
+	}
+	return true
+}
+
+func rolePointKey(direction string, scope Scope, owner, role string) string {
+	return direction + "|" + string(scope) + "|" + owner + "|" + role
 }
 
 func candidateRuleCoveredDirectly(candidate Rule, baseRules []Rule) bool {

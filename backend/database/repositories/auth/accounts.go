@@ -19,22 +19,38 @@ const (
 	accountTableAlias = `auth.accounts AS "account"`
 )
 
+type manageableSchoolIDsKey struct{}
+
+// WithManageableSchoolIDs attaches the active school set resolved by the
+// Organization & Tenancy capability for an organization-scoped operation.
+func WithManageableSchoolIDs(ctx context.Context, ids []int64) context.Context {
+	return context.WithValue(ctx, manageableSchoolIDsKey{}, append([]int64(nil), ids...))
+}
+
+func manageableSchoolIDs(ctx context.Context) []int64 {
+	ids, _ := ctx.Value(manageableSchoolIDsKey{}).([]int64)
+	return ids
+}
+
+// OrganizationScope reports the organization selected by the caller context.
+func OrganizationScope(ctx context.Context) (int64, bool) {
+	id := tenant.OrgFromContext(ctx)
+	return id, tenant.ScopeFromContext(ctx) == tenant.ScopeOrg && id > 0
+}
+
 func accountMembershipScope(ctx context.Context) (string, []any) {
 	if tenant.ScopeFromContext(ctx) == tenant.ScopeOrg {
-		organizationID := tenant.OrgFromContext(ctx)
-		if organizationID == 0 {
+		schoolIDs := manageableSchoolIDs(ctx)
+		if tenant.OrgFromContext(ctx) == 0 || len(schoolIDs) == 0 {
 			return "FALSE", nil
 		}
 		return `EXISTS (
 			SELECT 1
 			FROM auth.account_tenants AS "account_tenant"
-			INNER JOIN platform.schools AS "school" ON "school".id = "account_tenant".tenant_id
 			WHERE "account_tenant".account_id = "account".id
 			  AND "account_tenant".status = ?
-			  AND "school".organization_id = ?
-			  AND "school".active = TRUE
-			  AND "school".deleted_at IS NULL
-		)`, []any{auth.AccountTenantStatusActive, organizationID}
+			  AND "account_tenant".tenant_id IN (?)
+		)`, []any{auth.AccountTenantStatusActive, bun.List(schoolIDs)}
 	}
 	if tenant.IsAdminTx(ctx) || tenant.ScopeFromContext(ctx) == tenant.ScopePlatform {
 		return "", nil
@@ -115,7 +131,7 @@ func (r *AccountRepository) FindByIDForUpdate(ctx context.Context, id int64) (*a
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, err
 		}
-		return nil, &modelBase.DatabaseError{Op: "find account by id for update", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find account by id for update", Err: base.TranslateNotFound(err)}
 	}
 	return account, nil
 }
@@ -145,7 +161,7 @@ func (r *AccountRepository) ListEffectiveAdminAccountIDs(ctx context.Context) ([
 	query = base.WithTenantFilter(ctx, query, "account_tenant")
 
 	if err := query.Scan(ctx, &ids); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list effective admin account IDs", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list effective admin account IDs", Err: base.TranslateNotFound(err)}
 	}
 
 	return ids, nil
@@ -176,7 +192,7 @@ func (r *AccountRepository) FindManageableByID(ctx context.Context, id int64) (*
 		Where(predicate, args...).
 		Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find by id", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find by id", Err: base.TranslateNotFound(err)}
 	}
 	return account, nil
 }
@@ -194,7 +210,7 @@ func (r *AccountRepository) FindByEmail(ctx context.Context, email string) (*aut
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by email",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -220,7 +236,7 @@ func (r *AccountRepository) FindByCalendarFeedToken(ctx context.Context, tokenHa
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "find by calendar feed token", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find by calendar feed token", Err: base.TranslateNotFound(err)}
 	}
 	return account, nil
 }
@@ -242,7 +258,7 @@ func (r *AccountRepository) EnsureCalendarFeedToken(ctx context.Context, account
 		Where("(calendar_feed_token IS NULL OR calendar_feed_token = '')").
 		Exec(ctx)
 	if err != nil {
-		return "", &modelBase.DatabaseError{Op: "ensure calendar feed token", Err: err}
+		return "", &modelBase.DatabaseError{Op: "ensure calendar feed token", Err: base.TranslateNotFound(err)}
 	}
 	if n, err := res.RowsAffected(); err == nil && n > 0 {
 		return newTokenHash, nil
@@ -257,7 +273,7 @@ func (r *AccountRepository) EnsureCalendarFeedToken(ctx context.Context, account
 		if errors.Is(err, sql.ErrNoRows) {
 			return "", nil
 		}
-		return "", &modelBase.DatabaseError{Op: "ensure calendar feed token", Err: err}
+		return "", &modelBase.DatabaseError{Op: "ensure calendar feed token", Err: base.TranslateNotFound(err)}
 	}
 	if account.CalendarFeedToken == nil {
 		return "", nil
@@ -276,7 +292,7 @@ func (r *AccountRepository) SetCalendarFeedToken(ctx context.Context, accountID 
 		Where(whereID, accountID).
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "set calendar feed token", Err: err}
+		return &modelBase.DatabaseError{Op: "set calendar feed token", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -294,7 +310,7 @@ func (r *AccountRepository) FindByUsername(ctx context.Context, username string)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by username",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -317,11 +333,13 @@ func (r *AccountRepository) UpdatePassword(ctx context.Context, id int64, passwo
 	return err
 }
 
-// IncrementMFAAttempts atomically bumps mfa_attempts by one and sets
-// mfa_locked_until = now() + lockoutDuration when the post-increment
-// count is >= threshold. Returns the post-update counter and lock
-// timestamp so the service can detect the lockout transition (exact
-// threshold equality means *this* call crossed the line).
+// IncrementMFAAttempts atomically bumps mfa_attempts by one and sets the
+// lock deadline from the application clock when the post-increment count is
+// >= threshold. The service evaluates that deadline against the same clock,
+// so database clock skew cannot immediately expire a fresh lock. Returns the
+// post-update counter and lock timestamp so the service can detect the
+// lockout transition (exact threshold equality means *this* call crossed the
+// line).
 //
 // The whole "read-mutate-write" pattern in the model layer was racy:
 // two concurrent failed verifies both read mfa_attempts=N, both wrote
@@ -334,13 +352,14 @@ func (r *AccountRepository) IncrementMFAAttempts(ctx context.Context, id int64, 
 		MFALockedUntil *time.Time `bun:"mfa_locked_until"`
 	}
 	row := new(incrementRow)
+	lockedUntil := time.Now().Add(lockoutDuration)
 	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*auth.Account)(nil)).
 		ModelTableExpr(accountTable).
 		Set("mfa_attempts = mfa_attempts + 1").
 		Set(
-			"mfa_locked_until = CASE WHEN mfa_attempts + 1 >= ? THEN now() + (? * interval '1 second') ELSE mfa_locked_until END",
-			threshold, int64(lockoutDuration.Seconds()),
+			"mfa_locked_until = CASE WHEN mfa_attempts + 1 >= ? THEN ? ELSE mfa_locked_until END",
+			threshold, lockedUntil,
 		).
 		Where(whereID, id).
 		Returning("mfa_attempts, mfa_locked_until").
@@ -348,7 +367,7 @@ func (r *AccountRepository) IncrementMFAAttempts(ctx context.Context, id int64, 
 	if err != nil {
 		return auth.MFAAttemptResult{}, &modelBase.DatabaseError{
 			Op:  "increment mfa attempts",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return auth.MFAAttemptResult{
@@ -371,17 +390,17 @@ func (r *AccountRepository) ResetMFAAttempts(ctx context.Context, id int64) erro
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "reset mfa attempts",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return nil
 }
 
-// IncrementPINAttempts atomically bumps pin_attempts by one and sets
-// pin_locked_until = now() + lockoutDuration when the post-increment count
-// is >= threshold. Returns the post-update counter and lock timestamp so the
-// caller can detect the lockout transition (exact threshold equality means
-// *this* call crossed the line).
+// IncrementPINAttempts atomically bumps pin_attempts by one and sets the lock
+// deadline from the application clock when the post-increment count is >=
+// threshold. Returns the post-update counter and lock timestamp so the caller
+// can detect the lockout transition (exact threshold equality means *this*
+// call crossed the line).
 //
 // This replaces the old model-level Account.IncrementPINAttempts() +
 // accountRepo.Update() read-modify-write, which was racy: two concurrent
@@ -394,13 +413,14 @@ func (r *AccountRepository) IncrementPINAttempts(ctx context.Context, id int64, 
 		PINLockedUntil *time.Time `bun:"pin_locked_until"`
 	}
 	row := new(incrementRow)
+	lockedUntil := time.Now().Add(lockoutDuration)
 	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*auth.Account)(nil)).
 		ModelTableExpr(accountTable).
 		Set("pin_attempts = pin_attempts + 1").
 		Set(
-			"pin_locked_until = CASE WHEN pin_attempts + 1 >= ? THEN now() + (? * interval '1 second') ELSE pin_locked_until END",
-			threshold, int64(lockoutDuration.Seconds()),
+			"pin_locked_until = CASE WHEN pin_attempts + 1 >= ? THEN ? ELSE pin_locked_until END",
+			threshold, lockedUntil,
 		).
 		Where(whereID, id).
 		Returning("pin_attempts, pin_locked_until").
@@ -408,7 +428,7 @@ func (r *AccountRepository) IncrementPINAttempts(ctx context.Context, id int64, 
 	if err != nil {
 		return auth.PINAttemptResult{}, &modelBase.DatabaseError{
 			Op:  "increment pin attempts",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return auth.PINAttemptResult{
@@ -431,29 +451,9 @@ func (r *AccountRepository) ResetPINAttempts(ctx context.Context, id int64) erro
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "reset pin attempts",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
-	return nil
-}
-
-// SetActive toggles only the active flag for an account. Targeted update so
-// it does not clobber password_hash or other in-memory stale fields.
-func (r *AccountRepository) SetActive(ctx context.Context, id int64, active bool) error {
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*auth.Account)(nil)).
-		ModelTableExpr(accountTable).
-		Set("active = ?", active).
-		Where(whereID, id).
-		Exec(ctx)
-
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "set active",
-			Err: err,
-		}
-	}
-
 	return nil
 }
 
@@ -480,7 +480,7 @@ func (r *AccountRepository) ListManageable(ctx context.Context, filters map[stri
 func (r *AccountRepository) FindByRole(ctx context.Context, role string) ([]*auth.Account, error) {
 	if tenant.ScopeFromContext(ctx) == tenant.ScopeOrg {
 		var accounts []*auth.Account
-		err := tenant.WithAdminTx(modelBase.ContextWithoutTx(ctx), r.db, func(adminCtx context.Context, _ bun.Tx) error {
+		err := tenant.WithAdminTx(tenant.ContextWithoutTransaction(ctx), r.db, func(adminCtx context.Context, _ bun.Tx) error {
 			var err error
 			accounts, err = r.list(adminCtx, map[string]interface{}{"role": role}, true)
 			return err
@@ -510,7 +510,7 @@ func (r *AccountRepository) list(ctx context.Context, filters map[string]interfa
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -562,16 +562,13 @@ func (r *AccountRepository) applyRoleFilter(ctx context.Context, query *bun.Sele
 			Where(`LOWER("role".name) = LOWER(?)`, strValue).
 			Distinct()
 		if tenant.ScopeFromContext(ctx) == tenant.ScopeOrg {
-			organizationID := tenant.OrgFromContext(ctx)
-			if organizationID == 0 {
+			schoolIDs := manageableSchoolIDs(ctx)
+			if tenant.OrgFromContext(ctx) == 0 || len(schoolIDs) == 0 {
 				return query.Where("FALSE")
 			}
 			return query.
-				Join(`INNER JOIN platform.schools AS "role_school" ON "role_school".id = "account_role".tenant_id`).
 				Join(`INNER JOIN auth.account_tenants AS "role_account_tenant" ON "role_account_tenant".account_id = "account_role".account_id AND "role_account_tenant".tenant_id = "account_role".tenant_id`).
-				Where(`"role_school".organization_id = ?`, organizationID).
-				Where(`"role_school".active = TRUE`).
-				Where(`"role_school".deleted_at IS NULL`).
+				Where(`"account_role".tenant_id IN (?)`, bun.List(schoolIDs)).
 				Where(`"role_account_tenant".status = ?`, auth.AccountTenantStatusActive)
 		}
 		if tenant.IsAdminTx(ctx) || tenant.ScopeFromContext(ctx) == tenant.ScopePlatform {
@@ -605,7 +602,7 @@ func (r *AccountRepository) FindAccountsWithRolesAndPermissions(ctx context.Cont
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find accounts with roles and permissions",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -634,7 +631,7 @@ func (r *AccountRepository) FindEmailsByAccountIDs(ctx context.Context, accountI
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find emails by account IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -670,7 +667,7 @@ func (r *AccountRepository) FindAvatarsByAccountIDs(ctx context.Context, account
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find avatars by account IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -850,7 +847,7 @@ func (r *AccountRepository) update(ctx context.Context, account *auth.Account, m
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	if manageable {
@@ -859,7 +856,7 @@ func (r *AccountRepository) update(ctx context.Context, account *auth.Account, m
 			return &modelBase.DatabaseError{Op: "update account", Err: rowsErr}
 		}
 		if affected == 0 {
-			return &modelBase.DatabaseError{Op: "update account", Err: sql.ErrNoRows}
+			return &modelBase.DatabaseError{Op: "update account", Err: base.TranslateNotFound(sql.ErrNoRows)}
 		}
 	}
 	return base.AssertRowsAffected(result, 1, "update account")
@@ -880,7 +877,7 @@ func (r *AccountRepository) AnonymizeForDeletion(ctx context.Context, accountID 
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "anonymize account for deletion",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return nil

@@ -1,51 +1,69 @@
-package config_test
+package config
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
-	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestSettingAuditEntryHasHonestShape(t *testing.T) {
+	t.Parallel()
+
+	modelType := reflect.TypeFor[SettingAuditEntry]()
+	for _, method := range []string{"GetID", "GetCreatedAt", "GetUpdatedAt"} {
+		if _, ok := reflect.PointerTo(modelType).MethodByName(method); ok {
+			t.Fatalf("SettingAuditEntry must not declare the generic %s contract", method)
+		}
+	}
+	idField, ok := modelType.FieldByName("ID")
+	if !ok || len(idField.Index) != 1 || idField.Tag.Get("bun") != "id,pk,autoincrement" {
+		t.Fatal("SettingAuditEntry must keep its direct audit identity mapping")
+	}
+	changedAtField, ok := modelType.FieldByName("ChangedAt")
+	if !ok || changedAtField.Tag.Get("bun") != "changed_at,notnull,default:current_timestamp" {
+		t.Fatal("SettingAuditEntry must keep its changed_at mapping")
+	}
+}
 
 func TestSettingAuditEntry_Validate(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name    string
-		entry   config.SettingAuditEntry
+		entry   SettingAuditEntry
 		wantErr string
 	}{
 		{
 			name:    "valid set action",
-			entry:   config.SettingAuditEntry{SettingKey: "test.key", Action: "set"},
+			entry:   SettingAuditEntry{SettingKey: "test.key", Action: "set"},
 			wantErr: "",
 		},
 		{
 			name:    "valid reset action",
-			entry:   config.SettingAuditEntry{SettingKey: "test.key", Action: "reset"},
+			entry:   SettingAuditEntry{SettingKey: "test.key", Action: "reset"},
 			wantErr: "",
 		},
 		{
 			name:    "valid delete action",
-			entry:   config.SettingAuditEntry{SettingKey: "test.key", Action: "delete"},
+			entry:   SettingAuditEntry{SettingKey: "test.key", Action: "delete"},
 			wantErr: "",
 		},
 		{
 			name:    "missing key",
-			entry:   config.SettingAuditEntry{Action: "set"},
+			entry:   SettingAuditEntry{Action: "set"},
 			wantErr: "setting_key is required",
 		},
 		{
 			name:    "invalid action",
-			entry:   config.SettingAuditEntry{SettingKey: "test.key", Action: "update"},
+			entry:   SettingAuditEntry{SettingKey: "test.key", Action: "update"},
 			wantErr: "action must be set, reset, or delete",
 		},
 		{
 			name:    "empty action",
-			entry:   config.SettingAuditEntry{SettingKey: "test.key"},
+			entry:   SettingAuditEntry{SettingKey: "test.key"},
 			wantErr: "action must be set, reset, or delete",
 		},
 	}
@@ -63,35 +81,15 @@ func TestSettingAuditEntry_Validate(t *testing.T) {
 	}
 }
 
-func TestSettingAuditEntry_GetID(t *testing.T) {
-	t.Parallel()
-
-	entry := &config.SettingAuditEntry{ID: 99}
-	assert.Equal(t, int64(99), entry.GetID())
-}
-
-func TestSettingAuditEntry_GetCreatedAt_ReturnsChangedAt(t *testing.T) {
-	t.Parallel()
-
-	entry := &config.SettingAuditEntry{}
-	assert.Equal(t, entry.ChangedAt, entry.GetCreatedAt())
-}
-
-func TestSettingAuditEntry_GetUpdatedAt_ReturnsChangedAt(t *testing.T) {
-	t.Parallel()
-
-	entry := &config.SettingAuditEntry{}
-	assert.Equal(t, entry.ChangedAt, entry.GetUpdatedAt())
-}
-
 func TestNewAuditEntry(t *testing.T) {
 	t.Parallel()
 
-	changedBy := ptrtest.Ptr(int64(42))
+	changedByValue := int64(42)
+	changedBy := &changedByValue
 	oldValue := json.RawMessage(`"old"`)
 	newValue := json.RawMessage(`"new"`)
 
-	entry := config.NewAuditEntry(5, "test.key", "set", oldValue, newValue, changedBy)
+	entry := NewAuditEntry(5, "test.key", "set", oldValue, newValue, changedBy)
 
 	assert.Equal(t, int64(5), entry.TenantID)
 	assert.Equal(t, "test.key", entry.SettingKey)
@@ -105,7 +103,7 @@ func TestNewAuditEntry(t *testing.T) {
 func TestNewAuditEntry_NilValues(t *testing.T) {
 	t.Parallel()
 
-	entry := config.NewAuditEntry(1, "test.reset", "reset", nil, nil, nil)
+	entry := NewAuditEntry(1, "test.reset", "reset", nil, nil, nil)
 
 	assert.Equal(t, "reset", entry.Action)
 	assert.Nil(t, entry.OldValue)

@@ -28,6 +28,7 @@ export interface FeedSource<T> {
 /** Jede Zeile trägt den Zeitpunkt, nach dem zusammengeführt wird. */
 export interface FeedItem {
   readonly occurred_at: string;
+  readonly urgent_today?: boolean;
 }
 
 interface SourceState<T> {
@@ -87,6 +88,7 @@ export async function takeMergedPage<T extends FeedItem>(
   const items: T[] = [];
   while (items.length < limit) {
     let bestSource: SourceState<T> | null = null;
+    let bestUrgent = false;
     let bestTime = Number.NEGATIVE_INFINITY;
     for (const source of sources) {
       const sourceState = state[source.key];
@@ -97,8 +99,14 @@ export async function takeMergedPage<T extends FeedItem>(
       // Über Date.parse verglichen, nicht als Zeichenkette: beide Endpunkte
       // liefern ISO-Zeitpunkte, aber nicht zwingend mit derselben Zeitzone.
       const headTime = Date.parse(head.occurred_at);
-      if (bestSource === null || headTime > bestTime) {
+      const urgent = head.urgent_today === true;
+      if (
+        bestSource === null ||
+        (urgent && !bestUrgent) ||
+        (urgent === bestUrgent && headTime > bestTime)
+      ) {
         bestSource = sourceState;
+        bestUrgent = urgent;
         bestTime = headTime;
       }
     }

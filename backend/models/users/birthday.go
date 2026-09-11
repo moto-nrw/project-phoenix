@@ -26,7 +26,7 @@ type MonthDay struct {
 
 // MonthDayOf reduces a stored birth date to its recurring day.
 func MonthDayOf(d timezone.Date) MonthDay {
-	return MonthDay{Month: d.Month, Day: d.Day}
+	return MonthDay{Month: d.Month(), Day: d.Day()}
 }
 
 // BirthdayEntry is one person having a birthday on one of the queried days.

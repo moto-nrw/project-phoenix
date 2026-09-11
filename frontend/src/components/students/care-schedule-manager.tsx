@@ -19,7 +19,7 @@ import {
   type CarePlanWeeklySubmit,
   CarePlanEditorModal,
 } from "./care-plan-editor-modal";
-import { ConfirmationModal } from "~/components/ui/modal";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import {
   type ArrivalData,
   createArrivalException,
@@ -949,24 +949,29 @@ export function CareScheduleManager({
           }
         />
       ) : null}
-      <ConfirmationModal
+      <ConfirmDeleteModal
         isOpen={statusDayToDelete !== null}
-        onClose={() => setStatusDayToDelete(null)}
+        title="Geplanten Status entfernen"
+        description={
+          <p className="leading-6">
+            {statusDayToDelete
+              ? `Dieser Eintrag wird nur für ${formatStatusDayDate(
+                  statusDayToDelete.date,
+                )} entfernt. Andere geplante Tage bleiben bestehen.`
+              : "Dieser geplante Status wird entfernt."}
+          </p>
+        }
+        gate={{ mode: "twoStep", firstStepLabel: "Entfernen" }}
+        confirmLabel="Endgültig entfernen"
+        loadingLabel="Wird entfernt…"
         onConfirm={handleConfirmDeleteStatusDay}
-        title="Geplanten Status entfernen?"
-        confirmText="Entfernen"
-        cancelText="Abbrechen"
-        isConfirmLoading={deletingStatusDayId === statusDayToDelete?.id}
-        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
-      >
-        <p className="text-sm leading-6 text-gray-600">
-          {statusDayToDelete
-            ? `Dieser Eintrag wird nur für ${formatStatusDayDate(
-                statusDayToDelete.date,
-              )} entfernt. Andere geplante Tage bleiben bestehen.`
-            : "Dieser geplante Status wird entfernt."}
-        </p>
-      </ConfirmationModal>
+        onClose={() => setStatusDayToDelete(null)}
+        loading={
+          statusDayToDelete !== null &&
+          deletingStatusDayId === statusDayToDelete.id
+        }
+        error=""
+      />
     </section>
   );
 }
@@ -1161,7 +1166,7 @@ function CareDayCard({
 
   return (
     <article
-      className={`flex flex-col rounded-xl border border-gray-200 bg-white p-3 shadow-sm ${
+      className={`moto-content-surface flex flex-col rounded-xl border p-3 shadow-sm ${
         isMobileDetail ? "min-h-[236px]" : "min-h-[260px]"
       }`}
     >

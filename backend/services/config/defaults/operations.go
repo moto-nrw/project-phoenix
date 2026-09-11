@@ -160,17 +160,14 @@ func init() {
 		AccessPolicy:    config.AccessOperatorOnly,
 	})
 
-	// --- Schulweite Sicht auf alle laufenden Räume (#2380) ---
+	// --- Sichtbereich für Gruppen und laufende Betreuungen (#2801) ---
 
 	config.Register(config.Definition{
-		Key:   config.KeyOperationalOverviewScope,
-		Label: "Sicht auf alle Räume",
-		Description: "Legt fest, wer in der Aktuellen Aufsicht alle Räume der Schule sieht. " +
-			"Ohne Freigabe sieht jede Person nur ihre eigenen Räume. " +
-			"Die Freigabe gibt keine neuen Rechte. " +
-			"Wer etwas sonst nicht darf, darf es auch hier nicht.",
+		Key:             config.KeyOperationalOverviewScope,
+		Label:           "Sichtbereich für Mitarbeitende",
+		Description:     "Legt fest, welche Gruppen und laufenden Betreuungen Mitarbeitende sehen. Admins sehen immer alles. Die Auswahl gibt keine neuen Rechte.",
 		Type:            config.FieldSelect,
-		Default:         config.OverviewScopeOwn,
+		Default:         config.OverviewScopeAllStaff,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "operations",
@@ -178,9 +175,48 @@ func init() {
 		SortOrder:       1,
 		Options: &config.SelectOptions{
 			Static: []config.SelectOption{
-				{Label: "Nur eigene Räume", Value: config.OverviewScopeOwn},
-				{Label: "Alle Räume für Administratoren", Value: config.OverviewScopeAdmins},
-				{Label: "Alle Räume für alle Mitarbeitenden", Value: config.OverviewScopeAllStaff},
+				{Label: "Ganzes Team", Value: config.OverviewScopeAllStaff},
+				{Label: "Eigene Zuständigkeiten", Value: config.OverviewScopeOwn},
+			},
+		},
+	})
+
+	// --- Abweichende Ankunftszeit für eine Klasse (#2962) ---
+
+	config.Register(config.Definition{
+		Key:             config.KeyClassArrivalExceptionEditors,
+		Label:           "Andere Ankunftszeit für eine Klasse eintragen",
+		Description:     "Legt fest, wer für eine ganze Klasse an einem Tag eine andere Ankunftszeit eintragen darf, zum Beispiel bei Unterrichtsausfall. Sehen können die Änderung alle.",
+		Type:            config.FieldSelect,
+		Default:         config.ClassArrivalExceptionEditorsAdmins,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "aufsicht",
+		SortOrder:       2,
+		Options: &config.SelectOptions{
+			Static: []config.SelectOption{
+				{Label: "Nur Koordination und Admins", Value: config.ClassArrivalExceptionEditorsAdmins},
+				{Label: "Alle Mitarbeitenden", Value: config.ClassArrivalExceptionEditorsAllStaff},
+			},
+		},
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeySchoolPortalWriteScope,
+		Label:           "Was Lehrkräfte in moto schule eintragen dürfen",
+		Description:     "Gilt für Lehrkräfte mit Zugang zu moto schule. Zurzeit geht nur eines: eine andere Ankunftszeit für eine ganze Klasse an einem Tag, zum Beispiel bei Unterrichtsausfall. Die OGS sieht die Eintragung sofort überall dort, wo Ankunftszeiten stehen.",
+		Type:            config.FieldSelect,
+		Default:         config.SchoolPortalWriteScopeNone,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "aufsicht",
+		SortOrder:       3,
+		Options: &config.SelectOptions{
+			Static: []config.SelectOption{
+				{Label: "Nichts. Die Schule sieht nur.", Value: config.SchoolPortalWriteScopeNone},
+				{Label: "Andere Ankunftszeit für eine Klasse an einem Tag", Value: config.SchoolPortalWriteScopeClassArrivalExceptions},
 			},
 		},
 	})
@@ -786,6 +822,44 @@ func init() {
 		SortOrder:       68,
 	})
 
+	config.Register(config.Definition{
+		Key:             config.KeyParentRequestGroupLeaderReviewEnabled,
+		Label:           "Gruppenleitungen dürfen Elternanfragen entscheiden",
+		Description:     "Aus: Nur OGS-Admins entscheiden. Ein: Aktuelle Gruppenleitungen und Vertretungen entscheiden zusätzlich für Kinder ihrer Gruppen.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       69,
+		AccessPolicy:    config.AccessShared,
+	})
+
+	config.Register(config.Definition{
+		Key:   config.KeyParentRequestReasonPolicy,
+		Label: "Begründung bei Anfragen",
+		Description: "Legt fest, wer bei einer Anfrage einen Grund schreiben muss. " +
+			"Eltern begründen beim Absenden. Mitarbeitende begründen beim Freigeben. " +
+			"Eine Ablehnung braucht immer einen Grund. Das ändert diese Einstellung nicht.",
+		Type:            config.FieldSelect,
+		Default:         config.ReasonPolicyBoth,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       70,
+		AccessPolicy:    config.AccessShared,
+		Options: &config.SelectOptions{
+			Static: []config.SelectOption{
+				{Label: "Niemand muss begründen", Value: config.ReasonPolicyNobody},
+				{Label: "Nur Eltern", Value: config.ReasonPolicyGuardians},
+				{Label: "Nur Mitarbeitende", Value: config.ReasonPolicyStaff},
+				{Label: "Eltern und Mitarbeitende", Value: config.ReasonPolicyBoth},
+			},
+		},
+	})
+
 	// Essensplan. Unlike the other parents-portal features this one is
 	// opt-out (default ON): every school gets the meal plan out of the box and
 	// can switch it off if it doesn't serve food. When on, staff maintain a
@@ -794,7 +868,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyMealPlanEnabled,
 		Label:           "Essensplan",
-		Description:     "Wenn aktiviert, kann das Team pro Tag ein Gericht mit optionalem Hinweis hinterlegen. Eltern sehen den Essensplan für die aktuelle und nächste Woche im Elternportal.",
+		Description:     "Wenn eingeschaltet, kann das Team pro Tag ein Gericht mit optionalem Hinweis hinterlegen. Eltern sehen den Essensplan für die aktuelle und nächste Woche im Elternportal.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
@@ -802,6 +876,34 @@ func init() {
 		Tab:             "operations",
 		Category:        "elternportal",
 		SortOrder:       68,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyMealRegistrationEnabled,
+		Label:           "Anmeldung zum Mittagessen",
+		Description:     "Wenn eingeschaltet, können Eltern feste Wochentage und einzelne Tage für das Mittagessen festlegen. Das Team erhält daraus eine Tagesliste für die Küche.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       69,
+		DependsOn:       config.DependsOnEq(config.KeyMealPlanEnabled, true),
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyMealRegistrationCutoffTime,
+		Label:           "Änderungsfrist für das Mittagessen",
+		Description:     "Bis zu dieser Uhrzeit können Eltern die Anmeldung für den gleichen Tag ändern. Spätere Krankmeldungen ändern die Küchenliste nicht mehr.",
+		Type:            config.FieldTime,
+		Default:         "09:00",
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       70,
+		DependsOn:       config.DependsOnEq(config.KeyMealRegistrationEnabled, true),
 	})
 
 	// Parent broadcast announcements (#1669). When on, staff with the

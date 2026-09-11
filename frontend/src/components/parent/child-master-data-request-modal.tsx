@@ -10,6 +10,7 @@ import { ISODatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { RequestSharingSelector } from "~/components/parent/request-sharing-control";
 import { todayISO } from "~/lib/date-helpers";
 import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
 import type { ChildMasterData, MasterDataChangeInput } from "~/lib/parent-api";
@@ -17,15 +18,20 @@ import type { ChildMasterData, MasterDataChangeInput } from "~/lib/parent-api";
 type IdentityField = "first_name" | "last_name" | "birthday" | "school_class";
 
 export function ChildMasterDataRequestModal({
+  studentId,
   data,
   pendingFields,
   onClose,
   onSubmit,
 }: Readonly<{
+  studentId: string;
   data: ChildMasterData;
   pendingFields: ReadonlySet<string>;
   onClose: () => void;
-  onSubmit: (changes: MasterDataChangeInput[]) => Promise<void>;
+  onSubmit: (
+    changes: MasterDataChangeInput[],
+    recipientIds: string[],
+  ) => Promise<void>;
 }>) {
   const t = useTranslations("parentMasterData");
   const datePicker = useLocalizedDatePicker();
@@ -35,6 +41,7 @@ export function ChildMasterDataRequestModal({
   const [schoolClass, setSchoolClass] = useState(data.school_class);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [recipientIds, setRecipientIds] = useState<string[]>([]);
 
   const fields = useMemo(
     () => [
@@ -89,6 +96,7 @@ export function ChildMasterDataRequestModal({
           field_key: field.key,
           value: field.value,
         })),
+        recipientIds,
       );
       onClose();
     } catch {
@@ -225,6 +233,11 @@ export function ChildMasterDataRequestModal({
             />
           </ModalField>
         </div>
+        <RequestSharingSelector
+          studentId={studentId}
+          selected={recipientIds}
+          onChange={setRecipientIds}
+        />
         {error && <Alert type="error" message={error} />}
       </div>
     </Modal>

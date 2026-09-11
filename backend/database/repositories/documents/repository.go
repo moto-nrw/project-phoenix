@@ -86,7 +86,7 @@ func (r *Repository[T, C]) Create(ctx context.Context, document T) error {
 		ModelTableExpr(r.tableExpr()).
 		Returning("*").
 		Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "create " + r.cfg.Alias, Err: err}
+		return &modelBase.DatabaseError{Op: "create " + r.cfg.Alias, Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -118,9 +118,7 @@ func (r *Repository[T, C]) findForOwner(ctx context.Context, ownerID, documentID
 	query = base.WithTenantFilter(ctx, query, r.cfg.Alias)
 
 	if err := query.Scan(ctx); err != nil {
-		// sql.ErrNoRows stays wrapped so modelBase.IsNoRows classifies the
-		// missing (or foreign) document as a 404.
-		return zero, &modelBase.DatabaseError{Op: "find " + r.cfg.Alias, Err: err}
+		return zero, &modelBase.DatabaseError{Op: "find " + r.cfg.Alias, Err: base.TranslateNotFound(err)}
 	}
 	return document, nil
 }
@@ -144,7 +142,7 @@ func (r *Repository[T, C]) ListByOwnerID(ctx context.Context, ownerID int64, cat
 	query = base.WithTenantFilter(ctx, query, r.cfg.Alias)
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list " + r.cfg.Alias, Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list " + r.cfg.Alias, Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -162,7 +160,7 @@ func (r *Repository[T, C]) ListPendingFileCleanupByOwnerID(ctx context.Context, 
 	query = base.WithTenantFilter(ctx, query, r.cfg.Alias)
 
 	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list pending " + r.cfg.Alias + " cleanup", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list pending " + r.cfg.Alias + " cleanup", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -182,7 +180,7 @@ func (r *Repository[T, C]) ListDeletedPendingFileCleanups(ctx context.Context) (
 	query = base.WithTenantFilter(ctx, query, r.cfg.Alias)
 
 	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list deleted " + r.cfg.Alias + " cleanup", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list deleted " + r.cfg.Alias + " cleanup", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -212,7 +210,7 @@ func (r *Repository[T, C]) ListDeletedPendingFileCleanupByOwnerID(ctx context.Co
 	query = base.WithTenantFilter(ctx, query, r.cfg.Alias)
 
 	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list pending deleted " + r.cfg.Alias + " cleanup", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list pending deleted " + r.cfg.Alias + " cleanup", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -235,14 +233,14 @@ func (r *Repository[T, C]) SoftDelete(ctx context.Context, document T, deletedBy
 	query = base.WithTenantFilter(ctx, query, r.cfg.Alias)
 	res, err := query.Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "soft delete " + r.cfg.Alias, Err: err}
+		return &modelBase.DatabaseError{Op: "soft delete " + r.cfg.Alias, Err: base.TranslateNotFound(err)}
 	}
 	affected, err := res.RowsAffected()
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "soft delete " + r.cfg.Alias, Err: err}
+		return &modelBase.DatabaseError{Op: "soft delete " + r.cfg.Alias, Err: base.TranslateNotFound(err)}
 	}
 	if affected == 0 {
-		return &modelBase.DatabaseError{Op: "soft delete " + r.cfg.Alias, Err: sql.ErrNoRows}
+		return &modelBase.DatabaseError{Op: "soft delete " + r.cfg.Alias, Err: base.TranslateNotFound(sql.ErrNoRows)}
 	}
 	document.MarkSoftDeleted(now, deletedBy)
 	return nil
@@ -261,7 +259,7 @@ func (r *Repository[T, C]) MarkFileDeleted(ctx context.Context, documentID int64
 		WhereAllWithDeleted()
 	query = base.WithTenantFilter(ctx, query, r.cfg.Alias)
 	if _, err := query.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "mark " + r.cfg.Alias + " file deleted", Err: err}
+		return &modelBase.DatabaseError{Op: "mark " + r.cfg.Alias + " file deleted", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -286,7 +284,7 @@ func (r *Repository[T, C]) QueueFileCleanup(ctx context.Context, cleanup C) erro
 		Set("retry_after = EXCLUDED.retry_after").
 		Set("owner_id = EXCLUDED.owner_id").
 		Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "queue " + r.cfg.Alias + " file cleanup", Err: err}
+		return &modelBase.DatabaseError{Op: "queue " + r.cfg.Alias + " file cleanup", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -334,7 +332,7 @@ func (r *Repository[T, C]) listQueuedFileCleanups(ctx context.Context, where str
 	}
 	query = base.WithTenantFilter(ctx, query, r.cfg.CleanupAlias)
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list queued " + r.cfg.Alias + " file cleanup", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list queued " + r.cfg.Alias + " file cleanup", Err: base.TranslateNotFound(err)}
 	}
 	return cleanups, nil
 }
@@ -361,7 +359,7 @@ func (r *Repository[T, C]) ActivateQueuedFileCleanupByFilename(ctx context.Conte
 		Where(r.cleanupCol("cleaned_at") + " IS NULL")
 	query = base.WithTenantFilter(ctx, query, r.cfg.CleanupAlias)
 	if _, err := query.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "activate queued " + r.cfg.Alias + " file cleanup", Err: err}
+		return &modelBase.DatabaseError{Op: "activate queued " + r.cfg.Alias + " file cleanup", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -376,7 +374,7 @@ func (r *Repository[T, C]) markQueuedFileCleanupComplete(ctx context.Context, wh
 		Where(r.cleanupCol("cleaned_at") + " IS NULL")
 	query = base.WithTenantFilter(ctx, query, r.cfg.CleanupAlias)
 	if _, err := query.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "mark queued " + r.cfg.Alias + " file cleanup complete", Err: err}
+		return &modelBase.DatabaseError{Op: "mark queued " + r.cfg.Alias + " file cleanup complete", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }

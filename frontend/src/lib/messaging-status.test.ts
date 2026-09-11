@@ -14,7 +14,64 @@ import {
   parentRequestStatusI18nKey,
   parentRequestTypeI18nKey,
   parentThreadPreviewI18nDescriptor,
+  pickupRequestRef,
 } from "./messaging-status";
+
+describe("pickupRequestRef", () => {
+  const pill = (overrides: Partial<ChatMessage>): ChatMessage => ({
+    id: "1",
+    sender_kind: "system",
+    sender_name: "moto",
+    body: "Abholzeit angefragt: 15.09.2026, 14:30 Uhr",
+    created_at: "2026-09-08T18:40:00Z",
+    kind: "event",
+    event_type: "request_created",
+    request_type: "pickup_change",
+    ref_table: "schedule.care_schedule_change_requests",
+    ref_id: "42",
+    ...overrides,
+  });
+
+  it("returns the request row id for a created AND a decided pickup pill", () => {
+    expect(pickupRequestRef(pill({}))).toBe("42");
+    expect(
+      pickupRequestRef(
+        pill({ event_type: "request_status", request_status: "erledigt" }),
+      ),
+    ).toBe("42");
+    expect(
+      pickupRequestRef(
+        pill({ event_type: "request_status", request_status: "abgelehnt" }),
+      ),
+    ).toBe("42");
+  });
+
+  it("keeps two requests of the same child apart by their reference", () => {
+    expect(pickupRequestRef(pill({ ref_id: "42" }))).toBe("42");
+    expect(pickupRequestRef(pill({ ref_id: "43" }))).toBe("43");
+  });
+
+  it("offers nothing for legacy pills without a usable reference", () => {
+    expect(pickupRequestRef(pill({ ref_id: undefined }))).toBeNull();
+    expect(pickupRequestRef(pill({ ref_id: "" }))).toBeNull();
+    expect(pickupRequestRef(pill({ ref_id: "0" }))).toBeNull();
+    expect(pickupRequestRef(pill({ ref_id: "abc" }))).toBeNull();
+    expect(
+      pickupRequestRef(
+        pill({ ref_table: "users.student_data_change_requests" }),
+      ),
+    ).toBeNull();
+  });
+
+  it("ignores non-pickup pills and plain messages", () => {
+    expect(
+      pickupRequestRef(pill({ request_type: "care_schedule" })),
+    ).toBeNull();
+    expect(pickupRequestRef(pill({ request_type: "master_data" }))).toBeNull();
+    expect(pickupRequestRef(pill({ kind: "message" }))).toBeNull();
+    expect(pickupRequestRef(pill({ kind: "request" }))).toBeNull();
+  });
+});
 
 describe("messaging-status — ChatMessage type", () => {
   it("accepts a minimal guardian message conforming to the ChatMessage shape", () => {

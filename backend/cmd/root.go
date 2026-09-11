@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -43,24 +44,45 @@ func init() {
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
-	if cfgFile != "" {
+	loadConfig(viper.GetViper(), cfgFile, isDocker())
+	propagateDatabaseConfig()
+}
+
+func loadConfig(config *viper.Viper, configFile string, docker bool) {
+	if configFile != "" {
 		// Use config file from the flag.
-		viper.SetConfigFile(cfgFile)
-	} else if !isDocker() {
+		config.SetConfigFile(configFile)
+	} else if !docker {
 		// Only load dev.env for local development (go run main.go serve).
 		// In Docker, all config comes from the docker-compose environment block.
 		// Loading dev.env inside Docker causes conflicts (e.g., DB_DSN pointing
 		// to localhost instead of the Docker network hostname).
-		viper.AddConfigPath(".")
-		viper.SetConfigName("dev")
-		viper.SetConfigType("env")
+		config.AddConfigPath(".")
+		config.SetConfigName("dev")
+		config.SetConfigType("env")
 	}
 
-	viper.AutomaticEnv() // read in environment variables that match
+	config.AutomaticEnv()
 
 	// If a config file is found, read it in.
-	if viper.ReadInConfig() == nil {
-		fmt.Println("Using config file:", viper.ConfigFileUsed())
+	if config.ReadInConfig() == nil {
+		fmt.Println("Using config file:", config.ConfigFileUsed())
+	}
+}
+
+// propagateDatabaseConfig makes the effective local Viper configuration
+// available to persistence adapters, which intentionally depend only on the
+// process environment.
+func propagateDatabaseConfig() {
+	for _, key := range []string{
+		"app_env", "db_dsn", "test_db_dsn", "phoenix_auth_password",
+		"db_max_open_conns", "db_max_idle_conns", "db_conn_max_lifetime", "db_conn_max_idle_time",
+	} {
+		if value := viper.GetString(key); value != "" {
+			if err := os.Setenv(strings.ToUpper(key), value); err != nil {
+				panic(fmt.Errorf("propagate %s configuration: %w", key, err))
+			}
+		}
 	}
 }
 

@@ -32,27 +32,9 @@ type CareExitEffector interface {
 	ApplyDueEffects(ctx context.Context, asOf timezone.Date) (int, error)
 }
 
-// SetCareExitEffector wires the effect pass. Nil keeps the tick to its
-// original status transitions, matching the opt-in shape of the setters above.
-func (s *Scheduler) SetCareExitEffector(effector CareExitEffector) {
-	s.careExitEffector = effector
-}
-
 // StudentLifecycleAuditor records scheduler-authored status transitions.
 type StudentLifecycleAuditor interface {
 	RecordSystemStatusChange(ctx context.Context, studentID int64, before, after userModels.StudentStatus) error
-}
-
-// SetStudentLifecycleRepo wires the repository for the activate-students tick.
-// Nil repo → no task registers, matching SetMaterializer's opt-in pattern.
-func (s *Scheduler) SetStudentLifecycleRepo(repo StudentLifecycleRepository) {
-	s.studentLifecycleRepo = repo
-}
-
-// SetStudentLifecycleAudit wires change-history recording for automated status
-// transitions.
-func (s *Scheduler) SetStudentLifecycleAudit(audit StudentLifecycleAuditor) {
-	s.studentLifecycleAudit = audit
 }
 
 // scheduleActivateStudentsTask registers the per-tenant activate-students
@@ -94,7 +76,7 @@ func (s *Scheduler) resolveActivateStudentsInterval() time.Duration {
 // checkAndRunActivateStudents iterates active tenants and runs activation +
 // deactivation per tenant. Re-entry is guarded by task.Running so a slow
 // tenant cannot cause overlapping ticks.
-func (s *Scheduler) checkAndRunActivateStudents(task *ScheduledTask) {
+func (s *Scheduler) checkAndRunActivateStudents(ctx context.Context, task *ScheduledTask) {
 	task.mu.Lock()
 	if task.Running {
 		task.mu.Unlock()
@@ -108,7 +90,7 @@ func (s *Scheduler) checkAndRunActivateStudents(task *ScheduledTask) {
 		task.mu.Unlock()
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	ctx, cancel := s.taskContext(ctx, 30*time.Minute)
 	defer cancel()
 
 	now := time.Now()

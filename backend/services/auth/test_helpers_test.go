@@ -745,6 +745,7 @@ func (r *stubInvitationTokenRepository) UpdateDeliveryResult(_ context.Context, 
 	if !exists {
 		return sql.ErrNoRows
 	}
+	token.UpdatedAt = time.Now()
 	token.EmailRetryCount = retryCount
 	if sentAt != nil {
 		token.EmailSentAt = sentAt
@@ -1234,8 +1235,8 @@ func (noopTokenRepository) CleanupOldTokensForAccountReturning(context.Context, 
 	panic("CleanupOldTokensForAccountReturning not implemented")
 }
 
-func (noopTokenRepository) FindByFamilyID(context.Context, string) ([]*authModel.Token, error) {
-	panic("FindByFamilyID not implemented")
+func (noopTokenRepository) RetireFamily(context.Context, int64, string, time.Time) error {
+	panic("RetireFamily not implemented")
 }
 
 func (noopTokenRepository) DeleteByFamilyIDReturning(context.Context, string) ([]*authModel.Token, error) {
@@ -1674,19 +1675,19 @@ func newStubRFIDCardRepository(ids ...string) *stubRFIDCardRepository {
 
 // FindByID mirrors the real repository, which reports an unknown card as a clean
 // (nil, nil) rather than an error.
-func (r *stubRFIDCardRepository) FindByID(_ context.Context, id string) (*userModel.RFIDCard, error) {
+func (r *stubRFIDCardRepository) FindByID(_ context.Context, id string) (*authModel.RFIDCard, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if !r.cards[id] {
 		return nil, nil
 	}
-	return &userModel.RFIDCard{StringIDModel: base.StringIDModel{ID: id}}, nil
+	return &authModel.RFIDCard{StringIDModel: base.StringIDModel{ID: id}}, nil
 }
 
-func (r *stubRFIDCardRepository) Create(context.Context, *userModel.RFIDCard) error { return nil }
-func (r *stubRFIDCardRepository) Update(context.Context, *userModel.RFIDCard) error { return nil }
+func (r *stubRFIDCardRepository) Create(context.Context, *authModel.RFIDCard) error { return nil }
+func (r *stubRFIDCardRepository) Update(context.Context, *authModel.RFIDCard) error { return nil }
 func (r *stubRFIDCardRepository) Delete(context.Context, string) error              { return nil }
 func (r *stubRFIDCardRepository) Deactivate(context.Context, string) error          { return nil }
-func (r *stubRFIDCardRepository) List(context.Context, map[string]interface{}) ([]*userModel.RFIDCard, error) {
+func (r *stubRFIDCardRepository) List(context.Context, map[string]interface{}) ([]*authModel.RFIDCard, error) {
 	return nil, nil
 }

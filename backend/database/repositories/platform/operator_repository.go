@@ -47,7 +47,7 @@ func (r *OperatorRepository) FindByID(ctx context.Context, id int64) (*platform.
 		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "find operator by id",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -71,7 +71,7 @@ func (r *OperatorRepository) FindByIDForUpdate(ctx context.Context, id int64) (*
 		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "find operator by id for update",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -93,7 +93,7 @@ func (r *OperatorRepository) FindByEmail(ctx context.Context, email string) (*pl
 		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "find operator by email",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -120,7 +120,7 @@ func (r *OperatorRepository) List(ctx context.Context) ([]*platform.Operator, er
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list operators",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -137,13 +137,14 @@ func (r *OperatorRepository) IncrementMFAAttempts(ctx context.Context, id int64,
 		MFALockedUntil *time.Time `bun:"mfa_locked_until"`
 	}
 	row := new(incrementRow)
+	lockedUntil := time.Now().Add(lockoutDuration)
 	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*platform.Operator)(nil)).
 		ModelTableExpr(tablePlatformOperators).
 		Set("mfa_attempts = mfa_attempts + 1").
 		Set(
-			"mfa_locked_until = CASE WHEN mfa_attempts + 1 >= ? THEN now() + (? * interval '1 second') ELSE mfa_locked_until END",
-			threshold, int64(lockoutDuration.Seconds()),
+			"mfa_locked_until = CASE WHEN mfa_attempts + 1 >= ? THEN ? ELSE mfa_locked_until END",
+			threshold, lockedUntil,
 		).
 		Where("id = ?", id).
 		Returning("mfa_attempts, mfa_locked_until").
@@ -151,7 +152,7 @@ func (r *OperatorRepository) IncrementMFAAttempts(ctx context.Context, id int64,
 	if err != nil {
 		return platform.OperatorMFAAttemptResult{}, &modelBase.DatabaseError{
 			Op:  "increment operator mfa attempts",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return platform.OperatorMFAAttemptResult{
@@ -173,7 +174,7 @@ func (r *OperatorRepository) ResetMFAAttempts(ctx context.Context, id int64) err
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "reset operator mfa attempts",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return nil

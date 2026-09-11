@@ -2,7 +2,6 @@ package active
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"log/slog"
 	"testing"
@@ -162,8 +161,8 @@ func TestStaffBalanceAdjustmentService_ChecksFrozenMonthAfterLock(t *testing.T) 
 	effectiveDate := timezone.NewDate(2026, time.July, 7)
 	frozen := &activeModels.StaffMonthBalanceSnapshot{
 		StaffID: staffID,
-		Year:    effectiveDate.Year,
-		Month:   int(effectiveDate.Month),
+		Year:    effectiveDate.Year(),
+		Month:   int(effectiveDate.Month()),
 	}
 
 	for _, tc := range []struct {
@@ -676,7 +675,7 @@ func TestStaffBalanceAdjustmentService_DeletePropagatesLookupFailures(t *testing
 
 	t.Run("no rows maps to not found", func(t *testing.T) {
 		events := []string{}
-		repo := &recordingBalanceAdjustmentRepo{events: &events, findErr: sql.ErrNoRows}
+		repo := &recordingBalanceAdjustmentRepo{events: &events, findErr: modelBase.ErrNotFound}
 		service := newRecordingBalanceAdjustmentService(&events, repo, nil)
 
 		err := service.DeleteAdjustment(context.Background(), int64(41), 99, int64(7))

@@ -2,13 +2,12 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
 import { Button } from "./button";
 import { PlanningContextBar, PlanningDayChip } from "./planning-context-bar";
-import { Tabs, TabsList, TabsTrigger } from "./tabs";
+import { SegmentedControl } from "./segmented-control";
 
 const meta = {
   title: "components/ui/PlanningContextBar",
   component: PlanningContextBar,
   args: {
-    title: "Vertretung",
     dateLabel: "Mo 13.07.",
     onPrevious: () => {},
     onNext: () => {},
@@ -60,12 +59,15 @@ export const WithWeekStrip: Story = {
 export const WithViewSwitcher: Story = {
   args: {
     viewSwitcher: (
-      <Tabs defaultValue="stoerungen">
-        <TabsList>
-          <TabsTrigger value="stoerungen">Nur Störungen</TabsTrigger>
-          <TabsTrigger value="ganzerTag">Ganzer Tag</TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <SegmentedControl
+        ariaLabel="Ansicht"
+        value="stoerungen"
+        onChange={() => {}}
+        items={[
+          { value: "stoerungen", label: "Nur Störungen" },
+          { value: "ganzerTag", label: "Ganzer Tag" },
+        ]}
+      />
     ),
   },
 };

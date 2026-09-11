@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { releaseFakeTimers, setTestClock } from "~/test/clock";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -232,38 +233,84 @@ describe("SupervisionProvider", () => {
     expect(result.current.isSupervising).toBe(false);
   });
 
-  it(
-    "should refresh data when refresh is called",
-    { timeout: 10000 },
-    async () => {
-      setupFetchMock(); // Use defaults (empty)
+  it("should refresh data when refresh is called", async () => {
+    setupFetchMock(); // Use defaults (empty)
 
-      const { result } = renderHook(() => useSupervision(), {
-        wrapper: createWrapper("test-token"),
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token"),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingGroups).toBe(false);
+    });
+
+    // The 5-second throttle compares Date.now() with the last refresh; on
+    // the frozen test clock only moving the clock bypasses it.
+    setTestClock(new Date(Date.now() + 5100));
+
+    // Update mock for refresh call
+    setupFetchMock({
+      groups: { groups: [{ id: 10, name: "New Group" }] },
+    });
+
+    await act(async () => {
+      await result.current.refresh();
+    });
+
+    await waitFor(() => {
+      expect(result.current.groups).toHaveLength(1);
+      expect(result.current.groups[0]?.name).toBe("New Group");
+    });
+  });
+
+  it("updates a group's personal section after a handover", async () => {
+    setupFetchMock({
+      groups: {
+        groups: [
+          {
+            id: "10",
+            name: "Incoming Group",
+            is_personal: false,
+            via_substitution: false,
+          },
+        ],
+      },
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token"),
+    });
+
+    await waitFor(() => {
+      expect(result.current.groups[0]?.is_personal).toBe(false);
+    });
+
+    setupFetchMock({
+      groups: {
+        groups: [
+          {
+            id: "10",
+            name: "Incoming Group",
+            is_personal: true,
+            via_substitution: true,
+          },
+        ],
+      },
+    });
+
+    await act(async () => {
+      await result.current.refresh({
+        force: true,
+        groupsOnly: true,
+        silent: true,
       });
+    });
 
-      await waitFor(() => {
-        expect(result.current.isLoadingGroups).toBe(false);
-      });
-
-      // Wait more than 5 seconds to bypass debounce
-      await new Promise((resolve) => setTimeout(resolve, 5100));
-
-      // Update mock for refresh call
-      setupFetchMock({
-        groups: { groups: [{ id: 10, name: "New Group" }] },
-      });
-
-      await act(async () => {
-        await result.current.refresh();
-      });
-
-      await waitFor(() => {
-        expect(result.current.groups).toHaveLength(1);
-        expect(result.current.groups[0]?.name).toBe("New Group");
-      });
-    },
-  );
+    expect(result.current.groups[0]).toMatchObject({
+      is_personal: true,
+      via_substitution: true,
+    });
+  });
 
   it("should debounce rapid refresh calls", async () => {
     setupFetchMock(); // Use defaults
@@ -441,7 +488,7 @@ describe("SupervisionProvider", () => {
 
     expect(mockFetch).not.toHaveBeenCalled();
 
-    vi.useRealTimers();
+    releaseFakeTimers();
   });
 
   it("should handle supervision with room name fallback", async () => {
@@ -636,8 +683,7 @@ describe("SupervisionProvider school-wide overview paths", () => {
     vi.restoreAllMocks();
   });
 
-  it("should fetch from the overview endpoint when user is admin", async () => {
-    setOverviewScope("admins");
+  it("fetches from the overview endpoint for admins in own mode", async () => {
     setupFetchMock({
       adminAll: {
         success: true,
@@ -666,6 +712,46 @@ describe("SupervisionProvider school-wide overview paths", () => {
     // Verify the admin endpoint was called
     const fetchCalls = mockFetch.mock.calls.map((call) => call[0] as string);
     expect(fetchCalls).toContain("/api/active/supervisors/all");
+  });
+
+  it("keeps an admin's own regular-room supervision while loading the overview", async () => {
+    setupFetchMock({
+      adminAll: {
+        success: true,
+        data: [
+          {
+            id: 10,
+            room_id: 100,
+            group_id: 50,
+            room: { id: 100, name: "Fremder Raum" },
+          },
+        ],
+      },
+      supervised: {
+        data: [
+          {
+            id: 11,
+            room_id: 101,
+            group_id: 51,
+            room: { id: 101, name: "Eigener Raum" },
+          },
+        ],
+      },
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token", ["admin"]),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingSupervision).toBe(false);
+    });
+
+    expect(result.current.overviewEnabled).toBe(true);
+    expect(result.current.ownSupervision).toBe(true);
+    expect(mockFetch.mock.calls.map((call) => call[0])).toContain(
+      "/api/me/groups/supervised",
+    );
   });
 
   it("should fall back to staff endpoint when admin gets 403", async () => {
@@ -756,7 +842,7 @@ describe("SupervisionProvider school-wide overview paths", () => {
 
   // Deactivation: back on the restrictive scope, the client stops asking for
   // the school-wide list entirely instead of collecting 403s.
-  it("never asks for the overview endpoint under the own scope", async () => {
+  it("never asks for the overview endpoint for staff under the own scope", async () => {
     setOverviewScope("own");
     setupFetchMock({
       supervised: {
@@ -772,7 +858,7 @@ describe("SupervisionProvider school-wide overview paths", () => {
     });
 
     const { result } = renderHook(() => useSupervision(), {
-      wrapper: createWrapper("test-token", ["admin"]),
+      wrapper: createWrapper("test-token", ["user"]),
     });
 
     await waitFor(() => {

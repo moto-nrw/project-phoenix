@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { formatSignedDuration } from "~/components/staff/staff-time-views";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -15,7 +16,11 @@ import {
   toISODate,
 } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
-import { staffAbsenceService, type StaffAbsenceRow } from "~/lib/staff-api";
+import {
+  staffAbsenceService,
+  type CompTimeBalancePreview,
+  type StaffAbsenceRow,
+} from "~/lib/staff-api";
 import { useTenantRouter } from "~/lib/tenant-router";
 
 const logger = createLogger({ component: "SickReportModal" });
@@ -56,6 +61,11 @@ export function SickReportModal({
   // Non-null after a successful create — holds the start date the "Zur
   // Vertretung" jump should open the day view on.
   const [createdStart, setCreatedStart] = useState<string | null>(null);
+  // Stundenkonto-Vorschau für Freizeitausgleich (#2873): informiert vor dem
+  // Speichern; ein negativer erwarteter Stand verlangt die Bestätigung unten.
+  const [preview, setPreview] = useState<CompTimeBalancePreview | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [overdraftConfirmed, setOverdraftConfirmed] = useState(false);
 
   // Reset the form each time the modal is opened.
   useEffect(() => {
@@ -68,11 +78,57 @@ export function SickReportModal({
       setError(null);
       setCreatedStart(null);
       setSubmitting(false);
+      setPreview(null);
+      setOverdraftConfirmed(false);
     }
   }, [isOpen, absenceType]);
 
   const staffName = `${staff.firstName} ${staff.lastName}`;
   const isCompTime = absenceType === "comp_time";
+
+  // Load the Saldo projection whenever the requested range changes. A changed
+  // range also withdraws an already given overdraft confirmation.
+  const effectiveEnd = halfDay ? dateStart : dateEnd;
+  useEffect(() => {
+    if (!isOpen || !isCompTime || !dateStart || !effectiveEnd) {
+      return;
+    }
+    let stale = false;
+    // Sofort verwerfen: die alte Projektion darf während des Nachladens weder
+    // angezeigt werden noch über isOverdraft eine Buchung ohne Bestätigung
+    // durchlassen.
+    setPreview(null);
+    setPreviewLoading(true);
+    setOverdraftConfirmed(false);
+    staffAbsenceService
+      .getCompTimePreview(staff.id, {
+        dateStart,
+        dateEnd: effectiveEnd,
+        halfDay,
+      })
+      .then((result) => {
+        if (!stale) setPreview(result);
+      })
+      .catch((err: unknown) => {
+        if (stale) return;
+        // Vorschau ist rein informativ: ein Ladefehler blendet den Block aus,
+        // die Buchung selbst bleibt möglich und meldet ihre eigenen Fehler.
+        setPreview(null);
+        logger.error("comp_time_preview_failed", {
+          staff_id: staff.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      })
+      .finally(() => {
+        if (!stale) setPreviewLoading(false);
+      });
+    return () => {
+      stale = true;
+    };
+  }, [isOpen, isCompTime, staff.id, dateStart, effectiveEnd, halfDay]);
+
+  const isOverdraft =
+    isCompTime && preview !== null && preview.projectedBalanceMinutes < 0;
 
   const handleStartDateChange = (picked: Date | null) => {
     const nextStart = picked ? toISODate(picked) : "";
@@ -166,7 +222,13 @@ export function SickReportModal({
         onClick={handleSubmit}
         isLoading={submitting}
         loadingText={isCompTime ? "Wird eingetragen…" : "Wird gemeldet…"}
-        disabled={submitting || !dateStart || (!halfDay && !dateEnd)}
+        disabled={
+          submitting ||
+          !dateStart ||
+          (!halfDay && !dateEnd) ||
+          (isCompTime && previewLoading) ||
+          (isOverdraft && !overdraftConfirmed)
+        }
       >
         {isCompTime ? "Freizeitausgleich eintragen" : "Krank melden"}
       </Button>
@@ -187,7 +249,7 @@ export function SickReportModal({
             type="success"
             message={
               isCompTime
-                ? `${staffName} hat ab dem ${formatDate(createdStart)} Freizeitausgleich. Dafür wird keine Sollzeit gutgeschrieben.${halfDay ? " Die gearbeitete Hälfte muss separat erfasst sein." : ""}`
+                ? `${staffName} hat ab dem ${formatDate(createdStart)} Freizeitausgleich. Dafür wird keine Sollzeit gutgeschrieben.${halfDay ? " Die gearbeitete Hälfte muss separat erfasst sein." : ""}${preview ? ` Das Stundenkonto liegt danach bei ${formatSignedDuration(preview.projectedBalanceMinutes)}.` : ""}`
                 : halfDay
                   ? `${staffName} ist am ${formatDate(createdStart)} für einen halben Tag krank gemeldet. Dienst- und Betreuungsplan wurden nicht automatisch geändert.`
                   : `${staffName} ist ab dem ${formatDate(createdStart)} als krank gemeldet. Reguläre Schichten wurden storniert und Betreuungsblöcke als abwesend markiert.`
@@ -272,6 +334,100 @@ export function SickReportModal({
                 : "Halbe Tage gelten für ein einzelnes Datum und ändern den Dienst- und Betreuungsplan nicht automatisch."}
             </p>
           </div>
+
+          {isCompTime && (preview !== null || previewLoading) && (
+            <div className="rounded-lg bg-gray-50 p-3">
+              {preview === null ? (
+                <p className="text-sm text-gray-500">
+                  Stundenkonto wird berechnet …
+                </p>
+              ) : (
+                <>
+                  <dl className="space-y-1 text-sm">
+                    <div className="flex items-center justify-between gap-4">
+                      <dt className="text-gray-600">Stundenkonto aktuell</dt>
+                      <dd className="font-medium text-gray-900 tabular-nums">
+                        {formatSignedDuration(preview.currentBalanceMinutes)}
+                      </dd>
+                    </div>
+                    {preview.futureCommitmentMinutes > 0 && (
+                      <div className="flex items-center justify-between gap-4">
+                        <dt className="text-gray-600">
+                          Bereits geplanter Freizeitausgleich
+                        </dt>
+                        <dd className="font-medium text-gray-900 tabular-nums">
+                          {formatSignedDuration(
+                            -preview.futureCommitmentMinutes,
+                          )}
+                        </dd>
+                      </div>
+                    )}
+                    {preview.futureAdjustmentMinutes !== 0 && (
+                      <div className="flex items-center justify-between gap-4">
+                        <dt className="text-gray-600">
+                          Bereits geplante Buchungen
+                        </dt>
+                        <dd className="font-medium text-gray-900 tabular-nums">
+                          {formatSignedDuration(
+                            preview.futureAdjustmentMinutes,
+                          )}
+                        </dd>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between gap-4">
+                      <dt className="text-gray-600">
+                        Abzug für diesen Eintrag
+                      </dt>
+                      <dd className="font-medium text-gray-900 tabular-nums">
+                        {formatSignedDuration(-preview.deductionMinutes)}
+                      </dd>
+                    </div>
+                    <div className="flex items-center justify-between gap-4 border-t border-gray-200 pt-1.5">
+                      <dt className="font-medium text-gray-900">
+                        Stundenkonto danach
+                      </dt>
+                      <dd
+                        className={`font-semibold tabular-nums ${
+                          preview.projectedBalanceMinutes < 0
+                            ? "text-moto-red-strong"
+                            : "text-gray-900"
+                        }`}
+                      >
+                        {formatSignedDuration(preview.projectedBalanceMinutes)}
+                      </dd>
+                    </div>
+                  </dl>
+                  {preview.realizedDeductionMinutes > 0 && (
+                    <p className="mt-2 text-xs text-gray-500">
+                      Tage bis heute sind im aktuellen Stand schon enthalten.
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {isOverdraft && (
+            <div className="space-y-3">
+              <Alert
+                type="warning"
+                message={`Das Stundenkonto von ${staffName} fällt damit unter null.`}
+              />
+              <label
+                htmlFor="comp-time-overdraft-confirm"
+                className="flex items-center gap-2"
+              >
+                <Checkbox
+                  id="comp-time-overdraft-confirm"
+                  checked={overdraftConfirmed}
+                  onChange={(e) => setOverdraftConfirmed(e.target.checked)}
+                />
+                <span className="text-sm font-medium text-gray-800">
+                  Ich trage den Freizeitausgleich trotzdem ein.
+                </span>
+              </label>
+            </div>
+          )}
 
           <Input
             name="managed-absence-note"

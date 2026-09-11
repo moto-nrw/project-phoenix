@@ -23,7 +23,7 @@ import (
 func TestGetStudentPickupSchedules(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	// Create student for tests
 	student := testpkg.CreateTestStudent(t, tc.db, "PickupGet", "Test", "PG1")
@@ -70,7 +70,7 @@ func TestGetStudentPickupSchedules(t *testing.T) {
 		arztterminReason := "Arzttermin"
 		exception := &scheduleModel.StudentPickupException{
 			StudentID:     studentWithData.ID,
-			ExceptionDate: exceptionDate,
+			ExceptionDate: scheduleModel.Date(exceptionDate),
 			PickupTime:    &exceptionTime,
 			Reason:        &arztterminReason,
 			CreatedBy:     createStudentsAPITestStaffID(t, tc),
@@ -140,7 +140,7 @@ func TestGetStudentPickupSchedules(t *testing.T) {
 func TestUpdateStudentPickupSchedules(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("success_updates_schedules_as_teacher", func(t *testing.T) {
 		// Create a student
@@ -325,7 +325,7 @@ func TestUpdateStudentPickupSchedules(t *testing.T) {
 func TestCreateStudentPickupException(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("success_creates_exception_as_teacher", func(t *testing.T) {
 		// Create a student
@@ -421,7 +421,7 @@ func TestCreateStudentPickupException(t *testing.T) {
 		originalReason := "Parent reason"
 		guardian := &scheduleModel.StudentPickupException{
 			StudentID:         chain.StudentID,
-			ExceptionDate:     exceptionDate,
+			ExceptionDate:     scheduleModel.Date(exceptionDate),
 			Reason:            &originalReason,
 			Source:            scheduleModel.ExceptionSourceGuardian,
 			CreatedByGuardian: &chain.AccountID,
@@ -483,7 +483,7 @@ func TestCreateStudentPickupException(t *testing.T) {
 		originalTime := time.Date(2000, 1, 1, 8, 0, 0, 0, time.UTC)
 		staffRow := &scheduleModel.StudentPickupException{
 			StudentID:     chain.StudentID,
-			ExceptionDate: exceptionDate,
+			ExceptionDate: scheduleModel.Date(exceptionDate),
 			PickupTime:    &originalTime,
 			Reason:        &originalReason,
 			Source:        scheduleModel.ExceptionSourceStaff,
@@ -632,7 +632,7 @@ func TestCreateStudentPickupException(t *testing.T) {
 func TestUpdateStudentPickupException(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("success_updates_exception_as_teacher", func(t *testing.T) {
 		// Create a student
@@ -647,7 +647,7 @@ func TestUpdateStudentPickupException(t *testing.T) {
 		originalReason := "Original reason"
 		exception := &scheduleModel.StudentPickupException{
 			StudentID:     student.ID,
-			ExceptionDate: exceptionDate,
+			ExceptionDate: scheduleModel.Date(exceptionDate),
 			PickupTime:    &exceptionTime,
 			Reason:        &originalReason,
 			CreatedBy:     createStudentsAPITestStaffID(t, tc),
@@ -687,7 +687,7 @@ func TestUpdateStudentPickupException(t *testing.T) {
 		originalReason := "Parent reason"
 		exception := &scheduleModel.StudentPickupException{
 			StudentID:         chain.StudentID,
-			ExceptionDate:     exceptionDate,
+			ExceptionDate:     scheduleModel.Date(exceptionDate),
 			Reason:            &originalReason,
 			Source:            scheduleModel.ExceptionSourceGuardian,
 			CreatedByGuardian: &chain.AccountID,
@@ -739,7 +739,7 @@ func TestUpdateStudentPickupException(t *testing.T) {
 		testReason := "Test reason"
 		exception := &scheduleModel.StudentPickupException{
 			StudentID:     student2.ID, // Belongs to student2
-			ExceptionDate: exceptionDate,
+			ExceptionDate: scheduleModel.Date(exceptionDate),
 			Reason:        &testReason,
 			CreatedBy:     createStudentsAPITestStaffID(t, tc),
 		}
@@ -822,7 +822,7 @@ func TestUpdateStudentPickupException(t *testing.T) {
 func TestDeleteStudentPickupException(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("success_deletes_exception_as_teacher", func(t *testing.T) {
 		// Create a student
@@ -833,7 +833,7 @@ func TestDeleteStudentPickupException(t *testing.T) {
 		deleteReason := "To be deleted"
 		exception := &scheduleModel.StudentPickupException{
 			StudentID:     student.ID,
-			ExceptionDate: exceptionDate,
+			ExceptionDate: scheduleModel.Date(exceptionDate),
 			Reason:        &deleteReason,
 			CreatedBy:     createStudentsAPITestStaffID(t, tc),
 		}
@@ -862,7 +862,7 @@ func TestDeleteStudentPickupException(t *testing.T) {
 		originalReason := "Parent pickup delete reason"
 		exception := &scheduleModel.StudentPickupException{
 			StudentID:         chain.StudentID,
-			ExceptionDate:     exceptionDate,
+			ExceptionDate:     scheduleModel.Date(exceptionDate),
 			PickupTime:        &pickupTime,
 			Reason:            &originalReason,
 			Source:            scheduleModel.ExceptionSourceGuardian,
@@ -899,7 +899,7 @@ func TestDeleteStudentPickupException(t *testing.T) {
 		deleteTestReason := "Test reason"
 		exception := &scheduleModel.StudentPickupException{
 			StudentID:     student2.ID, // Belongs to student2
-			ExceptionDate: exceptionDate,
+			ExceptionDate: scheduleModel.Date(exceptionDate),
 			Reason:        &deleteTestReason,
 			CreatedBy:     createStudentsAPITestStaffID(t, tc),
 		}
@@ -963,7 +963,7 @@ func TestDeleteStudentPickupException(t *testing.T) {
 func TestGetBulkPickupTimes(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("bad_request_empty_student_ids", func(t *testing.T) {
 		body := map[string]any{
@@ -1143,7 +1143,7 @@ func TestGetBulkPickupTimes(t *testing.T) {
 		earlyPickupReason := "Early pickup"
 		exception := &scheduleModel.StudentPickupException{
 			StudentID:     student.ID,
-			ExceptionDate: exceptionDate,
+			ExceptionDate: scheduleModel.Date(exceptionDate),
 			PickupTime:    &exceptionTime,
 			Reason:        &earlyPickupReason,
 			CreatedBy:     createStudentsAPITestStaffID(t, tc),
@@ -1178,7 +1178,7 @@ func TestGetBulkPickupTimes(t *testing.T) {
 func TestBulkUpsertPickupSchedules(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	student1 := testpkg.CreateTestStudent(t, tc.db, "BulkPickupAPI1", "Student", "BPA1")
 	student2 := testpkg.CreateTestStudent(t, tc.db, "BulkPickupAPI2", "Student", "BPA2")
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "BulkPickupAPI", "Teacher")
@@ -1201,7 +1201,7 @@ func TestBulkUpsertPickupSchedules(t *testing.T) {
 func TestCreateStudentPickupNote(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("success_creates_note_as_teacher", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "NoteCreate", "Test", "NCT1")
@@ -1310,7 +1310,7 @@ func TestCreateStudentPickupNote(t *testing.T) {
 func TestUpdateStudentPickupNote(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("success_updates_note_as_teacher", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "NoteUpdate", "Test", "NUT1")
@@ -1322,7 +1322,7 @@ func TestUpdateStudentPickupNote(t *testing.T) {
 		originalContent := "Original content"
 		note := &scheduleModel.StudentPickupNote{
 			StudentID: student.ID,
-			NoteDate:  noteDate,
+			NoteDate:  scheduleModel.Date(noteDate),
 			Content:   originalContent,
 			CreatedBy: createStudentsAPITestStaffID(t, tc),
 		}
@@ -1359,7 +1359,7 @@ func TestUpdateStudentPickupNote(t *testing.T) {
 		testContent := "Test content"
 		note := &scheduleModel.StudentPickupNote{
 			StudentID: student2.ID, // Belongs to student2
-			NoteDate:  noteDate,
+			NoteDate:  scheduleModel.Date(noteDate),
 			Content:   testContent,
 			CreatedBy: createStudentsAPITestStaffID(t, tc),
 		}
@@ -1421,7 +1421,7 @@ func TestUpdateStudentPickupNote(t *testing.T) {
 func TestDeleteStudentPickupNote(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("success_deletes_note_as_teacher", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "NoteDelete", "Test", "NDT1")
@@ -1431,7 +1431,7 @@ func TestDeleteStudentPickupNote(t *testing.T) {
 		deleteContent := "To be deleted"
 		note := &scheduleModel.StudentPickupNote{
 			StudentID: student.ID,
-			NoteDate:  noteDate,
+			NoteDate:  scheduleModel.Date(noteDate),
 			Content:   deleteContent,
 			CreatedBy: createStudentsAPITestStaffID(t, tc),
 		}
@@ -1458,7 +1458,7 @@ func TestDeleteStudentPickupNote(t *testing.T) {
 		deleteTestContent := "Test content"
 		note := &scheduleModel.StudentPickupNote{
 			StudentID: student2.ID, // Belongs to student2
-			NoteDate:  noteDate,
+			NoteDate:  scheduleModel.Date(noteDate),
 			Content:   deleteTestContent,
 			CreatedBy: createStudentsAPITestStaffID(t, tc),
 		}

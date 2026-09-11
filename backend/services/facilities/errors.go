@@ -4,19 +4,21 @@ package facilities
 import (
 	"errors"
 	"fmt"
+
+	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 )
 
 // Common facilities errors
 var (
-	ErrRoomNotFound               = errors.New("room not found")
-	ErrDuplicateRoom              = errors.New("Ein Raum mit diesem Namen existiert bereits")                                               //nolint:staticcheck // ST1005: user-facing German message
-	ErrDuplicateToiletRoom        = errors.New("Es existiert bereits ein Toilettenraum (WC oder Toilette)")                                 //nolint:staticcheck // ST1005: user-facing German message
-	ErrRoomInUse                  = errors.New("Raum kann nicht gelöscht werden: Raum wird aktuell von einer aktiven Gruppe verwendet")     //nolint:staticcheck // ST1005: user-facing German message
-	ErrRoomRequiredByCareOffering = errors.New("Raum kann nicht gelöscht werden: Raum wird für ein verknüpftes Betreuungsangebot benötigt") //nolint:staticcheck // ST1005: user-facing German message
-	ErrSystemRoomProtected        = errors.New("Systemraum kann nicht gelöscht oder umbenannt werden")                                      //nolint:staticcheck // ST1005: user-facing German message
-	ErrSystemRoomNameReserved     = errors.New("Der Raumname „Schulhof“ ist für den Systemraum reserviert")                                 //nolint:staticcheck // ST1005: user-facing German message
-	ErrColorAlreadyInUse          = errors.New("Diese Farbe ist bereits einem anderen Raum zugeordnet")                                     //nolint:staticcheck // ST1005: user-facing German message
-	ErrColorReserved              = errors.New("Diese Farbe ist für Statusbadges reserviert und kann nicht für Räume verwendet werden")     //nolint:staticcheck // ST1005: user-facing German message
+	ErrRoomNotFound               = facilitiesModule.ErrRoomNotFound
+	ErrDuplicateRoom              = facilitiesModule.ErrDuplicateRoom
+	ErrDuplicateToiletRoom        = facilitiesModule.ErrDuplicateToiletRoom
+	ErrRoomInUse                  = facilitiesModule.ErrRoomInUse
+	ErrRoomRequiredByCareOffering = facilitiesModule.ErrRoomRequiredByOffering
+	ErrSystemRoomProtected        = facilitiesModule.ErrSystemRoomProtected
+	ErrSystemRoomNameReserved     = facilitiesModule.ErrSystemRoomNameReserved
+	ErrColorAlreadyInUse          = facilitiesModule.ErrRoomColorAlreadyInUse
+	ErrColorReserved              = facilitiesModule.ErrRoomColorReserved
 )
 
 // FacilitiesError represents a facilities-related error
@@ -36,4 +38,17 @@ func (e *FacilitiesError) Error() string {
 // Unwrap returns the underlying error
 func (e *FacilitiesError) Unwrap() error {
 	return e.Err
+}
+
+// Code classifies stable domain failures without requiring composition roots
+// to import this legacy application package.
+func (e *FacilitiesError) Code() string {
+	switch {
+	case errors.Is(e.Err, ErrRoomInUse):
+		return "room_in_use"
+	case errors.Is(e.Err, ErrRoomRequiredByCareOffering):
+		return "room_required_by_offering"
+	default:
+		return "internal_error"
+	}
 }

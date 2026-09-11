@@ -1,13 +1,21 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockToastSuccess, mockToastError, mockGetFeed, mockRotateFeed } =
-  vi.hoisted(() => ({
-    mockToastSuccess: vi.fn(),
-    mockToastError: vi.fn(),
-    mockGetFeed: vi.fn(),
-    mockRotateFeed: vi.fn(),
-  }));
+const {
+  mockToastSuccess,
+  mockToastError,
+  mockGetFeed,
+  mockRotateFeed,
+  mockGetStaffFeed,
+  mockRotateStaffFeed,
+} = vi.hoisted(() => ({
+  mockToastSuccess: vi.fn(),
+  mockToastError: vi.fn(),
+  mockGetFeed: vi.fn(),
+  mockRotateFeed: vi.fn(),
+  mockGetStaffFeed: vi.fn(),
+  mockRotateStaffFeed: vi.fn(),
+}));
 
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => ({ success: mockToastSuccess, error: mockToastError }),
@@ -21,6 +29,8 @@ vi.mock("~/lib/personal-calendar-api", async () => {
     ...actual,
     getParentCalendarFeed: mockGetFeed,
     rotateParentCalendarFeed: mockRotateFeed,
+    getStaffCalendarFeed: mockGetStaffFeed,
+    rotateStaffCalendarFeed: mockRotateStaffFeed,
   };
 });
 
@@ -54,8 +64,34 @@ describe("CalendarSubscribePanel", () => {
       "webcal://parents.test/api/calendar-feed/abc",
     );
     expect(
-      screen.getByDisplayValue("https://parents.test/api/calendar-feed/abc"),
+      screen.getByText("https://parents.test/api/calendar-feed/abc"),
     ).toBeInTheDocument();
+  });
+
+  it("shows a visible success state after copying the link", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+    mockGetFeed.mockResolvedValue({
+      url: "https://parents.test/api/calendar-feed/abc",
+      webcal_url: "webcal://parents.test/api/calendar-feed/abc",
+    });
+
+    render(<CalendarSubscribePanel />);
+    fireEvent.click(screen.getByRole("button", { name: /Abo-Link anzeigen/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Kopieren$/ }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /^Kopiert$/ })).toHaveClass(
+        "bg-moto-green",
+      ),
+    );
+    expect(writeText).toHaveBeenCalledWith(
+      "https://parents.test/api/calendar-feed/abc",
+    );
+    expect(mockToastSuccess).toHaveBeenCalledWith("Link kopiert.");
   });
 
   it("passes the subscription URL to Apple Calendar on macOS", async () => {
@@ -109,9 +145,7 @@ describe("CalendarSubscribePanel", () => {
     await waitFor(() => expect(mockRotateFeed).toHaveBeenCalledOnce());
     await waitFor(() =>
       expect(
-        screen.getByDisplayValue(
-          "https://parents.test/api/calendar-feed/fresh",
-        ),
+        screen.getByText("https://parents.test/api/calendar-feed/fresh"),
       ).toBeInTheDocument(),
     );
   });
@@ -134,9 +168,120 @@ describe("CalendarSubscribePanel", () => {
     await waitFor(() => expect(mockRotateFeed).toHaveBeenCalledOnce());
     await waitFor(() =>
       expect(
-        screen.getByDisplayValue("https://parents.test/api/calendar-feed/new"),
+        screen.getByText("https://parents.test/api/calendar-feed/new"),
       ).toBeInTheDocument(),
     );
     expect(mockToastSuccess).toHaveBeenCalled();
+  });
+});
+
+describe("CalendarSubscribePanel staff audience", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("loads the staff feed and explains that the subscription is read-only", async () => {
+    mockGetStaffFeed.mockResolvedValue({
+      url: "https://school.test/api/calendar-feed/staff-token",
+      webcal_url: "webcal://school.test/api/calendar-feed/staff-token",
+    });
+
+    render(<CalendarSubscribePanel audience="staff" />);
+
+    expect(
+      screen.getByText(/Neue, geänderte und abgesagte Termine/),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Abo-Link anzeigen/ }));
+
+    await waitFor(() => expect(mockGetStaffFeed).toHaveBeenCalledOnce());
+    expect(
+      await screen.findByText(
+        "https://school.test/api/calendar-feed/staff-token",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("states that creating a new link ends the previous subscription", async () => {
+    mockGetStaffFeed.mockResolvedValue({ url: "", webcal_url: "" });
+
+    render(<CalendarSubscribePanel audience="staff" />);
+    fireEvent.click(screen.getByRole("button", { name: /Abo-Link anzeigen/ }));
+
+    expect(
+      await screen.findByText(/bisherige Kalender-Abo endet dann ebenfalls/),
+    ).toBeInTheDocument();
+    expect(mockRotateStaffFeed).not.toHaveBeenCalled();
+  });
+
+  it("keeps CalDAV hidden when the school has not enabled it", async () => {
+    mockGetStaffFeed.mockResolvedValue({
+      url: "https://school.test/api/calendar-feed/staff-token",
+      webcal_url: "webcal://school.test/api/calendar-feed/staff-token",
+      caldav: {
+        server_url: "https://school.test/api/caldav/",
+        username: "staff@example.test",
+        app_password: "staff-token",
+      },
+    });
+
+    render(<CalendarSubscribePanel audience="staff" />);
+    fireEvent.click(screen.getByRole("button", { name: /Abo-Link anzeigen/ }));
+
+    await waitFor(() => expect(mockGetStaffFeed).toHaveBeenCalledOnce());
+    expect(
+      screen.queryByRole("heading", {
+        name: /Mit einem Kalenderprogramm verbinden/,
+      }),
+    ).toBeNull();
+  });
+
+  it("shows the read-only CalDAV access details only once", async () => {
+    mockGetStaffFeed.mockResolvedValue({
+      url: "https://school.test/api/calendar-feed/staff-token",
+      webcal_url: "webcal://school.test/api/calendar-feed/staff-token",
+      caldav: {
+        server_url: "https://school.test/api/caldav/",
+        username: "staff@example.test",
+        app_password: "staff-token",
+      },
+    });
+
+    render(<CalendarSubscribePanel audience="staff" calDAVEnabled />);
+    fireEvent.click(screen.getByRole("button", { name: /Abo-Link anzeigen/ }));
+
+    expect(
+      await screen.findByRole("heading", {
+        name: /Mit einem Kalenderprogramm verbinden/,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("https://school.test/api/caldav/"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("staff@example.test")).toBeInTheDocument();
+    expect(screen.getByText("staff-token")).toBeInTheDocument();
+    expect(screen.getByText(/App-Passwort nur jetzt/)).toBeInTheDocument();
+    expect(screen.getByText(/nur ansehen/)).toBeInTheDocument();
+  });
+
+  it("explains how to replace access details when the password was already shown", async () => {
+    mockGetStaffFeed.mockResolvedValue({
+      url: "",
+      webcal_url: "",
+      caldav: {
+        server_url: "https://school.test/api/caldav/",
+        username: "staff@example.test",
+        app_password: "",
+      },
+    });
+
+    render(<CalendarSubscribePanel audience="staff" calDAVEnabled />);
+    fireEvent.click(screen.getByRole("button", { name: /Abo-Link anzeigen/ }));
+
+    expect(
+      await screen.findByText(/App-Passwort wurde bereits gezeigt/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Neue Zugangsdaten erstellen/ }),
+    ).toBeInTheDocument();
   });
 });

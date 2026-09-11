@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"database/sql"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -24,7 +23,7 @@ func (membershipRevokedAccountRepoStub) FindManageableByID(_ context.Context, id
 }
 
 func (membershipRevokedAccountRepoStub) UpdateManageable(context.Context, *authModel.Account) error {
-	return &modelBase.DatabaseError{Op: "update account", Err: sql.ErrNoRows}
+	return &modelBase.DatabaseError{Op: "update account", Err: modelBase.ErrNotFound}
 }
 
 func TestAccountManagement_MembershipRevokedDuringWriteReturnsNotFound(t *testing.T) {

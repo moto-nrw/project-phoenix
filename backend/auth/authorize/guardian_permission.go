@@ -2,9 +2,12 @@ package authorize
 
 import (
 	"strings"
-
-	"github.com/moto-nrw/project-phoenix/models/users"
 )
+
+type studentGuardianRecord interface {
+	GuardianAuthorizationData() (relationshipType, role string, primary, emergency, pickup bool, permissions map[string]interface{})
+	SetGuardianAuthorizationData(role string, permissions map[string]interface{})
+}
 
 const (
 	GuardianPermissionPortalAccess     = "parent_portal.access"
@@ -40,6 +43,14 @@ const (
 	// Granting/revoking pickup authority is safety-relevant, so only the full
 	// guardian presets (primary/legal/co) receive it (#1667).
 	GuardianPermissionPickupManage = "parent_portal.pickup.manage"
+	// GuardianPermissionConsentManage allows a full guardian to withdraw a
+	// voluntary consent for this child. Consent visibility remains covered by
+	// parent_portal.access; changing it is a separate, relationship-scoped act.
+	GuardianPermissionConsentManage = "parent_portal.consent.manage"
+	// GuardianPermissionMealParticipationManage allows a full guardian to
+	// change this child's recurring lunch schedule and day-specific overrides.
+	// Reading the meal plan and participation remains covered by portal access.
+	GuardianPermissionMealParticipationManage = "parent_portal.meal_participation.manage"
 )
 
 const (
@@ -64,6 +75,8 @@ var fullParentPortalPermissions = []string{
 	GuardianPermissionMasterDataRequest,
 	GuardianPermissionGuardianEdit,
 	GuardianPermissionPickupManage,
+	GuardianPermissionConsentManage,
+	GuardianPermissionMealParticipationManage,
 }
 
 // Guardian permission checks and grants are authorization concerns, not data
@@ -116,7 +129,7 @@ func DefaultStudentGuardianRole(relationshipType string, isPrimary, isEmergencyC
 		return GuardianRolePrimaryGuardian
 	}
 	switch strings.ToLower(strings.TrimSpace(relationshipType)) {
-	case string(users.RelationshipParent), string(users.RelationshipGuardian):
+	case "parent", "guardian":
 		return GuardianRoleLegalGuardian
 	}
 	if canPickup {
@@ -142,31 +155,32 @@ func StudentGuardianPermissionSet(role string) map[string]interface{} {
 	return perms
 }
 
-func ApplyStudentGuardianRole(sg *users.StudentGuardian, role string) {
+func ApplyStudentGuardianRole(sg studentGuardianRecord, role string) {
 	if sg == nil {
 		return
 	}
 	normalized := NormalizeGuardianRole(role)
-	sg.GuardianRole = normalized
-	sg.Permissions = StudentGuardianPermissionSet(normalized)
+	sg.SetGuardianAuthorizationData(normalized, StudentGuardianPermissionSet(normalized))
 }
 
-func ApplyDefaultStudentGuardianRole(sg *users.StudentGuardian) {
+func ApplyDefaultStudentGuardianRole(sg studentGuardianRecord) {
 	if sg == nil {
 		return
 	}
-	role := DefaultStudentGuardianRole(sg.RelationshipType, sg.IsPrimary, sg.IsEmergencyContact, sg.CanPickup)
+	relationshipType, _, primary, emergency, pickup, _ := sg.GuardianAuthorizationData()
+	role := DefaultStudentGuardianRole(relationshipType, primary, emergency, pickup)
 	ApplyStudentGuardianRole(sg, role)
 }
 
 // StudentGuardianHasPermission reports whether the student-guardian relationship
 // grants the named permission. A boolean value is returned directly; any other
 // non-nil value is treated as granted, matching the prior model behavior.
-func StudentGuardianHasPermission(sg *users.StudentGuardian, permission string) bool {
+func StudentGuardianHasPermission(sg studentGuardianRecord, permission string) bool {
 	if sg == nil {
 		return false
 	}
-	value, exists := sg.GetPermissions()[permission]
+	_, _, _, _, _, permissions := sg.GuardianAuthorizationData()
+	value, exists := permissions[permission]
 	if !exists {
 		return false
 	}

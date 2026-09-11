@@ -1,7 +1,6 @@
 package schedule
 
 import (
-	"database/sql"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -13,7 +12,7 @@ import (
 func capacityOccurrence(date timezone.Date, children, staff int) activities.TemplateCapacityOccurrence {
 	return activities.TemplateCapacityOccurrence{
 		TemplateID:      42,
-		OccurrenceDate:  date,
+		OccurrenceDate:  activities.Date(date),
 		EnrollmentCount: children,
 		SupervisorCount: staff,
 	}
@@ -93,7 +92,7 @@ func TestWorstTemplateOccurrenceRanking(t *testing.T) {
 			// separately in TestWorstTemplateOccurrence_WithOverride.
 			got, ok := worstTemplateOccurrence(tt.occurrences, nil, 12)
 			require.True(t, ok)
-			assert.Equal(t, tt.wantDate, got.OccurrenceDate)
+			assert.Equal(t, activities.Date(tt.wantDate), got.OccurrenceDate)
 		})
 	}
 }
@@ -115,12 +114,12 @@ func TestWorstTemplateOccurrence_WithOverride(t *testing.T) {
 	// exact false "all good" state the reviewer flagged.
 	derived, ok := worstTemplateOccurrence(occurrences, nil, 10)
 	require.True(t, ok)
-	assert.Equal(t, jan1, derived.OccurrenceDate, "derived: empty day skipped, 3/3 day looks worst")
+	assert.Equal(t, activities.Date(jan1), derived.OccurrenceDate, "derived: empty day skipped, 3/3 day looks worst")
 
 	// With the override the empty 0/3 day is correctly the worst.
 	overridden, ok := worstTemplateOccurrence(occurrences, intPtr(3), 10)
 	require.True(t, ok)
-	assert.Equal(t, jan1.AddDays(1), overridden.OccurrenceDate, "override: 0/3 day is the worst")
+	assert.Equal(t, activities.Date(jan1.AddDays(1)), overridden.OccurrenceDate, "override: 0/3 day is the worst")
 }
 
 func TestApplyWorstTemplateCapacity_OverrideParticipatesInScoring(t *testing.T) {
@@ -130,11 +129,11 @@ func TestApplyWorstTemplateCapacity_OverrideParticipatesInScoring(t *testing.T) 
 	// fully-staffed 3/3 day and an empty 0/3 day. The override must steer the
 	// worst-occurrence pick to the 0/3 day so the list shows the true shortfall.
 	rows := []activities.TemplateListRow{
-		{TemplateID: 1, RequiredStaff: sql.NullInt64{Int64: 3, Valid: true}},
+		{TemplateID: 1, RequiredStaff: activities.NullInt64{Int64: 3, Valid: true}},
 	}
 	occurrences := []activities.TemplateCapacityOccurrence{
-		{TemplateID: 1, OccurrenceDate: timezone.NewDate(2026, 1, 1), EnrollmentCount: 30, SupervisorCount: 3},
-		{TemplateID: 1, OccurrenceDate: timezone.NewDate(2026, 1, 2), EnrollmentCount: 0, SupervisorCount: 0},
+		{TemplateID: 1, OccurrenceDate: activities.Date(timezone.NewDate(2026, 1, 1)), EnrollmentCount: 30, SupervisorCount: 3},
+		{TemplateID: 1, OccurrenceDate: activities.Date(timezone.NewDate(2026, 1, 2)), EnrollmentCount: 0, SupervisorCount: 0},
 	}
 
 	applyWorstTemplateCapacity(rows, []int64{1}, occurrences, 10)
@@ -151,7 +150,7 @@ func TestApplyWorstTemplateCapacityClearsTemplatesWithoutOccurrences(t *testing.
 		{TemplateID: 2, CapacityEnrollmentCount: 9, CapacitySupervisorCount: 3},
 	}
 	occurrences := []activities.TemplateCapacityOccurrence{
-		{TemplateID: 1, OccurrenceDate: timezone.NewDate(2026, 1, 5), EnrollmentCount: 4, SupervisorCount: 1},
+		{TemplateID: 1, OccurrenceDate: activities.Date(timezone.NewDate(2026, 1, 5)), EnrollmentCount: 4, SupervisorCount: 1},
 	}
 
 	applyWorstTemplateCapacity(rows, []int64{1, 2}, occurrences, 12)
@@ -170,11 +169,11 @@ func TestApplyWorstTemplateCapacity_MarksOccurrenceFound(t *testing.T) {
 	// handler suppress the manual required_staff override for template 2 so a
 	// never-occurring block cannot show a false 0/N understaffing indicator.
 	rows := []activities.TemplateListRow{
-		{TemplateID: 1, RequiredStaff: sql.NullInt64{Int64: 3, Valid: true}},
-		{TemplateID: 2, RequiredStaff: sql.NullInt64{Int64: 3, Valid: true}},
+		{TemplateID: 1, RequiredStaff: activities.NullInt64{Int64: 3, Valid: true}},
+		{TemplateID: 2, RequiredStaff: activities.NullInt64{Int64: 3, Valid: true}},
 	}
 	occurrences := []activities.TemplateCapacityOccurrence{
-		{TemplateID: 1, OccurrenceDate: timezone.NewDate(2026, 1, 5), EnrollmentCount: 4, SupervisorCount: 1},
+		{TemplateID: 1, OccurrenceDate: activities.Date(timezone.NewDate(2026, 1, 5)), EnrollmentCount: 4, SupervisorCount: 1},
 	}
 
 	applyWorstTemplateCapacity(rows, []int64{1, 2}, occurrences, 12)

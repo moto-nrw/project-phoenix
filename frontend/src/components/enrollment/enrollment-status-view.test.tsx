@@ -13,6 +13,12 @@ import {
 } from "~/lib/enrollment-submission-api";
 import { EnrollmentStatusView } from "./enrollment-status-view";
 
+const mockPathname = vi.hoisted(() => ({ value: "/anmeldung/status/tok" }));
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => mockPathname.value,
+}));
+
 vi.mock("~/lib/enrollment-submission-api", () => ({
   confirmRenewal: vi.fn(),
   fetchStatus: vi.fn(),
@@ -79,6 +85,7 @@ function changeRequest(
 
 describe("EnrollmentStatusView", () => {
   beforeEach(() => {
+    mockPathname.value = "/anmeldung/status/tok";
     mockFetchStatus.mockReset();
     mockListEnrollmentChangeRequests.mockReset();
     mockListEnrollmentChangeRequests.mockResolvedValue([]);
@@ -132,6 +139,17 @@ describe("EnrollmentStatusView", () => {
       await screen.findByText("Änderungen gespeichert."),
     ).toBeInTheDocument();
     expect(mockFetchStatus).toHaveBeenCalledTimes(2);
+  });
+
+  it("uses the renamed parent route for direct edits", async () => {
+    mockPathname.value = "/parents/anmeldung/status/tok";
+    mockFetchStatus.mockResolvedValueOnce(status());
+
+    render(<EnrollmentStatusView token="tok" />);
+
+    expect(
+      await screen.findByRole("link", { name: "Anmeldung bearbeiten" }),
+    ).toHaveAttribute("href", "/parents/anmeldung/status/tok/edit");
   });
 
   it("shows submitted change-request diffs to parents", async () => {
@@ -527,6 +545,7 @@ describe("EnrollmentStatusView", () => {
 
 describe("EnrollmentStatusView renewal adjust (#2251)", () => {
   beforeEach(() => {
+    mockPathname.value = "/anmeldung/status/tok";
     mockFetchStatus.mockReset();
     mockListEnrollmentChangeRequests.mockReset();
     mockListEnrollmentChangeRequests.mockResolvedValue([]);
@@ -561,6 +580,31 @@ describe("EnrollmentStatusView renewal adjust (#2251)", () => {
     expect(
       screen.getByRole("button", { name: "Anmeldung ablehnen" }),
     ).toBeInTheDocument();
+  });
+
+  it("uses the renamed parent route for renewal adjustments", async () => {
+    mockPathname.value = "/parents/anmeldung/status/tok";
+    mockFetchStatus.mockResolvedValueOnce(
+      status({
+        edit_mode: "change_request",
+        children: [
+          {
+            id: "7",
+            first_name: "Lina",
+            last_name: "Muster",
+            status: "pending_renewal",
+          },
+        ],
+      }),
+    );
+
+    render(<EnrollmentStatusView token="tok" />);
+
+    expect(
+      await screen.findByRole("link", {
+        name: "Angebote und Wochentage anpassen",
+      }),
+    ).toHaveAttribute("href", "/parents/anmeldung/status/tok/adjust");
   });
 
   it("offers adjust and unsubscribe on the opt-out banner", async () => {

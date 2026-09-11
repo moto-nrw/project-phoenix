@@ -5,6 +5,7 @@ import {
   renderHook,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -195,6 +196,68 @@ describe("PickupTimeModal — failed preload guard", () => {
     );
   });
 
+  // Die Empfänger reisen mit der Anfrage: ein einziger Aufruf, kein zweiter
+  // Schritt, der nachträglich scheitern könnte (#2267).
+  it("sends the chosen recipients together with the request", async () => {
+    const options = vi
+      .spyOn(parentApi, "getRequestSharingOptions")
+      .mockResolvedValue({
+        family_protected: false,
+        recipients: [
+          {
+            guardian_profile_id: "7",
+            first_name: "Klaus",
+            last_name: "Muster",
+            selected: false,
+          },
+        ],
+      });
+    const onSubmit = vi.fn().mockResolvedValue("request-1");
+    const { pickupInput, reasonInput, onClose } = renderModal({
+      studentId: "1",
+      onSubmit,
+    });
+
+    fireEvent.change(pickupInput, { target: { value: "14:30" } });
+    fireEvent.change(reasonInput!, { target: { value: "Arzttermin" } });
+    fireEvent.click(
+      await screen.findByRole("checkbox", { name: "Klaus Muster" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ recipientGuardianProfileIds: ["7"] }),
+    );
+    options.mockRestore();
+  });
+
+  // Die Anfrage bleibt sendbar, solange die Empfängerliste laedt und auch dann,
+  // wenn sie gar nicht laedt (#2267).
+  it("keeps the request sendable while the recipients load and after an error", async () => {
+    const options = vi
+      .spyOn(parentApi, "getRequestSharingOptions")
+      .mockRejectedValue(new Error("offline"));
+    const { pickupInput, reasonInput } = renderModal({ studentId: "1" });
+
+    expect(
+      screen.getByRole("button", { name: "Anfrage senden" }),
+    ).toBeEnabled();
+    fireEvent.change(pickupInput, { target: { value: "14:30" } });
+    fireEvent.change(reasonInput!, { target: { value: "Arzttermin" } });
+
+    expect(
+      await screen.findByText(
+        "Die Empfänger konnten nicht geladen werden. Sie können die Anfrage trotzdem senden und später teilen.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Anfrage senden" }),
+    ).toBeEnabled();
+    options.mockRestore();
+  });
+
   it("does not offer an arrival-time field", () => {
     renderModal();
 
@@ -250,6 +313,7 @@ describe("PickupTimeModal — failed preload guard", () => {
       date: "2026-03-17",
       pickupTime: "16:00",
       reason: "Termin",
+      recipientGuardianProfileIds: [],
     });
   });
 
@@ -269,10 +333,11 @@ describe("PickupTimeModal — failed preload guard", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it("shows a pending request and lets the guardian withdraw it", () => {
+  it("shows a pending request and lets the guardian edit it", () => {
     const onRemove = vi.fn().mockResolvedValue(undefined);
     render(
       <PickupTimeModal
+        studentId="1"
         careExceptions={[]}
         pickupChangeRequests={[
           {
@@ -299,18 +364,19 @@ describe("PickupTimeModal — failed preload guard", () => {
       screen.queryByRole("button", { name: "Anfrage senden" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Anfrage zurückziehen" }),
-    ).toHaveClass("whitespace-nowrap");
+      screen.getByRole("button", { name: "Anfrage bearbeiten" }),
+    ).toBeInTheDocument();
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Anfrage zurückziehen" }),
-    );
-    expect(onRemove).toHaveBeenCalledWith(todayISO());
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage bearbeiten" }));
+    expect(
+      screen.getByRole("button", { name: "Änderung speichern" }),
+    ).toBeInTheDocument();
+    expect(onRemove).not.toHaveBeenCalled();
   });
 
   // Schaltet die OGS das Aendern ab, waehrend ein Antrag fuer einen spaeteren
   // Tag offen ist, muss der Dialog auf diesem Tag aufgehen. Auf heute stehend
-  // zeigte er zu dem Antrag nichts und der Zuruecknehmen-Knopf fehlte.
+  // zeigte er zu dem Antrag nichts und der Bearbeiten-Knopf fehlte.
   it("opens on the pending request's day when changes are switched off", () => {
     const inThreeDays = parseISODate(todayISO());
     inThreeDays.setDate(inThreeDays.getDate() + 3);
@@ -330,6 +396,7 @@ describe("PickupTimeModal — failed preload guard", () => {
             created_at: "2026-08-16T10:00:00Z",
           },
         ]}
+        studentId="1"
         careExceptionsLoaded
         pickupChangeEnabled={false}
         onClose={vi.fn()}
@@ -342,10 +409,104 @@ describe("PickupTimeModal — failed preload guard", () => {
       document.querySelector<HTMLInputElement>('input[type="date"]'),
     ).toHaveValue(pendingDay);
 
+    expect(
+      screen.getByRole("button", { name: "Anfrage bearbeiten" }),
+    ).toBeInTheDocument();
+    expect(onRemove).not.toHaveBeenCalled();
+  });
+});
+
+// #3109: „Änderung zurücknehmen“ removes the guardian's own pickup override
+// for the day. The footer button only opens the ConfirmDeleteModal; the
+// override is removed after the two-step confirmation inside the dialog.
+describe("PickupTimeModal — Änderung zurücknehmen", () => {
+  const guardianOverride: CareException = {
+    date: todayISO(),
+    pickup_time: "15:00",
+    source: "guardian",
+    pickup_source: "guardian",
+    updated_at: "2026-09-01T09:00:00Z",
+  };
+
+  function openResetDialog(
+    overrides: Partial<React.ComponentProps<typeof PickupTimeModal>> = {},
+  ) {
+    const rendered = renderModal({
+      careExceptions: [guardianOverride],
+      ...overrides,
+    });
     fireEvent.click(
-      screen.getByRole("button", { name: "Anfrage zurückziehen" }),
+      screen.getByRole("button", { name: "Änderung zurücknehmen" }),
     );
-    expect(onRemove).toHaveBeenCalledWith(pendingDay);
+    const dialog = screen.getByRole("dialog", {
+      name: "Änderung zurücknehmen?",
+    });
+    return { ...rendered, dialog };
+  }
+
+  it("asks before removing the override and removes it after confirming", async () => {
+    const { onRemove, onClose, dialog } = openResetDialog();
+
+    expect(onRemove).not.toHaveBeenCalled();
+    expect(dialog).toHaveTextContent(
+      `Die abweichende Abholzeit für den ${de(todayISO())} wird entfernt.`,
+    );
+    expect(
+      screen.queryByRole("dialog", { name: "Abholzeit ändern" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Schließen" })).toHaveLength(
+      2,
+    );
+
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Ja, zurücknehmen" }),
+    );
+    expect(onRemove).not.toHaveBeenCalled();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Endgültig zurücknehmen" }),
+    );
+
+    await waitFor(() => expect(onRemove).toHaveBeenCalledWith(todayISO()));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
+  it("keeps the override when the parent cancels", () => {
+    const { onRemove, onClose, dialog } = openResetDialog();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Abbrechen" }));
+
+    expect(onRemove).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("dialog", { name: "Änderung zurücknehmen?" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Änderung zurücknehmen" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows a failed removal inside the dialog and stays open", async () => {
+    const onRemove = vi
+      .fn()
+      .mockRejectedValue(
+        new parentApi.ParentApiError("x", 409, "care_exception_raced"),
+      );
+    const { onClose, dialog } = openResetDialog({ onRemove });
+
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Ja, zurücknehmen" }),
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Endgültig zurücknehmen" }),
+    );
+
+    expect(
+      await within(dialog).findByText(/Dieser Tag wurde gerade geändert/),
+    ).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("dialog", { name: "Änderung zurücknehmen?" }),
+    ).toBeInTheDocument();
   });
 });
 
@@ -411,21 +572,52 @@ describe("SickNoteModal — Abmeldegrund", () => {
       />,
     );
 
-    expect(
-      screen.getByText(
-        "Nach dem Senden muss die OGS die Abwesenheit noch bestätigen.",
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "Die OGS bestätigt die Krankmeldung. Bis dahin gilt Ihr Kind als erwartet.",
-      ),
-    ).toBeInTheDocument();
+    // Der Satz steht seit #2267 nur noch einmal im Dialog: die frühere
+    // Doppelung aus Hinweiskasten und Tageszeile ist weg.
     expect(
       screen.getByText(
         "Sie fragen die Abwesenheit für die ausgewählten Tage an.",
       ),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "Nach dem Senden muss die OGS die Abwesenheit noch bestätigen.",
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers optional sharing after the absence details", async () => {
+    const options = vi
+      .spyOn(parentApi, "getRequestSharingOptions")
+      .mockResolvedValue({
+        family_protected: false,
+        recipients: [
+          {
+            guardian_profile_id: "7",
+            first_name: "Mara",
+            last_name: "Muster",
+            selected: false,
+          },
+        ],
+      });
+    render(
+      <SickNoteModal
+        studentId="1"
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        sickRequiresApproval
+      />,
+    );
+
+    const reason = screen.getByRole("textbox", {
+      name: "Grund / Hinweis an die OGS",
+    });
+    const sharing = await screen.findByText("Anfrage teilen (optional)");
+    expect(
+      reason.compareDocumentPosition(sharing) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    options.mockRestore();
   });
 
   it("shows the pending confirmation after the request was sent", async () => {
@@ -458,9 +650,15 @@ describe("SickNoteModal — Abmeldegrund", () => {
     );
     expect(onClose).not.toHaveBeenCalled();
 
+    // Genau ein Weg aus dem Fenster: das X. Der frühere zweite
+    // "Schließen"-Knopf in der Fussleiste ist weg (#2267).
     const closeButtons = screen.getAllByRole("button", { name: "Schließen" });
-    fireEvent.click(closeButtons.at(-1)!);
-    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(closeButtons).toHaveLength(1);
+    expect(
+      screen.queryByRole("button", { name: "Krankmeldung an die OGS senden" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(closeButtons[0]!);
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
   });
 
   it("submits an excused absence with a note when Entschuldigt is chosen", async () => {
@@ -487,6 +685,7 @@ describe("SickNoteModal — Abmeldegrund", () => {
       expect.any(Array),
       "Zahnarzttermin",
       "excused",
+      [],
     );
   });
 

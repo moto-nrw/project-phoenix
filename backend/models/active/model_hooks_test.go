@@ -60,15 +60,3 @@ func TestGroupSupervisor_GetID(t *testing.T) {
 	gs.ID = 456
 	assert.Equal(t, int64(456), gs.GetID())
 }
-
-// ============================================================================
-// Visit Model Tests
-// ============================================================================
-
-func TestVisit_GetID(t *testing.T) {
-	t.Parallel()
-
-	v := &Visit{}
-	v.ID = 789
-	assert.Equal(t, int64(789), v.GetID())
-}

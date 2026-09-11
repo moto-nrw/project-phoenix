@@ -26,7 +26,7 @@ type createStudentResponse struct {
 func TestCreateStudent_WithGuardians(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	body := map[string]interface{}{
 		"first_name":   "Guarded",
@@ -102,7 +102,7 @@ func TestCreateStudent_WithGuardians(t *testing.T) {
 func TestCreateStudent_GuardianFailureRollsBackStudent(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	const firstName = "Rollback"
 	const lastName = "Orphan"
@@ -169,7 +169,7 @@ func TestCreateStudent_GuardianFailureRollsBackStudent(t *testing.T) {
 func TestCreateStudent_InvalidGuardianPhoneRollsBackStudent(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	const firstName = "PhoneRollback"
 	const lastName = "Orphan"
@@ -282,7 +282,7 @@ func assertGuardianBadRequestNoOrphan(
 func TestCreateStudent_MultipleGuardians(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	body := map[string]interface{}{
 		"first_name":   "Multi",
@@ -349,7 +349,7 @@ func TestCreateStudent_MultipleGuardians(t *testing.T) {
 func TestCreateStudent_GuardianOptionalFieldsPersisted(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	body := map[string]interface{}{
 		"first_name":   "Optional",
@@ -426,7 +426,7 @@ func TestCreateStudent_GuardianOptionalFieldsPersisted(t *testing.T) {
 func TestCreateStudent_GuardianMissingRelationshipType(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	assertGuardianBadRequestNoOrphan(t, tc, "NoRelType", "Guardian", map[string]interface{}{
 		"first_name":   "NoRelType",
@@ -448,7 +448,7 @@ func TestCreateStudent_GuardianMissingRelationshipType(t *testing.T) {
 func TestCreateStudent_GuardianInvalidContactMethod(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	assertGuardianBadRequestNoOrphan(t, tc, "BadContact", "Method", map[string]interface{}{
 		"first_name":   "BadContact",
@@ -472,7 +472,7 @@ func TestCreateStudent_GuardianInvalidContactMethod(t *testing.T) {
 func TestCreateStudent_GuardianPhoneMissingNumber(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	assertGuardianBadRequestNoOrphan(t, tc, "EmptyPhone", "Guardian", map[string]interface{}{
 		"first_name":   "EmptyPhone",
@@ -498,7 +498,7 @@ func TestCreateStudent_GuardianPhoneMissingNumber(t *testing.T) {
 func TestCreateStudent_GuardianPhoneTooFewDigits(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	assertGuardianBadRequestNoOrphan(t, tc, "ShortPhone", "Guardian", map[string]interface{}{
 		"first_name":   "ShortPhone",

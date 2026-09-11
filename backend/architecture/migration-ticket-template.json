@@ -1,0 +1,32 @@
+{
+  "schema_version": 2,
+  "prerequisites": [
+    "#2642"
+  ],
+  "owner_and_capability": "Example Owner — Example capability",
+  "affected_packages": [
+    "modules/example"
+  ],
+  "affected_tables": [
+    "example.records"
+  ],
+  "exact_ratchet_keys": [],
+  "atomic_cutover": "Switch the only caller and remove the old provider in one deploy.",
+  "tests": [
+    "Facade contract, RLS, rollback, and repository-failure tests."
+  ],
+  "runtime_evidence": {
+    "source": "Link flow-specific raw evidence.",
+    "workload": "Describe affected flows, environment and observation window.",
+    "thresholds": "Record applicable query budgets and acceptance criteria.",
+    "query_count": "Record query counts per operation or explain non-applicability.",
+    "errors": "Record stable errors and rates.",
+    "failure": "Record failure-path results or explain non-applicability.",
+    "rollback": "Record transaction rollback results or explain non-applicability.",
+    "smoke": "Record affected flow smoke checks and results."
+  },
+  "rollback_and_cleanup": "Revert caller wiring; remove the old adapter after the observation window.",
+  "exit_criterion": "All callers use one provider and the listed ratchet keys are absent.",
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3019"
+}

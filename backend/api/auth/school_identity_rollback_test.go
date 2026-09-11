@@ -62,7 +62,7 @@ func TestRegisterRollsBackRefusedProvisioning(t *testing.T) {
 // where a person has to be created.
 func TestLinkToTenantReusesExistingPersonWithoutNames(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupAuthRoute(t)
 	router := testutil.NewTenantRouter(tc.db)
 	router.Mount("/auth", tc.resource.Router())
 

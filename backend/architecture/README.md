@@ -5,6 +5,71 @@ roles, tenant-safe read projections, legacy-composition symbols, dependency
 classes, import scopes, and target import rules. Generated lint configs and
 diagrams must derive from this file and must not be committed.
 
+## Canonical module map
+
+[ADR 0010](../../docs/adr/0010-file-storage-is-the-eighteenth-domain.md)
+records File Storage as the eighteenth domain, and
+[ADR 0012](../../docs/adr/0012-export-transfer-is-the-tenth-platform.md)
+records Export Transfer as the tenth platform module, for
+[#2580](https://github.com/moto-nrw/project-phoenix/issues/2580), resolved in
+[#3034](https://github.com/moto-nrw/project-phoenix/issues/3034).
+The canonical owner lists are:
+
+| Domain (18) | Policy owner |
+|---|---|
+| Identity & Access | `identity-access` |
+| People Directory | `people-directory` |
+| School Membership | `school-membership` |
+| Organisation & Tenancy | `organization-tenancy` |
+| School Structure | `school-structure` |
+| School Calendar | `school-calendar` |
+| Facilities | `facilities` |
+| Enrollment | `enrollment` |
+| Care Plan | `care-plan` |
+| Timetable & Activities | `timetable-activities` |
+| Student Presence | `student-presence` |
+| Workforce | `workforce` |
+| Appointments | `appointments` |
+| Communication | `communication` |
+| Device Fleet | `device-fleet` |
+| Meal Plan | `meal-plan` |
+| Feedback | `feedback` |
+| File Storage | `file-storage` |
+
+| Platform (10) | Policy owner |
+|---|---|
+| Tenant Runtime | `tenant-runtime` |
+| Transaction Runtime | `transaction-runtime` |
+| Security Runtime | `security-runtime` |
+| Settings Platform | `settings-platform` |
+| Delivery Platform | `delivery-platform` |
+| Observability | `observability` |
+| Audit Platform | `audit-platform` |
+| Scheduler Runtime | `scheduler-runtime` |
+| Document Rendering | `document-rendering` |
+| Export Transfer | `export-transfer` |
+
+Policy validation pins these exact IDs and kinds for the moto module path;
+missing, extra, renamed, or reclassified owners fail before graph analysis.
+Declaration order is irrelevant. Independent evaluator fixtures retain their
+own module maps. A future domain/platform change requires an explicit
+architecture decision, reflected in #2580, this map, and validation.
+
+File Storage owns the managed file lifecycle: file metadata, folders,
+folder-role/account grants, quota, and cleanup intents. Identity supplies
+account and role facts; File Storage applies school-scoped folder grants.
+Communication retains announcement-access rules, including for attachments.
+Document Rendering produces output without owning its audience or storage;
+rendering alone neither saves a file nor grants access.
+
+This decision does not change runtime write owners or ratchet entries.
+Missing mappings for `documents.files`, `documents.folders`,
+`documents.folder_roles`, `documents.folder_accounts`, and
+`documents.file_cleanup` remain migration work in #2707. Existing announcement
+attachment and cleanup ownership stays unchanged. `target.svg` is generated
+from the unchanged policy and shows File Storage as domain and Document
+Rendering as platform; do not commit the generated diagram.
+
 ## Commands
 
 Run commands from the repository root:
@@ -22,6 +87,8 @@ scripts/backend-architecture.sh dependencies \
   --focus module:meal-plan
 scripts/backend-architecture.sh dependencies \
   --focus package:services/mealplan
+scripts/backend-architecture.sh validate-ticket \
+  --ticket backend/architecture/checkpoint-ticket-template.json
 ```
 
 `check` loads packages with `GOOS=linux`, `GOARCH=amd64`, and `CGO_ENABLED=0`.
@@ -73,7 +140,8 @@ The current backend still violates the target policy, so the normal `check`
 loads the committed exact baseline from `architecture/legacy.jsonl`. It passes
 only when the current violation set is exactly equal to that baseline. Pull
 request CI additionally reads the policy and baseline from the event's full
-base-commit SHA and permits only removal of existing tuples. The required
+base-commit SHA. Debt is shrink-only, except when a policy tightening exposes
+an exact import already present and allowed at that SHA (see below). The required
 status is `Backend architecture ratchet`.
 
 ## Generated projections
@@ -123,9 +191,303 @@ errors. The normal command has no init, approve, update, or rebaseline mode.
 Local mode requires exact equality between the current violations and the
 committed baseline. PR mode adds `--base-ref` with the event's full 40-character
 base commit SHA and reads the baseline and policy directly from that Git object.
-Candidate entries must be a subset of the base entries, unchanged entries must
-keep their issue, and candidate policy, package classification, and ownership
-changes may not weaken the checks enforced by the base policy.
+Candidate entries must be a subset of the base entries or meet the import-debt
+conversion rule below. Unchanged entries must keep their issue. Candidate
+policy, package classification, and ownership changes may not weaken the checks
+enforced by the base policy.
+
+### Converting temporary permissions to exact debt
+
+Temporary compatibility imports belong in `legacy.jsonl`, not target-allowed
+rules. Remove their policy permissions and record each resulting
+`imports.forbidden` tuple with its open cleanup issue. PR mode accepts a newly
+recorded tuple only when all three conditions hold:
+
+1. The base policy allowed that exact source, target, and scope.
+2. The source package imported that target in that scope at the immutable base
+   SHA, under the policy's fixed build context.
+3. The candidate policy no longer allows the import.
+
+The checker reads import headers from Git blobs and lets `go list` select the
+production, internal-test, and external-test files. Candidate imports cannot
+supply base evidence. New targets, new sources, scope changes, and imports
+excluded by build tags, OS, or cgo cannot become historical debt. Existing
+violations and semantic findings do not qualify for this conversion.
+
+Once recorded, the tuple follows the ordinary shrink-only and issue-audit
+rules. Restoring its target permission is still policy loosening. Removing the
+import requires removing its debt entry in the same change. No schema change
+or second allowlist is needed for the final contract step.
+
+The Workforce compatibility adapter (`modules/workforce/legacy`) and the
+Workforce HTTP composition (`modules/workforce/inbound`) are classified as
+`workforce`/`adapter`. Their imports of the retained `models/active`,
+`models/education`, `models/users`, `models/base` and calendar-date contracts
+are target-allowed `workforce.adapter.*` rules only because PR mode cannot
+record debt for a package the candidate creates. They are compatibility
+permissions for #2688's retained consumers, not target dependencies: convert
+them to exact debt with the rule below once the packages exist at a base SHA,
+and delete the adapter with the last consumer of those contracts.
+
+The Workforce shift-planning HTTP composition
+(`modules/workforce/inbound/shiftplanning`) is classified `workforce`/`http`
+for the same reason (#2689). It serves the public `StaffShiftPlanning` and
+`ShiftTypeAdministration` contracts from the retained `services/schedule` and
+`services/planexport` services and maps their `models/schedule` rows. Every
+`workforce.http.*` rule is a compatibility permission, not a target
+dependency: the `timetable-activities`, `document-rendering` and
+`legacy-shared` edges go when the shift services move into the Workforce
+owner, and the `inbound-common`, `security-runtime`, `tenant-runtime`,
+`orm-sql` and route-adapter edges follow the same conversion the
+`workforce.adapter.*` rules above are bound to. Convert them to exact debt
+once the package exists at a base SHA.
+The retained `models/schedule` repository contracts are served from
+`database/repositories` over the Workforce facade; that package's
+`models/schedule` import is already recorded debt.
+
+The Workforce time-tracking HTTP composition
+(`modules/workforce/inbound/timetracking`) is classified `workforce`/`http`
+under the same compatibility permissions (#2690). It replaced
+`api/time-tracking` and serves the public work-session, absence, month,
+ledger, month-close, overview, audit-log, export and personnel-record
+contracts of `modules/workforce`, which the root composition adapts from the
+retained `services/active` and `services/users` services. Its remaining
+`services/schedule`, `models/schedule` and `api/staff-shifts` imports (own
+shifts and assignments) go with the shift services' move. The kiosk staff
+clock consumes the public device-scan contract in `modules/devicescan`
+(`process-device-scan`/`public`); `staff-clock.to.process-device-scan` is the
+one rule anchored to that new point, and the staff-clock workflow reaches the
+Workforce time clock only through its own port.
+
+The Care Plan compatibility adapter (`modules/careplan/legacy`) uses this
+representation. Its remaining imports and repository-composition caller are
+bound to #2743, the root API caller to #2750, and the test-support caller to
+#2748. The conversion in #3032 removes 13 target permissions and records 14
+existing imports; it adds no runtime dependency or composition caller.
+`target.svg` has no compatibility-rule edges. `migration.svg` renders these
+exact imports as orange-red `legacy` debt, separate from gray target-valid
+imports and dashed-red new violations, even when they share owner endpoints.
+
+The class-day read projection (`modules/classday`, #2701) is the `class-day-view`
+projection owner: `modules/classday` is its public contract, `internal/application`
+builds the slot lists and the school-portal day view, `internal/ports` declares
+the consumer-owned read seams, and `compose` binds them. The projection reads
+`schedule.activity_instances`, `schedule.instance_students`, `active.visits`,
+`active.attendance`, `users.students`, `users.persons`, `education.groups`, the
+rooms and the Care Plan status days and pickup exceptions only through the public
+owner facades (`class-day-view.from.*`). Its `class-day-view.compose.*`
+permissions for the retained schedule services (care-day derivation, effective
+times, pickup baselines), the enrollment report and class-day write seam, the
+settings service, the user context and the JWT permission check exist only
+because PR mode cannot record debt for a package the candidate creates. They are
+compatibility bindings, not target dependencies: convert them to exact debt with
+the rule above once the packages exist at a base SHA, and remove each binding
+when its owner exposes the read publicly. The same applies to the
+`inbound-classday.*` permissions of the class-day HTTP adapter
+(`modules/classday/http`: common HTTP rendering, the permission contract, the
+JWT claims, the calendar-date type and the Bun database the shared school-scope
+middleware takes), to the `inbound-school.identity-application` and
+`inbound-school.orm-sql` permissions of the school portal (`modules/schoolportal`),
+and to the retained-repository and retained-service permissions of the
+projection's integration and adapter tests.
+
+The live-group read projection (`modules/grouplive`, `group-live-view`/`public`)
+reads every foreign fact through consumer-owned ports and the Care Plan
+excused-request contract; it persists nothing and never writes. Its
+compatibility adapter (`modules/grouplive/legacy`, `group-live-view`/`adapter`)
+binds those ports to the retained identity, settings, presence, schedule,
+people, and education services and to the shared authorize rules. Every
+`group-live-view.adapter.*` rule is a compatibility permission that exists
+only because PR mode cannot record debt for a package the candidate creates
+(#2702): convert them to exact debt with the rule above once the package
+exists at a base SHA, rebind each port to its owner's public capability as it
+appears, and delete the adapter with the last legacy source.
+
+The supervision read projection (`modules/supervisiondashboard`,
+`calendar-view`/`public`, #2703) builds the "Aktuelle Aufsicht" aggregate
+from plain owner facts through consumer-owned ports; it persists nothing and
+never writes. Its compatibility adapter (`modules/supervisiondashboard/legacy`,
+`calendar-view`/`adapter`) binds those ports to the retained identity,
+settings, presence, Schulhof, timetable-operations and day-planning services
+and to the shared authorize rules, and maps the Timetable and Facilities wire
+rows field by field (the adapter tests pin byte-identical JSON). Every
+`calendar-view.adapter.*` and `calendar-view.adapter-test.*` rule is a
+compatibility permission that exists only because PR mode cannot record debt
+for a package the candidate creates: convert them to exact debt with the rule
+above once the package exists at a base SHA, rebind each port to its owner's
+public capability as it appears, and delete the adapter with the last legacy
+source. The same applies to the staff calendar HTTP adapter
+(`modules/staffcalendar/http`, `inbound-calendar`/`http`: common HTTP
+rendering, the permission contract, the JWT middleware, and the calendar-date
+type; its calendar binding now uses the native
+`modules/schoolcalendar/portal` contract) and to the
+statistics HTTP adapter (`modules/statistics/http`, `inbound-statistics`/`http`:
+the same shared HTTP dependencies, the Bun database the tenant middleware
+takes, the Document Rendering renderer and, as compatibility binding, the
+retained `services/statistics`), including their `*.adapter-test.*`
+permissions.
+
+The Identity & Access guardian-access capability (`modules/identityaccess`,
+`identity-access`/`public`) is the first just-in-time slice of the late
+Identity & Access migration (#2580 sequencing, #2699): it resolves platform
+accounts and grants an account guardian access to the tenant in context over
+`auth.accounts`, `auth.account_tenants`, `auth.account_roles` and
+`auth.roles`. Enrollment acceptance consumes it through a consumer-owned port;
+the retained `services/auth` invitation flow still reaches the same tables
+through its own repositories. The other tables the acceptance cutover (#2699)
+names are not served by Identity & Access. Enrollment acceptance now reads,
+locks, creates and renews `users.students` through the bounded People Directory
+enrollment contract. Profile writes distinguish unchanged fields from explicit
+NULL. The application coordinates departure-plan locks and companion-stranding
+checks; People Directory writes the normalized plan and its legacy mirrors,
+and Care Plan removes companion edges. All commands join the same tenant
+transaction. `users.class_list_entries`,
+`enrollment.request_child_offerings` and `schedule.instance_students` reach
+their owners through the legacy-composition adapters over the School
+Membership, Enrollment and Timetable facades. The retained in-memory student
+mapping and owner-backed compatibility adapters are cleanup debt under #2733,
+not alternative acceptance writers. Its `identity-access.compose.*` and
+integration-test rules mirror the People Directory owner; the
+`legacy-composition.to.identity-access-*` permissions exist because the
+legacy service factory still composes the enrollment decision service and
+go with #2751.
+
+The session end workflow (`workflows/sessionend`, owner `session-end`, kind
+`workflow`, #2697) is a cross-module write workflow of #2580. Its
+public command closes one live kiosk session in one UnitOfWork: it joins the
+caller's tenant transaction (or opens its own), locks the group, closes the
+open visits, supervisions, and the group through the Student Presence
+`GroupSessionCommand`, stamps the slot check-outs through the Timetable
+owner and finalizes the mirrored instance through its `InstanceCompletion`
+port, resolves the
+announcement data while the tenant role is still set, and queues every SSE
+event and guardian wake for after the commit. Its `ports` name the four owner
+capabilities it consumes (`session-end.port.*`, `session-end.application.*`);
+`compose` binds the tenant runtime and the realtime broadcaster. The root
+still satisfies `InstanceCompletion` with the retained
+`services/schedule.TimetableBridgeService` (the attendance finalization that
+#1747 requires before an instance may close); that binding is a legacy edge
+of the root composition tracked by #2762, and the port is rebound to the
+Timetable owner's public capability when that cutover lands. The kiosk
+endpoint (`api/iot/sessions`, `inbound-iot-sessions.to.session-end`) calls
+exactly this facade and no longer orchestrates the Timetable bridge and the
+active service itself. The other session-ending paths of the retained active
+service (the manual group end, the instance Complete and Cancel transitions
+through `EndActivitySession`, the timeout, and the nightly bulk end) write
+their presence rows through the same owner commands (`EndGroupSession`,
+`EndGroupSessions`). The two takeover paths that end a group and move its
+visits and supervisors to a replacement (force start, absorption of an
+unsupervised group into a started instance) release the group through the
+owner's `EndGroup`. The legacy group end and bulk end repository methods
+are deleted. Those paths still complete the mirrored instance through the
+retained bridge inside the active service; moving them onto the workflow is
+the remaining #2762 work. The workflow owns no data object: policy validation
+refuses a write owner of kind `workflow`. Under ADR 0013, this registration
+raises the policy epoch from 3 to 4 and uses only candidate-created packages.
+Existing-owner import and data-ownership guards remain unchanged.
+Its adapter-test permissions for the presence,
+timetable, people, and facilities compositions bind the real owners in the
+workflow integration tests; they are test-only permissions, not target
+dependencies.
+
+The device-scan workflow (`process-device-scan`, #2698) runs every kiosk
+scan, pickup query, heartbeat and attendance toggle through one orchestrator:
+`modules/devicescan` is its public contract, `internal/application` the
+workflow over the public Device Fleet, Student Presence and Facilities
+capabilities, `internal/ports` its consumer-owned seams, and `compose` binds
+them. `api/iot/checkin` calls the contract and renders through the runtime the
+root injects; the retained IoT session, device and feedback routes keep their
+own error tables. Every `process-device-scan.compose.*` permission for the
+retained presence, people, activity, education, pickup and settings services,
+the device principals, the tenant runtime, the calendar-date type and the SQL
+driver is a compatibility binding that exists only because PR mode cannot
+record debt for a package the candidate creates: convert them to exact debt
+with the rule above once the packages exist at a base SHA, and rebind each
+port to its owner's public capability as it appears.
+
+Under ADR 0013 this data-less workflow registration raises the integrated
+policy epoch from 4 to 5 and uses only candidate-created packages. Existing
+owner/import guards remain unchanged. Scan and attendance writes require an
+existing tenant transaction, supplied by the IoT middleware; direct callers
+without one fail before mutations. Daily checkout reads tenant overrides or
+the registry default, never a process environment fallback. Before deployment,
+any intended prior environment value must be stored as an explicit per-school
+setting. This integration does not inspect or modify deployed settings.
+
+The emergency snapshot read projection (`modules/emergencysnapshot`,
+`emergency-snapshot`/`public`, #2704) builds the Notfallliste, the present
+children with location, reachable adults and the optional health note, from
+plain owner facts through consumer-owned ports and owns the row order and
+the document shape; it persists nothing and never writes. Its compatibility
+adapter (`modules/emergencysnapshot/legacy`, `emergency-snapshot`/`adapter`)
+binds the presence ports, the room names and the person identities to the
+public Student Presence, Facilities and People Directory facades
+(`emergency-snapshot.from.*`) and, as compatibility bindings, the student
+row with its health note and legacy contact columns and the guardian contact
+rows to the retained People Directory repositories, the health-info switch to
+the retained settings service, the presence-mode read to the retained active
+service, the calendar day and German collation to the shared helpers, and
+the PDF to the Document Rendering renderer; the adapter tests pin the
+rendered document field by field and prove the two-tenant RLS boundary over
+the real facades and repositories. Every `emergency-snapshot.adapter.*` and
+`emergency-snapshot.adapter-test.*` rule is a compatibility permission that
+exists only because PR mode cannot record debt for a package the candidate
+creates: convert them to exact debt with the rule above once the package
+exists at a base SHA, rebind each port to its owner's public capability as it
+appears, and delete the adapter with the last legacy source. The same applies
+to the emergency HTTP adapter (`modules/emergencysnapshot/http`,
+`inbound-emergency`/`http`: common HTTP rendering, the permission contract
+and the Bun database the shared tenant middleware takes) and its
+`inbound-emergency.adapter-test.*` permission.
+
+The Device Fleet authentication composition (`modules/devicefleet/deviceauth`)
+is classified as `device-fleet`/`http`. Its `device-fleet.device-auth.*`
+permissions for the retained `models/platform` school row, the
+`models/config` setting key, and the `database/sql`/`pgdriver` error
+classification exist only because PR mode cannot record debt for a package
+the candidate creates. They are compatibility permissions for the retained
+school service and settings service, not target dependencies: convert them
+to exact debt with the rule above once the package exists at a base SHA, and
+replace them with an Organisation & Tenancy school query and a Settings
+Platform read when those owners expose them.
+
+PR mode allows a classification when the candidate adds the first Go file in
+that exact package. Rules added with it must be anchored to an owner and role
+used only by candidate-created packages; owner-kind rules remain forbidden.
+Existing unclassified packages and modified packages do not qualify. A legacy
+composition guard may be removed only after the guarded package declaration is
+deleted.
+
+PR mode requires every new runtime data object created in candidate
+migrations to have exactly one valid `data_objects` write owner in the same
+candidate. This is a hard policy check, not baseline debt. A candidate may add
+the ownership entry when a new non-test Go file under `database/migrations/`
+creates that exact schema-qualified object through static SQL passed to
+`NewRaw`, `Exec`, `Query`, `QueryRow`, or their context variants. Detection
+includes ordinary, unlogged, and foreign tables, views, materialized views,
+explicit sequences, and `SELECT INTO`, including `CREATE OR REPLACE VIEW`
+and quoted identifiers. Implicit serial/identity sequences follow their table.
+Views are conservatively treated as writable because PostgreSQL can expose
+writes through them. SQL comments and string literals, test-only files,
+temporary tables, and non-data DDL such as schemas, indexes, and types do not
+require runtime write ownership.
+
+SQL discovery resolves string constants, concatenation, and singly assigned
+local query variables, and inspects executable `DO` and function bodies.
+It preserves quoted-name case: identifiers that the policy cannot represent
+fail rather than silently matching a different object. Unresolved queries,
+schema builders, dynamic procedural SQL, and encoded executable bodies fail
+closed with a request to use static SQL or dollar quoting. Adjacent continued
+SQL string literals are joined before body analysis. The lexer follows
+[PostgreSQL's lexical rules](https://www.postgresql.org/docs/current/sql-syntax-lexical.html)
+for identifier quoting, comments, and literal continuation; it does not
+execute migrations or attempt to interpret arbitrary Go or procedural code.
+
+The object must not be mentioned by any migration at the base SHA, the write
+owner must already exist, and changing or newly assigning ownership for an
+existing object remains a policy loosening. Modified historical migrations
+never qualify for this exception, and historical unowned objects do not need
+rebaselining. The check uses the immutable local Git base, not GitHub.
 
 `audit-issues` performs the network-dependent GitHub liveness check separately.
 The wrapper supplies the committed baseline; callers must provide `--api-url`,
@@ -133,7 +495,121 @@ and `GITHUB_TOKEN` is optional for authenticated requests. A GitHub or network
 error fails this audit and cannot change the deterministic `check` result or
 appear as a green audit.
 
+## Migration evidence
+
+Schema version 2 separates ordinary waves from runtime checkpoints. Convert
+version 1 tickets explicitly. Both kinds retain prerequisites, owner/capability,
+packages, tables, exact ratchet keys, atomic cutover, tests, rollback/cleanup,
+and measurable exit criteria. Unknown fields and blank required evidence fail.
+
+### Ordinary waves
+
+Copy `migration-ticket-template.json` and replace all example/guidance values.
+Set `ticket_kind` to `migration`. `checkpoint_reference` must be the canonical
+issue URL of the latest accepted checkpoint in `runtime-checkpoints.json`.
+Missing, malformed, future, unaccepted, and superseded references fail.
+
+Record only flow-specific evidence needed for the cutover: raw source,
+workload/environment/observation window, thresholds, query counts, stable
+errors, failure-path and transaction rollback results, and smoke results.
+Keep deployment rollback and cleanup in `rollback_and_cleanup`. Non-applicable
+evidence needs a concrete reason. Additional metrics are allowed when the flow
+needs them; a reference does not waive failure, rollback, query-budget, or smoke
+checks. Ordinary waves do not repeat the full benchmark suite independently.
+
+### Checkpoint measurements
+
+Copy `checkpoint-ticket-template.json` and set `ticket_kind` to `checkpoint`.
+Only these canonical checkpoint issue URLs are valid:
+
+1. #3019 establishes the one-third baseline across completed migrations.
+2. #3020 compares with #3019 after its blocking core migrations and before
+   session-end, device-scan, and enrollment-acceptance workflow cutovers.
+3. #3021 compares with both predecessors after contract/storage cutovers and
+   before #2751 removes the remaining legacy composition.
+
+The `checkpoint` object requires an exact commit, reproducible PostgreSQL 17
+and production composition environment, toolchain, versioned workload, data
+volume, concurrency, and warm-up. Cover successful and failing HTTP/module
+flows and applicable Worker paths. `runs` contains exactly three measured runs
+after warm-up; `median` and `worst` report every applicable metric. Each report
+records source, workload, thresholds, query count, p50/p95, stable errors,
+pool waits, measured lock waits, deadlocks/serialization retries, Worker
+duration/retries/backlog, and affected rows. Non-applicable metrics need reasons.
+Full statement duration is not lock-wait evidence.
+
+`comparison` explains every metric against the required predecessors (or
+establishes #3019's baseline). Keep workload/environment equivalent;
+`workload_bridge` confirms equivalence or links old/new workloads measured on
+the same commit. `regression_issues` links focused optimization issues for
+material regressions; unexplained regressions block acceptance. `decision`
+records completed blockers and acceptance/rejection; #3021 permits or blocks
+#2751. Raw output and interpretation stay in the checkpoint issue or review
+evidence, not the repository. Template values are examples, not measurements.
+
+### Recording acceptance
+
+`runtime-checkpoints.json` is a reviewed acceptance registry, not architecture
+policy. It starts empty because no checkpoint has been accepted. Ordinary
+waves cannot pass until #3019 is accepted; checkpoint measurements can be
+validated before acceptance. After explicit acceptance in the checkpoint issue,
+append an entry in a reviewed change, in order without gaps:
+
+```json
+{"issue": "https://github.com/moto-nrw/project-phoenix/issues/3019", "acceptance": "https://github.com/moto-nrw/project-phoenix/issues/3019#issuecomment-123"}
+```
+
+Replace the example comment ID with the actual acceptance comment. Validation
+checks issue order and comment-link shape, not comment truth or measurement
+accuracy. Review must verify acceptance, closed blockers, comparable runs,
+and explanations. A ticket-local `accepted` flag cannot grant acceptance.
+`--checkpoints path/to/registry.json` supports a reviewed registry snapshot
+and isolated test fixtures; paths resolve from the repository root. Do not
+use a self-authored registry to bypass acceptance.
+
+No ownership or ratchet entries change. This contract sets no
+machine-independent latency limits.
+
 ## Composition inventory
+
+### Shrink-only fields and mutable wiring (#3030)
+
+The normal `scripts/backend-architecture.sh check` compares composition source
+with the merge-base of `HEAD` and `origin/development`. PR CI supplies the event's
+full base SHA through `--base-ref`. Fetch `origin/development` before a local
+check. Explicit project/baseline arguments remain available for isolated
+analyzer fixtures; CI always supplies the real base commit.
+
+The guard reads Go declarations directly from that Git object and the working
+tree. It rejects new named or embedded fields on `services.Factory`,
+`database/repositories.Factory`, and `api.API`, including local type aliases.
+There is no accepted field/setter manifest and no approve, regenerate,
+rebaseline, or wildcard option. Deletion spends the removed declaration's
+budget permanently once it reaches the base branch.
+
+Mutable wiring is identified by its destination, not by a `Set` prefix:
+assignments to interface/function dependencies, dependency-containing bundles,
+external pointer dependencies, and Worker/Scheduler scalar configuration are
+guarded. Receiver methods and pointer-parameter wiring functions are covered,
+including direct receiver aliases and whole-receiver replacement. The key
+includes the destination field, so an existing setter cannot acquire another
+dependency silently. Newly constructed local values are not mutable wiring.
+Domain/model receivers, ordinary result records, and scheduler task state are
+outside this guard. This is source analysis, not general interprocedural alias
+or reflection analysis; review still checks indirect wiring.
+
+Production, same-package tests, and external-package tests have separate keys.
+Test declarations cannot authorize production growth. Parsing includes
+build-tagged Go files, but excludes vendor, hidden directories, and fixture
+`testdata` trees. Fixtures cover both additions and permitted non-composition
+changes; the other architecture checks continue to enforce package boundaries.
+
+The existing Factory-removal and composition-contract tickets retain ownership
+of shrinking the current debt. This guard does not remove their work or change
+runtime composition. The historical inventory below is separate evidence:
+regenerating it cannot approve new fields or mutable wiring.
+
+### Typed-root migration evidence
 
 `composition.json` is the checked-in prerequisite inventory for the typed-root
 migration. It is pinned to evidence commit
@@ -143,8 +619,10 @@ migration. It is pinned to evidence commit
   discoverable `TestMain` roots and one smoke test per root;
 - every Cobra command path and scheduler job ID;
 - every typed legacy-composition reference reported by this evaluator;
-- every call to `api.New`, `api.NewServer`, `repositories.NewFactory`,
-  `services.NewFactory`, `scheduler.NewScheduler`, and `SetupAPITest` under the
+- every call to `api.New`, the evidence-only `api.NewServer`, the current
+  `api.WithRuntime`, `repositories.NewFactory`,
+  `services.NewFactory`, the evidence-only `scheduler.NewScheduler`, the current
+  `scheduler.NewWorker`, and `SetupAPITest` under the
   affected production and test trees (`api`, `cmd`, `services`,
   `database/repositories`, and `test`); this is deliberately not a scan of
   unrelated unit-test packages or migration tests;
@@ -201,3 +679,10 @@ logically overlapping rules. Change
 `schema_version` only when the JSON shape changes. Change `policy_epoch` only
 for a reviewed architecture decision; it does not approve or rebuild legacy
 findings.
+
+Reviewed data-less workflow additions may register new workflow owners when
+all their packages are candidate-created and the policy epoch increases
+([ADR 0013](../../docs/adr/0013-staff-offboarding-is-an-application-workflow.md),
+[#3130](https://github.com/moto-nrw/project-phoenix/issues/3130)). This does not
+permit adopting existing packages, expanding existing-owner permissions, or
+owning writable data. Those guards are checked independently.

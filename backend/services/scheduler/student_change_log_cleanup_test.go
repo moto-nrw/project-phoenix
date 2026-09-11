@@ -39,7 +39,7 @@ func TestStudentChangeLogCleanup_DeleteFailureRollsBackDeletionAudit(t *testing.
 		_, _ = db.NewRaw(`DELETE FROM audit.student_field_edits WHERE student_id = ?`, student.ID).Exec(context.Background())
 	}()
 
-	repos := repoFactory.NewFactory(db)
+	repos := repoFactory.NewFactory(db, repoFactory.NewUnobservedTimetableDependencies(db))
 	edit := &auditModels.StudentFieldEdit{
 		StudentID:    student.ID,
 		EditedBy:     auditModels.StudentFieldEditSystemActorID,
@@ -90,7 +90,7 @@ func TestStudentChangeLogCleanup_DeleteFailureRollsBackDeletionAudit(t *testing.
 		},
 		logger: slog.Default()})
 
-	s.checkAndRunStudentChangeLogCleanup(&ScheduledTask{Name: "student-change-log-cleanup"})
+	s.checkAndRunStudentChangeLogCleanup(context.Background(), &ScheduledTask{Name: "student-change-log-cleanup"})
 
 	editCount, err := db.NewSelect().
 		ModelTableExpr(`audit.student_field_edits`).

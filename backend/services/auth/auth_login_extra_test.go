@@ -30,7 +30,6 @@ func TestIssueTokensForAuthenticatedAccount_HappyPath(t *testing.T) {
 	email, username := uniqueTestCredentials("issue-tokens-happy")
 	account, err := service.Register(regCtx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
 
@@ -70,7 +69,6 @@ func TestIssueTokensForAuthenticatedAccount_InactiveAccount_Rejected(t *testing.
 	email, username := uniqueTestCredentials("issue-tokens-inactive")
 	account, err := service.Register(regCtx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	// Deactivate the account — IssueTokens... must refuse to mint a session.
 	_, err = db.ExecContext(context.Background(),

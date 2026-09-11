@@ -5,16 +5,15 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
-func newDailyCheckoutMigrationMockDB(t *testing.T) (*bun.DB, sqlmock.Sqlmock) {
+func newDailyCheckoutMigrationMockDB(t *testing.T) (*testpkg.DB, sqlmock.Sqlmock) {
 	t.Helper()
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	db := bun.NewDB(sqlDB, pgdialect.New())
+	db := testpkg.NewBunDB(sqlDB)
 	t.Cleanup(func() {
 		mock.ExpectClose()
 		require.NoError(t, db.Close())

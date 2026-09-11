@@ -58,7 +58,7 @@ export const NoSelection: Story = {
     selectedId: null,
     selectedDevice: null,
     onSelect: () => {},
-    onEditClick: () => {},
+    onSaveDevice: async () => undefined,
     onDeleteClick: () => {},
   },
 };
@@ -69,7 +69,7 @@ export const OnlineDeviceSelected: Story = {
     selectedId: "1",
     selectedDevice: devices[0] ?? null,
     onSelect: () => {},
-    onEditClick: () => {},
+    onSaveDevice: async () => undefined,
     onDeleteClick: () => {},
   },
 };
@@ -80,7 +80,7 @@ export const OfflineDeviceSelected: Story = {
     selectedId: "2",
     selectedDevice: devices[1] ?? null,
     onSelect: () => {},
-    onEditClick: () => {},
+    onSaveDevice: async () => undefined,
     onDeleteClick: () => {},
   },
 };
@@ -91,7 +91,7 @@ export const EmptyList: Story = {
     selectedId: null,
     selectedDevice: null,
     onSelect: () => {},
-    onEditClick: () => {},
+    onSaveDevice: async () => undefined,
     onDeleteClick: () => {},
   },
 };

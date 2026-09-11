@@ -54,7 +54,7 @@ func (r *OperatorEmailChangeTokenRepository) ConsumeByToken(ctx context.Context,
 		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "consume email change token",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -73,7 +73,7 @@ func (r *OperatorEmailChangeTokenRepository) InvalidateByOperatorID(ctx context.
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "invalidate email change tokens by operator ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -104,7 +104,7 @@ func (r *OperatorEmailChangeTokenRepository) CountRecentByOperatorID(ctx context
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "count recent email change tokens",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -128,7 +128,7 @@ func (r *OperatorEmailChangeTokenRepository) InvalidateExpiredTokens(ctx context
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "invalidate expired email change tokens",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -136,7 +136,7 @@ func (r *OperatorEmailChangeTokenRepository) InvalidateExpiredTokens(ctx context
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "count affected rows",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -156,7 +156,7 @@ func (r *OperatorEmailChangeTokenRepository) DeleteStaleTokens(ctx context.Conte
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "delete stale email change tokens",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -164,7 +164,7 @@ func (r *OperatorEmailChangeTokenRepository) DeleteStaleTokens(ctx context.Conte
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "count affected rows",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

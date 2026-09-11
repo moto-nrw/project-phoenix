@@ -20,7 +20,7 @@ import (
 func TestGetStudentPrivacyConsent(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Privacy", "Test", "PT1")
 
@@ -34,7 +34,7 @@ func TestGetStudentPrivacyConsent(t *testing.T) {
 	})
 
 	t.Run("success_returns_configured_retention_default", func(t *testing.T) {
-		require.NoError(t, tc.services.Settings.SetValue(testpkg.Ctx(t), configModel.KeyPrivacyConsentRetentionDays, 12, nil, nil))
+		require.NoError(t, tc.resource.SettingsService.SetValue(testpkg.Ctx(t), configModel.KeyPrivacyConsentRetentionDays, 12, nil, nil))
 
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/privacy-consent", student.ID), nil)
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -54,7 +54,7 @@ func TestGetStudentPrivacyConsent(t *testing.T) {
 func TestUpdateStudentPrivacyConsent(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PrivacyUpdate", "Test", "PU1")
 
@@ -98,7 +98,7 @@ func TestUpdateStudentPrivacyConsent(t *testing.T) {
 func TestPrivacyConsent_Extended(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("update_creates_new_consent_for_different_version", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Privacy", "MultiVersion", "PM1")
@@ -176,7 +176,7 @@ func TestPrivacyConsent_Extended(t *testing.T) {
 func TestPrivacyConsent_EdgeCases(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("update_existing_consent_same_version", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Privacy", "SameVersion", "PSV1")

@@ -389,7 +389,7 @@ func (s *careDayService) loadCareExceptions(
 	studentIDs []int64,
 	from, to timezone.Date,
 ) error {
-	arrivalExceptions, err := s.deps.ArrivalExceptions.FindByStudentIDsAndDateRange(ctx, studentIDs, from, to)
+	arrivalExceptions, err := s.deps.ArrivalExceptions.FindByStudentIDsAndDateRange(ctx, studentIDs, schedule.Date(from), schedule.Date(to))
 	if err != nil {
 		return &ScheduleError{Op: opResolveCareDay, Err: err}
 	}
@@ -397,7 +397,7 @@ func (s *careDayService) loadCareExceptions(
 		plans.addArrivalException(exc)
 	}
 
-	pickupExceptions, err := s.deps.PickupExceptions.FindByStudentIDsAndDateRange(ctx, studentIDs, from, to)
+	pickupExceptions, err := s.deps.PickupExceptions.FindByStudentIDsAndDateRange(ctx, studentIDs, schedule.Date(from), schedule.Date(to))
 	if err != nil {
 		return &ScheduleError{Op: opResolveCareDay, Err: err}
 	}
@@ -414,7 +414,7 @@ func (p *carePlans) addArrivalException(row *schedule.StudentArrivalException) {
 	if p.arrivalExceptions[row.StudentID] == nil {
 		p.arrivalExceptions[row.StudentID] = make(map[timezone.Date]*schedule.StudentArrivalException)
 	}
-	p.arrivalExceptions[row.StudentID][row.ExceptionDate] = row
+	p.arrivalExceptions[row.StudentID][timezone.Date(row.ExceptionDate)] = row
 }
 
 func (p *carePlans) addPickupException(row *schedule.StudentPickupException) {
@@ -424,7 +424,7 @@ func (p *carePlans) addPickupException(row *schedule.StudentPickupException) {
 	if p.pickupExceptions[row.StudentID] == nil {
 		p.pickupExceptions[row.StudentID] = make(map[timezone.Date]*schedule.StudentPickupException)
 	}
-	p.pickupExceptions[row.StudentID][row.ExceptionDate] = row
+	p.pickupExceptions[row.StudentID][timezone.Date(row.ExceptionDate)] = row
 }
 
 func (p *carePlans) markHasPlan(studentID int64, date timezone.Date) {

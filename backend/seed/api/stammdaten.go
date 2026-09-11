@@ -4,16 +4,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"sort"
+	"time"
 )
 
 // StaffCredentials stores login credentials for a staff member
 type StaffCredentials struct {
-	Email    string
-	Password string
-	PIN      string
-	Name     string
-	Position string
+	AccountID int64
+	Email     string
+	Password  string
+	PIN       string
+	Name      string
+	Position  string
 }
 
 // FixedSeeder seeds fixed demo data via API calls
@@ -34,6 +37,7 @@ type FixedSeeder struct {
 	categoryIDs      map[string]int64   // category name -> id
 	deviceKeys       map[string]string  // device ID -> API key
 	roleIDs          map[string]int64   // role name -> id
+	accountIDs       map[string]int64   // "firstName lastName" -> account id
 	guardianIDs      map[string]int64   // guardian "firstName lastName" -> id
 	staffCredentials []StaffCredentials // created staff credentials for summary
 }
@@ -52,9 +56,12 @@ type FixedResult struct {
 	GuardianIBANCount     int // Guardians with bank details stored (#2608)
 	PickupScheduleCount   int // Students with weekly pickup schedules seeded
 	ClassArrivalTimeCount int // Classes with seeded arrival times
-	ActivityCount         int
-	DeviceCount           int
-	StaffCredentials      []StaffCredentials // Login credentials for demo
+	// ClassArrivalExceptionCount is the number of class-wide arrival day
+	// exceptions seeded (#2962).
+	ClassArrivalExceptionCount int
+	ActivityCount              int
+	DeviceCount                int
+	StaffCredentials           []StaffCredentials // Login credentials for demo
 }
 
 // NewFixedSeeder creates a new fixed data seeder.
@@ -78,6 +85,7 @@ func NewFixedSeeder(client *Client, verbose bool, staffPassword string) *FixedSe
 		categoryIDs:      make(map[string]int64),
 		deviceKeys:       make(map[string]string),
 		roleIDs:          make(map[string]int64),
+		accountIDs:       make(map[string]int64),
 		guardianIDs:      make(map[string]int64),
 		staffCredentials: make([]StaffCredentials, 0),
 	}
@@ -122,6 +130,9 @@ func (s *FixedSeeder) Seed(ctx context.Context) (*FixedResult, error) {
 	if err := s.seedGroups(ctx, result); err != nil {
 		return nil, fmt.Errorf("failed to seed groups: %w", err)
 	}
+	if err := s.seedGroupHandover(ctx); err != nil {
+		return nil, fmt.Errorf("failed to seed group handover: %w", err)
+	}
 
 	// 7. Create students
 	if err := s.seedStudents(ctx, result); err != nil {
@@ -129,6 +140,9 @@ func (s *FixedSeeder) Seed(ctx context.Context) (*FixedResult, error) {
 	}
 	if err := s.seedClassArrivalTimes(ctx, result); err != nil {
 		return nil, fmt.Errorf("failed to seed class arrival times: %w", err)
+	}
+	if err := s.seedClassArrivalException(ctx, result); err != nil {
+		return nil, fmt.Errorf("failed to seed class arrival exception: %w", err)
 	}
 
 	// 8. Create guardians and link to students
@@ -222,6 +236,46 @@ func (s *FixedSeeder) seedClassArrivalTimes(_ context.Context, result *FixedResu
 	return nil
 }
 
+// seedClassArrivalException gives the first class a class-wide arrival day
+// exception on the next school day (#2962), so the Klassen-Modal and the
+// roster show one on every dev machine.
+func (s *FixedSeeder) seedClassArrivalException(_ context.Context, result *FixedResult) error {
+	classNames := make([]string, 0)
+	seen := make(map[string]struct{})
+	for _, student := range DemoStudents {
+		if _, ok := seen[student.Class]; ok {
+			continue
+		}
+		seen[student.Class] = struct{}{}
+		classNames = append(classNames, student.Class)
+	}
+	sort.Strings(classNames)
+	if len(classNames) == 0 {
+		return nil
+	}
+	berlin, err := time.LoadLocation("Europe/Berlin")
+	if err != nil {
+		return fmt.Errorf("load Berlin timezone: %w", err)
+	}
+	date := time.Now().In(berlin)
+	for date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
+		date = date.AddDate(0, 0, 1)
+	}
+	isoDate := date.Format("2006-01-02")
+	path := fmt.Sprintf("/api/students/class-arrival-exceptions/%s/%s", url.PathEscape(classNames[0]), isoDate)
+	if _, err := s.client.Put(path, map[string]any{
+		"arrival_time": "11:00",
+		"reason":       "Unterricht fällt aus",
+	}); err != nil {
+		return fmt.Errorf("seed class arrival exception for %s: %w", classNames[0], err)
+	}
+	result.ClassArrivalExceptionCount++
+	if s.verbose {
+		fmt.Printf("  ✓ class arrival exception seeded for %s on %s\n", classNames[0], isoDate)
+	}
+	return nil
+}
+
 // switchToStaffAccount re-authenticates as the first OGS-Büro staff member.
 // This is needed because many endpoints (activities, groups, etc.) require the
 // caller to have a staff record, which the migration-created admin account lacks.
@@ -257,11 +311,15 @@ func (s *FixedSeeder) loginAsStaff() error {
 }
 
 func (s *FixedSeeder) seedRooms(_ context.Context, result *FixedResult) error {
-	for _, room := range DemoRooms {
+	// Deliberately outside the status-badge palette: room colors must be
+	// tenant-unique and the API rejects colors reserved for presence states.
+	roomColors := []string{"#1B5E20", "#2E7D32", "#33691E", "#827717", "#E65100", "#BF360C", "#4A148C", "#6A1B9A", "#283593", "#006064", "#37474F"}
+	for index, room := range DemoRooms {
 		body := map[string]any{
 			"name":     room.Name,
 			"capacity": room.Capacity,
 			"category": room.Category, // German category name for display
+			"color":    roomColors[index],
 		}
 
 		// Add building if specified
@@ -272,6 +330,13 @@ func (s *FixedSeeder) seedRooms(_ context.Context, result *FixedResult) error {
 		// Add floor if specified (can be 0, so check for nil)
 		if room.Floor != nil {
 			body["floor"] = *room.Floor
+		}
+
+		// Only sent when the room is meant to be released. An omitted
+		// is_open_room leaves the release alone, which is also the create
+		// default — ordinary demo rooms stay unreleased.
+		if room.IsOpenRoom {
+			body["is_open_room"] = true
 		}
 
 		respBody, err := s.client.Post("/api/rooms", body)
@@ -356,7 +421,8 @@ func (s *FixedSeeder) seedStaff(_ context.Context, result *FixedResult) error {
 
 func (s *FixedSeeder) seedGroups(_ context.Context, result *FixedResult) error {
 	// Create 10 groups with themed names (typical for German OGS)
-	// Each Pädagogische Fachkraft (demo11-demo20) gets exactly one group
+	// Each Pädagogische Fachkraft gets exactly one group; Wiesengruppe is
+	// additionally assigned to an OGS-Büro teacher.
 	// This ensures every Betreuer sees "Meine Gruppe" in the frontend
 	// Note: OGS-Büro staff (demo1-demo10) are admins and see ALL groups
 	classes := []struct {
@@ -373,10 +439,10 @@ func (s *FixedSeeder) seedGroups(_ context.Context, result *FixedResult) error {
 		{key: "schmetterlingsgruppe", name: "Schmetterlingsgruppe", teachers: []string{"Birgit Braun"}},
 		{key: "waldgruppe", name: "Waldgruppe", teachers: []string{"Jörg Krüger"}},
 		{key: "meeresgruppe", name: "Meeresgruppe", teachers: []string{"Heike Hartmann"}},
-		{key: "wiesengruppe", name: "Wiesengruppe", teachers: []string{"Uwe Lange"}},
+		{key: "wiesengruppe", name: "Wiesengruppe", teachers: []string{"Anna Müller"}},
 	}
 
-	for _, class := range classes {
+	for index, class := range classes {
 		// Collect teacher IDs for this group
 		teacherIDsForGroup := []int64{}
 		for _, teacherName := range class.teachers {
@@ -388,6 +454,10 @@ func (s *FixedSeeder) seedGroups(_ context.Context, result *FixedResult) error {
 		body := map[string]any{
 			"name":        class.name,
 			"teacher_ids": teacherIDsForGroup,
+		}
+		roomNames := []string{"OGS-Raum 1", "OGS-Raum 2", "OGS-Raum 3", "Kreativraum"}
+		if roomID := s.roomIDs[roomNames[index%len(roomNames)]]; roomID > 0 {
+			body["room_id"] = roomID
 		}
 
 		respBody, err := s.client.Post("/api/groups", body)
@@ -522,6 +592,14 @@ func (s *FixedSeeder) seedStudents(_ context.Context, result *FixedResult) error
 			"group_id":     groupID,
 			"birthday":     birthday,
 		}
+		if i%3 == 0 {
+			body["address_street"] = fmt.Sprintf("Schulstraße %d", i+1)
+			body["address_postal_code"] = "49074"
+			body["address_city"] = "Osnabrück"
+		}
+		if i%4 == 0 {
+			body["photo_consent_given"] = true
+		}
 
 		// Add pickup status (rotate through options)
 		pickupStatus := pickupStatuses[i%len(pickupStatuses)]
@@ -597,7 +675,7 @@ func (s *FixedSeeder) MarkStudentsSick(_ context.Context, result *FixedResult) e
 	for i, student := range DemoStudents {
 		studentID, ok := s.studentIDByIndex[i]
 		if !ok {
-			continue
+			return fmt.Errorf("student ID not found for sickness demo index %d", i)
 		}
 
 		isCheckedIn := checkedInIDs[studentID]
@@ -664,7 +742,7 @@ func (s *FixedSeeder) getCheckedInStudentIDs() (map[int64]bool, error) {
 }
 
 func (s *FixedSeeder) seedGuardians(_ context.Context, result *FixedResult) error {
-	for _, guardian := range DemoGuardians {
+	for index, guardian := range DemoGuardians {
 		guardianKey := fmt.Sprintf("%s %s", guardian.FirstName, guardian.LastName)
 
 		// 1. Create guardian profile
@@ -684,6 +762,11 @@ func (s *FixedSeeder) seedGuardians(_ context.Context, result *FixedResult) erro
 		}
 		if guardian.MobilePhone != "" {
 			body["mobile_phone"] = guardian.MobilePhone
+		}
+		if index%3 == 0 {
+			body["address_street"] = fmt.Sprintf("Familienweg %d", index+1)
+			body["address_postal_code"] = "49074"
+			body["address_city"] = "Osnabrück"
 		}
 
 		respBody, err := s.client.Post("/api/guardians", body)
@@ -708,10 +791,7 @@ func (s *FixedSeeder) seedGuardians(_ context.Context, result *FixedResult) erro
 		// 2. Link guardian to student
 		studentID, ok := s.studentIDByIndex[guardian.StudentIndex]
 		if !ok {
-			if s.verbose {
-				fmt.Printf("    Warning: student index %d not found for guardian %s\n", guardian.StudentIndex, guardianKey)
-			}
-			continue
+			return fmt.Errorf("student index %d not found for guardian %s", guardian.StudentIndex, guardianKey)
 		}
 
 		linkPath := fmt.Sprintf("/api/guardians/students/%d/guardians", studentID)
@@ -723,16 +803,23 @@ func (s *FixedSeeder) seedGuardians(_ context.Context, result *FixedResult) erro
 			"can_pickup":           true,
 			"emergency_priority":   1,
 		}
+		if index >= 6 && index%10 == 0 {
+			linkBody["guardian_role"] = "pickup_only"
+			linkBody["relationship_type"] = "relative"
+			linkBody["is_emergency_contact"] = false
+		} else if index >= 6 && index%11 == 0 {
+			linkBody["guardian_role"] = "custom"
+			linkBody["relationship_type"] = "other"
+			linkBody["is_emergency_contact"] = false
+			linkBody["can_pickup"] = false
+		}
 		if !guardian.IsPrimary {
 			linkBody["emergency_priority"] = 2
 		}
 
 		_, err = s.client.Post(linkPath, linkBody)
 		if err != nil {
-			if s.verbose {
-				fmt.Printf("    Warning: failed to link guardian %s to student: %v\n", guardianKey, err)
-			}
-			continue
+			return fmt.Errorf("link guardian %s to student %d: %w", guardianKey, studentID, err)
 		}
 
 		result.GuardianCount++
@@ -783,11 +870,11 @@ func (s *FixedSeeder) seedGuardianPayments(_ context.Context, result *FixedResul
 		guardianKey := fmt.Sprintf("%s %s", guardian.FirstName, guardian.LastName)
 		guardianID, ok := s.guardianIDs[guardianKey]
 		if !ok {
-			continue
+			return fmt.Errorf("guardian ID not found for payer %s", guardianKey)
 		}
 		studentID, ok := s.studentIDByIndex[guardian.StudentIndex]
 		if !ok {
-			continue
+			return fmt.Errorf("student ID not found for payer index %d", guardian.StudentIndex)
 		}
 
 		ibanIndex++
@@ -801,10 +888,7 @@ func (s *FixedSeeder) seedGuardianPayments(_ context.Context, result *FixedResul
 		if _, err := s.client.Put(payerPath, map[string]any{
 			"guardian_id": fmt.Sprintf("%d", guardianID),
 		}); err != nil {
-			if s.verbose {
-				fmt.Printf("    Warning: failed to mark payer for student %d: %v\n", studentID, err)
-			}
-			continue
+			return fmt.Errorf("mark payer for student %d: %w", studentID, err)
 		}
 		result.PayerCount++
 
@@ -821,10 +905,7 @@ func (s *FixedSeeder) seedGuardianPayments(_ context.Context, result *FixedResul
 		}
 		paymentPath := fmt.Sprintf("/api/guardians/%d/payment", guardianID)
 		if _, err := s.client.Put(paymentPath, body); err != nil {
-			if s.verbose {
-				fmt.Printf("    Warning: failed to store bank details for guardian %s: %v\n", guardianKey, err)
-			}
-			continue
+			return fmt.Errorf("store bank details for guardian %s: %w", guardianKey, err)
 		}
 		result.GuardianIBANCount++
 	}
@@ -896,7 +977,7 @@ func (s *FixedSeeder) seedPickupSchedules(_ context.Context, result *FixedResult
 
 		studentID, ok := s.studentIDByIndex[i]
 		if !ok {
-			continue
+			return fmt.Errorf("student ID not found for pickup schedule index %d", i)
 		}
 
 		pattern := schedulePatterns[i%len(schedulePatterns)]
@@ -921,12 +1002,7 @@ func (s *FixedSeeder) seedPickupSchedules(_ context.Context, result *FixedResult
 
 		_, err := s.client.Put(path, body)
 		if err != nil {
-			// Log warning but continue — pickup schedules are non-critical demo data
-			if s.verbose {
-				fmt.Printf("    Warning: failed to seed pickup schedule for student %s %s: %v\n",
-					student.FirstName, student.LastName, err)
-			}
-			continue
+			return fmt.Errorf("seed pickup schedule for student %s %s: %w", student.FirstName, student.LastName, err)
 		}
 
 		result.PickupScheduleCount++
@@ -1084,20 +1160,13 @@ func (s *FixedSeeder) enrollStudents(_ context.Context) error {
 			studentKey := fmt.Sprintf("%s %s", student.FirstName, student.LastName)
 			studentID, ok := s.studentIDs[studentKey]
 			if !ok {
-				if s.verbose {
-					fmt.Printf("    Warning: student ID not found for %s\n", studentKey)
-				}
-				continue
+				return fmt.Errorf("student ID not found for %s", studentKey)
 			}
 
 			path := fmt.Sprintf("/api/activities/%d/students/%d", activityID, studentID)
 			_, err := s.client.Post(path, nil)
 			if err != nil {
-				// Log but continue on enrollment errors
-				if s.verbose {
-					fmt.Printf("    Warning: failed to enroll student in %s: %v\n", activityName, err)
-				}
-				continue
+				return fmt.Errorf("enroll student %d in %s: %w", studentID, activityName, err)
 			}
 
 			enrolled++
@@ -1276,12 +1345,14 @@ func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) 
 
 		// Store credentials for summary
 		s.staffCredentials = append(s.staffCredentials, StaffCredentials{
-			Email:    email,
-			Password: password,
-			PIN:      pin,
-			Name:     personKey,
-			Position: staff.Position,
+			AccountID: account.Data.ID,
+			Email:     email,
+			Password:  password,
+			PIN:       pin,
+			Name:      personKey,
+			Position:  staff.Position,
 		})
+		s.accountIDs[personKey] = account.Data.ID
 
 		result.AccountCount++
 	}

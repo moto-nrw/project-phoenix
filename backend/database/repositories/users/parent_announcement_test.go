@@ -7,14 +7,16 @@ import (
 	"testing"
 	"time"
 
+	enrollmentAudience "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -24,6 +26,7 @@ import (
 func publishedAnnouncement(
 	t *testing.T,
 	ctx context.Context,
+	db *bun.DB,
 	repo usersModels.ParentAnnouncementRepository,
 	createdBy, tenantID int64,
 	title string,
@@ -40,13 +43,18 @@ func publishedAnnouncement(
 	a.SetTenantID(tenantID)
 	require.NoError(t, repo.Create(ctx, a))
 	require.NoError(t, repo.ReplaceTargets(ctx, tenantID, a.ID, targets))
-	// Publish 2s in the past: the DB clock can lag the Go clock in the Docker
-	// VM, and published_at <= NOW() guards must not see a future timestamp.
-	now := time.Now().Add(-2 * time.Second)
+	now := databaseTimestamp(t, db)
 	require.NoError(t, repo.SetPublished(ctx, a.ID, &now))
 	a.PublishedAt = &now // reflect the persisted version so callers can pass it to MarkRead/MarkAcknowledged
 	t.Cleanup(func() { _ = repo.Delete(ctx, a.ID) })
 	return a
+}
+
+func databaseTimestamp(t *testing.T, db *bun.DB) time.Time {
+	t.Helper()
+	var now time.Time
+	require.NoError(t, db.NewSelect().ColumnExpr("CURRENT_TIMESTAMP").Scan(context.Background(), &now))
+	return now
 }
 
 // TestParentAnnouncementAudience exercises the audience resolver against a real
@@ -59,21 +67,21 @@ func TestParentAnnouncementAudience(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
 
-	repo := usersRepo.NewParentAnnouncementRepository(db)
+	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t) // tenant 1
 	tenantIDs := []int64{chain.TenantID}
 
-	schoolWide := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+	schoolWide := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
 		"Schulweit", []*usersModels.ParentAnnouncementTarget{
 			{TargetType: usersModels.AnnouncementTargetSchoolAll},
 		})
 
-	classMatch := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+	classMatch := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
 		"Klasse 1a", []*usersModels.ParentAnnouncementTarget{
 			{TargetType: usersModels.AnnouncementTargetClass, TargetRefText: strp("1a")},
 		})
 
-	classMiss := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+	classMiss := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
 		"Klasse 9z", []*usersModels.ParentAnnouncementTarget{
 			{TargetType: usersModels.AnnouncementTargetClass, TargetRefText: strp("9z")},
 		})
@@ -156,7 +164,7 @@ func TestParentAnnouncementAudienceRecipients(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
 
-	repo := usersRepo.NewParentAnnouncementRepository(db)
+	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 	_, err := db.NewUpdate().
 		TableExpr("users.guardian_profiles").
@@ -165,11 +173,11 @@ func TestParentAnnouncementAudienceRecipients(t *testing.T) {
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	schoolWide := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+	schoolWide := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
 		"Schulweit Empfänger", []*usersModels.ParentAnnouncementTarget{
 			{TargetType: usersModels.AnnouncementTargetSchoolAll},
 		})
-	classMiss := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+	classMiss := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
 		"Klasse 9z Empfänger", []*usersModels.ParentAnnouncementTarget{
 			{TargetType: usersModels.AnnouncementTargetClass, TargetRefText: strp("9z")},
 		})
@@ -228,7 +236,7 @@ func TestParentAnnouncementUpdate_AtomicAndClearsReads(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
 
-	repo := usersRepo.NewParentAnnouncementRepository(db)
+	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
 	a := &usersModels.ParentAnnouncement{
@@ -242,10 +250,7 @@ func TestParentAnnouncementUpdate_AtomicAndClearsReads(t *testing.T) {
 	t.Cleanup(func() { _ = repo.Delete(ctx, a.ID) })
 
 	// Publish, then the guardian reads + acknowledges.
-	// The version guard compares against PostgreSQL's clock. Keep this safely
-	// in the past so host/container clock skew cannot make a fresh row appear
-	// scheduled for the future.
-	now := time.Now().Add(-time.Second).UTC().Truncate(time.Microsecond)
+	now := databaseTimestamp(t, db)
 	require.NoError(t, repo.SetPublished(ctx, a.ID, &now))
 	readApplied, err := repo.MarkRead(ctx, chain.TenantID, a.ID, chain.AccountID, now)
 	require.NoError(t, err)
@@ -293,7 +298,7 @@ func TestParentAnnouncementReplaceTargets_RefusesPublished(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
 
-	repo := usersRepo.NewParentAnnouncementRepository(db)
+	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
 	a := &usersModels.ParentAnnouncement{
@@ -307,9 +312,7 @@ func TestParentAnnouncementReplaceTargets_RefusesPublished(t *testing.T) {
 	t.Cleanup(func() { _ = repo.Delete(ctx, a.ID) })
 
 	// Publish it, then attempt to swap the audience to a single student.
-	// Publish 2s in the past: the DB clock can lag the Go clock in the Docker
-	// VM, and published_at <= NOW() guards must not see a future timestamp.
-	now := time.Now().Add(-2 * time.Second)
+	now := databaseTimestamp(t, db)
 	require.NoError(t, repo.SetPublished(ctx, a.ID, &now))
 	studentID := chain.StudentID
 	err := repo.ReplaceTargets(ctx, chain.TenantID, a.ID,
@@ -336,7 +339,7 @@ func TestParentAnnouncementDelete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	repo := usersRepo.NewParentAnnouncementRepository(db)
+	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
 	a := &usersModels.ParentAnnouncement{
@@ -366,10 +369,10 @@ func TestParentAnnouncementMarkRead_VersionGuard(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
 
-	repo := usersRepo.NewParentAnnouncementRepository(db)
+	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
-	a := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+	a := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
 		"Versioniert", []*usersModels.ParentAnnouncementTarget{
 			{TargetType: usersModels.AnnouncementTargetSchoolAll},
 		})
@@ -409,11 +412,11 @@ func TestParentAnnouncementAudience_InactiveMembershipExcluded(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // active mapping, tenant 1
 
-	repo := usersRepo.NewParentAnnouncementRepository(db)
+	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 	tenantIDs := []int64{chain.TenantID}
 
-	ann := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+	ann := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
 		"Schulweit", []*usersModels.ParentAnnouncementTarget{
 			{TargetType: usersModels.AnnouncementTargetSchoolAll},
 		})
@@ -459,11 +462,11 @@ func TestParentAnnouncementAudience_ClassMatchIsCaseInsensitive(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
 
-	repo := usersRepo.NewParentAnnouncementRepository(db)
+	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
 	// Uppercase + padded target text against a lowercase "1a" student class.
-	ann := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+	ann := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
 		"Klasse 1A", []*usersModels.ParentAnnouncementTarget{
 			{TargetType: usersModels.AnnouncementTargetClass, TargetRefText: strp(" 1A ")},
 		})
@@ -483,7 +486,7 @@ func TestParentAnnouncementAudience_FutureEnrollmentExcluded(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // tenant 1
 
-	repo := usersRepo.NewParentAnnouncementRepository(db)
+	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
 	group := testpkg.CreateTestActivityGroupForTenant(t, db, chain.TenantID, "AG-Regression")
@@ -492,7 +495,7 @@ func TestParentAnnouncementAudience_FutureEnrollmentExcluded(t *testing.T) {
 	enr := &activitiesModels.StudentEnrollment{
 		StudentID:       chain.StudentID,
 		ActivityGroupID: group.ID,
-		ValidFrom:       timezone.TodayDate().AddDays(7),
+		ValidFrom:       activitiesModels.Date(timezone.TodayDate().AddDays(7)),
 	}
 	enr.SetTenantID(chain.TenantID)
 	_, err := db.NewInsert().
@@ -508,7 +511,7 @@ func TestParentAnnouncementAudience_FutureEnrollmentExcluded(t *testing.T) {
 			Exec(context.Background())
 	})
 
-	ann := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+	ann := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
 		"AG-Mitteilung", []*usersModels.ParentAnnouncementTarget{
 			{TargetType: usersModels.AnnouncementTargetActivityGroup, TargetRefID: &group.ID},
 		})
@@ -537,10 +540,12 @@ func TestParentAnnouncementAudience_WeekdayScopedEnrollmentMatchesToday(t *testi
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	repo := usersRepo.NewParentAnnouncementRepository(db)
+	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New(), func() time.Time {
+		return timezone.NewDate(2026, 8, 24).BerlinMidnight()
+	})
 	ctx := tenantCtx(t)
 	group := testpkg.CreateTestActivityGroupForTenant(t, db, chain.TenantID, "AG-Wochentag")
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	todayWeekday := int(today.Weekday())
 	if todayWeekday == 0 {
 		todayWeekday = activitiesModels.WeekdaySunday
@@ -549,7 +554,7 @@ func TestParentAnnouncementAudience_WeekdayScopedEnrollmentMatchesToday(t *testi
 	enrollment := &activitiesModels.StudentEnrollment{
 		StudentID:       chain.StudentID,
 		ActivityGroupID: group.ID,
-		ValidFrom:       today.AddDays(-1),
+		ValidFrom:       activitiesModels.Date(today.AddDays(-1)),
 		Weekday:         &otherWeekday,
 	}
 	enrollment.SetTenantID(chain.TenantID)
@@ -566,7 +571,7 @@ func TestParentAnnouncementAudience_WeekdayScopedEnrollmentMatchesToday(t *testi
 			Exec(context.Background())
 	})
 
-	announcement := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+	announcement := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
 		"AG-Wochentag", []*usersModels.ParentAnnouncementTarget{
 			{TargetType: usersModels.AnnouncementTargetActivityGroup, TargetRefID: &group.ID},
 		})
@@ -629,33 +634,27 @@ func TestParentAnnouncementAudience_PendingEnrollmentEmailFallback(t *testing.T)
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // account with a real e-mail, tenant 1
 
-	bg := context.Background()
-	repo := usersRepo.NewParentAnnouncementRepository(db)
+	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 	tenantIDs := []int64{chain.TenantID}
+	owner := enrollmentAudience.New()
+	ownerCtx := testpkg.WithTenantRuntime(t, ctx, db)
 
 	// A phase to anchor the enrollment request FK.
-	phase := &enrollmentModels.Phase{
+	phase := &enrollmentAudience.Phase{
 		Name:                      "Testphase",
-		ServiceStartDate:          timezone.NewDate(2026, time.September, 1),
-		ServiceEndDate:            timezone.NewDate(2027, time.July, 31),
+		ServiceStartDate:          "2026-09-01",
+		ServiceEndDate:            "2027-07-31",
 		CareOverflowMode:          "waitlist",
 		CareOfferingSelectionMode: "optional",
 	}
-	phase.SetTenantID(chain.TenantID)
-	_, err := db.NewInsert().Model(phase).ModelTableExpr("enrollment.phases").Exec(bg)
+	phase.TenantID = chain.TenantID
+	err := owner.InsertPhase(ownerCtx, phase)
 	require.NoError(t, err)
-	// defer (not t.Cleanup) so the row is removed while db is still open — the
-	// LIFO order deletes child -> request -> phase before CleanupParentGuardianChain
-	// and db.Close, keeping tenant 1's open-enrollment set clean for other tests.
-	defer func() {
-		_, _ = db.NewDelete().Model((*enrollmentModels.Phase)(nil)).
-			ModelTableExpr("enrollment.phases").Where("id = ?", phase.ID).Exec(bg)
-	}()
 
 	// An UNSTAMPED request (guardian_account_id NULL) whose e-mail matches the
 	// chain account — the invite-accept-backfill-failed edge case.
-	req := &enrollmentModels.Request{
+	req := &enrollmentAudience.Request{
 		PhaseID:           phase.ID,
 		GuardianFirstName: "Sabine",
 		GuardianLastName:  "Schneider",
@@ -664,30 +663,18 @@ func TestParentAnnouncementAudience_PendingEnrollmentEmailFallback(t *testing.T)
 		StatusToken:       fmt.Sprintf("tok-%d", time.Now().UnixNano()),
 		SubmittedAt:       time.Now(),
 	}
-	req.SetTenantID(chain.TenantID)
-	_, err = db.NewInsert().Model(req).ModelTableExpr("enrollment.requests").Exec(bg)
-	require.NoError(t, err)
-	defer func() {
-		_, _ = db.NewDelete().Model((*enrollmentModels.Request)(nil)).
-			ModelTableExpr("enrollment.requests").Where("id = ?", req.ID).Exec(bg)
-	}()
+	require.NoError(t, owner.InsertRequest(ownerCtx, req))
 
-	child := &enrollmentModels.RequestChild{
+	child := &enrollmentAudience.RequestChild{
 		RequestID:   req.ID,
 		FirstName:   "Felix",
 		LastName:    "Schneider",
-		DateOfBirth: timezone.NewDate(2019, time.March, 3),
-		Status:      enrollmentModels.ChildStatusSubmitted,
+		DateOfBirth: "2019-03-03",
+		Status:      enrollmentAudience.ChildStatusSubmitted,
 	}
-	child.SetTenantID(chain.TenantID)
-	_, err = db.NewInsert().Model(child).ModelTableExpr("enrollment.request_children").Exec(bg)
-	require.NoError(t, err)
-	defer func() {
-		_, _ = db.NewDelete().Model((*enrollmentModels.RequestChild)(nil)).
-			ModelTableExpr("enrollment.request_children").Where("id = ?", child.ID).Exec(bg)
-	}()
+	require.NoError(t, owner.InsertChild(ownerCtx, child))
 
-	ann := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+	ann := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
 		"Offene Anmeldungen", []*usersModels.ParentAnnouncementTarget{
 			{TargetType: usersModels.AnnouncementTargetPendingEnrollment},
 		})

@@ -5,7 +5,7 @@
 //	POST /api/timetable/lists/export   → rendered PDF/XLSX file
 //
 // Both endpoints share one request shape (the export adds a format field) and
-// delegate entirely to services/slotlists. They are read-only derivations over
+// delegate entirely to services/classday. They are read-only derivations over
 // selected schedule.activity_instances / schedule.instance_students (Plan) and
 // active.visits / active.attendance (Ist); the existing emergency snapshot
 // stays a separate, unfiltered Ist-list.
@@ -20,8 +20,8 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	"github.com/moto-nrw/project-phoenix/services/slotlists"
 )
 
 type slotListRequest struct {
@@ -48,53 +48,53 @@ type slotListOptionsRequest struct {
 
 // parseSlotListParams validates the shared request fields. Returns the
 // params or writes an error response and returns false.
-func (rs *Resource) parseSlotListParams(w http.ResponseWriter, r *http.Request, req slotListRequest) (slotlists.Params, bool) {
+func (rs *Resource) parseSlotListParams(w http.ResponseWriter, r *http.Request, req slotListRequest) (classday.Params, bool) {
 	instanceIDs, err := parseSlotListIDList(req.InstanceIDs, "instance_ids")
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return slotlists.Params{}, false
+		return classday.Params{}, false
 	}
 	groupIDs, err := parseSlotListIDList(req.GroupIDs, "group_ids")
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return slotlists.Params{}, false
+		return classday.Params{}, false
 	}
 	date, err := berlinDate(req.Date)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("date must be YYYY-MM-DD")))
-		return slotlists.Params{}, false
+		return classday.Params{}, false
 	}
-	target := slotlists.Target(req.Target)
+	target := classday.Target(req.Target)
 	if !target.Valid() {
 		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("unknown target %q", req.Target)))
-		return slotlists.Params{}, false
+		return classday.Params{}, false
 	}
-	source := slotlists.Source(req.Source)
+	source := classday.Source(req.Source)
 	if !source.Valid() {
 		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("unknown source %q", req.Source)))
-		return slotlists.Params{}, false
+		return classday.Params{}, false
 	}
-	pickupCohort := slotlists.PickupCohort(req.PickupCohort)
-	if target == slotlists.TargetPickupCohort && !pickupCohort.Valid() {
+	pickupCohort := classday.PickupCohort(req.PickupCohort)
+	if target == classday.TargetPickupCohort && !pickupCohort.Valid() {
 		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("unknown pickup_cohort %q", req.PickupCohort)))
-		return slotlists.Params{}, false
+		return classday.Params{}, false
 	}
-	groupBy := slotlists.GroupBy(req.GroupBy)
+	groupBy := classday.GroupBy(req.GroupBy)
 	if !groupBy.ValidFor(target) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("grouping %q is not valid for target %q", req.GroupBy, req.Target)))
-		return slotlists.Params{}, false
+		return classday.Params{}, false
 	}
-	listKind := slotlists.ListKind(req.ListKind)
-	if target != slotlists.TargetSlots && listKind != slotlists.ListKindNone {
+	listKind := classday.ListKind(req.ListKind)
+	if target != classday.TargetSlots && listKind != classday.ListKindNone {
 		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("list_kind is not valid for target %q", req.Target)))
-		return slotlists.Params{}, false
+		return classday.Params{}, false
 	}
 	if !listKind.Valid() {
 		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("unknown list_kind %q", req.ListKind)))
-		return slotlists.Params{}, false
+		return classday.Params{}, false
 	}
-	return slotlists.Params{
-		Date:              date,
+	return classday.Params{
+		Date:              classday.Date(date.String()),
 		Target:            target,
 		PickupCohort:      pickupCohort,
 		Source:            source,
@@ -140,9 +140,9 @@ func (rs *Resource) listSlotListOptions(w http.ResponseWriter, r *http.Request) 
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("date must be YYYY-MM-DD")))
 		return
 	}
-	result, err := rs.SlotListsService.ListOptions(r.Context(), date)
+	result, err := rs.SlotListsService.ListOptions(r.Context(), classday.Date(date.String()))
 	if err != nil {
-		if errors.Is(err, slotlists.ErrTimetableDisabled) {
+		if errors.Is(err, classday.ErrTimetableDisabled) {
 			common.RenderError(w, r, common.ErrorForbidden(errors.New("feature_disabled")))
 			return
 		}
@@ -171,12 +171,12 @@ func (rs *Resource) previewSlotList(w http.ResponseWriter, r *http.Request) {
 
 	result, err := rs.SlotListsService.BuildList(r.Context(), params)
 	if err != nil {
-		if errors.Is(err, slotlists.ErrTimetableDisabled) {
+		if errors.Is(err, classday.ErrTimetableDisabled) {
 			common.RenderError(w, r, common.ErrorForbidden(errors.New("feature_disabled")))
 			return
 		}
-		if errors.Is(err, slotlists.ErrPickupCohortPastDate) ||
-			errors.Is(err, slotlists.ErrReconciliationFutureDate) {
+		if errors.Is(err, classday.ErrPickupCohortPastDate) ||
+			errors.Is(err, classday.ErrReconciliationFutureDate) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
 			return
 		}
@@ -214,16 +214,16 @@ func (rs *Resource) exportSlotList(w http.ResponseWriter, r *http.Request) {
 
 	file, err := rs.SlotListsService.RenderList(r.Context(), params, format)
 	if err != nil {
-		if errors.Is(err, slotlists.ErrTimetableDisabled) {
+		if errors.Is(err, classday.ErrTimetableDisabled) {
 			common.RenderError(w, r, common.ErrorForbidden(errors.New("feature_disabled")))
 			return
 		}
-		if errors.Is(err, slotlists.ErrPickupCohortPastDate) ||
-			errors.Is(err, slotlists.ErrReconciliationFutureDate) {
+		if errors.Is(err, classday.ErrPickupCohortPastDate) ||
+			errors.Is(err, classday.ErrReconciliationFutureDate) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
 			return
 		}
-		if errors.Is(err, slotlists.ErrListDrifted) {
+		if errors.Is(err, classday.ErrListDrifted) {
 			common.RenderError(w, r, common.ErrorConflict(err))
 			return
 		}

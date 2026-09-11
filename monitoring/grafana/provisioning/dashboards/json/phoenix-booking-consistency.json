@@ -94,7 +94,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "max by (tenant_id) (last_over_time({env=\"$env\",service=\"server\"} |= \"booking consistency audit\" | json | msg=~\"booking consistency audit (passed|found drift)\" | unwrap pickup_projection_missing_days [26h]))",
+          "expr": "last_over_time({env=\"$env\",service=\"server\"} |= \"booking consistency audit\" | json | msg=~\"booking consistency audit (passed|found drift)\" | keep tenant_id,pickup_projection_missing_days | unwrap pickup_projection_missing_days [26h])",
           "queryType": "range",
           "editorMode": "code",
           "legendFormat": "tenant {{tenant_id}}"
@@ -113,7 +113,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "max by (tenant_id) (last_over_time({env=\"$env\",service=\"server\"} |= \"booking consistency audit\" | json | msg=~\"booking consistency audit (passed|found drift)\" | unwrap approved_without_required_offering [26h]))",
+          "expr": "last_over_time({env=\"$env\",service=\"server\"} |= \"booking consistency audit\" | json | msg=~\"booking consistency audit (passed|found drift)\" | keep tenant_id,approved_without_required_offering | unwrap approved_without_required_offering [26h])",
           "queryType": "range",
           "editorMode": "code",
           "legendFormat": "tenant {{tenant_id}}"
@@ -132,7 +132,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "max by (tenant_id) (last_over_time({env=\"$env\",service=\"server\"} |= \"booking consistency audit\" | json | msg=~\"booking consistency audit (passed|found drift)\" | unwrap approved_without_optional_offering [26h]))",
+          "expr": "last_over_time({env=\"$env\",service=\"server\"} |= \"booking consistency audit\" | json | msg=~\"booking consistency audit (passed|found drift)\" | keep tenant_id,approved_without_optional_offering | unwrap approved_without_optional_offering [26h])",
           "queryType": "range",
           "editorMode": "code",
           "legendFormat": "tenant {{tenant_id}}"
@@ -151,7 +151,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "max by (tenant_id) (last_over_time({env=\"$env\",service=\"server\"} |= \"booking consistency audit\" | json | msg=~\"booking consistency audit (passed|found drift)\" | unwrap total_findings [26h]))",
+          "expr": "last_over_time({env=\"$env\",service=\"server\"} |= \"booking consistency audit\" | json | msg=~\"booking consistency audit (passed|found drift)\" | keep tenant_id,total_findings | unwrap total_findings [26h])",
           "queryType": "range",
           "editorMode": "code",
           "legendFormat": "tenant {{tenant_id}}"

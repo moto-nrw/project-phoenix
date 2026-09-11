@@ -75,7 +75,7 @@ func (r *StudentGuardianRepository) LinkIfNotExists(ctx context.Context, rel *us
 	if err != nil {
 		return false, &modelBase.DatabaseError{
 			Op:  "link guardian if not exists",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -83,7 +83,7 @@ func (r *StudentGuardianRepository) LinkIfNotExists(ctx context.Context, rel *us
 	if err != nil {
 		return false, &modelBase.DatabaseError{
 			Op:  "link guardian if not exists (rows affected)",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -104,7 +104,7 @@ func (r *StudentGuardianRepository) FindByStudentID(ctx context.Context, student
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by student ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -127,7 +127,7 @@ func (r *StudentGuardianRepository) FindByStudentIDs(ctx context.Context, studen
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by student IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -148,10 +148,31 @@ func (r *StudentGuardianRepository) FindByGuardianProfileID(ctx context.Context,
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by guardian profile ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
+	return relationships, nil
+}
+
+// FindByGuardianProfileIDs retrieves relationships for many guardian profiles
+// in a single tenant-scoped query.
+func (r *StudentGuardianRepository) FindByGuardianProfileIDs(ctx context.Context, guardianProfileIDs []int64) ([]*users.StudentGuardian, error) {
+	if len(guardianProfileIDs) == 0 {
+		return []*users.StudentGuardian{}, nil
+	}
+	var relationships []*users.StudentGuardian
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&relationships).
+		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
+		Where(`"student_guardian".guardian_profile_id IN (?)`, bun.List(guardianProfileIDs))
+	query = base.WithTenantFilter(ctx, query, "student_guardian")
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by guardian profile IDs",
+			Err: base.TranslateNotFound(err),
+		}
+	}
 	return relationships, nil
 }
 
@@ -193,7 +214,7 @@ func (r *StudentGuardianRepository) ListLinkedChildrenForGuardians(ctx context.C
 	if err := base.GetDB(ctx, r.db).NewRaw(query, bun.List(guardianProfileIDs)).Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list linked children for guardians",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -410,7 +431,7 @@ func (r *StudentGuardianRepository) FindByStudentAndGuardianForUpdate(ctx contex
 		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by student and guardian for update",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -433,7 +454,7 @@ func (r *StudentGuardianRepository) SetPrimary(ctx context.Context, id int64, is
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "set primary",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -514,7 +535,7 @@ func (r *StudentGuardianRepository) ListEmergencyContactRows(ctx context.Context
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list emergency contact rows",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return rows, nil
@@ -543,7 +564,7 @@ func (r *StudentGuardianRepository) SetPayer(ctx context.Context, studentID int6
 	clear = base.WithTenantFilter(ctx, clear, "student_guardian")
 
 	if _, err := clear.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "clear student payer", Err: err}
+		return &modelBase.DatabaseError{Op: "clear student payer", Err: base.TranslateNotFound(err)}
 	}
 
 	if guardianProfileID == nil {
@@ -560,11 +581,11 @@ func (r *StudentGuardianRepository) SetPayer(ctx context.Context, studentID int6
 
 	result, err := set.Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "set student payer", Err: err}
+		return &modelBase.DatabaseError{Op: "set student payer", Err: base.TranslateNotFound(err)}
 	}
 	affected, err := result.RowsAffected()
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "set student payer", Err: err}
+		return &modelBase.DatabaseError{Op: "set student payer", Err: base.TranslateNotFound(err)}
 	}
 	if affected == 0 {
 		return users.ErrStudentGuardianNotFound
@@ -606,7 +627,7 @@ func (r *StudentGuardianRepository) ListPaymentAssignments(ctx context.Context) 
 	}
 
 	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list guardian payment assignments", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list guardian payment assignments", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }

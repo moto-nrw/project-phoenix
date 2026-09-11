@@ -116,40 +116,6 @@ func TestGroupRequest_Bind_EmptyName(t *testing.T) {
 	assert.Contains(t, err.Error(), "name is required")
 }
 
-func TestTransferGroupRequest_Fields(t *testing.T) {
-	t.Parallel()
-
-	req := TransferGroupRequest{
-		TargetUserID: 100,
-	}
-	assert.Equal(t, int64(100), req.TargetUserID)
-}
-
-func TestTransferGroupRequest_Bind_Valid(t *testing.T) {
-	t.Parallel()
-
-	req := TransferGroupRequest{TargetUserID: 100}
-	err := req.Bind(nil)
-	assert.NoError(t, err)
-}
-
-func TestTransferGroupRequest_Bind_ZeroID(t *testing.T) {
-	t.Parallel()
-
-	req := TransferGroupRequest{TargetUserID: 0}
-	err := req.Bind(nil)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "target_user_id is required")
-}
-
-func TestTransferGroupRequest_Bind_NegativeID(t *testing.T) {
-	t.Parallel()
-
-	req := TransferGroupRequest{TargetUserID: -1}
-	err := req.Bind(nil)
-	assert.Error(t, err)
-}
-
 // =============================================================================
 // Response Type Tests
 // =============================================================================

@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
@@ -56,14 +55,14 @@ type failingOverviewEducationService struct {
 	educationService.Service
 }
 
-func (failingOverviewEducationService) ListGroups(context.Context, *modelBase.QueryOptions) ([]*educationModels.Group, error) {
+func (failingOverviewEducationService) ListGroups(context.Context, *educationModels.GroupListQuery) ([]*educationModels.Group, error) {
 	return nil, errors.New("group database unavailable")
 }
 
 func TestGetStudentStatusDaysOverview_AdminSeesEntries(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t, fixedCalendarClock)
 
 	groupA := testpkg.CreateTestEducationGroup(t, tc.db, "Overview Gruppe A")
 	groupB := testpkg.CreateTestEducationGroup(t, tc.db, "Overview Gruppe B")
@@ -77,11 +76,11 @@ func TestGetStudentStatusDaysOverview_AdminSeesEntries(t *testing.T) {
 	testpkg.AssignStudentToGroup(t, tc.db, endedChild.ID, groupA.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, inactiveLegacyChild.ID, groupA.ID)
 
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	sickDay := testpkg.CreateTestStudentStatusDay(t, tc.db, sickChild.ID, today.AddDays(2), active.StudentStatusDaySick)
 	testpkg.CreateTestStudentStatusDay(t, tc.db, tripChild.ID, today.AddDays(1), active.StudentStatusDayClassTrip)
 	// Out of the default two-month window: must not be listed.
-	testpkg.CreateTestStudentStatusDay(t, tc.db, sickChild.ID, timezone.NewDate(today.Year, today.Month+3, 1), active.StudentStatusDayExcused)
+	testpkg.CreateTestStudentStatusDay(t, tc.db, sickChild.ID, timezone.NewDate(today.Year(), today.Month()+3, 1), active.StudentStatusDayExcused)
 	clearedDay := testpkg.CreateTestStudentStatusDay(t, tc.db, tripChild.ID, today.AddDays(3), active.StudentStatusDaySick)
 	testpkg.CreateTestStudentStatusDay(t, tc.db, endedChild.ID, today.AddDays(1), active.StudentStatusDaySick)
 	testpkg.CreateTestStudentStatusDay(t, tc.db, inactiveLegacyChild.ID, today.AddDays(1), active.StudentStatusDayExcused)
@@ -140,7 +139,7 @@ func TestGetStudentStatusDaysOverview_AdminSeesEntries(t *testing.T) {
 			Exec(context.Background())
 	})
 	assert.True(t, today.BerlinMidnight().Equal(auditEntry.RangeStart))
-	assert.True(t, timezone.NewDate(today.Year, today.Month+2, today.Day).EndOfDay().Equal(auditEntry.RangeEnd))
+	assert.True(t, timezone.NewDate(today.Year(), today.Month()+2, today.Day()).EndOfDay().Equal(auditEntry.RangeEnd))
 	groupIDs, ok := auditEntry.Metadata["group_ids"].([]interface{})
 	require.True(t, ok)
 	assert.Contains(t, groupIDs, float64(groupA.ID))
@@ -179,7 +178,7 @@ func TestGetStudentStatusDaysOverview_AdminSeesEntries(t *testing.T) {
 func TestGetStudentStatusDaysOverview_GroupFilter(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	groupA := testpkg.CreateTestEducationGroup(t, tc.db, "Overview Filter A")
 	groupB := testpkg.CreateTestEducationGroup(t, tc.db, "Overview Filter B")
@@ -205,7 +204,7 @@ func TestGetStudentStatusDaysOverview_GroupFilter(t *testing.T) {
 func TestGetStudentStatusDaysOverview_PastFromRejected(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	yesterday := timezone.TodayDate().AddDays(-1)
 	req := testutil.NewRequest("GET", "/status-days?from="+yesterday.String(), nil)
@@ -217,7 +216,7 @@ func TestGetStudentStatusDaysOverview_PastFromRejected(t *testing.T) {
 func TestGetStudentStatusDaysOverview_RangeCapRejected(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	today := timezone.TodayDate()
 	req := testutil.NewRequest("GET", fmt.Sprintf("/status-days?from=%s&to=%s", today.String(), today.AddDays(400).String()), nil)
@@ -229,7 +228,7 @@ func TestGetStudentStatusDaysOverview_RangeCapRejected(t *testing.T) {
 func TestGetStudentStatusDaysOverview_PageSizeIsCapped(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	testpkg.CreateTestEducationGroup(t, tc.db, "Overview Page Cap")
 
 	req := testutil.NewRequest("GET", "/status-days?page_size=10000", nil)
@@ -243,7 +242,7 @@ func TestGetStudentStatusDaysOverview_PageSizeIsCapped(t *testing.T) {
 func TestGetStudentStatusDaysOverview_PaginatesEligibleEntriesByName(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "Overview Eligibility")
 	endedChild := testpkg.CreateTestStudent(t, tc.db, "A", "Beendet", "1a")
 	zChild := testpkg.CreateTestStudent(t, tc.db, "Zora", "Zulu", "1a")
@@ -297,7 +296,7 @@ func TestGetStudentStatusDaysOverview_PaginatesEligibleEntriesByName(t *testing.
 func TestGetStudentStatusDaysOverview_AuditUnavailableFailsClosed(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	testpkg.CreateTestEducationGroup(t, tc.db, "Overview Audit Failure")
 	tc.resource.StudentHistoryService = nil
 
@@ -307,11 +306,10 @@ func TestGetStudentStatusDaysOverview_AuditUnavailableFailsClosed(t *testing.T) 
 	assert.Contains(t, rr.Body.String(), "failed to record audit trail")
 }
 
-// Deliberately NOT parallel: unscoped sweep — the before/after count over
-// audit.data_access_log spans every tenant, so a parallel test that reads a
-// status-day overview lands between the two counts.
 func TestGetStudentStatusDaysOverview_ServiceUnavailableFailsClosed(t *testing.T) {
-	tc := setupTestContext(t)
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	tc := setupStudentsRoute(t)
 	testpkg.CreateTestEducationGroup(t, tc.db, "Overview Service Failure")
 	tc.resource.AbsenceOverview = nil
 
@@ -339,7 +337,7 @@ func TestGetStudentStatusDaysOverview_ServiceUnavailableFailsClosed(t *testing.T
 func TestGetStudentStatusDaysOverview_GroupLookupFailureIsServerError(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	tc.resource.EducationService = failingOverviewEducationService{Service: tc.resource.EducationService}
 
 	req := testutil.NewRequest("GET", "/status-days", nil)
@@ -351,7 +349,7 @@ func TestGetStudentStatusDaysOverview_GroupLookupFailureIsServerError(t *testing
 func TestGetStudentStatusDaysOverview_UnlinkedStaffAccountForbidden(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "overview-unlinked@example.com")
 
@@ -364,7 +362,7 @@ func TestGetStudentStatusDaysOverview_UnlinkedStaffAccountForbidden(t *testing.T
 func TestGetStudentStatusDaysOverview_StaffSeesAllGroups(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	// #2329: tenant-wide for verified staff — no supervision narrowing.
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Overview", "Staff")

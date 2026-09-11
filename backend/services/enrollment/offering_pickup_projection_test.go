@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -42,7 +44,7 @@ func createPickupTimeOffering(
 		PickupTimes:    times,
 		IsActive:       true,
 	}
-	offering.SetTenantID(testpkg.Tenant(t))
+	offering.TenantID = testpkg.Tenant(t)
 	require.NoError(t, env.repos.CareOffering.Create(testpkg.Ctx(t), offering))
 	return offering
 }
@@ -57,7 +59,7 @@ func projectedPickupReader(env *decisionTestEnv) scheduleService.PickupScheduleS
 		nil,
 		scheduletest.NewPickupBaselineService(
 			env.repos.StudentPickupSchedule,
-			env.repos.RequestChildOffering,
+			approvedOfferingTestProjection(env.repos),
 			env.repos.CareOffering,
 		),
 		env.db,
@@ -78,7 +80,7 @@ func TestOfferingPickupProjection_FutureBookingEndIsNotVisibleOnEffectiveDate(t 
 
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-30))
+	setSourcePhaseServiceStartDate(t, env, timezone.NewDate(2026, 8, 24).AddDays(-30))
 	ctx := testpkg.Ctx(t)
 
 	offering := createPickupTimeOffering(t, env, "gehzeit-future-end",
@@ -87,14 +89,8 @@ func TestOfferingPickupProjection_FutureBookingEndIsNotVisibleOnEffectiveDate(t 
 		t, env, offering.ID, "gehzeit-future-end@example.com", "Ende", 2,
 	)
 
-	effectiveFrom := nextWeekday(timezone.TodayDate().AddDays(1), time.Monday)
-	_, err := env.db.NewUpdate().
-		Model((*enrollmentModels.RequestChildOffering)(nil)).
-		ModelTableExpr(`enrollment.request_child_offerings AS "request_child_offering"`).
-		Set("valid_until = ?", effectiveFrom).
-		Where(`"request_child_offering".request_child_id = ?`, childID).
-		Where(`"request_child_offering".care_offering_id = ?`, offering.ID).
-		Exec(ctx)
+	effectiveFrom := nextWeekday(timezone.NewDate(2026, 8, 24).AddDays(1), time.Monday)
+	err := env.repos.Enrollment().ScheduleRequestChildOfferings(ctx, childID, capability.Date(effectiveFrom), nil)
 	require.NoError(t, err)
 
 	reader := projectedPickupReader(env)
@@ -135,7 +131,7 @@ func TestOfferingPickupProjection_FutureReplacementStartsExactlyOnEffectiveDate(
 
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-30))
+	setSourcePhaseServiceStartDate(t, env, timezone.NewDate(2026, 8, 24).AddDays(-30))
 	ctx := testpkg.Ctx(t)
 
 	oldOffering := createPickupTimeOffering(t, env, "gehzeit-switch-old",
@@ -146,12 +142,12 @@ func TestOfferingPickupProjection_FutureReplacementStartsExactlyOnEffectiveDate(
 		t, env, oldOffering.ID, "gehzeit-switch@example.com", "Wechsel", 2,
 	)
 
-	effectiveFrom := nextWeekday(timezone.TodayDate().AddDays(1), time.Monday)
-	require.NoError(t, env.repos.RequestChildOffering.ScheduleReplacementForRequestChild(
+	effectiveFrom := nextWeekday(timezone.NewDate(2026, 8, 24).AddDays(1), time.Monday)
+	require.NoError(t, env.repos.Enrollment().ScheduleRequestChildOfferings(
 		ctx,
 		childID,
-		effectiveFrom,
-		[]*enrollmentModels.RequestChildOffering{{
+		capability.Date(effectiveFrom),
+		[]*capability.RequestChildOffering{{
 			CareOfferingID: newOffering.ID,
 			SelectedDays:   []string{"mon"},
 		}},
@@ -199,7 +195,7 @@ func TestOfferingPickupProjection_StaffOverrideSurvivesOfferingEdit(t *testing.T
 
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))
+	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-1))
 	ctx := testpkg.Ctx(t)
 
 	offering := createPickupTimeOffering(t, env, "gehzeit-manual-override",
@@ -212,7 +208,7 @@ func TestOfferingPickupProjection_StaffOverrideSurvivesOfferingEdit(t *testing.T
 	offering.PickupTimes = map[string]string{"mon": "16:00"}
 	require.NoError(t, env.repos.CareOffering.Update(ctx, offering))
 
-	monday := nextWeekday(timezone.TodayDate(), time.Monday)
+	monday := nextWeekday(decisionTestToday, time.Monday)
 	actual, err := projectedPickupReader(env).GetEffectivePickupTimeForDate(ctx, studentID, monday)
 	require.NoError(t, err)
 	require.NotNil(t, actual.PickupTime)
@@ -233,7 +229,7 @@ func TestOfferingPickupProjection_IgnoresInactiveOffering(t *testing.T) {
 
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))
+	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-1))
 	ctx := testpkg.Ctx(t)
 
 	offering := createPickupTimeOffering(t, env, "gehzeit-inaktiv",
@@ -245,7 +241,7 @@ func TestOfferingPickupProjection_IgnoresInactiveOffering(t *testing.T) {
 	require.NoError(t, env.repos.CareOffering.Update(ctx, offering))
 
 	pickup, err := projectedPickupReader(env).GetEffectivePickupTimeForDate(
-		ctx, studentID, nextWeekday(timezone.TodayDate(), time.Monday),
+		ctx, studentID, nextWeekday(decisionTestToday, time.Monday),
 	)
 	require.NoError(t, err)
 	assert.Nil(t, pickup.PickupTime)
@@ -256,7 +252,7 @@ func TestOfferingPickupProjection_IgnoresNonCareOffering(t *testing.T) {
 
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))
+	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-1))
 	ctx := testpkg.Ctx(t)
 
 	offering := createPickupTimeOffering(t, env, "gehzeit-keine-betreuung",
@@ -269,7 +265,7 @@ func TestOfferingPickupProjection_IgnoresNonCareOffering(t *testing.T) {
 	require.NoError(t, env.repos.CareOffering.Update(ctx, offering))
 
 	pickup, err := projectedPickupReader(env).GetEffectivePickupTimeForDate(
-		ctx, studentID, nextWeekday(timezone.TodayDate(), time.Monday),
+		ctx, studentID, nextWeekday(decisionTestToday, time.Monday),
 	)
 	require.NoError(t, err)
 	assert.Nil(t, pickup.PickupTime)
@@ -279,7 +275,7 @@ func TestOfferingPickupProjection_ResetWaitsForOfferingSourceGate(t *testing.T) 
 	t.Parallel()
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-30))
+	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-30))
 
 	offering := createPickupTimeOffering(t, env, "gehzeit-reset-gate",
 		[]string{"mon"}, map[string]string{"mon": "14:30"})
@@ -288,7 +284,7 @@ func TestOfferingPickupProjection_ResetWaitsForOfferingSourceGate(t *testing.T) 
 	)
 	author := testpkg.CreateTestStaff(t, env.db, "Gehzeit", "Sperre")
 	testpkg.CreateTestPickupSchedule(t, env.db, studentID, scheduleModels.WeekdayMonday, author.ID, "15:15")
-	monday := nextWeekday(timezone.TodayDate(), time.Monday)
+	monday := nextWeekday(decisionTestToday, time.Monday)
 
 	lockedDecision := newDecisionServiceForTest(env.rolloverTestEnv, nil, func(ctx context.Context) error {
 		return scheduleService.LockTenantRecurrenceWrites(ctx, env.db)

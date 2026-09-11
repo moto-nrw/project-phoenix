@@ -2,163 +2,75 @@ package data
 
 import (
 	"errors"
-	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/device"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 )
 
 // assignStaffRFIDTag handles assigning an RFID tag to a staff member (device-authenticated endpoint)
 func (rs *RFIDResource) assignStaffRFIDTag(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device from context
-	deviceCtx := device.DeviceFromCtx(r.Context())
-
-	if deviceCtx == nil {
-		slog.WarnContext(r.Context(), "device auth missing API key", slog.String("path", r.URL.Path))
-		if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		}
+	if _, ok := rs.runtime.requireDevice(w, r); !ok {
 		return
 	}
 
 	// Parse staff ID from URL
-	staffID, err := common.ParseIDParam(r, "staffId")
+	staffID, err := rs.runtime.ParseID(r, "staffId")
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidStaffID)))
+		rs.runtime.Failure(w, r, http.StatusBadRequest, errors.New(invalidStaffIDMessage), "")
 		return
 	}
 
 	// Parse request
 	req := &RFIDAssignmentRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		rs.runtime.Failure(w, r, http.StatusBadRequest, err, "")
 		return
 	}
 
-	// Get staff and person details
-	staff, person, ok := rs.getStaffAndPerson(w, r, staffID)
-	if !ok {
-		return // Error already handled by getStaffAndPerson
-	}
-
-	// Store previous tag for response
-	var previousTag *string
-	if person.TagID != nil {
-		previousTag = person.TagID
-	}
-
-	// Assign the RFID tag (this handles unlinking old assignments automatically)
-	if err := rs.UsersService.LinkToRFIDCard(r.Context(), person.ID, req.RFIDTag); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+	response, err := rs.Tags.AssignStaffTag(r.Context(), staffID, req.RFIDTag)
+	if err != nil {
+		rs.renderTagFailure(w, r, err)
 		return
 	}
 
-	// Create response (reuse student response type with staff data)
-	response := RFIDAssignmentResponse{
-		Success:     true,
-		StudentID:   staff.ID, // Field name is StudentID but holds staff_id
-		StudentName: person.FirstName + " " + person.LastName,
-		RFIDTag:     req.RFIDTag,
-		PreviousTag: previousTag,
-		Message:     "RFID tag assigned successfully",
-	}
-
-	if previousTag != nil {
-		response.Message = "RFID tag assigned successfully (previous tag replaced)"
-	}
-
-	// Log assignment for audit trail
-	slog.Default().InfoContext(r.Context(), "RFID tag assigned to staff",
-		slog.String("device_id", deviceCtx.DeviceID),
-		slog.Int64("staff_id", staffID),
-		slog.String("tag", req.RFIDTag),
-		slog.Any("previous_tag", previousTag),
-	)
-
-	common.Respond(w, r, http.StatusOK, response, response.Message)
+	rs.runtime.Success(w, r, http.StatusOK, response, response.Message)
 }
 
 // unassignStaffRFIDTag handles removing an RFID tag from a staff member (device-authenticated endpoint)
 func (rs *RFIDResource) unassignStaffRFIDTag(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device from context
-	deviceCtx := device.DeviceFromCtx(r.Context())
-
-	if deviceCtx == nil {
-		slog.WarnContext(r.Context(), "device auth missing API key", slog.String("path", r.URL.Path))
-		if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		}
+	if _, ok := rs.runtime.requireDevice(w, r); !ok {
 		return
 	}
 
 	// Parse staff ID from URL
-	staffID, err := common.ParseIDParam(r, "staffId")
+	staffID, err := rs.runtime.ParseID(r, "staffId")
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidStaffID)))
+		rs.runtime.Failure(w, r, http.StatusBadRequest, errors.New(invalidStaffIDMessage), "")
 		return
 	}
 
-	// Get staff and person details
-	staff, person, ok := rs.getStaffAndPerson(w, r, staffID)
-	if !ok {
-		return // Error already handled by getStaffAndPerson
-	}
-
-	// Check if staff has an RFID tag assigned
-	if person.TagID == nil {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff has no RFID tag assigned")))
+	response, err := rs.Tags.UnassignStaffTag(r.Context(), staffID)
+	if err != nil {
+		rs.renderTagFailure(w, r, err)
 		return
 	}
 
-	// Store removed tag for response
-	removedTag := *person.TagID
-
-	// Unlink the RFID tag
-	if err := rs.UsersService.UnlinkFromRFIDCard(r.Context(), person.ID); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-
-	// Create response (reuse student response type with staff data)
-	response := RFIDAssignmentResponse{
-		Success:     true,
-		StudentID:   staff.ID, // Field name is StudentID but holds staff_id
-		StudentName: person.FirstName + " " + person.LastName,
-		RFIDTag:     removedTag,
-		Message:     "RFID tag unassigned successfully",
-	}
-
-	// Log unassignment for audit trail
-	slog.Default().InfoContext(r.Context(), "RFID tag unassigned from staff",
-		slog.String("device_id", deviceCtx.DeviceID),
-		slog.Int64("staff_id", staffID),
-		slog.String("tag", removedTag),
-	)
-
-	common.Respond(w, r, http.StatusOK, response, response.Message)
+	rs.runtime.Success(w, r, http.StatusOK, response, response.Message)
 }
 
-// Helper functions
-
-// getStaffAndPerson retrieves staff and person details by staff ID with error handling
-// Returns staff, person, and success status. If ok=false, error response already sent
-func (rs *RFIDResource) getStaffAndPerson(w http.ResponseWriter, r *http.Request, staffID int64) (*users.Staff, *users.Person, bool) {
-	// Get the staff member
-	staff, err := rs.UsersService.GetStaffByID(r.Context(), staffID)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
-		return nil, nil, false
+func (rs *RFIDResource) renderTagFailure(w http.ResponseWriter, r *http.Request, err error) {
+	if failure, ok := devicescan.IsFailure(err); ok {
+		switch failure.Kind {
+		case devicescan.FailureNotFound:
+			rs.runtime.Failure(w, r, http.StatusNotFound, errors.New(failure.Message), "")
+			return
+		case devicescan.FailureInternal:
+			rs.runtime.Failure(w, r, http.StatusInternalServerError, failure.Cause, failure.Message)
+			return
+		}
 	}
-
-	// Get person details for the staff member
-	person, err := rs.UsersService.Get(r.Context(), staff.PersonID)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to get person data for staff", err))
-		return nil, nil, false
-	}
-
-	return staff, person, true
+	rs.runtime.Failure(w, r, http.StatusInternalServerError, err, "")
 }

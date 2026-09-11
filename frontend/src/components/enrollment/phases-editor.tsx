@@ -8,6 +8,7 @@ import {
 } from "~/components/ui/page-header/OverflowMenu";
 import {
   Check,
+  Copy,
   ExternalLink,
   Link2,
   Pencil,
@@ -16,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { CheckboxCard } from "~/components/ui/checkbox-card";
 import {
   type Phase,
   type PhaseAudience,
@@ -52,7 +54,23 @@ import { isSupportedGradeLevelMax } from "~/lib/grade-level";
 import { useToast } from "~/contexts/ToastContext";
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
 import { useTenantAwarePath } from "~/lib/tenant-path";
-import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
+import { useClipboardCopy } from "~/lib/use-clipboard-copy";
+import { EnrollmentStatTile } from "~/components/enrollment/enrollment-stat-tile";
+import { Button } from "~/components/ui/button";
+import { ToggleChip } from "~/components/ui/toggle-chip";
+import { Input } from "~/components/ui/input";
+import {
+  SlideOver,
+  SlideOverBody,
+  SlideOverContent,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
+import { TenantPage } from "~/components/ui/tenant-page";
+import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
+import { Alert } from "~/components/ui/alert";
+import { useFormError } from "~/components/ui/form-error";
+import { formatChatDateTime, formatDate } from "~/lib/date-helpers";
 import {
   DataTable,
   DataTableStatusBadge,
@@ -210,24 +228,6 @@ function fromLocalInputValue(local: string): string | null {
   return d.toISOString();
 }
 
-function formatDate(value: string): string {
-  return new Date(`${value}T00:00:00`).toLocaleDateString("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-}
-
-function formatDateTime(value: string): string {
-  return new Date(value).toLocaleString("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 export function PhasesEditor() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -236,7 +236,7 @@ export function PhasesEditor() {
   const [schemas, setSchemas] = useState<FormSchema[]>([]);
   const [periods, setPeriods] = useState<CalendarPeriod[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useFormError();
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<PhaseInput | null>(null);
@@ -320,7 +320,7 @@ export function PhasesEditor() {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [setError, toast]);
 
   useEffect(() => {
     void loadAll();
@@ -352,7 +352,7 @@ export function PhasesEditor() {
     setSchemaSource(assignSchema ? "reuse" : "base");
     setHighlightFormSection(Boolean(assignSchema));
     setError(null);
-  }, [assignSchema]);
+  }, [assignSchema, setError]);
 
   const startEdit = useCallback(
     (phase: Phase, forceFormHighlight = false) => {
@@ -365,7 +365,7 @@ export function PhasesEditor() {
       setHighlightFormSection(Boolean(assignSchema) || forceFormHighlight);
       setError(null);
     },
-    [assignSchema],
+    [assignSchema, setError],
   );
 
   const cancelEdit = () => {
@@ -455,16 +455,16 @@ export function PhasesEditor() {
         });
         if (conflicting) {
           throw new Error(
-            `Die Klasse „${conflicting}“ passt nicht zu den gewählten Klassenstufen. Entferne die Klasse oder ergänze ihre Klassenstufe.`,
+            `Die Klasse „${conflicting}“ passt nicht zu den gewählten Klassenstufen. Entfernen Sie die Klasse oder ergänzen Sie ihre Klassenstufe.`,
           );
         }
       }
       if (editingId === "new") {
         const created = await createPhase(payload);
-        toast.success(`Anmeldephase „${created.name}" erstellt.`);
+        toast.success(`Anmeldephase „${created.name}“ erstellt.`);
       } else if (editingId) {
         const updated = await updatePhase(editingId, payload);
-        toast.success(`Anmeldephase „${updated.name}" gespeichert.`);
+        toast.success(`Anmeldephase „${updated.name}“ gespeichert.`);
       }
       cancelEdit();
       await loadAll();
@@ -473,7 +473,6 @@ export function PhasesEditor() {
       const message = err instanceof Error ? err.message : "Unbekannter Fehler";
       logger.error("phase_save_failed", { error: message });
       setError(message);
-      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -527,7 +526,7 @@ export function PhasesEditor() {
     setDeleteError("");
     try {
       await deletePhase(phase.id);
-      toast.success(`Anmeldephase „${phase.name}" gelöscht.`);
+      toast.success(`Anmeldephase „${phase.name}“ gelöscht.`);
       closeDelete();
       await loadAll();
       refreshPhaseExpiryWarnings();
@@ -550,12 +549,15 @@ export function PhasesEditor() {
     toast,
   ]);
 
-  const startRollover = useCallback((phase: Phase) => {
-    setRolloverSource(phase);
-    setEditingId(null);
-    setDraft(null);
-    setError(null);
-  }, []);
+  const startRollover = useCallback(
+    (phase: Phase) => {
+      setRolloverSource(phase);
+      setEditingId(null);
+      setDraft(null);
+      setError(null);
+    },
+    [setError],
+  );
 
   const startRolloverByID = useCallback(
     (sourcePhaseID: string) => {
@@ -568,7 +570,7 @@ export function PhasesEditor() {
       }
       startRollover(source);
     },
-    [phases, startRollover],
+    [phases, setError, startRollover],
   );
 
   useEffect(() => {
@@ -611,7 +613,7 @@ export function PhasesEditor() {
     }
     const detail = summaryBits.length > 0 ? ` (${summaryBits.join(", ")})` : "";
     toast.success(
-      `Anschlussphase „${result.phase.name}" wurde erstellt${detail}.`,
+      `Anschlussphase „${result.phase.name}“ wurde erstellt${detail}.`,
     );
     void loadAll();
     refreshPhaseExpiryWarnings();
@@ -628,8 +630,8 @@ export function PhasesEditor() {
         });
         toast.success(
           updated.is_active
-            ? `Anmeldephase „${updated.name}" ist jetzt aktiv.`
-            : `Anmeldephase „${updated.name}" wurde deaktiviert.`,
+            ? `Anmeldephase „${updated.name}“ ist jetzt aktiv.`
+            : `Anmeldephase „${updated.name}“ wurde deaktiviert.`,
         );
         await loadAll();
         refreshPhaseExpiryWarnings();
@@ -643,7 +645,7 @@ export function PhasesEditor() {
         setSaving(false);
       }
     },
-    [loadAll, refreshPhaseExpiryWarnings, toast],
+    [loadAll, refreshPhaseExpiryWarnings, setError, toast],
   );
 
   const activePhaseCount = phases.filter((phase) => phase.is_active).length;
@@ -774,87 +776,222 @@ export function PhasesEditor() {
   );
 
   return (
-    <div className="space-y-4">
-      {error && (
-        <div
-          className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-4 text-sm"
-          role="alert"
-          aria-live="polite"
+    <TenantPage
+      title="Anmeldephasen"
+      // Die Kopfkarte lebt hier und nicht in page.tsx, weil „Neue
+      // Anmeldephase“ an den Editor-Zustand gebunden ist (beim Bearbeiten
+      // oder Übertragen wird die Aktion ausgeblendet).
+      stats={`${activePhaseCount} aktiv · ${Math.max(phases.length - activePhaseCount, 0)} in Vorbereitung`}
+      statsLoading={loading}
+      actions={
+        <Button
+          type="button"
+          variant="primary"
+          size="md"
+          onClick={startCreate}
+          className="inline-flex shrink-0 items-center justify-center gap-2"
         >
-          {error}
-        </div>
-      )}
+          <MotoConceptIcon
+            concept="calendarPeriods"
+            colorMode="inherit"
+            size={16}
+          />
+          Neue Anmeldephase
+        </Button>
+      }
+      loading={loading}
+      empty={
+        // Ein Speicherfehler steht als Alert über der Liste; er darf nicht
+        // hinter dem Leerzustand verschwinden.
+        !loading && phases.length === 0 && !error
+          ? {
+              title: "Noch keine Anmeldephase angelegt",
+              description:
+                "Legen Sie zuerst fest, für welchen Zeitraum Eltern anmelden können, zum Beispiel für ein Halbjahr, ein Schuljahr oder eine Ferienbetreuung.",
+              icon: (
+                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
+                  <MotoConceptIcon concept="calendarPeriods" size={24} />
+                </span>
+              ),
+              action: (
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="md"
+                  onClick={startCreate}
+                  className="inline-flex items-center justify-center gap-2"
+                >
+                  <MotoConceptIcon
+                    concept="calendarPeriods"
+                    colorMode="inherit"
+                    size={16}
+                  />
+                  Erste Anmeldephase anlegen
+                </Button>
+              ),
+            }
+          : null
+      }
+      overlays={
+        <>
+          {/* Bearbeiten und Übertragen laufen neben der stehenden Liste: das
+          Formular ist zu breit für eine aufgeklappte Tabellenzeile, und die
+          Liste darf beim Bearbeiten nicht verschwinden. */}
+          <SlideOver
+            open={Boolean((editingId && draft) ?? rolloverSource)}
+            onOpenChange={(open) => {
+              if (open) return;
+              if (rolloverSource) {
+                setRolloverSource(null);
+                return;
+              }
+              cancelEdit();
+            }}
+          >
+            <SlideOverContent widthClass="sm:w-[760px]">
+              <SlideOverHeader>
+                <SlideOverTitle>
+                  {rolloverSource
+                    ? "Anmeldephase übertragen"
+                    : editingId === "new"
+                      ? "Neue Anmeldephase"
+                      : "Anmeldephase bearbeiten"}
+                </SlideOverTitle>
+              </SlideOverHeader>
+              <SlideOverBody error={rolloverSource ? null : error}>
+                {rolloverSource ? (
+                  <RolloverForm
+                    source={rolloverSource}
+                    onCancel={() => setRolloverSource(null)}
+                    onSuccess={handleRolloverSuccess}
+                  />
+                ) : editingId && draft ? (
+                  <PhaseForm
+                    draft={draft}
+                    setDraft={setDraft}
+                    periods={periods}
+                    schemas={latestSchemas}
+                    schemaSource={schemaSource}
+                    setSchemaSource={setSchemaSource}
+                    editing={editingId !== "new"}
+                    saving={saving}
+                    highlightFormSection={highlightFormSection}
+                    gradeLevelMax={gradeLevelMax}
+                    onSubmit={handleSave}
+                    onCancel={cancelEdit}
+                  />
+                ) : null}
+              </SlideOverBody>
+            </SlideOverContent>
+          </SlideOver>
 
-      {!loading && !editingId && !rolloverSource ? (
-        <PhaseExpiryWarnings onCreateSuccessor={startRolloverByID} />
-      ) : null}
-
-      <div className="moto-content-surface flex flex-col gap-4 rounded-2xl border p-4 shadow-sm backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+          {deleteTarget && (
+            <ConfirmDeleteModal
+              isOpen={Boolean(deleteTarget)}
+              title="Anmeldephase löschen"
+              description={
+                <p>
+                  Möchten Sie die Anmeldephase{" "}
+                  <span className="font-medium">„{deleteTarget.name}“</span>{" "}
+                  wirklich endgültig löschen? Sie kann jederzeit gelöscht
+                  werden, während des Betreuungszeitraums, davor und danach.
+                </p>
+              }
+              warningSlot={
+                <div className="space-y-2">
+                  <div className="bg-moto-amber/10 text-moto-amber-strong rounded-lg px-3 py-2 text-sm">
+                    <p className="font-medium">
+                      Diese Aktion kann nicht rückgängig gemacht werden:
+                    </p>
+                    {impactLoading ? (
+                      <p className="mt-1 text-xs">
+                        Löschvorschau wird geladen…
+                      </p>
+                    ) : impactError ? (
+                      <p className="mt-1 text-xs">
+                        Die Löschvorschau konnte nicht geladen werden. Das
+                        Löschen ist erst möglich, sobald die Vorschau vorliegt.
+                        Bitte schließen Sie den Dialog und versuchen Sie es
+                        erneut.
+                      </p>
+                    ) : deleteImpact ? (
+                      <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
+                        <li>
+                          {deleteImpact.requests}{" "}
+                          {deleteImpact.requests === 1
+                            ? "Anmeldung"
+                            : "Anmeldungen"}{" "}
+                          werden endgültig gelöscht
+                        </li>
+                        <li>
+                          {deleteImpact.care_offerings}{" "}
+                          {deleteImpact.care_offerings === 1
+                            ? "Betreuungsangebot"
+                            : "Betreuungsangebote"}{" "}
+                          werden endgültig gelöscht
+                        </li>
+                      </ul>
+                    ) : null}
+                  </div>
+                  {!impactLoading && deleteImpact && (
+                    <div className="bg-moto-green/10 text-moto-green-strong rounded-lg px-3 py-2 text-sm">
+                      {deleteImpact.students_kept === 1
+                        ? "1 bereits angelegter Kind bleibt erhalten."
+                        : `${deleteImpact.students_kept} bereits angelegte Kinder bleiben erhalten.`}
+                    </div>
+                  )}
+                </div>
+              }
+              gate={{ mode: "twoStep", firstStepLabel: "Löschen" }}
+              confirmDisabled={
+                impactLoading || !deleteImpact || Boolean(impactError)
+              }
+              onConfirm={confirmDelete}
+              onClose={closeDelete}
+              loading={deletingId === deleteTarget.id}
+              error={impactError || deleteError}
+            />
+          )}
+        </>
+      }
+    >
+      <DesktopOnlyNotice />
+      {/* Flex-Spalte statt Block: so wächst die Tabelle als letzte Fläche
+          bis zur Unterkante des Bildschirms (`.moto-tenant-body`). */}
+      <div className="hidden space-y-4 lg:flex lg:flex-col">
+        {/* Fehler einer Listenaktion (Aktivieren, Laden) stehen über der
+            Liste. Ist das Bearbeiten-Panel offen, trägt dessen Rumpf den
+            Speicherfehler (Bauart 2 Regel 5); hier stünde er sonst hinter dem
+            Panel und doppelt. */}
+        {error && !(editingId && draft) ? (
+          <Alert type="error" message={error.message} />
+        ) : null}
         <div className="grid gap-2 sm:grid-cols-3">
-          <PhaseMetric
-            icon={<MotoConceptIcon concept="calendarPeriods" size={16} />}
+          <EnrollmentStatTile
+            leading={
+              <MotoConceptIcon
+                concept="calendarPeriods"
+                colorMode="inherit"
+                size={16}
+              />
+            }
             label="Anmeldephasen"
             value={phases.length}
           />
-          <PhaseMetric
-            icon={<MotoConceptIcon concept="careTimes" size={16} />}
+          <EnrollmentStatTile
+            leading={<MotoConceptIcon concept="careTimes" size={16} />}
             label="Aktiv"
             value={activePhaseCount}
           />
-          <PhaseMetric
-            icon={<MotoConceptIcon concept="calendarPeriods" size={18} />}
+          <EnrollmentStatTile
+            leading={<MotoConceptIcon concept="calendarPeriods" size={18} />}
             label="In Vorbereitung"
             value={Math.max(phases.length - activePhaseCount, 0)}
           />
         </div>
-        {!editingId && !rolloverSource && (
-          <button
-            type="button"
-            onClick={startCreate}
-            className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          >
-            <MotoConceptIcon concept="calendarPeriods" size={16} />
-            Neue Anmeldephase
-          </button>
-        )}
-      </div>
 
-      {rolloverSource && (
-        <RolloverForm
-          source={rolloverSource}
-          onCancel={() => setRolloverSource(null)}
-          onSuccess={handleRolloverSuccess}
-        />
-      )}
+        <PhaseExpiryWarnings onCreateSuccessor={startRolloverByID} />
 
-      {editingId && draft && (
-        <PhaseForm
-          draft={draft}
-          setDraft={setDraft}
-          periods={periods}
-          schemas={latestSchemas}
-          schemaSource={schemaSource}
-          setSchemaSource={setSchemaSource}
-          editing={editingId !== "new"}
-          saving={saving}
-          highlightFormSection={highlightFormSection}
-          gradeLevelMax={gradeLevelMax}
-          onSubmit={handleSave}
-          onCancel={cancelEdit}
-        />
-      )}
-
-      {loading && !editingId && !rolloverSource ? (
-        <DataTable
-          columns={columns}
-          rows={[]}
-          isLoading
-          loadingRowCount={5}
-          getRowKey={(phase) => phase.id}
-        />
-      ) : phases.length === 0 && !editingId && !rolloverSource ? (
-        <EmptyPhasesState onCreate={startCreate} />
-      ) : phases.length > 0 && !editingId && !rolloverSource ? (
         <DataTable
           columns={columns}
           rows={phases}
@@ -862,73 +999,8 @@ export function PhasesEditor() {
           defaultSortKey="service_period"
           defaultSortDirection="desc"
         />
-      ) : null}
-
-      {deleteTarget && (
-        <ConfirmDeleteModal
-          isOpen={Boolean(deleteTarget)}
-          title="Anmeldephase löschen"
-          description={
-            <p>
-              Möchtest du die Anmeldephase{" "}
-              <span className="font-medium">„{deleteTarget.name}"</span>{" "}
-              wirklich endgültig löschen? Sie kann jederzeit gelöscht werden –
-              während des Betreuungszeitraums, davor und danach.
-            </p>
-          }
-          warningSlot={
-            <div className="space-y-2">
-              <div className="bg-moto-amber/10 text-moto-amber-strong rounded-lg px-3 py-2 text-sm">
-                <p className="font-medium">
-                  Diese Aktion kann nicht rückgängig gemacht werden:
-                </p>
-                {impactLoading ? (
-                  <p className="mt-1 text-xs">Löschvorschau wird geladen…</p>
-                ) : impactError ? (
-                  <p className="mt-1 text-xs">
-                    Die Löschvorschau konnte nicht geladen werden. Das Löschen
-                    ist erst möglich, sobald die Vorschau vorliegt. Bitte
-                    schließe den Dialog und versuche es erneut.
-                  </p>
-                ) : deleteImpact ? (
-                  <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
-                    <li>
-                      {deleteImpact.requests}{" "}
-                      {deleteImpact.requests === 1
-                        ? "Anmeldung"
-                        : "Anmeldungen"}{" "}
-                      werden endgültig gelöscht
-                    </li>
-                    <li>
-                      {deleteImpact.care_offerings}{" "}
-                      {deleteImpact.care_offerings === 1
-                        ? "Betreuungsangebot"
-                        : "Betreuungsangebote"}{" "}
-                      werden endgültig gelöscht
-                    </li>
-                  </ul>
-                ) : null}
-              </div>
-              {!impactLoading && deleteImpact && (
-                <div className="bg-moto-green/10 text-moto-green-strong rounded-lg px-3 py-2 text-sm">
-                  {deleteImpact.students_kept === 1
-                    ? "1 bereits angelegter Kind bleibt erhalten."
-                    : `${deleteImpact.students_kept} bereits angelegte Kinder bleiben erhalten.`}
-                </div>
-              )}
-            </div>
-          }
-          gate={{ mode: "twoStep", firstStepLabel: "Löschen" }}
-          confirmDisabled={
-            impactLoading || !deleteImpact || Boolean(impactError)
-          }
-          onConfirm={confirmDelete}
-          onClose={closeDelete}
-          loading={deletingId === deleteTarget.id}
-          error={impactError || deleteError}
-        />
-      )}
-    </div>
+      </div>
+    </TenantPage>
   );
 }
 
@@ -948,55 +1020,6 @@ interface PhaseFormProps {
   readonly onCancel: () => void;
 }
 
-function PhaseMetric({
-  icon,
-  label,
-  value,
-}: Readonly<{
-  icon: React.ReactNode;
-  label: string;
-  value: number;
-}>) {
-  return (
-    <div className="flex items-center gap-2 rounded-xl bg-gray-50 px-3 py-2">
-      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-gray-500 shadow-sm">
-        {icon}
-      </span>
-      <span>
-        <span className="block text-sm font-semibold text-gray-900">
-          {value}
-        </span>
-        <span className="block text-xs text-gray-500">{label}</span>
-      </span>
-    </div>
-  );
-}
-
-function EmptyPhasesState({ onCreate }: Readonly<{ onCreate: () => void }>) {
-  return (
-    <section className="moto-content-surface rounded-2xl border px-6 py-12 text-center shadow-sm backdrop-blur-md">
-      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
-        <MotoConceptIcon concept="calendarPeriods" size={24} />
-      </div>
-      <h2 className="mt-4 text-base font-semibold text-gray-900">
-        Noch keine Anmeldephase angelegt
-      </h2>
-      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-600">
-        Lege zuerst fest, für welchen Zeitraum Eltern anmelden können, zum
-        Beispiel für ein Halbjahr, ein Schuljahr oder eine Ferienbetreuung.
-      </p>
-      <button
-        type="button"
-        onClick={onCreate}
-        className="mt-5 inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-      >
-        <MotoConceptIcon concept="calendarPeriods" size={16} />
-        Erste Anmeldephase anlegen
-      </button>
-    </section>
-  );
-}
-
 function EnrollmentWindowCell({
   openAt,
   closeAt,
@@ -1007,8 +1030,8 @@ function EnrollmentWindowCell({
 
   return (
     <span className="text-sm text-gray-700">
-      {openAt ? formatDateTime(openAt) : "Nicht gesetzt"} bis{" "}
-      {closeAt ? formatDateTime(closeAt) : "Nicht gesetzt"}
+      {openAt ? formatChatDateTime(openAt) : "Nicht gesetzt"} bis{" "}
+      {closeAt ? formatChatDateTime(closeAt) : "Nicht gesetzt"}
     </span>
   );
 }
@@ -1069,10 +1092,21 @@ function PhaseActions({
 }: PhaseActionsProps) {
   const [lateInviteOpen, setLateInviteOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
+  const toast = useToast();
+  const { copy } = useClipboardCopy(`PhaseActions:${phase.id}`);
+  const copyPhaseUrl = async (url: string) => {
+    if (await copy(url)) {
+      toast.success("Elternlink kopiert.");
+    } else {
+      toast.error(
+        "Der Link konnte nicht kopiert werden. Bitte versuchen Sie es noch einmal.",
+      );
+    }
+  };
   const hasReviewList = tenantSlug && phase.rollover_source_phase_id;
   // Audience-restricted phases are never publicly reachable: the anonymous form
   // gate refuses BOTH linked_parents and existing_students, so the plain
-  // /enroll/{id} URL 404s for either unless it carries a valid late-invite
+  // /anmeldung/{id} URL 404s for either unless it carries a valid late-invite
   // token. The untokenized public actions ("Formular ansehen", the copy-link
   // button) would hand out a dead link, so hide them for both audiences while
   // keeping the tokenized "Nachzügler-Link erstellen" action, which appends the
@@ -1099,10 +1133,22 @@ function PhaseActions({
           {
             label: "Formular ansehen",
             icon: <ExternalLink className="h-4 w-4" aria-hidden />,
-            href: `/enroll/${encodeURIComponent(phase.id)}`,
+            href: tenantPath(`/anmeldung/${encodeURIComponent(phase.id)}`),
             external: true,
             onClick: () => undefined,
           },
+          // Menüeintrag statt Icon neben dem Kebab (BAUARTEN-SPEC Bauart 1
+          // Regel 4, #3111). Das Menü schließt beim Klick, deshalb meldet
+          // ein Toast den Erfolg statt eines Häkchens am Knopf.
+          ...(phaseUrl
+            ? [
+                {
+                  label: "Elternlink kopieren",
+                  icon: <Copy className="h-4 w-4" aria-hidden />,
+                  onClick: () => void copyPhaseUrl(phaseUrl),
+                },
+              ]
+            : []),
         ]),
     {
       label: "Nachzügler-Link erstellen",
@@ -1130,7 +1176,13 @@ function PhaseActions({
     },
     {
       label: "Anschlussphase erstellen",
-      icon: <MotoConceptIcon concept="calendarPeriods" size={16} />,
+      icon: (
+        <MotoConceptIcon
+          concept="calendarPeriods"
+          colorMode="inherit"
+          size={16}
+        />
+      ),
       disabled: saving || rolloverActive,
       onClick: onRollover,
     },
@@ -1152,7 +1204,7 @@ function PhaseActions({
     },
     { kind: "separator" },
     {
-      label: deleting ? "Löscht..." : "Löschen",
+      label: deleting ? "Löscht…" : "Löschen",
       icon: <Trash2 className="h-4 w-4" aria-hidden />,
       destructive: true,
       disabled: deleting || saving,
@@ -1162,13 +1214,7 @@ function PhaseActions({
 
   return (
     <>
-      <div className="flex justify-end gap-1.5">
-        {phaseUrl && !hasNoPublicForm ? (
-          <PublicLinkCopyButton
-            url={phaseUrl}
-            componentId={`PhaseActions:${phase.id}`}
-          />
-        ) : null}
+      <div className="flex justify-end">
         <OverflowMenu
           ariaLabel={`Aktionen für ${phase.name}`}
           items={menuEntries}
@@ -1411,10 +1457,10 @@ function PhaseForm(props: PhaseFormProps) {
         <legend className="px-1 text-xs font-medium text-gray-700">
           Anmeldefenster (optional)
         </legend>
-        <p className="mb-2 text-xs text-gray-500">
-          Lass beide Felder leer, wenn das Anmeldeformular jederzeit erreichbar
-          sein soll. Sonst kann die Anmeldung nur in diesem Zeitraum eingereicht
-          werden.
+        <p className="mt-1 mb-2 text-sm leading-6 text-gray-600">
+          Lassen Sie beide Felder leer, wenn das Anmeldeformular jederzeit
+          erreichbar sein soll. Sonst kann die Anmeldung nur in diesem Zeitraum
+          eingereicht werden.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="block">
@@ -1624,7 +1670,7 @@ function PhaseForm(props: PhaseFormProps) {
         </label>
 
         <div className="flex flex-col gap-2 pt-5">
-          <PhaseCheckbox
+          <CheckboxCard
             checked={draft.show_status_reason_to_parent}
             onChange={(checked) =>
               update({ show_status_reason_to_parent: checked })
@@ -1632,7 +1678,7 @@ function PhaseForm(props: PhaseFormProps) {
             label="Begründung für Eltern sichtbar"
             hint="(auf der Status-Seite und in Status-E-Mails)"
           />
-          <PhaseCheckbox
+          <CheckboxCard
             checked={draft.is_active}
             onChange={(checked) => update({ is_active: checked })}
             label="Aktiv"
@@ -1727,7 +1773,7 @@ function PhaseForm(props: PhaseFormProps) {
         <legend className="px-1 text-xs font-medium text-gray-700">
           Konkrete Klassen
         </legend>
-        <p className="text-xs leading-5 text-gray-500">
+        <p className="mt-1 mb-2 text-sm leading-6 text-gray-600">
           Ab der 2. Klasse können Eltern die konkrete Klasse (z. B. 2a) aus
           dieser Liste wählen. Für die 1. Klasse wird weiterhin nur die
           Klassenstufe erfasst. Nur wirksam, wenn „Konkrete Klasse abfragen“ in
@@ -1759,7 +1805,7 @@ function PhaseForm(props: PhaseFormProps) {
           }}
         />
         <div className="mt-3">
-          <PhaseCheckbox
+          <CheckboxCard
             // Only meaningful once at least one class is offered.
             checked={hasSchoolClasses && (draft.require_school_class ?? false)}
             onChange={(checked) => update({ require_school_class: checked })}
@@ -1771,21 +1817,18 @@ function PhaseForm(props: PhaseFormProps) {
       </fieldset>
 
       <div className="flex justify-end gap-2">
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="md"
           onClick={onCancel}
           disabled={saving}
-          className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
         >
           Abbrechen
-        </button>
-        <button
-          type="submit"
-          disabled={saving}
-          className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
-        >
-          {saving ? "Speichert..." : editing ? "Speichern" : "Erstellen"}
-        </button>
+        </Button>
+        <Button type="submit" variant="primary" size="md" disabled={saving}>
+          {saving ? "Speichert…" : editing ? "Speichern" : "Erstellen"}
+        </Button>
       </div>
     </form>
   );
@@ -1825,19 +1868,14 @@ function GradeLevelListEditor({
       {grades.map((grade) => {
         const selected = value.includes(grade);
         return (
-          <button
+          <ToggleChip
             key={grade}
-            type="button"
-            onClick={() => toggle(grade)}
-            aria-pressed={selected}
-            className={`inline-flex h-9 min-w-11 items-center justify-center rounded-full border px-3 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-              selected
-                ? "border-moto-green bg-moto-green text-gray-950"
-                : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
-            }`}
+            shape="pill"
+            pressed={selected}
+            onPressedChange={() => toggle(grade)}
           >
             {grade}
-          </button>
+          </ToggleChip>
         );
       })}
     </div>
@@ -1865,8 +1903,9 @@ function SchoolClassListEditor({
   return (
     <div className="mt-2">
       <div className="flex gap-2">
-        <input
+        <Input
           type="text"
+          controlSize="compact"
           value={entry}
           onChange={(e) => setEntry(e.target.value)}
           onKeyDown={(e) => {
@@ -1877,15 +1916,17 @@ function SchoolClassListEditor({
           }}
           placeholder="z. B. 2a"
           aria-label="Klasse hinzufügen"
-          className="h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          className="w-full"
         />
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="md"
           onClick={add}
-          className="inline-flex h-10 shrink-0 items-center rounded-lg border border-gray-200 px-3 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          className="inline-flex shrink-0 items-center"
         >
           Hinzufügen
-        </button>
+        </Button>
       </div>
       {value.length > 0 ? (
         <ul className="mt-2 flex flex-wrap gap-2">
@@ -1912,55 +1953,5 @@ function SchoolClassListEditor({
         </p>
       )}
     </div>
-  );
-}
-
-function PhaseCheckbox({
-  checked,
-  onChange,
-  label,
-  hint,
-  disabled = false,
-}: Readonly<{
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  label: string;
-  hint: string;
-  disabled?: boolean;
-}>) {
-  return (
-    <label
-      className={`flex min-h-11 items-center gap-3 rounded-2xl border px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors focus-within:ring-2 focus-within:ring-gray-300 ${
-        disabled
-          ? "cursor-not-allowed border-gray-100 bg-gray-50 opacity-60"
-          : checked
-            ? "cursor-pointer border-gray-300 bg-gray-50"
-            : "cursor-pointer border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50"
-      }`}
-    >
-      <input
-        type="checkbox"
-        checked={checked}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.checked)}
-        className="sr-only"
-      />
-      <span
-        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border shadow-sm transition-all ${
-          checked ? "border-gray-900 bg-gray-900" : "border-gray-300 bg-white"
-        }`}
-        aria-hidden="true"
-      >
-        <Check
-          className={`h-3.5 w-3.5 text-white transition-opacity ${
-            checked ? "opacity-100" : "opacity-0"
-          }`}
-        />
-      </span>
-      <span className="min-w-0 flex-1 leading-snug">
-        {label}
-        <span className="ml-1 text-xs font-normal text-gray-500">{hint}</span>
-      </span>
-    </label>
   );
 }

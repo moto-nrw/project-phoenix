@@ -4,327 +4,31 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/auth/device"
-	iotModel "github.com/moto-nrw/project-phoenix/models/iot"
-	"github.com/moto-nrw/project-phoenix/models/platform"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// =============================================================================
-// delegateHandler Tests
-// =============================================================================
-
-func TestDelegateHandler_ForwardsRequest(t *testing.T) {
-	t.Parallel()
-
-	// Create a subrouter with a test endpoint
-	subrouter := chi.NewRouter()
-	subrouter.Get("/*", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("delegated response"))
-	})
-
-	handler := delegateHandler(subrouter)
-
-	req := httptest.NewRequest("GET", "/test", nil)
-	w := httptest.NewRecorder()
-
-	handler(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, "delegated response", w.Body.String())
-}
-
-func TestDelegateHandler_PostRequest(t *testing.T) {
-	t.Parallel()
-
-	subrouter := chi.NewRouter()
-	subrouter.Post("/*", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusCreated)
-		_, _ = w.Write([]byte("post response"))
-	})
-
-	handler := delegateHandler(subrouter)
-
-	req := httptest.NewRequest("POST", "/data", nil)
-	w := httptest.NewRecorder()
-
-	handler(w, req)
-
-	assert.Equal(t, http.StatusCreated, w.Code)
-	assert.Equal(t, "post response", w.Body.String())
-}
-
-// =============================================================================
-// NewResource Tests
-// =============================================================================
-
-func TestNewResource(t *testing.T) {
-	t.Parallel()
-
-	deps := ServiceDependencies{
-		IoTService:        nil,
-		UsersService:      nil,
-		ActiveService:     nil,
-		ActivitiesService: nil,
-		FacilityService:   nil,
-		EducationService:  nil,
-		FeedbackService:   nil,
-	}
-
-	resource := NewResource(deps)
-
-	require.NotNil(t, resource)
-	assert.Nil(t, resource.IoTService)
-	assert.Nil(t, resource.UsersService)
-	assert.Nil(t, resource.ActiveService)
-	assert.Nil(t, resource.ActivitiesService)
-	assert.Nil(t, resource.FacilityService)
-	assert.Nil(t, resource.EducationService)
-	assert.Nil(t, resource.FeedbackService)
-}
-
-// =============================================================================
-// ServiceDependencies Tests
-// =============================================================================
-
-func TestServiceDependencies_Struct(t *testing.T) {
-	t.Parallel()
-
-	// Verify struct fields exist
-	deps := ServiceDependencies{}
-
-	assert.Nil(t, deps.IoTService)
-	assert.Nil(t, deps.UsersService)
-	assert.Nil(t, deps.ActiveService)
-	assert.Nil(t, deps.ActivitiesService)
-	assert.Nil(t, deps.FacilityService)
-	assert.Nil(t, deps.EducationService)
-	assert.Nil(t, deps.FeedbackService)
-}
-
-// =============================================================================
-// Resource Struct Tests
-// =============================================================================
-
-func TestResource_Struct(t *testing.T) {
-	t.Parallel()
-
-	// Verify Resource struct can be instantiated
-	resource := &Resource{}
-
-	assert.Nil(t, resource.IoTService)
-	assert.Nil(t, resource.UsersService)
-	assert.Nil(t, resource.ActiveService)
-	assert.Nil(t, resource.ActivitiesService)
-	assert.Nil(t, resource.FacilityService)
-	assert.Nil(t, resource.EducationService)
-	assert.Nil(t, resource.FeedbackService)
-}
-
-// =============================================================================
-// Router Tests
-// =============================================================================
-
-func TestResource_Router_ReturnsRouter(t *testing.T) {
-	t.Parallel()
-
-	// Create resource with nil services (just testing router structure)
-	resource := &Resource{}
-
-	router := resource.Router()
-
-	require.NotNil(t, router)
-}
-
-func TestResource_Router_HasRoutes(t *testing.T) {
-	t.Parallel()
-
-	// Create resource with nil services
-	resource := &Resource{}
-
-	router := resource.Router()
-
-	// Verify router has routes registered by checking it responds
-	// (routes will fail auth but router structure should be valid)
-	require.NotNil(t, router)
-
-	// Test that router can handle requests (even if they fail auth)
-	req := httptest.NewRequest("GET", "/status", nil)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	// We expect 401 Unauthorized since we have no device auth
-	// This proves the route exists and middleware runs
-	assert.NotEqual(t, http.StatusNotFound, w.Code)
-}
-
-func TestResource_Router_CheckinRoute(t *testing.T) {
-	t.Parallel()
-
-	resource := &Resource{}
-	router := resource.Router()
-
-	req := httptest.NewRequest("POST", "/checkin", nil)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	// Route exists (not 404)
-	assert.NotEqual(t, http.StatusNotFound, w.Code)
-}
-
-func TestResource_Router_PingRoute(t *testing.T) {
-	t.Parallel()
-
-	resource := &Resource{}
-	router := resource.Router()
-
-	req := httptest.NewRequest("POST", "/ping", nil)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	// Route exists (not 404)
-	assert.NotEqual(t, http.StatusNotFound, w.Code)
-}
-
-func TestResource_Router_AttendanceRoute(t *testing.T) {
-	t.Parallel()
-
-	resource := &Resource{}
-	router := resource.Router()
-
-	req := httptest.NewRequest("GET", "/attendance/daily", nil)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	// Route exists (not 404)
-	assert.NotEqual(t, http.StatusNotFound, w.Code)
-}
-
-func TestResource_Router_SessionRoute(t *testing.T) {
-	t.Parallel()
-
-	resource := &Resource{}
-	router := resource.Router()
-
-	req := httptest.NewRequest("POST", "/session/start", nil)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	// Route exists (not 404)
-	assert.NotEqual(t, http.StatusNotFound, w.Code)
-}
-
-func TestResource_Router_FeedbackRoute(t *testing.T) {
-	t.Parallel()
-
-	resource := &Resource{}
-	router := resource.Router()
-
-	req := httptest.NewRequest("POST", "/feedback", nil)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	// Route exists (not 404)
-	assert.NotEqual(t, http.StatusNotFound, w.Code)
-}
-
-func TestResource_Router_DataRoutes(t *testing.T) {
-	t.Parallel()
-
-	resource := &Resource{}
-	router := resource.Router()
-
-	tests := []struct {
-		method string
-		path   string
-	}{
-		{"GET", "/students"},
-		{"GET", "/activities"},
-		{"GET", "/rooms/available"},
-		{"GET", "/rfid/test-tag"},
-		{"GET", "/teachers"},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.method+" "+tc.path, func(t *testing.T) {
-			req := httptest.NewRequest(tc.method, tc.path, nil)
-			w := httptest.NewRecorder()
-			router.ServeHTTP(w, req)
-
-			// Route exists (not 404)
-			assert.NotEqual(t, http.StatusNotFound, w.Code)
-		})
-	}
-}
-
-func TestResource_Router_StaffRFIDRoute(t *testing.T) {
-	t.Parallel()
-
-	resource := &Resource{}
-	router := resource.Router()
-
-	req := httptest.NewRequest("POST", "/staff/rfid/assign", nil)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	// Route exists (not 404)
-	assert.NotEqual(t, http.StatusNotFound, w.Code)
-}
-
-func TestResource_Router_SchoolNameRoute(t *testing.T) {
-	t.Parallel()
-
-	resource := &Resource{}
-	router := resource.Router()
-
-	req := httptest.NewRequest("GET", "/school-name", nil)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	// Route exists (not 404)
-	assert.NotEqual(t, http.StatusNotFound, w.Code)
-}
-
-// =============================================================================
-// getSchoolName Handler Tests
-// =============================================================================
-
-// withDeviceCtx injects a device model into the request context.
-func withDeviceCtx(req *http.Request, d *iotModel.Device) *http.Request {
-	ctx := context.WithValue(req.Context(), device.CtxDevice, d)
-	return req.WithContext(ctx)
-}
-
 func TestGetSchoolName_Success(t *testing.T) {
 	t.Parallel()
 
-	repo := &testpkg.SchoolRepoMock{
-		FindByIDFn: func(_ context.Context, id int64) (*platform.School, error) {
-			assert.Equal(t, int64(42), id)
-			return &platform.School{Name: "OGS Musterstadt"}, nil
-		},
-	}
-	rs := &Resource{ServiceDependencies: ServiceDependencies{SchoolService: platformSvc.NewSchoolService(repo)}}
+	query := schoolNameStub(func(context.Context) (string, error) {
+		return "OGS Musterstadt", nil
+	})
+	rs := NewResource(nil, query, testRuntime())
 
 	req := httptest.NewRequest("GET", "/school-name", nil)
-	dev := &iotModel.Device{}
-	dev.TenantID = 42
-	req = withDeviceCtx(req, dev)
+	testutil.WithDeviceIdentity(9, "school-device")(req)
 
 	w := httptest.NewRecorder()
 	rs.getSchoolName(w, req)
 
-	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, 200, w.Code)
 
 	var body map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &body)
@@ -340,40 +44,36 @@ func TestGetSchoolName_Success(t *testing.T) {
 func TestGetSchoolName_NoDeviceContext(t *testing.T) {
 	t.Parallel()
 
-	rs := &Resource{}
+	rs := NewResource(nil, nil, testRuntime())
 
 	req := httptest.NewRequest("GET", "/school-name", nil)
 	w := httptest.NewRecorder()
 	rs.getSchoolName(w, req)
 
-	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.Equal(t, 401, w.Code)
 
 	var body map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &body)
 	require.NoError(t, err)
 	assert.Equal(t, "error", body["status"])
-	assert.Equal(t, device.ErrMissingAPIKey.Error(), body["error"])
+	assert.Equal(t, devicescan.MessageDeviceAPIKeyRequired, body["error"])
 }
 
 func TestGetSchoolName_SchoolNotFound(t *testing.T) {
 	t.Parallel()
 
-	repo := &testpkg.SchoolRepoMock{
-		FindByIDFn: func(_ context.Context, _ int64) (*platform.School, error) {
-			return nil, errors.New("sql: no rows in result set")
-		},
-	}
-	rs := &Resource{ServiceDependencies: ServiceDependencies{SchoolService: platformSvc.NewSchoolService(repo)}}
+	query := schoolNameStub(func(context.Context) (string, error) {
+		return "", errors.New("sql: no rows in result set")
+	})
+	rs := NewResource(nil, query, testRuntime())
 
 	req := httptest.NewRequest("GET", "/school-name", nil)
-	dev := &iotModel.Device{}
-	dev.TenantID = 999
-	req = withDeviceCtx(req, dev)
+	testutil.WithDeviceIdentity(9, "school-device")(req)
 
 	w := httptest.NewRecorder()
 	rs.getSchoolName(w, req)
 
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Equal(t, 500, w.Code)
 
 	var body map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &body)
@@ -384,43 +84,35 @@ func TestGetSchoolName_SchoolNotFound(t *testing.T) {
 func TestGetSchoolName_DatabaseError(t *testing.T) {
 	t.Parallel()
 
-	repo := &testpkg.SchoolRepoMock{
-		FindByIDFn: func(_ context.Context, _ int64) (*platform.School, error) {
-			return nil, errors.New("connection refused")
-		},
-	}
-	rs := &Resource{ServiceDependencies: ServiceDependencies{SchoolService: platformSvc.NewSchoolService(repo)}}
+	query := schoolNameStub(func(context.Context) (string, error) {
+		return "", errors.New("connection refused")
+	})
+	rs := NewResource(nil, query, testRuntime())
 
 	req := httptest.NewRequest("GET", "/school-name", nil)
-	dev := &iotModel.Device{}
-	dev.TenantID = 10
-	req = withDeviceCtx(req, dev)
+	testutil.WithDeviceIdentity(9, "school-device")(req)
 
 	w := httptest.NewRecorder()
 	rs.getSchoolName(w, req)
 
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Equal(t, 500, w.Code)
 }
 
 func TestGetSchoolName_EmptySchoolName(t *testing.T) {
 	t.Parallel()
 
-	repo := &testpkg.SchoolRepoMock{
-		FindByIDFn: func(_ context.Context, _ int64) (*platform.School, error) {
-			return &platform.School{Name: ""}, nil
-		},
-	}
-	rs := &Resource{ServiceDependencies: ServiceDependencies{SchoolService: platformSvc.NewSchoolService(repo)}}
+	query := schoolNameStub(func(context.Context) (string, error) {
+		return "", nil
+	})
+	rs := NewResource(nil, query, testRuntime())
 
 	req := httptest.NewRequest("GET", "/school-name", nil)
-	dev := &iotModel.Device{}
-	dev.TenantID = 10
-	req = withDeviceCtx(req, dev)
+	testutil.WithDeviceIdentity(9, "school-device")(req)
 
 	w := httptest.NewRecorder()
 	rs.getSchoolName(w, req)
 
-	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, 200, w.Code)
 
 	var body map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &body)
@@ -431,49 +123,21 @@ func TestGetSchoolName_EmptySchoolName(t *testing.T) {
 	assert.Equal(t, "", data["name"])
 }
 
-func TestGetSchoolName_UsesTenantIDFromDevice(t *testing.T) {
-	t.Parallel()
-
-	var receivedID int64
-	repo := &testpkg.SchoolRepoMock{
-		FindByIDFn: func(_ context.Context, id int64) (*platform.School, error) {
-			receivedID = id
-			return &platform.School{Name: "Test School"}, nil
-		},
-	}
-	rs := &Resource{ServiceDependencies: ServiceDependencies{SchoolService: platformSvc.NewSchoolService(repo)}}
-
-	req := httptest.NewRequest("GET", "/school-name", nil)
-	dev := &iotModel.Device{}
-	dev.TenantID = 777
-	req = withDeviceCtx(req, dev)
-
-	w := httptest.NewRecorder()
-	rs.getSchoolName(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, int64(777), receivedID)
-}
-
 func TestGetSchoolName_ResponseStructure(t *testing.T) {
 	t.Parallel()
 
-	repo := &testpkg.SchoolRepoMock{
-		FindByIDFn: func(_ context.Context, _ int64) (*platform.School, error) {
-			return &platform.School{Name: "Grundschule am Park"}, nil
-		},
-	}
-	rs := &Resource{ServiceDependencies: ServiceDependencies{SchoolService: platformSvc.NewSchoolService(repo)}}
+	query := schoolNameStub(func(context.Context) (string, error) {
+		return "Grundschule am Park", nil
+	})
+	rs := NewResource(nil, query, testRuntime())
 
 	req := httptest.NewRequest("GET", "/school-name", nil)
-	dev := &iotModel.Device{}
-	dev.TenantID = 10
-	req = withDeviceCtx(req, dev)
+	testutil.WithDeviceIdentity(9, "school-device")(req)
 
 	w := httptest.NewRecorder()
 	rs.getSchoolName(w, req)
 
-	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, 200, w.Code)
 	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
 
 	var body map[string]interface{}
@@ -506,3 +170,7 @@ func TestSchoolNameResponse_JSONSerialization(t *testing.T) {
 	assert.Equal(t, "Test Schule", parsed["name"])
 	assert.Len(t, parsed, 1)
 }
+
+type schoolNameStub func(context.Context) (string, error)
+
+func (s schoolNameStub) DeviceSchoolName(ctx context.Context) (string, error) { return s(ctx) }

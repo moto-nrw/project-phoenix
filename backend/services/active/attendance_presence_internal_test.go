@@ -6,9 +6,10 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	"github.com/DATA-DOG/go-sqlmock"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -106,11 +107,13 @@ func TestEnsureStaffPresenceRollsBackFailedCheckInToSavepoint(t *testing.T) {
 	mock.ExpectBegin()
 	tx, err := db.BeginTx(ctx, nil)
 	require.NoError(t, err)
-	txCtx := modelBase.ContextWithTx(ctx, &tx)
+	txCtx := tenant.WithTransactionForTest(withSessionTestRuntime(t, ctx, db), &tx)
 
-	mock.ExpectExec("SAVEPOINT sp_active_staff_presence_checkin").
+	mock.ExpectExec("SAVEPOINT phoenix_operation").
 		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec("ROLLBACK TO SAVEPOINT sp_active_staff_presence_checkin").
+	mock.ExpectExec("ROLLBACK TO SAVEPOINT phoenix_operation").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("RELEASE SAVEPOINT phoenix_operation").
 		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectRollback()
 

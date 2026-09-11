@@ -13,6 +13,7 @@ import (
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,18 +28,27 @@ func (r failingStudentDeletionAudit) Create(context.Context, *auditModels.Studen
 	return r.err
 }
 
+func (failingStudentDeletionAudit) CountStudentReferences(context.Context, int64) (int, error) {
+	return 0, nil
+}
+
 func newStudentDeletionTestService(
 	db *bun.DB,
 	dataAuditRepo auditModels.DataDeletionRepository,
 	auditRepo auditModels.StudentDeletionRepository,
+	feedbackCounts ...int,
 ) usersService.StudentDeletionService {
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	studentService := usersService.NewStudentService(
 		repos.Student,
 		repos.PrivacyConsent,
 		repos.StudentCompanion,
 		nil,
 	)
+	feedbackCount := 0
+	if len(feedbackCounts) > 0 {
+		feedbackCount = feedbackCounts[0]
+	}
 	return usersService.NewStudentDeletionService(
 		studentService,
 		repos.Student,
@@ -47,8 +57,66 @@ func newStudentDeletionTestService(
 		repos.GradeTransition,
 		dataAuditRepo,
 		auditRepo,
+		&testpkg.FeedbackEntryCounterMock{Count: feedbackCount},
 		db,
 	)
+}
+
+func TestStudentDeletionPreviewIncludesFeedbackOwnerCount(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	student := testpkg.CreateTestStudent(t, db, "Feedback", "Preview", "1a")
+	service := newStudentDeletionTestService(db, nil, nil, 3)
+
+	preview, err := service.Preview(testpkg.Ctx(t), student.ID)
+
+	require.NoError(t, err)
+	assert.Equal(t, 3, preview.Counts.OtherRecords)
+}
+
+func TestStudentDeletionWithFeedbackRowsPassesLockedCountRecheck(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	student := testpkg.CreateTestStudent(t, db, "Feedback", "Delete", "1a")
+	actor := testpkg.CreateTestAccount(t, db, "feedback-delete-count@example.com")
+	service := newStudentDeletionTestService(db, repos.DataDeletion, repos.StudentDeletionAudit, 2)
+
+	preview, err := service.Preview(testpkg.Ctx(t), student.ID)
+	require.NoError(t, err)
+	require.Equal(t, 2, preview.Counts.OtherRecords)
+
+	result, err := service.Delete(testpkg.Ctx(t), usersService.StudentDeletionInput{
+		StudentID:           student.ID,
+		ActorAccountID:      actor.ID,
+		ExpectedFingerprint: preview.Fingerprint,
+		ConfirmationName:    preview.ConfirmationName,
+		Reason:              usersService.StudentDeletionReasonTestData,
+		Acknowledged:        true,
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, preview.Counts, result.Counts)
+}
+
+func TestGraduatePurgeAuditIncludesFeedbackOwnerCount(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	student := testpkg.CreateTestStudent(t, db, "Feedback", "Graduate", "1a")
+	actor := testpkg.CreateTestAccount(t, db, "feedback-graduate-count@example.com")
+	service := newStudentDeletionTestService(db, repos.DataDeletion, repos.StudentDeletionAudit, 2)
+
+	err := tenant.WithinCurrentTenant(testpkg.Ctx(t), func(ctx context.Context) error {
+		return service.AuditGraduatePurge(ctx, student.ID, actor.ID)
+	})
+	require.NoError(t, err)
+
+	var audit auditModels.StudentDeletion
+	require.NoError(t, db.NewSelect().Model(&audit).
+		Where(`tenant_id = ? AND student_id = ? AND reason = ?`, student.TenantID, student.ID, usersService.StudentDeletionReasonGraduatePurge).
+		Scan(testpkg.Ctx(t)))
+	assert.Equal(t, 2, audit.Counts.OtherRecords)
 }
 
 func tableRowCount(t *testing.T, db *bun.DB, table string, id int64) int {
@@ -65,7 +133,7 @@ func TestStudentDeletionService_DeletePreservesSharedInstanceAndAnonymizesPerson
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	service := newStudentDeletionTestService(db, repos.DataDeletion, repos.StudentDeletionAudit)
 	target := testpkg.CreateTestStudent(t, db, "DeleteService", "Target", "1a")
 	spared := testpkg.CreateTestStudent(t, db, "DeleteService", "Spared", "1a")
@@ -232,7 +300,7 @@ func TestStudentDeletionService_DeleteCountsCrossTenantVisits(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, hostingTenantID)
 
 	ctx := testpkg.Ctx(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	service := newStudentDeletionTestService(db, repos.DataDeletion, repos.StudentDeletionAudit)
 	target := testpkg.CreateTestStudent(t, db, "CrossTenant", "Visitor", "1a")
 	actor := testpkg.CreateTestAccount(t, db, "student-delete-cross-tenant@example.com")
@@ -261,7 +329,7 @@ func TestStudentDeletionService_PreviewExcludesPreservedDeletionAudits(t *testin
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	service := newStudentDeletionTestService(db, repos.DataDeletion, repos.StudentDeletionAudit)
 	target := testpkg.CreateTestStudent(t, db, "Preserved", "Audit", "1a")
 	actor := testpkg.CreateTestAccount(t, db, "preserved-deletion-audit@example.com")
@@ -318,7 +386,7 @@ func TestStudentDeletionService_DeleteRejectsStalePreview(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	service := newStudentDeletionTestService(db, repos.DataDeletion, repos.StudentDeletionAudit)
 	target := testpkg.CreateTestStudent(t, db, "DeleteStale", "Target", "1a")
 	room := testpkg.CreateTestRoom(t, db, "delete-stale-room")
@@ -351,7 +419,7 @@ func TestStudentDeletionService_DeleteRejectsStalePreviewAfterMessageRead(t *tes
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	service := newStudentDeletionTestService(db, repos.DataDeletion, repos.StudentDeletionAudit)
 	target := testpkg.CreateTestStudent(t, db, "DeleteStale", "Read", "1a")
 	actor := testpkg.CreateTestAccount(t, db, "student-delete-stale-read@example.com")
@@ -433,7 +501,7 @@ func TestStudentDeletionService_DeleteRollsBackWhenAuditRepositoryIsMissing(t *t
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "DeleteMissingAudit", "Target", "1a")
-	service := newStudentDeletionTestService(db, repositories.NewFactory(db).DataDeletion, nil)
+	service := newStudentDeletionTestService(db, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).DataDeletion, nil)
 	preview, err := service.Preview(ctx, student.ID)
 	require.NoError(t, err)
 
@@ -456,7 +524,7 @@ func TestStudentDeletionService_DeleteRollsBackWhenAuditFails(t *testing.T) {
 
 	ctx := testpkg.Ctx(t)
 	auditErr := errors.New("audit unavailable")
-	service := newStudentDeletionTestService(db, repositories.NewFactory(db).DataDeletion, failingStudentDeletionAudit{err: auditErr})
+	service := newStudentDeletionTestService(db, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).DataDeletion, failingStudentDeletionAudit{err: auditErr})
 	target := testpkg.CreateTestStudent(t, db, "DeleteRollback", "Target", "1a")
 	room := testpkg.CreateTestRoom(t, db, "delete-rollback-room")
 	instance := testpkg.CreateTestActivityInstance(t, db, timezone.TodayDate(), room.ID, testpkg.ActivityInstanceOpts{

@@ -12,7 +12,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 )
 
 // ChildSummary is the cross-tenant view of one student linked to a
@@ -21,8 +21,11 @@ import (
 type ChildSummary struct {
 	// Student identity (per-tenant id; the (TenantID, StudentID) pair
 	// is globally unique).
-	StudentID   int64  `json:"student_id"`
-	TenantID    int64  `json:"tenant_id"`
+	StudentID int64 `json:"student_id"`
+	TenantID  int64 `json:"tenant_id"`
+	// PersonID is the student's person reference; the names below are
+	// attached by the composition layer through the People Directory.
+	PersonID    int64  `json:"-"`
 	FirstName   string `json:"first_name"`
 	LastName    string `json:"last_name"`
 	SchoolClass string `json:"school_class,omitempty"`
@@ -30,8 +33,8 @@ type ChildSummary struct {
 	// Lifecycle status as set by the activate-students scheduler:
 	// pending → active → inactive (or alumnus).
 	Status        string         `json:"status"`
-	EnrolledFrom  *timezone.Date `json:"enrolled_from,omitempty"`
-	EnrolledUntil *timezone.Date `json:"enrolled_until,omitempty"`
+	EnrolledFrom  *careplan.Date `json:"enrolled_from,omitempty"`
+	EnrolledUntil *careplan.Date `json:"enrolled_until,omitempty"`
 
 	// School context — repeated on every child of the same school so
 	// the frontend can render grouped cards without an extra fetch.
@@ -48,7 +51,7 @@ type ChildSummary struct {
 // CareEnded reports whether the child's care at this school has ended on the
 // given day. The enrollment interval's upper bound is inclusive, so the last
 // care day itself still counts as care (#2487).
-func (c *ChildSummary) CareEnded(day timezone.Date) bool {
+func (c *ChildSummary) CareEnded(day careplan.Date) bool {
 	return c != nil && c.EnrolledUntil != nil && day.After(*c.EnrolledUntil)
 }
 
@@ -105,15 +108,22 @@ type EnrollablePhase struct {
 	PhaseID           int64         `json:"phase_id"`
 	PhaseName         string        `json:"phase_name"`
 	PhaseKind         string        `json:"phase_kind"`
-	ServiceStartDate  timezone.Date `json:"service_start_date"`
-	ServiceEndDate    timezone.Date `json:"service_end_date"`
+	ServiceStartDate  careplan.Date `json:"service_start_date"`
+	ServiceEndDate    careplan.Date `json:"service_end_date"`
 	EnrollmentOpenAt  *time.Time    `json:"enrollment_open_at,omitempty"`
 	EnrollmentCloseAt *time.Time    `json:"enrollment_close_at,omitempty"`
 	AlreadyLinked     bool          `json:"already_linked"`
 	// Audience mirrors enrollment.phases.audience (#1663) so the picker
 	// can label restricted phases. Phases the account is NOT eligible
 	// for are already filtered out by the repository.
-	Audience string `json:"audience"`
+	Audience      string `json:"audience"`
+	HasFamilyLink bool   `json:"-"`
+	// EnrolledSubmitPersonIDs are the persons of the ACTIVE or PENDING
+	// students whose guardian relationship grants submit permission. The
+	// composition layer checks them against the People Directory to decide
+	// the existing_students eligibility (a soft-deleted person does not
+	// count); the repository itself never reads person rows.
+	EnrolledSubmitPersonIDs []int64 `json:"-"`
 }
 
 // GuardianSubmitStatus captures the facts the parent enrollment submit
@@ -142,6 +152,10 @@ type GuardianSubmitStatus struct {
 	// (ListEnrollable) hides those phases and the form gate must refuse them
 	// with the same fact.
 	HasEnrolledSubmitPermission bool
+	// EnrolledSubmitPersonIDs carries the candidate persons behind
+	// HasEnrolledSubmitPermission for the composition layer; see
+	// EnrollablePhase.EnrolledSubmitPersonIDs.
+	EnrolledSubmitPersonIDs []int64
 }
 
 // EnrollablePhaseRepository is the cross-tenant lookup for the parent
@@ -176,8 +190,8 @@ type EnrollmentRequestSummary struct {
 
 	PhaseID          int64         `json:"phase_id"`
 	PhaseName        string        `json:"phase_name"`
-	ServiceStartDate timezone.Date `json:"service_start_date"`
-	ServiceEndDate   timezone.Date `json:"service_end_date"`
+	ServiceStartDate careplan.Date `json:"service_start_date"`
+	ServiceEndDate   careplan.Date `json:"service_end_date"`
 
 	// ShowStatusReasonToParent mirrors the owning phase flag. Internal
 	// plumbing only (json:"-"): the parent service uses it to redact

@@ -11,25 +11,33 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
+type FeedbackEntryCounterMock struct {
+	Count int
+	Err   error
+}
+
+func (m *FeedbackEntryCounterMock) CountForStudent(context.Context, int64) (int, error) {
+	return m.Count, m.Err
+}
+
 // SchoolRepoMock is a func-field test double for platform.SchoolRepository.
 type SchoolRepoMock struct {
-	CreateFn                          func(ctx context.Context, school *platform.School) error
-	FindByIDFn                        func(ctx context.Context, id int64) (*platform.School, error)
-	FindByIDForShareFn                func(ctx context.Context, id int64) (*platform.School, error)
-	FindByIDForUpdateFn               func(ctx context.Context, id int64) (*platform.School, error)
-	FindBySlugFn                      func(ctx context.Context, slug string) (*platform.School, error)
-	FindByOrganizationAndSlugFn       func(ctx context.Context, organizationID int64, slug string) (*platform.School, error)
-	FindBySubdomainFn                 func(ctx context.Context, subdomain string) (*platform.School, error)
-	ListFn                            func(ctx context.Context) ([]*platform.School, error)
-	ListNonDeletedFn                  func(ctx context.Context) ([]platform.School, error)
-	ListActiveFn                      func(ctx context.Context) ([]platform.School, error)
-	ListPublicFn                      func(ctx context.Context) ([]platform.School, error)
-	FindActiveByAccountIDFn           func(ctx context.Context, accountID int64) ([]platform.School, error)
-	UpdateFn                          func(ctx context.Context, school *platform.School) error
-	SoftDeleteFn                      func(ctx context.Context, id int64) error
-	RestoreFn                         func(ctx context.Context, id int64) error
-	CountByIDsFn                      func(ctx context.Context, ids []int64) (int, error)
-	CountNonDeletedByOrganizationIDFn func(ctx context.Context, organizationID int64) (int, error)
+	CreateFn                    func(ctx context.Context, school *platform.School) error
+	FindByIDFn                  func(ctx context.Context, id int64) (*platform.School, error)
+	FindByIDForShareFn          func(ctx context.Context, id int64) (*platform.School, error)
+	FindByIDForUpdateFn         func(ctx context.Context, id int64) (*platform.School, error)
+	FindBySlugFn                func(ctx context.Context, slug string) (*platform.School, error)
+	FindByOrganizationAndSlugFn func(ctx context.Context, organizationID int64, slug string) (*platform.School, error)
+	FindBySubdomainFn           func(ctx context.Context, subdomain string) (*platform.School, error)
+	ListFn                      func(ctx context.Context) ([]*platform.School, error)
+	ListNonDeletedFn            func(ctx context.Context) ([]platform.School, error)
+	ListActiveFn                func(ctx context.Context) ([]platform.School, error)
+	ListPublicFn                func(ctx context.Context) ([]platform.School, error)
+	FindActiveByAccountIDFn     func(ctx context.Context, accountID int64) ([]platform.School, error)
+	UpdateFn                    func(ctx context.Context, school *platform.School) error
+	SoftDeleteFn                func(ctx context.Context, id int64) error
+	RestoreFn                   func(ctx context.Context, id int64) error
+	CountByIDsFn                func(ctx context.Context, ids []int64) (int, error)
 }
 
 var _ platform.SchoolRepository = (*SchoolRepoMock)(nil)
@@ -142,13 +150,6 @@ func (m *SchoolRepoMock) Restore(ctx context.Context, id int64) error {
 func (m *SchoolRepoMock) CountByIDs(ctx context.Context, ids []int64) (int, error) {
 	if m.CountByIDsFn != nil {
 		return m.CountByIDsFn(ctx, ids)
-	}
-	return 0, nil
-}
-
-func (m *SchoolRepoMock) CountNonDeletedByOrganizationID(ctx context.Context, organizationID int64) (int, error) {
-	if m.CountNonDeletedByOrganizationIDFn != nil {
-		return m.CountNonDeletedByOrganizationIDFn(ctx, organizationID)
 	}
 	return 0, nil
 }

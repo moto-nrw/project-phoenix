@@ -32,7 +32,7 @@ describe("categoryService requests", () => {
     vi.clearAllMocks();
   });
 
-  it("always asks for archived rows and usage counts", async () => {
+  it("always asks for archived and system rows with usage counts", async () => {
     mockSessionFetch.mockResolvedValueOnce(
       Response.json({ data: [category] }, { status: 200 }),
     );
@@ -40,11 +40,12 @@ describe("categoryService requests", () => {
     await expect(categoryService.getManagedCategories()).resolves.toEqual([
       category,
     ]);
-    // Archived rows are what the restore action needs; the usage counts drive
-    // the "wird verwendet" hint. The pickers use the plain list instead, which
-    // skips the extra aggregate server-side.
+    // Archived rows are what the restore action needs; system rows are shown
+    // read-only; the usage counts drive the "wird verwendet" hint. The
+    // pickers use the plain list instead, which skips the extra aggregate
+    // server-side.
     expect(mockSessionFetch).toHaveBeenCalledWith(
-      "/api/activities/categories?include_archived=true&with_usage=true",
+      "/api/activities/categories?include_archived=true&include_system=true&with_usage=true",
     );
   });
 

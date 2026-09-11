@@ -62,3 +62,9 @@ export const Closed: Story = {
     isOpen: false,
   },
 };
+
+export const WithError: Story = {
+  args: {
+    error: "Bitte einen Namen eintragen.",
+  },
+};

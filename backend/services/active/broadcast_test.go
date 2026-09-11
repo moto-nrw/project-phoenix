@@ -7,11 +7,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	active "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/services/config/configtest"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/uptrace/bun"
 
@@ -30,17 +34,32 @@ func (w *recordingGuardianWaker) BroadcastChildUpdateToGuardians(_ int64, studen
 func setupServiceWithBroadcaster(t *testing.T) (active.Service, *testpkg.RecordingBroadcaster) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
+	return newServiceWithBroadcaster(t, db, testSchoolPresence(t, db))
+}
 
-	repos := repositories.NewFactory(db)
+func newServiceWithBroadcaster(
+	t *testing.T,
+	db *bun.DB,
+	presence active.StudentPresence,
+) (active.Service, *testpkg.RecordingBroadcaster) {
+	t.Helper()
+	return newServiceWithPresenceSync(t, db, presence, nil)
+}
+
+func newServiceWithPresenceSync(t *testing.T, db *bun.DB, presence active.StudentPresence, syncer active.AttendanceSyncer, now ...func() time.Time) (active.Service, *testpkg.RecordingBroadcaster) {
+	t.Helper()
+
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
-	svc := active.NewService(active.ServiceDependencies{
+	deps := active.ServiceDependencies{
 		GroupRepo:          repos.ActiveGroup,
-		VisitRepo:          repos.ActiveVisit,
+		SessionStartLock:   repos.SessionStartLock,
 		SupervisorRepo:     repos.GroupSupervisor,
 		CombinedGroupRepo:  repos.CombinedGroup,
 		GroupMappingRepo:   repos.GroupMapping,
-		AttendanceRepo:     repos.Attendance,
+		SchoolPresence:     presence,
+		AttendanceSyncer:   syncer,
 		StudentRepo:        repos.Student,
 		PersonRepo:         repos.Person,
 		TeacherRepo:        repos.Teacher,
@@ -53,7 +72,14 @@ func setupServiceWithBroadcaster(t *testing.T) (active.Service, *testpkg.Recordi
 		DB:                 db,
 		Broadcaster:        broadcaster,
 		Logger:             slog.Default(),
-	})
+	}
+	if len(now) > 0 {
+		deps.Now = now[0]
+	}
+	svc := active.NewService(deps)
+	svc.SetSettingsService(&configtest.Mock{ResolveStringFn: func(_ context.Context, key string) (string, error) {
+		return configModel.GetDefinition(key).Default.(string), nil
+	}})
 
 	return svc, broadcaster
 }
@@ -75,10 +101,10 @@ func TestBroadcast_CreateVisitSendsOnePreciseRefresh(t *testing.T) {
 	// Students before their education group (FK ON DELETE SET NULL nulls
 	// students.tenant_id otherwise — see the edu-batch test below).
 
-	staffCtx := context.WithValue(testpkg.Ctx(t), device.CtxStaff, staff)
-	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
+	staffCtx := context.WithValue(testpkg.Ctx(t), device.CtxStaff, staffPrincipal(staff))
+	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(iotDevice.ID, iotDevice.TenantID))
 
-	visit := &activeModels.Visit{
+	visit := &studentpresence.Visit{
 		StudentID:     student.ID,
 		ActiveGroupID: activeGroup.ID,
 		EntryTime:     time.Now(),
@@ -172,20 +198,42 @@ func TestBroadcast_EndVisitSendsOnePreciseRefresh(t *testing.T) {
 	assert.Equal(t, []string{eduGroupIDStr}, *checkouts[0].Data.GroupIDs)
 }
 
+func TestBroadcast_EndVisitRunsAfterCommit(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	svc, broadcaster := newServiceWithBroadcaster(t, db, testSchoolPresence(t, db))
+	activity := testpkg.CreateTestActivityGroup(t, db, "end-visit-after-commit")
+	room := testpkg.CreateTestRoom(t, db, "End Visit After Commit Room")
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	student := testpkg.CreateTestStudent(t, db, "EndVisit", "AfterCommit", "1a")
+	visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
+	broadcaster.Reset()
+
+	err := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		if err := svc.EndVisit(txCtx, visit.ID); err != nil {
+			return err
+		}
+		assert.Empty(t, broadcaster.Calls(), "the checkout event must wait for the transaction commit")
+		return nil
+	})
+	require.NoError(t, err)
+	assert.NotEmpty(t, broadcaster.EventsOfType(realtime.EventStudentCheckOut))
+}
+
 func TestBroadcast_UpdateVisitMoveSendsMovementEvents(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := active.NewService(active.ServiceDependencies{
 		GroupRepo:          repos.ActiveGroup,
-		VisitRepo:          repos.ActiveVisit,
 		SupervisorRepo:     repos.GroupSupervisor,
 		CombinedGroupRepo:  repos.CombinedGroup,
 		GroupMappingRepo:   repos.GroupMapping,
-		AttendanceRepo:     repos.Attendance,
+		SchoolPresence:     testSchoolPresence(t, db),
 		StudentRepo:        repos.Student,
 		PersonRepo:         repos.Person,
 		TeacherRepo:        repos.Teacher,
@@ -290,6 +338,46 @@ func TestBroadcast_EndActivitySessionSendsBoundedRefreshes(t *testing.T) {
 	assert.Equal(t, "activity_ended", *refreshes[1].Event.Data.Reason)
 	assert.Empty(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged),
 		"batch checkout and activity end must not emit separate supervision refreshes")
+}
+
+// TestBroadcast_EndActivitySessionEmitsActivityEndOnServeRole reproduces
+// #2951. The service runs on the least-privilege phoenix_auth pool, the same
+// identity the HTTP server uses. That role has no privileges outside a
+// SET ROLE transaction, so a repository lookup from inside the after-commit
+// hook failed with "permission denied for schema active" and activity_end
+// was never sent. Every lookup the event needs has to happen inside the
+// ending transaction; only the emission may run after the commit.
+func TestBroadcast_EndActivitySessionEmitsActivityEndOnServeRole(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	serveDB := testpkg.SetupServeTestDB(t)
+	t.Cleanup(func() { assert.NoError(t, serveDB.Close()) })
+	svc, broadcaster := newServiceWithBroadcaster(t, serveDB, testSchoolPresence(t, serveDB))
+
+	room := testpkg.CreateTestRoom(t, db, "Serve Role End Room")
+	activityGroup := testpkg.CreateTestActivityGroup(t, db, "serve-role-end")
+	session := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
+	student := testpkg.CreateTestStudent(t, db, "Serve", "RoleEnd", "3a")
+	testpkg.CreateTestVisit(t, db, student.ID, session.ID, time.Now(), nil)
+
+	ctx := tenant.WithUnitOfWork(context.Background(), testpkg.TenantRuntime(t, serveDB))
+	ctx = tenant.WithTenantID(ctx, testpkg.Tenant(t))
+	broadcaster.Reset()
+
+	require.NoError(t, svc.EndActivitySession(ctx, session.ID))
+
+	ends := broadcaster.EventsOfType(realtime.EventActivityEnd)
+	require.Len(t, ends, 1, "activity_end must reach the SSE client after the commit")
+	require.NotNil(t, ends[0].Data.ActivityName)
+	require.NotNil(t, ends[0].Data.RoomName)
+	assert.Equal(t, activityGroup.Name, *ends[0].Data.ActivityName)
+	assert.Equal(t, room.Name, *ends[0].Data.RoomName)
+	assert.Equal(t, strconv.FormatInt(session.ID, 10), ends[0].ActiveGroupID)
+
+	refreshes := tenantCallsOfType(broadcaster, realtime.EventDashboardCountsChanged)
+	require.Len(t, refreshes, 2, "batch checkout and activity end each emit one refresh")
+	assert.Equal(t, "activity_ended", *refreshes[1].Event.Data.Reason)
 }
 
 // TestBroadcast_EndActivitySessionBatchesCheckouts verifies the issue #848 fix:
@@ -469,9 +557,8 @@ func assignStudentToEducationGroup(tb testing.TB, db *bun.DB, ctx context.Contex
 
 // checkOutFixturedStudent opens an attendance row for the student and closes it
 // through the real checkout path, so the roomless broadcast under test is the
-// one production emits. Returns nothing — the assertions read the broadcaster.
-// Returns the cleanup to defer.
-func checkOutFixturedStudent(t *testing.T, db *bun.DB, svc active.Service, studentID int64, label string) func() {
+// one production emits. The package clone owns the fixture rows.
+func checkOutFixturedStudent(t *testing.T, db *bun.DB, svc active.Service, studentID int64, label string) {
 	t.Helper()
 
 	staff := testpkg.CreateTestStaff(t, db, "Broadcast", "Staff"+label)
@@ -482,7 +569,6 @@ func checkOutFixturedStudent(t *testing.T, db *bun.DB, svc active.Service, stude
 	_, err := svc.CheckOutStudent(testpkg.Ctx(t), studentID, staff.ID, true)
 	require.NoError(t, err)
 
-	return func() { testpkg.CleanupActivityFixtures(t, db, staff.ID, iotDevice.ID) }
 }
 
 // TestBroadcast_RoomlessCheckoutSendsDashboardCounts covers the scope fallback:
@@ -497,7 +583,7 @@ func TestBroadcast_RoomlessCheckoutSendsDashboardCounts(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, db, "Broadcast", "RoomlessCheckout", "3a")
 
-	defer checkOutFixturedStudent(t, db, svc, student.ID, "NoGroup")()
+	checkOutFixturedStudent(t, db, svc, student.ID, "NoGroup")
 
 	counts := tenantCallsOfType(broadcaster, realtime.EventDashboardCountsChanged)
 	require.Len(t, counts, 1, "expected dashboard_counts_changed after the checkout")
@@ -515,7 +601,7 @@ func TestBroadcast_RoomlessCheckoutCarriesEducationGroupID(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Broadcast", "RoomlessCheckoutGrp", "3b")
 	assignStudentToEducationGroup(t, db, context.Background(), student.ID, eduGroup.ID)
 
-	defer checkOutFixturedStudent(t, db, svc, student.ID, "WithGroup")()
+	checkOutFixturedStudent(t, db, svc, student.ID, "WithGroup")
 
 	eduGroupIDStr := strconv.FormatInt(eduGroup.ID, 10)
 	counts := tenantCallsOfType(broadcaster, realtime.EventDashboardCountsChanged)
@@ -560,7 +646,7 @@ func TestBroadcast_TenantWideEventsCarryNoStudentIdentity(t *testing.T) {
 	studentIDStr := strconv.FormatInt(student.ID, 10)
 
 	// --- check-in -----------------------------------------------------------
-	visit := &activeModels.Visit{
+	visit := &studentpresence.Visit{
 		StudentID:     student.ID,
 		ActiveGroupID: activeGroup.ID,
 		EntryTime:     time.Now(),

@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { setTestClock } from "~/test/clock";
 
 // The date fields moved from native inputs to the kit picker; this stub keeps
 // them settable via fireEvent.change and forwards min/max so the bound
@@ -141,8 +142,7 @@ describe("StaffCalendarPage", () => {
     // The page derives its week from `new Date()`; pin the clock into the
     // fixture week so events fall in the visible range (Date only, so waitFor's
     // real timers keep working). Fake the clock BEFORE any render.
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date(2026, 0, 7));
+    setTestClock(new Date(2026, 0, 7));
     mockCalendarSWR();
     mockUseSession.mockReturnValue({
       data: { user: { permissions: ["calendar:own", "calendar:manage"] } },
@@ -154,8 +154,48 @@ describe("StaffCalendarPage", () => {
     mockMutate.mockResolvedValue(undefined);
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
+  it("shows the personal calendar subscription below the calendar", () => {
+    render(<StaffCalendarPage />);
+
+    expect(
+      screen.getByRole("heading", { name: "Kalender abonnieren" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Neue, geänderte und abgesagte Termine/),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the calendar subscription available when the calendar fails", () => {
+    mockUseSWRAuth.mockImplementation((key: unknown) => {
+      const cacheKey = typeof key === "string" ? key : "";
+      if (cacheKey.startsWith("calendar-recipient-options")) {
+        return { data: recipientOptions, isLoading: false };
+      }
+      if (cacheKey.startsWith("staff-calendar")) {
+        return {
+          data: undefined,
+          error: new Error("calendar failed"),
+          isLoading: false,
+          mutate: mockMutate,
+        };
+      }
+      return {
+        data: undefined,
+        error: null,
+        isLoading: false,
+        mutate: vi.fn(),
+      };
+    });
+
+    render(<StaffCalendarPage />);
+
+    expect(
+      screen.getByRole("heading", { name: "Kalender abonnieren" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("calendar failed")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Keine Einträge in dieser Woche."),
+    ).not.toBeInTheDocument();
   });
 
   it("edits a recurring appointment using the series base date, not the clicked occurrence", async () => {
@@ -219,7 +259,7 @@ describe("StaffCalendarPage", () => {
     });
 
     // This fixture's occurrence sits in the week of 2026-01-19.
-    vi.setSystemTime(new Date(2026, 0, 21));
+    setTestClock(new Date(2026, 0, 21));
     render(<StaffCalendarPage />);
 
     // Management actions now live in the event detail sheet: open it first.
@@ -312,9 +352,80 @@ describe("StaffCalendarPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Termin speichern" }));
 
     expect(mockCreateStaffAppointment).not.toHaveBeenCalled();
-    expect(mockToastWarning).toHaveBeenCalledWith(
+    // Bauart 2 Regel 5 (#3113): der Fehler steht im Alert oben im Panel,
+    // nicht als Toast.
+    expect(await screen.findByRole("alert")).toHaveTextContent(
       "Bitte mindestens ein Ziel auswählen.",
     );
+    expect(mockToastWarning).not.toHaveBeenCalled();
+  });
+
+  it("scrolls the alert into view on every failed attempt, even with the same message", async () => {
+    const scrollIntoView = vi.fn();
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scrollIntoView;
+    try {
+      render(<StaffCalendarPage />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Neuer Termin" }));
+      fireEvent.change(screen.getByLabelText("Titel"), {
+        target: { value: "Ohne Ziel" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Termin speichern" }));
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Bitte mindestens ein Ziel auswählen.",
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Termin speichern" }));
+
+      await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(2));
+      expect(mockCreateStaffAppointment).not.toHaveBeenCalled();
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
+  });
+
+  it("marks a missing title at the field and in the alert", async () => {
+    render(<StaffCalendarPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Neuer Termin" }));
+    // Leerzeichen kommen an `required` vorbei, nicht am Handler.
+    fireEvent.change(screen.getByLabelText("Titel"), {
+      target: { value: "   " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Termin speichern" }));
+
+    expect(mockCreateStaffAppointment).not.toHaveBeenCalled();
+    // Zwei Alerts: der Panel-Alert oben und die Feldmeldung am Titel.
+    const alerts = await screen.findAllByRole("alert");
+    expect(alerts).toHaveLength(2);
+    for (const alert of alerts) {
+      expect(alert).toHaveTextContent("Bitte einen Titel eintragen.");
+    }
+    expect(screen.getByLabelText("Titel")).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+    expect(mockToastWarning).not.toHaveBeenCalled();
+  });
+
+  it("keeps a failed save in the panel with the reason on top", async () => {
+    mockCreateStaffAppointment.mockRejectedValueOnce(
+      new Error("Der Termin überschneidet sich."),
+    );
+    render(<StaffCalendarPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Neuer Termin" }));
+    fireEvent.change(screen.getByLabelText("Titel"), {
+      target: { value: "Teamsitzung" },
+    });
+    fireEvent.click(screen.getByLabelText("Anna Mitarbeiterin"));
+    fireEvent.click(screen.getByRole("button", { name: "Termin speichern" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Der Termin überschneidet sich.",
+    );
+    expect(screen.getByLabelText("Titel")).toHaveValue("Teamsitzung");
+    expect(mockToastError).not.toHaveBeenCalled();
   });
 
   it("requires both dates before creating an appointment", async () => {
@@ -331,9 +442,10 @@ describe("StaffCalendarPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Termin speichern" }));
 
     expect(mockCreateStaffAppointment).not.toHaveBeenCalled();
-    expect(mockToastWarning).toHaveBeenCalledWith(
+    expect(await screen.findByRole("alert")).toHaveTextContent(
       "Bitte Start- und Enddatum angeben.",
     );
+    expect(mockToastWarning).not.toHaveBeenCalled();
   });
 
   // Eine Kalenderfläche (#2283): Nicht-Admins mit schedules:read bekommen
@@ -399,6 +511,54 @@ describe("StaffCalendarPage", () => {
         screen.getByRole("tab", { name: "Meine Termine" }),
       ).toHaveAttribute("aria-selected", "true"),
     );
+  });
+
+  // #2957: Tab von Hand wählen, Termin öffnen, Termin schließen — die Fläche
+  // darf dabei nicht auf "Meine Termine" zurückspringen. Das Schließen räumt
+  // `block` ab; ohne den beim Tab-Wechsel gesetzten Tag stünde die URL danach
+  // ohne Plan-Parameter da.
+  it("hält den Betreuungsplan-Tab über Öffnen und Schließen eines Termins (#2957)", async () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { permissions: ["calendar:own", "schedules:read"] } },
+      status: "authenticated",
+    });
+    window.history.replaceState(null, "", "/acme/kalender");
+    mockUseSearchParams.mockImplementation(
+      () => new URLSearchParams(window.location.search),
+    );
+
+    const { rerender } = render(<StaffCalendarPage />);
+
+    // Die Seitenreiter des Tenant-Gerüsts sind einfache Buttons (click),
+    // keine Radix-Tabs mehr (mousedown).
+    fireEvent.click(screen.getByRole("tab", { name: "Betreuungsplan" }));
+    rerender(<StaffCalendarPage />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("tab", { name: "Betreuungsplan" }),
+      ).toHaveAttribute("aria-selected", "true"),
+    );
+    const dayParam = new URLSearchParams(window.location.search).get("d");
+    expect(dayParam).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+
+    // Termin öffnen: der Betreuungsplan schreibt `block` dazu.
+    window.history.replaceState(null, "", `?d=${dayParam}&block=42`);
+    rerender(<StaffCalendarPage />);
+    expect(screen.getByRole("tab", { name: "Betreuungsplan" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    // Termin schließen: `block` verschwindet, der Tag bleibt.
+    window.history.replaceState(null, "", `?d=${dayParam}`);
+    rerender(<StaffCalendarPage />);
+
+    expect(screen.getByRole("tab", { name: "Betreuungsplan" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(new URLSearchParams(window.location.search).get("d")).toBe(dayParam);
   });
 
   it("clears Plan-Parameter when switching to Meine Termine", () => {

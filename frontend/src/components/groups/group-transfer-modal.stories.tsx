@@ -28,19 +28,11 @@ const group = {
 const availableUsers = [
   {
     id: "user-1",
-    personId: "person-1",
-    firstName: "Anna",
-    lastName: "Schmidt",
     fullName: "Anna Schmidt",
-    email: "anna.schmidt@example.com",
   },
   {
     id: "user-2",
-    personId: "person-2",
-    firstName: "Max",
-    lastName: "Mustermann",
     fullName: "Max Mustermann",
-    email: "max.mustermann@example.com",
   },
 ];
 

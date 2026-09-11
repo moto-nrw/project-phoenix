@@ -166,13 +166,9 @@ describe("timetableOperationsApi", () => {
     );
 
     const body = {
-      date: "2026-05-11",
-      start_time: "14:00",
-      end_time: "15:00",
       title: "Freispiel",
       room_id: 7,
       staff_ids: [11, 12],
-      student_ids: [],
     };
     const result = await timetableOperationsApi.createAndStartSpontaneous(body);
 

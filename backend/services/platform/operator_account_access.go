@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sort"
 	"strings"
 
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
@@ -411,6 +412,10 @@ func (s *operatorProvisioningService) loadAccountTenantAccess(ctx context.Contex
 	if err != nil {
 		return nil, err
 	}
+	rows, err = s.enrichAccountTenantOrganizations(ctx, rows)
+	if err != nil {
+		return nil, err
+	}
 
 	rolesByTenant, err := s.rolesByTenant(ctx, accountID)
 	if err != nil {
@@ -426,6 +431,44 @@ func (s *operatorProvisioningService) loadAccountTenantAccess(ctx context.Contex
 		entries = append(entries, AccountTenantAccessEntry{AccountTenantAccessInfo: row, Roles: roles})
 	}
 	return entries, nil
+}
+
+func (s *operatorProvisioningService) enrichAccountTenantOrganizations(ctx context.Context, rows []authModels.AccountTenantAccessInfo) ([]authModels.AccountTenantAccessInfo, error) {
+	organizationIDs := make([]int64, 0, len(rows))
+	seenOrganizationIDs := make(map[int64]struct{}, len(rows))
+	for _, row := range rows {
+		if _, seen := seenOrganizationIDs[row.OrganizationID]; !seen {
+			seenOrganizationIDs[row.OrganizationID] = struct{}{}
+			organizationIDs = append(organizationIDs, row.OrganizationID)
+		}
+	}
+	organizations, err := s.Organizations.ListOrganizationsByID(ctx, organizationIDs)
+	if err != nil {
+		return nil, fmt.Errorf("load organizations for account tenant access: %w", err)
+	}
+	organizationNames := make(map[int64]string, len(organizations))
+	organizationRanks := make(map[int64]int, len(organizations))
+	rank := -1
+	previousName := ""
+	for index, organization := range organizations {
+		if index == 0 || organization.Name != previousName {
+			rank++
+			previousName = organization.Name
+		}
+		organizationNames[organization.ID] = organization.Name
+		organizationRanks[organization.ID] = rank
+	}
+	for index := range rows {
+		name, found := organizationNames[rows[index].OrganizationID]
+		if !found {
+			return nil, fmt.Errorf("organization %d missing from account tenant access query", rows[index].OrganizationID)
+		}
+		rows[index].OrganizationName = name
+	}
+	sort.SliceStable(rows, func(left, right int) bool {
+		return organizationRanks[rows[left].OrganizationID] < organizationRanks[rows[right].OrganizationID]
+	})
+	return rows, nil
 }
 
 // rolesByTenant groups an account's role assignments by school. The context

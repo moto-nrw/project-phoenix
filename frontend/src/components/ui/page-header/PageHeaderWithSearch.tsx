@@ -11,7 +11,7 @@ import React, {
 import { useScrollY } from "~/lib/hooks/use-scroll-y";
 import { useViewportAtLeast } from "~/lib/hooks/use-viewport-at-least";
 import { PageHeader } from "./PageHeader";
-import { SearchBar } from "./SearchBar";
+import { SearchBarDraftProvider, SharedSearchBar } from "./SearchBar";
 import { DesktopFilters } from "./DesktopFilters";
 import { FilterButton } from "./FilterButton";
 import { FilterPanel } from "./FilterPanel";
@@ -36,6 +36,7 @@ const EMPTY_FILTERS: NonNullable<PageHeaderWithSearchProps["filters"]> = [];
 const EMPTY_ACTIVE_FILTERS: NonNullable<
   PageHeaderWithSearchProps["activeFilters"]
 > = [];
+const NOOP_SEARCH_CHANGE = () => {};
 
 export function PageHeaderWithSearch({
   title,
@@ -59,6 +60,7 @@ export function PageHeaderWithSearch({
   filterSections,
   desktopFiltersFrom = "lg",
   className = "",
+  embedded = false,
 }: Readonly<PageHeaderWithSearchProps>) {
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
   const [isDesktopFiltersOpen, setIsDesktopFiltersOpen] = useState(false);
@@ -127,97 +129,106 @@ export function PageHeaderWithSearch({
   ]);
 
   return (
-    <div className={className}>
-      {/* Title + Badge + Mobile Action Button (only when title exists) */}
-      {title && (
-        <PageHeader
-          title={title}
-          concept={concept}
-          badge={badge}
-          statusIndicator={statusIndicator}
-          helpTopic={helpTopic}
-          actionButton={mobileActionButton ?? actionButton}
-          overflowMenu={overflowMenu}
-        />
-      )}
+    <SearchBarDraftProvider
+      value={search?.value ?? ""}
+      onChange={search?.onChange ?? NOOP_SEARCH_CHANGE}
+      debounceMs={search?.debounceMs}
+      resetKey={search?.resetKey}
+    >
+      <div className={className}>
+        {/* Title + Badge + Mobile Action Button (only when title exists) */}
+        {title && (
+          <PageHeader
+            title={title}
+            concept={concept}
+            badge={badge}
+            statusIndicator={statusIndicator}
+            helpTopic={helpTopic}
+            actionButton={mobileActionButton ?? actionButton}
+            overflowMenu={overflowMenu}
+          />
+        )}
 
-      {/* Tabs + Badge/ActionButton inline (when tabs exist) */}
-      {(tabs ?? tabsRowAction) && (
-        <TabsSection
-          tabs={tabs}
-          hasTitle={hasTitle}
-          actionButton={actionButton}
-          mobileActionButton={mobileActionButton}
-          tabsRowAction={tabsRowAction}
-          statusIndicator={statusIndicator}
-          badge={badge}
-          overflowMenu={overflowMenu}
-          helpTopic={hasTitle ? undefined : helpTopic}
-        />
-      )}
+        {/* Tabs + Badge/ActionButton inline (when tabs exist) */}
+        {(tabs ?? tabsRowAction) && (
+          <TabsSection
+            tabs={tabs}
+            hasTitle={hasTitle}
+            actionButton={actionButton}
+            mobileActionButton={mobileActionButton}
+            tabsRowAction={tabsRowAction}
+            statusIndicator={statusIndicator}
+            badge={badge}
+            overflowMenu={overflowMenu}
+            helpTopic={hasTitle ? undefined : helpTopic}
+          />
+        )}
 
-      {/* Mobile/Tablet Search & Filters. Hidden at the breakpoint where
+        {/* Mobile/Tablet Search & Filters. Hidden at the breakpoint where
           the desktop inline-filter layout takes over. Tailwind needs both
           `lg:hidden` and `xl:hidden` literally present in the source for
           the JIT scanner to include them — hence the static map. */}
-      <MobileSearchSection
-        search={search}
-        filters={filters}
-        hasFilters={hasFilters}
-        hasActiveFilters={hasActiveFilters}
-        isMobileFiltersOpen={isMobileFiltersOpen}
-        setIsMobileFiltersOpen={setIsMobileFiltersOpen}
-        hasTabs={hasTabs}
-        hasTitle={hasTitle}
-        mobileActionButton={mobileActionButton ?? actionButton}
-        statusIndicator={statusIndicator}
-        badge={badge}
-        activeFilters={activeFilters}
-        onClearAllFilters={onClearAllFilters}
-        isScrolled={isScrolled}
-        compactOnScroll={compactOnScroll}
-        activeFilterCountForBadge={
-          showFilterCountBadge ? activeFilterCount : undefined
-        }
-        showChipsRow={showChipsRow}
-        filterVariant={filterVariant}
-        filterSections={filterSections}
-        hideClass={desktopFiltersFrom === "xl" ? "xl:hidden" : "lg:hidden"}
-      />
+        <MobileSearchSection
+          embedded={embedded}
+          search={search}
+          filters={filters}
+          hasFilters={hasFilters}
+          hasActiveFilters={hasActiveFilters}
+          isMobileFiltersOpen={isMobileFiltersOpen}
+          setIsMobileFiltersOpen={setIsMobileFiltersOpen}
+          hasTabs={hasTabs}
+          hasTitle={hasTitle}
+          mobileActionButton={mobileActionButton ?? actionButton}
+          statusIndicator={statusIndicator}
+          badge={badge}
+          activeFilters={activeFilters}
+          onClearAllFilters={onClearAllFilters}
+          isScrolled={isScrolled}
+          compactOnScroll={compactOnScroll}
+          activeFilterCountForBadge={
+            showFilterCountBadge ? activeFilterCount : undefined
+          }
+          showChipsRow={showChipsRow}
+          filterVariant={filterVariant}
+          filterSections={filterSections}
+          hideClass={desktopFiltersFrom === "xl" ? "xl:hidden" : "lg:hidden"}
+        />
 
-      {/* Desktop Search & Filters. Default kicks in at `lg` (1024px); pages
+        {/* Desktop Search & Filters. Default kicks in at `lg` (1024px); pages
           with many filters can opt into `xl` (1280px) so iPad-class
           viewports use the sheet pattern instead of overflowing inline. */}
-      <DesktopSearchSection
-        search={search}
-        filters={filters}
-        hasFilters={hasFilters}
-        hasTabs={hasTabs}
-        hasTitle={hasTitle}
-        isDesktopFiltersOpen={isDesktopFiltersOpen}
-        setIsDesktopFiltersOpen={setIsDesktopFiltersOpen}
-        actionButton={actionButton}
-        statusIndicator={statusIndicator}
-        badge={badge}
-        activeFilters={activeFilters}
-        onClearAllFilters={onClearAllFilters}
-        // Render the kebab in the desktop search row only when there are no
-        // tabs — when tabs exist the menu already lives in TabsSection.
-        overflowMenu={hasTabs ? undefined : overflowMenu}
-        primaryAction={primaryAction}
-        isScrolled={isScrolled}
-        compactOnScroll={compactOnScroll}
-        activeFilterCountForBadge={
-          showFilterCountBadge ? activeFilterCount : undefined
-        }
-        showChipsRow={showChipsRow}
-        filterVariant={filterVariant}
-        filterSections={filterSections}
-        showClass={
-          desktopFiltersFrom === "xl" ? "hidden xl:block" : "hidden lg:block"
-        }
-      />
-    </div>
+        <DesktopSearchSection
+          embedded={embedded}
+          search={search}
+          filters={filters}
+          hasFilters={hasFilters}
+          hasTabs={hasTabs}
+          hasTitle={hasTitle}
+          isDesktopFiltersOpen={isDesktopFiltersOpen}
+          setIsDesktopFiltersOpen={setIsDesktopFiltersOpen}
+          actionButton={actionButton}
+          statusIndicator={statusIndicator}
+          badge={badge}
+          activeFilters={activeFilters}
+          onClearAllFilters={onClearAllFilters}
+          // Render the kebab in the desktop search row only when there are no
+          // tabs — when tabs exist the menu already lives in TabsSection.
+          overflowMenu={hasTabs ? undefined : overflowMenu}
+          primaryAction={primaryAction}
+          isScrolled={isScrolled}
+          compactOnScroll={compactOnScroll}
+          activeFilterCountForBadge={
+            showFilterCountBadge ? activeFilterCount : undefined
+          }
+          showChipsRow={showChipsRow}
+          filterVariant={filterVariant}
+          filterSections={filterSections}
+          showClass={
+            desktopFiltersFrom === "xl" ? "hidden xl:block" : "hidden lg:block"
+          }
+        />
+      </div>
+    </SearchBarDraftProvider>
   );
 }
 
@@ -326,6 +337,7 @@ function TabsSection({
 }
 
 interface MobileSearchSectionProps {
+  readonly embedded: boolean;
   readonly search?: PageHeaderWithSearchProps["search"];
   readonly filters: NonNullable<PageHeaderWithSearchProps["filters"]>;
   readonly hasFilters: boolean;
@@ -355,6 +367,7 @@ interface MobileSearchSectionProps {
 }
 
 function MobileSearchSection({
+  embedded,
   search,
   filters,
   hasFilters,
@@ -402,13 +415,13 @@ function MobileSearchSection({
     : "";
 
   return (
-    <div className={hideClass}>
+    <div className={`${hideClass} ${embedded ? "[&>*:last-child]:mb-0" : ""}`}>
       {search && (
         <div
           className={`mb-3 flex items-center gap-2 ${compactWrapper}`}
           style={{ transformOrigin: "top right" }}
         >
-          <SearchBar {...search} className="min-w-0 flex-1" size="sm" />
+          <SharedSearchBar {...search} className="min-w-0 flex-1" size="sm" />
 
           {hasFilters && (
             <div ref={filterButtonRef} className="flex-shrink-0">
@@ -468,6 +481,7 @@ function MobileSearchSection({
 }
 
 interface DesktopSearchSectionProps {
+  readonly embedded: boolean;
   readonly search?: PageHeaderWithSearchProps["search"];
   readonly filters: NonNullable<PageHeaderWithSearchProps["filters"]>;
   readonly hasFilters: boolean;
@@ -497,6 +511,7 @@ interface DesktopSearchSectionProps {
 }
 
 function DesktopSearchSection({
+  embedded,
   search,
   filters,
   hasFilters,
@@ -611,7 +626,7 @@ function DesktopSearchSection({
       className="flex min-w-0 flex-1 items-center gap-3"
     >
       {search && (
-        <SearchBar {...search} className="min-w-48 flex-1" size="md" />
+        <SharedSearchBar {...search} className="min-w-48 flex-1" size="md" />
       )}
       {desktopFilterButton}
     </div>
@@ -623,7 +638,9 @@ function DesktopSearchSection({
   // consumers).
   if (hasPrimaryAction) {
     return (
-      <div className={`mb-6 ${showClass}`}>
+      <div
+        className={`${embedded ? "[&>*:last-child]:mb-0" : "mb-6"} ${showClass}`}
+      >
         {/* Row 1: search + popover filter left, primary action right */}
         {(search !== undefined || desktopFilterButton || hasPrimaryAction) && (
           <div
@@ -633,13 +650,16 @@ function DesktopSearchSection({
             {showFilterPopover
               ? popoverSearchCluster
               : search && (
-                  <SearchBar
+                  <SharedSearchBar
                     {...search}
                     className="min-w-48 flex-1"
                     size="md"
                   />
                 )}
             <div className="ml-auto flex flex-shrink-0 items-center gap-2">
+              {badge ? (
+                <InlineStatusBadge badge={badge} variant="desktop" />
+              ) : null}
               {primaryAction}
               {kebabJoinsPrimaryRow ? (
                 <OverflowMenu items={overflowMenu} />
@@ -657,7 +677,7 @@ function DesktopSearchSection({
             activeFilterCountForBadge !== undefined &&
             activeFilterCountForBadge > 0 ? (
               <span
-                className="inline-flex h-6 items-center gap-1.5 rounded-full bg-blue-50 px-2.5 text-xs font-semibold text-blue-700 ring-1 ring-blue-200 ring-inset"
+                className="bg-moto-blue-soft text-moto-blue-strong ring-moto-blue/20 inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold ring-1 ring-inset"
                 aria-label={`${activeFilterCountForBadge} Filter aktiv`}
               >
                 <span className="tabular-nums">
@@ -672,7 +692,7 @@ function DesktopSearchSection({
               hasTitle={hasTitle}
               actionButton={actionButton}
               statusIndicator={statusIndicator}
-              badge={badge}
+              badge={undefined}
             />
 
             {hasOverflowMenu && !kebabJoinsPrimaryRow ? (
@@ -698,7 +718,9 @@ function DesktopSearchSection({
     hasFilters || hasActionContent ? "min-w-48 max-w-96 flex-1" : "flex-1";
 
   return (
-    <div className={`mb-6 ${showClass}`}>
+    <div
+      className={`${embedded ? "[&>*:last-child]:mb-0" : "mb-6"} ${showClass}`}
+    >
       {showSearchRow && (
         <div
           className={`mb-3 flex flex-wrap items-center gap-3 ${compactWrapper}`}
@@ -709,7 +731,11 @@ function DesktopSearchSection({
           ) : (
             <>
               {search && (
-                <SearchBar {...search} className={searchBarClass} size="md" />
+                <SharedSearchBar
+                  {...search}
+                  className={searchBarClass}
+                  size="md"
+                />
               )}
               {inlineDesktopFilters}
             </>
@@ -719,7 +745,7 @@ function DesktopSearchSection({
           activeFilterCountForBadge !== undefined &&
           activeFilterCountForBadge > 0 ? (
             <span
-              className="inline-flex h-6 items-center gap-1.5 rounded-full bg-blue-50 px-2.5 text-xs font-semibold text-blue-700 ring-1 ring-blue-200 ring-inset"
+              className="bg-moto-blue-soft text-moto-blue-strong ring-moto-blue/20 inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold ring-1 ring-inset"
               aria-label={`${activeFilterCountForBadge} Filter aktiv`}
             >
               <span className="tabular-nums">{activeFilterCountForBadge}</span>

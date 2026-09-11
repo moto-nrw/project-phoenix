@@ -4,8 +4,9 @@ import (
 	"context"
 	"testing"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 )
 
 // schoolClassSettingsStub is a minimal RequestSettingsResolver that only
@@ -41,8 +42,8 @@ func (s schoolClassSettingsStub) ResolveInt(context.Context, string) (int, error
 
 func classPtr(s string) *string { return &s }
 
-func phaseWithClasses(classes []string, require bool) *enrollmentModels.Phase {
-	return &enrollmentModels.Phase{
+func phaseWithClasses(classes []string, require bool) *capability.Phase {
+	return &capability.Phase{
 		AvailableSchoolClasses: classes,
 		RequireSchoolClass:     require,
 	}
@@ -56,7 +57,7 @@ func TestValidateAndNormalizeSchoolClasses(t *testing.T) {
 	tests := []struct {
 		name      string
 		collect   bool
-		phase     *enrollmentModels.Phase
+		phase     *capability.Phase
 		child     SubmitChild
 		wantErr   bool
 		wantClass *string // expected normalized TargetSchoolClass
@@ -209,27 +210,27 @@ func TestDecisionService_ResolveSchoolClass(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		child *enrollmentModels.RequestChild
+		child *RequestChild
 		want  string
 	}{
 		{
 			name:  "concrete class wins over grade",
-			child: &enrollmentModels.RequestChild{TargetGradeLevel: grade(2), TargetSchoolClass: classPtr("2a")},
+			child: &RequestChild{TargetGradeLevel: grade(2), TargetSchoolClass: classPtr("2a")},
 			want:  "2a",
 		},
 		{
 			name:  "empty concrete falls back to grade number",
-			child: &enrollmentModels.RequestChild{TargetGradeLevel: grade(3), TargetSchoolClass: classPtr("  ")},
+			child: &RequestChild{TargetGradeLevel: grade(3), TargetSchoolClass: classPtr("  ")},
 			want:  "3",
 		},
 		{
 			name:  "nil concrete falls back to grade number",
-			child: &enrollmentModels.RequestChild{TargetGradeLevel: grade(1)},
+			child: &RequestChild{TargetGradeLevel: grade(1)},
 			want:  "1",
 		},
 		{
 			name:  "no grade and no class yields neutral placeholder",
-			child: &enrollmentModels.RequestChild{},
+			child: &RequestChild{},
 			want:  "offen",
 		},
 	}
@@ -250,73 +251,73 @@ func TestDecisionService_ResolveRolloverSchoolClass(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		child         *enrollmentModels.RequestChild
+		child         *RequestChild
 		existingClass string
 		want          string
 	}{
 		{
 			name:          "carried concrete class wins",
-			child:         &enrollmentModels.RequestChild{TargetGradeLevel: grade(3), TargetSchoolClass: classPtr("3a")},
+			child:         &RequestChild{TargetGradeLevel: grade(3), TargetSchoolClass: classPtr("3a")},
 			existingClass: "2a",
 			want:          "3a",
 		},
 		{
 			name:          "bare placeholder re-derives to bumped grade",
-			child:         &enrollmentModels.RequestChild{TargetGradeLevel: grade(2)},
+			child:         &RequestChild{TargetGradeLevel: grade(2)},
 			existingClass: "1",
 			want:          "2",
 		},
 		{
 			name:          "empty placeholder re-derives to grade",
-			child:         &enrollmentModels.RequestChild{TargetGradeLevel: grade(2)},
+			child:         &RequestChild{TargetGradeLevel: grade(2)},
 			existingClass: "",
 			want:          "2",
 		},
 		{
 			name:          "open placeholder re-derives to newly collected grade",
-			child:         &enrollmentModels.RequestChild{TargetGradeLevel: grade(2)},
+			child:         &RequestChild{TargetGradeLevel: grade(2)},
 			existingClass: "offen",
 			want:          "2",
 		},
 		{
 			name:          "stale concrete class from old grade falls back to placeholder on grade bump",
-			child:         &enrollmentModels.RequestChild{TargetGradeLevel: grade(3)},
+			child:         &RequestChild{TargetGradeLevel: grade(3)},
 			existingClass: "2a",
 			want:          "3",
 		},
 		{
 			name:          "concrete class already matching target grade is kept",
-			child:         &enrollmentModels.RequestChild{TargetGradeLevel: grade(3)},
+			child:         &RequestChild{TargetGradeLevel: grade(3)},
 			existingClass: "3b",
 			want:          "3b",
 		},
 		{
 			name:          "concrete class kept on half-year rollover (no grade change)",
-			child:         &enrollmentModels.RequestChild{TargetGradeLevel: grade(2)},
+			child:         &RequestChild{TargetGradeLevel: grade(2)},
 			existingClass: "2a",
 			want:          "2a",
 		},
 		{
 			name:          "named class without numeric prefix is left untouched",
-			child:         &enrollmentModels.RequestChild{TargetGradeLevel: grade(3)},
+			child:         &RequestChild{TargetGradeLevel: grade(3)},
 			existingClass: "Bienen",
 			want:          "Bienen",
 		},
 		{
 			name:          "nil target grade keeps existing concrete class",
-			child:         &enrollmentModels.RequestChild{},
+			child:         &RequestChild{},
 			existingClass: "2a",
 			want:          "2a",
 		},
 		{
 			name:          "zero target grade keeps existing concrete class",
-			child:         &enrollmentModels.RequestChild{TargetGradeLevel: grade(0)},
+			child:         &RequestChild{TargetGradeLevel: grade(0)},
 			existingClass: "2a",
 			want:          "2a",
 		},
 		{
 			name:          "nil target grade keeps existing bare placeholder",
-			child:         &enrollmentModels.RequestChild{},
+			child:         &RequestChild{},
 			existingClass: "2",
 			want:          "2",
 		},

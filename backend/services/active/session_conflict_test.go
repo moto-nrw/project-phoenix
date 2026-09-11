@@ -17,7 +17,6 @@
 //	  activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity")
 //	  device := testpkg.CreateTestDevice(t, db, "device-id")
 //	  room := testpkg.CreateTestRoom(t, db, "Room Name")
-//	  defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID)
 //
 //	ACT: Perform the operation under test
 //	  session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{1}, &room.ID)
@@ -39,7 +38,6 @@
 //   - Each helper returns the created entity with its real database ID
 //
 //     2. Automatic Cleanup: Always defer cleanup immediately after fixture creation:
-//     defer testpkg.CleanupActivityFixtures(t, db, fixture1.ID, fixture2.ID, ...)
 //     This ensures cleanup happens even if the test panics
 //
 // 3. Foreign Key Relationships: Fixtures handle relationships automatically:
@@ -58,7 +56,6 @@
 //	    activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity")
 //	    device := testpkg.CreateTestDevice(t, db, "test-device-001")
 //	    room := testpkg.CreateTestRoom(t, db, "Test Room")
-//	    defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID)
 //
 //	    // ACT: Call the code under test
 //	    session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{1}, &room.ID)
@@ -76,7 +73,6 @@
 //	testpkg.CreateTestActivityGroup(t, db, "name") *activities.Group
 //	testpkg.CreateTestDevice(t, db, "device-id") *iot.Device
 //	testpkg.CreateTestRoom(t, db, "room-name") *facilities.Room
-//	testpkg.CleanupActivityFixtures(t, db, ids...) - cleans up any combination of fixtures
 //
 // # EXTENDING FIXTURES
 //
@@ -84,7 +80,7 @@
 // 1. Create a public function that creates a real database record
 // 2. Use require.NoError() to assert creation succeeded
 // 3. Return the created entity with its real database ID
-// 4. Add cleanup logic to CleanupActivityFixtures()
+// 4. Keep fixture rows tenant-owned so clone disposal removes them
 package active_test
 
 import (
@@ -107,10 +103,11 @@ import (
 )
 
 // setupActiveService creates an active service with real database connection
-func setupActiveService(t *testing.T, db *bun.DB) activeSvc.Service {
-	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default()) // Pass db as second parameter
+func setupActiveService(t *testing.T, db *bun.DB, clocks ...func() time.Time) activeSvc.Service {
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default(), clocks...) // Pass db as second parameter
 	require.NoError(t, err, "Failed to create service factory")
+	testpkg.SetTenantRuntime(t, serviceFactory.Active, db)
 	return serviceFactory.Active
 }
 
@@ -501,7 +498,7 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		visit := testpkg.CreateTestVisit(t, db, student.ID, session1.ID, time.Now().Add(-15*time.Minute), nil)
 		activeGroupID := session1.ID
 		mirroredInstance := &scheduleModels.ActivityInstance{
-			Date:            timezone.TodayDate(),
+			Date:            scheduleModels.Date(timezone.TodayDate()),
 			ActivityGroupID: &activityGroup.ID,
 			Title:           "Force Transfer Activity",
 			StartTime:       time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC),
@@ -512,7 +509,7 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 			IsSpontaneous:   true,
 		}
 		mirroredInstance.SetTenantID(testpkg.Tenant(t))
-		require.NoError(t, repositories.NewFactory(db).ActivityInstance.Create(ctx, mirroredInstance))
+		require.NoError(t, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActivityInstance.Create(ctx, mirroredInstance))
 
 		// ACT: Force-start the same activity on device 2
 		session2, err := service.ForceStartActivitySessionWithSupervisors(ctx, activityGroup.ID, device2.ID, []int64{newSupervisor.ID}, &room2.ID)
@@ -536,7 +533,7 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		assert.Equal(t, session2.ID, transferredVisit.ActiveGroupID, "expected active visit to move to new session")
 		assert.Nil(t, transferredVisit.ExitTime, "expected transferred visit to remain open")
 
-		completedMirror, err := repositories.NewFactory(db).ActivityInstance.FindByID(ctx, mirroredInstance.ID)
+		completedMirror, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActivityInstance.FindByID(ctx, mirroredInstance.ID)
 		require.NoError(t, err)
 		assert.Equal(t, scheduleModels.InstanceStatusCompleted, completedMirror.Status, "expected old timetable mirror to be completed")
 		assert.NotNil(t, completedMirror.CompletedAt, "expected completed mirror timestamp")
@@ -545,7 +542,7 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, oldActiveSupervisors, "expected old session to have no active supervisors")
 
-		allOldSupervisors, err := repositories.NewFactory(db).GroupSupervisor.FindByActiveGroupID(ctx, session1.ID, false)
+		allOldSupervisors, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSupervisor.FindByActiveGroupID(ctx, session1.ID, false)
 		require.NoError(t, err)
 		require.Len(t, allOldSupervisors, 1, "expected old session supervisor history to be preserved")
 		assert.Equal(t, oldSupervisor.ID, allOldSupervisors[0].StaffID)
@@ -599,7 +596,7 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, oldActiveSupervisors, "expected old session to have no active supervisors")
 
-		allOldSupervisors, err := repositories.NewFactory(db).GroupSupervisor.FindByActiveGroupID(ctx, session1.ID, false)
+		allOldSupervisors, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSupervisor.FindByActiveGroupID(ctx, session1.ID, false)
 		require.NoError(t, err)
 		require.Len(t, allOldSupervisors, 1, "expected supervisor row to remain on old session")
 		assert.Equal(t, staff.ID, allOldSupervisors[0].StaffID)

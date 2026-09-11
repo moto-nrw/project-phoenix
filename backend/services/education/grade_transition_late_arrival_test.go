@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -65,7 +64,7 @@ func TestGradeTransitionService_Apply_RefusesChildAddedAfterCohortSnapshot(t *te
 
 	var lateID int64
 	repo := &lateArrivalRepo{
-		GradeTransitionRepository: educationRepo.NewGradeTransitionRepository(db),
+		GradeTransitionRepository: newGradeTransitionRepository(t, db),
 		afterSnapshot: func() {
 			late := testpkg.CreateTestStudent(t, db, "Late", "Arrival", gradClass)
 			lateID = late.ID
@@ -93,7 +92,7 @@ func TestGradeTransitionService_Apply_RefusesChildAddedAfterCohortSnapshot(t *te
 	assertStudentStatus(t, db, present.ID, users.StudentStatusActive)
 	assertStudentStatus(t, db, lateID, users.StudentStatusActive)
 
-	fresh, err := educationRepo.NewGradeTransitionRepository(db).FindByID(ctx, transition.ID)
+	fresh, err := newGradeTransitionRepository(t, db).FindByID(ctx, transition.ID)
 	require.NoError(t, err)
 	assert.Equal(t, educationModels.TransitionStatusDraft, fresh.Status)
 

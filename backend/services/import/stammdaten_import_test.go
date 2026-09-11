@@ -28,7 +28,7 @@ import (
 
 func newStammdatenStaffConfig(t *testing.T, db *bun.DB, invitations authsvc.InvitationService) (*StaffImportConfig, *repositories.Factory) {
 	t.Helper()
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	config := NewStaffImportConfig(StaffImportDeps{
 		InvitationService: invitations,
 		InvitationRepo:    repos.InvitationToken,
@@ -297,7 +297,7 @@ func TestMapGuardianRole(t *testing.T) {
 
 func newStammdatenStudentConfig(t *testing.T, db *bun.DB) (*StudentImportConfig, *repositories.Factory) {
 	t.Helper()
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	config := NewStudentImportConfig(StudentImportDeps{
 		PersonRepo:          repos.Person,
 		StudentRepo:         repos.Student,

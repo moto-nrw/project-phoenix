@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
@@ -77,55 +79,55 @@ func TestFilterCheckedInStudents_NilValue(t *testing.T) {
 func TestExtractActiveGroupIDs_Empty(t *testing.T) {
 	t.Parallel()
 
-	result := extractActiveGroupIDs(map[int64]*activeModels.Visit{})
+	result := (&StudentLocationSnapshot{Visits: map[int64]*studentpresence.Visit{}}).ActiveGroupIDs()
 	assert.Empty(t, result)
 }
 
 func TestExtractActiveGroupIDs_AllWithGroups(t *testing.T) {
 	t.Parallel()
 
-	visits := map[int64]*activeModels.Visit{
+	visits := map[int64]*studentpresence.Visit{
 		1: {ActiveGroupID: 100},
 		2: {ActiveGroupID: 200},
 		3: {ActiveGroupID: 300},
 	}
-	result := extractActiveGroupIDs(visits)
+	result := (&StudentLocationSnapshot{Visits: visits}).ActiveGroupIDs()
 	assert.Len(t, result, 3)
 }
 
 func TestExtractActiveGroupIDs_DuplicateGroups(t *testing.T) {
 	t.Parallel()
 
-	visits := map[int64]*activeModels.Visit{
+	visits := map[int64]*studentpresence.Visit{
 		1: {ActiveGroupID: 100},
 		2: {ActiveGroupID: 100}, // Same group
 		3: {ActiveGroupID: 200},
 	}
-	result := extractActiveGroupIDs(visits)
+	result := (&StudentLocationSnapshot{Visits: visits}).ActiveGroupIDs()
 	assert.Len(t, result, 2) // Only unique group IDs
 }
 
 func TestExtractActiveGroupIDs_ZeroGroupID(t *testing.T) {
 	t.Parallel()
 
-	visits := map[int64]*activeModels.Visit{
+	visits := map[int64]*studentpresence.Visit{
 		1: {ActiveGroupID: 100},
 		2: {ActiveGroupID: 0}, // Zero should be skipped
 		3: {ActiveGroupID: 200},
 	}
-	result := extractActiveGroupIDs(visits)
+	result := (&StudentLocationSnapshot{Visits: visits}).ActiveGroupIDs()
 	assert.Len(t, result, 2)
 }
 
 func TestExtractActiveGroupIDs_NilVisit(t *testing.T) {
 	t.Parallel()
 
-	visits := map[int64]*activeModels.Visit{
+	visits := map[int64]*studentpresence.Visit{
 		1: {ActiveGroupID: 100},
 		2: nil, // Nil should be skipped
 		3: {ActiveGroupID: 200},
 	}
-	result := extractActiveGroupIDs(visits)
+	result := (&StudentLocationSnapshot{Visits: visits}).ActiveGroupIDs()
 	assert.Len(t, result, 2)
 }
 
@@ -170,10 +172,10 @@ func TestCoalesceMap_BothNil(t *testing.T) {
 func TestCoalesceVisitMap_NonNilPrimary(t *testing.T) {
 	t.Parallel()
 
-	primary := map[int64]*activeModels.Visit{
+	primary := map[int64]*studentpresence.Visit{
 		1: {StudentID: 1},
 	}
-	fallback := map[int64]*activeModels.Visit{
+	fallback := map[int64]*studentpresence.Visit{
 		2: {StudentID: 2},
 	}
 	result := coalesce(primary, fallback)
@@ -183,7 +185,7 @@ func TestCoalesceVisitMap_NonNilPrimary(t *testing.T) {
 func TestCoalesceVisitMap_NilPrimary(t *testing.T) {
 	t.Parallel()
 
-	fallback := map[int64]*activeModels.Visit{
+	fallback := map[int64]*studentpresence.Visit{
 		2: {StudentID: 2},
 	}
 	result := coalesce(nil, fallback)
@@ -193,7 +195,7 @@ func TestCoalesceVisitMap_NilPrimary(t *testing.T) {
 func TestCoalesceVisitMap_BothNil(t *testing.T) {
 	t.Parallel()
 
-	result := coalesce[int64, *activeModels.Visit](nil, nil)
+	result := coalesce[int64, *studentpresence.Visit](nil, nil)
 	assert.Nil(t, result)
 }
 
@@ -239,7 +241,7 @@ func TestCoalesceGroupMap_BothNil(t *testing.T) {
 func TestNewEmptyLocationSnapshot(t *testing.T) {
 	t.Parallel()
 
-	snapshot := newEmptyLocationSnapshot(PresenceModeDetailed)
+	snapshot := activeService.NewStudentLocationSnapshot(PresenceModeDetailed)
 
 	assert.NotNil(t, snapshot)
 	assert.Equal(t, PresenceModeDetailed, snapshot.Mode)
@@ -254,14 +256,14 @@ func TestNewEmptyLocationSnapshot(t *testing.T) {
 func TestNewEmptyLocationSnapshot_BinaryMode(t *testing.T) {
 	t.Parallel()
 
-	snapshot := newEmptyLocationSnapshot(PresenceModeBinary)
+	snapshot := activeService.NewStudentLocationSnapshot(PresenceModeBinary)
 	assert.Equal(t, PresenceModeBinary, snapshot.Mode)
 }
 
 func TestNewEmptyLocationSnapshot_EmptyModeDefaultsToDetailed(t *testing.T) {
 	t.Parallel()
 
-	snapshot := newEmptyLocationSnapshot("")
+	snapshot := activeService.NewStudentLocationSnapshot("")
 	assert.Equal(t, PresenceModeDetailed, snapshot.Mode)
 }
 

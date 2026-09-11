@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
@@ -149,20 +151,26 @@ type CareOfferingMaterializationResourceValidator interface {
 // CareOfferingPhaseValidator protects phase service-window updates. Changing
 // the window changes the occurrence set every linked offering must cover.
 type CareOfferingPhaseValidator interface {
-	ValidatePhaseChange(ctx context.Context, phaseID int64, replacement *enrollmentModels.Phase) error
+	ValidatePhaseChange(ctx context.Context, phaseID int64, replacement *enrollmentOwner.Phase) error
 }
 
 // CareOfferingServiceConfig is the dep-injection bundle.
+type OfferingBookingReader interface {
+	OfferingGradeCounts(context.Context, []int64, enrollmentOwner.Date, enrollmentOwner.Date) ([]*enrollmentOwner.OfferingGradeCount, error)
+	OfferingCapacityPeaks(context.Context, []int64, enrollmentOwner.Date, enrollmentOwner.Date) (map[int64]int, error)
+	MaterializableOfferingCount(context.Context, int64, enrollmentOwner.Date) (int, error)
+}
+
 type CareOfferingServiceConfig struct {
-	Repo                     enrollmentModels.CareOfferingRepository
-	RequestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
-	ActivityGroupRepo        activitiesModels.GroupRepository
-	ActivityScheduleRepo     activitiesModels.ScheduleRepository
-	CalendarPeriodRepo       scheduleModels.CalendarPeriodRepository
-	TimeframeRepo            scheduleModels.TimeframeRepository
-	ActivityExceptionRepo    scheduleModels.ActivityExceptionRepository
-	PhaseRepo                enrollmentModels.PhaseRepository
-	Settings                 interface {
+	Repo                  enrollmentModels.CareOfferingRepository
+	Bookings              OfferingBookingReader
+	ActivityGroupRepo     activitiesModels.GroupRepository
+	ActivityScheduleRepo  activitiesModels.ScheduleRepository
+	CalendarPeriodRepo    scheduleModels.CalendarPeriodRepository
+	TimeframeRepo         scheduleModels.TimeframeRepository
+	ActivityExceptionRepo scheduleModels.ActivityExceptionRepository
+	Phases                PhaseBatchReader
+	Settings              interface {
 		ResolveInt(context.Context, string) (int, error)
 	}
 	// LockTemplateRecurrence serializes link validation/writes with template
@@ -170,6 +178,7 @@ type CareOfferingServiceConfig struct {
 	// tenant recurrence gate; focused service tests may leave it nil.
 	LockTemplateRecurrence func(context.Context) error
 	Logger                 *slog.Logger
+	Today                  func() timezone.Date
 }
 
 // CareOfferingSourcedTemplateResyncer re-reconciles the rosters of every
@@ -208,6 +217,13 @@ type careOfferingService struct {
 	CareOfferingServiceConfig
 	sourcedTemplateResyncer CareOfferingSourcedTemplateResyncer
 	pickupResyncer          CareOfferingPickupResyncer
+}
+
+func (s *careOfferingService) todayDate() timezone.Date {
+	if s.Today != nil {
+		return s.Today()
+	}
+	return timezone.TodayDate()
 }
 
 // SetSourcedTemplateResyncer implements CareOfferingSourceResyncBinder.
@@ -544,7 +560,7 @@ func resolveCareOfferingLinkedGroupsForPhase(
 	ctx context.Context,
 	deps careOfferingTemplateDeps,
 	activityGroupID int64,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentOwner.Phase,
 ) ([]linkedCareOfferingGroup, error) {
 	group, period, err := resolveCareOfferingLinkedGroupPeriod(ctx, deps, activityGroupID)
 	if err != nil {
@@ -587,7 +603,7 @@ func resolveCareOfferingSeriesSegment(
 	root *activitiesModels.Group,
 	rootPeriod *scheduleModels.CalendarPeriod,
 	segment *activitiesModels.Group,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentOwner.Phase,
 ) (linkedCareOfferingGroup, bool, error) {
 	if segment == nil {
 		return linkedCareOfferingGroup{}, false, nil
@@ -619,7 +635,7 @@ func resolveCareOfferingSeriesSegment(
 
 func validateCareOfferingTemplateSegments(
 	segments []linkedCareOfferingGroup,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentOwner.Phase,
 	days []string,
 	requireActivePeriod bool,
 ) error {
@@ -658,12 +674,12 @@ func parseCareOfferingWeekdays(days []string) (map[int]bool, error) {
 
 func validateCareOfferingWeekdayCoverage(
 	segments []linkedCareOfferingGroup,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentOwner.Phase,
 	weekday int,
 	requireActivePeriod bool,
 ) error {
 	occurrences := 0
-	for date := phase.ServiceStartDate; !date.After(phase.ServiceEndDate); date = date.AddDays(1) {
+	for date := timezone.Date(phase.ServiceStartDate); !date.After(timezone.Date(phase.ServiceEndDate)); date = date.AddDays(1) {
 		if careOfferingISOWeekday(date) != weekday {
 			continue
 		}
@@ -760,11 +776,11 @@ func resolveCareOfferingLinkedGroupPeriod(
 	return group, period, nil
 }
 
-func validatePhaseWithinTemplatePeriod(phase *enrollmentModels.Phase, period *scheduleModels.CalendarPeriod) error {
+func validatePhaseWithinTemplatePeriod(phase *enrollmentOwner.Phase, period *scheduleModels.CalendarPeriod) error {
 	if phase == nil || period == nil {
 		return nil
 	}
-	if phase.ServiceStartDate.Before(period.StartDate) || phase.ServiceEndDate.After(period.EndDate) {
+	if timezone.Date(phase.ServiceStartDate).Before(timezone.Date(period.StartDate)) || timezone.Date(phase.ServiceEndDate).After(timezone.Date(period.EndDate)) {
 		return wrapCareOfferingInvalid(ErrCareOfferingTemplatePeriodMismatch, "linked timetable template period does not contain the enrollment phase")
 	}
 	return nil
@@ -784,10 +800,10 @@ func (s *careOfferingService) validateLinkedTemplate(ctx context.Context, offeri
 	if _, err := resolveCareOfferingTemplatePeriod(ctx, deps, *offering.ActivityGroupID); err != nil {
 		return err
 	}
-	if s.PhaseRepo == nil {
+	if s.Phases == nil {
 		return errors.New("phase validation dependency is not configured")
 	}
-	phase, err := s.PhaseRepo.FindByID(ctx, offering.PhaseID)
+	phase, err := s.Phases.Phase(ctx, offering.PhaseID)
 	if err != nil {
 		if modelBase.IsNoRows(err) {
 			return careOfferingInvalidf("phase_id does not reference a phase in this tenant")
@@ -807,7 +823,7 @@ func (s *careOfferingService) validateLinkedTemplate(ctx context.Context, offeri
 func (s *careOfferingService) validateLinkedTemplateForMaterialization(
 	ctx context.Context,
 	offering *enrollmentModels.CareOffering,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentOwner.Phase,
 	deps careOfferingTemplateDeps,
 	requiresMaterialization bool,
 ) error {
@@ -849,10 +865,10 @@ func (s *careOfferingService) offeringRequiresMaterialization(
 	if offering.ID <= 0 {
 		return false, nil
 	}
-	if s.RequestChildOfferingRepo == nil {
+	if s.Bookings == nil {
 		return false, errors.New("request child offering repository is not configured")
 	}
-	count, err := s.RequestChildOfferingRepo.CountMaterializableByCareOffering(ctx, offering.ID)
+	count, err := s.Bookings.MaterializableOfferingCount(ctx, offering.ID, enrollmentOwner.Date(timezone.TodayDate()))
 	if err != nil {
 		return false, fmt.Errorf("count materializable care offering selections: %w", err)
 	}
@@ -877,10 +893,10 @@ func (s *careOfferingService) lockTemplateRecurrence(ctx context.Context) error 
 // single-source era, accepting it would persist a dead source with a
 // permanently empty roster.
 func (s *careOfferingService) ValidateTemplateOfferingSource(ctx context.Context, offeringIDs, storedOfferingIDs []int64, calendarPeriodID *int64) error {
-	if s.Repo == nil || s.PhaseRepo == nil || s.CalendarPeriodRepo == nil {
+	if s.Repo == nil || s.Phases == nil || s.CalendarPeriodRepo == nil {
 		return errors.New("offering source validation dependencies are not configured")
 	}
-	_, _, dropped, err := loadValidatedOfferingSources(ctx, s.Repo, s.PhaseRepo, s.CalendarPeriodRepo, offeringIDs, calendarPeriodID, false)
+	_, _, dropped, err := loadValidatedOfferingSources(ctx, s.Repo, s.Phases, s.CalendarPeriodRepo, offeringIDs, calendarPeriodID, false)
 	if err != nil {
 		return err
 	}
@@ -911,7 +927,7 @@ func (s *careOfferingService) ValidateTemplateSeries(ctx context.Context, groupI
 	if groupID <= 0 {
 		return careOfferingInvalidf("template group id must be positive")
 	}
-	if s.ActivityGroupRepo == nil || s.Repo == nil || s.PhaseRepo == nil {
+	if s.ActivityGroupRepo == nil || s.Repo == nil || s.Phases == nil {
 		return errors.New("care offering series validation dependencies are not configured")
 	}
 	series, err := s.ActivityGroupRepo.FindTemplateSeries(ctx, groupID)
@@ -932,7 +948,7 @@ func (s *careOfferingService) ValidateTemplateSeries(ctx context.Context, groupI
 		activityScheduleRepo: s.ActivityScheduleRepo,
 		calendarPeriodRepo:   s.CalendarPeriodRepo,
 	}
-	phases := make(map[int64]*enrollmentModels.Phase)
+	phases := make(map[int64]*enrollmentOwner.Phase)
 	for _, offering := range offerings {
 		if err := s.validateTemplateSeriesOffering(ctx, deps, phases, offering); err != nil {
 			return err
@@ -958,7 +974,7 @@ func careOfferingSeriesGroupIDs(groupID int64, series []*activitiesModels.Group)
 func (s *careOfferingService) validateTemplateSeriesOffering(
 	ctx context.Context,
 	deps careOfferingTemplateDeps,
-	phases map[int64]*enrollmentModels.Phase,
+	phases map[int64]*enrollmentOwner.Phase,
 	offering *enrollmentModels.CareOffering,
 ) error {
 	if offering == nil || offering.ActivityGroupID == nil {
@@ -997,13 +1013,13 @@ func (s *careOfferingService) validateTemplateSeriesOffering(
 
 func (s *careOfferingService) careOfferingSeriesPhase(
 	ctx context.Context,
-	phases map[int64]*enrollmentModels.Phase,
+	phases map[int64]*enrollmentOwner.Phase,
 	offering *enrollmentModels.CareOffering,
-) (*enrollmentModels.Phase, error) {
+) (*enrollmentOwner.Phase, error) {
 	if phase := phases[offering.PhaseID]; phase != nil {
 		return phase, nil
 	}
-	phase, err := s.PhaseRepo.FindByID(ctx, offering.PhaseID)
+	phase, err := s.Phases.Phase(ctx, offering.PhaseID)
 	if err != nil {
 		if modelBase.IsNoRows(err) {
 			return nil, careOfferingInvalidf("care offering %d references an unavailable phase", offering.ID)
@@ -1140,7 +1156,7 @@ func (s *careOfferingService) resyncSourcedTemplates(ctx context.Context, offeri
 			slog.Int64("offering_id", offeringID))
 		return nil
 	}
-	if err := s.sourcedTemplateResyncer.ResyncTemplatesSourcedFromOffering(ctx, offeringID, timezone.TodayDate()); err != nil {
+	if err := s.sourcedTemplateResyncer.ResyncTemplatesSourcedFromOffering(ctx, offeringID, s.todayDate()); err != nil {
 		if errors.Is(err, scheduleService.ErrOfferingSourceInvalid) {
 			// TenantTxMiddleware commits ordinary 4xx responses. Mark the
 			// ambient transaction so the already-written offering update is
@@ -1185,7 +1201,7 @@ func (s *careOfferingService) detachSourcedTemplates(ctx context.Context, offeri
 			slog.Int64("offering_id", offeringID))
 		return nil
 	}
-	if err := s.sourcedTemplateResyncer.DetachTemplatesSourcedFromOffering(ctx, offeringID, timezone.TodayDate()); err != nil {
+	if err := s.sourcedTemplateResyncer.DetachTemplatesSourcedFromOffering(ctx, offeringID, s.todayDate()); err != nil {
 		return fmt.Errorf("care offering delete: detach sourced templates: %w", err)
 	}
 	return nil
@@ -1242,7 +1258,7 @@ func (s *careOfferingService) Clone(ctx context.Context, sourceID int64, targetP
 	return &clone, nil
 }
 
-// bookingStatsWindow is the half-open date range ListBookingStats counts in.
+// bookingStatsWindowOn is the half-open date range ListBookingStats counts in.
 // It reproduces applyCapacityOverflowCore's window so the displayed occupancy
 // is the same number the capacity gate will apply at save time: from today
 // (or the phase start, if the phase has not begun) through the last service
@@ -1251,18 +1267,17 @@ func (s *careOfferingService) Clone(ctx context.Context, sourceID int64, targetP
 // A phase whose service window has already ended would otherwise yield an
 // empty range. Rather than reporting a meaningless zero, the window collapses
 // onto the final service day so the dialog shows the phase's end state.
-func bookingStatsWindow(phase *enrollmentModels.Phase) (from, until timezone.Date) {
-	today := timezone.TodayDate()
-	if phase == nil || phase.ServiceEndDate.IsZero() {
+func bookingStatsWindowOn(phase *enrollmentOwner.Phase, today timezone.Date) (from, until timezone.Date) {
+	if phase == nil || timezone.Date(phase.ServiceEndDate).IsZero() {
 		return today, today.AddDays(1)
 	}
 	from = today
-	if phase.ServiceStartDate.After(from) {
-		from = phase.ServiceStartDate
+	if timezone.Date(phase.ServiceStartDate).After(from) {
+		from = timezone.Date(phase.ServiceStartDate)
 	}
-	until = phase.ServiceEndDate.AddDays(1)
+	until = timezone.Date(phase.ServiceEndDate).AddDays(1)
 	if !from.Before(until) {
-		return phase.ServiceEndDate, phase.ServiceEndDate.AddDays(1)
+		return timezone.Date(phase.ServiceEndDate), timezone.Date(phase.ServiceEndDate).AddDays(1)
 	}
 	return from, until
 }
@@ -1271,13 +1286,13 @@ func (s *careOfferingService) ListBookingStats(ctx context.Context, phaseID int6
 	if phaseID <= 0 {
 		return nil, careOfferingInvalidf("phase_id must be positive")
 	}
-	if s.RequestChildOfferingRepo == nil {
+	if s.Bookings == nil {
 		return nil, errors.New("request child offering repository is not configured")
 	}
-	if s.PhaseRepo == nil {
+	if s.Phases == nil {
 		return nil, errors.New("phase repository is not configured")
 	}
-	phase, err := s.PhaseRepo.FindByID(ctx, phaseID)
+	phase, err := s.Phases.Phase(ctx, phaseID)
 	if err != nil {
 		if modelBase.IsNoRows(err) {
 			return nil, careOfferingInvalidf("phase does not exist")
@@ -1293,12 +1308,12 @@ func (s *careOfferingService) ListBookingStats(ctx context.Context, phaseID int6
 		return stats, nil
 	}
 
-	from, until := bookingStatsWindow(phase)
+	from, until := bookingStatsWindowOn(phase, s.todayDate())
 	ids := make([]int64, 0, len(offerings))
 	for _, offering := range offerings {
 		ids = append(ids, offering.ID)
 	}
-	gradeCounts, err := s.RequestChildOfferingRepo.CountActiveGradeLevelsByCareOfferingIDs(ctx, ids, from, until)
+	gradeCounts, err := s.Bookings.OfferingGradeCounts(ctx, ids, enrollmentOwner.Date(from), enrollmentOwner.Date(until))
 	if err != nil {
 		return nil, fmt.Errorf("booking stats: count grade levels: %w", err)
 	}
@@ -1318,7 +1333,7 @@ func (s *careOfferingService) ListBookingStats(ctx context.Context, phaseID int6
 		grades[row.CareOfferingID][int(*row.GradeLevel)] += row.Count
 	}
 
-	peaks, err := s.RequestChildOfferingRepo.CountMaxActiveByCareOfferingIDsInRange(ctx, ids, from, until)
+	peaks, err := s.Bookings.OfferingCapacityPeaks(ctx, ids, enrollmentOwner.Date(from), enrollmentOwner.Date(until))
 	if err != nil {
 		return nil, fmt.Errorf("booking stats: count peak occupancy: %w", err)
 	}
@@ -1371,16 +1386,24 @@ func (s *careOfferingService) CloneCatalogForRollover(ctx context.Context, sourc
 	for _, source := range sources {
 		sourceByID[source.ID] = source
 	}
+	missingIDs := make([]int64, 0)
 	for _, offeringID := range carriedOfferingIDs {
-		if _, ok := sourceByID[offeringID]; ok {
-			continue
+		if sourceByID[offeringID] == nil {
+			missingIDs = append(missingIDs, offeringID)
 		}
-		source, findErr := s.Repo.FindByID(ctx, offeringID)
-		if findErr != nil {
-			return nil, fmt.Errorf("rollover catalog clone: load carried offering %d: %w", offeringID, findErr)
-		}
+	}
+	carried, err := s.Repo.ListByIDs(ctx, missingIDs)
+	if err != nil {
+		return nil, fmt.Errorf("rollover catalog clone: load carried offerings: %w", err)
+	}
+	for _, source := range carried {
 		sources = append(sources, source)
-		sourceByID[offeringID] = source
+		sourceByID[source.ID] = source
+	}
+	for _, offeringID := range missingIDs {
+		if sourceByID[offeringID] == nil {
+			return nil, fmt.Errorf("rollover catalog clone: carried offering %d not found", offeringID)
+		}
 	}
 	if err := validateCatalogGroupRuleConsistency(sources); err != nil {
 		return nil, fmt.Errorf("rollover catalog clone: %w", err)
@@ -1473,10 +1496,10 @@ func (s *careOfferingService) validateRolloverCloneLinkedGroup(ctx context.Conte
 	if group == nil || !group.IsTemplate {
 		return nil
 	}
-	if s.PhaseRepo == nil {
+	if s.Phases == nil {
 		return errors.New("phase validation dependency is not configured")
 	}
-	phase, err := s.PhaseRepo.FindByID(ctx, clone.PhaseID)
+	phase, err := s.Phases.Phase(ctx, clone.PhaseID)
 	if err != nil {
 		if modelBase.IsNoRows(err) {
 			return careOfferingInvalidf("phase_id does not reference a phase in this tenant")

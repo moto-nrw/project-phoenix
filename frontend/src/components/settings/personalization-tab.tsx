@@ -9,6 +9,7 @@ import { useToast } from "~/contexts/ToastContext";
 import { sessionFetch } from "~/lib/session-cache";
 import { loginImageSrc } from "~/lib/tenant-api";
 import { createLogger } from "~/lib/logger";
+import { SectionCard } from "~/components/ui/section-card";
 
 const logger = createLogger({ component: "PersonalizationTab" });
 
@@ -184,16 +185,15 @@ export function PersonalizationTab() {
 
   return (
     <div className="space-y-6">
-      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur sm:p-6">
-        <h3 className="mb-1 text-base font-semibold text-gray-900">
-          Login-Seite
-        </h3>
-        <p className="mb-4 text-sm text-gray-500">
-          {canEdit
+      <SectionCard
+        headingLevel={3}
+        title="Login-Seite"
+        description={
+          canEdit
             ? "Laden Sie ein eigenes Bild hoch, das auf der Login-Seite Ihrer Einrichtung angezeigt wird."
-            : "Das aktuelle Bild wird auf der Login-Seite Ihrer Einrichtung angezeigt."}
-        </p>
-
+            : "Das aktuelle Bild wird auf der Login-Seite Ihrer Einrichtung angezeigt."
+        }
+      >
         {/* Current image preview */}
         {isLoading ? (
           <div className="flex h-[120px] items-center justify-center rounded-xl border border-gray-100 bg-gray-50">
@@ -214,7 +214,7 @@ export function PersonalizationTab() {
                 type="button"
                 onClick={handleDelete}
                 disabled={isDeleting}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-600 shadow-sm transition-colors hover:bg-red-50 disabled:opacity-50"
+                className="border-moto-red/20 text-moto-red hover:bg-moto-red-soft inline-flex items-center gap-1.5 rounded-lg border bg-white px-3 py-1.5 text-sm font-medium shadow-sm transition-colors disabled:opacity-50"
               >
                 {isDeleting ? "Wird entfernt…" : "Bild entfernen"}
               </button>
@@ -240,7 +240,7 @@ export function PersonalizationTab() {
             <fieldset
               className={`relative m-0 rounded-xl border-2 border-dashed p-4 text-center transition-all duration-300 sm:p-8 ${
                 isDragging
-                  ? "border-green-500 bg-green-50"
+                  ? "border-moto-green bg-moto-green-soft"
                   : "border-gray-300 bg-gray-50 hover:border-gray-400"
               }`}
               onDragEnter={handleDragEnter}
@@ -256,12 +256,12 @@ export function PersonalizationTab() {
                 onClick={handleZoneClick}
                 onKeyDown={handleKeyDown}
                 aria-label="Bild hochladen — ziehen Sie eine Datei hierher oder klicken Sie zum Auswählen"
-                className="absolute inset-0 z-10 cursor-pointer rounded-xl bg-transparent focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:outline-none"
+                className="focus:ring-moto-green absolute inset-0 z-10 cursor-pointer rounded-xl bg-transparent focus:ring-2 focus:ring-offset-2 focus:outline-none"
               />
 
               {isUploading ? (
                 <div className="pointer-events-none flex flex-col items-center gap-3">
-                  <div className="h-10 w-10 animate-spin rounded-full border-4 border-gray-300 border-t-green-600" />
+                  <div className="border-t-moto-green h-10 w-10 animate-spin rounded-full border-4 border-gray-300" />
                   <p className="text-sm text-gray-600">
                     Bild wird hochgeladen…
                   </p>
@@ -269,7 +269,7 @@ export function PersonalizationTab() {
               ) : (
                 <div className="pointer-events-none flex flex-col items-center gap-3">
                   <ImageUp
-                    className={`h-12 w-12 transition-colors ${isDragging ? "text-green-500" : "text-gray-400"}`}
+                    className={`h-12 w-12 transition-colors ${isDragging ? "text-moto-green" : "text-gray-400"}`}
                     strokeWidth={1.5}
                     aria-hidden
                   />
@@ -294,7 +294,7 @@ export function PersonalizationTab() {
             </fieldset>
           </div>
         )}
-      </div>
+      </SectionCard>
     </div>
   );
 }

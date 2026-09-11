@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect } from "react";
 import { ModalProvider } from "@/components/dashboard/modal-context";
 import { NotificationBridge } from "~/components/notifications/notification-bridge";
 import { ServiceWorkerRegistrar } from "~/components/notifications/service-worker-registrar";
 import { ToastProvider } from "~/contexts/ToastContext";
+import { schedulePostHogInitialization } from "~/lib/posthog-client";
 
 /**
  * Root providers — auth-free.
@@ -17,6 +19,8 @@ import { ToastProvider } from "~/contexts/ToastContext";
 export function Providers({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  useEffect(schedulePostHogInitialization, []);
+
   return (
     <ModalProvider>
       <ToastProvider>

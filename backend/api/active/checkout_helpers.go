@@ -10,9 +10,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/auth/device"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/services/usercontext"
 )
 
 // checkoutContext holds all context needed for a checkout operation
@@ -63,21 +63,17 @@ func (rs *Resource) getCheckoutContext(ctx context.Context, studentID int64) (*c
 // authorizeStudentCheckout verifies the user can checkout this student
 // Returns the staff record if authorized, error otherwise
 // Note: Any authenticated staff member can checkout any checked-in student
-func (rs *Resource) authorizeStudentCheckout(
-	ctx context.Context,
-	userClaims jwt.AppClaims,
-	_ *checkoutContext,
-) (*users.Staff, error) {
-	// Get person from account
-	person, err := rs.PersonService.FindByAccountID(ctx, int64(userClaims.ID))
-	if err != nil || person == nil {
+func (rs *Resource) authorizeStudentCheckout(ctx context.Context) (*users.Staff, error) {
+	staff, err := rs.UserContextService.GetCurrentStaff(ctx)
+	if err != nil {
+		if errors.Is(err, usercontext.ErrUserNotLinkedToPerson) ||
+			errors.Is(err, usercontext.ErrUserNotLinkedToStaff) {
+			return nil, ErrNotAuthorized
+		}
 		return nil, ErrStaffNotFound
 	}
-
-	// Get staff record - any staff member can checkout any student
-	staff, err := rs.PersonService.GetStaffByPersonID(ctx, person.ID)
-	if err != nil || staff == nil {
-		return nil, ErrStaffNotFound
+	if staff == nil {
+		return nil, ErrNotAuthorized
 	}
 
 	return staff, nil
@@ -90,7 +86,7 @@ func (rs *Resource) executeStudentCheckout(
 	checkoutCtx *checkoutContext,
 ) (*checkoutResult, error) {
 	// Embed staff in context for visit-end recording
-	actionCtx := context.WithValue(ctx, device.CtxStaff, staff)
+	actionCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
 
 	// Action-explicit, race-safe checkout (issue #895). The service closes
 	// the attendance row AND ends any open visit in the same request

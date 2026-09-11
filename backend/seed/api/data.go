@@ -7,6 +7,8 @@ type DemoRoom struct {
 	Capacity int
 	Building string // Building name: "Hauptgebäude", "Sporthalle", "Außenbereich"
 	Floor    *int   // Floor number: 0=EG, 1=1.OG, 2=2.OG, nil for outdoor
+	// IsOpenRoom releases the room permanently ("offener Raum", #3064).
+	IsOpenRoom bool
 }
 
 // DemoStaffMember represents a staff member to be created via API
@@ -56,20 +58,24 @@ var DemoRooms = []DemoRoom{
 	// Hauptgebäude - 1. Obergeschoss (First Floor)
 	{Name: "OGS-Raum 2", Category: "Gruppenraum", Capacity: 20, Building: "Hauptgebäude", Floor: floor(1)},
 	{Name: "OGS-Raum 3", Category: "Gruppenraum", Capacity: 18, Building: "Hauptgebäude", Floor: floor(1)},
-	{Name: "Kreativraum", Category: "Themenraum", Capacity: 20, Building: "Hauptgebäude", Floor: floor(1)},
+	// Released alongside the gym: #3062's own examples for an open room are a
+	// gym and a craft area, and the demo has to show more than one so the
+	// shared-room work has something to look at.
+	{Name: "Kreativraum", Category: "Themenraum", Capacity: 20, Building: "Hauptgebäude", Floor: floor(1), IsOpenRoom: true},
 	{Name: "Musikraum", Category: "Themenraum", Capacity: 15, Building: "Hauptgebäude", Floor: floor(1)},
 	// Hauptgebäude - 2. Obergeschoss (Second Floor)
 	{Name: "Werkraum", Category: "Themenraum", Capacity: 12, Building: "Hauptgebäude", Floor: floor(2)},
 	{Name: "Leseecke", Category: "Themenraum", Capacity: 10, Building: "Hauptgebäude", Floor: floor(2)},
 	// Sporthalle - Separate Building
-	{Name: "Sporthalle", Category: "Sport", Capacity: 40, Building: "Sporthalle", Floor: floor(0)},
+	{Name: "Sporthalle", Category: "Sport", Capacity: 40, Building: "Sporthalle", Floor: floor(0), IsOpenRoom: true},
 	{Name: "Bewegungsraum", Category: "Sport", Capacity: 15, Building: "Sporthalle", Floor: floor(0)},
-	// Note: Schulhof is auto-created as a system room by schulhof_service
+	// Note: Schulhof is auto-created as a system room by schulhof_service, and
+	// is released there — so the demo carries three open rooms in total.
 }
 
 // DemoStaff defines staff members for the demo environment
 // Position must match frontend dropdown values in teacher-form.tsx and invitation-form.tsx
-// Demo accounts: 10 OGS-Büro (admin) + 10 Pädagogische Fachkraft (betreuer)
+// Demo accounts: 10 OGS-Büro, 9 Pädagogische Fachkraft and 1 externer Gast.
 // All use email: demo{n}@mail.de and password: sdlXK26%
 var DemoStaff = []DemoStaffMember{
 	// 10 OGS-Büro accounts (admin role)
@@ -93,7 +99,7 @@ var DemoStaff = []DemoStaffMember{
 	{FirstName: "Birgit", LastName: "Braun", Position: "Pädagogische Fachkraft", IsTeacher: true},
 	{FirstName: "Jörg", LastName: "Krüger", Position: "Pädagogische Fachkraft", IsTeacher: true},
 	{FirstName: "Heike", LastName: "Hartmann", Position: "Pädagogische Fachkraft", IsTeacher: true},
-	{FirstName: "Uwe", LastName: "Lange", Position: "Pädagogische Fachkraft", IsTeacher: true},
+	{FirstName: "Uwe", LastName: "Lange", Position: "Extern", IsTeacher: false},
 }
 
 // DemoStudents defines the 100 students across 10 groups (10 each)
@@ -208,7 +214,7 @@ var DemoStudents = []DemoStudent{
 	{FirstName: "Robin", LastName: "Walther", Class: "Klasse 2b", GroupKey: "meeresgruppe"},
 	{FirstName: "Nina", LastName: "Weiß", Class: "Klasse 3b", GroupKey: "meeresgruppe"},
 
-	// Wiesengruppe (10 students) - Betreuer: Uwe Lange - Mix of Klasse 3a, 4b
+	// Wiesengruppe (10 students) - Betreuerin: Anna Müller - Mix of Klasse 3a, 4b
 	{FirstName: "Sebastian", LastName: "Wendt", Class: "Klasse 3a", GroupKey: "wiesengruppe"},
 	{FirstName: "Annika", LastName: "Winkler", Class: "Klasse 4b", GroupKey: "wiesengruppe"},
 	{FirstName: "Tobias", LastName: "Winter", Class: "Klasse 3a", GroupKey: "wiesengruppe"},

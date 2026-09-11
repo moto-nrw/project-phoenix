@@ -269,9 +269,9 @@ describe("RoomsMasterDetail", () => {
     // Detail header subtitle: buildRoomLocation returns
     // "Kein Standort hinterlegt" when both building and floor are absent.
     expect(screen.getByText("Kein Standort hinterlegt")).toBeInTheDocument();
-    // List-item subtitle: buildRoomSubtitle falls back to "—" when no location
+    // List-item subtitle: buildRoomSubtitle falls back to "–" when no location
     // and no category exists.
-    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.getByText("–")).toBeInTheDocument();
   });
 
   it("uses only the building when floor is undefined and only the floor when building is undefined", () => {

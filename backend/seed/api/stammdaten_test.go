@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,14 +11,14 @@ import (
 )
 
 // apiMock creates a mock server that responds to various seed API endpoints.
-func apiMock(t *testing.T) *httptest.Server {
+func apiMock(t *testing.T) *seedHTTPTestServer {
 	t.Helper()
 	idCounter := int64(0)
 
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		idCounter++
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(seedHTTPStatusOK)
 
 		switch r.URL.Path {
 		case "/auth/login":
@@ -88,7 +86,7 @@ func apiMock(t *testing.T) *httptest.Server {
 			}
 			_ = json.NewEncoder(w).Encode(resp)
 		}
-	}))
+	})
 }
 
 func TestFixedSeeder_FetchRoles(t *testing.T) {
@@ -189,6 +187,31 @@ func TestFixedSeeder_SeedGroups(t *testing.T) {
 	assert.Len(t, fs.groupIDs, 10)
 }
 
+func TestFixedSeeder_SeedGroupsAssignsWiesengruppeTeacher(t *testing.T) {
+	t.Parallel()
+
+	var wiesengruppeTeacherIDs []int64
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		var body struct {
+			Name       string  `json:"name"`
+			TeacherIDs []int64 `json:"teacher_ids"`
+		}
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		if body.Name == "Wiesengruppe" {
+			wiesengruppeTeacherIDs = body.TeacherIDs
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":1}}`)
+	})
+	defer srv.Close()
+
+	fs := NewFixedSeeder(newTestClient(srv.URL, false), false, "")
+	fs.teacherIDs["Anna Müller"] = 42
+
+	require.NoError(t, fs.seedGroups(context.Background(), &FixedResult{}))
+	assert.Equal(t, []int64{42}, wiesengruppeTeacherIDs)
+}
+
 func TestFixedSeeder_SeedStudents(t *testing.T) {
 	t.Parallel()
 
@@ -276,12 +299,12 @@ func TestFixedSeeder_FetchCategories(t *testing.T) {
 func TestFixedSeeder_FetchCategories_Empty(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, _ *seedHTTPRequest) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"status": "success",
 			"data":   []any{},
 		})
-	}))
+	})
 	defer srv.Close()
 
 	client := newTestClient(srv.URL, false)
@@ -535,7 +558,7 @@ func TestFixedSeeder_MarkStudentsSick(t *testing.T) {
 func TestFixedSeeder_GetCheckedInStudentIDs(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, _ *seedHTTPRequest) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"status": "success",
 			"data": []map[string]any{
@@ -544,7 +567,7 @@ func TestFixedSeeder_GetCheckedInStudentIDs(t *testing.T) {
 				{"student_id": 10},
 			},
 		})
-	}))
+	})
 	defer srv.Close()
 
 	client := newTestClient(srv.URL, false)
@@ -562,12 +585,12 @@ func TestFixedSeeder_GetCheckedInStudentIDs(t *testing.T) {
 func TestFixedSeeder_GetCheckedInStudentIDs_Empty(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, _ *seedHTTPRequest) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"status": "success",
 			"data":   []any{},
 		})
-	}))
+	})
 	defer srv.Close()
 
 	client := newTestClient(srv.URL, false)
@@ -665,10 +688,10 @@ func TestDemoData_Counts(t *testing.T) {
 func TestFixedSeeder_SeedRooms_APIError(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, _ *seedHTTPRequest) {
+		w.WriteHeader(seedHTTPStatusInternalServerError)
 		_, _ = fmt.Fprint(w, `{"error":"db error"}`)
-	}))
+	})
 	defer srv.Close()
 
 	client := newTestClient(srv.URL, false)
@@ -684,10 +707,10 @@ func TestFixedSeeder_SeedRooms_APIError(t *testing.T) {
 func TestFixedSeeder_SeedDevices_APIError(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, _ *seedHTTPRequest) {
+		w.WriteHeader(seedHTTPStatusInternalServerError)
 		_, _ = fmt.Fprint(w, `{"error":"db error"}`)
-	}))
+	})
 	defer srv.Close()
 
 	client := newTestClient(srv.URL, false)
@@ -703,10 +726,10 @@ func TestFixedSeeder_SeedDevices_APIError(t *testing.T) {
 func TestFixedSeeder_FetchRoles_APIError(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, _ *seedHTTPRequest) {
+		w.WriteHeader(seedHTTPStatusInternalServerError)
 		_, _ = fmt.Fprint(w, `{"error":"db error"}`)
-	}))
+	})
 	defer srv.Close()
 
 	client := newTestClient(srv.URL, false)
@@ -721,10 +744,10 @@ func TestFixedSeeder_FetchRoles_APIError(t *testing.T) {
 func TestFixedSeeder_FetchCategories_APIError(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, _ *seedHTTPRequest) {
+		w.WriteHeader(seedHTTPStatusInternalServerError)
 		_, _ = fmt.Fprint(w, `{"error":"db error"}`)
-	}))
+	})
 	defer srv.Close()
 
 	client := newTestClient(srv.URL, false)
@@ -745,12 +768,11 @@ func TestFixedSeeder_SeedGuardians_MissingStudentIndex(t *testing.T) {
 	client := newTestClient(srv.URL, false)
 	client.token = "test"
 
-	fs := NewFixedSeeder(client, true, "") // verbose to cover warning branch
+	fs := NewFixedSeeder(client, true, "")
 	// studentIDByIndex is empty, so no students can be linked
 	result := &FixedResult{}
 	err := fs.seedGuardians(context.TODO(), result)
-	require.NoError(t, err)
-	// Count should be 0 since no students were linkable
+	require.ErrorContains(t, err, "student index 0 not found")
 	assert.Equal(t, 0, result.GuardianCount)
 }
 
@@ -763,21 +785,21 @@ func TestFixedSeeder_EnrollStudents_MissingStudentID(t *testing.T) {
 	client := newTestClient(srv.URL, false)
 	client.token = "test"
 
-	fs := NewFixedSeeder(client, true, "") // verbose to cover warning branch
+	fs := NewFixedSeeder(client, true, "")
 	fs.activityIDs["Fußball"] = 100
 	// studentIDs is empty, so no students can be enrolled
 
 	err := fs.enrollStudents(context.TODO())
-	require.NoError(t, err)
+	require.ErrorContains(t, err, "student ID not found")
 }
 
 func TestFixedSeeder_SwitchToStaffAccount_LoginError(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusUnauthorized)
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, _ *seedHTTPRequest) {
+		w.WriteHeader(seedHTTPStatusUnauthorized)
 		_, _ = fmt.Fprint(w, `{"error":"bad creds"}`)
-	}))
+	})
 	defer srv.Close()
 
 	client := newTestClient(srv.URL, false)
@@ -794,10 +816,10 @@ func TestFixedSeeder_SwitchToStaffAccount_LoginError(t *testing.T) {
 func TestFixedSeeder_SeedRooms_InvalidResponseJSON(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, _ *seedHTTPRequest) {
+		w.WriteHeader(seedHTTPStatusOK)
 		_, _ = fmt.Fprint(w, `not json`)
-	}))
+	})
 	defer srv.Close()
 
 	client := newTestClient(srv.URL, false)
@@ -813,10 +835,10 @@ func TestFixedSeeder_SeedRooms_InvalidResponseJSON(t *testing.T) {
 func TestFixedSeeder_GetCheckedInStudentIDs_APIError(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, _ *seedHTTPRequest) {
+		w.WriteHeader(seedHTTPStatusInternalServerError)
 		_, _ = fmt.Fprint(w, `{"error":"db error"}`)
-	}))
+	})
 	defer srv.Close()
 
 	client := newTestClient(srv.URL, false)
@@ -877,7 +899,7 @@ func TestFixedSeeder_SeedPickupSchedules_EmptyStudents(t *testing.T) {
 
 	result := &FixedResult{}
 	err := fs.seedPickupSchedules(context.TODO(), result)
-	require.NoError(t, err)
+	require.ErrorContains(t, err, "student ID not found for pickup schedule")
 	assert.Equal(t, 0, result.PickupScheduleCount)
 }
 
@@ -891,7 +913,7 @@ func TestFixedSeeder_SeedClassArrivalTimes(t *testing.T) {
 			Time    string `json:"expected_arrival"`
 		} `json:"schedules"`
 	}
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		require.Equal(t, "POST", r.Method)
 		require.Equal(t, "/api/students/arrival-schedules/bulk", r.URL.Path)
 		request := struct {
@@ -904,7 +926,7 @@ func TestFixedSeeder_SeedClassArrivalTimes(t *testing.T) {
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		requests = append(requests, request)
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
-	}))
+	})
 	defer srv.Close()
 
 	client := newTestClient(srv.URL, false)

@@ -20,7 +20,7 @@ import (
 func TestCreateStudent_WithSchedules(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	// The schedule path stamps CreatedBy from the JWT, so the acting account
 	// must resolve to a staff record (account → person → staff).
@@ -92,7 +92,7 @@ func TestCreateStudent_WithSchedules(t *testing.T) {
 func TestCreateStudent_InvalidScheduleTimeRejected(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "BadTimeSchedule", "Creator")
 
@@ -150,7 +150,7 @@ func TestCreateStudent_InvalidScheduleTimeRejected(t *testing.T) {
 func TestCreateStudent_WithSchedulesRequiresUsersUpdate(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "ScheduleCreateOnly", "Creator")
 
@@ -197,7 +197,7 @@ func TestCreateStudent_WithSchedulesRequiresUsersUpdate(t *testing.T) {
 func TestCreateStudent_GuardianFailureRollsBackSchedules(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	// The schedule path resolves the acting staff from the JWT, so the account
 	// must map to a staff record (account → person → staff).
@@ -296,7 +296,7 @@ func TestCreateStudent_GuardianFailureRollsBackSchedules(t *testing.T) {
 func TestCreateStudent_InvalidPickupTimeRejected(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "BadPickupSchedule", "Creator")
 
@@ -356,7 +356,7 @@ func TestCreateStudent_InvalidPickupTimeRejected(t *testing.T) {
 func TestCreateStudent_SchedulesNonStaffAccountForbidden(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	// Person + account WITHOUT a staff record — getStaffIDFromJWT must fail.
 	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "NonStaff", "Scheduler")

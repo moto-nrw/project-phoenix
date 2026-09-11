@@ -1,10 +1,9 @@
-package audit_test
+package audit
 
 import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -20,7 +19,7 @@ func TestDataImportRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).DataImport
+	repo := NewDataImportRepository(NewRuntime(db, auditTestTenantID))
 	ctx := testpkg.Ctx(t)
 
 	// Create a test account for the imported_by FK
@@ -101,7 +100,7 @@ func TestDataImportRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).DataImport
+	repo := NewDataImportRepository(NewRuntime(db, auditTestTenantID))
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "find_import@example.com")
@@ -141,7 +140,7 @@ func TestDataImportRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).DataImport
+	repo := NewDataImportRepository(NewRuntime(db, auditTestTenantID))
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "list_import@example.com")

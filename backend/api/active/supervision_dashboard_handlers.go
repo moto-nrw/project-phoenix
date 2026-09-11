@@ -7,11 +7,11 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	supervisionDashboardService "github.com/moto-nrw/project-phoenix/services/supervisiondashboard"
+	supervisionDashboardService "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 )
 
 // Compatibility alias: the projection and its error contract live in the
-// service layer (#2096), mirroring the OGS group live endpoint (#2056).
+// supervision read projection (#2096, #2703), mirroring the OGS group live endpoint (#2056).
 type SupervisionDashboardResponse = supervisionDashboardService.Projection
 
 // getSupervisionDashboard handles GET /active/supervision-dashboard?group_id={id}.
@@ -28,7 +28,7 @@ func (rs *Resource) getSupervisionDashboard(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	response, err := rs.SupervisionDashboardService.Get(r.Context(), requestedGroupID)
+	response, err := rs.SupervisionDashboardService.Dashboard(r.Context(), requestedGroupID)
 	if errors.Is(err, supervisionDashboardService.ErrForbiddenGroup) {
 		common.RenderError(w, r, common.ErrorForbidden(errors.New("you do not supervise this active group")))
 		return

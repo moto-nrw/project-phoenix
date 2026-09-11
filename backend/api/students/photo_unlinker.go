@@ -11,11 +11,12 @@ import (
 // PhotoUnlinker dep. Lives here (not in services/users) to avoid an
 // api/common ↔ services/users import cycle.
 type photoUnlinker struct {
-	logger *slog.Logger
+	logger    *slog.Logger
+	publicDir string
 }
 
-func NewPhotoUnlinker(logger *slog.Logger) userService.PhotoUnlinker {
-	return &photoUnlinker{logger: logger}
+func NewPhotoUnlinker(logger *slog.Logger, publicDir string) userService.PhotoUnlinker {
+	return &photoUnlinker{logger: logger, publicDir: publicDir}
 }
 
 // UnlinkStored deletes the file backing storedURL. Errors are logged, never
@@ -24,7 +25,7 @@ func (u *photoUnlinker) UnlinkStored(storedURL string) {
 	if storedURL == "" {
 		return
 	}
-	path, err := common.ResolveStoredPath("public", storedURL, common.StudentPhotoStoredURLPrefix)
+	path, err := common.ResolveStoredPath(u.publicDir, storedURL, common.StudentPhotoStoredURLPrefix)
 	if err != nil {
 		if u.logger != nil {
 			u.logger.Warn("could not resolve student photo path for cleanup",

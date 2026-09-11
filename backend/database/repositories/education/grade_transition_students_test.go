@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/database/repositories/education"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -73,7 +73,9 @@ func TestGradeTransitionRepository_ReleaseStudentTagsByIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	// The tag writes run through the People Directory composition (#2661),
+	// so the test drives the composed repository the service graph uses.
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns nothing for an empty id list", func(t *testing.T) {
@@ -120,7 +122,7 @@ func TestGradeTransitionRepository_RestoreStudentTag(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("does nothing without a ledgered tag", func(t *testing.T) {
@@ -202,13 +204,14 @@ func TestGradeTransitionRepository_RestoreStudentTag(t *testing.T) {
 
 		// The real revert calls this inside its transaction, where the write is
 		// wrapped in a savepoint so a lost race cannot abort the whole revert.
-		tx, err := db.BeginTx(ctx, nil)
-		require.NoError(t, err)
-
-		restored, err := repo.RestoreStudentTag(modelBase.ContextWithTx(ctx, &tx), student.ID, card.ID)
+		var restored bool
+		err = testpkg.WithTenantTx(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+			var restoreErr error
+			restored, restoreErr = repo.RestoreStudentTag(txCtx, student.ID, card.ID)
+			return restoreErr
+		})
 		require.NoError(t, err)
 		assert.True(t, restored)
-		require.NoError(t, tx.Commit())
 
 		assert.Equal(t, card.ID, personTag(t, db, student.PersonID))
 	})
@@ -219,7 +222,7 @@ func TestGradeTransitionRepository_FindStudentStatesByIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns an empty map for an empty id list", func(t *testing.T) {
@@ -257,7 +260,7 @@ func TestGradeTransitionRepository_AnonymizeHistoryForStudent(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-anonymize")
@@ -320,7 +323,7 @@ func TestGradeTransitionRepository_GetMappingsByTransitionIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-batch-mappings")
@@ -357,7 +360,7 @@ func TestGradeTransitionRepository_PromoteStudentsByIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("promotes nobody for an empty cohort", func(t *testing.T) {
@@ -397,7 +400,7 @@ func TestGradeTransitionRepository_GraduateAndReactivateByIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("graduates nobody for an empty cohort", func(t *testing.T) {
@@ -440,7 +443,7 @@ func TestGradeTransitionRepository_ValidationGuards(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-validation")
@@ -489,4 +492,14 @@ func TestGradeTransitionRepository_ValidationGuards(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, records)
 	})
+}
+
+// newPersonComposedGradeTransitionRepository returns the grade transition
+// repository as the service graph composes it: the RFID tag commands are
+// served through the People Directory (#2661).
+func newPersonComposedGradeTransitionRepository(t *testing.T, db *bun.DB) educationModels.GradeTransitionRepository {
+	t.Helper()
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
+	require.NoError(t, err)
+	return factory.GradeTransition
 }

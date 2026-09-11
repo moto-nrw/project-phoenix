@@ -30,6 +30,8 @@ export interface OfferingRequestDiffLine {
   readonly trigger_names?: readonly string[];
   /** True when staff may exclude this rule-added line per request (#2370). */
   readonly optoutable?: boolean;
+  /** True for a Kurs — an AG the family reached through a care offering. */
+  readonly is_course?: boolean;
 }
 
 /** One booking the request leaves exactly as it is. */
@@ -153,6 +155,7 @@ export async function decideOfferingChangeRequest(
   excludedOfferingIds?: readonly string[],
   effectiveFrom?: string,
   completeWithdrawalConfirmed?: boolean,
+  expectedVersion?: string,
 ): Promise<void> {
   const response = await fetch(
     `/api/students/offering-change-requests/${encodeURIComponent(requestId)}/decide`,
@@ -167,6 +170,7 @@ export async function decideOfferingChangeRequest(
         ...(completeWithdrawalConfirmed
           ? { complete_withdrawal_confirmed: true }
           : {}),
+        ...(expectedVersion ? { expected_version: expectedVersion } : {}),
       }),
     },
   );

@@ -1,15 +1,11 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": [
-    "react",
-    "nextjs",
-    "jsx-a11y",
-    "import",
-    "promise"
-  ],
+  "plugins": ["react", "nextjs", "jsx-a11y", "import", "promise"],
   "jsPlugins": [
+    "./scripts/oxlint-plugin-bauart.mjs",
     "./scripts/oxlint-plugin-date-safety.mjs",
     "./scripts/oxlint-plugin-logging-safety.mjs",
+    "./scripts/oxlint-plugin-test-clock.mjs",
     "./scripts/oxlint-plugin-ui-kit.mjs"
   ],
   "categories": {
@@ -18,12 +14,24 @@
     "suspicious": "warn"
   },
   "rules": {
+    "bauart/one-delete-confirm": "error",
+    "bauart/no-row-action-buttons": "error",
+    "bauart/no-unconfirmed-destructive-click": "error",
+    "bauart/no-autosave": "error",
+    "bauart/no-toast-form-error": "error",
+    "bauart/no-manage-surface-in-overlay": "error",
     "date-safety/no-utc-date-extraction": "error",
     "logging-safety/no-serialized-context": "error",
+    "test-clock/no-real-clock": "error",
     "ui-kit/no-generic-brand-colors": "error",
     "ui-kit/no-hand-rolled-overlay": "error",
+    "ui-kit/no-hand-rolled-surface": "error",
     "ui-kit/require-checkbox-label": "error",
     "ui-kit/no-rounded-3xl": "error",
+    "ui-kit/no-tenant-kicker": "error",
+    "ui-kit/no-handrolled-surface": "error",
+    "ui-kit/no-tabs-as-value-switcher": "error",
+    "ui-kit/no-tiny-text": "error",
     "react/react-in-jsx-scope": "off",
     "no-unsafe-type-assertion": "off",
     "import/no-unassigned-import": "off",
@@ -41,10 +49,5 @@
     "jsx-a11y/no-redundant-roles": "off",
     "no-underscore-dangle": "off"
   },
-  "ignorePatterns": [
-    "node_modules",
-    ".next",
-    "out",
-    "storybook-static"
-  ]
+  "ignorePatterns": ["node_modules", ".next", "out", "storybook-static"]
 }

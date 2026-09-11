@@ -7,8 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services/announcement"
+	announcement "github.com/moto-nrw/project-phoenix/modules/communication"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -27,9 +26,7 @@ func (p *recordingNoticePublisher) PublishCareCancellation(_ context.Context, in
 		return nil, announcement.ErrCareCancellationDisabled
 	}
 	p.published = append(p.published, in)
-	stored := &usersModels.ParentAnnouncement{}
-	stored.ID = int64(len(p.published))
-	return &announcement.CareCancellationResult{Announcement: stored, RecipientCount: len(in.StudentIDs)}, nil
+	return &announcement.CareCancellationResult{AnnouncementID: int64(len(p.published)), RecipientCount: len(in.StudentIDs)}, nil
 }
 
 func (p *recordingNoticePublisher) CareCancellationReachFor(_ context.Context, studentIDs []int64) (*announcement.CareCancellationReach, error) {

@@ -19,7 +19,7 @@ export function MessagesSkeleton() {
     >
       {[0, 1, 2, 3, 4].map((item) => (
         <li key={item}>
-          <div className="moto-content-surface rounded-2xl border border-gray-200 bg-white p-4 sm:p-5">
+          <div className="moto-content-surface rounded-2xl border p-4 sm:p-5">
             <div className="flex items-start justify-between gap-3">
               <div className="flex min-w-0 flex-1 items-start gap-3">
                 <Skeleton className="h-10 w-10 flex-shrink-0 rounded-full" />

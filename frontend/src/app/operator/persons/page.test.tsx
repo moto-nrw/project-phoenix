@@ -428,7 +428,7 @@ describe("OperatorPersonsPage", () => {
     fireEvent.click(screen.getByText("Endgültig löschen"));
 
     await waitFor(() => {
-      expect(screen.getByText("Wird gelöscht...")).toBeInTheDocument();
+      expect(screen.getByText("Wird gelöscht…")).toBeInTheDocument();
     });
   });
 

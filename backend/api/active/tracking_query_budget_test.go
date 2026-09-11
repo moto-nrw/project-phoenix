@@ -7,13 +7,10 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"strings"
-	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	configRepository "github.com/moto-nrw/project-phoenix/database/repositories/config"
@@ -23,32 +20,17 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-type trackingSettingValuesCounter struct {
-	count atomic.Int32
-}
-
-func (c *trackingSettingValuesCounter) BeforeQuery(ctx context.Context, event *bun.QueryEvent) context.Context {
-	query := strings.ToLower(event.Query)
-	if strings.HasPrefix(strings.TrimSpace(query), "select") &&
-		strings.Contains(query, "config.setting_values") {
-		c.count.Add(1)
-	}
-	return ctx
-}
-
-func (*trackingSettingValuesCounter) AfterQuery(context.Context, *bun.QueryEvent) {}
+func init() { testutil.SeedTestJWTConfig() }
 
 // TestTrackingIndicatorsIssuesOneSettingValuesQuery drives the REAL router
 // (ProtectedTenantGroup chain, so the request cache middleware is attached the
 // way production attaches it) and asserts the four settings the handler reads
 // (toggle + three labels) cost exactly one config.setting_values query
 // (issue #2065).
-// Deliberately NOT parallel: the test installs a query hook on the SHARED
-// package pool and asserts a query budget, so any test running beside it is
-// counted too.
 func TestTrackingIndicatorsIssuesOneSettingValuesQuery(t *testing.T) {
-	testutil.SeedTestJWTConfig()
-	db := testpkg.SetupTestDB(t)
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	db := testpkg.SetupIsolatedTestDB(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -58,9 +40,9 @@ func TestTrackingIndicatorsIssuesOneSettingValuesQuery(t *testing.T) {
 		_, _ = db.ExecContext(ctx, `DELETE FROM config.setting_values WHERE tenant_id = ?`, tenantID)
 	})
 
-	valueRepo := configRepository.NewSettingValueRepository(db)
-	auditRepo := configRepository.NewSettingAuditRepository(db)
-	settings := configSvc.NewSettingsService(valueRepo, auditRepo, nil, db, slog.Default())
+	valueRepo := configRepository.NewSettingValueRepository(testpkg.ConfigRuntime(db))
+	auditRepo := configRepository.NewSettingAuditRepository(testpkg.ConfigRuntime(db))
+	settings := configSvc.NewSettingsService(valueRepo, auditRepo, nil, testpkg.SettingsRuntime(t, db), slog.Default())
 
 	seedCtx := tenant.WithTenantID(context.Background(), tenantID)
 	require.NoError(t, settings.SetValue(seedCtx, configModel.KeyTrackingIndicatorsEnabled, true, nil, nil))
@@ -77,19 +59,19 @@ func TestTrackingIndicatorsIssuesOneSettingValuesQuery(t *testing.T) {
 			return result, nil
 		},
 	}
-	rs := NewResource(active, nil, nil, nil, nil, settings, db, slog.Default())
+	// This route does not read visits; an unexpected presence call must fail.
+	rs := NewResource(active, nil, nil, nil, nil, settings, db, slog.Default(), struct{ PresenceQueries }{})
 	router := rs.Router()
 
 	body, err := json.Marshal(map[string]any{"student_ids": []int64{student.ID}})
 	require.NoError(t, err)
 
-	counter := &trackingSettingValuesCounter{}
-	db.AddQueryHook(counter)
+	counter := testpkg.CaptureQueries(t, db)
 
 	req := httptest.NewRequest("POST", "/tracking-indicators", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := testutil.ExecuteWithAuth(t, router, req, testutil.AdminTestClaimsForTenant(1, tenantID))
-	queries := counter.count.Load()
+	queries := counter.Selects("config.setting_values")
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 
@@ -101,6 +83,6 @@ func TestTrackingIndicatorsIssuesOneSettingValuesQuery(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
 	assert.Equal(t, []string{"Bibliothek"}, resp.Data.Labels,
 		"empty label keys must still be skipped by the per-key reads")
-	assert.Equal(t, int32(1), queries,
-		"toggle + three label keys must share one config.setting_values query")
+	// Toggle + three label keys must share one config.setting_values query.
+	testpkg.AssertQueryBudget(t, "api.active.tracking_indicators.setting_values", queries)
 }

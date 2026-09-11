@@ -1,0 +1,98 @@
+{
+  "data": [
+    {
+      "admin_decision_note": "Bitte mit Nachweis neu einreichen.",
+      "base_snapshot": {
+        "additional_guardians": [],
+        "children": [
+          {
+            "custom_data": null,
+            "date_of_birth": "2018-04-15",
+            "first_name": "Contract",
+            "id": "ID",
+            "last_name": "Child-public",
+            "offering_days": [],
+            "offering_ids": [],
+            "status": "waitlisted",
+            "target_grade_level": 2
+          }
+        ],
+        "consent_flags": {},
+        "custom_data": {},
+        "guardian_email": "contract-public@example.test",
+        "guardian_first_name": "Contract",
+        "guardian_last_name": "Guardian",
+        "guardian_phone": null,
+        "phase_id": "ID"
+      },
+      "created_at": "TIMESTAMP",
+      "diff": {
+        "changed": [
+          "children",
+          "guardian_last_name"
+        ]
+      },
+      "id": "ID",
+      "messages": [
+        {
+          "author_type": "parent",
+          "body": "Nachname korrigiert.",
+          "created_at": "TIMESTAMP",
+          "id": "ID",
+          "internal_only": false
+        },
+        {
+          "author_type": "staff",
+          "body": "Welche Klasse besucht das Kind?",
+          "created_at": "TIMESTAMP",
+          "id": "ID",
+          "internal_only": false
+        },
+        {
+          "author_type": "parent",
+          "body": "Die 2a.",
+          "created_at": "TIMESTAMP",
+          "id": "ID",
+          "internal_only": false
+        },
+        {
+          "author_type": "staff",
+          "body": "Bitte mit Nachweis neu einreichen.",
+          "created_at": "TIMESTAMP",
+          "id": "ID",
+          "internal_only": false
+        }
+      ],
+      "origin": "parent",
+      "parent_note": "Nachname korrigiert.",
+      "proposed_snapshot": {
+        "additional_guardians": [],
+        "children": [
+          {
+            "custom_data": {},
+            "date_of_birth": "2018-04-15",
+            "first_name": "Contract",
+            "id": "ID",
+            "last_name": "Child-public",
+            "offering_days": [],
+            "offering_ids": [],
+            "target_grade_level": 2
+          }
+        ],
+        "consent_flags": {},
+        "custom_data": {},
+        "guardian_email": "contract-public@example.test",
+        "guardian_first_name": "Contract",
+        "guardian_last_name": "Guardian-Korrigiert",
+        "guardian_phone": null,
+        "phase_id": "ID"
+      },
+      "request_id": "ID",
+      "reviewed_at": "TIMESTAMP",
+      "status": "rejected",
+      "updated_at": "TIMESTAMP"
+    }
+  ],
+  "message": "Change requests retrieved",
+  "status": "success"
+}

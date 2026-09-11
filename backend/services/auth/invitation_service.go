@@ -13,6 +13,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/email"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -52,6 +53,7 @@ func translateRoleNameToGerman(roleName string) string {
 
 // InvitationServiceConfig holds configuration for the invitation service
 type InvitationServiceConfig struct {
+	TokenAuth         *jwt.TokenAuth
 	InvitationRepo    authModels.InvitationTokenRepository
 	AccountRepo       authModels.AccountRepository
 	AccountTenantRepo authModels.AccountTenantRepository
@@ -73,11 +75,16 @@ type InvitationServiceConfig struct {
 	SchoolURL        string
 	DefaultFrom      email.Email
 	InvitationExpiry time.Duration
-	DB               *bun.DB
-	Logger           *slog.Logger
+	// MailIdentity points replies to a staff invitation at the OGS instead of
+	// moto (#1936). This send bypasses the outbox, so it stamps the header
+	// itself. Optional: nil sends without a Reply-To, exactly as before.
+	MailIdentity email.ReplyToResolver
+	DB           *bun.DB
+	Logger       *slog.Logger
 }
 
 type invitationService struct {
+	tokenAuth         *jwt.TokenAuth
 	invitationRepo    authModels.InvitationTokenRepository
 	accountRepo       authModels.AccountRepository
 	accountTenantRepo authModels.AccountTenantRepository
@@ -94,10 +101,10 @@ type invitationService struct {
 	schoolURL         string
 	defaultFrom       email.Email
 	invitationExpiry  time.Duration
+	mailIdentity      email.ReplyToResolver
 	db                *bun.DB
-	txHandler         *modelBase.TxHandler
 	logger            *slog.Logger
-	tenantRuntime     *tenant.Runtime
+	tenantRuntime     *tenant.UnitOfWork
 }
 
 // getLogger returns the service's logger, falling back to slog.Default() if nil.
@@ -117,6 +124,7 @@ func NewInvitationService(config InvitationServiceConfig) InvitationService {
 		dispatcher = email.NewDispatcher(config.Mailer, logger.With("component", "email"))
 	}
 	return &invitationService{
+		tokenAuth:         config.TokenAuth,
 		invitationRepo:    config.InvitationRepo,
 		accountRepo:       config.AccountRepo,
 		accountTenantRepo: config.AccountTenantRepo,
@@ -132,9 +140,9 @@ func NewInvitationService(config InvitationServiceConfig) InvitationService {
 		frontendURL:       trimmedFrontend,
 		schoolURL:         strings.TrimRight(strings.TrimSpace(config.SchoolURL), "/"),
 		defaultFrom:       config.DefaultFrom,
+		mailIdentity:      config.MailIdentity,
 		invitationExpiry:  config.InvitationExpiry,
 		db:                config.DB,
-		txHandler:         modelBase.NewTxHandler(config.DB),
 		logger:            logger,
 	}
 }
@@ -143,10 +151,10 @@ func (s *invitationService) withTenantRuntime(ctx context.Context) context.Conte
 	if s.tenantRuntime == nil {
 		return ctx
 	}
-	return tenant.WithRuntime(ctx, *s.tenantRuntime)
+	return tenant.WithUnitOfWork(ctx, *s.tenantRuntime)
 }
 
-func (s *invitationService) SetTenantRuntime(runtime tenant.Runtime) {
+func (s *invitationService) SetTenantRuntime(runtime tenant.UnitOfWork) {
 	s.tenantRuntime = &runtime
 }
 
@@ -193,7 +201,11 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req Invitation
 	// token must never reach an inbox as a dead link. Outside a tenant tx
 	// the hook runs synchronously.
 	tenant.RegisterAfterCommit(ctx, func() {
-		s.sendInvitationEmail(ctx, invitation, roleName, req.SchoolName, schoolPortal)
+		// The surrounding transaction is committed when this callback runs.
+		// Detach it before resolving the tenant mail identity so its settings
+		// lookup opens a fresh RLS transaction rather than using the closed one.
+		postCommitCtx := detachedTenantContext(s.withTenantRuntime(ctx))
+		s.sendInvitationEmail(postCommitCtx, invitation, roleName, req.SchoolName, schoolPortal)
 	})
 
 	return invitation, nil
@@ -324,19 +336,28 @@ func (s *invitationService) ValidateInvitation(ctx context.Context, token string
 			return fetchErr
 		}
 
-		roleName, roleErr := s.lookupRoleName(adminCtx, invitation.RoleID)
+		role, roleErr := s.lookupRole(adminCtx, invitation.RoleID)
 		if roleErr != nil {
 			return roleErr
 		}
 
+		account, accountErr := s.findExistingAccountByEmail(adminCtx, invitation.Email)
+		if accountErr != nil {
+			return &AuthError{Op: opFetchInvitation, Err: accountErr}
+		}
 		result = &InvitationValidationResult{
-			Email:            invitation.Email,
-			RoleName:         roleName,
-			FirstName:        invitation.FirstName,
-			LastName:         invitation.LastName,
-			Position:         invitation.Position,
-			CaregiverEnabled: invitation.CaregiverEnabled,
-			ExpiresAt:        invitation.ExpiresAt,
+			TargetPortal:         "tenant",
+			RequiresAccountLogin: account != nil,
+			Email:                invitation.Email,
+			RoleName:             role.Name,
+			FirstName:            invitation.FirstName,
+			LastName:             invitation.LastName,
+			Position:             invitation.Position,
+			CaregiverEnabled:     invitation.CaregiverEnabled,
+			ExpiresAt:            invitation.ExpiresAt,
+		}
+		if IsLehrkraftSystemRole(role) {
+			result.TargetPortal = "school"
 		}
 		return nil
 	})
@@ -372,33 +393,37 @@ func (s *invitationService) AcceptInvitation(ctx context.Context, token string, 
 			}
 		}
 
-		passwordHash, hashErr := s.validateAndHashPassword(userData)
-		if hashErr != nil {
-			return hashErr
-		}
-
-		firstName, lastName, nameErr := s.resolveNames(userData, invitation)
-		if nameErr != nil {
-			return nameErr
-		}
-
 		invitationTenantID, tenantErr := tenant.NewTenantID(invitation.TenantID)
 		if tenantErr != nil {
 			return &AuthError{Op: opAcceptInvitation, Err: tenantErr}
 		}
 		invitationCtx := tenant.WithTenant(adminCtx, invitationTenantID)
-		return s.txHandler.RunInTx(invitationCtx, func(txCtx context.Context, tx bun.Tx) error {
-			account, accountErr := s.findExistingAccountByEmail(txCtx, invitation.Email)
-			if accountErr != nil {
-				return &AuthError{Op: opAcceptInvitation, Err: accountErr}
+		account, accountErr := s.findExistingAccountByEmail(invitationCtx, invitation.Email)
+		if accountErr != nil {
+			return &AuthError{Op: opAcceptInvitation, Err: accountErr}
+		}
+		var passwordHash string
+		if account != nil {
+			if ownerErr := s.verifyInvitationOwner(account, userData.OwnerAccessToken); ownerErr != nil {
+				return &AuthError{Op: opAcceptInvitation, Err: ownerErr}
 			}
-			created, txErr := s.createAccountWithRole(txCtx, invitation, passwordHash, firstName, lastName, account)
-			if txErr != nil {
-				return txErr
+		} else {
+			var hashErr error
+			passwordHash, hashErr = s.validateAndHashPassword(userData)
+			if hashErr != nil {
+				return hashErr
 			}
-			createdAccount = created
-			return nil
-		})
+		}
+		firstName, lastName, nameErr := s.resolveNames(userData, invitation)
+		if nameErr != nil {
+			return nameErr
+		}
+		created, txErr := s.createAccountWithRole(invitationCtx, invitation, passwordHash, firstName, lastName, account)
+		if txErr != nil {
+			return txErr
+		}
+		createdAccount = created
+		return nil
 	})
 	if err != nil {
 		return nil, err
@@ -464,7 +489,7 @@ func (s *invitationService) createAccountWithRole(
 	passwordHash, firstName, lastName string,
 	existingAccount *authModels.Account,
 ) (*authModels.Account, error) {
-	account, err := s.createOrUpdateAccount(ctx, invitation.Email, passwordHash, existingAccount)
+	account, err := s.registrationAccount(ctx, invitation.Email, passwordHash, existingAccount)
 	if err != nil {
 		return nil, err
 	}
@@ -496,23 +521,41 @@ func (s *invitationService) createAccountWithRole(
 	return account, nil
 }
 
-func (s *invitationService) createOrUpdateAccount(ctx context.Context, email, passwordHash string, existingAccount *authModels.Account) (*authModels.Account, error) {
+func (s *invitationService) registrationAccount(ctx context.Context, email, passwordHash string, existingAccount *authModels.Account) (*authModels.Account, error) {
 	if existingAccount == nil {
 		return s.createAccount(ctx, email, passwordHash)
 	}
-	if err := s.accountRepo.UpdatePassword(ctx, existingAccount.ID, passwordHash); err != nil {
-		return nil, &AuthError{Op: "update account password", Err: err}
-	}
-	// Reactivate the existing account so the invitee can log in. Targeted
-	// SetActive so the stale in-memory PasswordHash doesn't overwrite the
-	// just-written hash from UpdatePassword above.
-	if !existingAccount.Active {
-		if err := s.accountRepo.SetActive(ctx, existingAccount.ID, true); err != nil {
-			return nil, &AuthError{Op: "reactivate account on invitation", Err: err}
-		}
-		existingAccount.Active = true
-	}
+	// An invitation grants membership, never authority over global credentials.
 	return existingAccount, nil
+}
+
+func (s *invitationService) verifyInvitationOwner(account *authModels.Account, accessToken string) error {
+	if accessToken == "" || s.tokenAuth == nil {
+		return ErrInvitationOwnerRequired
+	}
+	claims, err := s.tokenAuth.ParseAccessJWT(accessToken)
+	if err != nil || claims.ID <= 0 || claims.ExpiresAt <= time.Now().Unix() ||
+		claims.ReadOnly || claims.ActingAdminID != 0 || claims.PreviewID != "" {
+		return ErrInvitationOwnerRequired
+	}
+	// Operators use a separate account namespace. Preview and unfinished MFA
+	// tokens are not proof that the invited account's owner authenticated.
+	switch claims.Scope {
+	case "", "tenant", "org", "school":
+		if claims.TenantID <= 0 {
+			return ErrInvitationOwnerRequired
+		}
+	case "parent":
+	default:
+		return ErrInvitationOwnerRequired
+	}
+	if int64(claims.ID) != account.ID {
+		return ErrInvitationOwnerMismatch
+	}
+	if !account.Active {
+		return ErrAccountInactive
+	}
+	return nil
 }
 
 // validateInvitationRequest validates all required fields and returns the normalized email.
@@ -754,8 +797,9 @@ func (s *invitationService) ResendInvitation(ctx context.Context, invitationID i
 
 	invitation.EmailSentAt = nil
 	invitation.EmailError = nil
-	invitation.UpdatedAt = time.Now()
-	if err := s.invitationRepo.Update(ctx, invitation); err != nil {
+	// Never write stale lifecycle fields: acceptance or revocation may have
+	// consumed this invitation after the read above.
+	if err := s.invitationRepo.UpdateDeliveryResult(ctx, invitation.ID, nil, nil, invitation.EmailRetryCount); err != nil {
 		return &AuthError{Op: opResendInvitation, Err: err}
 	}
 
@@ -855,14 +899,6 @@ func (s *invitationService) fetchValidInvitation(ctx context.Context, token stri
 	return invitation, nil
 }
 
-func (s *invitationService) lookupRoleName(ctx context.Context, roleID int64) (string, error) {
-	role, err := s.lookupRole(ctx, roleID)
-	if err != nil {
-		return "", err
-	}
-	return role.Name, nil
-}
-
 // lookupRole resolves the full role record — needed where the caller must
 // branch on role properties beyond the name (school-portal link decision).
 func (s *invitationService) lookupRole(ctx context.Context, roleID int64) (*authModels.Role, error) {
@@ -929,8 +965,13 @@ func (s *invitationService) sendInvitationEmail(ctx context.Context, invitation 
 		subject = fmt.Sprintf("Einladung zu moto – %s", schoolName)
 	}
 
+	// An invited Mitarbeiter answering this mail ("wer lädt mich ein?") must
+	// reach the OGS, not moto (#1936).
+	replyIdentity := email.ResolveReplyToIdentity(ctx, s.mailIdentity, tenant.FromContext(ctx), s.getLogger())
+
 	message := email.Message{
 		From:     s.defaultFrom,
+		ReplyTo:  email.NewEmail(replyIdentity.Name, replyIdentity.Address),
 		To:       email.NewEmail("", invitation.Email),
 		Subject:  subject,
 		Template: "invitation.html",

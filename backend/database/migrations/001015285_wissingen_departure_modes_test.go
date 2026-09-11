@@ -10,7 +10,6 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 const wissingenDepartureTestFields = `[
@@ -30,7 +29,7 @@ type wissingenDepartureTestRow struct {
 	DepartureCompanionNote *string         `bun:"departure_companion_note"`
 }
 
-func insertWissingenDepartureTestSchema(t *testing.T, db *bun.DB, tenantID, createdBy int64, version int) int64 {
+func insertWissingenDepartureTestSchema(t *testing.T, db *testpkg.DB, tenantID, createdBy int64, version int) int64 {
 	t.Helper()
 	var id int64
 	require.NoError(t, db.QueryRowContext(context.Background(), `
@@ -42,7 +41,7 @@ func insertWissingenDepartureTestSchema(t *testing.T, db *bun.DB, tenantID, crea
 	return id
 }
 
-func insertWissingenDepartureTestPhase(t *testing.T, db *bun.DB, tenantID, schemaID int64) int64 {
+func insertWissingenDepartureTestPhase(t *testing.T, db *testpkg.DB, tenantID, schemaID int64) int64 {
 	t.Helper()
 	var id int64
 	require.NoError(t, db.QueryRowContext(context.Background(), `
@@ -54,7 +53,7 @@ func insertWissingenDepartureTestPhase(t *testing.T, db *bun.DB, tenantID, schem
 	return id
 }
 
-func insertWissingenDepartureTestChild(t *testing.T, db *bun.DB, tenantID, schemaID, phaseID, studentID int64, customData string) {
+func insertWissingenDepartureTestChild(t *testing.T, db *testpkg.DB, tenantID, schemaID, phaseID, studentID int64, customData string) {
 	t.Helper()
 	ctx := context.Background()
 	var requestID int64
@@ -76,7 +75,7 @@ func insertWissingenDepartureTestChild(t *testing.T, db *bun.DB, tenantID, schem
 	require.NoError(t, err)
 }
 
-func loadWissingenDepartureTestRow(t *testing.T, db *bun.DB, studentID int64) wissingenDepartureTestRow {
+func loadWissingenDepartureTestRow(t *testing.T, db *testpkg.DB, studentID int64) wissingenDepartureTestRow {
 	t.Helper()
 	var row wissingenDepartureTestRow
 	require.NoError(t, db.NewRaw(`
@@ -100,6 +99,7 @@ func assertWissingenPickupStatus(t *testing.T, expected string, actual *string) 
 }
 
 func TestWissingenDepartureModes_DerivesConfirmedAnswersAndPreservesExistingPlans(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	require.NoError(t, studentsDepartureAccompaniedUp(ctx, db))
@@ -107,7 +107,7 @@ func TestWissingenDepartureModes_DerivesConfirmedAnswersAndPreservesExistingPlan
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("wissingen-departure-%d@example.test", time.Now().UnixNano()))
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	otherTenantID, _ := testpkg.CreateTestTenant(t, db)
-	testpkg.CleanupTenantTestData(t, db, tenantID, otherTenantID)
+	testpkg.OwnTenantRows(t, db, tenantID, otherTenantID)
 	_, err := db.NewRaw(`
 		UPDATE platform.schools
 		SET slug = 'ogs-wissingen', subdomain = 'ogs-wissingen'

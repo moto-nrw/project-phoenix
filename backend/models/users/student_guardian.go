@@ -49,6 +49,24 @@ type StudentGuardian struct {
 	Student *Student `bun:"rel:belongs-to,join:student_id=id" json:"student,omitempty"`
 }
 
+// GuardianAuthorizationData exposes relationship facts used by guardian
+// authorization without moving policy onto the persistence model.
+func (sg *StudentGuardian) GuardianAuthorizationData() (relationshipType, role string, primary, emergency, pickup bool, permissions map[string]interface{}) {
+	if sg == nil {
+		return "", "", false, false, false, nil
+	}
+	return sg.RelationshipType, sg.GuardianRole, sg.IsPrimary, sg.IsEmergencyContact, sg.CanPickup, sg.GetPermissions()
+}
+
+// SetGuardianAuthorizationData stores a role and its derived permissions.
+func (sg *StudentGuardian) SetGuardianAuthorizationData(role string, permissions map[string]interface{}) {
+	if sg == nil {
+		return
+	}
+	sg.GuardianRole = role
+	sg.Permissions = permissions
+}
+
 // Validate ensures student guardian data is valid
 func (sg *StudentGuardian) Validate() error {
 	if sg.StudentID <= 0 {

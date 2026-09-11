@@ -37,9 +37,11 @@ const MAX_DIFF_ROWS = 6;
 export function EnrollmentRequestItem({
   row,
   view,
+  grouped = false,
 }: Readonly<{
   row: EnrollmentChangeRequest;
   view: "open" | "history";
+  grouped?: boolean;
 }>) {
   const tenantPath = useTenantAwarePath();
   const meta = enrollmentChangeRequestStatusMeta(row.status);
@@ -67,6 +69,7 @@ export function EnrollmentRequestItem({
     <RequestReviewCard
       type="enrollment"
       childName={childNames}
+      grouped={grouped}
       summary={row.origin === "admin" ? "Korrektur der OGS" : undefined}
       submittedAt={row.created_at}
       submittedByName={row.origin === "admin" ? undefined : row.guardian_name}

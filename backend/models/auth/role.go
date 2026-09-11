@@ -37,6 +37,25 @@ type Role struct {
 	Permissions []*Permission `bun:"-" json:"permissions,omitempty"`
 }
 
+// AuthorizationGrantData exposes the stored facts used by role-grant policy.
+// The policy itself remains outside the persistence model.
+func (r *Role) AuthorizationGrantData() (present bool, name string, baseRole *string, system, tenantBound bool, permissions []string) {
+	if r == nil {
+		return false, "", nil, false, false, nil
+	}
+	permissions = make([]string, 0, len(r.Permissions))
+	for _, permission := range r.Permissions {
+		if permission == nil {
+			// Preserve the policy's fail-closed treatment of a malformed loaded
+			// relation instead of silently dropping it from the subset check.
+			permissions = append(permissions, "")
+			continue
+		}
+		permissions = append(permissions, permission.Name)
+	}
+	return true, r.Name, r.BaseRole, r.IsSystem, r.TenantID != nil, permissions
+}
+
 // Validate ensures role data is valid
 func (r *Role) Validate() error {
 	if r.Name == "" {

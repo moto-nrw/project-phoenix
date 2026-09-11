@@ -3,16 +3,16 @@ package authorize
 import (
 	"context"
 	"fmt"
-
-	"github.com/moto-nrw/project-phoenix/models/users"
 )
+
+type authorizationStudent interface{ IsAuthorizationStudent() bool }
 
 // StudentAccessUserContext is the narrow subset of the user-context service
 // the student gates need: identify the caller's staff record (if any).
 // Defined here (not imported) to keep this package a sibling of
 // services/usercontext without a package cycle.
 type StudentAccessUserContext interface {
-	GetCurrentStaff(ctx context.Context) (*users.Staff, error)
+	HasCurrentStaff(ctx context.Context) (bool, error)
 }
 
 // CanReadStudent decides whether the caller is allowed to see unredacted
@@ -26,10 +26,10 @@ type StudentAccessUserContext interface {
 func CanReadStudent(
 	ctx context.Context,
 	userPermissions []string,
-	student *users.Student,
+	student authorizationStudent,
 	userCtx StudentAccessUserContext,
 ) bool {
-	if student == nil {
+	if student == nil || !student.IsAuthorizationStudent() {
 		return false
 	}
 	if HasAdminWildcard(userPermissions) {
@@ -52,14 +52,14 @@ func CanReadStudent(
 func CanModifyStudent(
 	ctx context.Context,
 	userPermissions []string,
-	student *users.Student,
+	student authorizationStudent,
 	userCtx StudentAccessUserContext,
 	operation string,
 ) (bool, error) {
 	if HasAdminWildcard(userPermissions) {
 		return true, nil
 	}
-	if student == nil {
+	if student == nil || !student.IsAuthorizationStudent() {
 		return false, fmt.Errorf("insufficient permissions to %s this student's data", operation)
 	}
 	if !isVerifiedStaff(ctx, userCtx) {
@@ -72,7 +72,7 @@ func CanModifyStudent(
 func CanUpdateStudent(
 	ctx context.Context,
 	userPermissions []string,
-	student *users.Student,
+	student authorizationStudent,
 	userCtx StudentAccessUserContext,
 ) (bool, error) {
 	return CanModifyStudent(ctx, userPermissions, student, userCtx, "update")
@@ -82,7 +82,7 @@ func CanUpdateStudent(
 func CanDeleteStudent(
 	ctx context.Context,
 	userPermissions []string,
-	student *users.Student,
+	student authorizationStudent,
 	userCtx StudentAccessUserContext,
 ) (bool, error) {
 	return CanModifyStudent(ctx, userPermissions, student, userCtx, "delete")
@@ -93,11 +93,11 @@ func CanDeleteStudent(
 // caller-side loop (e.g. filtering a review queue) does not re-resolve it per
 // student. The predicate is the set form of CanModifyStudent: admin or
 // verified staff → every student; otherwise none.
-func WritableStudentFilter(ctx context.Context, userPermissions []string, userCtx StudentAccessUserContext) func(*users.Student) bool {
+func WritableStudentFilter(ctx context.Context, userPermissions []string, userCtx StudentAccessUserContext) func(authorizationStudent) bool {
 	if HasAdminWildcard(userPermissions) || isVerifiedStaff(ctx, userCtx) {
-		return func(student *users.Student) bool { return student != nil }
+		return func(student authorizationStudent) bool { return student != nil && student.IsAuthorizationStudent() }
 	}
-	return func(*users.Student) bool { return false }
+	return func(authorizationStudent) bool { return false }
 }
 
 // isVerifiedStaff reports whether the caller has a staff record in the current
@@ -107,6 +107,6 @@ func isVerifiedStaff(ctx context.Context, userCtx StudentAccessUserContext) bool
 	if userCtx == nil {
 		return false
 	}
-	staff, err := userCtx.GetCurrentStaff(ctx)
-	return err == nil && staff != nil
+	staff, err := userCtx.HasCurrentStaff(ctx)
+	return err == nil && staff
 }

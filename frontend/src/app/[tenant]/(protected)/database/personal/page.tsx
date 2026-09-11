@@ -2,12 +2,15 @@
 
 import { Suspense, useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import Link from "next/link";
+import Link from "~/components/ui/navigation-link";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
-import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabaseGroupingToggle } from "~/components/database/database-grouping-toggle";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
+import { Skeleton } from "~/components/ui/skeleton";
+import { EmptyState } from "~/components/ui/empty-state";
+import { SectionCard } from "~/components/ui/section-card";
+import { formatCount } from "~/lib/format-utils";
 import {
   useGroupedItems,
   type Grouper,
@@ -33,11 +36,13 @@ import { getRoleDisplayName } from "@/lib/auth-helpers";
 import { createCrudService } from "@/lib/database/service-factory";
 import { teachersConfig } from "@/components/database/configs/teachers.config";
 import type { Teacher } from "@/lib/teacher-api";
-import { Modal, ConfirmationModal } from "~/components/ui/modal";
+import { Modal } from "~/components/ui/modal";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 
 const logger = createLogger({ component: "DatabaseTeachersPage" });
 
@@ -80,6 +85,7 @@ export default function TeachersPage() {
 }
 
 function TeachersPageContent() {
+  const tenantPath = useTenantAwarePath();
   const searchParams = useSearchParams();
   const updateUrlParams = useUpdateUrlParams();
 
@@ -116,6 +122,27 @@ function TeachersPageContent() {
   });
   const accessToken = sessionData?.user?.token ?? "";
   const canManageUsers = hasPermission(sessionData, "users:manage");
+  // Personalnotizen am Mitarbeiter-Datensatz: staff:manage (#2906), nicht
+  // mehr users:update — das hält jede Betreuungskraft für die Kinderdaten.
+  const canManageStaffRecords = hasPermission(sessionData, "staff:manage");
+  // Löschen und die Kontoaktionen (Betreuer-Konto, 2-Faktor, Rolle) hängen am
+  // Konto, nicht am Personal-Datensatz. Ohne diese Berechtigungen antwortet
+  // das Backend mit 403, also zeigen wir die Aktionen erst gar nicht an.
+  const canDeleteStaff = hasPermission(sessionData, "users:delete");
+  // Vorname, Nachname und NFC-Karte gehen über PUT /api/users/{id} und
+  // brauchen users:update. Wer nur staff:manage hat, bekommt sie im
+  // Bearbeiten-Dialog als Anzeige, nicht als Eingabefeld (#2906).
+  const canEditPersonFields = hasPermission(sessionData, "users:update");
+  // Seit #2906 erreicht die Seite auch, wer nur staff:manage oder
+  // staff:stammdaten hat. Die beiden Import-Wege hängen an denselben
+  // Berechtigungen wie ihre Backend-Routen: Personal-Import an users:create
+  // (POST /api/import/teachers), Eröffnungssalden an der Zeitwirtschaft —
+  // ohne diese Rechte antwortet das Backend mit 403.
+  const canImportStaff = hasPermission(sessionData, "users:create");
+  const canImportOpeningBalances = hasPermission(
+    sessionData,
+    "time_tracking:manage",
+  );
 
   const service = useMemo(() => createCrudService(teachersConfig), []);
   const tenantMutate = useTenantMutate();
@@ -132,6 +159,21 @@ function TeachersPageContent() {
   const error = teachersError
     ? "Fehler beim Laden des Personals. Bitte versuchen Sie es später erneut."
     : null;
+
+  // Statuszeile des Seitenkopfs aus der bereits geladenen Personalliste.
+  const statusLine = useMemo(() => {
+    const teachers = teachersData ?? [];
+    const roles = new Set(
+      teachers.map((t) => t.account_role?.trim()).filter(Boolean),
+    ).size;
+    const parts = [
+      `${formatCount(teachers.length)} ${teachers.length === 1 ? "Person" : "Personen"}`,
+    ];
+    if (roles > 0) {
+      parts.push(`${formatCount(roles)} ${roles === 1 ? "Rolle" : "Rollen"}`);
+    }
+    return parts.join(" · ");
+  }, [teachersData]);
 
   const existingPositions = useMemo(() => {
     const teachers = teachersData ?? [];
@@ -298,11 +340,151 @@ function TeachersPageContent() {
     <DatabasePageLayout
       loading={loading}
       sessionLoading={status === "loading"}
-      className="-mt-1.5 flex w-full flex-col"
-    >
-      <div className="mb-4">
+      error={error}
+      overlays={
+        <>
+          {canManageUsers ? (
+            <Modal
+              isOpen={showInviteModal}
+              onClose={handleCloseInviteModal}
+              title="Personal einladen"
+            >
+              <InvitationForm
+                existingPositions={existingPositions}
+                onCreated={() => {
+                  setInvitationRefreshKey(Date.now());
+                  setShowInviteModal(false);
+                }}
+              />
+            </Modal>
+          ) : null}
+
+          {selectedTeacher && (
+            <ConfirmDeleteModal
+              isOpen={showDeleteConfirmModal}
+              onClose={handleDeleteCancel}
+              onConfirm={() => confirmDelete(() => void handleDeleteTeacher())}
+              title="Personal löschen?"
+              description={
+                <>
+                  Der Zugang wird deaktiviert und die Person aus allen Listen
+                  entfernt. Vorhandene Einträge wie Anwesenheiten und
+                  Zeiterfassung bleiben für die Historie erhalten. Die Person
+                  kann jederzeit erneut eingeladen werden.
+                </>
+              }
+              gate={{
+                mode: "textConfirm",
+                expected: `${selectedTeacher.first_name} ${selectedTeacher.last_name}`,
+                inputId: "confirm-delete-staff-name",
+                label: "Tippen Sie zur Bestätigung den Namen der Person:",
+                preview: `${selectedTeacher.first_name} ${selectedTeacher.last_name}`,
+                placeholder: "Vorname Nachname",
+              }}
+              loading={savingTeacher}
+              error=""
+            />
+          )}
+
+          {selectedTeacher && (
+            <TeacherEditModal
+              isOpen={showEditModal}
+              onClose={handleCloseEditModal}
+              teacher={selectedTeacher}
+              onSave={handleEditTeacher}
+              loading={savingTeacher}
+              existingPositions={existingPositions}
+              canEditPersonFields={canEditPersonFields}
+            />
+          )}
+
+          {selectedTeacher && (
+            <CaregiverCapabilityModal
+              isOpen={caregiverModalOpen}
+              onClose={() => setCaregiverModalOpen(false)}
+              scope="tenant"
+              accountId={selectedTeacher.account_id?.toString() ?? ""}
+              accountLabel={`${selectedTeacher.first_name} ${selectedTeacher.last_name}`}
+              onUpdated={async () => {
+                await tenantMutate("database-teachers-list");
+              }}
+            />
+          )}
+
+          {selectedTeacher?.account_id && accessToken && (
+            <MFAAdminOverrideModal
+              isOpen={mfaModalOpen}
+              onClose={() => setMfaModalOpen(false)}
+              bearerToken={accessToken}
+              accountId={selectedTeacher.account_id.toString()}
+              accountLabel={`${selectedTeacher.first_name} ${selectedTeacher.last_name}`}
+            />
+          )}
+
+          {selectedTeacher?.account_id && (
+            <RoleManagementModal
+              isOpen={roleModalOpen}
+              onClose={() => setRoleModalOpen(false)}
+              accountId={selectedTeacher.account_id.toString()}
+              accountLabel={`${selectedTeacher.first_name} ${selectedTeacher.last_name}`}
+              onUpdated={async () => {
+                await tenantMutate("database-teachers-list");
+              }}
+            />
+          )}
+        </>
+      }
+      className="flex w-full flex-col"
+      intro={{
+        title: "Personal",
+        description: loading ? <Skeleton className="h-4 w-48" /> : statusLine,
+        actions: (
+          <div className="flex items-center gap-2">
+            {!isMobile ? (
+              <>
+                <DatabaseGroupingToggle
+                  value={grouping}
+                  options={STAFF_GROUPING_OPTIONS}
+                  onChange={handleGroupingChange}
+                />
+                {canImportStaff ? (
+                  <Link
+                    href={tenantPath("/database/personal/import")}
+                    className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    Importieren
+                  </Link>
+                ) : null}
+              </>
+            ) : null}
+            {/* Zweiter Import-Weg (#2132): eigener Flow mit Stichtag und
+                Begründung, deshalb im Menü statt als weiterer Button. */}
+            {canImportOpeningBalances ? (
+              <OverflowMenu
+                ariaLabel="Weitere Import-Aktionen"
+                items={[
+                  {
+                    label: "Eröffnungssalden importieren",
+                    href: tenantPath("/database/personal/opening-balances"),
+                    onClick: () => undefined,
+                  },
+                ]}
+              />
+            ) : null}
+            {canManageUsers ? (
+              <DatabaseCreateAction
+                label="Personal"
+                ariaLabel="Personal hinzufügen"
+                onClick={() => setShowInviteModal(true)}
+              />
+            ) : null}
+          </div>
+        ),
+      }}
+      search={
         <PageHeaderWithSearch
-          title={isMobile ? "Personal" : ""}
+          embedded
+          title=""
           badge={{
             icon: (
               <MotoDuotoneIcon
@@ -317,194 +499,72 @@ function TeachersPageContent() {
           search={{
             value: searchTerm,
             onChange: setSearchTerm,
-            placeholder: "Personal suchen...",
+            placeholder: "Personal suchen…",
           }}
           filters={[]}
           activeFilters={activeFilters}
           onClearAllFilters={() => {
             setSearchTerm("");
           }}
-          actionButton={
-            <div className="flex items-center gap-2">
-              {!isMobile ? (
-                <>
-                  <DatabaseGroupingToggle
-                    value={grouping}
-                    options={STAFF_GROUPING_OPTIONS}
-                    onChange={handleGroupingChange}
-                  />
-                  <Link
-                    href="/database/personal/import"
-                    className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                  >
-                    Importieren
-                  </Link>
-                </>
-              ) : null}
-              {/* Zweiter Import-Weg (#2132): eigener Flow mit Stichtag und
-                  Begründung, deshalb im Menü statt als weiterer Button. */}
-              <OverflowMenu
-                ariaLabel="Weitere Import-Aktionen"
-                items={[
-                  {
-                    label: "Eröffnungssalden importieren",
-                    href: "/database/personal/opening-balances",
-                    onClick: () => undefined,
-                  },
-                ]}
-              />
-              {canManageUsers ? (
-                <DatabaseCreateAction
-                  label="Personal"
-                  ariaLabel="Personal hinzufügen"
-                  onClick={() => setShowInviteModal(true)}
-                />
-              ) : null}
-            </div>
-          }
         />
-      </div>
-
-      <RoleGuard variant="adminOnly">
+      }
+    >
+      <RoleGuard variant="adminOnly" embedded>
         <div className="mb-4">
           <PendingInvitationsList refreshKey={invitationRefreshKey} />
         </div>
       </RoleGuard>
 
-      {error && (
-        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
-          <p className="text-sm text-red-800">{error}</p>
-        </div>
-      )}
-
-      {canShowDetail ? (
+      {filteredTeachers.length === 0 ? (
+        <SectionCard>
+          <EmptyState
+            title={
+              searchTerm ? "Kein Personal gefunden" : "Kein Personal vorhanden"
+            }
+            description={
+              searchTerm
+                ? "Versuchen Sie andere Suchkriterien."
+                : "Laden Sie die erste Person ein, damit sie sich anmelden kann."
+            }
+            icon={
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.staff.icon}
+                tone={MOTO_CONCEPTS.staff.tone}
+                size={48}
+              />
+            }
+          />
+        </SectionCard>
+      ) : canShowDetail ? (
         <div className="min-h-0 flex-1 pb-4">
           <StaffMasterDetail
             groupDefinitions={groupDefinitions}
             selectedId={selectedId}
             selectedTeacher={selectedTeacher}
             onSelect={handleSelectTeacher}
-            onEditClick={handleEditClick}
-            onDeleteClick={handleDeleteClick}
-            onUpdateNotes={handleUpdateNotes}
+            onEditClick={canManageStaffRecords ? handleEditClick : undefined}
+            onDeleteClick={canDeleteStaff ? handleDeleteClick : undefined}
+            onUpdateNotes={
+              canManageStaffRecords ? handleUpdateNotes : undefined
+            }
             onManageCaregiver={
-              selectedTeacher?.account_id
+              canManageUsers && selectedTeacher?.account_id
                 ? handleManageCaregiverClick
                 : undefined
             }
             onManageMFA={
-              selectedTeacher?.account_id ? handleManageMFAClick : undefined
+              canManageUsers && selectedTeacher?.account_id
+                ? handleManageMFAClick
+                : undefined
             }
             onManageRole={
-              selectedTeacher?.account_id ? handleManageRoleClick : undefined
+              canManageUsers && selectedTeacher?.account_id
+                ? handleManageRoleClick
+                : undefined
             }
           />
         </div>
-      ) : !loading ? (
-        <DatabaseEmptyState
-          icon={
-            <MotoDuotoneIcon
-              icon={MOTO_CONCEPTS.staff.icon}
-              tone={MOTO_CONCEPTS.staff.tone}
-              size={48}
-              className="mx-auto"
-            />
-          }
-          title={
-            searchTerm ? "Kein Personal gefunden" : "Kein Personal vorhanden"
-          }
-          description={
-            searchTerm
-              ? "Versuchen Sie andere Suchkriterien."
-              : "Es wurde noch kein Personal erstellt."
-          }
-        />
       ) : null}
-
-      {canManageUsers ? (
-        <Modal
-          isOpen={showInviteModal}
-          onClose={handleCloseInviteModal}
-          title="Personal einladen"
-        >
-          <InvitationForm
-            existingPositions={existingPositions}
-            onCreated={() => {
-              setInvitationRefreshKey(Date.now());
-              setShowInviteModal(false);
-            }}
-          />
-        </Modal>
-      ) : null}
-
-      {selectedTeacher && (
-        <ConfirmationModal
-          isOpen={showDeleteConfirmModal}
-          onClose={handleDeleteCancel}
-          onConfirm={() => confirmDelete(() => void handleDeleteTeacher())}
-          title="Personal löschen?"
-          confirmText="Löschen"
-          cancelText="Abbrechen"
-          confirmButtonClass="bg-red-600 hover:bg-red-700"
-        >
-          <p className="text-sm text-gray-700">
-            Möchten Sie das Personal{" "}
-            <span className="font-medium">
-              {selectedTeacher.first_name} {selectedTeacher.last_name}
-            </span>{" "}
-            wirklich löschen? Der Zugang wird deaktiviert und die Person aus
-            allen Listen entfernt. Vorhandene Einträge wie Anwesenheiten und
-            Zeiterfassung bleiben für die Historie erhalten. Die Person kann
-            jederzeit erneut eingeladen werden.
-          </p>
-        </ConfirmationModal>
-      )}
-
-      {selectedTeacher && (
-        <TeacherEditModal
-          isOpen={showEditModal}
-          onClose={handleCloseEditModal}
-          teacher={selectedTeacher}
-          onSave={handleEditTeacher}
-          loading={savingTeacher}
-          existingPositions={existingPositions}
-        />
-      )}
-
-      {selectedTeacher && (
-        <CaregiverCapabilityModal
-          isOpen={caregiverModalOpen}
-          onClose={() => setCaregiverModalOpen(false)}
-          scope="tenant"
-          accountId={selectedTeacher.account_id?.toString() ?? ""}
-          accountLabel={`${selectedTeacher.first_name} ${selectedTeacher.last_name}`}
-          onUpdated={async () => {
-            await tenantMutate("database-teachers-list");
-          }}
-        />
-      )}
-
-      {selectedTeacher?.account_id && accessToken && (
-        <MFAAdminOverrideModal
-          isOpen={mfaModalOpen}
-          onClose={() => setMfaModalOpen(false)}
-          bearerToken={accessToken}
-          accountId={selectedTeacher.account_id.toString()}
-          accountLabel={`${selectedTeacher.first_name} ${selectedTeacher.last_name}`}
-        />
-      )}
-
-      {selectedTeacher?.account_id && (
-        <RoleManagementModal
-          isOpen={roleModalOpen}
-          onClose={() => setRoleModalOpen(false)}
-          accountId={selectedTeacher.account_id.toString()}
-          accountLabel={`${selectedTeacher.first_name} ${selectedTeacher.last_name}`}
-          onUpdated={async () => {
-            await tenantMutate("database-teachers-list");
-          }}
-        />
-      )}
     </DatabasePageLayout>
   );
 }

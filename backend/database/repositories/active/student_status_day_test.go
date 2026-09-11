@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,11 +20,11 @@ func TestStudentStatusDayRepository_UpsertAndFind(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentStatusDay
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentStatusDay
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "StatusRepo", "Student", "SR1")
 
-	date := timezone.TodayDate().AddDays(3)
+	date := timezone.NewDate(2026, 8, 24).AddDays(3)
 	reportedAt := time.Now().Add(-time.Hour)
 	entry := &active.StudentStatusDay{
 		StudentID:  student.ID,
@@ -80,16 +79,50 @@ func TestStudentStatusDayRepository_UpsertAndFind(t *testing.T) {
 	assert.Equal(t, active.StudentStatusSourceNextCheckin, allRows[0].Source)
 }
 
+func TestStudentStatusDayRepository_ListOverviewPaginatesPersonOrder(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentStatusDay
+	ctx := testpkg.Ctx(t)
+	date := timezone.NewDate(2026, 8, 24)
+	last := testpkg.CreateTestStudent(t, db, "Zoe", "Zimmer", "OV1")
+	first := testpkg.CreateTestStudent(t, db, "Anna", "Adam", "OV2")
+	for _, studentID := range []int64{last.ID, first.ID} {
+		require.NoError(t, repo.UpsertReported(ctx, &active.StudentStatusDay{
+			StudentID: studentID, Date: date, Status: active.StudentStatusDaySick,
+			ReportedAt: time.Now(), Source: active.StudentStatusSourceManual,
+		}))
+	}
+
+	options := func(page int) *modelBase.QueryOptions {
+		return &modelBase.QueryOptions{
+			Filter:     modelBase.NewFilter().Equal("date", date),
+			Pagination: &modelBase.Pagination{Page: page, PageSize: 1},
+		}
+	}
+	orderedStudentIDs := []int64{first.ID, last.ID}
+	firstPage, err := repo.ListOverviewWithOptions(ctx, options(1), orderedStudentIDs)
+	require.NoError(t, err)
+	require.Len(t, firstPage, 1)
+	assert.Equal(t, first.ID, firstPage[0].StudentID)
+
+	secondPage, err := repo.ListOverviewWithOptions(ctx, options(2), orderedStudentIDs)
+	require.NoError(t, err)
+	require.Len(t, secondPage, 1)
+	assert.Equal(t, last.ID, secondPage[0].StudentID)
+}
+
 func TestStudentStatusDayRepository_ClearByIDAndDates(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentStatusDay
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentStatusDay
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "StatusClear", "Student", "SC1")
 
-	now := time.Now()
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	firstDate := timezone.DateFromTime(now).AddDays(4)
 	secondDate := timezone.DateFromTime(now).AddDays(5)
 	for _, date := range []timezone.Date{firstDate, secondDate} {
@@ -135,11 +168,11 @@ func TestStudentStatusDayRepository_TenantScope(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentStatusDay
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentStatusDay
 	student := testpkg.CreateTestStudent(t, db, "StatusTenant", "Student", "ST1")
 
-	date := timezone.TodayDate().AddDays(6)
-	require.NoError(t, repo.UpsertReported(context.Background(), &active.StudentStatusDay{
+	date := timezone.NewDate(2026, 8, 24).AddDays(6)
+	require.NoError(t, repo.UpsertReported(testpkg.Ctx(t), &active.StudentStatusDay{
 		TenantModel: modelBase.TenantModel{TenantID: testpkg.Tenant(t)},
 		StudentID:   student.ID,
 		Date:        date,
@@ -148,7 +181,7 @@ func TestStudentStatusDayRepository_TenantScope(t *testing.T) {
 		Source:      active.StudentStatusSourcePlanned,
 	}))
 
-	rows, err := repo.FindActiveByStudentAndDateRange(tenant.WithTenantID(context.Background(), 2), student.ID, date, date)
+	rows, err := repo.FindActiveByStudentAndDateRange(testpkg.TenantContext(2), student.ID, date, date)
 	require.NoError(t, err)
 	assert.Empty(t, rows)
 
@@ -162,7 +195,7 @@ func TestStudentStatusDayRepository_CountEffectiveDashboardAbsences(t *testing.T
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentStatusDay
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentStatusDay
 	tenantA := testpkg.UniqueTestTenantID(t)
 	tenantB := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantA)
@@ -248,7 +281,7 @@ func TestStudentStatusDayRepository_UpsertNil(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentStatusDay
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentStatusDay
 
 	err := repo.UpsertReported(testpkg.Ctx(t), nil)
 	require.Error(t, err)
@@ -264,11 +297,11 @@ func TestStudentStatusDayRepository_NoteOnReReport(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentStatusDay
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentStatusDay
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "StatusNote", "Student", "SN1")
 
-	date := timezone.TodayDate().AddDays(5)
+	date := timezone.NewDate(2026, 8, 24).AddDays(5)
 	reason := "Fieber"
 
 	// 1. Report sick with a reason.
@@ -323,7 +356,7 @@ func TestStudentStatusDayRepository_DateBoundaryRoundtrip(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentStatusDay
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentStatusDay
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Boundary", "Student", "BR1")
 

@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/auth"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
 )
 
@@ -19,12 +20,15 @@ const (
 
 // GuardianInvitationRepository implements the auth.GuardianInvitationRepository interface
 type GuardianInvitationRepository struct {
-	db *bun.DB
+	updater *base.Repository[*auth.GuardianInvitation]
+	db      *bun.DB
 }
 
 // NewGuardianInvitationRepository creates a new GuardianInvitationRepository instance
 func NewGuardianInvitationRepository(db *bun.DB) auth.GuardianInvitationRepository {
-	return &GuardianInvitationRepository{db: db}
+	repo := base.NewRepository[*auth.GuardianInvitation](db, "auth.guardian_invitations", "GuardianInvitation")
+	repo.TenantScoped = true
+	return &GuardianInvitationRepository{updater: repo, db: db}
 }
 
 // Create inserts a new guardian invitation
@@ -189,6 +193,31 @@ func (r *GuardianInvitationRepository) FindPendingApproval(ctx context.Context) 
 	return invitations, nil
 }
 
+// FindOpenByGuardianProfileIDs retrieves every consumable or approval-pending
+// invitation for the requested profiles in one tenant-scoped read.
+func (r *GuardianInvitationRepository) FindOpenByGuardianProfileIDs(ctx context.Context, profileIDs []int64) ([]*auth.GuardianInvitation, error) {
+	if len(profileIDs) == 0 {
+		return []*auth.GuardianInvitation{}, nil
+	}
+	var invitations []*auth.GuardianInvitation
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&invitations).
+		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
+		Where(`"guardian_invitation".guardian_profile_id IN (?)`, bun.List(profileIDs)).
+		Where(`"guardian_invitation".accepted_at IS NULL`).
+		Where(`"guardian_invitation".expires_at > ?`, time.Now()).
+		Where(`"guardian_invitation".approval_status IN (?)`, bun.List([]string{
+			auth.GuardianInvitationApprovalNotRequired,
+			auth.GuardianInvitationApprovalApproved,
+			auth.GuardianInvitationApprovalPending,
+		})).
+		Scan(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find open invitations by guardian profiles: %w", err)
+	}
+	return invitations, nil
+}
+
 // MarkAsAccepted marks an invitation as accepted
 func (r *GuardianInvitationRepository) MarkAsAccepted(ctx context.Context, id int64) error {
 	now := time.Now()
@@ -218,28 +247,22 @@ func (r *GuardianInvitationRepository) MarkAsAccepted(ctx context.Context, id in
 
 // UpdateEmailStatus updates the email delivery status
 func (r *GuardianInvitationRepository) UpdateEmailStatus(ctx context.Context, id int64, sentAt *time.Time, emailError *string, retryCount int) error {
-	result, err := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*auth.GuardianInvitation)(nil)).
-		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
-		Set("email_sent_at = ?", sentAt).
-		Set("email_error = ?", emailError).
-		Set("email_retry_count = ?", retryCount).
-		Where(`"guardian_invitation".id = ?`, id).
-		Exec(ctx)
-
-	if err != nil {
-		return fmt.Errorf("failed to update email status: %w", err)
+	invitation := &auth.GuardianInvitation{
+		Model:           modelBase.Model{ID: id},
+		EmailSentAt:     sentAt,
+		EmailError:      emailError,
+		EmailRetryCount: retryCount,
 	}
-
-	rowsAffected, err := result.RowsAffected()
+	updated, err := r.updater.UpdateColumns(ctx, invitation, "email_sent_at", "email_error", "email_retry_count")
 	if err != nil {
-		return fmt.Errorf(errMsgRowsAffected, err)
+		if cause, ok := base.RowsAffectedCause(err); ok {
+			return fmt.Errorf(errMsgRowsAffected, cause)
+		}
+		return fmt.Errorf("failed to update email status: %w", base.DatabaseErrorCause(err))
 	}
-
-	if rowsAffected == 0 {
+	if updated == 0 {
 		return errors.New(errMsgInvitationNotFound)
 	}
-
 	return nil
 }
 

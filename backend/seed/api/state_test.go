@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -79,6 +80,20 @@ func TestWriteAndLoadSeedState_Roundtrip(t *testing.T) {
 	assert.Equal(t, int64(10), loaded.Rooms["OGS-Raum 1"])
 	assert.Equal(t, int64(50), loaded.Activities["Fußball"])
 	assert.Equal(t, int64(50), loaded.Groups["sternengruppe"])
+	profile, err := loaded.SelectProfile("")
+	require.NoError(t, err)
+	assert.Equal(t, DefaultProfileKey, profile.Key)
+	assert.Equal(t, "ggs-europaschule", profile.School.TenantSlug)
+	assert.Equal(t, int64(100), profile.Entities.Students["felix-schneider"].ID)
+
+	raw, err := os.ReadFile(path)
+	require.NoError(t, err)
+	var wire map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(raw, &wire))
+	assert.Contains(t, wire, "profiles")
+	assert.Contains(t, wire, "default_profile")
+	assert.NotContains(t, wire, "bootstrap")
+	assert.NotContains(t, wire, "accounts")
 }
 
 func TestWriteSeedState_CreatesFileWithRestrictedPermissions(t *testing.T) {
@@ -86,6 +101,7 @@ func TestWriteSeedState_CreatesFileWithRestrictedPermissions(t *testing.T) {
 
 	dir := t.TempDir()
 	path := filepath.Join(dir, "state.json")
+	require.NoError(t, os.WriteFile(path, []byte("old"), 0o644))
 
 	state := &SeedState{BaseURL: "http://localhost:8080"}
 	err := WriteSeedState(state, path)
@@ -94,6 +110,8 @@ func TestWriteSeedState_CreatesFileWithRestrictedPermissions(t *testing.T) {
 	info, err := os.Stat(path)
 	require.NoError(t, err)
 	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+	_, err = LoadSeedState(path)
+	require.NoError(t, err)
 }
 
 func TestWriteSeedState_ErrorOnInvalidPath(t *testing.T) {
@@ -103,6 +121,14 @@ func TestWriteSeedState_ErrorOnInvalidPath(t *testing.T) {
 	err := WriteSeedState(state, "/nonexistent/dir/state.json")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "write seed state")
+}
+
+func TestWriteSeedState_RejectsUnsupportedVersion(t *testing.T) {
+	t.Parallel()
+
+	err := WriteSeedState(&SeedState{Version: "99"}, filepath.Join(t.TempDir(), "state.json"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `cannot write unsupported seed state version "99"`)
 }
 
 func TestLoadSeedState_ErrorOnMissingFile(t *testing.T) {
@@ -138,4 +164,45 @@ func TestLoadSeedState_EmptyState(t *testing.T) {
 	assert.Empty(t, state.Students)
 	assert.NotNil(t, state.Devices)
 	assert.Equal(t, CurrentSeedStateVersion, state.Version)
+}
+
+func TestLoadSeedState_RejectsUnknownVersion(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "state.json")
+	require.NoError(t, os.WriteFile(path, []byte(`{"version":"99"}`), 0o600))
+
+	_, err := LoadSeedState(path)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `unsupported seed state version "99"`)
+}
+
+func TestSelectProfile_RejectsUnknownKey(t *testing.T) {
+	t.Parallel()
+
+	state := &SeedState{
+		DefaultProfile: DefaultProfileKey,
+		Profiles: map[string]*SeedProfile{
+			DefaultProfileKey: {Key: DefaultProfileKey},
+		},
+	}
+
+	_, err := state.SelectProfile("fehlt")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `unknown demo school profile "fehlt"`)
+	assert.Contains(t, err.Error(), "available profiles: vollbetrieb")
+}
+
+func TestLoadSeedState_MigratesEmptyLegacyV2State(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "state.json")
+	require.NoError(t, os.WriteFile(path, []byte(`{"version":"2","base_url":"http://localhost:8080"}`), 0o600))
+
+	state, err := LoadSeedState(path)
+	require.NoError(t, err)
+	profile, err := state.SelectProfile("")
+	require.NoError(t, err)
+	assert.Equal(t, DefaultProfileKey, profile.Key)
+	assert.Equal(t, "http://localhost:8080", state.BaseURL)
 }

@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
@@ -79,7 +79,7 @@ func resolvePlanningDate(raw string, now time.Time) (timezone.Date, bool, error)
 	}
 	date, err := timezone.ParseDate(trimmed)
 	if err != nil {
-		return timezone.Date{}, false, fmt.Errorf("invalid date %q, expected YYYY-MM-DD", raw)
+		return timezone.Date(""), false, fmt.Errorf("invalid date %q, expected YYYY-MM-DD", raw)
 	}
 	// Planning is future-only. The pipeline projects the current recurring
 	// schedule definitions onto the requested day; for a past day that is a
@@ -88,13 +88,13 @@ func resolvePlanningDate(raw string, now time.Time) (timezone.Date, bool, error)
 	// page treats past dates as unsupported. Reject them at the boundary so a
 	// direct or stale client cannot bypass the UI and obtain such a plan (#1939).
 	if date.Before(today) {
-		return timezone.Date{}, false, fmt.Errorf("date %q is in the past, planning is only available for today and future dates", raw)
+		return timezone.Date(""), false, fmt.Errorf("date %q is in the past, planning is only available for today and future dates", raw)
 	}
 	// Mirror of the past guard at the far end: reject days beyond the
 	// materialization-backed horizon so a direct or stale client cannot obtain
 	// a plan the timetable signal cannot answer for (see maxPlanningDate).
 	if maxDate := maxPlanningDate(today); date.After(maxDate) {
-		return timezone.Date{}, false, fmt.Errorf("date %q is beyond the supported planning horizon, planning is available through %s", raw, maxDate.String())
+		return timezone.Date(""), false, fmt.Errorf("date %q is beyond the supported planning horizon, planning is available through %s", raw, maxDate.String())
 	}
 	return date, date == today, nil
 }
@@ -323,12 +323,12 @@ func (rs *Resource) filterTimetableIDsByCareDay(
 // the request. Only enrich when the caller actually holds a permission that
 // gates the queue itself — users:update, or users:absence for the staff who
 // decide exactly these requests in a school without fixed groups (#2232).
-func (rs *Resource) loadPendingExcusedForDayPlanning(ctx context.Context, date timezone.Date) (map[int64]*activeModels.ExcusedAbsenceRequest, error) {
+func (rs *Resource) loadPendingExcusedForDayPlanning(ctx context.Context, date timezone.Date) (map[int64]*excusedrequests.Request, error) {
 	if rs.ExcusedRequestService == nil ||
 		!authorize.CanReviewExcusedAbsenceRequests(jwt.PermissionsFromCtx(ctx)) {
-		return map[int64]*activeModels.ExcusedAbsenceRequest{}, nil
+		return map[int64]*excusedrequests.Request{}, nil
 	}
-	return rs.ExcusedRequestService.PendingByStudentForDate(ctx, date)
+	return rs.ExcusedRequestService.PendingByStudentForDate(ctx, excusedrequests.Date(date))
 }
 
 func applyDayPlanning(

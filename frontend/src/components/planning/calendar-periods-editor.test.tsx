@@ -18,6 +18,50 @@ const {
   mockToastError: vi.fn(),
 }));
 
+// Vaul (SlideOver) rendert in jsdom nichts. Derselbe Ersatz wie in
+// components/ui/slide-over.test.tsx — die Struktur bleibt, nur die
+// Animationsschicht fällt weg.
+vi.mock("vaul", async () => {
+  const React = await import("react");
+
+  return {
+    Drawer: {
+      Root: ({
+        children,
+        open,
+      }: {
+        children: React.ReactNode;
+        open?: boolean;
+      }) => (open === false ? null : <div>{children}</div>),
+      Portal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+      Overlay: React.forwardRef<
+        HTMLDivElement,
+        React.HTMLAttributes<HTMLDivElement>
+      >((props, ref) => <div ref={ref} {...props} />),
+      Content: React.forwardRef<
+        HTMLDivElement,
+        React.HTMLAttributes<HTMLDivElement>
+      >((props, ref) => <div ref={ref} {...props} />),
+      Close: React.forwardRef<
+        HTMLButtonElement,
+        React.ButtonHTMLAttributes<HTMLButtonElement>
+      >((props, ref) => <button ref={ref} {...props} />),
+      Title: React.forwardRef<
+        HTMLHeadingElement,
+        React.HTMLAttributes<HTMLHeadingElement>
+      >(({ children, ...props }, ref) => (
+        <h2 ref={ref} {...props}>
+          {children ?? "Titel"}
+        </h2>
+      )),
+      Description: React.forwardRef<
+        HTMLParagraphElement,
+        React.HTMLAttributes<HTMLParagraphElement>
+      >((props, ref) => <p ref={ref} {...props} />),
+    },
+  };
+});
+
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => ({ success: mockToastSuccess, error: mockToastError }),
 }));
@@ -92,7 +136,33 @@ vi.mock("~/components/timetable/calendar-period-modal", () => ({
     ) : null,
 }));
 
-import { CalendarPeriodsEditor } from "./calendar-periods-editor";
+import { TenantPage } from "~/components/ui/tenant-page";
+import {
+  CalendarPeriodsActions,
+  CalendarPeriodsEditor,
+  useCalendarPeriods,
+} from "./calendar-periods-editor";
+
+/**
+ * Der Kopf (Titel, Statuszeile, Anlegen-Aktionen) liegt seit dem
+ * Gerüst-Umbau in der Seite, der Inhaltsblock im Editor. Dieser Host stellt
+ * dieselbe Zusammensetzung her wie calendar-periods/page.tsx, damit die Tests
+ * weiter das prüfen, was die Seite wirklich rendert.
+ */
+function CalendarPeriodsHost() {
+  const state = useCalendarPeriods();
+
+  return (
+    <TenantPage
+      title="Kalenderzeiträume"
+      stats={state.statusLine}
+      statsLoading={state.loading}
+      actions={<CalendarPeriodsActions state={state} />}
+    >
+      <CalendarPeriodsEditor state={state} />
+    </TenantPage>
+  );
+}
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -153,7 +223,7 @@ describe("CalendarPeriodsEditor", () => {
   it("shows the mobile type separately without truncating the period range", async () => {
     mockListPeriods.mockResolvedValue([makePeriod({ periodType: "holiday" })]);
 
-    render(<CalendarPeriodsEditor />);
+    render(<CalendarPeriodsHost />);
 
     const mobileType = (await screen.findAllByText("Ferien")).find(
       (element) => element.tagName === "P",
@@ -167,12 +237,25 @@ describe("CalendarPeriodsEditor", () => {
     expect(mobileRange).not.toHaveClass("truncate");
   });
 
+  it("does not show the create empty state after a failed period load", async () => {
+    mockListPeriods.mockRejectedValue(new Error("Zeiträume nicht erreichbar"));
+
+    render(<CalendarPeriodsHost />);
+
+    expect(
+      await screen.findByText("Zeiträume nicht erreichbar"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Noch keine Kalenderzeiträume"),
+    ).not.toBeInTheDocument();
+  });
+
   it("lets the period name wrap and keeps the action column narrow", async () => {
     mockListPeriods.mockResolvedValue([
       makePeriod({ name: "Sommerferienbetreuung" }),
     ]);
 
-    render(<CalendarPeriodsEditor />);
+    render(<CalendarPeriodsHost />);
 
     // Ohne Umbruch an beliebiger Stelle zieht ein langes Wort die
     // Namensspalte über die Tabellenbreite hinaus (320px, #2033).
@@ -190,19 +273,20 @@ describe("CalendarPeriodsEditor", () => {
   it("allows header actions to wrap within a constrained content column", async () => {
     mockListPeriods.mockResolvedValue([makePeriod()]);
 
-    render(<CalendarPeriodsEditor />);
+    render(<CalendarPeriodsHost />);
 
     const createPeriodButton = await screen.findByRole("button", {
       name: "Zeitraum anlegen",
     });
     const actions = createPeriodButton.parentElement;
-    const description = screen.getByText(
-      /Halbjahre, Ferien und Sonderzeiträume als gemeinsame Basis/,
-    );
+    // Statuszeile statt Erklärsatz (Kopfkarten-Sweep): gezählte Zeiträume.
+    const description = screen.getByText(/1 Zeitraum · 1 aktiv/);
 
-    expect(actions).toHaveClass("sm:flex-wrap");
-    expect(actions).toHaveClass("sm:justify-end");
-    expect(description).toHaveClass("min-w-0");
+    // Seit der Umstellung auf die Kopfkarte (PageIntro/SectionCard) umbrechen
+    // die Aktionen auf jeder Breite, und der Textblock bleibt schrumpfbar.
+    expect(actions).toHaveClass("flex-wrap");
+    expect(actions).toHaveClass("shrink-0");
+    expect(description.closest(".min-w-0")).not.toBeNull();
   });
 
   it("keeps the modal mounted while the post-save refresh is in flight", async () => {
@@ -211,7 +295,7 @@ describe("CalendarPeriodsEditor", () => {
       .mockResolvedValueOnce([makePeriod()])
       .mockReturnValueOnce(refresh.promise);
 
-    render(<CalendarPeriodsEditor />);
+    render(<CalendarPeriodsHost />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Bearbeiten" }));
     expect(screen.getByTestId("calendar-period-modal")).toBeInTheDocument();
@@ -245,7 +329,7 @@ describe("CalendarPeriodsEditor", () => {
       .mockResolvedValueOnce([makePhase()])
       .mockResolvedValueOnce([makePhase({ calendar_period_id: "5" })]);
 
-    render(<CalendarPeriodsEditor />);
+    render(<CalendarPeriodsHost />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Bearbeiten" }));
     fireEvent.click(screen.getByRole("button", { name: "modal-toggle-phase" }));

@@ -42,7 +42,6 @@ const backendState = {
     {
       id: 2,
       group_name: "Gruppe Rot",
-      role: "substitute",
       start_date: "2026-04-05",
       end_date: "2026-04-06",
     },

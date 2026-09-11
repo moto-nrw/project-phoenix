@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 )
 
@@ -118,8 +117,7 @@ func (s *Service) initiatePasswordReset(ctx context.Context, emailAddress string
 
 // checkPasswordResetRateLimit checks if the email has exceeded rate limits
 func (s *Service) checkPasswordResetRateLimit(ctx context.Context, emailAddress string) error {
-	rateLimitEnabled := viper.GetBool("rate_limit_enabled")
-	if !rateLimitEnabled || s.repos.PasswordResetRateLimit == nil {
+	if !s.rateLimitEnabled || s.repos.PasswordResetRateLimit == nil {
 		return nil
 	}
 
@@ -168,7 +166,7 @@ func (s *Service) checkPasswordResetRateLimit(ctx context.Context, emailAddress 
 func (s *Service) createPasswordResetTokenInTransaction(ctx context.Context, accountID int64) (*auth.PasswordResetToken, error) {
 	var resetToken *auth.PasswordResetToken
 
-	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+	err := tenant.WithinAdmin(s.withTenantRuntime(ctx), func(ctx context.Context) error {
 
 		if err := s.repos.PasswordResetToken.InvalidateTokensByAccountID(ctx, accountID); err != nil {
 			s.getLogger().Error("failed to invalidate reset tokens, rolling back",

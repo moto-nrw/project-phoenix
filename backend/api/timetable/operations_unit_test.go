@@ -13,11 +13,14 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
@@ -286,6 +289,7 @@ func TestOperationsReopenEffectiveAdminScope(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, "/instances/231/reopen", nil)
 			testutil.WithClaims(t, jwt.AppClaims{ID: 120, IsAdmin: tc.isAdmin, TenantID: testpkg.Tenant(t)})(req)
 			testutil.WithPermissions(tc.permissions...)(req)
+			attachTestPrincipal(t, req, jwt.AppClaims{ID: 120, IsAdmin: tc.isAdmin, TenantID: testpkg.Tenant(t)}, tc.permissions)
 			rr := httptest.NewRecorder()
 			router.ServeHTTP(rr, req)
 
@@ -294,6 +298,16 @@ func TestOperationsReopenEffectiveAdminScope(t *testing.T) {
 			assert.Equal(t, tc.wantAdmin, service.lastIsAdmin)
 		})
 	}
+}
+
+func attachTestPrincipal(t *testing.T, req *http.Request, claims jwt.AppClaims, granted []string) {
+	t.Helper()
+	principal, err := permissions.NewPrincipal(permissions.PrincipalInput{
+		AccountID: int64(claims.ID), TenantID: claims.TenantID, Scope: claims.Scope,
+		Roles: claims.Roles, Permissions: granted, Admin: claims.IsAdmin,
+	})
+	require.NoError(t, err)
+	*req = *req.WithContext(permissions.WithPrincipal(req.Context(), principal))
 }
 
 func TestOperationsCreateAndStartSpontaneous(t *testing.T) {
@@ -355,6 +369,9 @@ func TestOperationsCreateAndStartSpontaneous(t *testing.T) {
 	assert.True(t, *service.lastSpontaneousInput.IsSpontaneous)
 	assert.Equal(t, []int64{321, 320}, service.lastSpontaneousInput.StaffIDs)
 	assert.Empty(t, service.lastSpontaneousInput.StudentIDs)
+	assert.Equal(t, timezone.NewDate(2026, 5, 11), service.lastSpontaneousInput.Date)
+	assert.Equal(t, "14:00", service.lastSpontaneousInput.StartTime.Format("15:04"))
+	assert.Equal(t, "15:00", service.lastSpontaneousInput.EndTime.Format("15:04"))
 	assert.Equal(t, int64(241), service.lastInstanceID)
 	assert.Contains(t, rr.Body.String(), `"active_group_id":341`)
 }
@@ -364,7 +381,7 @@ func TestOperationsCreateAndStartSpontaneousRollsBackNon5xxFailures(t *testing.T
 
 	db := testpkg.SetupTestDB(t)
 
-	guardianRepo := repositories.NewFactory(db).GuardianProfile
+	guardianRepo := repositories.NewGuardianProfileTestRepository(db)
 	email := fmt.Sprintf("spontaneous-start-rollback-%d@test.local", time.Now().UnixNano())
 	probe := &userModels.GuardianProfile{
 		FirstName:              "Spontaneous",
@@ -1075,7 +1092,7 @@ type stubOpInstanceStudentRepo struct {
 type stubOpSupervisorRepo struct {
 	activeModels.GroupSupervisorRepository
 }
-type stubOpVisitRepo struct{ activeModels.VisitRepository }
+type stubOpPresence struct{ scheduleSvc.StudentVisitReader }
 type stubOpStudentRepo struct{ userModels.StudentRepository }
 type stubOpEducationGroupRepo struct {
 	educationModels.GroupRepository
@@ -1083,8 +1100,8 @@ type stubOpEducationGroupRepo struct {
 
 type stubOpActiveService struct{}
 
-func (stubOpActiveService) CreateVisit(context.Context, *activeModels.Visit) error { return nil }
-func (stubOpActiveService) EndVisit(context.Context, int64) error                  { return nil }
+func (stubOpActiveService) CreateVisit(context.Context, *studentpresence.Visit) error { return nil }
+func (stubOpActiveService) EndVisit(context.Context, int64) error                     { return nil }
 func (stubOpActiveService) MoveStudentsToActiveGroupAuthorized(_ context.Context, studentIDs []int64, activeGroupID int64, _ activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
 	return &activeSvc.StudentMoveResult{Moved: studentIDs, ActiveGroupID: &activeGroupID}, nil
 }
@@ -1130,7 +1147,7 @@ func newRealSpontaneousOpsService(db *bun.DB, instanceSvc scheduleSvc.InstanceSe
 		PickupService:      stubOpPickupService{},
 		CareDayService:     stubOpCareDayService{},
 		SupervisorRepo:     stubOpSupervisorRepo{},
-		VisitRepo:          stubOpVisitRepo{},
+		Presence:           stubOpPresence{},
 		StudentRepo:        stubOpStudentRepo{},
 		EducationGroupRepo: stubOpEducationGroupRepo{},
 		RoomRepo:           &fakeOperationRoomRepo{room: &facilitiesModels.Room{Name: "Lernraum"}},
@@ -1337,6 +1354,12 @@ func (s *fakeOperationsService) PatchAttendance(_ context.Context, accountID int
 	s.lastStudentID = studentID
 	s.lastPatch = patch
 	return s.patchRow, s.err
+}
+
+// EarliestPlannedBlockStartForClass exists only to satisfy the interface
+// (#2970); no handler in this package calls it.
+func (s *fakeOperationsService) EarliestPlannedBlockStartForClass(context.Context, string, timezone.Date) (string, error) {
+	return "", s.err
 }
 
 func operationRouter(method, path string, handler http.HandlerFunc) chi.Router {

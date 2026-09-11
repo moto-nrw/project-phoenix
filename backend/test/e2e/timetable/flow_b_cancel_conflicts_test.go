@@ -25,12 +25,10 @@ import (
 //
 // Tenant-isolation: the neighbor tenant sees an empty conflict list.
 // Query-budget: ≤ 22 queries per B13.
-// Deliberately NOT parallel: the test installs a query hook on the SHARED
-// package pool and asserts a query budget, so any test running beside it is
-// counted too.
 func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
-	s := newScenario(t)
-	defer s.teardown()
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	s := setupTimetableScenarioModule(t)
 
 	// --- Setup: target Monday at 13:00–14:00 -------------------------------
 	target := nextWeekday(timezone.TodayDate(), 1, 7) // Mon, >=7 days out
@@ -39,16 +37,12 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 	s.createActivePeriod(fmt.Sprintf("E2E-Flow-B-%d", time.Now().UnixNano()), target)
 
 	room := testpkg.CreateTestRoom(t, s.db, "FlowB-Room")
-	s.extraCleanup = append(s.extraCleanup, func() {
-	})
 
 	staff1 := testpkg.CreateTestStaff(t, s.db, "FlowB", "Staff1")
 	staff2 := testpkg.CreateTestStaff(t, s.db, "FlowB", "Staff2")
 	alice := testpkg.CreateTestStudent(t, s.db, "Alice", "FlowB", "3a")
 	bob := testpkg.CreateTestStudent(t, s.db, "Bob", "FlowB", "3a")
 	cleo := testpkg.CreateTestStudent(t, s.db, "Cleo", "FlowB", "3a")
-	s.extraCleanup = append(s.extraCleanup, func() {
-	})
 
 	tmpl := s.buildTemplate(templateSpec{
 		name:       "Lesen-AG",
@@ -65,12 +59,6 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 	testpkg.CreateTestArrivalSchedule(t, s.db, alice.ID, 1, staff1.ID, "12:50")
 	testpkg.CreateTestArrivalSchedule(t, s.db, bob.ID, 1, staff1.ID, "12:50")
 	testpkg.CreateTestArrivalException(t, s.db, cleo.ID, target, staff1.ID, "", "krank")
-	// Arrival-schedules/exceptions are captured by teardown via the
-	// scenario's cleanupOrder; no explicit registerCleanup needed because
-	// rows belong to the students we delete via users.students cascade would
-	// not cover — but the teardown DELETE-by-ID loop targets exactly these
-	// tables. Explicit registration keeps things tidy.
-	s.registerArrivalFixtures(t)
 
 	// --- Step 1: materialize -----------------------------------------------
 	matReq := map[string]any{"from_date": fromS, "to_date": fromS}
@@ -86,12 +74,11 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 	require.Equal(t, 3, matResp.InstanceStudentsCreated)
 
 	instance := fetchOneInstance(t, s, tmpl.group.ID, target)
-	s.registerCleanup("schedule.activity_instances", instance.ID)
 
 	// --- Step 2: insert cancelled exception --------------------------------
 	cancelledExc := &scheduleModel.ActivityException{
 		ActivityGroupID: tmpl.group.ID,
-		ExceptionDate:   target,
+		ExceptionDate:   scheduleModel.Date(target),
 		ExceptionType:   scheduleModel.ActivityExceptionCancelled,
 		Reason:          testpkg.StrPtr("Heizung kaputt"),
 	}
@@ -101,7 +88,6 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 		ModelTableExpr(`schedule.activity_exceptions`).
 		Exec(s.tenantCtx())
 	require.NoError(t, err, "insert cancelled exception")
-	s.registerCleanup("schedule.activity_exceptions", cancelledExc.ID)
 
 	// --- Step 3: re-materialize — skipped_exception, no new instance -------
 	rr = s.do("POST", "/materialize", matReq, s.primaryAdminClaims())
@@ -125,13 +111,11 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 
 	// --- Step 4: /exception-conflicts surfaces cancelled warnings ---------
 	// Attach the query counter now so we measure a real request.
-	qc := &queryCounter{}
-	s.db.AddQueryHook(qc)
-	qc.reset()
+	qc := testpkg.CaptureQueries(t, s.db)
 
 	path := fmt.Sprintf("/exception-conflicts?date=%s&date_to=%s", fromS, fromS)
 	rr = s.do("GET", path, nil, s.primaryAdminClaims())
-	cancelledQueryCount := qc.get()
+	cancelledQueries := qc.Queries()
 
 	require.Equal(t, http.StatusOK, rr.Code, "exception-conflicts body=%s", rr.Body.String())
 
@@ -168,8 +152,7 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 	// Query-budget — PR #1304 guarantees ≤ 22 queries regardless of fan-out.
 	// We include the TenantTxMiddleware SET LOCAL overhead in this count;
 	// the production repo budget is ≤ 22 for the handler body.
-	assert.LessOrEqual(t, cancelledQueryCount, int64(22),
-		"/exception-conflicts (cancelled) query count %d exceeds budget of 22", cancelledQueryCount)
+	testpkg.AssertQueryBudget(t, "e2e.timetable.exception_conflicts.cancelled", cancelledQueries)
 
 	// --- Step 5: swap in a modified exception ------------------------------
 	_, err = s.db.NewDelete().
@@ -182,7 +165,7 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 	modifiedStart := parseHHMM(t, "12:30")
 	modifiedExc := &scheduleModel.ActivityException{
 		ActivityGroupID: tmpl.group.ID,
-		ExceptionDate:   target,
+		ExceptionDate:   scheduleModel.Date(target),
 		ExceptionType:   scheduleModel.ActivityExceptionModified,
 		StartTime:       &modifiedStart,
 		Reason:          testpkg.StrPtr("Fruehschluss"),
@@ -193,11 +176,10 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 		ModelTableExpr(`schedule.activity_exceptions`).
 		Exec(s.tenantCtx())
 	require.NoError(t, err, "insert modified exception")
-	s.registerCleanup("schedule.activity_exceptions", modifiedExc.ID)
 
-	qc.reset()
+	qc.Reset()
 	rr = s.do("GET", path, nil, s.primaryAdminClaims())
-	modifiedQueryCount := qc.get()
+	modifiedQueries := qc.Queries()
 	require.Equal(t, http.StatusOK, rr.Code, "exception-conflicts(modified) body=%s", rr.Body.String())
 
 	var modResp struct {
@@ -227,8 +209,7 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 	assert.True(t, studentsSeen[bob.ID])
 	assert.False(t, studentsSeen[cleo.ID], "cleo is absent → modified mismatch suppressed too")
 
-	assert.LessOrEqual(t, modifiedQueryCount, int64(22),
-		"/exception-conflicts (modified) query count %d exceeds budget of 22", modifiedQueryCount)
+	testpkg.AssertQueryBudget(t, "e2e.timetable.exception_conflicts.modified", modifiedQueries)
 
 	// --- Step 6: tenant isolation -----------------------------------------
 	rr = s.do("GET", path, nil, s.secondaryAdminClaims())
@@ -240,26 +221,4 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 	}
 	decodeResponse(t, rr, &t2Resp)
 	assert.Empty(t, t2Resp.Conflicts, "secondary tenant must see no conflicts from primary")
-}
-
-// registerArrivalFixtures adds the three arrival-schedule/exception tables
-// to the scenario cleanup plan. The helpers already cover the dedicated
-// schedule.student_arrival_* tables in cleanupOrder, but rows created via
-// testpkg.CreateTestArrivalSchedule don't go through registerCleanup — they
-// inherit the scenario's tenant and get picked up by table-level cleanup only
-// if we remember the IDs. Simpler: do a targeted DELETE at teardown.
-func (s *scenario) registerArrivalFixtures(_ *testing.T) {
-	s.extraCleanup = append(s.extraCleanup, func() {
-		ctx := s.tenantCtx()
-		_, _ = s.db.NewDelete().
-			TableExpr("schedule.student_arrival_schedules").
-			Where("tenant_id = ?", s.primaryTenant).
-			Where("created_at > NOW() - INTERVAL '5 minutes'").
-			Exec(ctx)
-		_, _ = s.db.NewDelete().
-			TableExpr("schedule.student_arrival_exceptions").
-			Where("tenant_id = ?", s.primaryTenant).
-			Where("created_at > NOW() - INTERVAL '5 minutes'").
-			Exec(ctx)
-	})
 }

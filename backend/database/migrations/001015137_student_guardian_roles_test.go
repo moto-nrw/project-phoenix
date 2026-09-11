@@ -4,13 +4,13 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestStudentGuardianRolesMigration_LegalRelationshipWinsOverContactFlags(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
@@ -40,12 +40,13 @@ func TestStudentGuardianRolesMigration_LegalRelationshipWinsOverContactFlags(t *
 		WHERE id = ?
 	`, relationshipID).Scan(ctx, &row))
 
-	assert.Equal(t, authorize.GuardianRoleLegalGuardian, row.GuardianRole)
-	assert.Equal(t, true, row.Permissions[authorize.GuardianPermissionPortalAccess])
-	assert.Equal(t, true, row.Permissions[authorize.GuardianPermissionEnrollmentSubmit])
+	assert.Equal(t, "legal_guardian", row.GuardianRole)
+	assert.Equal(t, true, row.Permissions["parent_portal.access"])
+	assert.Equal(t, true, row.Permissions["parent_portal.enrollment.submit"])
 }
 
 func TestStudentGuardianRolesMigration_BackfillsRelativeEmergencyPickupWithoutPortalAccess(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
@@ -75,7 +76,7 @@ func TestStudentGuardianRolesMigration_BackfillsRelativeEmergencyPickupWithoutPo
 		WHERE id = ?
 	`, relationshipID).Scan(ctx, &row))
 
-	assert.Equal(t, authorize.GuardianRolePickupOnly, row.GuardianRole)
-	assert.NotContains(t, row.Permissions, authorize.GuardianPermissionPortalAccess)
-	assert.NotContains(t, row.Permissions, authorize.GuardianPermissionSickNoteSubmit)
+	assert.Equal(t, "pickup_only", row.GuardianRole)
+	assert.NotContains(t, row.Permissions, "parent_portal.access")
+	assert.NotContains(t, row.Permissions, "parent_portal.sick_note.submit")
 }

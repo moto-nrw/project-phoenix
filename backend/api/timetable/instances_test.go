@@ -450,6 +450,7 @@ func TestReopenInstance_EffectiveAdminScope(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, "/instances/7/reopen", bytes.NewReader(nil))
 			testutil.WithClaims(t, jwt.AppClaims{ID: 88, IsAdmin: tc.isAdmin, TenantID: testpkg.Tenant(t)})(req)
 			testutil.WithPermissions(tc.permissions...)(req)
+			attachTestPrincipal(t, req, jwt.AppClaims{ID: 88, IsAdmin: tc.isAdmin, TenantID: testpkg.Tenant(t)}, tc.permissions)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
 
@@ -1184,7 +1185,7 @@ func TestReplanWeek_ActivityGroupIDPassThrough(t *testing.T) {
 
 // Deviation writes (#1886): the DB-backed deviations tests assert real row
 // effects, so these delegate to a real InstanceService when `real` is wired
-// (buildDevSetup); the pure mock-backed routes leave it nil (no-op).
+// (buildDevModule); the pure mock-backed routes leave it nil (no-op).
 func (m *mockInstanceService) ApplyAbsence(ctx context.Context, row *scheduleModel.InstanceStaff, instance *scheduleModel.ActivityInstance, reason *string, actor *int64, touched map[int64]*scheduleModel.ActivityInstance) error {
 	if m.real != nil {
 		return m.real.ApplyAbsence(ctx, row, instance, reason, actor, touched)
@@ -1229,7 +1230,7 @@ func (m *mockInstanceService) ApplySubstitute(ctx context.Context, op scheduleSv
 }
 
 // ApplyDeviations delegates the atomic save to a real InstanceService when
-// wired (buildDevSetup, DB-backed); the pure mock path is unused today.
+// wired (buildDevModule, DB-backed); the pure mock path is unused today.
 func (m *mockInstanceService) ApplyDeviations(ctx context.Context, id int64, in scheduleSvc.ApplyDeviationsInput) (*scheduleSvc.ApplyDeviationsResult, error) {
 	if m.real != nil {
 		return m.real.ApplyDeviations(ctx, id, in)

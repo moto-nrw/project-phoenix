@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -13,7 +14,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
@@ -43,32 +44,34 @@ var errInvalidReviewListQuery = errors.New("invalid change request list query")
 // openReviewStatuses are the rows the open list displays. A request awaiting a
 // parent response remains visible, but cannot be decided by staff yet.
 var openReviewStatuses = []string{
-	enrollmentModels.ChangeRequestStatusPendingReview,
-	enrollmentModels.ChangeRequestStatusNeedsParentResponse,
+	capability.ChangeRequestStatusPendingReview,
+	capability.ChangeRequestStatusNeedsParentResponse,
 }
 
 var actionableReviewStatuses = []string{
-	enrollmentModels.ChangeRequestStatusPendingReview,
+	capability.ChangeRequestStatusPendingReview,
 }
 
 // historyReviewStatuses are the terminal ones.
 var historyReviewStatuses = []string{
-	enrollmentModels.ChangeRequestStatusApproved,
-	enrollmentModels.ChangeRequestStatusRejected,
-	enrollmentModels.ChangeRequestStatusCancelled,
+	capability.ChangeRequestStatusApproved,
+	capability.ChangeRequestStatusRejected,
+	capability.ChangeRequestStatusCancelled,
 }
 
 // ChangeRequestReviewEntry is one Anmeldungsänderung in the shared display
 // format: who filed what for which child, and who decided it when.
 type ChangeRequestReviewEntry struct {
-	ID           string   `json:"id"`
-	RequestID    string   `json:"request_id"`
-	Origin       string   `json:"origin"`
-	Status       string   `json:"status"`
-	ChildNames   []string `json:"child_names"`
-	GuardianName string   `json:"guardian_name,omitempty"`
-	ParentNote   *string  `json:"parent_note,omitempty"`
-	DecisionNote *string  `json:"decision_note,omitempty"`
+	ID           string                          `json:"id"`
+	RequestID    string                          `json:"request_id"`
+	Origin       string                          `json:"origin"`
+	Status       string                          `json:"status"`
+	ChildNames   []string                        `json:"child_names"`
+	ChildIDs     []string                        `json:"child_ids,omitempty"`
+	Children     []ChangeRequestReviewChildEntry `json:"children"`
+	GuardianName string                          `json:"guardian_name,omitempty"`
+	ParentNote   *string                         `json:"parent_note,omitempty"`
+	DecisionNote *string                         `json:"decision_note,omitempty"`
 	// BaseSnapshot, ProposedSnapshot and Diff are the same three fields the
 	// detail view compares, so the list can show the real before → after
 	// instead of only naming the changed areas: the enrollment as filed and as
@@ -80,6 +83,12 @@ type ChangeRequestReviewEntry struct {
 	// DecidedAt and DecidedByName are set once the request is decided.
 	DecidedAt     *time.Time `json:"decided_at,omitempty"`
 	DecidedByName string     `json:"decided_by_name,omitempty"`
+}
+
+type ChangeRequestReviewChildEntry struct {
+	CaseID    string  `json:"case_id"`
+	StudentID *string `json:"student_id,omitempty"`
+	Name      string  `json:"name"`
 }
 
 // ChangeRequestReviewItem wraps one entry in the merged list's envelope.
@@ -196,13 +205,13 @@ func parseReviewListStatuses(raw string) ([]string, error) {
 	for _, part := range strings.Split(raw, ",") {
 		switch strings.TrimSpace(part) {
 		case "approved":
-			statuses = append(statuses, enrollmentModels.ChangeRequestStatusApproved)
+			statuses = append(statuses, capability.ChangeRequestStatusApproved)
 		case "rejected":
-			statuses = append(statuses, enrollmentModels.ChangeRequestStatusRejected)
+			statuses = append(statuses, capability.ChangeRequestStatusRejected)
 		case "withdrawn":
 			// A cancelled change request is one the family took back — the
 			// shared filter's "zurückgezogen".
-			statuses = append(statuses, enrollmentModels.ChangeRequestStatusCancelled)
+			statuses = append(statuses, capability.ChangeRequestStatusCancelled)
 		default:
 			return nil, errInvalidReviewListQuery
 		}
@@ -297,6 +306,8 @@ func toChangeRequestReviewItem(item *enrollmentService.ChangeRequestReviewItem, 
 		Origin:           row.Origin,
 		Status:           row.Status,
 		ChildNames:       item.ChildNames,
+		ChildIDs:         formatReviewChildIDs(item.ChildIDs),
+		Children:         formatReviewChildren(row.RequestID, item.Children),
 		GuardianName:     item.GuardianName,
 		ParentNote:       row.ParentNote,
 		DecisionNote:     row.AdminDecisionNote,
@@ -321,4 +332,29 @@ func toChangeRequestReviewItem(item *enrollmentService.ChangeRequestReviewItem, 
 		OccurredAt:  occurredAt,
 		Data:        entry,
 	}
+}
+
+func formatReviewChildren(requestID int64, children []enrollmentService.ChangeRequestReviewChild) []ChangeRequestReviewChildEntry {
+	formatted := make([]ChangeRequestReviewChildEntry, 0, len(children))
+	for _, child := range children {
+		var studentID *string
+		if child.StudentID != nil {
+			value := strconv.FormatInt(*child.StudentID, 10)
+			studentID = &value
+		}
+		formatted = append(formatted, ChangeRequestReviewChildEntry{
+			CaseID:    fmt.Sprintf("%d:%d", requestID, child.RequestChildID),
+			StudentID: studentID,
+			Name:      child.Name,
+		})
+	}
+	return formatted
+}
+
+func formatReviewChildIDs(ids []int64) []string {
+	formatted := make([]string, 0, len(ids))
+	for _, id := range ids {
+		formatted = append(formatted, strconv.FormatInt(id, 10))
+	}
+	return formatted
 }

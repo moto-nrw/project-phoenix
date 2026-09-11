@@ -2,18 +2,11 @@
 # This file defines who is responsible for code reviews in this repository.
 # Each line is a file pattern followed by one or more owners.
 
-# Global owner for all files
-* @yungweng
+# General PR reviews are requested manually, not automatically on ready-for-review.
 
 # Deployment and production-state controls require board visibility.
-/.github/workflows/ @yungweng @moto-nrw/moto-vorstand
-/scripts/deploy-remote.sh @yungweng @moto-nrw/moto-vorstand
-/scripts/rollback-remote.sh @yungweng @moto-nrw/moto-vorstand
-/environments/ @yungweng @moto-nrw/moto-vorstand
-/backend/database/migrations/ @yungweng @moto-nrw/moto-vorstand
-
-# Agent configuration (hooks, skills, rules) executes locally for everyone
-# who trusts the repo - changes here need an explicit review.
-/.claude/ @yungweng
-/.codex/ @yungweng
-/.agents/ @yungweng
+/.github/workflows/ @moto-nrw/moto-vorstand
+/scripts/deploy-remote.sh @moto-nrw/moto-vorstand
+/scripts/rollback-remote.sh @moto-nrw/moto-vorstand
+/environments/ @moto-nrw/moto-vorstand
+/backend/database/migrations/ @moto-nrw/moto-vorstand

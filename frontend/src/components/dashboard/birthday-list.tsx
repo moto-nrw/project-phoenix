@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { formatDate } from "~/lib/date-helpers";
 import type { BirthdayCelebration } from "~/lib/birthdays-api";
@@ -39,12 +40,11 @@ export function BirthdayList({
     );
   }
 
+  // Derselbe Leerzustand wie in den Nachbarkarten der Startseite: stand hier
+  // ein eigener Satz in anderer Größe, las sich die Karte wie aus einer
+  // anderen App.
   if (celebrations.length === 0) {
-    return (
-      <p className="py-6 text-center text-sm text-gray-500">
-        Heute keine Geburtstage
-      </p>
-    );
+    return <EmptyState className="py-4" title="Heute keine Geburtstage" />;
   }
 
   const children = celebrations.filter((entry) => entry.kind === "student");

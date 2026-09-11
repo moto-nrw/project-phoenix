@@ -25,30 +25,65 @@ vi.mock("~/lib/student-companion-api", async (importOriginal) => ({
 }));
 
 // Mock FormModal
-vi.mock("~/components/ui/form-modal", () => ({
-  FormModal: ({
-    isOpen,
-    onClose,
-    title,
-    footer,
+// Das Panel laeuft als SlideOver (Vaul). Vaul rendert in jsdom nicht, deshalb
+// steht hier dieselbe Struktur ohne Animationsschicht; die Testkennungen
+// bleiben unveraendert.
+vi.mock("~/components/ui/slide-over", () => ({
+  SlideOver: ({
+    open,
+    onOpenChange,
     children,
   }: {
-    isOpen: boolean;
-    onClose: () => void;
-    title: string;
-    footer: React.ReactNode;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
     children: React.ReactNode;
   }) =>
-    isOpen ? (
+    open ? (
       <div data-testid="form-modal">
-        <h1>{title}</h1>
-        <button type="button" onClick={onClose} data-testid="close-modal">
+        <button
+          type="button"
+          onClick={() => onOpenChange(false)}
+          data-testid="close-modal"
+        >
           Close
         </button>
         {children}
-        <div data-testid="modal-footer">{footer}</div>
       </div>
     ) : null,
+  SlideOverContent: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  SlideOverHeader: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  SlideOverBody: ({
+    error,
+    children,
+  }: {
+    error?: string | { message: string } | null;
+    children: React.ReactNode;
+  }) => (
+    <div>
+      {error ? (
+        <div role="alert">
+          {typeof error === "string" ? error : error.message}
+        </div>
+      ) : null}
+      {children}
+    </div>
+  ),
+  SlideOverFooter: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="modal-footer">{children}</div>
+  ),
+  SlideOverTitle: ({ children }: { children: React.ReactNode }) => (
+    <h1>{children}</h1>
+  ),
+  SlideOverDescription: ({ children }: { children: React.ReactNode }) => (
+    <p>{children}</p>
+  ),
+  SlideOverCloseButton: (
+    props: React.ButtonHTMLAttributes<HTMLButtonElement>,
+  ) => <button type="button" {...props} />,
 }));
 
 // Mock ToastContext
@@ -309,11 +344,10 @@ describe("PersonalInfoFormModal", () => {
       const saveButton = screen.getByText("Speichern");
       fireEvent.click(saveButton);
 
-      await waitFor(() => {
-        expect(mockToast.error).toHaveBeenCalledWith(
-          "Fehler beim Speichern der persönlichen Informationen",
-        );
-      });
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Fehler beim Speichern der persönlichen Informationen",
+      );
+      expect(mockToast.error).not.toHaveBeenCalled();
     });
 
     // The stranded-companion refusal is user-actionable: it says which child's
@@ -344,11 +378,10 @@ describe("PersonalInfoFormModal", () => {
 
       fireEvent.click(screen.getByText("Speichern"));
 
-      await waitFor(() => {
-        expect(mockToast.error).toHaveBeenCalledWith(
-          "Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.",
-        );
-      });
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.",
+      );
+      expect(mockToast.error).not.toHaveBeenCalled();
     });
 
     it("shows loading state while saving", async () => {
@@ -368,7 +401,7 @@ describe("PersonalInfoFormModal", () => {
       const saveButton = screen.getByText("Speichern");
       fireEvent.click(saveButton);
 
-      expect(screen.getByText("Wird gespeichert...")).toBeInTheDocument();
+      expect(screen.getByText("Wird gespeichert…")).toBeInTheDocument();
 
       await waitFor(() => {
         expect(mockOnClose).toHaveBeenCalled();
@@ -469,6 +502,47 @@ describe("PersonalInfoFormModal", () => {
             buskind: true,
           }),
         );
+      });
+    });
+
+    it("changes only Monday from pickup to walking and closes after saving", async () => {
+      mockOnSave.mockResolvedValue(undefined);
+      render(
+        <PersonalInfoFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          student={createMockStudent({
+            allowed_departure_modes: {
+              mon: ["pickup"],
+              tue: ["pickup"],
+              wed: ["pickup"],
+              thu: ["pickup"],
+              fri: ["pickup"],
+            },
+          })}
+          onSave={mockOnSave}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("checkbox", { name: "Montag: Zu Fuß" }));
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: "Montag: Abgeholt" }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      await waitFor(() => {
+        expect(mockOnSave).toHaveBeenCalledWith(
+          expect.objectContaining({
+            allowed_departure_modes: {
+              mon: ["alone"],
+              tue: ["pickup"],
+              wed: ["pickup"],
+              thu: ["pickup"],
+              fri: ["pickup"],
+            },
+          }),
+        );
+        expect(mockOnClose).toHaveBeenCalledTimes(1);
       });
     });
 

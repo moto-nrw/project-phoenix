@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { releaseFakeTimers } from "~/test/clock";
 
 import {
   exportPlan,
@@ -165,7 +166,7 @@ describe("exportPlan", () => {
 
     expect(target.print).toHaveBeenCalledOnce();
     expect(click).not.toHaveBeenCalled();
-    vi.useRealTimers();
+    releaseFakeTimers();
   });
 
   // Without a Content-Disposition the file still needs a name a user can find

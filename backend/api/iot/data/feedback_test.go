@@ -6,69 +6,50 @@ package data_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
-	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
 	dataAPI "github.com/moto-nrw/project-phoenix/api/iot/data"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/device"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	usersModel "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// newFakeSettingsService builds a configtest.Mock reproducing the former
-// hand-rolled fakeSettingsService stub: ResolveBool (and its tenant
-// variant) default to true when the key is not present in boolValues.
-func newFakeSettingsService(boolValues map[string]bool) *configtest.Mock {
-	resolveBool := func(_ context.Context, key string) (bool, error) {
-		if val, ok := boolValues[key]; ok {
-			return val, nil
-		}
-		return true, nil
-	}
-	return &configtest.Mock{
-		ResolveBoolFn: resolveBool,
-		ResolveBoolForTenantFn: func(ctx context.Context, _ int64, key string) (bool, error) {
-			return resolveBool(ctx, key)
-		},
-	}
-}
+const feedbackEnabledSetting = "feedback.enabled"
 
 // feedbackTestContext holds shared test dependencies.
 type feedbackTestContext struct {
-	db       *bun.DB
-	services *services.Factory
-	resource *dataAPI.FeedbackResource
+	db         *testpkg.DB
+	resource   *dataAPI.FeedbackResource
+	setEnabled func(bool)
 }
 
-// setupFeedbackTestContext initializes test database, services, and resource.
-func setupFeedbackTestContext(t *testing.T) *feedbackTestContext {
+// setupFeedbackModule initializes the feedback route.
+func setupFeedbackModule(t *testing.T) *feedbackTestContext {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupFeedbackModule(t)
+	setEnabled := func(enabled bool) {
+		require.NoError(t, svc.Settings.SetValue(testpkg.Ctx(t), feedbackEnabledSetting, enabled, nil, nil))
+	}
+	setEnabled(true)
 
 	// Create feedback resource
 	resource := dataAPI.NewFeedbackResource(
-		svc.IoT,
-		svc.Users,
+		svc.FeedbackStudents,
 		svc.Feedback,
+		func(int, string) {},
+		testRuntime(),
 		nil,
 	)
 
 	return &feedbackTestContext{
-		db:       db,
-		services: svc,
-		resource: resource,
+		db:         db,
+		resource:   resource,
+		setEnabled: setEnabled,
 	}
 }
 
@@ -78,7 +59,7 @@ func setupFeedbackTestContext(t *testing.T) *feedbackTestContext {
 
 func TestSubmitFeedback_NoDevice(t *testing.T) {
 	t.Parallel()
-	ctx := setupFeedbackTestContext(t)
+	ctx := setupFeedbackModule(t)
 
 	router := ctx.resource.Router()
 
@@ -92,12 +73,12 @@ func TestSubmitFeedback_NoDevice(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for missing device authentication")
+	assert.Equal(t, 401, rr.Code, "Expected 401 for missing device authentication")
 }
 
 func TestSubmitFeedback_InvalidJSON(t *testing.T) {
 	t.Parallel()
-	ctx := setupFeedbackTestContext(t)
+	ctx := setupFeedbackModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-1")
 
@@ -106,9 +87,7 @@ func TestSubmitFeedback_InvalidJSON(t *testing.T) {
 	// Send invalid JSON body
 	req := httptest.NewRequest("POST", "/feedback", bytes.NewBufferString("invalid json"))
 	req.Header.Set("Content-Type", "application/json")
-	// Add device context
-	reqCtx := context.WithValue(req.Context(), device.CtxDevice, testDevice)
-	req = req.WithContext(reqCtx)
+	testutil.WithDeviceContext(testDevice)(req)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -117,7 +96,7 @@ func TestSubmitFeedback_InvalidJSON(t *testing.T) {
 
 func TestSubmitFeedback_MissingStudentID(t *testing.T) {
 	t.Parallel()
-	ctx := setupFeedbackTestContext(t)
+	ctx := setupFeedbackModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-2")
 
@@ -138,7 +117,7 @@ func TestSubmitFeedback_MissingStudentID(t *testing.T) {
 
 func TestSubmitFeedback_MissingValue(t *testing.T) {
 	t.Parallel()
-	ctx := setupFeedbackTestContext(t)
+	ctx := setupFeedbackModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-3")
 
@@ -159,7 +138,7 @@ func TestSubmitFeedback_MissingValue(t *testing.T) {
 
 func TestSubmitFeedback_InvalidStudentID(t *testing.T) {
 	t.Parallel()
-	ctx := setupFeedbackTestContext(t)
+	ctx := setupFeedbackModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-4")
 
@@ -181,7 +160,7 @@ func TestSubmitFeedback_InvalidStudentID(t *testing.T) {
 
 func TestSubmitFeedback_StudentNotFound(t *testing.T) {
 	t.Parallel()
-	ctx := setupFeedbackTestContext(t)
+	ctx := setupFeedbackModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-5")
 
@@ -199,6 +178,7 @@ func TestSubmitFeedback_StudentNotFound(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	testutil.AssertNotFound(t, rr)
+	assert.Equal(t, `{"status":"error","error":"student not found"}`+"\n", rr.Body.String())
 }
 
 // A graduated (alumnus) student is soft-deleted and gone from every kiosk and
@@ -209,14 +189,14 @@ func TestSubmitFeedback_StudentNotFound(t *testing.T) {
 // mapping (#405).
 func TestSubmitFeedback_Alumnus(t *testing.T) {
 	t.Parallel()
-	ctx := setupFeedbackTestContext(t)
+	ctx := setupFeedbackModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-alumnus")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Graduate", "4a")
 
 	_, err := ctx.db.NewUpdate().
 		TableExpr(`users.students`).
-		Set("status = ?", string(usersModel.StudentStatusAlumnus)).
+		Set("status = ?", "alumnus").
 		Where("id = ?", student.ID).
 		Exec(t.Context())
 	require.NoError(t, err)
@@ -246,7 +226,7 @@ func TestSubmitFeedback_Alumnus(t *testing.T) {
 
 func TestSubmitFeedback_Success(t *testing.T) {
 	t.Parallel()
-	ctx := setupFeedbackTestContext(t)
+	ctx := setupFeedbackModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-6")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Student", "1a")
@@ -264,12 +244,12 @@ func TestSubmitFeedback_Success(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
+	testutil.AssertSuccessResponse(t, rr, 201)
 }
 
 func TestSubmitFeedback_NeutralValue(t *testing.T) {
 	t.Parallel()
-	ctx := setupFeedbackTestContext(t)
+	ctx := setupFeedbackModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-7")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Student2", "1b")
@@ -287,12 +267,12 @@ func TestSubmitFeedback_NeutralValue(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
+	testutil.AssertSuccessResponse(t, rr, 201)
 }
 
 func TestSubmitFeedback_NegativeValue(t *testing.T) {
 	t.Parallel()
-	ctx := setupFeedbackTestContext(t)
+	ctx := setupFeedbackModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-8")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Student3", "1c")
@@ -310,12 +290,12 @@ func TestSubmitFeedback_NegativeValue(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
+	testutil.AssertSuccessResponse(t, rr, 201)
 }
 
 func TestSubmitFeedback_InvalidValue(t *testing.T) {
 	t.Parallel()
-	ctx := setupFeedbackTestContext(t)
+	ctx := setupFeedbackModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-9")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Student4", "1d")
@@ -334,7 +314,7 @@ func TestSubmitFeedback_InvalidValue(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	// Should return error for invalid value (validation happens in service)
-	assert.Contains(t, []int{http.StatusBadRequest, http.StatusUnprocessableEntity}, rr.Code)
+	assert.Contains(t, []int{400, 422}, rr.Code)
 }
 
 // =============================================================================
@@ -343,23 +323,13 @@ func TestSubmitFeedback_InvalidValue(t *testing.T) {
 
 func TestSubmitFeedback_FeedbackDisabled(t *testing.T) {
 	t.Parallel()
-	ctx := setupFeedbackTestContext(t)
+	ctx := setupFeedbackModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-disabled")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "DisabledStudent", "2a")
 
-	// Create resource with fake SettingsService that returns feedback.enabled = false
-	disabledSettings := newFakeSettingsService(map[string]bool{
-		configModel.KeyFeedbackEnabled: false,
-	})
-	resource := dataAPI.NewFeedbackResource(
-		ctx.services.IoT,
-		ctx.services.Users,
-		ctx.services.Feedback,
-		disabledSettings,
-	)
-
-	router := resource.Router()
+	ctx.setEnabled(false)
+	router := ctx.resource.Router()
 
 	body := map[string]interface{}{
 		"student_id": student.ID,
@@ -373,7 +343,7 @@ func TestSubmitFeedback_FeedbackDisabled(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	// Should return 200 with status "skipped"
-	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, 200, rr.Code)
 
 	var response struct {
 		Status string `json:"status"`
@@ -390,23 +360,12 @@ func TestSubmitFeedback_FeedbackDisabled(t *testing.T) {
 
 func TestSubmitFeedback_FeedbackEnabled(t *testing.T) {
 	t.Parallel()
-	ctx := setupFeedbackTestContext(t)
+	ctx := setupFeedbackModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-enabled")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "EnabledStudent", "2b")
 
-	// Create resource with fake SettingsService that returns feedback.enabled = true
-	enabledSettings := newFakeSettingsService(map[string]bool{
-		configModel.KeyFeedbackEnabled: true,
-	})
-	resource := dataAPI.NewFeedbackResource(
-		ctx.services.IoT,
-		ctx.services.Users,
-		ctx.services.Feedback,
-		enabledSettings,
-	)
-
-	router := resource.Router()
+	router := ctx.resource.Router()
 
 	body := map[string]interface{}{
 		"student_id": student.ID,
@@ -420,5 +379,5 @@ func TestSubmitFeedback_FeedbackEnabled(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	// Should proceed normally and create the entry
-	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
+	testutil.AssertSuccessResponse(t, rr, 201)
 }

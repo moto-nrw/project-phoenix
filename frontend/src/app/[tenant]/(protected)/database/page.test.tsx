@@ -73,6 +73,14 @@ global.fetch = vi.fn(() =>
 
 import { useSession } from "next-auth/react";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
+import { useTimetableEnabled } from "~/lib/tenant-context";
+
+vi.mock("~/lib/tenant-context", () => ({
+  useNFCEnabled: () => true,
+  useTenantSlugSafe: () => "test-tenant",
+  useTenantRoutingModeSafe: () => "path",
+  useTimetableEnabled: vi.fn(),
+}));
 
 function mockCounts(
   data: unknown = mockCountsResponse.data,
@@ -97,6 +105,7 @@ describe("DatabasePage", () => {
       update: vi.fn(),
     });
     vi.mocked(useIsMobile).mockReturnValue(false);
+    vi.mocked(useTimetableEnabled).mockReturnValue(true);
     mockCounts();
     vi.mocked(global.fetch).mockResolvedValue({
       ok: true,
@@ -109,7 +118,7 @@ describe("DatabasePage", () => {
 
     // Page renders without layout wrapper (now in app layout)
     await waitFor(() => {
-      expect(screen.getByText("Kinder")).toBeInTheDocument();
+      expect(screen.getByText("Kinderdaten")).toBeInTheDocument();
     });
   });
 
@@ -125,14 +134,14 @@ describe("DatabasePage", () => {
     render(<DatabasePage />);
 
     expect(screen.getByTestId("database-index-skeleton")).toBeVisible();
-    expect(screen.queryByText("Kinder")).not.toBeInTheDocument();
+    expect(screen.queryByText("Kinderdaten")).not.toBeInTheDocument();
   });
 
   it("displays data sections with counts after loading", async () => {
     render(<DatabasePage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Kinder")).toBeInTheDocument();
+      expect(screen.getByText("Kinderdaten")).toBeInTheDocument();
       expect(screen.getByText("Personal")).toBeInTheDocument();
       expect(screen.getByText("Räume")).toBeInTheDocument();
       expect(screen.getByText("Aktivitäten")).toBeInTheDocument();
@@ -158,6 +167,17 @@ describe("DatabasePage", () => {
     });
   });
 
+  it("shows no more than three counts in the page header", async () => {
+    render(<DatabasePage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("100 Kinder · 25 Personen · 15 Räume"),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("10 Gruppen")).not.toBeInTheDocument();
+    });
+  });
+
   it("displays singular 'Eintrag' for count of 1", async () => {
     mockCounts({
       ...mockCountsResponse.data,
@@ -177,8 +197,9 @@ describe("DatabasePage", () => {
     render(<DatabasePage />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("page-header")).toBeInTheDocument();
-      expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { level: 1, name: "Datenverwaltung" }),
+      ).toBeInTheDocument();
     });
   });
 
@@ -201,10 +222,79 @@ describe("DatabasePage", () => {
     render(<DatabasePage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Kinder")).toBeInTheDocument();
+      expect(screen.getByText("Kinderdaten")).toBeInTheDocument();
       expect(screen.queryByText("Personal")).not.toBeInTheDocument();
       expect(screen.queryByText("Räume")).not.toBeInTheDocument();
     });
+  });
+
+  it("shows catalog cards to administrators without explicit catalog permissions", async () => {
+    const administrator = {
+      ...mockSession,
+      user: {
+        ...mockSession.user,
+        roles: ["admin"],
+        permissions: [],
+      },
+    };
+    vi.mocked(useSession).mockReturnValue({
+      data: administrator,
+      status: "authenticated",
+      update: vi.fn(),
+    } as never);
+
+    render(<DatabasePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Terminkategorien")).toBeInTheDocument();
+      expect(screen.getByText("Planungsspuren")).toBeInTheDocument();
+      expect(screen.getByText("Schichtarten")).toBeInTheDocument();
+      expect(screen.getByText("Abwesenheitsarten")).toBeInTheDocument();
+    });
+  });
+
+  it("uses the tenant planning state for administrators without config:read", () => {
+    const administrator = {
+      ...mockSession,
+      user: {
+        ...mockSession.user,
+        roles: ["admin"],
+        permissions: [],
+      },
+    };
+    vi.mocked(useSession).mockReturnValue({
+      data: administrator,
+      status: "authenticated",
+      update: vi.fn(),
+    } as never);
+    vi.mocked(useTimetableEnabled).mockReturnValue(false);
+
+    render(<DatabasePage />);
+
+    expect(screen.queryByText("Planungsspuren")).not.toBeInTheDocument();
+    expect(screen.queryByText("Schichtarten")).not.toBeInTheDocument();
+  });
+
+  it("hides planning catalogs for delegated users when planning is switched off", () => {
+    const scheduleManager = {
+      ...mockSession,
+      user: {
+        ...mockSession.user,
+        roles: [],
+        permissions: ["schedules:manage"],
+      },
+    };
+    vi.mocked(useSession).mockReturnValue({
+      data: scheduleManager,
+      status: "authenticated",
+      update: vi.fn(),
+    } as never);
+    vi.mocked(useTimetableEnabled).mockReturnValue(false);
+
+    render(<DatabasePage />);
+
+    expect(screen.queryByText("Planungsspuren")).not.toBeInTheDocument();
+    expect(screen.queryByText("Schichtarten")).not.toBeInTheDocument();
   });
 
   it("handles 401 unauthorized response gracefully", async () => {
@@ -214,7 +304,7 @@ describe("DatabasePage", () => {
 
     // Should not crash and not show any sections
     await waitFor(() => {
-      expect(screen.queryByText("Kinder")).not.toBeInTheDocument();
+      expect(screen.queryByText("Kinderdaten")).not.toBeInTheDocument();
     });
   });
 
@@ -225,7 +315,7 @@ describe("DatabasePage", () => {
 
     // Should not crash and not show any sections
     await waitFor(() => {
-      expect(screen.queryByText("Kinder")).not.toBeInTheDocument();
+      expect(screen.queryByText("Kinderdaten")).not.toBeInTheDocument();
     });
   });
 
@@ -263,7 +353,7 @@ describe("DatabasePage", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("Kinderdaten verwalten und bearbeiten"),
+        screen.getByText("Kinder anlegen, importieren und ihre Daten pflegen"),
       ).toBeInTheDocument();
       expect(
         screen.getByText("Personaldaten und Zuordnungen verwalten"),
@@ -282,7 +372,7 @@ describe("DatabasePage", () => {
       // ambiguous now that the Exporte card mentions "Kinder-" and
       // "Raumlisten" in its own description.
       const studentsLink = screen.getByRole("link", {
-        name: /Kinderdaten verwalten/,
+        name: /Kinder anlegen/,
       });
       expect(studentsLink).toHaveAttribute(
         "href",
@@ -322,7 +412,7 @@ describe("DatabasePage", () => {
     render(<DatabasePage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Kinder")).toBeInTheDocument();
+      expect(screen.getByText("Kinderdaten")).toBeInTheDocument();
     });
 
     expect(
@@ -353,7 +443,7 @@ describe("baseDataSections configuration", () => {
     const sections = [
       {
         id: "students",
-        title: "Kinder",
+        title: "Kinderdaten",
         href: "/database/students",
       },
       {

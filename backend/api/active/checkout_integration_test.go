@@ -6,7 +6,6 @@
 package active_test
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -15,7 +14,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -43,7 +42,7 @@ func TestCheckoutStudent_Integration(t *testing.T) {
 	checkoutPermissions := []string{permissions.VisitsUpdate}
 
 	t.Run("closes attendance and ends open visit in one request", func(t *testing.T) {
-		handler := setupCheckinTestHandler(t, db)
+		handler := setupCheckinRoute(t, db)
 
 		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Checkout", "Staff")
 		student := testpkg.CreateTestStudent(t, db, "Checkout", "Student", "5a")
@@ -67,30 +66,24 @@ func TestCheckoutStudent_Integration(t *testing.T) {
 		require.Equal(t, http.StatusOK, rr.Code, "Response body: %s", rr.Body.String())
 
 		// Attendance row is closed...
-		var records []*activeModels.Attendance
-		err := db.NewSelect().
-			Model(&records).
-			ModelTableExpr(`active.attendance AS "attendance"`).
-			Where(`"attendance".student_id = ?`, student.ID).
-			Where(`"attendance".date = ?`, timezone.TodayDate()).
-			Scan(context.Background())
+		presence := testPresenceQueries(t, db)
+		today := timezone.TodayDate().String()
+		records, err := presence.ListAttendance(testpkg.Ctx(t), studentpresence.AttendanceFilter{
+			StudentIDs: []int64{student.ID}, FromDate: today, UntilDate: today,
+		})
 		require.NoError(t, err)
 		require.Len(t, records, 1)
 		require.NotNil(t, records[0].CheckOutTime, "checkout must close the attendance row")
 
 		// ...AND the visit is ended in the same request (issue #895).
-		endedVisit := new(activeModels.Visit)
-		err = db.NewSelect().
-			Model(endedVisit).
-			ModelTableExpr(`active.visits AS "visit"`).
-			Where(`"visit".id = ?`, visit.ID).
-			Scan(context.Background())
+		endedVisit, err := presence.FindVisit(testpkg.Ctx(t), visit.ID)
 		require.NoError(t, err)
+		require.NotNil(t, endedVisit)
 		require.NotNil(t, endedVisit.ExitTime, "checkout must end the open room visit (issue #895)")
 	})
 
 	t.Run("second checkout is a safe no-op", func(t *testing.T) {
-		handler := setupCheckinTestHandler(t, db)
+		handler := setupCheckinRoute(t, db)
 
 		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "DoubleCheckout", "Staff")
 		student := testpkg.CreateTestStudent(t, db, "DoubleCheckout", "Student", "5b")
@@ -119,24 +112,20 @@ func TestCheckoutStudent_Integration(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, rr.Code, "Response body: %s", rr.Body.String())
 
 		// Still exactly one attendance row, still closed.
-		var records []*activeModels.Attendance
-		err := db.NewSelect().
-			Model(&records).
-			ModelTableExpr(`active.attendance AS "attendance"`).
-			Where(`"attendance".student_id = ?`, student.ID).
-			Where(`"attendance".date = ?`, timezone.TodayDate()).
-			Scan(context.Background())
+		presence := testPresenceQueries(t, db)
+		today := timezone.TodayDate().String()
+		records, err := presence.ListAttendance(testpkg.Ctx(t), studentpresence.AttendanceFilter{
+			StudentIDs: []int64{student.ID}, FromDate: today, UntilDate: today,
+		})
 		require.NoError(t, err)
 		require.Len(t, records, 1, "second checkout must not create a new attendance row")
 		require.NotNil(t, records[0].CheckOutTime)
 
 		// No open visit either.
-		openCount, err := db.NewSelect().
-			ModelTableExpr(`active.visits AS "visit"`).
-			Where(`"visit".student_id = ?`, student.ID).
-			Where(`"visit".exit_time IS NULL`).
-			Count(context.Background())
+		openVisits, err := presence.ListVisits(testpkg.Ctx(t), studentpresence.VisitFilter{
+			StudentIDs: []int64{student.ID}, OpenOnly: true,
+		})
 		require.NoError(t, err)
-		assert.Zero(t, openCount, "no open visit may remain after checkout")
+		assert.Empty(t, openVisits, "no open visit may remain after checkout")
 	})
 }

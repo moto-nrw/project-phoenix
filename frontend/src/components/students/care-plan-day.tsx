@@ -114,7 +114,7 @@ function SlotAnchor({
 }) {
   const Icon = icon === "in" ? LogIn : LogOut;
   const isException = slot.source === "exception";
-  const timeText = slot.expectedTime ?? "—";
+  const timeText = slot.expectedTime ?? "–";
   return (
     <div className="flex items-center gap-2 py-1.5">
       <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500">

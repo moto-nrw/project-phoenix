@@ -10,6 +10,7 @@ const { mockTenantProvider } = vi.hoisted(() => ({
 
 vi.mock("next-auth/react", () => ({
   SessionProvider: ({ children }: { children: React.ReactNode }) => children,
+  useSession: () => ({ data: null, status: "loading" }),
 }));
 
 vi.mock("~/components/notifications/service-worker-registrar", () => ({

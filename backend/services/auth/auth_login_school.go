@@ -196,7 +196,7 @@ func (s *Service) loginSchoolWithMFAGate(
 		guardOpts = append(guardOpts, withMFAGateRecheck(s.freshSchoolMFAPolicy(account.ID, portalTenantID)))
 	}
 	var metadata *accountMetadata
-	token, err := s.createRefreshTokenWithRetryGuarded(ctx, account, portalTenantID, tenant.ScopeSchool, s.schoolMintGuard(account.ID, portalTenantID, &metadata, guardOpts...))
+	token, err := s.createRefreshTokenWithRetryGuarded(ctx, account, portalTenantID, tenant.ScopeSchool, s.schoolMintGuard(account.ID, portalTenantID, &metadata, guardOpts...), "")
 	if errors.Is(err, errSchoolMFARequiredAtMint) {
 		// Nothing was written — the guard aborted its own transaction. Send
 		// the login down the branch it would have taken had the role been
@@ -264,7 +264,7 @@ func (s *Service) IssueSchoolTokensForAuthenticatedAccount(
 	}
 
 	var metadata *accountMetadata
-	token, err := s.createRefreshTokenWithRetryGuarded(ctx, account, tenantID, tenant.ScopeSchool, s.schoolMintGuard(account.ID, tenantID, &metadata))
+	token, err := s.createRefreshTokenWithRetryGuarded(ctx, account, tenantID, tenant.ScopeSchool, s.schoolMintGuard(account.ID, tenantID, &metadata), "")
 	if err != nil {
 		return "", "", wrapSchoolMintError("issue school tokens", err)
 	}
@@ -332,7 +332,7 @@ func (s *Service) SwitchSchool(ctx context.Context, accountID int64, tenantSlug,
 	}
 
 	var metadata *accountMetadata
-	token, err := s.createRefreshTokenWithRetryGuarded(ctx, account, targetTenantID, tenant.ScopeSchool, s.schoolMintGuard(accountID, targetTenantID, &metadata))
+	token, err := s.createRefreshTokenWithRetryGuarded(ctx, account, targetTenantID, tenant.ScopeSchool, s.schoolMintGuard(accountID, targetTenantID, &metadata), "")
 	if err != nil {
 		return "", "", wrapSchoolMintError("switch school", err)
 	}
@@ -748,7 +748,7 @@ func wrapSchoolMintError(op string, err error) error {
 // loadSchoolMetadataForTenant loads the tenant-scoped metadata (roles,
 // permissions, person info, org id) and stamps the school scope on it. The
 // permissions travel into the JWT exactly like a tenant login — that is
-// what lets authorize.RequiresPermission(class_day:read) work unchanged
+// what lets common.RequiresPermission(class_day:read) work unchanged
 // behind /school/*.
 //
 // This is the ONE choke point every school token mint runs through BEFORE it

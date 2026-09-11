@@ -1,9 +1,5 @@
 package config
 
-import (
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-)
-
 // This file holds pure weekly-target derivations shared by consumers that
 // resolve contractual Soll minutes from work-time data (staff schedule
 // snapshots and work-time models). They mirror the resolution semantics used
@@ -12,7 +8,7 @@ import (
 // fallback, and rotation weeks anchor on Monday-aligned week starts.
 
 // MondayOf returns the Monday of the ISO week containing d.
-func MondayOf(d timezone.Date) timezone.Date {
+func MondayOf(d CalendarDate) CalendarDate {
 	weekday := int(d.Weekday())
 	if weekday == 0 {
 		weekday = 7
@@ -22,7 +18,7 @@ func MondayOf(d timezone.Date) timezone.Date {
 
 // ISODayIndex maps a date's weekday onto the schedule day constants
 // (DayMonday=0 … DaySunday=6).
-func ISODayIndex(d timezone.Date) int {
+func ISODayIndex(d CalendarDate) int {
 	weekday := int(d.Weekday())
 	if weekday == 0 {
 		return DaySunday
@@ -53,7 +49,7 @@ func ScheduleRotationLength(entries []*StaffWorkSchedule) int {
 //
 // Entries reaching step 2 predate migration 1.15.203 and had no staff anchor
 // to backfill; step 2 then reproduces the pre-1.15.203 behaviour exactly.
-func ResolveScheduleAnchor(staffAnchor *timezone.Date, entries []*StaffWorkSchedule) timezone.Date {
+func ResolveScheduleAnchor(staffAnchor *CalendarDate, entries []*StaffWorkSchedule) CalendarDate {
 	for _, e := range entries {
 		if e != nil && e.RotationAnchorDate != nil && !e.RotationAnchorDate.IsZero() {
 			return *e.RotationAnchorDate
@@ -62,7 +58,7 @@ func ResolveScheduleAnchor(staffAnchor *timezone.Date, entries []*StaffWorkSched
 	if staffAnchor != nil {
 		return *staffAnchor
 	}
-	var earliest timezone.Date
+	var earliest CalendarDate
 	for _, e := range entries {
 		if e == nil {
 			continue
@@ -82,7 +78,7 @@ func ResolveScheduleAnchor(staffAnchor *timezone.Date, entries []*StaffWorkSched
 // WeeklyTargetFromSchedule semantics) — a date-valid schedule that simply
 // has no row for this day/rotation returns (0, false), so callers can
 // distinguish "day off per plan" from a plain zero.
-func DailyTargetFromSchedule(entries []*StaffWorkSchedule, staffAnchor *timezone.Date, date timezone.Date) (int, bool) {
+func DailyTargetFromSchedule(entries []*StaffWorkSchedule, staffAnchor *CalendarDate, date CalendarDate) (int, bool) {
 	dayEntries := make([]*StaffWorkSchedule, 0, len(entries))
 	for _, e := range entries {
 		if e == nil || e.ValidFrom.After(date) {
@@ -113,7 +109,7 @@ func DailyTargetFromSchedule(entries []*StaffWorkSchedule, staffAnchor *timezone
 // DailyTargetFromModel resolves the target minutes a work-time model yields
 // for one calendar day, honouring the model's rotation. The boolean is false
 // when the model is nil or has no entries.
-func DailyTargetFromModel(model *WorkTimeModel, anchor timezone.Date, date timezone.Date) (int, bool) {
+func DailyTargetFromModel(model *WorkTimeModel, anchor CalendarDate, date CalendarDate) (int, bool) {
 	if model == nil || len(model.Entries) == 0 {
 		return 0, false
 	}
@@ -136,7 +132,7 @@ func DailyTargetFromModel(model *WorkTimeModel, anchor timezone.Date, date timez
 // entries yield for the week starting at weekStart (a Monday). The boolean
 // reports whether any entry applied at all, so callers can distinguish a
 // zero-minute week from "no schedule".
-func WeeklyTargetFromSchedule(entries []*StaffWorkSchedule, staffAnchor *timezone.Date, weekStart timezone.Date) (int, bool) {
+func WeeklyTargetFromSchedule(entries []*StaffWorkSchedule, staffAnchor *CalendarDate, weekStart CalendarDate) (int, bool) {
 	total := 0
 	found := false
 	for offset := 0; offset < 7; offset++ {
@@ -154,7 +150,7 @@ func WeeklyTargetFromSchedule(entries []*StaffWorkSchedule, staffAnchor *timezon
 // WeeklyTargetsFromModel resolves the weekly target minutes a work-time model
 // yields for each given week start (Mondays), keyed by that week start. Weeks
 // whose rotation index has no entries are absent from the result.
-func WeeklyTargetsFromModel(model *WorkTimeModel, anchor timezone.Date, weekStarts []timezone.Date) map[timezone.Date]int {
+func WeeklyTargetsFromModel(model *WorkTimeModel, anchor CalendarDate, weekStarts []CalendarDate) map[CalendarDate]int {
 	if model == nil || len(model.Entries) == 0 || len(weekStarts) == 0 {
 		return nil
 	}
@@ -169,7 +165,7 @@ func WeeklyTargetsFromModel(model *WorkTimeModel, anchor timezone.Date, weekStar
 		}
 		targetsByRotationWeek[e.WeekIndex] += e.TargetMinutes
 	}
-	targets := make(map[timezone.Date]int, len(weekStarts))
+	targets := make(map[CalendarDate]int, len(weekStarts))
 	for _, weekStart := range weekStarts {
 		rotationWeek := ResolveWeekIndex(rotation, MondayOf(anchor), MondayOf(weekStart))
 		if target, ok := targetsByRotationWeek[rotationWeek]; ok {

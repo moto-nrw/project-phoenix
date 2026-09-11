@@ -67,6 +67,28 @@ type ClassListEntryService interface {
 	// entry is deleted, the audit row records which student it was attached
 	// to. The child keeps exactly one row on the class list — the student.
 	Assign(ctx context.Context, id int64, studentID int64, changedBy int64) error
+	// MatchingStudentIDs returns the IDs of regular students sharing the
+	// given name and class — the "Zuordnen" hint of an entry.
+	MatchingStudentIDs(ctx context.Context, input ClassListEntryInput) ([]int64, error)
+}
+
+// CompareClassListEntryOrder is the class-list display order: school class
+// (grade-aware), then last name and first name with German collation, then
+// ID for a stable tie-break. Negative when a sorts before b.
+func CompareClassListEntryOrder(aClass, aLast, aFirst string, aID int64, bClass, bLast, bFirst string, bID int64) int {
+	if r := collation.CompareSchoolClasses(aClass, bClass); r != 0 {
+		return r
+	}
+	if r := collation.CompareGermanNames(aLast, aFirst, bLast, bFirst); r != 0 {
+		return r
+	}
+	switch {
+	case aID < bID:
+		return -1
+	case aID > bID:
+		return 1
+	}
+	return 0
 }
 
 type classListEntryService struct {
@@ -94,13 +116,10 @@ func (s *classListEntryService) ListAll(ctx context.Context) ([]*userModels.Clas
 		return nil, fmt.Errorf("list class list entries: %w", err)
 	}
 	sort.SliceStable(entries, func(i, j int) bool {
-		if r := collation.CompareSchoolClasses(entries[i].SchoolClass, entries[j].SchoolClass); r != 0 {
-			return r < 0
-		}
-		if r := collation.CompareGermanNames(entries[i].LastName, entries[i].FirstName, entries[j].LastName, entries[j].FirstName); r != 0 {
-			return r < 0
-		}
-		return entries[i].ID < entries[j].ID
+		return CompareClassListEntryOrder(
+			entries[i].SchoolClass, entries[i].LastName, entries[i].FirstName, entries[i].ID,
+			entries[j].SchoolClass, entries[j].LastName, entries[j].FirstName, entries[j].ID,
+		) < 0
 	})
 	return entries, nil
 }
@@ -116,19 +135,29 @@ func (s *classListEntryService) List(ctx context.Context) ([]ClassListEntryWithM
 	// name-join variant would buy nothing but complexity here.
 	out := make([]ClassListEntryWithMatches, 0, len(entries))
 	for _, entry := range entries {
-		matches, err := s.studentRepo.FindByNameAndClass(ctx, entry.FirstName, entry.LastName, entry.SchoolClass)
+		ids, err := s.MatchingStudentIDs(ctx, ClassListEntryInput{
+			FirstName: entry.FirstName, LastName: entry.LastName, SchoolClass: entry.SchoolClass,
+		})
 		if err != nil {
 			return nil, fmt.Errorf("match class list entry %d: %w", entry.ID, err)
-		}
-		ids := make([]int64, 0, len(matches))
-		for _, match := range matches {
-			if match != nil {
-				ids = append(ids, match.ID)
-			}
 		}
 		out = append(out, ClassListEntryWithMatches{Entry: entry, MatchingStudentIDs: ids})
 	}
 	return out, nil
+}
+
+func (s *classListEntryService) MatchingStudentIDs(ctx context.Context, input ClassListEntryInput) ([]int64, error) {
+	matches, err := s.studentRepo.FindByNameAndClass(ctx, input.FirstName, input.LastName, input.SchoolClass)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]int64, 0, len(matches))
+	for _, match := range matches {
+		if match != nil {
+			ids = append(ids, match.ID)
+		}
+	}
+	return ids, nil
 }
 
 // requireNoDuplicate rejects the name+class combination when another entry or

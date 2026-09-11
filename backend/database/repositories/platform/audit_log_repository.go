@@ -36,7 +36,7 @@ func (r *OperatorAuditLogRepository) Create(ctx context.Context, entry *platform
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "create audit log entry",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -60,7 +60,7 @@ func (r *OperatorAuditLogRepository) FindByOperatorID(ctx context.Context, opera
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find audit logs by operator id",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -85,7 +85,7 @@ func (r *OperatorAuditLogRepository) FindByDateRange(ctx context.Context, start,
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find audit logs by date range",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

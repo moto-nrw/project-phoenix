@@ -1,0 +1,84 @@
+{
+  "data": {
+    "items": [
+      {
+        "data": {
+          "base_snapshot": {
+            "additional_guardians": [],
+            "children": [
+              {
+                "custom_data": null,
+                "date_of_birth": "2018-04-15",
+                "first_name": "Contract",
+                "id": "ID",
+                "last_name": "Child-public",
+                "offering_days": [],
+                "offering_ids": [],
+                "status": "waitlisted",
+                "target_grade_level": 2
+              }
+            ],
+            "consent_flags": {},
+            "custom_data": {},
+            "guardian_email": "contract-public@example.test",
+            "guardian_first_name": "Contract",
+            "guardian_last_name": "Guardian",
+            "guardian_phone": null,
+            "phase_id": "ID"
+          },
+          "child_names": [
+            "Contract Child-public"
+          ],
+          "children": [
+            {
+              "case_id": "ID:ID",
+              "name": "Contract Child-public"
+            }
+          ],
+          "created_at": "TIMESTAMP",
+          "decided_at": "TIMESTAMP",
+          "decided_by_name": "Contract Staff",
+          "decision_note": "Bitte mit Nachweis neu einreichen.",
+          "diff": {
+            "changed": [
+              "children",
+              "guardian_last_name"
+            ]
+          },
+          "guardian_name": "Contract Guardian",
+          "id": "ID",
+          "origin": "parent",
+          "parent_note": "Nachname korrigiert.",
+          "proposed_snapshot": {
+            "additional_guardians": [],
+            "children": [
+              {
+                "custom_data": {},
+                "date_of_birth": "2018-04-15",
+                "first_name": "Contract",
+                "id": "ID",
+                "last_name": "Child-public",
+                "offering_days": [],
+                "offering_ids": [],
+                "target_grade_level": 2
+              }
+            ],
+            "consent_flags": {},
+            "custom_data": {},
+            "guardian_email": "contract-public@example.test",
+            "guardian_first_name": "Contract",
+            "guardian_last_name": "Guardian-Korrigiert",
+            "guardian_phone": null,
+            "phase_id": "ID"
+          },
+          "request_id": "ID",
+          "status": "rejected"
+        },
+        "occurred_at": "TIMESTAMP",
+        "request_type": "enrollment"
+      }
+    ]
+  },
+  "message": "Enrollment change requests retrieved",
+  "status": "success"
+}

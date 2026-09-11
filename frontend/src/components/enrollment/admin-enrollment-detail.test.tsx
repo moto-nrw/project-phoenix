@@ -819,6 +819,33 @@ describe("ChildOfferings", () => {
 });
 
 describe("ChildOfferingAdjustment", () => {
+  it("traps the editor as a named dialog and restores focus after Escape", async () => {
+    mocks.listCareOfferings.mockResolvedValue([catalogOffering()]);
+    renderAdjustment(adjustmentChild());
+
+    const trigger = screen.getByRole("button", { name: "Bearbeiten" });
+    trigger.focus();
+    fireEvent.click(trigger);
+
+    expect(
+      await screen.findByRole("dialog", {
+        name: "Betreuungsangebote bearbeiten",
+      }),
+    ).toBeInTheDocument();
+    expect(document.documentElement.style.overflow).toBe("hidden");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("dialog", {
+          name: "Betreuungsangebote bearbeiten",
+        }),
+      ).not.toBeInTheDocument();
+    });
+    expect(document.activeElement).toBe(trigger);
+  });
+
   it("requires the exact confirmation before removing the final care day", async () => {
     mocks.listCareOfferings.mockResolvedValue([
       catalogOffering({ counts_as_care: true }),

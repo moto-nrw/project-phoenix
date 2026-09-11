@@ -92,7 +92,7 @@ func buildParticipantsSetup(t *testing.T) *participantsSetup {
 		PersonService: usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
 			StudentRepo: studentRepo,
 			PersonRepo:  personRepo,
-			StaffRepo:   usersRepo.NewStaffRepository(db),
+			StaffRepo:   mustTimetableTestRepositories(db).Staff,
 		}),
 		// UserContextService intentionally nil: the admin-perm path
 		// short-circuits CanReadStudent; the non-staff test relies on the

@@ -20,12 +20,10 @@ import (
 // the admin swaps in a substitute across all affected instances, a follow-up
 // conflict attempt is rejected atomically (no partial writes), and /gaps
 // surfaces an unrelated instance with zero non-absent staff.
-// Deliberately NOT parallel: the test installs a query hook on the SHARED
-// package pool and asserts a query budget, so any test running beside it is
-// counted too.
 func TestFlowC_GapsAndSubstitute(t *testing.T) {
-	s := newScenario(t)
-	defer s.teardown()
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	s := setupTimetableScenarioModule(t)
 
 	// Pick a Tuesday ≥ 7 days out (must be today-or-future for /gaps and /substitute).
 	target := nextWeekday(timezone.TodayDate(), 2, 7)
@@ -34,8 +32,6 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 	s.createActivePeriod(fmt.Sprintf("E2E-Flow-C-%d", time.Now().UnixNano()), target)
 
 	room := testpkg.CreateTestRoom(t, s.db, "FlowC-Room")
-	s.extraCleanup = append(s.extraCleanup, func() {
-	})
 
 	staff1 := testpkg.CreateTestStaff(t, s.db, "FlowC", "S1-Primary")
 	staff2 := testpkg.CreateTestStaff(t, s.db, "FlowC", "S2-Co")
@@ -43,8 +39,6 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 	staff4 := testpkg.CreateTestStaff(t, s.db, "FlowC", "S4-Other")
 	staff5 := testpkg.CreateTestStaff(t, s.db, "FlowC", "S5-GapOnly")
 	student := testpkg.CreateTestStudent(t, s.db, "Anna", "FlowC", "3a")
-	s.extraCleanup = append(s.extraCleanup, func() {
-	})
 
 	// Two templates on the same weekday at different times.
 	tmpl1 := s.buildTemplate(templateSpec{
@@ -78,7 +72,6 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 
 	inst1 := fetchOneInstance(t, s, tmpl1.group.ID, target)
 	inst2 := fetchOneInstance(t, s, tmpl2.group.ID, target)
-	s.registerCleanup("schedule.activity_instances", inst1.ID, inst2.ID)
 
 	// --- Step 2: start inst1 so we can assert active.group_supervisors rotate
 	rr = s.do("POST", fmt.Sprintf("/instances/%d/start", inst1.ID), nil, s.primaryAdminClaims())
@@ -93,12 +86,10 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 	require.NotZero(t, startResp.ActiveGroupID)
 
 	// --- Step 3: /gaps — baseline should be empty --------------------------
-	qc := &queryCounter{}
-	s.db.AddQueryHook(qc)
-	qc.reset()
+	qc := testpkg.CaptureQueries(t, s.db)
 
 	rr = s.do("GET", fmt.Sprintf("/gaps?date=%s&date_to=%s", fromS, fromS), nil, s.primaryAdminClaims())
-	gapsQueryCount := qc.get()
+	gapsQueryCount := qc.Total()
 	require.Equal(t, http.StatusOK, rr.Code, "gaps body=%s", rr.Body.String())
 
 	var gapsResp1 struct {
@@ -204,7 +195,7 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 	startFixture := parseHHMMLocal(t, "16:00")
 	endFixture := parseHHMMLocal(t, "17:00")
 	gapInstance := &scheduleModel.ActivityInstance{
-		Date:          target,
+		Date:          scheduleModel.Date(target),
 		Title:         "FlowC-Gap-Instance",
 		StartTime:     startFixture,
 		EndTime:       endFixture,
@@ -216,7 +207,6 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 	_, err := s.db.NewInsert().Model(gapInstance).
 		ModelTableExpr(`schedule.activity_instances`).Exec(s.tenantCtx())
 	require.NoError(t, err, "insert gap instance")
-	s.registerCleanup("schedule.activity_instances", gapInstance.ID)
 
 	// Both staff on this instance are absent → qualifies as a gap.
 	for _, stid := range []int64{staff1.ID, staff5.ID} {
@@ -232,9 +222,9 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 	}
 
 	// --- Step 8: /gaps must now surface the gap instance -------------------
-	qc.reset()
+	qc.Reset()
 	rr = s.do("GET", fmt.Sprintf("/gaps?date=%s&date_to=%s", fromS, fromS), nil, s.primaryAdminClaims())
-	gapsQueryCount2 := qc.get()
+	gapsQueryCount2 := qc.Total()
 	require.Equal(t, http.StatusOK, rr.Code, "gaps(with-gap) body=%s", rr.Body.String())
 
 	var gapsResp2 struct {

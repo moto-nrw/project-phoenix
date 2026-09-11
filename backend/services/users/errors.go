@@ -44,9 +44,9 @@ var (
 	// fields of someone who is already in the directory, which is an edit — and
 	// POST /api/staff is gated on users:create alone.
 	//
-	// Every role that can create staff carries users:update as well (the user
-	// role gets both in migration 1.5.3, admin holds the wildcard), so this
-	// refuses the direct-API case, not the staff form.
+	// Since #2906 the required authority is staff:manage — the same one
+	// PUT /api/staff/{id} needs. Admins hold it through the admin:* wildcard,
+	// so this refuses the direct-API case, not the staff form.
 	ErrStaffAdoptionNotPermitted = errors.New("Für das Ändern eines vorhandenen Mitarbeiter-Datensatzes fehlt die Berechtigung") //nolint:staticcheck // ST1005: user-facing German message
 
 	// ErrStaffLehrkraftCaregiverProfile indicates a caregiver profile was

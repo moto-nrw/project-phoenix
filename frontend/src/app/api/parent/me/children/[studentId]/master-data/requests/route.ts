@@ -3,6 +3,8 @@ import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 interface ChangeRequestBody {
   changes: { target: string; field_key: string; value: unknown }[];
+  /** Guardians the request is shared with, saved with the request itself. */
+  recipient_guardian_profile_ids?: string[];
 }
 
 /**

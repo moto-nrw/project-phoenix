@@ -42,7 +42,7 @@ func birthdaySettings(enabled, includeStaff bool) *configtest.Mock {
 }
 
 func newBirthdayService(db *bun.DB, settings *configtest.Mock, now func() time.Time) usersService.BirthdayService {
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	return usersService.NewBirthdayService(usersService.BirthdayServiceDependencies{
 		StudentRepo:     repos.Student,
 		StaffRepo:       repos.Staff,
@@ -493,7 +493,7 @@ func TestStudentBirthdaysExcludeEndedCare(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 
 	today := timezone.TodayDate()
@@ -501,13 +501,13 @@ func TestStudentBirthdaysExcludeEndedCare(t *testing.T) {
 	lastDay := testpkg.CreateTestStudent(t, db, "Geburtstag", "LetzterTag", "1a")
 	departed := testpkg.CreateTestStudent(t, db, "Geburtstag", "Weg", "1a")
 	for _, student := range []int64{staying.PersonID, lastDay.PersonID, departed.PersonID} {
-		setBirthday(t, db, student, timezone.NewDate(2018, today.Month, today.Day))
+		setBirthday(t, db, student, timezone.NewDate(2018, today.Month(), today.Day()))
 	}
 	setEnrolledUntil(t, db, lastDay.ID, today)
 	setEnrolledUntil(t, db, departed.ID, today.AddDays(-1))
 
 	entries, err := repos.Student.FindBirthdaysOn(ctx, []userModels.MonthDay{
-		{Month: today.Month, Day: today.Day},
+		{Month: today.Month(), Day: today.Day()},
 	})
 	require.NoError(t, err)
 
@@ -541,7 +541,7 @@ func TestBirthdayRepositoriesRejectAnEmptyDaySet(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 
 	students, err := repos.Student.FindBirthdaysOn(ctx, nil)

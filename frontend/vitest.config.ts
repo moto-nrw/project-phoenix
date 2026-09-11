@@ -35,6 +35,7 @@ export default defineConfig({
         extends: true,
         test: {
           name: "api-node",
+          server: { deps: { inline: ["next-auth"] } },
           include: apiTestFiles,
           exclude: baseTestExcludes,
           environment: "node",
@@ -48,6 +49,13 @@ export default defineConfig({
           name: "app-dom",
           exclude: [...baseTestExcludes, ...apiTestFiles],
           environment: "happy-dom",
+          // happy-dom simuliert sonst 1024x768; Komponenten mit
+          // Viewport-abhängigen Defaults (z. B. die einklappbare
+          // Seitenleiste, #2825) sollen in Tests den Desktop-Zustand
+          // rendern, wie ihn auch der Server-Snapshot annimmt.
+          environmentOptions: {
+            happyDOM: { width: 1920, height: 1080 },
+          },
           setupFiles: ["./src/test/setup-common.ts", "./src/test/setup.ts"],
           sequence: { groupOrder: 1 },
         },
@@ -73,6 +81,10 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      "@testing-library/jest-dom/vitest": path.resolve(
+        import.meta.dirname,
+        "./src/test/setup-jest-dom.ts",
+      ),
       "~": path.resolve(import.meta.dirname, "./src"),
       "@": path.resolve(import.meta.dirname, "./src"),
     },

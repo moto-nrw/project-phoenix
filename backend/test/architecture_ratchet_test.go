@@ -26,18 +26,10 @@ import (
 //   - When refactoring removes hits, the test fails until the allowlist entry
 //     is lowered/removed — the ratchet only turns one way. Never raise a number.
 //
-// Deliberately-kept transaction-control statements (SAVEPOINT / ROLLBACK TO /
-// RELEASE via ExecContext, pg_advisory_xact_lock, LOCK TABLE) count toward a
-// file's allowance: transaction orchestration is legitimately service-layer,
-// but new ones still deserve the review friction of touching this list.
-var serviceQueryRatchetAllowlist = map[string]int{
-	// Deliberately-kept transaction control (SAVEPOINT / advisory locks /
-	// LOCK TABLE) — transaction orchestration is service-layer per Rule 11.
-	"services/active/session_service.go":              4, // advisory lock + savepoints for best-effort DB side effects
-	"services/enrollment/rejected_cleanup_service.go": 4, // savepoint isolates cleanup inside the scheduler's ambient tenant transaction
-	"services/import/student_import_config.go":        3,
-	"services/users/caregiver_capability.go":          1,
-}
+// Transaction orchestration may stay in services, but its SQL/Bun execution
+// belongs behind the unit-of-work or repository seam and therefore receives no
+// allowlist exemption here.
+var serviceQueryRatchetAllowlist = map[string]int{}
 
 var (
 	// Query builder construction on a db/tx handle.

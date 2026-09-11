@@ -13,13 +13,13 @@ import (
 
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/services/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 
 	// Populates the settings registry, so the tick test can assert against the
 	// registered default instead of a literal copy of it.
 	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"
-	"github.com/moto-nrw/project-phoenix/services/reminders"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	reminders "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -717,7 +717,7 @@ func TestReminderNotificationTickHonoursRegistryDefault(t *testing.T) {
 
 		// No db/schoolRepo wired, so forEachTenantSettings runs the body once
 		// without tenant context, which is enough to exercise the gate.
-		setup.sched.checkAndRunReminderNotifications(&ScheduledTask{Name: "reminder-notifications"})
+		setup.sched.checkAndRunReminderNotifications(context.Background(), &ScheduledTask{Name: "reminder-notifications"})
 
 		require.Len(t, setup.notifier.events, 1,
 			"a school that never touched the setting must be served the registry default")
@@ -731,7 +731,7 @@ func TestReminderNotificationTickHonoursRegistryDefault(t *testing.T) {
 		)
 		setup.sched.settings = &stubSettingsResolver{hasOverride: true, boolVal: false}
 
-		setup.sched.checkAndRunReminderNotifications(&ScheduledTask{Name: "reminder-notifications"})
+		setup.sched.checkAndRunReminderNotifications(context.Background(), &ScheduledTask{Name: "reminder-notifications"})
 
 		assert.Empty(t, setup.notifier.events)
 		assert.Zero(t, setup.computer.calls,
@@ -744,7 +744,7 @@ func TestReminderNotificationTickHonoursRegistryDefault(t *testing.T) {
 			map[string][]int64{notifications.TypePickupUpcoming: {caregiverAccountID}},
 		)
 
-		setup.sched.checkAndRunReminderNotifications(&ScheduledTask{Name: "reminder-notifications"})
+		setup.sched.checkAndRunReminderNotifications(context.Background(), &ScheduledTask{Name: "reminder-notifications"})
 
 		assert.Empty(t, setup.notifier.events,
 			"without a settings service the router could not dispatch either")
@@ -777,7 +777,7 @@ func TestScheduleReminderNotificationTaskRequiresEveryDep(t *testing.T) {
 	for name, deps := range partials {
 		t.Run(name, func(t *testing.T) {
 			sched := unitScheduler(&Scheduler{tasks: make(map[string]*ScheduledTask), logger: slog.Default()})
-			sched.SetReminderNotificationDeps(deps)
+			sched.reminderNotifications = deps
 			sched.scheduleReminderNotificationTask()
 			assert.Empty(t, sched.tasks)
 		})
@@ -785,7 +785,7 @@ func TestScheduleReminderNotificationTaskRequiresEveryDep(t *testing.T) {
 
 	t.Run("fully wired", func(t *testing.T) {
 		sched := unitScheduler(&Scheduler{tasks: make(map[string]*ScheduledTask), logger: slog.Default()})
-		sched.SetReminderNotificationDeps(complete)
+		sched.reminderNotifications = complete
 		sched.scheduleReminderNotificationTask()
 		assert.Contains(t, sched.tasks, "reminder-notifications")
 	})

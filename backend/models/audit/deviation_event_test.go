@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,7 +14,7 @@ func TestDeviationEventValidate(t *testing.T) {
 	groupID := int64(11)
 	instanceID := int64(12)
 	shiftID := int64(13)
-	date := timezone.NewDate(2026, 5, 4)
+	date := NewDate(2026, time.May, 4)
 
 	tests := []struct {
 		name  string
@@ -44,17 +43,6 @@ func TestDeviationEventValidate(t *testing.T) {
 			require.EqualError(t, err, tt.want)
 		})
 	}
-}
-
-func TestDeviationEventEntityAccessors(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, 5, 4, 12, 30, 0, 0, time.UTC)
-	event := &DeviationEvent{ID: 42, OccurredAt: now}
-
-	assert.Equal(t, int64(42), event.GetID())
-	assert.Equal(t, now, event.GetCreatedAt())
-	assert.Equal(t, now, event.GetUpdatedAt())
 }
 
 // TestShiftScopedDeviationEventTypesNonEmpty guards the slot-history filter:

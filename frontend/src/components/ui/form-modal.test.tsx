@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { FormModal } from "./form-modal";
 import { ModalProvider } from "../dashboard/modal-context";
 
@@ -46,6 +46,66 @@ describe("FormModal", () => {
 
     expect(screen.getByText("Test Modal")).toBeInTheDocument();
     expect(screen.getByText("Modal content")).toBeInTheDocument();
+  });
+
+  it("suspends the dialog without unmounting its children", async () => {
+    function Draft() {
+      const [value, setValue] = useState("");
+      return (
+        <input
+          aria-label="Entwurf"
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+        />
+      );
+    }
+
+    const renderModal = (suspended: boolean) => (
+      <TestWrapper>
+        <FormModal
+          isOpen
+          onClose={vi.fn()}
+          title="Test Modal"
+          suspended={suspended}
+        >
+          <Draft />
+        </FormModal>
+      </TestWrapper>
+    );
+    const { rerender } = render(renderModal(false));
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Entwurf" }), {
+      target: { value: "bleibt erhalten" },
+    });
+    rerender(renderModal(true));
+
+    expect(screen.queryByRole("dialog", { name: "Test Modal" })).toBeNull();
+    expect(screen.getByDisplayValue("bleibt erhalten")).toBeInTheDocument();
+
+    rerender(renderModal(false));
+    expect(
+      screen.getByRole("dialog", { name: "Test Modal" }),
+    ).toBeInTheDocument();
+    expect(screen.getByDisplayValue("bleibt erhalten")).toBeInTheDocument();
+  });
+
+  it("dims the page with the shared backdrop tint once entered", async () => {
+    render(
+      <TestWrapper>
+        <FormModal isOpen={true} onClose={vi.fn()} title="Test Modal">
+          <p>Modal content</p>
+        </FormModal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    // Same tint as Modal, Drawer and SlideOver (#2932).
+    expect(
+      screen.getByRole("button", { name: /hintergrund.*schließen/i }),
+    ).toHaveClass("bg-black/40", "backdrop-blur-sm");
   });
 
   it("uses the visible title as the dialog accessible name", async () => {
@@ -557,5 +617,47 @@ describe("FormModal", () => {
     expect(eventSpy).toHaveBeenCalled();
 
     globalThis.removeEventListener("mobile-modal-close", eventSpy);
+  });
+
+  it("renders the error slot as an alert above the content", async () => {
+    render(
+      <TestWrapper>
+        <FormModal
+          isOpen={true}
+          onClose={vi.fn()}
+          title="Test Modal"
+          error="Bitte einen Namen eintragen."
+        >
+          <p>Modal content</p>
+        </FormModal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("Bitte einen Namen eintragen.");
+    expect(
+      alert.compareDocumentPosition(screen.getByText("Modal content")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("renders no alert without an error", async () => {
+    render(
+      <TestWrapper>
+        <FormModal isOpen={true} onClose={vi.fn()} title="Test Modal">
+          <p>Modal content</p>
+        </FormModal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

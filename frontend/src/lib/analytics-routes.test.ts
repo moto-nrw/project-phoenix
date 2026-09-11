@@ -48,7 +48,7 @@ describe("tenant analytics route allowlist", () => {
 
   it("rejects unknown, public, operator, and query-bearing paths", () => {
     expect(resolveAnalyticsViewId("/new-unreviewed-page")).toBeNull();
-    expect(resolveAnalyticsViewId("/enroll/status/secret-token")).toBeNull();
+    expect(resolveAnalyticsViewId("/anmeldung/status/secret-token")).toBeNull();
     expect(resolveAnalyticsViewId("/operator/accounts")).toBeNull();
     expect(resolveAnalyticsViewId("/dashboard?student=42")).toBeNull();
   });

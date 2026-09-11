@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -31,7 +32,7 @@ func createWithdrawalCompletion(
 		Trigger:               userModels.CareWithdrawalTriggerDirectSchool,
 		WithdrawalConfirmedBy: &actorID, WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now(),
 	}
-	require.NoError(t, repositories.NewFactory(db).CareWithdrawal.UpsertPending(testpkg.Ctx(t), row))
+	require.NoError(t, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareWithdrawal.UpsertPending(testpkg.Ctx(t), row))
 	return row
 }
 
@@ -42,7 +43,7 @@ func TestCareWithdrawalLifecycle_AllowsRetroactiveExitButNotBeforeAttendance(t *
 	svc := newCareLifecycleService(t, db)
 	actorID := careActor(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Lina", "Rueckwirkend", "2a")
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	_, err := db.NewUpdate().TableExpr("users.students").
 		Set("enrolled_from = ?", today.AddDays(-10)).
 		Set("status = ?", userModels.StudentStatusActive).
@@ -96,17 +97,17 @@ func TestCareWithdrawalLifecycle_CompletionEndsBookingsFromEveryEnrollmentReques
 	require.NoError(t, err)
 	require.Len(t, requestChildIDs, 2)
 	studentID := student.ID
-	firstGap := timezone.TodayDate().AddDays(1)
+	firstGap := timezone.NewDate(2026, 8, 24).AddDays(1)
 	completion := &userModels.CareWithdrawalCompletion{
 		StudentID: &studentID, FirstBookinglessDay: firstGap,
 		Trigger:               userModels.CareWithdrawalTriggerDirectSchool,
 		SourceRequestChildID:  &requestChildIDs[0],
 		WithdrawalConfirmedBy: &actorID, WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now(),
 	}
-	require.NoError(t, repositories.NewFactory(db).CareWithdrawal.UpsertPending(ctx, completion))
+	require.NoError(t, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareWithdrawal.UpsertPending(ctx, completion))
 
 	input := userService.CareExitInput{
-		LastCareDay: timezone.TodayDate(), Reason: userModels.CareExitReasonNoCareNeed,
+		LastCareDay: timezone.NewDate(2026, 8, 24), Reason: userModels.CareExitReasonNoCareNeed,
 	}
 	svc := newCareLifecycleService(t, db)
 	preview, err := svc.PreviewWithdrawalCareEnd(ctx, completion.ID, input)
@@ -138,7 +139,7 @@ func TestCareWithdrawalLifecycle_DeletesStudentAndRedactsCompletionAtomically(t 
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	actorID := careActor(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Lina", "Loeschung", "2a")
 	completion := createWithdrawalCompletion(t, db, student.ID, actorID, timezone.TodayDate())
@@ -180,7 +181,7 @@ func TestStudentDeletion_RedactsPendingWithdrawalOutsideCompletionFlow(t *testin
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	actorID := careActor(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Noah", "Direktloeschung", "3b")
 	resolved := createWithdrawalCompletion(t, db, student.ID, actorID, timezone.TodayDate())
@@ -243,7 +244,8 @@ func newCareLifecycleServiceWithDeletion(
 	deletion userService.StudentDeletionService,
 ) userService.CareLifecycleService {
 	t.Helper()
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos.BindTimetable(timetabletest.New(t, db))
 	return userService.NewCareLifecycleService(userService.CareLifecycleDependencies{
 		StudentRepo: repos.Student, PersonRepo: repos.Person,
 		CareExitRepo: repos.CareExit, CleanupRepo: repos.CareExitCleanup,
@@ -307,7 +309,7 @@ func TestCareWithdrawalLifecycle_ResolvedCompletionIsAConflict(t *testing.T) {
 	actorID := careActor(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Mila", "Erledigt", "3a")
 	completion := createWithdrawalCompletion(t, db, student.ID, actorID, timezone.TodayDate())
-	changed, err := repositories.NewFactory(db).CareWithdrawal.MarkResolved(ctx, completion.ID, actorID, time.Now())
+	changed, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareWithdrawal.MarkResolved(ctx, completion.ID, actorID, time.Now())
 	require.NoError(t, err)
 	require.True(t, changed)
 
@@ -320,13 +322,14 @@ func TestCareWithdrawalLifecycle_CancellingPlannedExitRestoresTask(t *testing.T)
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	bookingGateCalls := 0
-	svc := newCareLifecycleServiceWithLock(t, db, func(context.Context) error {
+	today := timezone.NewDate(2026, 8, 24)
+	svc := newCareLifecycleServiceWithLockAt(t, db, func(context.Context) error {
 		bookingGateCalls++
 		return nil
-	})
+	}, func() timezone.Date { return today })
 	actorID := careActor(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Nele", "Storno", "2b")
-	firstGap := timezone.TodayDate().AddDays(2)
+	firstGap := today.AddDays(2)
 	completion := createWithdrawalCompletion(t, db, student.ID, actorID, firstGap)
 	input := userService.CareExitInput{
 		LastCareDay: firstGap.AddDays(-1), Reason: userModels.CareExitReasonNoCareNeed,

@@ -2,454 +2,77 @@ import { describe, it, expect } from "vitest";
 import type { Session } from "next-auth";
 import {
   getSmartRedirectPath,
+  HOME_PATH,
+  isSchoolPortalHandoffPath,
   useSmartRedirectPath,
-  type SupervisionState,
 } from "./redirect-utils";
 
+// Seit #2180 ist /home die Startseite jeder Rolle im Mitarbeiter-Portal. Die
+// frühere Verteilung auf /tagesplan, /students/search, /ogs-groups,
+// /active-supervisions und /dashboard ist ersetzt: was eine Person sieht,
+// entscheidet die Zusammensetzung der Startseite, nicht der Einstiegspfad.
 describe("redirect-utils", () => {
+  const createSession = (
+    roles: string[],
+    permissions: string[] = ["schedules:read"],
+  ): Session => ({
+    user: {
+      id: "1",
+      email: "test@example.com",
+      roles,
+      permissions,
+      token: "token",
+    },
+    expires: "2024-12-31",
+  });
+
   describe("getSmartRedirectPath", () => {
-    const createSession = (roles: string[]): Session => ({
-      user: {
-        id: "1",
-        email: "test@example.com",
-        roles,
-        token: "token",
-      },
-      expires: "2024-12-31",
+    it("sends caregivers to the start page", () => {
+      expect(getSmartRedirectPath(createSession(["user"]))).toBe(HOME_PATH);
     });
 
-    it("should return /ogs-groups when groups are loading", () => {
-      const session = createSession(["user"]);
-      const supervisionState: SupervisionState = {
-        hasGroups: false,
-        isLoadingGroups: true,
-        isSupervising: false,
-        isLoadingSupervision: false,
-      };
-
-      const result = getSmartRedirectPath(session, supervisionState);
-      expect(result).toBe("/ogs-groups");
+    it("sends admins to the start page", () => {
+      expect(getSmartRedirectPath(createSession(["admin"]))).toBe(HOME_PATH);
     });
 
-    it("should return /ogs-groups when supervision is loading", () => {
-      const session = createSession(["user"]);
-      const supervisionState: SupervisionState = {
-        hasGroups: false,
-        isLoadingGroups: false,
-        isSupervising: false,
-        isLoadingSupervision: true,
-      };
-
-      const result = getSmartRedirectPath(session, supervisionState);
-      expect(result).toBe("/ogs-groups");
-    });
-
-    it("should return /ogs-groups when both are loading", () => {
-      const session = createSession(["user"]);
-      const supervisionState: SupervisionState = {
-        hasGroups: false,
-        isLoadingGroups: true,
-        isSupervising: false,
-        isLoadingSupervision: true,
-      };
-
-      const result = getSmartRedirectPath(session, supervisionState);
-      expect(result).toBe("/ogs-groups");
-    });
-
-    it("should return /dashboard for admin users", () => {
-      const session = createSession(["admin"]);
-      const supervisionState: SupervisionState = {
-        hasGroups: false,
-        isLoadingGroups: false,
-        isSupervising: false,
-        isLoadingSupervision: false,
-      };
-
-      const result = getSmartRedirectPath(session, supervisionState);
-      expect(result).toBe("/dashboard");
+    it("sends a tenant-defined role to the start page", () => {
+      // Eine Schule kann sich eigene Rollen anlegen; sie darf keinen eigenen
+      // Einstiegspfad brauchen.
+      expect(getSmartRedirectPath(createSession(["springer"], []))).toBe(
+        HOME_PATH,
+      );
     });
 
     it("hands an existing school-only session to moto schule", () => {
-      const session = createSession(["lehrkraft"]);
-      const supervisionState: SupervisionState = {
-        hasGroups: false,
-        isLoadingGroups: false,
-        isSupervising: false,
-        isLoadingSupervision: false,
-      };
-
-      const result = getSmartRedirectPath(session, supervisionState);
+      const result = getSmartRedirectPath(createSession(["lehrkraft"]));
       expect(result).toBe("/school/login");
+      expect(isSchoolPortalHandoffPath(result)).toBe(true);
     });
 
-    it("keeps caregiver flows for dual-role lehrkraft accounts", () => {
-      const session = createSession(["lehrkraft", "user"]);
-      const supervisionState: SupervisionState = {
-        hasGroups: true,
-        isLoadingGroups: false,
-        isSupervising: false,
-        isLoadingSupervision: false,
-      };
-
-      const result = getSmartRedirectPath(session, supervisionState);
-      expect(result).toBe("/ogs-groups");
-    });
-
-    it("should return /ogs-groups for users with groups", () => {
-      const session = createSession(["user"]);
-      const supervisionState: SupervisionState = {
-        hasGroups: true,
-        isLoadingGroups: false,
-        isSupervising: false,
-        isLoadingSupervision: false,
-      };
-
-      const result = getSmartRedirectPath(session, supervisionState);
-      expect(result).toBe("/ogs-groups");
-    });
-
-    it("should return /active-supervisions for users actively supervising", () => {
-      const session = createSession(["user"]);
-      const supervisionState: SupervisionState = {
-        hasGroups: false,
-        isLoadingGroups: false,
-        isSupervising: true,
-        isLoadingSupervision: false,
-      };
-
-      const result = getSmartRedirectPath(session, supervisionState);
-      expect(result).toBe("/active-supervisions");
-    });
-
-    it("should return /students/search for binary-mode caregivers", () => {
-      const session = createSession(["user"]);
-      const supervisionState: SupervisionState = {
-        hasGroups: false,
-        isLoadingGroups: false,
-        isSupervising: true,
-        isLoadingSupervision: false,
-      };
-
-      const result = getSmartRedirectPath(session, supervisionState, "binary");
-      expect(result).toBe("/students/search");
-    });
-
-    it("should return /students/search for binary-mode caregivers with groups", () => {
-      const session = createSession(["user"]);
-      const supervisionState: SupervisionState = {
-        hasGroups: true,
-        isLoadingGroups: false,
-        isSupervising: false,
-        isLoadingSupervision: false,
-      };
-
-      const result = getSmartRedirectPath(session, supervisionState, "binary");
-      expect(result).toBe("/students/search");
-    });
-
-    it("should return /students/search for open-care caregivers (#1544)", () => {
-      const session = createSession(["user"]);
-      const supervisionState: SupervisionState = {
-        hasGroups: false,
-        isLoadingGroups: false,
-        isSupervising: true,
-        isLoadingSupervision: false,
-      };
-
-      const result = getSmartRedirectPath(
-        session,
-        supervisionState,
-        "detailed",
-        true,
+    it("keeps dual-role lehrkraft accounts in the staff portal", () => {
+      expect(getSmartRedirectPath(createSession(["lehrkraft", "user"]))).toBe(
+        HOME_PATH,
       );
-      expect(result).toBe("/students/search");
     });
 
-    it("should return /students/search for open-care caregivers with groups (#1544)", () => {
-      const session = createSession(["user"]);
-      const supervisionState: SupervisionState = {
-        hasGroups: true,
-        isLoadingGroups: false,
-        isSupervising: false,
-        isLoadingSupervision: false,
-      };
-
-      const result = getSmartRedirectPath(
-        session,
-        supervisionState,
-        "detailed",
-        true,
-      );
-      expect(result).toBe("/students/search");
-    });
-
-    it("should return /ogs-groups as default for regular users", () => {
-      const session = createSession(["user"]);
-      const supervisionState: SupervisionState = {
-        hasGroups: false,
-        isLoadingGroups: false,
-        isSupervising: false,
-        isLoadingSupervision: false,
-      };
-
-      const result = getSmartRedirectPath(session, supervisionState);
-      expect(result).toBe("/ogs-groups");
-    });
-
-    it("should treat teacher-only accounts as caregiver users", () => {
-      const session = createSession(["teacher"]);
-      const supervisionState: SupervisionState = {
-        hasGroups: false,
-        isLoadingGroups: false,
-        isSupervising: true,
-        isLoadingSupervision: false,
-      };
-
-      const result = getSmartRedirectPath(session, supervisionState);
-      expect(result).toBe("/active-supervisions");
-    });
-
-    it("should prioritize caregiver access over admin when both roles are present", () => {
-      const session = createSession(["admin", "user"]);
-      const supervisionState: SupervisionState = {
-        hasGroups: true,
-        isLoadingGroups: false,
-        isSupervising: false,
-        isLoadingSupervision: false,
-      };
-
-      const result = getSmartRedirectPath(session, supervisionState);
-      expect(result).toBe("/ogs-groups");
-    });
-
-    it("should prioritize caregiver supervision over admin dashboard when both roles are present", () => {
-      const session = createSession(["admin", "user"]);
-      const supervisionState: SupervisionState = {
-        hasGroups: false,
-        isLoadingGroups: false,
-        isSupervising: true,
-        isLoadingSupervision: false,
-      };
-
-      const result = getSmartRedirectPath(session, supervisionState);
-      expect(result).toBe("/active-supervisions");
-    });
-
-    it("should prioritize groups over supervision", () => {
-      const session = createSession(["user"]);
-      const supervisionState: SupervisionState = {
-        hasGroups: true,
-        isLoadingGroups: false,
-        isSupervising: true,
-        isLoadingSupervision: false,
-      };
-
-      const result = getSmartRedirectPath(session, supervisionState);
-      expect(result).toBe("/ogs-groups");
-    });
-
-    it("should handle null session", () => {
-      const supervisionState: SupervisionState = {
-        hasGroups: false,
-        isLoadingGroups: false,
-        isSupervising: false,
-        isLoadingSupervision: false,
-      };
-
-      const result = getSmartRedirectPath(null, supervisionState);
-      expect(result).toBe("/dashboard");
-    });
-
-    it("should return caregiver loading fallback for dual-role users", () => {
-      const session = createSession(["admin", "user"]);
-      const supervisionState: SupervisionState = {
-        hasGroups: true,
-        isLoadingGroups: true,
-        isSupervising: true,
-        isLoadingSupervision: false,
-      };
-
-      const result = getSmartRedirectPath(session, supervisionState);
-      expect(result).toBe("/ogs-groups");
+    it("handles a null session", () => {
+      expect(getSmartRedirectPath(null)).toBe(HOME_PATH);
     });
   });
 
   describe("useSmartRedirectPath", () => {
-    const createSession = (roles: string[]): Session => ({
-      user: {
-        id: "1",
-        email: "test@example.com",
-        roles,
-        token: "token",
-      },
-      expires: "2024-12-31",
+    it("is ready immediately: the target waits on nothing", () => {
+      expect(useSmartRedirectPath(createSession(["user"]))).toEqual({
+        redirectPath: HOME_PATH,
+        isReady: true,
+      });
     });
 
-    it("should return isReady false when groups are loading", () => {
-      const session = createSession(["user"]);
-      const supervisionState: SupervisionState = {
-        hasGroups: false,
-        isLoadingGroups: true,
-        isSupervising: false,
-        isLoadingSupervision: false,
-      };
-
-      const result = useSmartRedirectPath(session, supervisionState);
-
-      expect(result.isReady).toBe(false);
-      expect(result.redirectPath).toBe("/ogs-groups");
-    });
-
-    it("should return isReady false when supervision is loading", () => {
-      const session = createSession(["user"]);
-      const supervisionState: SupervisionState = {
-        hasGroups: false,
-        isLoadingGroups: false,
-        isSupervising: false,
-        isLoadingSupervision: true,
-      };
-
-      const result = useSmartRedirectPath(session, supervisionState);
-
-      expect(result.isReady).toBe(false);
-      expect(result.redirectPath).toBe("/ogs-groups");
-    });
-
-    it("should return isReady false when both are loading", () => {
-      const session = createSession(["user"]);
-      const supervisionState: SupervisionState = {
-        hasGroups: false,
-        isLoadingGroups: true,
-        isSupervising: false,
-        isLoadingSupervision: true,
-      };
-
-      const result = useSmartRedirectPath(session, supervisionState);
-
-      expect(result.isReady).toBe(false);
-      expect(result.redirectPath).toBe("/ogs-groups");
-    });
-
-    it("should return isReady true when nothing is loading", () => {
-      const session = createSession(["user"]);
-      const supervisionState: SupervisionState = {
-        hasGroups: false,
-        isLoadingGroups: false,
-        isSupervising: false,
-        isLoadingSupervision: false,
-      };
-
-      const result = useSmartRedirectPath(session, supervisionState);
-
-      expect(result.isReady).toBe(true);
-      expect(result.redirectPath).toBe("/ogs-groups");
-    });
-
-    it("should return correct path for admin when ready", () => {
-      const session = createSession(["admin"]);
-      const supervisionState: SupervisionState = {
-        hasGroups: false,
-        isLoadingGroups: false,
-        isSupervising: false,
-        isLoadingSupervision: false,
-      };
-
-      const result = useSmartRedirectPath(session, supervisionState);
-
-      expect(result.isReady).toBe(true);
-      expect(result.redirectPath).toBe("/dashboard");
-    });
-
-    it("should return correct path for user with groups when ready", () => {
-      const session = createSession(["user"]);
-      const supervisionState: SupervisionState = {
-        hasGroups: true,
-        isLoadingGroups: false,
-        isSupervising: false,
-        isLoadingSupervision: false,
-      };
-
-      const result = useSmartRedirectPath(session, supervisionState);
-
-      expect(result.isReady).toBe(true);
-      expect(result.redirectPath).toBe("/ogs-groups");
-    });
-
-    it("should return correct path for supervising user when ready", () => {
-      const session = createSession(["user"]);
-      const supervisionState: SupervisionState = {
-        hasGroups: false,
-        isLoadingGroups: false,
-        isSupervising: true,
-        isLoadingSupervision: false,
-      };
-
-      const result = useSmartRedirectPath(session, supervisionState);
-
-      expect(result.isReady).toBe(true);
-      expect(result.redirectPath).toBe("/active-supervisions");
-    });
-
-    it("should return students search for binary-mode caregiver when ready", () => {
-      const session = createSession(["user"]);
-      const supervisionState: SupervisionState = {
-        hasGroups: false,
-        isLoadingGroups: false,
-        isSupervising: true,
-        isLoadingSupervision: false,
-      };
-
-      const result = useSmartRedirectPath(session, supervisionState, "binary");
-
-      expect(result.isReady).toBe(true);
-      expect(result.redirectPath).toBe("/students/search");
-    });
-
-    it("should return caregiver path for teacher-only accounts when ready", () => {
-      const session = createSession(["teacher"]);
-      const supervisionState: SupervisionState = {
-        hasGroups: true,
-        isLoadingGroups: false,
-        isSupervising: false,
-        isLoadingSupervision: false,
-      };
-
-      const result = useSmartRedirectPath(session, supervisionState);
-
-      expect(result.isReady).toBe(true);
-      expect(result.redirectPath).toBe("/ogs-groups");
-    });
-
-    it("should handle null session", () => {
-      const supervisionState: SupervisionState = {
-        hasGroups: false,
-        isLoadingGroups: false,
-        isSupervising: false,
-        isLoadingSupervision: false,
-      };
-
-      const result = useSmartRedirectPath(null, supervisionState);
-
-      expect(result.isReady).toBe(true);
-      expect(result.redirectPath).toBe("/dashboard");
-    });
-
-    it("should always return both redirectPath and isReady", () => {
-      const session = createSession(["user"]);
-      const supervisionState: SupervisionState = {
-        hasGroups: true,
-        isLoadingGroups: false,
-        isSupervising: false,
-        isLoadingSupervision: false,
-      };
-
-      const result = useSmartRedirectPath(session, supervisionState);
-
-      expect(result).toHaveProperty("redirectPath");
-      expect(result).toHaveProperty("isReady");
-      expect(typeof result.redirectPath).toBe("string");
-      expect(typeof result.isReady).toBe("boolean");
+    it("keeps the school-portal handoff", () => {
+      expect(useSmartRedirectPath(createSession(["lehrkraft"]))).toEqual({
+        redirectPath: "/school/login",
+        isReady: true,
+      });
     });
   });
 });

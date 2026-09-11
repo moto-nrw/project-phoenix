@@ -311,7 +311,7 @@ function PrototypeMobileHeader({
 function TopicImage({ topic }: Readonly<{ topic: PrototypeTopic }>) {
   if (!topic.image || !topic.imageAlt) return null;
   return (
-    <figure className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+    <figure className="moto-content-surface overflow-hidden rounded-2xl border">
       <Image
         src={topic.image}
         alt={topic.imageAlt}
@@ -962,7 +962,7 @@ function PrototypeDocumentationShell({
               moto Hilfe
             </span>
           </Link>
-          <StatusBadge label="Prototyp" tone="orange" showDot={false} />
+          <StatusBadge label="Prototyp" tone="orange" />
         </div>
         <div className="space-y-2 border-b border-gray-200 px-5 py-4">
           <TopicSearch

@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
@@ -39,6 +40,7 @@ type RosterReconciler struct {
 	instanceStudentRepo schedule.InstanceStudentRepository
 	enrollmentRepo      activities.StudentEnrollmentRepository
 	logger              *slog.Logger
+	now                 func() time.Time
 }
 
 // NewRosterReconciler constructs a RosterReconciler. logger may be nil (a
@@ -48,12 +50,18 @@ func NewRosterReconciler(
 	instanceStudentRepo schedule.InstanceStudentRepository,
 	enrollmentRepo activities.StudentEnrollmentRepository,
 	logger *slog.Logger,
+	now ...func() time.Time,
 ) *RosterReconciler {
+	clock := timezone.Now
+	if len(now) > 0 && now[0] != nil {
+		clock = now[0]
+	}
 	return &RosterReconciler{
 		instanceRepo:        instanceRepo,
 		instanceStudentRepo: instanceStudentRepo,
 		enrollmentRepo:      enrollmentRepo,
 		logger:              logger,
+		now:                 clock,
 	}
 }
 
@@ -85,9 +93,9 @@ func (s *RosterReconciler) RemoveStudentsFromFutureRosters(ctx context.Context, 
 	// slot-list reads would otherwise keep showing. `now` additionally separates
 	// today's blocks that have already started (hand-set statuses there are
 	// observations and stay) from the ones still ahead.
-	now := timezone.Now()
+	now := s.now()
 	from := timezone.DateFromTime(now)
-	removed, err := s.instanceStudentRepo.ArchivePlannedByStudentIDsFrom(ctx, transitionID, studentIDs, from, now)
+	removed, err := s.instanceStudentRepo.ArchivePlannedByStudentIDsFrom(ctx, transitionID, studentIDs, schedule.Date(from), now)
 	if err != nil {
 		return &ScheduleError{Op: "reconcile roster: remove graduated students", Err: err}
 	}
@@ -164,9 +172,9 @@ func (s *RosterReconciler) RestoreStudentsToFutureRosters(
 	// Same "today" bounds both halves: the archive replay must not reach back
 	// into instances that turned into history during the alumnus window, and the
 	// enrollment fill starts at the same boundary date.
-	from := timezone.TodayDate()
+	from := timezone.DateFromTime(s.now())
 
-	replayed, err := s.instanceStudentRepo.RestoreArchivedByTransition(ctx, transitionID, studentIDs, from)
+	replayed, err := s.instanceStudentRepo.RestoreArchivedByTransition(ctx, transitionID, studentIDs, schedule.Date(from))
 	if err != nil {
 		return &ScheduleError{Op: "reconcile roster: replay archived rows", Err: err}
 	}
@@ -207,7 +215,7 @@ func (s *RosterReconciler) RestoreStudentsToFutureRosters(
 func (s *RosterReconciler) fillInstancesMaterializedDuringAlumnusWindow(
 	ctx context.Context, studentIDs []int64, from timezone.Date, baselineInstanceID int64,
 ) (int, int, error) {
-	all, err := s.instanceRepo.FindPlannedTemplateBackedFrom(ctx, from)
+	all, err := s.instanceRepo.FindPlannedTemplateBackedFrom(ctx, schedule.Date(from))
 	if err != nil {
 		return 0, 0, &ScheduleError{Op: "reconcile roster: load future instances", Err: err}
 	}
@@ -237,23 +245,28 @@ func (s *RosterReconciler) fillInstancesMaterializedDuringAlumnusWindow(
 	for _, row := range existingRows {
 		existing[instanceStudentPair{instanceID: row.InstanceID, studentID: row.StudentID}] = struct{}{}
 	}
+	enrollmentOptions := &activities.StudentEnrollmentQueryOptions{StudentIDs: studentIDs}
+	enrollments, err := s.enrollmentRepo.List(ctx, enrollmentOptions)
+	if err != nil {
+		return 0, 0, &ScheduleError{Op: "reconcile roster: load enrollments", Err: err}
+	}
+	enrollmentsByStudent := make(map[int64][]*activities.StudentEnrollment, len(studentIDs))
+	for _, enrollment := range enrollments {
+		enrollmentsByStudent[enrollment.StudentID] = append(enrollmentsByStudent[enrollment.StudentID], enrollment)
+	}
 
 	restored := 0
 	// Instances that received at least one restored row, so the status-day pass
 	// below runs once per instance instead of once per inserted row.
 	touched := make(map[int64]timezone.Date)
 	for _, sid := range studentIDs {
-		enrollments, err := s.enrollmentRepo.FindByStudentID(ctx, sid)
-		if err != nil {
-			return 0, 0, &ScheduleError{Op: "reconcile roster: load enrollments", Err: err}
-		}
-		for _, e := range enrollments {
+		for _, e := range enrollmentsByStudent[sid] {
 			for _, inst := range byGroup[e.ActivityGroupID] {
 				periodID := int64(0)
 				if inst.CalendarPeriodID != nil {
 					periodID = *inst.CalendarPeriodID
 				}
-				if !isEnrollmentValidOn(e, inst.Date, periodID) {
+				if !isEnrollmentValidOn(e, timezone.Date(inst.Date), periodID) {
 					continue
 				}
 				key := instanceStudentPair{instanceID: inst.ID, studentID: sid}
@@ -269,7 +282,7 @@ func (s *RosterReconciler) fillInstancesMaterializedDuringAlumnusWindow(
 					return 0, 0, &ScheduleError{Op: "reconcile roster: restore student", Err: err}
 				}
 				existing[key] = struct{}{}
-				touched[inst.ID] = inst.Date
+				touched[inst.ID] = timezone.Date(inst.Date)
 				restored++
 			}
 		}
@@ -284,12 +297,12 @@ func (s *RosterReconciler) fillInstancesMaterializedDuringAlumnusWindow(
 	// alumnus and never got the chance to stamp the status day (#405 review).
 	statusApplied := 0
 	for instanceID, date := range touched {
-		n, err := s.instanceStudentRepo.ApplyActiveStatusDaysForInstance(ctx, instanceID, date)
+		n, err := s.instanceStudentRepo.ApplyActiveStatusDaysForInstance(ctx, instanceID, schedule.Date(date))
 		if err != nil {
 			return 0, 0, &ScheduleError{Op: "reconcile roster: apply student status days", Err: err}
 		}
 		statusApplied += n
-		n, err = s.instanceStudentRepo.ApplyActivePartialAbsencesForInstance(ctx, instanceID, date)
+		n, err = s.instanceStudentRepo.ApplyActivePartialAbsencesForInstance(ctx, instanceID, schedule.Date(date))
 		if err != nil {
 			return 0, 0, &ScheduleError{Op: "reconcile roster: apply student partial absences", Err: err}
 		}
@@ -348,7 +361,7 @@ func (s *RosterReconciler) ReconcileSourcedTemplateRosters(
 	if today := timezone.TodayDate(); from.Before(today) {
 		from = today
 	}
-	all, err := s.instanceRepo.FindPlannedTemplateBackedFrom(ctx, from)
+	all, err := s.instanceRepo.FindPlannedTemplateBackedFrom(ctx, schedule.Date(from))
 	if err != nil {
 		return 0, 0, &ScheduleError{Op: "reconcile sourced roster: load future instances", Err: err}
 	}
@@ -395,12 +408,13 @@ func (s *RosterReconciler) ReconcileSourcedTemplateRosters(
 			periodID = *inst.CalendarPeriodID
 		}
 		for _, sid := range studentIDs {
-			desired := enrollmentsPlanStudentOn(enrollmentsByStudent[sid], inst.Date, periodID)
+			instanceDate := timezone.Date(inst.Date)
+			desired := enrollmentsPlanStudentOn(enrollmentsByStudent[sid], instanceDate, periodID)
 			key := instanceStudentPair{instanceID: inst.ID, studentID: sid}
 			row, exists := existing[key]
 			switch {
 			case desired && !exists:
-				if enrollmentsPlanStudentOn(priorByStudent[sid], inst.Date, periodID) {
+				if enrollmentsPlanStudentOn(priorByStudent[sid], instanceDate, periodID) {
 					// The pre-resync rows already planned this occurrence and
 					// the row is gone regardless — staff removed the child from
 					// this one occurrence by hand. Only newly gained coverage
@@ -416,7 +430,7 @@ func (s *RosterReconciler) ReconcileSourcedTemplateRosters(
 					return created, removed, &ScheduleError{Op: "reconcile sourced roster: add student", Err: err}
 				}
 				existing[key] = fresh
-				touched[inst.ID] = inst.Date
+				touched[inst.ID] = timezone.Date(inst.Date)
 				created++
 			case !desired && exists && instanceRowIsStillPlanned(row):
 				if err := s.instanceStudentRepo.Delete(ctx, row.ID); err != nil {
@@ -432,10 +446,10 @@ func (s *RosterReconciler) ReconcileSourcedTemplateRosters(
 	// child with an active broad day status on that date must read absent with
 	// the matching substatus, not expected.
 	for instanceID, date := range touched {
-		if _, err := s.instanceStudentRepo.ApplyActiveStatusDaysForInstance(ctx, instanceID, date); err != nil {
+		if _, err := s.instanceStudentRepo.ApplyActiveStatusDaysForInstance(ctx, instanceID, schedule.Date(date)); err != nil {
 			return created, removed, &ScheduleError{Op: "reconcile sourced roster: apply student status days", Err: err}
 		}
-		if _, err := s.instanceStudentRepo.ApplyActivePartialAbsencesForInstance(ctx, instanceID, date); err != nil {
+		if _, err := s.instanceStudentRepo.ApplyActivePartialAbsencesForInstance(ctx, instanceID, schedule.Date(date)); err != nil {
 			return created, removed, &ScheduleError{Op: "reconcile sourced roster: apply student partial absences", Err: err}
 		}
 	}

@@ -201,7 +201,6 @@ export const MOTO_COLOR_PALETTE = {
 
 export interface LocationBadgeTone {
   backgroundColor: string;
-  dotColor: string;
   textColor: string;
 }
 
@@ -215,70 +214,58 @@ const SURFACE_GRAY_50 = "#F9FAFB";
 const LOCATION_BADGE_TONES: Record<string, LocationBadgeTone> = {
   [MOTO_COLOR_PALETTE.green.base]: {
     backgroundColor: MOTO_COLOR_PALETTE.green.soft,
-    dotColor: MOTO_COLOR_PALETTE.green.base,
     textColor: MOTO_COLOR_PALETTE.green.strong,
   },
   [MOTO_COLOR_PALETTE.blue.base]: {
     backgroundColor: MOTO_COLOR_PALETTE.blue.soft,
-    dotColor: MOTO_COLOR_PALETTE.blue.base,
     textColor: MOTO_COLOR_PALETTE.blue.strong,
   },
   [MOTO_COLOR_PALETTE.orange.base]: {
     backgroundColor: MOTO_COLOR_PALETTE.orange.soft,
-    dotColor: MOTO_COLOR_PALETTE.orange.base,
     textColor: MOTO_COLOR_PALETTE.orange.strong,
   },
   [MOTO_COLOR_PALETTE.red.base]: {
     backgroundColor: MOTO_COLOR_PALETTE.red.soft,
-    dotColor: MOTO_COLOR_PALETTE.red.base,
     textColor: MOTO_COLOR_PALETTE.red.strong,
   },
   [MOTO_COLOR_PALETTE.navy.base]: {
     backgroundColor: MOTO_COLOR_PALETTE.navy.soft,
-    dotColor: MOTO_COLOR_PALETTE.navy.base,
     textColor: MOTO_COLOR_PALETTE.navy.strong,
   },
   [MOTO_COLOR_PALETTE.cyan.base]: {
     backgroundColor: MOTO_COLOR_PALETTE.cyan.soft,
-    dotColor: MOTO_COLOR_PALETTE.cyan.base,
     textColor: MOTO_COLOR_PALETTE.cyan.strong,
   },
   [MOTO_COLOR_PALETTE.stone.base]: {
     backgroundColor: MOTO_COLOR_PALETTE.stone.soft,
-    dotColor: MOTO_COLOR_PALETTE.stone.base,
     textColor: MOTO_COLOR_PALETTE.stone.strong,
   },
   [MOTO_COLOR_PALETTE.amber.base]: {
     backgroundColor: MOTO_COLOR_PALETTE.amber.soft,
-    dotColor: MOTO_COLOR_PALETTE.amber.base,
     textColor: MOTO_COLOR_PALETTE.amber.strong,
   },
   [MOTO_COLOR_PALETTE.purple.base]: {
     backgroundColor: MOTO_COLOR_PALETTE.purple.soft,
-    dotColor: MOTO_COLOR_PALETTE.purple.base,
     textColor: MOTO_COLOR_PALETTE.purple.strong,
   },
   [MOTO_COLOR_PALETTE.magenta.base]: {
     backgroundColor: MOTO_COLOR_PALETTE.magenta.soft,
-    dotColor: MOTO_COLOR_PALETTE.magenta.base,
     textColor: MOTO_COLOR_PALETTE.magenta.strong,
   },
   [MOTO_COLOR_PALETTE.neutral.base]: {
     backgroundColor: MOTO_COLOR_PALETTE.neutral.soft,
-    dotColor: MOTO_COLOR_PALETTE.neutral.light,
     // gray-600, bewusst heller als neutral.strong (gray-700): das neutrale
     // Badge soll zurueckhaltender wirken als ein Statuslabel. StatusBadge
     // tone="gray" fuehrt denselben Wert.
     textColor: "#4B5563",
   },
   // Homeoffice. Not a LOCATION_COLORS entry — staff-helpers emits this hex
-  // directly — but it reaches StatusDotBadge all the same, and without a row
+  // directly — but it reaches StatusColorBadge all the same, and without a row
   // here it falls through to the neutral gray label and reads exactly like the
   // Krank/Urlaub badges. The base hue carries text at 2.65:1, the -strong step
   // at 5.68:1.
   [MOTO_COLOR_PALETTE.timeTracking.base]: {
     backgroundColor: MOTO_COLOR_PALETTE.timeTracking.soft,
-    dotColor: MOTO_COLOR_PALETTE.timeTracking.base,
     textColor: MOTO_COLOR_PALETTE.timeTracking.strong,
   },
   // Rejected absence requests. Deliberately NOT LOCATION_COLORS.DANGER: the
@@ -287,7 +274,6 @@ const LOCATION_BADGE_TONES: Record<string, LocationBadgeTone> = {
   // two identical red pills. Deep red still reads as a refusal.
   [MOTO_COLOR_PALETTE.wine.base]: {
     backgroundColor: MOTO_COLOR_PALETTE.wine.soft,
-    dotColor: MOTO_COLOR_PALETTE.wine.base,
     textColor: MOTO_COLOR_PALETTE.wine.strong,
   },
 };
@@ -304,7 +290,6 @@ export function getLocationBadgeTone(
   if (color === null || color === undefined || color.trim() === "") {
     return {
       backgroundColor: SURFACE_GRAY_50,
-      dotColor: "#9CA3AF",
       textColor: NEUTRAL_TEXT_COLOR,
     };
   }
@@ -313,12 +298,10 @@ export function getLocationBadgeTone(
   // match a row by construction — the backend reserves exactly the status
   // hexes, so an admin-picked room color is always something else. Darkening
   // the room's own hue keeps the badge distinguishable; a flat neutral label
-  // would collapse every custom room onto the same pill and leave only the
-  // 6px dot to tell them apart.
+  // would collapse every custom room onto the same pill.
   return (
     LOCATION_BADGE_TONES[color.toUpperCase()] ?? {
       backgroundColor: SURFACE_GRAY_50,
-      dotColor: color,
       textColor: getAccessibleTextColor(color, SURFACE_GRAY_50),
     }
   );

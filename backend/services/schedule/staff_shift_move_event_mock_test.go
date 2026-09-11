@@ -29,11 +29,11 @@ func (m *shiftMoveEventRepo) Create(_ context.Context, event *auditModels.Deviat
 	return nil
 }
 
-func (*shiftMoveEventRepo) ListByRange(context.Context, timezone.Date, timezone.Date, *int64, *string) ([]*auditModels.DeviationEvent, error) {
+func (*shiftMoveEventRepo) ListByRange(context.Context, auditModels.Date, auditModels.Date, *int64, *string) ([]*auditModels.DeviationEvent, error) {
 	return nil, nil
 }
 
-func (*shiftMoveEventRepo) DeleteOlderThan(context.Context, timezone.Date) (int64, error) {
+func (*shiftMoveEventRepo) DeleteOlderThan(context.Context, auditModels.Date) (int64, error) {
 	return 0, nil
 }
 
@@ -56,7 +56,7 @@ func TestMoveShift_LogsShiftMovedEvent(t *testing.T) {
 		ShiftID:        existing.ID,
 		SourceStaffID:  7,
 		TargetStaffID:  8,
-		Date:           existing.Date,
+		Date:           timezone.Date(existing.Date),
 		StartTime:      existing.StartTime,
 		EndTime:        existing.EndTime,
 		BreakMinutes:   existing.BreakMinutes,
@@ -100,7 +100,7 @@ func TestMoveShift_NoOpMoveLogsNothing(t *testing.T) {
 		ShiftID:       existing.ID,
 		SourceStaffID: 7,
 		TargetStaffID: 7,
-		Date:          existing.Date,
+		Date:          timezone.Date(existing.Date),
 		StartTime:     existing.StartTime,
 		EndTime:       existing.EndTime,
 		BreakMinutes:  existing.BreakMinutes,
@@ -128,7 +128,7 @@ func TestMoveShift_EventWriteFailureAbortsMove(t *testing.T) {
 		ShiftID:       existing.ID,
 		SourceStaffID: 7,
 		TargetStaffID: 8,
-		Date:          existing.Date,
+		Date:          timezone.Date(existing.Date),
 		StartTime:     existing.StartTime,
 		EndTime:       existing.EndTime,
 		BreakMinutes:  existing.BreakMinutes,

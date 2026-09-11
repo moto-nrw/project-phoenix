@@ -9,7 +9,6 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -372,7 +371,7 @@ func (s *service) RespondToAnnouncement(ctx context.Context, accountID, announce
 		if err != nil {
 			return err
 		}
-		if student.CareEndedOn(timezone.TodayDate()) {
+		if student.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
 		applied, err := s.AnnouncementRepo.SetResponse(adminCtx, announcementTenantID, announcementID, studentID, accountID, optionIDs, expectedPublishedAt)

@@ -50,7 +50,7 @@ func TestMFAService_VerifyChallenge_RaceLoserRejected(t *testing.T) {
 	ctx := context.Background()
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	realChallengeRepo := repos.MFAEmailChallenge
 	stub := &raceLosingChallengeRepo{MFAEmailChallengeRepository: realChallengeRepo}
 	repos.MFAEmailChallenge = stub
@@ -67,7 +67,6 @@ func TestMFAService_VerifyChallenge_RaceLoserRejected(t *testing.T) {
 	require.NoError(t, err)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-race-loser")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 
 	require.NoError(t, svc.Enroll(ctx, acc.ID))
 
@@ -121,7 +120,7 @@ func TestMFAService_VerifyCodeForAccount_RaceLoserRejected(t *testing.T) {
 	ctx := context.Background()
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	realChallengeRepo := repos.MFAEmailChallenge
 	stub := &raceLosingChallengeRepo{MFAEmailChallengeRepository: realChallengeRepo}
 	repos.MFAEmailChallenge = stub
@@ -138,7 +137,6 @@ func TestMFAService_VerifyCodeForAccount_RaceLoserRejected(t *testing.T) {
 	require.NoError(t, err)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-race-loser-jwt-less")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 
 	plaintext := "987654"
 	hash, err := auth.HashShortCode(plaintext)

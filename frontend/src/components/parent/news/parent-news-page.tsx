@@ -179,7 +179,7 @@ function NewsListSkeleton() {
       {[0, 1].map((item) => (
         <div
           key={item}
-          className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5"
+          className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-5"
         >
           <div className="flex gap-3">
             <Skeleton className="size-10 shrink-0 rounded-xl" />

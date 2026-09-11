@@ -9,7 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/tenant"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -60,7 +63,7 @@ func (m *mockActiveSvcForSSE) GetRoomsByIDs(_ context.Context, _ []int64) ([]*fa
 	return nil, nil
 }
 
-func (m *mockActiveSvcForSSE) GetActiveGroupVisitsWithDisplay(_ context.Context, _ int64) ([]*activeModel.VisitWithStudentDisplay, error) {
+func (m *mockActiveSvcForSSE) GetActiveGroupVisitsWithDisplay(_ context.Context, _ int64) ([]*activeSvc.VisitWithStudentDisplay, error) {
 	return nil, nil
 }
 
@@ -84,7 +87,10 @@ func (m *mockActiveSvcForSSE) GetTrackingIndicators(_ context.Context, _ []int64
 }
 
 func (m *mockActiveSvcForSSE) SetSettingsService(_ activeSvc.SettingsResolver) {}
-func (m *mockActiveSvcForSSE) GetPresenceMode(_ context.Context) string        { return "detailed" }
+func (m *mockActiveSvcForSSE) SetTenantRuntime(_ tenant.UnitOfWork)            {}
+func (m *mockActiveSvcForSSE) GetPresenceMode(_ context.Context) (string, error) {
+	return "detailed", nil
+}
 
 // Stubs for the rest of active.Service (never called by resolveSupervisions)
 func (m *mockActiveSvcForSSE) GetActiveGroup(_ context.Context, _ int64) (*activeModel.Group, error) {
@@ -113,35 +119,36 @@ func (m *mockActiveSvcForSSE) FindActiveGroupsByGroupID(_ context.Context, _ int
 	return nil, nil
 }
 func (m *mockActiveSvcForSSE) EndActiveGroupSession(_ context.Context, _ int64) error { return nil }
-func (m *mockActiveSvcForSSE) GetActiveGroupWithVisits(_ context.Context, _ int64) (*activeModel.Group, error) {
+func (m *mockActiveSvcForSSE) GetActiveGroupVisits(_ context.Context, _ int64) ([]studentpresence.Visit, error) {
 	return nil, nil
 }
 func (m *mockActiveSvcForSSE) GetActiveGroupWithSupervisors(_ context.Context, _ int64) (*activeModel.Group, error) {
 	return nil, nil
 }
-func (m *mockActiveSvcForSSE) GetVisit(_ context.Context, _ int64) (*activeModel.Visit, error) {
+func (m *mockActiveSvcForSSE) GetVisit(_ context.Context, _ int64) (*studentpresence.Visit, error) {
 	return nil, nil
 }
-func (m *mockActiveSvcForSSE) CreateVisit(_ context.Context, _ *activeModel.Visit) error { return nil }
-func (m *mockActiveSvcForSSE) UpdateVisit(_ context.Context, _ *activeModel.Visit) error { return nil }
-func (m *mockActiveSvcForSSE) DeleteVisit(_ context.Context, _ int64) error              { return nil }
-func (m *mockActiveSvcForSSE) ListVisits(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Visit, error) {
+func (m *mockActiveSvcForSSE) CreateVisit(_ context.Context, _ *studentpresence.Visit) error {
+	return nil
+}
+func (m *mockActiveSvcForSSE) UpdateVisit(_ context.Context, _ *studentpresence.Visit) error {
+	return nil
+}
+func (m *mockActiveSvcForSSE) DeleteVisit(_ context.Context, _ int64) error { return nil }
+func (m *mockActiveSvcForSSE) FindVisitsByStudentID(_ context.Context, _ int64) ([]studentpresence.Visit, error) {
 	return nil, nil
 }
-func (m *mockActiveSvcForSSE) FindVisitsByStudentID(_ context.Context, _ int64) ([]*activeModel.Visit, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) FindVisitsByActiveGroupID(_ context.Context, _ int64) ([]*activeModel.Visit, error) {
+func (m *mockActiveSvcForSSE) FindVisitsByActiveGroupID(_ context.Context, _ int64) ([]studentpresence.Visit, error) {
 	return nil, nil
 }
 func (m *mockActiveSvcForSSE) EndVisit(_ context.Context, _ int64) error { return nil }
-func (m *mockActiveSvcForSSE) GetStudentCurrentVisit(_ context.Context, _ int64) (*activeModel.Visit, error) {
+func (m *mockActiveSvcForSSE) GetStudentCurrentVisit(_ context.Context, _ int64) (*studentpresence.Visit, error) {
 	return nil, nil
 }
-func (m *mockActiveSvcForSSE) GetStudentCurrentVisitWithRoom(_ context.Context, _ int64) (*activeModel.Visit, error) {
+func (m *mockActiveSvcForSSE) GetStudentCurrentVisitWithRoom(_ context.Context, _ int64) (*activeSvc.VisitWithRoom, error) {
 	return nil, nil
 }
-func (m *mockActiveSvcForSSE) GetStudentsCurrentVisits(_ context.Context, _ []int64) (map[int64]*activeModel.Visit, error) {
+func (m *mockActiveSvcForSSE) GetStudentsCurrentVisits(_ context.Context, _ []int64) (map[int64]*studentpresence.Visit, error) {
 	return nil, nil
 }
 func (m *mockActiveSvcForSSE) CountActiveVisitsByRoomID(_ context.Context, _ int64) (int, error) {
@@ -151,6 +158,9 @@ func (m *mockActiveSvcForSSE) CountActiveVisitsByActiveGroupID(_ context.Context
 	return 0, nil
 }
 func (m *mockActiveSvcForSSE) ListStudentsPresentInRoom(_ context.Context, _ int64) ([]int64, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) ListOpenVisitStudentIDsByRoom(context.Context) (map[int64][]int64, error) {
 	return nil, nil
 }
 func (m *mockActiveSvcForSSE) ListStudentsInTransit(_ context.Context) ([]int64, error) {
@@ -412,19 +422,19 @@ func TestResolveSupervisions_AdminWithSettingEnabled(t *testing.T) {
 	assert.Equal(t, int64(11), result[1].GroupID)
 }
 
-func TestResolveSupervisions_AdminWithSettingDisabled(t *testing.T) {
+func TestResolveSupervisions_AdminWithOwnScope(t *testing.T) {
 	t.Parallel()
 
-	staffSupervisions := []*activeModel.GroupSupervisor{
-		{Model: base.Model{ID: 200}, GroupID: 20, StaffID: 42},
+	now := time.Now()
+	activeGroups := []*activeModel.Group{
+		{Model: base.Model{ID: 20}, StartTime: now.Add(-time.Hour)},
 	}
 
 	rs := &userContextService{
 		sseSettings: scopeSettings(configModel.OverviewScopeOwn),
 		sseActiveSvc: &mockActiveSvcForSSE{
-			getStaffFunc: func(_ context.Context, staffID int64) ([]*activeModel.GroupSupervisor, error) {
-				assert.Equal(t, int64(42), staffID)
-				return staffSupervisions, nil
+			listFunc: func(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Group, error) {
+				return activeGroups, nil
 			},
 		},
 		logger: slog.Default(),
@@ -572,7 +582,7 @@ func TestResolveSupervisions_StaffSupervisionsError(t *testing.T) {
 		logger: slog.Default(),
 	}
 
-	ctx := ctxWithClaims(true) // admin but setting disabled → falls back to staff
+	ctx := ctxWithClaims(false)
 	result, err := rs.resolveSSESupervisions(ctx, 42)
 
 	assert.Error(t, err)

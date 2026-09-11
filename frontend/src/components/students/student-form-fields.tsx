@@ -182,7 +182,7 @@ function TextInput({
           htmlFor={inputId}
           className="block text-xs font-medium text-gray-700"
         >
-          {label} {required && <span className="text-red-500">*</span>}
+          {label} {required && <span className="text-moto-red">*</span>}
         </label>
         {parentVisibleHint && (
           <ParentVisibleBadge compact hint={parentVisibleHint} />
@@ -196,13 +196,13 @@ function TextInput({
         aria-invalid={error ? true : undefined}
         className={`block w-full rounded-lg border px-3 py-2 text-sm transition-colors ${
           error
-            ? "border-red-300 bg-red-50"
+            ? "border-moto-red/30 bg-moto-red-soft"
             : "focus:border-moto-blue focus:ring-moto-blue border-gray-200 bg-white focus:ring-1"
         }`}
         placeholder={placeholder}
         maxLength={255}
       />
-      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+      {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
     </div>
   );
 }
@@ -309,7 +309,7 @@ function TextareaField({
   parentVisibleHint?: string;
 }>) {
   return (
-    <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
+    <div className="bg-moto-blue-soft/30 rounded-xl border border-gray-100 p-3 md:p-4">
       <h3 className="mb-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
         <svg
           className={`h-3.5 w-3.5 text-${iconColor} md:h-4 md:w-4`}
@@ -470,13 +470,13 @@ export function PrivacyConsentSection({
             }}
             className={`block w-full rounded-lg border px-3 py-2 text-sm transition-colors ${
               errors.data_retention_days
-                ? "border-red-300 bg-red-50"
+                ? "border-moto-red/30 bg-moto-red-soft"
                 : "focus:border-moto-blue focus:ring-moto-blue border-gray-200 bg-white focus:ring-1"
             }`}
             placeholder="30"
           />
           {errors.data_retention_days && (
-            <p className="mt-1 text-xs text-red-600">
+            <p className="text-moto-red mt-1 text-xs">
               {errors.data_retention_days}
             </p>
           )}
@@ -606,7 +606,7 @@ export function EnrollmentConsentsSection({
   if (!anyStamped) return null;
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-3 md:p-4">
+    <div className="moto-content-surface rounded-xl border p-3 shadow-sm md:p-4">
       <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
         Einwilligungen bei Anmeldung
       </h3>

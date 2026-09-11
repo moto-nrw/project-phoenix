@@ -6,6 +6,7 @@ import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { staffAbsenceService } from "~/lib/staff-api";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
+import { useShellSeed } from "~/lib/shell-seed";
 import { useUnreadCount } from "./use-unread-count";
 
 async function fetchPendingAbsenceCount(): Promise<number> {
@@ -42,5 +43,6 @@ export function useStaffAbsencesPending() {
     eventNames: [ABSENCES_REFRESH_EVENT],
     eventDebounceMs: 500,
     refetchOnFocus: true,
+    initialCount: useShellSeed()?.counts.staffAbsencesPending,
   });
 }

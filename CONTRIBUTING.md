@@ -17,7 +17,11 @@ Before your first contribution can be accepted, you must agree to our [Contribut
 ### Prerequisites
 
 - Docker and Docker Compose
-- [Devbox](https://www.jetify.com/devbox/docs/installing_devbox/) + [direnv](https://direnv.net/docs/installation.html) (pin Go 1.25+, Node 24+, and all CLI tools)
+- [Devbox](https://www.jetify.com/devbox/docs/installing_devbox/) + [direnv](https://direnv.net/docs/installation.html) (pin Go 1.27.0, Node 24+, and all CLI tools)
+
+The pinned Devbox environment supports Apple Silicon macOS and Linux on arm64
+or amd64. Intel macOS is not supported; current Nixpkgs releases no longer
+provide `x86_64-darwin` packages.
 
 ### Quick Setup
 
@@ -25,6 +29,7 @@ Before your first contribution can be accepted, you must agree to our [Contribut
 git clone https://github.com/moto-nrw/project-phoenix.git
 cd project-phoenix
 direnv allow              # activates the devbox environment
+devbox run bootstrap      # installs frontend and browser dependencies
 ./scripts/setup-dev.sh    # creates config files, SSL certs, and credentials
 docker compose up -d      # starts everything; migrations run automatically
 ```
@@ -36,9 +41,9 @@ See [docs/getting-started.md](docs/getting-started.md) for seeding demo data and
 **Backend (Go):**
 ```bash
 cd backend
-golangci-lint run --timeout 10m  # Linting
-go test ./...                     # Tests
-go fmt ./...                      # Formatting
+../scripts/run-go-toolchain.sh golangci-lint run --timeout 10m  # Linting
+../scripts/run-go-toolchain.sh go test ./...                     # Tests
+../scripts/run-go-toolchain.sh go fmt ./...                      # Formatting
 ```
 
 **Frontend (Next.js):**
@@ -52,7 +57,7 @@ pnpm run test     # Run tests
 
 ### Pull Request Process
 
-1. Ensure all quality checks pass (`pnpm run check` for frontend, `golangci-lint run` for backend)
+1. Ensure all quality checks pass (`pnpm run check` for frontend, `../scripts/run-go-toolchain.sh golangci-lint run` from `backend/`)
 2. Update documentation if you changed APIs or behavior
 3. Write clear commit messages following [Conventional Commits](https://www.conventionalcommits.org/)
 4. Open a PR against the `development` branch (NOT `main`)
@@ -79,8 +84,8 @@ footer (optional)
 
 ### Go
 - Follow standard Go conventions
-- Use `gofmt` and `goimports`
-- Run `golangci-lint` before committing
+- Use the pinned formatter: `../scripts/run-go-toolchain.sh go tool goimports -w .`
+- Run `../scripts/run-go-toolchain.sh golangci-lint run` before committing
 
 ### TypeScript/React
 - Use TypeScript strict mode

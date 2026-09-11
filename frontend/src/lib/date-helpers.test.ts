@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import {
   berlinDayFromISO,
+  formatStatusDate,
   groupByDate,
   formatDate,
   formatTime,
@@ -691,5 +692,12 @@ describe("relativeDaysLabel", () => {
   it("gibt fuer unlesbare und zukuenftige Werte null zurueck", () => {
     expect(relativeDaysLabel("keinDatum", jetzt)).toBeNull();
     expect(relativeDaysLabel("2026-08-25T09:00:00Z", jetzt)).toBeNull();
+  });
+});
+
+describe("formatStatusDate", () => {
+  it("rendert Wochentag und numerisches Datum", () => {
+    expect(formatStatusDate("2026-08-27")).toBe("Donnerstag, 27.08.2026");
+    expect(formatStatusDate("2026-01-04")).toBe("Sonntag, 04.01.2026");
   });
 });

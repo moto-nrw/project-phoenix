@@ -55,7 +55,7 @@ function buildRoomSubtitle(room: Room): string {
     parts.push(formatFloor(room.floor));
   }
   if (room.category) parts.push(room.category);
-  const base = parts.join(" · ") || "—";
+  const base = parts.join(" · ") || "–";
   return room.isOccupied ? `Belegt · ${base}` : base;
 }
 

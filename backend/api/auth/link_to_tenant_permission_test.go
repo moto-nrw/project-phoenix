@@ -22,12 +22,13 @@ import (
 // reason (issue #1021).
 func TestLinkToTenant_RequiresUsersManage(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupAuthRoute(t)
 	router := testutil.NewTenantRouter(tc.db)
 	router.Mount("/auth", tc.resource.Router())
 
 	email := fmt.Sprintf("link-perm-%d@example.com", time.Now().UnixNano())
 	account := testpkg.CreateTestAccountWithPassword(t, tc.db, email, "SecurePass123!")
+	testpkg.OwnTestAccountWithIdentity(t, tc.db, account.ID)
 	// The accepted request provisions the person → staff chain in the same
 	// transaction as the role (#2222), so the account is no longer the only row
 	// to clean up.

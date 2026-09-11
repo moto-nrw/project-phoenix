@@ -53,7 +53,7 @@ type GapsResponse struct {
 
 // getGaps handles GET /api/timetable/gaps.
 func (rs *Resource) getGaps(w http.ResponseWriter, r *http.Request) {
-	from, to, ok := parseTodayFutureDateRange(w, r)
+	from, to, ok := rs.parseTodayFutureDateRange(w, r)
 	if !ok {
 		return
 	}

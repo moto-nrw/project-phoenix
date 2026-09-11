@@ -9,21 +9,21 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 func TestGroupCalendarPeriodTenantFKRejectsCrossTenantReference(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	tenantA := testpkg.UniqueTestTenantID(t)
 	tenantB := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantA)
+	testpkg.OwnTenantRows(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
+	testpkg.OwnTenantRows(t, db, tenantB)
 	t.Cleanup(func() {
 		cleanupCtx := context.Background()
-		testpkg.CleanupTenantTestData(t, db, tenantA)
-		testpkg.CleanupTenantTestData(t, db, tenantB)
-		_, err := db.NewDelete().TableExpr("schedule.calendar_periods").Where("tenant_id IN (?)", bun.List([]int64{tenantA, tenantB})).Exec(cleanupCtx)
+		_, err := db.NewDelete().TableExpr("schedule.calendar_periods").Where("tenant_id IN (?)", testpkg.DBList([]int64{tenantA, tenantB})).Exec(cleanupCtx)
 		require.NoError(t, err)
 		// School + organization stay: their IDs come from the test band, so
 		// they are not leftovers (#2419).
@@ -39,7 +39,7 @@ func TestGroupCalendarPeriodTenantFKRejectsCrossTenantReference(t *testing.T) {
 	assert.Contains(t, err.Error(), "fk_activities_groups_calendar_period_tenant")
 }
 
-func insertCalendarPeriodForTenantFKTest(t *testing.T, db *bun.DB, tenantID int64, suffix string) int64 {
+func insertCalendarPeriodForTenantFKTest(t *testing.T, db *testpkg.DB, tenantID int64, suffix string) int64 {
 	t.Helper()
 	var periodID int64
 	err := db.NewRaw(`
@@ -54,7 +54,7 @@ func insertCalendarPeriodForTenantFKTest(t *testing.T, db *bun.DB, tenantID int6
 	return periodID
 }
 
-func setGroupCalendarPeriodForTenantFKTest(db *bun.DB, tenantID, groupID, periodID int64) error {
+func setGroupCalendarPeriodForTenantFKTest(db *testpkg.DB, tenantID, groupID, periodID int64) error {
 	_, err := db.NewRaw(`
 		UPDATE activities.groups
 		SET calendar_period_id = ?

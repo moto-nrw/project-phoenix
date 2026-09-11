@@ -1,18 +1,18 @@
-import { LOCATION_COLORS } from "~/lib/location-helper";
+import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 
 export const timetableSurface =
-  "moto-content-surface rounded-2xl border border-gray-200 bg-white shadow-sm";
+  "moto-content-surface rounded-2xl border shadow-sm";
 
 export const timetableSurfacePadded = `${timetableSurface} p-4 sm:p-5`;
 
 export const timetableNestedSurface =
-  "rounded-xl border border-gray-200 bg-white shadow-sm";
+  "moto-content-surface rounded-xl border shadow-sm";
 
 export const timetableMutedSurface =
   "rounded-xl border border-gray-200 bg-gray-50/70";
 
 export const timetablePopoverSurface =
-  "overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg";
+  "moto-popover-surface overflow-hidden rounded-xl border";
 
 export const timetableSearchClass =
   "block h-10 w-full rounded-lg border-0 bg-white py-2 pr-3 pl-9 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 ring-inset transition-colors placeholder:text-gray-400 hover:ring-gray-300 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400";
@@ -46,3 +46,18 @@ export const timetableToneColors: Record<TimetableTone, string> = {
   warning: LOCATION_COLORS.WARNING,
   danger: LOCATION_COLORS.DANGER,
 } as const;
+
+/**
+ * Neutrale Blockkante für Termine ohne Planungsspur. Derselbe Wert wie
+ * UNTYPED_EDGE_COLOR in ui/plan-block.tsx: die Rasterflächen, die den Block
+ * nicht selbst rendern (Monatsraster, Regeltermin-Karte), müssen dieselbe
+ * Kante zeigen. Benannte Konstante statt eines Hex-Literals im Markup, damit
+ * ein tenant-gesetzter Spurwert und sein Ersatz an einer Stelle stehen.
+ */
+export const TIMETABLE_UNTYPED_EDGE_COLOR = "#D1D5DB";
+
+/**
+ * Ersatzfarbe, wenn eine Schicht- oder Spurfarbe aus den Tenant-Daten fehlt:
+ * das neutrale Grau der Palette, nie eine erfundene Buntfarbe.
+ */
+export const TIMETABLE_NEUTRAL_COLOR = MOTO_COLOR_PALETTE.neutral.base;

@@ -6,6 +6,7 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setTestClock } from "~/test/clock";
 import type { GapInstance, TimetableTemplate } from "~/lib/timetable-types";
 
 const {
@@ -56,6 +57,50 @@ const {
 // replaceState->popstate-Spy (siehe beforeEach) macht das die View auf
 // updateUrlParams reaktiv — genau wie Next.js' History-Instrumentierung in
 // Produktion. Der Betreuungsplan nutzt useUrlParams mit syncPopstate.
+// Vaul (SlideOver) rendert in jsdom nichts. Derselbe Ersatz wie in
+// components/ui/slide-over.test.tsx — die Struktur bleibt, nur die
+// Animationsschicht fällt weg.
+vi.mock("vaul", async () => {
+  const React = await import("react");
+
+  return {
+    Drawer: {
+      Root: ({
+        children,
+        open,
+      }: {
+        children: React.ReactNode;
+        open?: boolean;
+      }) => (open === false ? null : <div>{children}</div>),
+      Portal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+      Overlay: React.forwardRef<
+        HTMLDivElement,
+        React.HTMLAttributes<HTMLDivElement>
+      >((props, ref) => <div ref={ref} {...props} />),
+      Content: React.forwardRef<
+        HTMLDivElement,
+        React.HTMLAttributes<HTMLDivElement>
+      >((props, ref) => <div ref={ref} {...props} />),
+      Close: React.forwardRef<
+        HTMLButtonElement,
+        React.ButtonHTMLAttributes<HTMLButtonElement>
+      >((props, ref) => <button ref={ref} {...props} />),
+      Title: React.forwardRef<
+        HTMLHeadingElement,
+        React.HTMLAttributes<HTMLHeadingElement>
+      >(({ children, ...props }, ref) => (
+        <h2 ref={ref} {...props}>
+          {children ?? "Titel"}
+        </h2>
+      )),
+      Description: React.forwardRef<
+        HTMLParagraphElement,
+        React.HTMLAttributes<HTMLParagraphElement>
+      >((props, ref) => <p ref={ref} {...props} />),
+    },
+  };
+});
+
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(window.location.search),
 }));
@@ -799,7 +844,7 @@ function urlParams() {
 
 /** Radix-Tab: Aktivierung per mousedown (Kit-Regel), nicht click. */
 function selectTab(name: string) {
-  fireEvent.mouseDown(screen.getByRole("tab", { name }));
+  fireEvent.click(screen.getByRole("button", { name }));
 }
 
 let realReplaceState: typeof window.history.replaceState;
@@ -807,8 +852,7 @@ let realReplaceState: typeof window.history.replaceState;
 describe("BetreuungsplanView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date("2026-05-06T12:00:00"));
+    setTestClock(new Date("2026-05-06T12:00:00"));
     // Leseansicht (#2283): Editier-Kontrollen hängen jetzt an
     // schedules:manage, die Kinderliste an users:read. Die Bestands-Tests
     // beschreiben Planer-Flows, also ist die Default-Session ein Admin;
@@ -1003,8 +1047,8 @@ describe("BetreuungsplanView", () => {
     expect(screen.getByText("week-grid")).toBeVisible();
     expect(screen.queryByText("Monat")).not.toBeInTheDocument();
     expect(screen.queryByText("Serien")).not.toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Tag" })).toBeVisible();
-    expect(screen.getByRole("tab", { name: "Woche" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Tag" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Woche" })).toBeVisible();
   });
 
   it("öffnet die Tagesansicht für Teammitglieder ohne Planungsrecht", () => {
@@ -1239,7 +1283,7 @@ describe("BetreuungsplanView", () => {
   });
 
   it("führt Heute in der Tagesansicht am Wochenende auf den nächsten Schultag", () => {
-    vi.setSystemTime(new Date("2026-05-09T12:00:00Z"));
+    setTestClock(new Date("2026-05-09T12:00:00Z"));
     setUrl("view=tag&d=2026-05-04");
     render(<BetreuungsplanView />);
 
@@ -1279,7 +1323,7 @@ describe("BetreuungsplanView", () => {
     );
 
     unmount();
-    vi.setSystemTime(new Date("2026-05-09T12:00:00Z"));
+    setTestClock(new Date("2026-05-09T12:00:00Z"));
     setUrl("d=2026-05-06");
     render(<BetreuungsplanView />);
     fireEvent.click(screen.getAllByRole("button", { name: "Heute" })[0]!);
@@ -1287,7 +1331,7 @@ describe("BetreuungsplanView", () => {
   });
 
   it("does not query gaps for a finished Friday workweek on Saturday", () => {
-    vi.setSystemTime(new Date("2026-05-09T12:00:00Z"));
+    setTestClock(new Date("2026-05-09T12:00:00Z"));
     setUrl("view=woche&d=2026-05-04");
     render(<BetreuungsplanView />);
 
@@ -1329,6 +1373,23 @@ describe("BetreuungsplanView", () => {
       expect(screen.queryByText("detail-close")).not.toBeInTheDocument(),
     );
     expect(urlParams().has("block")).toBe(false);
+  });
+
+  // #2957: Ohne einen weiteren Plan-Parameter wäre `block` beim Schließen der
+  // letzte gewesen — die Kalenderfläche hätte danach auf "Meine Termine"
+  // umgeschaltet.
+  it("keeps the visible day in the URL when the slide-over closes (#2957)", async () => {
+    setUrl("block=42");
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByText("detail-close"));
+
+    await waitFor(() =>
+      expect(screen.queryByText("detail-close")).not.toBeInTheDocument(),
+    );
+    expect(urlParams().has("block")).toBe(false);
+    // Der sichtbare Tag (Systemzeit der Suite) bleibt als Plan-Parameter stehen.
+    expect(urlParams().get("d")).toBe("2026-05-06");
   });
 
   it("marks open-gap instances on the week grid", () => {
@@ -1482,7 +1543,7 @@ describe("BetreuungsplanView", () => {
   it("ends following instances from the slide-over", async () => {
     // Der Regeltermin lässt sich nur ab heute beenden, also muss der Termin
     // der Fixture (2026-05-04) hier "heute" sein.
-    vi.setSystemTime(new Date("2026-05-04T08:00:00"));
+    setTestClock(new Date("2026-05-04T08:00:00"));
     setUrl("view=woche&block=42");
     render(<BetreuungsplanView />);
 
@@ -1596,7 +1657,11 @@ describe("BetreuungsplanView", () => {
     // only the calendar-grid content region skeletonizes (showSkeleton
     // pattern, mirrors staff/page.tsx and rooms/page.tsx).
     expect(screen.getByText("Betreuungsplan")).toBeVisible();
-    expect(screen.getByTestId("timetable-content-skeleton")).toBeVisible();
+    // Der Ladezustand kommt aus dem TenantPage-Gerüst, nicht aus einem
+    // eigenen Seiten-Skelett.
+    expect(
+      screen.getByRole("status", { name: "Betreuungsplan wird geladen…" }),
+    ).toBeVisible();
     expect(
       screen.queryByTestId("timetable-page-skeleton"),
     ).not.toBeInTheDocument();
@@ -1618,7 +1683,11 @@ describe("BetreuungsplanView", () => {
 
     render(<BetreuungsplanView />);
 
-    expect(screen.getByTestId("timetable-content-skeleton")).toBeVisible();
+    // Der Ladezustand kommt aus dem TenantPage-Gerüst, nicht aus einem
+    // eigenen Seiten-Skelett.
+    expect(
+      screen.getByRole("status", { name: "Betreuungsplan wird geladen…" }),
+    ).toBeVisible();
     expect(screen.queryByTestId("loading")).not.toBeInTheDocument();
   });
 
@@ -1740,7 +1809,11 @@ describe("BetreuungsplanView", () => {
     // while the settings schema (and therefore timetableDisabled) is
     // still unresolved.
     expect(screen.getByText("Betreuungsplan")).toBeVisible();
-    expect(screen.getByTestId("timetable-content-skeleton")).toBeVisible();
+    // Der Ladezustand kommt aus dem TenantPage-Gerüst, nicht aus einem
+    // eigenen Seiten-Skelett.
+    expect(
+      screen.getByRole("status", { name: "Betreuungsplan wird geladen…" }),
+    ).toBeVisible();
     expect(
       screen.queryByTestId("timetable-page-skeleton"),
     ).not.toBeInTheDocument();

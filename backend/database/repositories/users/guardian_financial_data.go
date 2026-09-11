@@ -44,7 +44,7 @@ func (r *GuardianFinancialDataRepository) FindByGuardianProfileID(ctx context.Co
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "find guardian financial data by guardian profile id", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find guardian financial data by guardian profile id", Err: base.TranslateNotFound(err)}
 	}
 	return data, nil
 }
@@ -67,7 +67,7 @@ func (r *GuardianFinancialDataRepository) ListByGuardianProfileIDs(ctx context.C
 	query = base.WithTenantFilter(ctx, query, "guardian_financial_data")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list guardian financial data by guardian profile ids", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list guardian financial data by guardian profile ids", Err: base.TranslateNotFound(err)}
 	}
 
 	for _, row := range rows {

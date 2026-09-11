@@ -46,7 +46,7 @@ func (c *PasskeyCredential) Validate() error {
 
 // PasskeySession stores the server-side WebAuthn ceremony state.
 type PasskeySession struct {
-	ID             string          `bun:"id,pk" json:"id"`
+	base.StringIDModelWithoutNullZero
 	AccountID      *int64          `bun:"account_id" json:"account_id,omitempty"`
 	TenantID       *int64          `bun:"tenant_id" json:"tenant_id,omitempty"`
 	Purpose        string          `bun:"purpose,notnull" json:"purpose"`
@@ -55,13 +55,7 @@ type PasskeySession struct {
 	SessionJSON    json.RawMessage `bun:"session_json,type:jsonb,notnull" json:"-"`
 	ExpiresAt      time.Time       `bun:"expires_at,notnull" json:"expires_at"`
 	ConsumedAt     *time.Time      `bun:"consumed_at" json:"consumed_at,omitempty"`
-	CreatedAt      time.Time       `bun:"created_at,notnull,default:current_timestamp" json:"created_at"`
-	UpdatedAt      time.Time       `bun:"updated_at,notnull,default:current_timestamp" json:"updated_at"`
 }
-
-func (s *PasskeySession) GetID() interface{}      { return s.ID }
-func (s *PasskeySession) GetCreatedAt() time.Time { return s.CreatedAt }
-func (s *PasskeySession) GetUpdatedAt() time.Time { return s.UpdatedAt }
 
 func (s *PasskeySession) Validate() error {
 	if s.ID == "" {

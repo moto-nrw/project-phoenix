@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
@@ -70,7 +70,7 @@ func TestListPhaseExpiryWarnings_RequiresAdminScope(t *testing.T) {
 	resource := &Resource{PhaseExpiryService: &phaseExpiryServiceStub{}}
 	router := chi.NewRouter()
 	router.Use(render.SetContentType(render.ContentTypeJSON))
-	router.With(authorize.RequiresPermission("admin:*")).Get(
+	router.With(common.RequiresPermission("admin:*")).Get(
 		"/enrollment/phases/expiry-warnings",
 		resource.listPhaseExpiryWarnings,
 	)

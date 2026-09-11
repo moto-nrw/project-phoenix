@@ -49,7 +49,7 @@ func (s *stubInvites) RevokeAccess(_ context.Context, req authService.RevokeAcce
 func buildRelAcctService(t *testing.T, inviteMode string, canRemove bool) (parentService.Service, *stubInvites, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	invites := &stubInvites{}
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:     repos.ParentChild,
@@ -59,6 +59,7 @@ func buildRelAcctService(t *testing.T, inviteMode string, canRemove bool) (paren
 			boolValues:   map[string]bool{configModels.KeyGuardianParentCanRemove: canRemove},
 			stringValues: map[string]string{configModels.KeyGuardianParentInviteMode: inviteMode},
 		},
+		MealPlan:            availableMealPlan(false),
 		GuardianInvites:     invites,
 		GuardianInviteRepo:  repos.GuardianInvitation,
 		StudentGuardianRepo: repos.StudentGuardian,
@@ -91,7 +92,7 @@ func TestListRelatedAccounts_NoAccountWithoutInviteIsNotPending(t *testing.T) {
 	svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "staff-contact")
 	defer func() {
@@ -125,7 +126,7 @@ func TestListRelatedAccounts_NoAccountWithOpenInviteIsPending(t *testing.T) {
 	svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "pending-contact")
 	defer func() {
@@ -171,7 +172,7 @@ func TestListRelatedAccounts_OpenInviteForAnotherChildIsNotPending(t *testing.T)
 	svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "sibling-pending-contact")
 	otherStudent := testpkg.CreateTestStudent(t, db, "Other", "Child", "9z")
@@ -382,12 +383,13 @@ func TestChildFeatures_ExposesRelatedAccountsFlags(t *testing.T) {
 func buildRelAcctServiceWith(t *testing.T, settings configService.SettingsService) (parentService.Service, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,
 		StatusDayRepo:       repos.StudentStatusDay,
 		StudentRepo:         repos.Student,
 		Settings:            settings,
+		MealPlan:            availableMealPlan(false),
 		GuardianInvites:     &stubInvites{},
 		GuardianInviteRepo:  repos.GuardianInvitation,
 		StudentGuardianRepo: repos.StudentGuardian,
@@ -454,7 +456,7 @@ func (failingInvites) RevokeAccess(_ context.Context, _ authService.RevokeAccess
 func buildRelAcctServiceInvites(t *testing.T, inviteMode string, canRemove bool, invites authService.GuardianInvitationService) (parentService.Service, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:     repos.ParentChild,
 		StatusDayRepo: repos.StudentStatusDay,
@@ -513,7 +515,7 @@ func TestListRelatedAccounts_AccountWithoutAccessIsActiveNoAccess(t *testing.T) 
 	svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "active-no-access")
 	_, account := testpkg.CreateTestPersonWithAccount(t, db, "NoAccess", "Account")
@@ -552,7 +554,7 @@ func TestListRelatedAccounts_AccountWithoutAccessWithOpenInviteIsPending(t *test
 	svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "no-access-pending")
 	_, account := testpkg.CreateTestPersonWithAccount(t, db, "NoAccessPending", "Account")

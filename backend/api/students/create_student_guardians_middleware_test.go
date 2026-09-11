@@ -59,7 +59,7 @@ func assertNoStudentCommittedUnderTenantTx(
 func TestCreateStudent_BadGuardianDoesNotCommitUnderTenantTx(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	const firstName = "MiddlewareRollback"
 	const lastName = "Orphan"
@@ -89,7 +89,7 @@ func TestCreateStudent_BadGuardianDoesNotCommitUnderTenantTx(t *testing.T) {
 func TestCreateStudent_GuardianInvalidRelationshipType(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	for _, relType := range []string{"sibling", "alien", "grandparent"} {
 		t.Run(relType, func(t *testing.T) {
@@ -121,7 +121,7 @@ func TestCreateStudent_GuardianInvalidRelationshipType(t *testing.T) {
 func TestCreateStudent_GuardianRelationshipTypeAccepted(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	for _, relType := range []string{"parent", "guardian", "relative", "other"} {
 		t.Run(relType, func(t *testing.T) {
@@ -156,7 +156,7 @@ func TestCreateStudent_GuardianRelationshipTypeAccepted(t *testing.T) {
 func TestCreateStudent_GuardianEmergencyPriorityBelowOne(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	for _, prio := range []int{0, -1, -5} {
 		t.Run(fmt.Sprintf("priority_%d", prio), func(t *testing.T) {
@@ -189,7 +189,7 @@ func TestCreateStudent_GuardianEmergencyPriorityBelowOne(t *testing.T) {
 func TestCreateStudent_DuplicateGuardianEmail(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	ctx := context.Background()
 
 	const dupEmail = "existing.sibling.guardian@example.com"
@@ -239,7 +239,7 @@ func TestCreateStudent_DuplicateGuardianEmail(t *testing.T) {
 func TestCreateStudent_DuplicateGuardianEmailWithinRequest(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	const firstName = "DupEmailInline"
 	const lastName = "Orphan"

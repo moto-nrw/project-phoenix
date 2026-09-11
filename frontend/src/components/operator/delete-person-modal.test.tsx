@@ -202,10 +202,10 @@ describe("DeletePersonModal", () => {
     fireEvent.click(getDeleteButton());
 
     await waitFor(() => {
-      expect(screen.getByText("Wird gelöscht...")).toBeInTheDocument();
+      expect(screen.getByText("Wird gelöscht…")).toBeInTheDocument();
     });
     expect(
-      screen.getByRole("button", { name: "Wird gelöscht..." }),
+      screen.getByRole("button", { name: "Wird gelöscht…" }),
     ).toBeDisabled();
     expect(screen.getByRole("button", { name: "Abbrechen" })).toBeDisabled();
 

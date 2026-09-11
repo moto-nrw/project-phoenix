@@ -1,10 +1,8 @@
 package timetable
 
 import (
-	"database/sql"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -22,10 +20,10 @@ func TestTemplateResponseIncludesPlanningTrackMetadata(t *testing.T) {
 		Type:               activitiesModel.GroupTypeCare,
 		CategoryID:         9,
 		CategoryName:       "Lernzeit",
-		PlanningTrackID:    sql.NullInt64{Int64: 7, Valid: true},
+		PlanningTrackID:    activitiesModel.NullInt64{Int64: 7, Valid: true},
 		PlanningTrackName:  "Jahrgang 1",
 		PlanningTrackColor: "#5080D8",
-		PlanningTrackOrder: sql.NullInt64{Int64: 2, Valid: true},
+		PlanningTrackOrder: activitiesModel.NullInt64{Int64: 2, Valid: true},
 	}, 10)
 
 	require.NotNil(t, response.PlanningTrackID)
@@ -41,7 +39,7 @@ func TestInstanceMetadataResolvesPlanningTrackThroughTemplate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
 	group := testpkg.CreateTestActivityGroupForTenant(t, db, scope.TenantID, "Track metadata")
-	repos := repositories.NewFactory(db)
+	repos := mustTimetableTestRepositories(db)
 	track := &scheduleModel.PlanningTrack{Name: "Mittag", Color: "#F78C10", SortOrder: 3}
 	require.NoError(t, repos.PlanningTrack.Create(scope.Context(), track))
 	_, err := db.NewUpdate().Table("activities.groups").

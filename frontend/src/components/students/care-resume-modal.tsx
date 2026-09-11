@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { Modal } from "~/components/ui/modal";
 import { todayISO } from "~/lib/date-helpers";
@@ -148,9 +149,10 @@ export function CareResumeModal({
           </ul>
         </div>
 
-        <label
+        <ChoiceTile
           htmlFor="care-resume-checked"
-          className="flex cursor-pointer items-start gap-3 rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-700"
+          disabled={saving}
+          className="items-start p-4 font-normal"
         >
           <Checkbox
             id="care-resume-checked"
@@ -162,7 +164,7 @@ export function CareResumeModal({
             Ich habe Gruppe, Angebote, Wochenplan sowie Ankunfts- und Gehzeiten
             geprüft.
           </span>
-        </label>
+        </ChoiceTile>
       </div>
     </Modal>
   );

@@ -48,14 +48,12 @@ func TestOperatorPasskeySessionModel(t *testing.T) {
 
 	now := time.Now().UTC()
 	session := &OperatorPasskeySession{
-		ID:             "session",
-		Purpose:        OperatorPasskeySessionPurposeRegistration,
-		RPID:           "operator.localhost",
-		ExpectedOrigin: "http://operator.localhost:3000",
-		SessionJSON:    json.RawMessage(`{"challenge":"abc"}`),
-		ExpiresAt:      now.Add(time.Minute),
-		CreatedAt:      now,
-		UpdatedAt:      now,
+		StringIDModelWithoutNullZero: base.StringIDModelWithoutNullZero{ID: "session", CreatedAt: now, UpdatedAt: now},
+		Purpose:                      OperatorPasskeySessionPurposeRegistration,
+		RPID:                         "operator.localhost",
+		ExpectedOrigin:               "http://operator.localhost:3000",
+		SessionJSON:                  json.RawMessage(`{"challenge":"abc"}`),
+		ExpiresAt:                    now.Add(time.Minute),
 	}
 
 	require.NoError(t, session.Validate())
@@ -68,11 +66,11 @@ func TestOperatorPasskeySessionModel(t *testing.T) {
 		session OperatorPasskeySession
 	}{
 		{name: "missing id", session: OperatorPasskeySession{Purpose: OperatorPasskeySessionPurposeLogin, RPID: "operator.localhost", ExpectedOrigin: "http://operator.localhost", SessionJSON: json.RawMessage(`{}`), ExpiresAt: now}},
-		{name: "bad purpose", session: OperatorPasskeySession{ID: "s", Purpose: "bad", RPID: "operator.localhost", ExpectedOrigin: "http://operator.localhost", SessionJSON: json.RawMessage(`{}`), ExpiresAt: now}},
-		{name: "missing rp id", session: OperatorPasskeySession{ID: "s", Purpose: OperatorPasskeySessionPurposeLogin, ExpectedOrigin: "http://operator.localhost", SessionJSON: json.RawMessage(`{}`), ExpiresAt: now}},
-		{name: "missing origin", session: OperatorPasskeySession{ID: "s", Purpose: OperatorPasskeySessionPurposeLogin, RPID: "operator.localhost", SessionJSON: json.RawMessage(`{}`), ExpiresAt: now}},
-		{name: "invalid json", session: OperatorPasskeySession{ID: "s", Purpose: OperatorPasskeySessionPurposeLogin, RPID: "operator.localhost", ExpectedOrigin: "http://operator.localhost", SessionJSON: json.RawMessage(`{`), ExpiresAt: now}},
-		{name: "missing expiry", session: OperatorPasskeySession{ID: "s", Purpose: OperatorPasskeySessionPurposeLogin, RPID: "operator.localhost", ExpectedOrigin: "http://operator.localhost", SessionJSON: json.RawMessage(`{}`)}},
+		{name: "bad purpose", session: OperatorPasskeySession{StringIDModelWithoutNullZero: base.StringIDModelWithoutNullZero{ID: "s"}, Purpose: "bad", RPID: "operator.localhost", ExpectedOrigin: "http://operator.localhost", SessionJSON: json.RawMessage(`{}`), ExpiresAt: now}},
+		{name: "missing rp id", session: OperatorPasskeySession{StringIDModelWithoutNullZero: base.StringIDModelWithoutNullZero{ID: "s"}, Purpose: OperatorPasskeySessionPurposeLogin, ExpectedOrigin: "http://operator.localhost", SessionJSON: json.RawMessage(`{}`), ExpiresAt: now}},
+		{name: "missing origin", session: OperatorPasskeySession{StringIDModelWithoutNullZero: base.StringIDModelWithoutNullZero{ID: "s"}, Purpose: OperatorPasskeySessionPurposeLogin, RPID: "operator.localhost", SessionJSON: json.RawMessage(`{}`), ExpiresAt: now}},
+		{name: "invalid json", session: OperatorPasskeySession{StringIDModelWithoutNullZero: base.StringIDModelWithoutNullZero{ID: "s"}, Purpose: OperatorPasskeySessionPurposeLogin, RPID: "operator.localhost", ExpectedOrigin: "http://operator.localhost", SessionJSON: json.RawMessage(`{`), ExpiresAt: now}},
+		{name: "missing expiry", session: OperatorPasskeySession{StringIDModelWithoutNullZero: base.StringIDModelWithoutNullZero{ID: "s"}, Purpose: OperatorPasskeySessionPurposeLogin, RPID: "operator.localhost", ExpectedOrigin: "http://operator.localhost", SessionJSON: json.RawMessage(`{}`)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

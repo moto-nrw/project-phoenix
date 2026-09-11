@@ -53,7 +53,7 @@ func (o *StaffVacationOpening) Validate() error {
 	if o.EffectiveDate.IsZero() {
 		return errors.New("effective_date is required")
 	}
-	if o.EffectiveDate.Year != o.Year {
+	if o.EffectiveDate.Year() != o.Year {
 		return errors.New("effective_date must lie in the opening year")
 	}
 	if o.TakenBeforeDays < -maxOpeningDays || o.TakenBeforeDays > maxOpeningDays {

@@ -1,17 +1,14 @@
-package architecture_test
+package architecture
 
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/architecture"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 const legacyKey = "production|imports.forbidden|example.test/architecture-fixture/source|example.test/architecture-fixture/target"
@@ -65,11 +62,11 @@ func TestRatchetMismatchReportsViolationLocations(t *testing.T) {
 func TestLegacyBaselineJSONOmitsLocations(t *testing.T) {
 	t.Parallel()
 
-	entry := architecture.LegacyEntry{
-		Violation: architecture.Violation{
-			Scope: architecture.ScopeProduction, Rule: "imports.forbidden",
+	entry := LegacyEntry{
+		Violation: Violation{
+			Scope: ScopeProduction, Rule: "imports.forbidden",
 			Source: "example.test/architecture-fixture/source", Target: "example.test/architecture-fixture/target",
-			Locations: []architecture.Location{{File: "source/source.go", Line: 3, Declaration: "import example.test/architecture-fixture/target"}},
+			Locations: []Location{{File: "source/source.go", Line: 3, Declaration: "import example.test/architecture-fixture/target"}},
 		},
 		Issue: "https://github.com/moto-nrw/project-phoenix/issues/2583",
 	}
@@ -164,7 +161,7 @@ func TestCheckReadsBasePolicyAtRequestedPathDespiteCandidateSymlink(t *testing.T
 		t.Fatalf("symlink candidate policy: %v", err)
 	}
 
-	basePolicy, _, err := architecture.LoadBasePolicyAndManifest(repo, policyPath, filepath.Join(repo, "architecture", "legacy.jsonl"), baseRef)
+	basePolicy, _, err := LoadBasePolicyAndManifest(repo, policyPath, filepath.Join(repo, "architecture", "legacy.jsonl"), baseRef)
 	if err != nil {
 		t.Fatalf("load base policy: %v", err)
 	}
@@ -268,6 +265,135 @@ func TestCheckRejectsNewPackageClassifications(t *testing.T) {
 	}
 }
 
+func TestCheckAllowsPolicyForPackageCreatedByCandidate(t *testing.T) {
+	t.Parallel()
+
+	repo, baseRef := ratchetRepository(t, legacyRecord(2583))
+	policy := mutatePolicy(t, readFile(t, fixturePath(t, "vertical-forbidden.json")), func(document map[string]any) {
+		document["roles"] = append(document["roles"].([]any), "public")
+		document["packages"] = append(document["packages"].([]any), map[string]any{
+			"path": "replacement", "owner": "module", "role": "public", "internal_test_role": "module-internal-test", "external_test_role": "module-behavior-test",
+		})
+		document["rules"] = append(document["rules"].([]any), map[string]any{
+			"id": "module.to.replacement", "description": "Application uses its candidate replacement.", "scopes": []string{"production"},
+			"source_owner": "module", "source_role": "application", "target_owner": "module", "target_role": "public",
+		}, map[string]any{
+			"id": "module.test.to.replacement", "description": "Behavior test uses its candidate replacement.", "scopes": []string{"external_test"},
+			"source_owner": "module", "source_role": "module-behavior-test", "target_owner": "module", "target_role": "public",
+		})
+	})
+	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), policy)
+	writeFile(t, filepath.Join(repo, "architecture", "legacy.jsonl"), "")
+	writeFile(t, filepath.Join(repo, "source", "source.go"), `package source
+
+import "example.test/architecture-fixture/replacement"
+
+func Use() string { return replacement.Value }
+`)
+	writeFile(t, filepath.Join(repo, "replacement", "replacement.go"), `package replacement
+
+const Value = "replacement"
+`)
+	runGit(t, repo, "add", ".")
+
+	output, err := runRepositoryCheck(t, repo, baseRef)
+	if err != nil || !strings.Contains(output, "backend architecture ratchet passed") {
+		t.Fatalf("policy for candidate-created package was rejected: %v\n%s", err, output)
+	}
+}
+
+func TestCheckAllowsExternalDependencyUsedOnlyByCandidatePackage(t *testing.T) {
+	t.Parallel()
+
+	repo, baseRef := ratchetRepository(t, legacyRecord(2583))
+	policy := mutatePolicy(t, readFile(t, fixturePath(t, "vertical-forbidden.json")), func(document map[string]any) {
+		document["roles"] = append(document["roles"].([]any), "public")
+		document["external_classes"] = append(document["external_classes"].([]any), "standard")
+		document["external_packages"] = append(document["external_packages"].([]any), map[string]any{
+			"path": "net/url", "class": "standard",
+		})
+		document["packages"] = append(document["packages"].([]any), map[string]any{
+			"path": "replacement", "owner": "module", "role": "public", "internal_test_role": "module-internal-test", "external_test_role": "module-behavior-test",
+		})
+		document["rules"] = append(document["rules"].([]any), map[string]any{
+			"id": "replacement.to.standard", "description": "Candidate package uses its standard dependency.", "scopes": []string{"production"},
+			"source_owner": "module", "source_role": "public", "target_class": "standard",
+		})
+	})
+	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), policy)
+	writeFile(t, filepath.Join(repo, "replacement", "replacement.go"), `package replacement
+
+import "net/url"
+
+func Parse(value string) (*url.URL, error) { return url.Parse(value) }
+`)
+	runGit(t, repo, "add", ".")
+
+	output, err := runRepositoryCheck(t, repo, baseRef)
+	if err != nil || !strings.Contains(output, "backend architecture ratchet passed") {
+		t.Fatalf("candidate-only external dependency was rejected: %v\n%s", err, output)
+	}
+}
+
+func TestCheckAllowsRemovingGuardForDeletedLegacySymbol(t *testing.T) {
+	t.Parallel()
+
+	basePolicy := mutatePolicy(t, readFile(t, fixturePath(t, "vertical-forbidden.json")), func(document map[string]any) {
+		document["owners"].([]any)[0].(map[string]any)["kind"] = "composition"
+		document["roles"] = append(document["roles"].([]any), "compose")
+		for _, value := range document["packages"].([]any) {
+			pkg := value.(map[string]any)
+			if pkg["path"] == "source" {
+				pkg["role"] = "compose"
+			}
+		}
+		document["legacy_composition"] = []any{map[string]any{"package": "source", "symbols": []string{"Use"}}}
+	})
+	repo, baseRef := ratchetRepositoryWithPolicy(t, legacyRecord(2583), basePolicy)
+	candidatePolicy := mutatePolicy(t, basePolicy, func(document map[string]any) {
+		document["legacy_composition"] = []any{}
+	})
+	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), candidatePolicy)
+	writeFile(t, filepath.Join(repo, "source", "source.go"), `package source
+
+import "example.test/architecture-fixture/target"
+
+func use() string { return target.Value }
+`)
+	runGit(t, repo, "add", ".")
+
+	output, err := runRepositoryCheck(t, repo, baseRef)
+	if err != nil || !strings.Contains(output, "backend architecture ratchet passed") {
+		t.Fatalf("guard for deleted legacy symbol was rejected: %v\n%s", err, output)
+	}
+}
+
+func TestCheckRejectsRemovingGuardForExistingLegacySymbol(t *testing.T) {
+	t.Parallel()
+
+	basePolicy := mutatePolicy(t, readFile(t, fixturePath(t, "vertical-forbidden.json")), func(document map[string]any) {
+		document["owners"].([]any)[0].(map[string]any)["kind"] = "composition"
+		document["roles"] = append(document["roles"].([]any), "compose")
+		for _, value := range document["packages"].([]any) {
+			pkg := value.(map[string]any)
+			if pkg["path"] == "source" {
+				pkg["role"] = "compose"
+			}
+		}
+		document["legacy_composition"] = []any{map[string]any{"package": "source", "symbols": []string{"Use"}}}
+	})
+	repo, baseRef := ratchetRepositoryWithPolicy(t, legacyRecord(2583), basePolicy)
+	candidatePolicy := mutatePolicy(t, basePolicy, func(document map[string]any) {
+		document["legacy_composition"] = []any{}
+	})
+	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), candidatePolicy)
+
+	output, err := runRepositoryCheck(t, repo, baseRef)
+	if err == nil || !strings.Contains(output, "legacy composition symbol is no longer guarded") {
+		t.Fatalf("guard for existing legacy symbol was accepted: %v\n%s", err, output)
+	}
+}
+
 func TestCheckRejectsExternalDependencyReclassification(t *testing.T) {
 	t.Parallel()
 
@@ -334,6 +460,331 @@ func TestCheckRejectsNewDataObjectOwnership(t *testing.T) {
 	}
 }
 
+func TestCheckRejectsUnownedCandidateTable(t *testing.T) {
+	t.Parallel()
+	repo, baseRef, _ := ratchetRepositoryWithMigrationPackage(t, `package migrations
+type rawDB struct{}
+func (rawDB) NewRaw(string) {}
+`)
+	writeFile(t, filepath.Join(repo, "database", "migrations", "001_new.go"), `package migrations
+func create(db rawDB) { db.NewRaw("CREATE TABLE ghost.records (id bigint)") }
+`)
+	output, err := runRepositoryCheck(t, repo, baseRef)
+	if err == nil || !strings.Contains(output, "new writable data object ghost.records has no write owner") {
+		t.Fatalf("unowned candidate table was accepted: %v\n%s", err, output)
+	}
+}
+
+func TestCheckRequiresCandidateMigrationOwnership(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name, sql, want string
+		owners          []string
+	}{
+		{name: "quoted table", sql: `CREATE TABLE "ghost" . "records" (id bigint)`, want: "new writable data object ghost.records has no write owner"},
+		{name: "anonymous block", sql: `DO $$ BEGIN CREATE TABLE ghost.records (id bigint); END $$`, want: "new writable data object ghost.records has no write owner"},
+		{name: "anonymous block owned", sql: `DO $$ BEGIN CREATE TABLE ghost.records (id bigint); END $$`, owners: []string{"module"}},
+		{name: "quoted table owned", sql: `CREATE TABLE "ghost" . "records" (id bigint)`, owners: []string{"module"}},
+		{name: "multiple objects", sql: `CREATE TABLE ghost.records (id bigint); CREATE TABLE ghost.other (id bigint);`, owners: []string{"module"}, want: "new writable data object ghost.other has no write owner"},
+		{name: "duplicate owner", sql: `CREATE TABLE ghost.records (id bigint)`, owners: []string{"module", "module"}, want: "is declared more than once"},
+		{name: "conflicting owner", sql: `CREATE TABLE ghost.records (id bigint)`, owners: []string{"module", "migrations"}, want: "conflicting write owners"},
+		{name: "unknown owner", sql: `CREATE TABLE ghost.records (id bigint)`, owners: []string{"unknown"}, want: "unknown write owner"},
+		{name: "projection owner", sql: `CREATE TABLE ghost.records (id bigint)`, owners: []string{"projection"}, want: "non-owning kind"},
+		{name: "view", sql: `CREATE VIEW ghost.records AS SELECT id FROM other.records`, want: "new writable data object ghost.records has no write owner"},
+		{name: "unlogged table", sql: `CREATE UNLOGGED TABLE ghost.records (id bigint)`, want: "new writable data object ghost.records has no write owner"},
+		{name: "foreign table", sql: `CREATE FOREIGN TABLE ghost.records (id bigint) SERVER remote`, want: "new writable data object ghost.records has no write owner"},
+		{name: "materialized view", sql: `CREATE MATERIALIZED VIEW ghost.records AS SELECT 1`, want: "new writable data object ghost.records has no write owner"},
+		{name: "sequence", sql: `CREATE SEQUENCE ghost.records`, want: "new writable data object ghost.records has no write owner"},
+		{name: "select into", sql: `SELECT 1 AS id INTO ghost.records`, want: "new writable data object ghost.records has no write owner"},
+		{name: "select into owned", sql: `SELECT 1 AS id INTO ghost.records`, owners: []string{"module"}},
+		{name: "unqualified table", sql: `CREATE TABLE records (id bigint)`, want: "must be schema-qualified"},
+		{name: "case-sensitive quoted name", sql: `CREATE TABLE "ghost"."Records" (id bigint)`, owners: []string{"module"}, want: "cannot be represented by the ownership policy"},
+		{name: "inert dollar literal", sql: `SELECT $$CREATE TABLE ghost.records (id bigint)$$`},
+		{name: "nested SQL comments", sql: `/* outer /* inner */ CREATE TABLE ghost.records (id bigint) */ SELECT 1`},
+		{name: "function body", sql: `CREATE FUNCTION ghost.make() RETURNS void AS $$ BEGIN CREATE TABLE ghost.records (id bigint); END $$ LANGUAGE plpgsql`, want: "new writable data object ghost.records has no write owner"},
+		{name: "inert function result", sql: `CREATE FUNCTION ghost.text() RETURNS text AS $$ SELECT 'CREATE TABLE ghost.records (id bigint)' $$ LANGUAGE sql`},
+		{name: "literal execute", sql: `DO $$ BEGIN EXECUTE 'CREATE TABLE ghost.records (id bigint)'; END $$`, want: "new writable data object ghost.records has no write owner"},
+		{name: "encoded body", sql: `DO E'BEGIN CR\x45ATE TABLE ghost.records (id bigint); END';`, want: "encoded executable SQL body cannot be classified"},
+		{name: "continued body", sql: "DO 'BEGIN CR'\n'EATE TABLE ghost.records (id bigint); END';", want: "new writable data object ghost.records has no write owner"},
+		{name: "dynamic execute", sql: `DO $$ BEGIN EXECUTE format('CREATE TABLE ghost.%I (id bigint)', 'records'); END $$`, want: "dynamic migration SQL cannot be classified"},
+		{name: "temporary table", sql: `CREATE TEMP TABLE scratch (id bigint); CREATE TEMPORARY TABLE scratch2 (id bigint);`},
+		{name: "non-writable DDL", sql: `CREATE SCHEMA ghost; CREATE INDEX records_idx ON other.records(id); CREATE TYPE ghost.state AS ENUM ('new');`},
+		{name: "SQL comments and literals", sql: "-- CREATE TABLE ghost.comment (id bigint)\nSELECT 'CREATE TABLE ghost.literal (id bigint)'; /* CREATE VIEW ghost.fake AS SELECT 1 */"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			repo, baseRef, policy := ratchetRepositoryWithMigrationPackage(t, `package migrations
+ type rawDB struct{}
+ func (rawDB) NewRaw(string) {}
+ `)
+			for _, owner := range tt.owners {
+				policy = policyWithDataObject(t, policy, "ghost.records", owner)
+			}
+			if tt.name == "projection owner" {
+				policy = mutatePolicy(t, policy, func(document map[string]any) {
+					document["owners"] = append(document["owners"].([]any), map[string]any{"id": "projection", "kind": "projection"})
+				})
+			}
+			writeFile(t, filepath.Join(repo, "architecture", "policy.json"), policy)
+			writeFile(t, filepath.Join(repo, "database", "migrations", "001_new.go"), fmt.Sprintf("package migrations\nfunc create(db rawDB) { db.NewRaw(%q) }\n", tt.sql))
+			output, err := runRepositoryCheck(t, repo, baseRef)
+			if tt.want == "" {
+				if err != nil {
+					t.Fatalf("valid migration rejected: %v\n%s", err, output)
+				}
+			} else if err == nil || !strings.Contains(output, tt.want) {
+				t.Fatalf("want %q, got %v\n%s", tt.want, err, output)
+			}
+		})
+	}
+}
+
+func TestCheckPreservesHistoricalMigrationOwnershipBaseline(t *testing.T) {
+	t.Parallel()
+	repo, baseRef, _ := ratchetRepositoryWithMigrationPackage(t, `package migrations
+ type rawDB struct{}
+ func (rawDB) NewRaw(string) {}
+ func historical(db rawDB) { db.NewRaw("CREATE TABLE ghost.records (id bigint)") }
+ `)
+	writeFile(t, filepath.Join(repo, "database", "migrations", "001_existing.go"), `package migrations
+ func existing(db rawDB) { db.NewRaw("CREATE TABLE IF NOT EXISTS ghost.records (id bigint)") }
+ `)
+	writeFile(t, filepath.Join(repo, "database", "migrations", "002_fixture_test.go"), `package migrations
+ func fixture(db rawDB) { db.NewRaw("CREATE TABLE ghost.test_fixture (id bigint)") }
+ `)
+	output, err := runRepositoryCheck(t, repo, baseRef)
+	if err != nil {
+		t.Fatalf("historical or test-only object required ownership: %v\n%s", err, output)
+	}
+}
+
+func TestCheckRequiresOwnershipForStaticMigrationQueries(t *testing.T) {
+	t.Parallel()
+	for _, query := range []string{
+		`const query = "CREATE TABLE ghost.records (id bigint)"; db.NewRaw(query)`,
+		`query := "CREATE TABLE ghost.records (id bigint)"; db.NewRaw(query)`,
+		`db.NewRaw("CREATE TABLE " + "ghost.records (id bigint)")`,
+		`exec := db.NewRaw; exec("CREATE TABLE ghost.records (id bigint)")`,
+		`db.Exec("CREATE TABLE ghost.records (id bigint)")`,
+		`db.QueryContext(nil, "CREATE TABLE ghost.records (id bigint)")`,
+		`query := db.NewRaw("CREATE TABLE ghost.records (id bigint)"); query.Exec(nil)`,
+	} {
+		t.Run(query, func(t *testing.T) {
+			t.Parallel()
+			repo, baseRef, policy := ratchetRepositoryWithMigrationPackage(t, `package migrations
+ type rawDB struct{}
+ type rawQuery struct{}
+ func (rawDB) NewRaw(string) rawQuery { return rawQuery{} }
+ func (rawDB) Exec(string) {}
+ func (rawDB) QueryContext(any, string) {}
+ func (rawQuery) Exec(any) {}
+ func historical(db rawDB) { db.NewRaw("CREATE TABLE ghost.records_old (id bigint)") }
+ `)
+			writeFile(t, filepath.Join(repo, "database", "migrations", "001_new.go"), "package migrations\nfunc create(db rawDB) { "+query+" }\n")
+			output, err := runRepositoryCheck(t, repo, baseRef)
+			if err == nil || !strings.Contains(output, "new writable data object ghost.records has no write owner") {
+				t.Fatalf("static query or prefix match bypassed ownership: %v\n%s", err, output)
+			}
+			writeFile(t, filepath.Join(repo, "architecture", "policy.json"), policyWithDataObject(t, policy, "ghost.records", "module"))
+			output, err = runRepositoryCheck(t, repo, baseRef)
+			if err != nil {
+				t.Fatalf("owned static query was rejected: %v\n%s", err, output)
+			}
+		})
+	}
+}
+
+func TestCheckRejectsUnresolvedMigrationSQL(t *testing.T) {
+	t.Parallel()
+	for _, query := range []string{
+		`db.NewRaw(query)`,
+		`sql := "SELECT 1"; sql = query; db.NewRaw(sql)`,
+		`db.NewCreateTable()`,
+		`sql := "SELECT 1"; for _, sql = range []string{query} { db.NewRaw(sql) }`,
+		`sql := "SELECT 1"; ptr := &(sql); *ptr = query; db.NewRaw(sql)`,
+	} {
+		t.Run(query, func(t *testing.T) {
+			t.Parallel()
+			repo, baseRef, _ := ratchetRepositoryWithMigrationPackage(t, `package migrations
+ type rawDB struct{}
+ func (rawDB) NewRaw(string) {}
+ func (rawDB) NewCreateTable() {}
+ `)
+			writeFile(t, filepath.Join(repo, "database", "migrations", "001_new.go"), "package migrations\nfunc create(db rawDB, query string) { "+query+" }\n")
+			output, err := runRepositoryCheck(t, repo, baseRef)
+			if err == nil || (!strings.Contains(output, "SQL argument cannot be resolved statically") && !strings.Contains(output, "schema builder cannot be classified")) {
+				t.Fatalf("unresolved SQL bypassed ownership: %v\n%s", err, output)
+			}
+		})
+	}
+}
+
+func TestCheckAllowsOwnershipForTableCreatedByNewCandidateMigration(t *testing.T) {
+	t.Parallel()
+
+	repo, baseRef, basePolicy := ratchetRepositoryWithMigrationPackage(t, `package migrations
+
+type rawDB struct{}
+
+func (rawDB) NewRaw(string) {}
+`)
+
+	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), policyWithDataObject(t, basePolicy, "ghost.records", "module"))
+	writeFile(t, filepath.Join(repo, "database", "migrations", "001_create_ghost.go"), `package migrations
+
+func createGhostRecords(db rawDB) {
+	db.NewRaw(`+"`"+`
+		CREATE TABLE ghost.records (
+			id BIGINT PRIMARY KEY
+		);
+	`+"`"+`)
+}
+`)
+	runGit(t, repo, "add", "architecture/policy.json", "database/migrations/001_create_ghost.go")
+
+	output, err := runRepositoryCheck(t, repo, baseRef)
+	if err != nil || !strings.Contains(output, "1 legacy violation(s) remain") {
+		t.Fatalf("new table ownership with matching candidate migration was rejected: %v\n%s", err, output)
+	}
+}
+
+func TestCheckAllowsOwnershipForTableCreatedByExecContextMigration(t *testing.T) {
+	t.Parallel()
+
+	repo, baseRef, basePolicy := ratchetRepositoryWithMigrationPackage(t, `package migrations
+
+type rawDB struct{}
+
+func (rawDB) ExecContext(any, string, ...any) {}
+`)
+
+	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), policyWithDataObject(t, basePolicy, "ghost.records", "module"))
+	writeFile(t, filepath.Join(repo, "database", "migrations", "001_create_ghost.go"), `package migrations
+
+func createGhostRecords(ctx any, db rawDB) {
+	db.ExecContext(ctx, `+"`"+`
+		CREATE TABLE ghost.records (
+			id BIGINT PRIMARY KEY
+		);
+	`+"`"+`)
+}
+`)
+	runGit(t, repo, "add", "architecture/policy.json", "database/migrations/001_create_ghost.go")
+
+	output, err := runRepositoryCheck(t, repo, baseRef)
+	if err != nil || !strings.Contains(output, "1 legacy violation(s) remain") {
+		t.Fatalf("new table ownership with ExecContext migration was rejected: %v\n%s", err, output)
+	}
+}
+
+func TestCheckAllowsOwnershipForViewCreatedByUntrackedCandidateMigration(t *testing.T) {
+	t.Parallel()
+
+	repo, baseRef, basePolicy := ratchetRepositoryWithMigrationPackage(t, `package migrations
+
+type rawDB struct{}
+
+func (rawDB) NewRaw(string) {}
+`)
+
+	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), policyWithDataObject(t, basePolicy, "ghost.records", "module"))
+	writeFile(t, filepath.Join(repo, "database", "migrations", "001_create_ghost_view.go"), `package migrations
+
+func createGhostRecords(db rawDB) {
+	db.NewRaw(`+"`"+`CREATE VIEW ghost.records AS SELECT 1 AS id;`+"`"+`)
+}
+`)
+	runGit(t, repo, "add", "architecture/policy.json")
+
+	output, err := runRepositoryCheck(t, repo, baseRef)
+	if err != nil || !strings.Contains(output, "1 legacy violation(s) remain") {
+		t.Fatalf("new view ownership with an untracked candidate migration was rejected: %v\n%s", err, output)
+	}
+}
+
+func TestCheckRejectsOwnershipBackfilledThroughModifiedMigration(t *testing.T) {
+	t.Parallel()
+
+	repo, baseRef, basePolicy := ratchetRepositoryWithMigrationPackage(t, `package migrations
+
+type rawDB struct{}
+
+func (rawDB) NewRaw(string) {}
+`)
+	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), policyWithDataObject(t, basePolicy, "ghost.records", "module"))
+	writeFile(t, filepath.Join(repo, "database", "migrations", "base.go"), `package migrations
+
+type rawDB struct{}
+
+func (rawDB) NewRaw(string) {}
+
+func backfillGhostRecords(db rawDB) {
+	db.NewRaw(`+"`"+`CREATE TABLE ghost.records (id BIGINT PRIMARY KEY);`+"`"+`)
+}
+`)
+
+	output, err := runRepositoryCheck(t, repo, baseRef)
+	if err == nil || !strings.Contains(output, "data object ghost.records was newly assigned to owner module") {
+		t.Fatalf("modified historical migration authorized new ownership: %v\n%s", err, output)
+	}
+}
+
+func TestCheckRejectsOwnershipForTableMentionedByBaseMigration(t *testing.T) {
+	t.Parallel()
+
+	repo, baseRef, basePolicy := ratchetRepositoryWithMigrationPackage(t, `package migrations
+
+type rawDB struct{}
+
+func (rawDB) NewRaw(string) {}
+
+func createGhostRecords(db rawDB) {
+	db.NewRaw(`+"`"+`CREATE TABLE IF NOT EXISTS ghost.records (id BIGINT PRIMARY KEY);`+"`"+`)
+}
+`)
+	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), policyWithDataObject(t, basePolicy, "ghost.records", "module"))
+	writeFile(t, filepath.Join(repo, "database", "migrations", "002_recreate_ghost.go"), `package migrations
+
+func recreateGhostRecords(db rawDB) {
+	db.NewRaw(`+"`"+`CREATE TABLE IF NOT EXISTS ghost.records (id BIGINT PRIMARY KEY);`+"`"+`)
+}
+`)
+	runGit(t, repo, "add", "architecture/policy.json", "database/migrations/002_recreate_ghost.go")
+
+	output, err := runRepositoryCheck(t, repo, baseRef)
+	if err == nil || !strings.Contains(output, "data object ghost.records was newly assigned to owner module") {
+		t.Fatalf("base migration table was treated as newly created: %v\n%s", err, output)
+	}
+}
+
+func TestCheckRejectsOwnershipForQuotedTableMentionedByBaseMigration(t *testing.T) {
+	t.Parallel()
+
+	repo, baseRef, basePolicy := ratchetRepositoryWithMigrationPackage(t, `package migrations
+
+type rawDB struct{}
+
+func (rawDB) NewRaw(string) {}
+
+func createGhostRecords(db rawDB) {
+	db.NewRaw(`+"`"+`CREATE TABLE "ghost" . "records" (id BIGINT PRIMARY KEY);`+"`"+`)
+}
+`)
+	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), policyWithDataObject(t, basePolicy, "ghost.records", "module"))
+	writeFile(t, filepath.Join(repo, "database", "migrations", "002_recreate_ghost.go"), `package migrations
+
+func recreateGhostRecords(db rawDB) {
+	db.NewRaw(`+"`"+`CREATE TABLE ghost.records (id BIGINT PRIMARY KEY);`+"`"+`)
+}
+`)
+	runGit(t, repo, "add", "architecture/policy.json", "database/migrations/002_recreate_ghost.go")
+
+	output, err := runRepositoryCheck(t, repo, baseRef)
+	if err == nil || !strings.Contains(output, "data object ghost.records was newly assigned to owner module") {
+		t.Fatalf("quoted base migration table was treated as newly created: %v\n%s", err, output)
+	}
+}
+
 func TestCheckHasNoApprovalOrRebaselineSwitch(t *testing.T) {
 	t.Parallel()
 
@@ -348,13 +799,13 @@ func TestCheckHasNoApprovalOrRebaselineSwitch(t *testing.T) {
 func TestAuditIssuesRejectsClosedDebtIssue(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, r *testpkg.HTTPRequest) {
 		if r.URL.Path != "/repos/moto-nrw/project-phoenix/issues/2583" {
-			http.NotFound(w, r)
+			w.WriteHeader(testpkg.HTTPStatusNotFound)
 			return
 		}
 		_, _ = w.Write([]byte(`{"state":"closed","html_url":"https://github.com/moto-nrw/project-phoenix/issues/2583"}`))
-	}))
+	})
 	defer server.Close()
 
 	manifest := writeManifest(t, legacyRecord(2583))
@@ -373,12 +824,44 @@ func TestAuditIssuesRequiresAPIURL(t *testing.T) {
 	}
 }
 
+func TestAuditIssuesCoversConvertedImportDebt(t *testing.T) {
+	t.Parallel()
+	repo, baseRef := ratchetRepositoryWithPolicy(t, "", readFile(t, fixturePath(t, "vertical-allowed.json")))
+	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), readFile(t, fixturePath(t, "vertical-forbidden.json")))
+	manifest := filepath.Join(repo, "architecture", "legacy.jsonl")
+	writeFile(t, manifest, legacyRecord(2743))
+	if output, err := runRepositoryCheck(t, repo, baseRef); err != nil {
+		t.Fatalf("convert import debt: %v\n%s", err, output)
+	}
+	for _, state := range []string{"open", "closed"} {
+		t.Run(state, func(t *testing.T) {
+			t.Parallel()
+			server := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, r *testpkg.HTTPRequest) {
+				if r.URL.Path != "/repos/moto-nrw/project-phoenix/issues/2743" {
+					w.WriteHeader(testpkg.HTTPStatusNotFound)
+					return
+				}
+				_, _ = w.Write([]byte(`{"state":"` + state + `","html_url":"https://github.com/moto-nrw/project-phoenix/issues/2743"}`))
+			})
+			defer server.Close()
+			output, err := runArchitecture(t, "audit-issues", "--baseline", manifest, "--api-url", server.URL)
+			if state == "open" {
+				if err != nil || !strings.Contains(output, "1 open migration issue(s) cover 1 legacy violation(s)") {
+					t.Fatalf("open debt audit failed: %v\n%s", err, output)
+				}
+			} else if err == nil || !strings.Contains(output, "is closed") {
+				t.Fatalf("closed converted debt passed audit: %v\n%s", err, output)
+			}
+		})
+	}
+}
+
 func TestAuditIssuesAcceptsOneOpenIssueForMultipleEntries(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	server := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, _ *testpkg.HTTPRequest) {
 		_, _ = w.Write([]byte(`{"state":"open","html_url":"https://github.com/moto-nrw/project-phoenix/issues/2583"}`))
-	}))
+	})
 	defer server.Close()
 	manifest := legacyRecordWithTarget(2583, "example.test/architecture-fixture/another") + legacyRecord(2583)
 
@@ -392,10 +875,10 @@ func TestAuditIssuesDoesNotForwardGitHubTokenToCustomAPI(t *testing.T) {
 	t.Parallel()
 
 	authorization := make(chan string, 1)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, r *testpkg.HTTPRequest) {
 		authorization <- r.Header.Get("Authorization")
 		_, _ = w.Write([]byte(`{"state":"open","html_url":"https://github.com/moto-nrw/project-phoenix/issues/2583"}`))
-	}))
+	})
 	defer server.Close()
 
 	output, err := runArchitectureWithEnv(t, map[string]string{"GITHUB_TOKEN": "top-secret"}, "audit-issues", "--baseline", writeManifest(t, legacyRecord(2583)), "--api-url", server.URL)
@@ -477,6 +960,25 @@ func ratchetRepositoryWithPolicy(t *testing.T, baseline, policy string) (string,
 	return repo, strings.TrimSpace(runGit(t, repo, "rev-parse", "HEAD"))
 }
 
+func ratchetRepositoryWithMigrationPackage(t *testing.T, baseMigration string) (string, string, string) {
+	t.Helper()
+	repo, _ := ratchetRepository(t, legacyRecord(2583))
+	basePolicy := mutatePolicy(t, readFile(t, filepath.Join(repo, "architecture", "policy.json")), func(document map[string]any) {
+		document["owners"] = append(document["owners"].([]any), map[string]any{"id": "migrations", "kind": "migration"})
+		document["roles"] = append(document["roles"].([]any), "migration")
+		document["packages"] = append(document["packages"].([]any), map[string]any{
+			"path": "database/migrations", "owner": "migrations", "role": "migration",
+			"internal_test_role": "module-internal-test", "external_test_role": "module-behavior-test",
+		})
+	})
+	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), basePolicy)
+	writeFile(t, filepath.Join(repo, "database", "migrations", "base.go"), baseMigration)
+	runGit(t, repo, "add", ".")
+	runGit(t, repo, "commit", "-qm", "classify migration package")
+	baseRef := strings.TrimSpace(runGit(t, repo, "rev-parse", "HEAD"))
+	return repo, baseRef, basePolicy
+}
+
 func policyWithSourceClassification(t *testing.T, owner, role string) string {
 	t.Helper()
 	return policyWithSourceClassificationFrom(t, readFile(t, fixturePath(t, "vertical-allowed.json")), owner, role)
@@ -549,12 +1051,23 @@ func runRepositoryCheck(t *testing.T, repo, baseRef string) (string, error) {
 
 func runGit(t *testing.T, dir string, args ...string) string {
 	t.Helper()
-	command := exec.Command("git", append([]string{"-C", dir}, args...)...)
-	output, err := command.CombinedOutput()
+	output, err := processOutput(dir, gitTestEnvironment(), "git", append([]string{"-C", dir}, args...)...)
 	if err != nil {
 		t.Fatalf("git %v: %v\n%s", args, err, output)
 	}
 	return string(output)
+}
+
+func gitTestEnvironment() []string {
+	var environment []string
+	for _, variable := range os.Environ() {
+		if strings.HasPrefix(variable, "GIT_CONFIG=") || strings.HasPrefix(variable, "GIT_CONFIG_COUNT=") ||
+			strings.HasPrefix(variable, "GIT_CONFIG_KEY_") || strings.HasPrefix(variable, "GIT_CONFIG_VALUE_") {
+			continue
+		}
+		environment = append(environment, variable)
+	}
+	return environment
 }
 
 func readFile(t *testing.T, path string) string {

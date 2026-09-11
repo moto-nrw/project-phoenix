@@ -52,7 +52,7 @@ describe("breadcrumb-utils", () => {
       });
 
       it("should return 'Kinder' for database students page", () => {
-        expect(getPageTitle("/database/students")).toBe("Kinder");
+        expect(getPageTitle("/database/students")).toBe("Kinderdaten");
       });
 
       it("should return 'Personal' for database personal page", () => {
@@ -116,25 +116,24 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/activities")).toBe("Aktivitäten");
       });
 
-      it("should return 'Gruppenzugriff' for /substitutions", () => {
-        expect(getPageTitle("/substitutions")).toBe("Gruppenzugriff");
+      it("should return 'Vertretungen' for /substitutions", () => {
+        expect(getPageTitle("/substitutions")).toBe("Vertretungen");
       });
 
       it("titles the three planning areas and their redirect frames", () => {
-        // Planung-Redesign (docs/planung-redesign/docs/03 Abschnitt 5): die
-        // Bereiche sind flache Hauptrouten; die Redirect-Frames behalten
+        // Die Bereiche sind flache Hauptrouten; die Redirect-Frames behalten
         // Titel, damit während des Client-Redirects nichts Falsches aufblitzt.
         expect(getPageTitle("/betreuungsplan")).toBe("Betreuungsplan");
         expect(getPageTitle("/dienstplan")).toBe("Dienstplan");
-        expect(getPageTitle("/vertretung")).toBe("Vertretung");
+        expect(getPageTitle("/vertretung")).toBe("Vertretungsplan");
         expect(getPageTitle("/planung")).toBe("Planung");
         expect(getPageTitle("/timetables")).toBe("Betreuungsplan");
-        expect(getPageTitle("/vertretungsplan")).toBe("Vertretung");
+        expect(getPageTitle("/vertretungsplan")).toBe("Vertretungsplan");
         expect(getPageTitle("/staff/dienstplan")).toBe("Dienstplan");
       });
 
-      it("should return 'Kalenderzeiträume' for /calendar-periods", () => {
-        expect(getPageTitle("/calendar-periods")).toBe("Kalenderzeiträume");
+      it("should return 'Schuljahr und Ferien' for /calendar-periods", () => {
+        expect(getPageTitle("/calendar-periods")).toBe("Schuljahr und Ferien");
       });
 
       it("should return 'Tageslisten' for /lists", () => {
@@ -173,9 +172,7 @@ describe("breadcrumb-utils", () => {
       });
 
       it("should return titles for staff admin request pages", () => {
-        expect(getPageTitle("/admin/guardian-approvals")).toBe(
-          "Konto-Anfragen",
-        );
+        expect(getPageTitle("/admin/guardian-approvals")).toBe("Elternzugänge");
         // Alt-Route der Freigabeansicht: nur noch ein Redirect-Frame auf
         // /anfragen (#2429); der Titel verhindert den "Home"-Blitzer.
         expect(getPageTitle("/admin/change-requests")).toBe("Anfragen");
@@ -185,9 +182,7 @@ describe("breadcrumb-utils", () => {
       it("should return titles for recent staff navigation entries", () => {
         expect(getPageTitle("/messages")).toBe("Nachrichten");
         expect(getPageTitle("/messages/thread-1")).toBe("Nachrichten");
-        expect(getPageTitle("/parent-announcements")).toBe(
-          "Mitteilungen und Umfragen",
-        );
+        expect(getPageTitle("/parent-announcements")).toBe("Mitteilungen");
         expect(getPageTitle("/meal-plan")).toBe("Essensplan");
       });
 
@@ -207,7 +202,7 @@ describe("breadcrumb-utils", () => {
       it("should return German fallback titles for parent navigation entries", () => {
         expect(getPageTitle("/parents/messages")).toBe("Nachrichten");
         expect(getPageTitle("/parents/news")).toBe("Neuigkeiten");
-        expect(getPageTitle("/parents/meal-plan")).toBe("Essensplan");
+        expect(getPageTitle("/parents/meal-plan")).toBe("Mittagessen");
       });
 
       it("should return 'Home' for unknown route", () => {
@@ -336,7 +331,7 @@ describe("breadcrumb-utils", () => {
         expect(result).not.toBeNull();
         expect(result?.sectionLabel).toBe("Datenverwaltung");
         expect(result?.sectionHref).toBe("/database");
-        expect(result?.pageLabel).toBe("Kinder");
+        expect(result?.pageLabel).toBe("Kinderdaten");
         // Zweistufig: keine dritte Ebene, deshalb auch kein Link auf der
         // Mittelstufe.
         expect(result?.pageHref).toBeUndefined();
@@ -350,14 +345,14 @@ describe("breadcrumb-utils", () => {
       it("should identify database deep page (4+ segments)", () => {
         const result = getSectionBreadcrumb("/database/students/123/edit");
         expect(result?.sectionLabel).toBe("Datenverwaltung");
-        expect(result?.pageLabel).toBe("Kinder");
+        expect(result?.pageLabel).toBe("Kinderdaten");
         expect(result?.pageHref).toBe("/database/students");
         expect(result?.deepLabel).toBe("Bearbeiten");
       });
 
       it("should correctly identify multiple database segments", () => {
         const result = getSectionBreadcrumb("/database/students/create");
-        expect(result?.pageLabel).toBe("Kinder");
+        expect(result?.pageLabel).toBe("Kinderdaten");
         expect(result?.pageHref).toBe("/database/students");
         expect(result?.deepLabel).toBe("Erstellen");
       });
@@ -366,7 +361,7 @@ describe("breadcrumb-utils", () => {
         expect(getSectionBreadcrumb("/database/students/import")).toEqual({
           sectionLabel: "Datenverwaltung",
           sectionHref: "/database",
-          pageLabel: "Kinder",
+          pageLabel: "Kinderdaten",
           pageHref: "/database/students",
           deepLabel: "Importieren",
         });
@@ -390,11 +385,11 @@ describe("breadcrumb-utils", () => {
           "Dienstplan",
         );
         expect(getSectionBreadcrumb("/vertretung")?.pageLabel).toBe(
-          "Vertretung",
+          "Vertretungsplan",
         );
         expect(getSectionBreadcrumb("/lists")?.pageLabel).toBe("Tageslisten");
         expect(getSectionBreadcrumb("/calendar-periods")?.pageLabel).toBe(
-          "Kalenderzeiträume",
+          "Schuljahr und Ferien",
         );
       });
 
@@ -410,7 +405,7 @@ describe("breadcrumb-utils", () => {
           "Betreuungsplan",
         );
         expect(getSectionBreadcrumb("/vertretungsplan")?.pageLabel).toBe(
-          "Vertretung",
+          "Vertretungsplan",
         );
         expect(getSectionBreadcrumb("/staff/dienstplan")?.pageLabel).toBe(
           "Dienstplan",
@@ -432,7 +427,7 @@ describe("breadcrumb-utils", () => {
       it("should resolve /messages to Eltern › Nachrichten", () => {
         expect(getSectionBreadcrumb("/messages")).toEqual({
           sectionLabel: "Eltern",
-          sectionHref: "/eltern",
+          sectionHref: undefined,
           pageLabel: "Nachrichten",
         });
       });
@@ -446,24 +441,27 @@ describe("breadcrumb-utils", () => {
       it("should resolve the remaining parent entries", () => {
         expect(getSectionBreadcrumb("/admin/guardian-approvals")).toEqual({
           sectionLabel: "Eltern",
-          sectionHref: "/eltern",
-          pageLabel: "Konto-Anfragen",
+          sectionHref: undefined,
+          pageLabel: "Elternzugänge",
         });
         // /admin/change-requests ist kein Eltern-Katalogeintrag mehr — nur
         // noch ein Redirect auf das Top-Level-Modul /anfragen (#2429).
         expect(getSectionBreadcrumb("/admin/change-requests")).toBeNull();
         expect(getSectionBreadcrumb("/parent-announcements")?.pageLabel).toBe(
-          "Mitteilungen und Umfragen",
+          "Mitteilungen",
         );
         expect(getSectionBreadcrumb("/meal-plan")?.pageLabel).toBe(
           "Essensplan",
         );
       });
 
-      it("should return null for the /eltern hub itself", () => {
-        // Der Hub zeigt nur seinen eigenen Sektionsnamen, keine Breadcrumb
-        // auf sich selbst.
+      it("does not treat the former /eltern hub path as a section page", () => {
+        // Die Hub-Seite ist mit #2826 entfallen; nur /eltern/bankverbindungen
+        // liegt noch unter diesem Pfad.
         expect(getSectionBreadcrumb("/eltern")).toBeNull();
+        expect(
+          getSectionBreadcrumb("/eltern/bankverbindungen")?.pageLabel,
+        ).toBe("Bankverbindungen");
       });
     });
 

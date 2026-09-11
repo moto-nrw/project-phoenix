@@ -1,12 +1,6 @@
 package base
 
-import (
-	"fmt"
-	"strings"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/uptrace/bun"
-)
+import "slices"
 
 // Operator defines valid comparison operators for filters
 type Operator string
@@ -173,16 +167,6 @@ func (f *Filter) FirstNumberIn(field string, values ...string) *Filter {
 	return f.Where(field, OpFirstNumberIn, boxed)
 }
 
-// trimInPlaceholders renders the `LOWER(TRIM(?)), …` list a TRIM_IN condition
-// binds its values into, so each value is normalized exactly like the column
-// side is (PostgreSQL LOWER, not Go's — collation stays the database's job).
-func trimInPlaceholders(count int) string {
-	if count <= 0 {
-		return ""
-	}
-	return strings.TrimSuffix(strings.Repeat("LOWER(TRIM(?)), ", count), ", ")
-}
-
 // IsNull adds an IS NULL condition
 func (f *Filter) IsNull(field string) *Filter {
 	return f.Where(field, OpIsNull, nil)
@@ -221,15 +205,6 @@ func (f *Filter) And(filter Filter) *Filter {
 	return f
 }
 
-// DateBetween adds a date between filter for a calendar date contained within
-// a [startField, endField] range of DATE columns. timezone.Date binds as a
-// 'YYYY-MM-DD' literal, so no UTC shift can occur.
-func (f *Filter) DateBetween(startField, endField string, date timezone.Date) *Filter {
-	f.LessThanOrEqual(startField, date)
-	f.GreaterThanOrEqual(endField, date)
-	return f
-}
-
 // Get retrieves the value of a filter condition by field name (first match only)
 // Returns the value and true if found, or nil and false if not found
 func (f *Filter) Get(field string) (interface{}, bool) {
@@ -253,150 +228,10 @@ func (f *Filter) Remove(field string) *Filter {
 	return f
 }
 
-// ApplyToQuery applies the filter to a Bun query
-func (f *Filter) ApplyToQuery(query *bun.SelectQuery) *bun.SelectQuery {
-	// Keep this filter's OR expression inside one AND group. Besides making
-	// A.Or(B).And(C) mean (A OR B) AND C, this prevents an OR branch from
-	// escaping tenant or other predicates already attached to the query.
-	if len(f.or) > 0 {
-		query = query.WhereGroup(" AND ", func(group *bun.SelectQuery) *bun.SelectQuery {
-			group = f.applyConditionsToQuery(group)
-			return applyLogicalConditions(group, f.or, " OR ")
-		})
-	} else {
-		query = f.applyConditionsToQuery(query)
-	}
-
-	// Apply grouped AND conditions
-	query = applyLogicalConditions(query, f.and, " AND ")
-
-	return query
-}
-
-func (f *Filter) applyConditionsToQuery(query *bun.SelectQuery) *bun.SelectQuery {
-	for _, condition := range f.conditions {
-		query = f.applyConditionToQuery(query, condition)
-	}
-	return query
-}
-
-// applyConditionToQuery applies a single filter condition to the query
-func (f *Filter) applyConditionToQuery(query *bun.SelectQuery, condition FilterCondition) *bun.SelectQuery {
-	if f.tableAlias != "" {
-		columnRef := fmt.Sprintf(`"%s"."%s"`, f.tableAlias, condition.Field)
-		return applyOperatorWithColumnRef(query, columnRef, condition)
-	}
-	return applyOperatorWithIdent(query, condition.Field, condition)
-}
-
-// applyOperatorWithColumnRef applies operator with direct column reference (for aliased tables)
-func applyOperatorWithColumnRef(query *bun.SelectQuery, columnRef string, condition FilterCondition) *bun.SelectQuery {
-	switch condition.Operator {
-	case OpEqual:
-		return query.Where(columnRef+" = ?", condition.Value)
-	case OpGreaterThan:
-		return query.Where(columnRef+" > ?", condition.Value)
-	case OpGreaterThanOrEqual:
-		return query.Where(columnRef+" >= ?", condition.Value)
-	case OpLessThan:
-		return query.Where(columnRef+" < ?", condition.Value)
-	case OpLessThanOrEqual:
-		return query.Where(columnRef+" <= ?", condition.Value)
-	case OpLike:
-		return query.Where(columnRef+" LIKE ?", condition.Value)
-	case OpILike:
-		return query.Where(columnRef+" ILIKE ?", condition.Value)
-	case OpTrimEqual:
-		return query.Where("LOWER(TRIM("+columnRef+")) = LOWER(TRIM(?))", condition.Value)
-	case OpTrimIn:
-		if values, ok := condition.Value.([]interface{}); ok && len(values) > 0 {
-			return query.Where("LOWER(TRIM("+columnRef+")) IN ("+trimInPlaceholders(len(values))+")", values...)
-		}
-	case OpFirstNumberIn:
-		if values, ok := condition.Value.([]interface{}); ok && len(values) > 0 {
-			// substring(x from '<posix regex>') yields the FIRST match, so this
-			// is the first digit run of the column — NULL when it holds none,
-			// which no comparison matches. That mirrors schoolclass.GradePrefix
-			// returning "" for a class like "Bienen". Both sides scan ASCII
-			// digits only, and a UTF-8 continuation byte is never one, so the
-			// two agree byte for byte.
-			return query.Where("substring("+columnRef+" from '[0-9]+') IN (?)", bun.List(values))
-		}
-	case OpIsNull:
-		return query.Where(columnRef + " IS NULL")
-	case OpIsNotNull:
-		return query.Where(columnRef + " IS NOT NULL")
-	case OpIn:
-		if values, ok := condition.Value.([]interface{}); ok {
-			return query.Where(columnRef+" IN (?)", bun.List(values))
-		}
-	case OpNotIn:
-		if values, ok := condition.Value.([]interface{}); ok {
-			return query.Where(columnRef+" NOT IN (?)", bun.List(values))
-		}
-	}
-	return query
-}
-
-// applyOperatorWithIdent applies operator with bun.Ident (for non-aliased tables)
-func applyOperatorWithIdent(query *bun.SelectQuery, field string, condition FilterCondition) *bun.SelectQuery {
-	fieldIdent := bun.Ident(field)
-	switch condition.Operator {
-	case OpEqual:
-		return query.Where("? = ?", fieldIdent, condition.Value)
-	case OpGreaterThan:
-		return query.Where("? > ?", fieldIdent, condition.Value)
-	case OpGreaterThanOrEqual:
-		return query.Where("? >= ?", fieldIdent, condition.Value)
-	case OpLessThan:
-		return query.Where("? < ?", fieldIdent, condition.Value)
-	case OpLessThanOrEqual:
-		return query.Where("? <= ?", fieldIdent, condition.Value)
-	case OpLike:
-		return query.Where("? LIKE ?", fieldIdent, condition.Value)
-	case OpILike:
-		return query.Where("? ILIKE ?", fieldIdent, condition.Value)
-	case OpTrimEqual:
-		return query.Where("LOWER(TRIM(?)) = LOWER(TRIM(?))", fieldIdent, condition.Value)
-	case OpTrimIn:
-		if values, ok := condition.Value.([]interface{}); ok && len(values) > 0 {
-			args := append([]interface{}{fieldIdent}, values...)
-			return query.Where("LOWER(TRIM(?)) IN ("+trimInPlaceholders(len(values))+")", args...)
-		}
-	case OpFirstNumberIn:
-		// Same condition as the aliased path — an operator missing from one of
-		// the two switches is not a compile error but a WHERE clause that
-		// silently disappears, and the caller then gets every row instead of
-		// the ones it asked for.
-		if values, ok := condition.Value.([]interface{}); ok && len(values) > 0 {
-			return query.Where("substring(? from '[0-9]+') IN (?)", fieldIdent, bun.List(values))
-		}
-	case OpIsNull:
-		return query.Where("? IS NULL", fieldIdent)
-	case OpIsNotNull:
-		return query.Where("? IS NOT NULL", fieldIdent)
-	case OpIn:
-		if values, ok := condition.Value.([]interface{}); ok {
-			return query.Where("? IN (?)", fieldIdent, bun.List(values))
-		}
-	case OpNotIn:
-		if values, ok := condition.Value.([]interface{}); ok {
-			return query.Where("? NOT IN (?)", fieldIdent, bun.List(values))
-		}
-	}
-	return query
-}
-
-// applyLogicalConditions applies OR or AND conditions to the query
-func applyLogicalConditions(query *bun.SelectQuery, filters []Filter, operator string) *bun.SelectQuery {
-	for _, filter := range filters {
-		localFilter := filter
-		query = query.WhereGroup(operator, func(q *bun.SelectQuery) *bun.SelectQuery {
-			return localFilter.ApplyToQuery(q)
-		})
-	}
-	return query
-}
+func (f Filter) Conditions() []FilterCondition { return slices.Clone(f.conditions) }
+func (f Filter) OrFilters() []Filter           { return slices.Clone(f.or) }
+func (f Filter) AndFilters() []Filter          { return slices.Clone(f.and) }
+func (f Filter) TableAlias() string            { return f.tableAlias }
 
 // Pagination defaults applied when a caller omits valid values.
 const (
@@ -428,11 +263,7 @@ func NewPagination(page, pageSize int) Pagination {
 	}
 }
 
-// ApplyToQuery applies pagination to a query
-func (p Pagination) ApplyToQuery(query *bun.SelectQuery) *bun.SelectQuery {
-	offset := (p.Page - 1) * p.PageSize
-	return query.Limit(p.PageSize).Offset(offset)
-}
+func (p Pagination) Offset() int { return (p.Page - 1) * p.PageSize }
 
 // SortDirection defines the direction for sorting
 type SortDirection string
@@ -462,18 +293,6 @@ func (s *Sorting) AddField(field string, direction SortDirection) *Sorting {
 	return s
 }
 
-// ApplyToQuery applies sorting to a query
-func (s Sorting) ApplyToQuery(query *bun.SelectQuery) *bun.SelectQuery {
-	for _, field := range s.Fields {
-		if field.Direction == SortDesc {
-			query = query.OrderExpr("? DESC", bun.Ident(field.Field))
-		} else {
-			query = query.OrderExpr("? ASC", bun.Ident(field.Field))
-		}
-	}
-	return query
-}
-
 // QueryOptions combines filtering, pagination, and sorting
 type QueryOptions struct {
 	Filter     *Filter
@@ -493,21 +312,4 @@ func (qo *QueryOptions) WithPagination(page, pageSize int) *QueryOptions {
 	pagination := NewPagination(page, pageSize)
 	qo.Pagination = &pagination
 	return qo
-}
-
-// ApplyToQuery applies all options to a query
-func (qo *QueryOptions) ApplyToQuery(query *bun.SelectQuery) *bun.SelectQuery {
-	if qo.Filter != nil {
-		query = qo.Filter.ApplyToQuery(query)
-	}
-
-	if qo.Sorting != nil {
-		query = qo.Sorting.ApplyToQuery(query)
-	}
-
-	if qo.Pagination != nil {
-		query = qo.Pagination.ApplyToQuery(query)
-	}
-
-	return query
 }

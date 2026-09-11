@@ -218,7 +218,7 @@ export function PermissionSelector({
         <div className="md:col-span-2">
           <p className="text-xs text-gray-500">
             Berechtigungsname:{" "}
-            <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-pink-600">
+            <code className="text-moto-magenta-strong rounded bg-gray-100 px-1.5 py-0.5 font-mono">
               {resource}:{action}
             </code>
           </p>

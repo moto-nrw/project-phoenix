@@ -197,6 +197,7 @@ type PersonService interface {
 
 	// GetStudentsWithGroupsByTeacher retrieves students with group info supervised by a teacher
 	GetStudentsWithGroupsByTeacher(ctx context.Context, teacherID int64) ([]StudentWithGroup, error)
+	GetStudentsWithGroupsByTeacherStaffIDs(ctx context.Context, staffIDs []int64) ([]StudentWithGroup, error)
 
 	// GetAllStudentsWithGroups retrieves all students with their group info
 	GetAllStudentsWithGroups(ctx context.Context) ([]StudentWithGroup, error)
@@ -214,7 +215,7 @@ type CreateStaffInput struct {
 	// ActorPermissions is the calling account's permission set, needed because
 	// the create route may end up editing: a person that already carries a
 	// staff record adopts it instead of getting a second one, and that write
-	// belongs to users:update, not users:create. Decided inside the same
+	// belongs to staff:manage, not users:create (#2906). Decided inside the same
 	// transaction that finds the record, so the check cannot be raced.
 	//
 	// Empty means "no permissions" and therefore no adoption. There is no
@@ -239,16 +240,6 @@ const (
 	// TeacherActionCreateFailed — teacher creation failed; staff update persisted.
 	TeacherActionCreateFailed
 )
-
-// StaffOffboardingService fully offboards a staff member within a tenant:
-// soft-deletes the staff/teacher rows, cleans up planned assignments, and
-// revokes the linked account's access for the tenant.
-type StaffOffboardingService interface {
-	// OffboardStaff offboards the staff member. deletedByStaffID identifies
-	// the acting staff member in time-tracking tombstones; deletedBy is the
-	// account username used by the broader data-deletion audit.
-	OffboardStaff(ctx context.Context, staffID, deletedByStaffID int64, deletedBy string) error
-}
 
 // CaregiverCapabilityService manages the operational caregiver capability of an
 // existing account inside a tenant.

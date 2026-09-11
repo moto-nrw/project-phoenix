@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useFormError } from "~/components/ui/form-error";
 import {
   addDays,
   differenceInCalendarDays,
@@ -9,14 +10,23 @@ import {
   startOfWeek,
 } from "date-fns";
 import { de } from "date-fns/locale";
-import { X } from "lucide-react";
+import { Pencil, Trash2, X } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { DatePicker, ISODatePicker } from "~/components/ui/date-picker";
-import { FormModal } from "~/components/ui/form-modal";
+import {
+  SlideOver,
+  SlideOverBody,
+  SlideOverCloseButton,
+  SlideOverContent,
+  SlideOverFooter,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
 import {
@@ -28,9 +38,11 @@ import {
   parseISODate,
   toISODate,
 } from "~/lib/date-helpers";
-import type {
-  StudentStatusDay,
-  StudentStatusKind,
+import {
+  StudentStatusDayConflictError,
+  StudentStatusDayPartialAbsenceConflictError,
+  type StudentStatusDay,
+  type StudentStatusKind,
 } from "~/lib/student-status-days-api";
 import type { CarePlanDay } from "~/lib/student-care-plan-api";
 import type { StudentPartialAbsence } from "~/lib/student-partial-absences-api";
@@ -108,7 +120,9 @@ export function PlannedStatusDaysModal({
   const [selectedDates, setSelectedDates] = useState<Date[]>([]);
   const [rangeStart, setRangeStart] = useState("");
   const [rangeEnd, setRangeEnd] = useState("");
-  const [selectionHint, setSelectionHint] = useState<string | null>(null);
+  // Save error of the form (Bauart 2 Regel 5): shown in the body's error
+  // slot, not as a toast by the caller.
+  const [submitError, setSubmitError] = useFormError();
   const [checkedExistingDays, setCheckedExistingDays] = useState<
     StudentStatusDay[]
   >([]);
@@ -128,6 +142,11 @@ export function PlannedStatusDaysModal({
     useState<StudentPartialAbsence | null>(null);
   const [partialAbsenceDeleteError, setPartialAbsenceDeleteError] =
     useState("");
+  const [statusDayPendingDeletion, setStatusDayPendingDeletion] = useState<{
+    readonly id: string;
+    readonly date: string;
+    readonly status: StudentStatusKind;
+  } | null>(null);
   const [carePlanDay, setCarePlanDay] = useState<CarePlanDay | null>(null);
   const [isLoadingCarePlan, setIsLoadingCarePlan] = useState(false);
   const isSick = status === "sick";
@@ -335,7 +354,7 @@ export function PlannedStatusDaysModal({
       const today = new Date();
       const todayKey = toISODate(today);
       setSelectionMode("individual");
-      setSelectionHint(null);
+      setSubmitError(null);
       setRangeStart(prefillClassTrip && isClassTrip ? todayKey : "");
       setRangeEnd(prefillClassTrip && isClassTrip ? todayKey : "");
       setSelectedDates([]);
@@ -348,9 +367,10 @@ export function PlannedStatusDaysModal({
       setEditingPartialAbsenceId(null);
       setPartialAbsencePendingDeletion(null);
       setPartialAbsenceDeleteError("");
+      setStatusDayPendingDeletion(null);
       setCarePlanDay(null);
     },
-    [isClassTrip],
+    [isClassTrip, setSubmitError],
   );
 
   useEffect(() => {
@@ -462,11 +482,13 @@ export function PlannedStatusDaysModal({
   const setSortedDates = (dates: Date[]) => {
     const sourceDates = isPartialExcusal ? dates.slice(-1) : dates;
     const unique = new Map<string, Date>();
+    let containsExistingDay = false;
     for (const date of sourceDates) {
       const key = toISODate(date);
       const existingDay = activeExistingDayByDate.get(key);
       if (existingDay) {
-        setSelectionHint(
+        containsExistingDay = true;
+        setSubmitError(
           `${formatDateLabel(existingDay.date)} ist ${getExistingStatusLabel(
             existingDay.status,
           )}.`,
@@ -475,8 +497,8 @@ export function PlannedStatusDaysModal({
         unique.set(key, date);
       }
     }
-    if (unique.size === sourceDates.length) {
-      setSelectionHint(null);
+    if (!containsExistingDay) {
+      setSubmitError(null);
     }
     if (isPartialExcusal) {
       // While editing an existing partial excusal the date is fixed: clearing
@@ -490,7 +512,7 @@ export function PlannedStatusDaysModal({
         if (editing) {
           const editDate = parseISODate(editing.date);
           setSelectedDates([editDate]);
-          setSelectionHint(
+          setSubmitError(
             "Beim Bearbeiten bleibt das Datum fest. Abbrechen, um einen anderen Tag zu wählen.",
           );
           return;
@@ -543,7 +565,7 @@ export function PlannedStatusDaysModal({
 
   const handleSelectionModeChange = (next: SelectionMode) => {
     setSelectionMode(next);
-    setSelectionHint(null);
+    setSubmitError(null);
     setCheckedExistingDays([]);
     setCheckedSelectionKey("");
     setConflictCheckError(null);
@@ -566,13 +588,17 @@ export function PlannedStatusDaysModal({
   // deletion. Out-of-window deletes never touch the parent SWR range, so a
   // local clear is required on success; a failed delete must keep the row.
   // The caller owns the user-facing error toast, so failures are swallowed here.
+  // Entfernen läuft erst nach der Rückfrage (Bauart 2 Regel 6, #3109).
   const handleDeleteStatusDay = async (statusDayId: string) => {
     if (!onDeleteStatusDay) return;
     try {
       await onDeleteStatusDay(statusDayId);
     } catch {
+      // The caller owns the error toast; the dialog closes either way.
+      setStatusDayPendingDeletion(null);
       return;
     }
+    setStatusDayPendingDeletion(null);
     setCheckedExistingDays((current) =>
       current.filter((day) => day.id !== statusDayId),
     );
@@ -601,9 +627,10 @@ export function PlannedStatusDaysModal({
 
   const handleSubmit = async () => {
     if (!checkedCurrentSelection || conflictCheckError) return;
+    setSubmitError(null);
     const dateKeys = selectableDateKeys;
     if (dateKeys.length === 0) {
-      setSelectionHint(
+      setSubmitError(
         usesRangeSelection
           ? "Wähle einen Zeitraum ohne bestehenden Status aus."
           : "Wähle mindestens einen Tag ohne Krankmeldung oder Entschuldigung aus.",
@@ -628,6 +655,12 @@ export function PlannedStatusDaysModal({
           trimmedReason || undefined,
         );
       } catch {
+        // The caller logs the failure; the person reads it here, at the form.
+        setSubmitError(
+          editingPartialAbsenceId
+            ? "Die Entschuldigung konnte nicht aktualisiert werden. Bitte erneut versuchen."
+            : "Die Entschuldigung konnte nicht gespeichert werden. Bitte erneut versuchen.",
+        );
         setConflictCheckRevision((current) => current + 1);
         return;
       }
@@ -642,474 +675,570 @@ export function PlannedStatusDaysModal({
       } else {
         await onSubmit(dateKeys);
       }
-    } catch {
-      // The caller owns the user-facing error toast. Keep every input intact
-      // and refresh conflicts in case the write lost a concurrent race.
+    } catch (err) {
+      if (err instanceof StudentStatusDayPartialAbsenceConflictError) {
+        setSubmitError(err.message);
+      } else if (err instanceof StudentStatusDayConflictError) {
+        setSubmitError(getSaveConflictMessage(err.conflicts));
+      } else {
+        setSubmitError(
+          isSick
+            ? "Die Krankmeldung konnte nicht gespeichert werden. Bitte erneut versuchen."
+            : isClassTrip
+              ? "Die Klassenfahrt konnte nicht gespeichert werden. Bitte erneut versuchen."
+              : "Die Entschuldigung konnte nicht gespeichert werden. Bitte erneut versuchen.",
+        );
+      }
+      // Keep every input intact and refresh conflicts in case the write lost
+      // a concurrent race.
       setConflictCheckRevision((current) => current + 1);
       return;
     }
     resetForm(false);
   };
 
+  const footer = (
+    <>
+      <Button
+        type="button"
+        onClick={handleClose}
+        disabled={isSubmitting}
+        variant="outline"
+        size="md"
+        className="w-full sm:w-auto"
+      >
+        Abbrechen
+      </Button>
+      <Button
+        type="button"
+        onClick={handleSubmit}
+        disabled={
+          isSubmitting ||
+          isCheckingConflicts ||
+          !checkedCurrentSelection ||
+          conflictCheckError !== null ||
+          hasInvalidRangeOrder ||
+          hasSelectionTooWide ||
+          (isPartialExcusal &&
+            (selectableDateKeys.length !== 1 ||
+              !fromTime ||
+              isLoadingCarePlan ||
+              !onSubmitPartialAbsence))
+        }
+        size="md"
+        className="w-full disabled:cursor-not-allowed sm:w-auto"
+      >
+        {isSubmitting ? "Speichert…" : submitLabel}
+      </Button>
+    </>
+  );
+
   return (
-    <FormModal
-      isOpen={isOpen}
-      onClose={handleClose}
-      title={title}
-      size="md"
-      footer={
-        <>
-          <Button
-            type="button"
-            onClick={handleClose}
-            disabled={isSubmitting}
-            variant="outline"
-            size="md"
-            className="w-full sm:w-auto"
-          >
-            Abbrechen
-          </Button>
-          <Button
-            type="button"
-            onClick={handleSubmit}
-            disabled={
-              isSubmitting ||
-              isCheckingConflicts ||
-              !checkedCurrentSelection ||
-              conflictCheckError !== null ||
-              selectableDateKeys.length === 0 ||
-              hasInvalidRangeOrder ||
-              hasSelectionTooWide ||
-              (isPartialExcusal &&
-                (selectableDateKeys.length !== 1 ||
-                  !fromTime ||
-                  isLoadingCarePlan ||
-                  !onSubmitPartialAbsence))
-            }
-            size="md"
-            className="w-full disabled:cursor-not-allowed sm:w-auto"
-          >
-            {isSubmitting ? "Speichert…" : submitLabel}
-          </Button>
-        </>
-      }
-    >
-      <div className="space-y-5">
-        <div className="flex items-start gap-3">
-          <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gray-100">
-            <MotoConceptIcon
-              concept={isClassTrip ? "classTrip" : isSick ? "sick" : "excused"}
-              size={22}
-            />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-900">{studentName}</p>
-            <p className="mt-1 text-sm text-gray-500">
-              {isPartialExcusal
-                ? "Wähle genau einen Tag und die Uhrzeit, ab der die Entschuldigung gilt."
-                : isClassTrip
-                  ? "Wähle den Zeitraum der Klassenfahrt aus."
-                  : selectionMode === "range"
-                    ? "Wähle den ersten und letzten Tag des Zeitraums aus."
-                    : "Wähle einen oder mehrere konkrete Tage aus."}
-            </p>
-          </div>
-        </div>
-
-        {status === "excused" && canPlanPartialExcusal ? (
-          <SegmentedControl
-            items={EXCUSAL_SCOPE_ITEMS}
-            value={excusalScope}
-            onChange={handleExcusalScopeChange}
-            fullWidth
-            ariaLabel="Umfang der Entschuldigung"
-          />
-        ) : null}
-
-        {!isClassTrip && !isPartialExcusal ? (
-          <SegmentedControl
-            items={SELECTION_MODE_ITEMS}
-            value={selectionMode}
-            onChange={handleSelectionModeChange}
-            fullWidth
-            ariaLabel="Art der Datumsauswahl"
-          />
-        ) : null}
-
-        {usesRangeSelection ? (
-          <div>
-            <p className="mb-2 text-sm font-medium text-gray-900">Zeitraum</p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <label
-                  htmlFor="planned-status-range-start"
-                  className="text-sm font-medium text-gray-700"
-                >
-                  Von
-                </label>
-                <ISODatePicker
-                  id="planned-status-range-start"
-                  value={rangeStart}
-                  onChange={setRangeStart}
-                  calendarLayout="popover"
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <label
-                  htmlFor="planned-status-range-end"
-                  className="text-sm font-medium text-gray-700"
-                >
-                  Bis
-                </label>
-                <ISODatePicker
-                  id="planned-status-range-end"
-                  value={rangeEnd}
-                  min={rangeStart || undefined}
-                  onChange={setRangeEnd}
-                  calendarLayout="popover"
-                  className="mt-1"
-                  error={
-                    hasInvalidRangeOrder
-                      ? "Das Bis-Datum darf nicht vor dem Von-Datum liegen."
-                      : hasRangeTooLong
-                        ? "Ein Zeitraum darf höchstens 366 Tage umfassen."
-                        : undefined
-                  }
-                />
-              </div>
+    <>
+      <SlideOver
+        // Ausgeblendet, solange die Lösch-Bestätigung offen ist — nie zwei
+        // eigenständige Dialoge übereinander (#2774). Die Bestätigung steht
+        // deshalb als Geschwister NEBEN der Schublade: ein Kind der Schublade
+        // würde beim Ausblenden mit verschwinden.
+        open={
+          isOpen &&
+          partialAbsencePendingDeletion === null &&
+          statusDayPendingDeletion === null
+        }
+        onOpenChange={(open) => {
+          if (!open) handleClose();
+        }}
+      >
+        <SlideOverContent widthClass="sm:w-[560px]">
+          <SlideOverHeader className="flex-row items-start justify-between gap-3">
+            <div className="min-w-0">
+              <SlideOverTitle>{title}</SlideOverTitle>
             </div>
-            {rangeDateKeys.length > 0 ? (
-              <p className="mt-2 text-sm text-gray-500">
-                {rangeDateKeys.length === 1
-                  ? `${formatCalendarDate(rangeStart)} · 1 Tag`
-                  : `${formatCalendarDate(rangeStart)} bis ${formatCalendarDate(rangeEnd)} · ${rangeDateKeys.length} Tage`}
-              </p>
-            ) : null}
-            {selectionHint ? (
-              <p className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong mt-2 rounded-lg border px-3 py-2 text-sm">
-                {selectionHint}
-              </p>
-            ) : null}
-          </div>
-        ) : (
-          <>
-            <div>
-              <p className="mb-2 text-sm font-medium text-gray-900">
-                Kalenderauswahl
-              </p>
-              {isPartialExcusal ? (
-                <DatePicker
-                  value={selectedDates[0] ?? null}
-                  onChange={(date) => {
-                    if (editingPartialAbsenceId) return;
-                    setSortedDates(date ? [date] : []);
-                  }}
-                  disabledDay={(date) =>
-                    Boolean(editingPartialAbsenceId) ||
-                    activeExistingDayByDate.has(toISODate(date))
-                  }
-                  placeholder="Tag auswählen"
-                  calendarLayout="inline"
-                  required
-                  hideClearButton
-                />
-              ) : (
-                <DatePicker
-                  mode="multiple"
-                  values={selectedDates}
-                  onChangeDates={setSortedDates}
-                  disabledDates={disabledDates}
-                  placeholder="Tage auswählen"
-                  dropdownPlacement="down"
-                  calendarLayout="inline"
-                />
-              )}
-              {selectionHint ? (
-                <p className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong mt-2 rounded-lg border px-3 py-2 text-sm">
-                  {selectionHint}
-                </p>
-              ) : null}
-            </div>
-
-            <div>
-              <p className="mb-2 text-sm font-medium text-gray-900">
-                Aktuelle Woche
-              </p>
-              <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
-                {currentWeekDates.map((date, index) => {
-                  const key = toISODate(date);
-                  const isSelected = selectedKeys.has(key);
-                  const existingDay = activeExistingDayByDate.get(key);
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => toggleDate(date)}
-                      disabled={existingDay !== undefined}
-                      className={`min-h-16 rounded-lg border px-1.5 py-2 text-center text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:px-2 ${
-                        isSelected
-                          ? "border-gray-900 bg-gray-900 text-white"
-                          : existingDay
-                            ? "border-gray-100 bg-gray-50 text-gray-400"
-                            : "moto-content-surface border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50"
-                      } disabled:cursor-not-allowed`}
-                      title={
-                        existingDay
-                          ? capitalizeFirst(
-                              getExistingStatusLabel(existingDay.status),
-                            )
-                          : undefined
-                      }
-                    >
-                      <span className="block font-semibold">
-                        {WEEKDAY_LABELS[index]}
-                      </span>
-                      <span className="text-xs">
-                        {format(date, "dd.MM.", { locale: de })}
-                      </span>
-                      {existingDay ? (
-                        <span className="mt-1 block text-[10px] leading-tight font-medium sm:text-[11px]">
-                          <span className="block">bereits</span>
-                          <span className="block">
-                            {getStatusLabel(existingDay.status).toLowerCase()}
-                          </span>
-                        </span>
-                      ) : null}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </>
-        )}
-
-        {isPartialExcusal ? (
-          <div className="space-y-3">
-            <Input
-              id="planned-excusal-from-time"
-              type="time"
-              label="Entschuldigt ab"
-              value={fromTime}
-              onChange={(event) => setFromTime(event.target.value)}
-              required
-              controlSize="compact"
-            />
-            <Textarea
-              id="planned-partial-excusal-reason"
-              label="Grund (optional)"
-              value={reason}
-              onChange={(event) => setReason(event.target.value)}
-              rows={2}
-              maxLength={255}
-              placeholder="z. B. Arzttermin"
-            />
-            {isLoadingCarePlan ? (
-              <Alert type="info" message="Betreuungsplan wird geprüft…" />
-            ) : null}
-            {overlappingInstances.map((instance) => (
-              <Alert
-                key={instance.id}
-                type="warning"
-                message={`Der Block ${instance.title} (${instance.startTime}–${instance.endTime}) überschneidet die gewählte Uhrzeit. Er bleibt erwartet und muss bei Bedarf separat entschieden werden.`}
-              />
-            ))}
-          </div>
-        ) : null}
-
-        {isCheckingConflicts && candidateDateKeys.length > 0 ? (
-          <Alert type="info" message="Vorhandene Status-Tage werden geprüft…" />
-        ) : null}
-        {conflictCheckError ? (
-          <Alert type="error" message={conflictCheckError} />
-        ) : null}
-        {hasIndividualSelectionTooWide ? (
-          <Alert
-            type="error"
-            message="Die ausgewählten Einzeltage dürfen höchstens 366 Tage auseinanderliegen."
-          />
-        ) : null}
-        {conflictingDays.length > 0 ? (
-          <Alert
-            type="warning"
-            message={getConflictMessage(
-              conflictingDays,
-              candidateDateKeys.length,
-              selectableDateKeys.length,
-            )}
-          />
-        ) : null}
-
-        {!isClassTrip && selectedDates.length > 0 && (
-          <div>
-            <p className="mb-2 text-sm font-medium text-gray-900">
-              {conflictingDays.length > 0
-                ? `${selectableDateKeys.length} von ${candidateDateKeys.length} Tagen werden gespeichert`
-                : selectedDates.length === 1
-                  ? "1 Tag ausgewählt"
-                  : `${selectedDates.length} Tage ausgewählt`}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {selectedDates.map((date) => {
-                const key = toISODate(date);
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() =>
-                      setSortedDates(
-                        selectedDates.filter(
-                          (selected) => !isSameDay(selected, date),
-                        ),
-                      )
+            <SlideOverCloseButton aria-label="Fenster schließen" />
+          </SlideOverHeader>
+          <SlideOverBody error={submitError}>
+            <div className="space-y-5">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gray-100">
+                  <MotoConceptIcon
+                    concept={
+                      isClassTrip ? "classTrip" : isSick ? "sick" : "excused"
                     }
-                    className="moto-content-surface inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                  >
-                    {format(date, "dd.MM.yyyy", { locale: de })}
-                    <X className="h-3.5 w-3.5 text-gray-400" />
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
+                    size={22}
+                  />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-900">
+                    {studentName}
+                  </p>
+                  <p className="mt-1 text-sm text-gray-500">
+                    {isPartialExcusal
+                      ? "Wähle genau einen Tag und die Uhrzeit, ab der die Entschuldigung gilt."
+                      : isClassTrip
+                        ? "Wähle den Zeitraum der Klassenfahrt aus."
+                        : selectionMode === "range"
+                          ? "Wähle den ersten und letzten Tag des Zeitraums aus."
+                          : "Wähle einen oder mehrere konkrete Tage aus."}
+                  </p>
+                </div>
+              </div>
 
-        {removableExistingDays.length > 0 ? (
-          <div>
-            <p className="mb-2 text-sm font-medium text-gray-900">
-              {removableListTitle}
-            </p>
-            <div className="space-y-2">
-              {removableExistingDays.map((day) => (
-                <div
-                  key={day.id}
-                  className="moto-content-surface flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 shadow-sm"
-                >
-                  <span>
-                    <span className="block">{formatDateLabel(day.date)}</span>
-                    <span className="block text-xs text-gray-500">
-                      {capitalizeFirst(getExistingStatusLabel(day.status))}
-                    </span>
-                    {day.note ? (
-                      <span className="mt-0.5 block text-xs text-gray-600 italic">
-                        {day.note}
-                      </span>
-                    ) : null}
-                  </span>
-                  {onDeleteStatusDay ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void handleDeleteStatusDay(day.id);
-                      }}
-                      disabled={isSubmitting || deletingStatusDayId === day.id}
-                      className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red/10 focus-visible:ring-moto-red/30 inline-flex h-8 items-center justify-center rounded-lg border bg-white px-2.5 text-xs font-semibold shadow-sm transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
-                    >
-                      {deletingStatusDayId === day.id
-                        ? "Wird entfernt..."
-                        : "Entfernen"}
-                    </button>
+              {status === "excused" && canPlanPartialExcusal ? (
+                <SegmentedControl
+                  items={EXCUSAL_SCOPE_ITEMS}
+                  value={excusalScope}
+                  onChange={handleExcusalScopeChange}
+                  fullWidth
+                  ariaLabel="Umfang der Entschuldigung"
+                />
+              ) : null}
+
+              {!isClassTrip && !isPartialExcusal ? (
+                <SegmentedControl
+                  items={SELECTION_MODE_ITEMS}
+                  value={selectionMode}
+                  onChange={handleSelectionModeChange}
+                  fullWidth
+                  ariaLabel="Art der Datumsauswahl"
+                />
+              ) : null}
+
+              {usesRangeSelection ? (
+                <div>
+                  <p className="mb-2 text-sm font-medium text-gray-900">
+                    Zeitraum
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label
+                        htmlFor="planned-status-range-start"
+                        className="text-sm font-medium text-gray-700"
+                      >
+                        Von
+                      </label>
+                      <ISODatePicker
+                        id="planned-status-range-start"
+                        value={rangeStart}
+                        onChange={setRangeStart}
+                        calendarLayout="popover"
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <label
+                        htmlFor="planned-status-range-end"
+                        className="text-sm font-medium text-gray-700"
+                      >
+                        Bis
+                      </label>
+                      <ISODatePicker
+                        id="planned-status-range-end"
+                        value={rangeEnd}
+                        min={rangeStart || undefined}
+                        onChange={setRangeEnd}
+                        calendarLayout="popover"
+                        className="mt-1"
+                        error={
+                          hasInvalidRangeOrder
+                            ? "Das Bis-Datum darf nicht vor dem Von-Datum liegen."
+                            : hasRangeTooLong
+                              ? "Ein Zeitraum darf höchstens 366 Tage umfassen."
+                              : undefined
+                        }
+                      />
+                    </div>
+                  </div>
+                  {rangeDateKeys.length > 0 ? (
+                    <p className="mt-2 text-sm text-gray-500">
+                      {rangeDateKeys.length === 1
+                        ? `${formatCalendarDate(rangeStart)} · 1 Tag`
+                        : `${formatCalendarDate(rangeStart)} bis ${formatCalendarDate(rangeEnd)} · ${rangeDateKeys.length} Tage`}
+                    </p>
                   ) : null}
                 </div>
-              ))}
-            </div>
-          </div>
-        ) : null}
+              ) : (
+                <>
+                  <div>
+                    <p className="mb-2 text-sm font-medium text-gray-900">
+                      Kalenderauswahl
+                    </p>
+                    {isPartialExcusal ? (
+                      <DatePicker
+                        value={selectedDates[0] ?? null}
+                        onChange={(date) => {
+                          if (editingPartialAbsenceId) return;
+                          setSortedDates(date ? [date] : []);
+                        }}
+                        disabledDay={(date) =>
+                          Boolean(editingPartialAbsenceId) ||
+                          activeExistingDayByDate.has(toISODate(date))
+                        }
+                        placeholder="Tag auswählen"
+                        calendarLayout="inline"
+                        required
+                        hideClearButton
+                      />
+                    ) : (
+                      <DatePicker
+                        mode="multiple"
+                        values={selectedDates}
+                        onChangeDates={setSortedDates}
+                        disabledDates={disabledDates}
+                        placeholder="Tage auswählen"
+                        dropdownPlacement="down"
+                        calendarLayout="inline"
+                      />
+                    )}
+                  </div>
 
-        {isPartialExcusal && existingPartialAbsences.length > 0 ? (
-          <div>
-            <p className="mb-2 text-sm font-medium text-gray-900">
-              Bereits ab Uhrzeit entschuldigt
-            </p>
-            <div className="space-y-2">
-              {existingPartialAbsences.map((absence) => (
-                <div
-                  key={absence.id}
-                  className="moto-content-surface flex flex-col gap-3 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 shadow-sm sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <span className="min-w-0 flex-1 break-words">
-                    <span className="block">
-                      {formatDateLabel(absence.date)}
-                      {absence.auto ? (
-                        <span className="ml-2 inline-flex align-middle">
-                          <StatusBadge
-                            label="Automatisch (Abholzeit)"
-                            tone="orange"
-                            title="Automatisch aus der vorverlegten Abholzeit abgeleitet. Zum Aufheben die Abholzeit des Tages ändern oder entfernen."
+                  <div>
+                    <p className="mb-2 text-sm font-medium text-gray-900">
+                      Aktuelle Woche
+                    </p>
+                    <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
+                      {currentWeekDates.map((date, index) => {
+                        const key = toISODate(date);
+                        const isSelected = selectedKeys.has(key);
+                        const existingDay = activeExistingDayByDate.get(key);
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => toggleDate(date)}
+                            disabled={existingDay !== undefined}
+                            className={`min-h-16 rounded-lg border px-1.5 py-2 text-center text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:px-2 ${
+                              isSelected
+                                ? "border-gray-900 bg-gray-900 text-white"
+                                : existingDay
+                                  ? "border-gray-100 bg-gray-50 text-gray-400"
+                                  : "moto-content-surface border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50"
+                            } disabled:cursor-not-allowed`}
+                            title={
+                              existingDay
+                                ? capitalizeFirst(
+                                    getExistingStatusLabel(existingDay.status),
+                                  )
+                                : undefined
+                            }
+                          >
+                            <span className="block font-semibold">
+                              {WEEKDAY_LABELS[index]}
+                            </span>
+                            <span className="text-xs">
+                              {format(date, "dd.MM.", { locale: de })}
+                            </span>
+                            {existingDay ? (
+                              <span className="mt-1 block text-sm leading-tight font-medium">
+                                <span className="block">bereits</span>
+                                <span className="block">
+                                  {getStatusLabel(
+                                    existingDay.status,
+                                  ).toLowerCase()}
+                                </span>
+                              </span>
+                            ) : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {isPartialExcusal ? (
+                <div className="space-y-3">
+                  <Input
+                    id="planned-excusal-from-time"
+                    type="time"
+                    label="Entschuldigt ab"
+                    value={fromTime}
+                    onChange={(event) => setFromTime(event.target.value)}
+                    required
+                    controlSize="compact"
+                  />
+                  <Textarea
+                    id="planned-partial-excusal-reason"
+                    label="Grund (optional)"
+                    value={reason}
+                    onChange={(event) => setReason(event.target.value)}
+                    rows={2}
+                    maxLength={255}
+                    placeholder="z. B. Arzttermin"
+                  />
+                  {isLoadingCarePlan ? (
+                    <Alert type="info" message="Betreuungsplan wird geprüft…" />
+                  ) : null}
+                  {overlappingInstances.map((instance) => (
+                    <Alert
+                      key={instance.id}
+                      type="warning"
+                      message={`Der Block ${instance.title} (${instance.startTime}–${instance.endTime}) überschneidet die gewählte Uhrzeit. Er bleibt erwartet und muss bei Bedarf separat entschieden werden.`}
+                    />
+                  ))}
+                </div>
+              ) : null}
+
+              {isCheckingConflicts && candidateDateKeys.length > 0 ? (
+                <Alert
+                  type="info"
+                  message="Vorhandene Status-Tage werden geprüft…"
+                />
+              ) : null}
+              {conflictCheckError ? (
+                <Alert type="error" message={conflictCheckError} />
+              ) : null}
+              {hasIndividualSelectionTooWide ? (
+                <Alert
+                  type="error"
+                  message="Die ausgewählten Einzeltage dürfen höchstens 366 Tage auseinanderliegen."
+                />
+              ) : null}
+              {conflictingDays.length > 0 ? (
+                <Alert
+                  type="warning"
+                  message={getConflictMessage(
+                    conflictingDays,
+                    candidateDateKeys.length,
+                    selectableDateKeys.length,
+                  )}
+                />
+              ) : null}
+
+              {!isClassTrip && selectedDates.length > 0 && (
+                <div>
+                  <p className="mb-2 text-sm font-medium text-gray-900">
+                    {conflictingDays.length > 0
+                      ? `${selectableDateKeys.length} von ${candidateDateKeys.length} Tagen werden gespeichert`
+                      : selectedDates.length === 1
+                        ? "1 Tag ausgewählt"
+                        : `${selectedDates.length} Tage ausgewählt`}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedDates.map((date) => {
+                      const key = toISODate(date);
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() =>
+                            setSortedDates(
+                              selectedDates.filter(
+                                (selected) => !isSameDay(selected, date),
+                              ),
+                            )
+                          }
+                          className="moto-content-surface inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                        >
+                          {format(date, "dd.MM.yyyy", { locale: de })}
+                          <X className="h-3.5 w-3.5 text-gray-400" />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {removableExistingDays.length > 0 ? (
+                <div>
+                  <p className="mb-2 text-sm font-medium text-gray-900">
+                    {removableListTitle}
+                  </p>
+                  <div className="space-y-2">
+                    {removableExistingDays.map((day) => (
+                      <div
+                        key={day.id}
+                        className="moto-content-surface flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 shadow-sm"
+                      >
+                        <span>
+                          <span className="block">
+                            {formatDateLabel(day.date)}
+                          </span>
+                          <span className="block text-xs text-gray-500">
+                            {capitalizeFirst(
+                              getExistingStatusLabel(day.status),
+                            )}
+                          </span>
+                          {day.note ? (
+                            <span className="mt-0.5 block text-xs text-gray-600 italic">
+                              {day.note}
+                            </span>
+                          ) : null}
+                        </span>
+                        {onDeleteStatusDay ? (
+                          <OverflowMenu
+                            ariaLabel={`Aktionen für ${formatDateLabel(day.date)}`}
+                            items={[
+                              {
+                                label:
+                                  deletingStatusDayId === day.id
+                                    ? "Wird entfernt…"
+                                    : "Entfernen",
+                                icon: (
+                                  <Trash2 className="h-4 w-4" aria-hidden />
+                                ),
+                                destructive: true,
+                                disabled:
+                                  isSubmitting ||
+                                  deletingStatusDayId === day.id,
+                                // Entfernen läuft erst nach der Rückfrage
+                                // (Bauart 2 Regel 6, #3109).
+                                onClick: () =>
+                                  setStatusDayPendingDeletion({
+                                    id: day.id,
+                                    date: day.date,
+                                    status: day.status,
+                                  }),
+                              },
+                            ]}
+                          />
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {isPartialExcusal && existingPartialAbsences.length > 0 ? (
+                <div>
+                  <p className="mb-2 text-sm font-medium text-gray-900">
+                    Bereits ab Uhrzeit entschuldigt
+                  </p>
+                  <div className="space-y-2">
+                    {existingPartialAbsences.map((absence) => (
+                      <div
+                        key={absence.id}
+                        className="moto-content-surface flex flex-col gap-3 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <span className="min-w-0 flex-1 break-words">
+                          <span className="block">
+                            {formatDateLabel(absence.date)}
+                            {absence.auto ? (
+                              <span className="ml-2 inline-flex align-middle">
+                                <StatusBadge
+                                  label="Automatisch (Abholzeit)"
+                                  tone="orange"
+                                  title="Automatisch aus der vorverlegten Abholzeit abgeleitet. Zum Aufheben die Abholzeit des Tages ändern oder entfernen."
+                                />
+                              </span>
+                            ) : null}
+                          </span>
+                          <span className="block text-xs text-gray-500">
+                            Ab {absence.fromTime} Uhr
+                            {absence.pickupTime &&
+                            absence.pickupTime !== absence.fromTime
+                              ? ` · Abholung ${absence.pickupTime} Uhr`
+                              : ""}
+                          </span>
+                          {absence.reason ? (
+                            <span className="mt-0.5 block text-xs text-gray-600 italic">
+                              {absence.reason}
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="flex justify-end sm:shrink-0">
+                          <OverflowMenu
+                            ariaLabel={`Aktionen für Teilentschuldigung vom ${formatDateLabel(absence.date)}`}
+                            items={[
+                              {
+                                label: "Bearbeiten",
+                                icon: (
+                                  <Pencil className="h-4 w-4" aria-hidden />
+                                ),
+                                disabled: isSubmitting,
+                                onClick: () =>
+                                  handleEditPartialAbsence(absence),
+                              },
+                              ...(onDeletePartialAbsence && !absence.auto
+                                ? [
+                                    { kind: "separator" } as const,
+                                    {
+                                      label: "Entfernen",
+                                      icon: (
+                                        <Trash2
+                                          className="h-4 w-4"
+                                          aria-hidden
+                                        />
+                                      ),
+                                      destructive: true,
+                                      disabled: isSubmitting,
+                                      onClick: () => {
+                                        setPartialAbsenceDeleteError("");
+                                        setPartialAbsencePendingDeletion(
+                                          absence,
+                                        );
+                                      },
+                                    },
+                                  ]
+                                : []),
+                            ]}
                           />
                         </span>
-                      ) : null}
-                    </span>
-                    <span className="block text-xs text-gray-500">
-                      Ab {absence.fromTime} Uhr
-                      {absence.pickupTime &&
-                      absence.pickupTime !== absence.fromTime
-                        ? ` · Abholung ${absence.pickupTime} Uhr`
-                        : ""}
-                    </span>
-                    {absence.reason ? (
-                      <span className="mt-0.5 block text-xs text-gray-600 italic">
-                        {absence.reason}
-                      </span>
-                    ) : null}
-                  </span>
-                  <span className="flex flex-wrap gap-2 sm:shrink-0">
-                    <Button
-                      type="button"
-                      size="compact"
-                      variant="outline"
-                      onClick={() => handleEditPartialAbsence(absence)}
-                      disabled={isSubmitting}
-                      aria-label={`Teilentschuldigung vom ${formatDateLabel(absence.date)} bearbeiten`}
-                    >
-                      Bearbeiten
-                    </Button>
-                    {onDeletePartialAbsence && !absence.auto ? (
-                      <Button
-                        type="button"
-                        size="compact"
-                        variant="outline_danger"
-                        onClick={() => {
-                          setPartialAbsenceDeleteError("");
-                          setPartialAbsencePendingDeletion(absence);
-                        }}
-                        disabled={isSubmitting}
-                        aria-label={`Teilentschuldigung vom ${formatDateLabel(absence.date)} entfernen`}
-                      >
-                        Entfernen
-                      </Button>
-                    ) : null}
-                  </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        ) : null}
+              ) : null}
 
-        {(isSick || isClassTrip) && (
-          <div>
-            <label
-              htmlFor="planned-sick-reason"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              {isSick ? "Grund (optional)" : "Hinweis (optional)"}
-            </label>
-            <textarea
-              id="planned-sick-reason"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              rows={2}
-              maxLength={2000}
-              placeholder={
-                isSick
-                  ? "z. B. Fieber, beim Arzt"
-                  : "z. B. Ziel oder Kontakt vor Ort"
-              }
-              className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-500 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
-            />
-          </div>
-        )}
-      </div>
+              {(isSick || isClassTrip) && (
+                <div>
+                  <label
+                    htmlFor="planned-sick-reason"
+                    className="mb-1 block text-sm font-medium text-gray-700"
+                  >
+                    {isSick ? "Grund (optional)" : "Hinweis (optional)"}
+                  </label>
+                  <textarea
+                    id="planned-sick-reason"
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                    rows={2}
+                    maxLength={2000}
+                    placeholder={
+                      isSick
+                        ? "z. B. Fieber, beim Arzt"
+                        : "z. B. Ziel oder Kontakt vor Ort"
+                    }
+                    className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-500 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
+                  />
+                </div>
+              )}
+            </div>
+          </SlideOverBody>
+          <SlideOverFooter className="flex-row justify-end gap-2">
+            {footer}
+          </SlideOverFooter>
+        </SlideOverContent>
+      </SlideOver>
+      <ConfirmDeleteModal
+        isOpen={isOpen && statusDayPendingDeletion !== null}
+        title="Geplanten Tag entfernen?"
+        description={
+          statusDayPendingDeletion ? (
+            <p>
+              Der Eintrag „
+              {capitalizeFirst(
+                getExistingStatusLabel(statusDayPendingDeletion.status),
+              )}
+              “ am {formatDateLabel(statusDayPendingDeletion.date)} wird
+              entfernt. Das Kind gilt an diesem Tag wieder als erwartet.
+            </p>
+          ) : null
+        }
+        gate={{ mode: "twoStep", firstStepLabel: "Entfernen bestätigen" }}
+        onConfirm={() => {
+          if (statusDayPendingDeletion)
+            void handleDeleteStatusDay(statusDayPendingDeletion.id);
+        }}
+        onClose={() => setStatusDayPendingDeletion(null)}
+        loading={
+          isSubmitting ||
+          (deletingStatusDayId !== null &&
+            deletingStatusDayId === statusDayPendingDeletion?.id)
+        }
+        error=""
+        confirmLabel="Eintrag entfernen"
+        loadingLabel="Wird entfernt…"
+      />
       <ConfirmDeleteModal
         isOpen={partialAbsencePendingDeletion !== null}
         title="Teilentschuldigung entfernen?"
@@ -1137,7 +1266,7 @@ export function PlannedStatusDaysModal({
         confirmLabel="Teilentschuldigung entfernen"
         loadingLabel="Wird entfernt…"
       />
-    </FormModal>
+    </>
   );
 }
 
@@ -1208,4 +1337,17 @@ function getConflictMessage(
   }
 
   return `${details}: ${conflictCount} von ${totalCount} Tagen ${conflictCount === 1 ? "hat" : "haben"} bereits einen Status und ${conflictCount === 1 ? "wird" : "werden"} nicht überschrieben. ${selectableCount} ${selectableCount === 1 ? "Tag wird" : "Tage werden"} gespeichert.`;
+}
+
+function getSaveConflictMessage(conflicts: StudentStatusDay[]): string {
+  if (conflicts.length === 0) {
+    return "Vorhandene Status-Tage wurden nicht überschrieben. Bitte Auswahl prüfen.";
+  }
+  const details = conflicts
+    .map(
+      (day) =>
+        `${formatCalendarDate(day.date)} (${getStatusLabel(day.status).toLowerCase()})`,
+    )
+    .join(", ");
+  return `${details} ${conflicts.length === 1 ? "wurde" : "wurden"} zwischenzeitlich eingetragen und nicht überschrieben. Bitte Auswahl prüfen.`;
 }

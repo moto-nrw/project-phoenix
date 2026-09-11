@@ -31,7 +31,7 @@ export function ActivitiesPanel({ running, upcoming }: ActivitiesPanelProps) {
               {running.map((activity) => (
                 <li
                   key={activity.id}
-                  className="flex items-center gap-4 rounded-2xl border border-gray-200 bg-white p-4"
+                  className="moto-content-surface flex items-center gap-4 rounded-2xl border p-4 shadow-sm"
                 >
                   <span
                     className="h-4 w-4 shrink-0 animate-pulse rounded-full"
@@ -69,7 +69,7 @@ export function ActivitiesPanel({ running, upcoming }: ActivitiesPanelProps) {
                 {upcoming.map((activity) => (
                   <li
                     key={activity.id}
-                    className="flex items-center gap-4 rounded-2xl border border-gray-200 bg-white p-4"
+                    className="moto-content-surface flex items-center gap-4 rounded-2xl border p-4 shadow-sm"
                   >
                     <p
                       className="text-2xl font-bold tabular-nums"

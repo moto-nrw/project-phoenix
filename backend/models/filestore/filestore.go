@@ -138,8 +138,8 @@ type AudienceRole struct {
 // shared with.
 type AudienceAccount struct {
 	AccountID int64  `bun:"account_id" json:"account_id"`
-	FirstName string `bun:"first_name" json:"first_name"`
-	LastName  string `bun:"last_name" json:"last_name"`
+	FirstName string `bun:"first_name,scanonly" json:"first_name"`
+	LastName  string `bun:"last_name,scanonly" json:"last_name"`
 }
 
 // FolderListItem is a folder together with the derived numbers the list view

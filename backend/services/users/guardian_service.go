@@ -71,6 +71,11 @@ type GuardianServiceDependencies struct {
 	DefaultFrom      email.Email
 	InvitationExpiry time.Duration
 
+	// MailIdentity points replies to this invitation at the OGS instead of
+	// moto (#1936). Optional: nil sends without a Reply-To, exactly as before.
+	// This send bypasses the outbox, so it stamps the header itself.
+	MailIdentity email.ReplyToResolver
+
 	// Infrastructure
 	DB *bun.DB
 }
@@ -79,7 +84,14 @@ type GuardianServiceDependencies struct {
 // invitations, and phone numbers.
 type GuardianService struct {
 	GuardianServiceDependencies
-	txHandler *base.TxHandler
+	txHandler *tenant.TransactionRunner
+}
+
+// GuardianDisplay is the People Directory projection used outside this domain.
+type GuardianDisplay struct {
+	GuardianProfileID int64
+	FirstName         string
+	LastName          string
 }
 
 // NewGuardianService creates a new GuardianService instance
@@ -91,7 +103,7 @@ func NewGuardianService(deps GuardianServiceDependencies) *GuardianService {
 
 	return &GuardianService{
 		GuardianServiceDependencies: deps,
-		txHandler:                   base.NewTxHandler(deps.DB),
+		txHandler:                   tenant.NewTransactionRunner(),
 	}
 }
 
@@ -194,6 +206,27 @@ func (s *GuardianService) GetGuardianByID(ctx context.Context, id int64) (*users
 	return profile, nil
 }
 
+// GuardianDisplays resolves names without exposing People Directory models or
+// persistence to consumers.
+func (s *GuardianService) GuardianDisplays(ctx context.Context, ids []int64) ([]GuardianDisplay, error) {
+	if len(ids) == 0 {
+		return []GuardianDisplay{}, nil
+	}
+	profiles, err := s.GuardianProfileRepo.FindByIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("resolve guardian displays: %w", err)
+	}
+	displays := make([]GuardianDisplay, 0, len(profiles))
+	for _, profile := range profiles {
+		displays = append(displays, GuardianDisplay{
+			GuardianProfileID: profile.ID,
+			FirstName:         profile.FirstName,
+			LastName:          profile.LastName,
+		})
+	}
+	return displays, nil
+}
+
 // UpdateGuardian updates a guardian profile
 func (s *GuardianService) UpdateGuardian(ctx context.Context, id int64, req GuardianCreateRequest) error {
 	// Serialize all guardian contact writers on the profile row. The
@@ -258,6 +291,12 @@ func (s *GuardianService) UpdateGuardian(ctx context.Context, id int64, req Guar
 // Use this only for guardians with no remaining links; for the deliberate
 // full delete use DeleteGuardianWithLinks.
 func (s *GuardianService) DeleteGuardian(ctx context.Context, id, changedByAccountID int64) error {
+	return s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
+		return s.deleteGuardian(txCtx, id, changedByAccountID)
+	})
+}
+
+func (s *GuardianService) deleteGuardian(ctx context.Context, id, changedByAccountID int64) error {
 	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, id); err != nil {
 		return fmt.Errorf("failed to lock guardian profile %d: %w", id, err)
 	}
@@ -276,8 +315,15 @@ func (s *GuardianService) DeleteGuardian(ctx context.Context, id, changedByAccou
 //
 // This is the "Komplett löschen" path from #819 and is gated to admins at the
 // handler, because it reaches across every linked student — including siblings
-// in groups the caller may not supervise.
+// in groups the caller may not supervise. The service owns the transaction;
+// an ambient handler transaction is joined rather than nested.
 func (s *GuardianService) DeleteGuardianWithLinks(ctx context.Context, id int64, expectedLinkIDs []int64, changedByAccountID int64) error {
+	return s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
+		return s.deleteGuardianWithLinks(txCtx, id, expectedLinkIDs, changedByAccountID)
+	})
+}
+
+func (s *GuardianService) deleteGuardianWithLinks(ctx context.Context, id int64, expectedLinkIDs []int64, changedByAccountID int64) error {
 	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, id); err != nil {
 		return fmt.Errorf("failed to lock guardian profile %d: %w", id, err)
 	}
@@ -463,7 +509,7 @@ func (s *GuardianService) SendInvitation(ctx context.Context, req GuardianInvita
 
 	// Send invitation email asynchronously, pass tenant context for DB calls
 	if s.Dispatcher != nil && profile.Email != nil {
-		tenantCtx := tenant.WithTenantID(context.Background(), tenant.FromContext(ctx))
+		tenantCtx := context.WithoutCancel(tenant.ContextWithoutTransaction(ctx))
 		go s.sendInvitationEmail(tenantCtx, invitation, profile)
 	}
 
@@ -471,7 +517,7 @@ func (s *GuardianService) SendInvitation(ctx context.Context, req GuardianInvita
 }
 
 // sendInvitationEmail sends the invitation email (called asynchronously).
-// ctx should carry tenant context but NOT a transaction (use tenant.WithTenantID on Background).
+// ctx should carry tenant context but not an ambient request transaction.
 func (s *GuardianService) sendInvitationEmail(ctx context.Context, invitation *authModels.GuardianInvitation, profile *users.GuardianProfile) {
 	if s.Dispatcher == nil || profile.Email == nil {
 		return
@@ -494,6 +540,7 @@ func (s *GuardianService) sendInvitationEmail(ctx context.Context, invitation *a
 
 	message := email.Message{
 		From:     s.DefaultFrom,
+		ReplyTo:  s.resolveReplyTo(ctx),
 		To:       email.NewEmail("", *profile.Email),
 		Subject:  "Einladung zum Eltern-Portal",
 		Template: "guardian-invitation.html",
@@ -601,6 +648,14 @@ func (s *GuardianService) GetStudentGuardians(ctx context.Context, studentID int
 	if err != nil {
 		return nil, err
 	}
+	phonesByProfile, err := s.GuardianPhoneNumberRepo.FindByGuardianIDs(ctx, profileIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load guardian phone numbers: %w", err)
+	}
+	openInvitations, err := s.openInvitationsByProfile(ctx, profileIDs)
+	if err != nil {
+		return nil, err
+	}
 
 	result := make([]*GuardianWithRelationship, 0, len(relationships))
 	for _, rel := range relationships {
@@ -609,16 +664,12 @@ func (s *GuardianService) GetStudentGuardians(ctx context.Context, studentID int
 			continue // Skip if profile not found
 		}
 
-		// Load phone numbers for this guardian
-		phoneNumbers, err := s.GuardianPhoneNumberRepo.FindByGuardianID(ctx, profile.ID)
-		if err == nil {
-			profile.PhoneNumbers = phoneNumbers
-		}
+		profile.PhoneNumbers = phonesByProfile[profile.ID]
 
 		result = append(result, &GuardianWithRelationship{
 			Profile:           profile,
 			Relationship:      rel,
-			InvitationPending: s.invitationPendingForStudent(ctx, profile, rel.StudentID),
+			InvitationPending: invitationPendingForStudent(profile, rel.StudentID, openInvitations[profile.ID]),
 		})
 	}
 
@@ -631,40 +682,28 @@ func (s *GuardianService) GetStudentGuardians(ctx context.Context, studentID int
 // WITH an account can still have an open invitation — a pending-approval
 // role-upgrade request (#2172) — but only one anchored to this child counts,
 // so a sibling's invite never marks an unrelated row as pending.
-func (s *GuardianService) invitationPendingForStudent(ctx context.Context, profile *users.GuardianProfile, studentID int64) bool {
-	if !profile.HasAccount {
-		return s.hasOpenInvitation(ctx, profile.ID, 0)
-	}
-	return s.hasOpenInvitation(ctx, profile.ID, studentID)
-}
-
-// hasOpenInvitation reports whether the guardian profile has an invitation that
-// is neither accepted, expired, nor rejected — i.e. an outstanding invite the
-// staff UI should surface as "Einladung offen". With studentID > 0, only
-// invitations anchored to that child count. Best-effort: a lookup error is
-// treated as "no pending invite" so the guardian list still renders.
-func (s *GuardianService) hasOpenInvitation(ctx context.Context, guardianProfileID, studentID int64) bool {
-	invitations, err := s.GuardianInvitationRepo.FindByGuardianProfileID(ctx, guardianProfileID)
-	if err != nil {
-		return false
-	}
-	now := time.Now()
+func invitationPendingForStudent(profile *users.GuardianProfile, studentID int64, invitations []*authModels.GuardianInvitation) bool {
 	for _, inv := range invitations {
-		if studentID > 0 && (inv.StudentID == nil || *inv.StudentID != studentID) {
-			continue
-		}
-		if inv.IsAccepted() {
-			continue
-		}
-		if !inv.ExpiresAt.IsZero() && now.After(inv.ExpiresAt) {
-			continue
-		}
-		if inv.ApprovalStatus == authModels.GuardianInvitationApprovalRejected {
+		if profile.HasAccount && (inv.StudentID == nil || *inv.StudentID != studentID) {
 			continue
 		}
 		return true
 	}
 	return false
+}
+
+// openInvitationsByProfile batches the open-invitation status used by the
+// guardian list. The repository excludes accepted, expired, and rejected rows.
+func (s *GuardianService) openInvitationsByProfile(ctx context.Context, profileIDs []int64) (map[int64][]*authModels.GuardianInvitation, error) {
+	byProfile := make(map[int64][]*authModels.GuardianInvitation)
+	invitations, err := s.GuardianInvitationRepo.FindOpenByGuardianProfileIDs(ctx, profileIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load open guardian invitations: %w", err)
+	}
+	for _, invitation := range invitations {
+		byProfile[invitation.GuardianProfileID] = append(byProfile[invitation.GuardianProfileID], invitation)
+	}
+	return byProfile, nil
 }
 
 // GetGuardianStudents retrieves all students for a guardian
@@ -1042,6 +1081,12 @@ func (s *GuardianService) UpdateStudentGuardianRelationship(ctx context.Context,
 // relationship stays intact. The check runs under the student lock so a payer
 // assigned concurrently cannot slip past it.
 func (s *GuardianService) RemoveGuardianFromStudent(ctx context.Context, studentID, guardianProfileID, changedByAccountID int64, mayClearPayer bool) error {
+	return s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
+		return s.removeGuardianFromStudent(txCtx, studentID, guardianProfileID, changedByAccountID, mayClearPayer)
+	})
+}
+
+func (s *GuardianService) removeGuardianFromStudent(ctx context.Context, studentID, guardianProfileID, changedByAccountID int64, mayClearPayer bool) error {
 	// The student row serializes this deletion with SetStudentPayer, which
 	// takes the same lock before it reads a relationship's is_payer state.
 	if _, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID); err != nil {
@@ -1078,12 +1123,16 @@ func (s *GuardianService) ListGuardians(ctx context.Context, options *base.Query
 		return nil, err
 	}
 
-	// Load phone numbers for each guardian
+	profileIDs := make([]int64, 0, len(profiles))
 	for _, profile := range profiles {
-		phoneNumbers, err := s.GuardianPhoneNumberRepo.FindByGuardianID(ctx, profile.ID)
-		if err == nil {
-			profile.PhoneNumbers = phoneNumbers
-		}
+		profileIDs = append(profileIDs, profile.ID)
+	}
+	phonesByProfile, err := s.GuardianPhoneNumberRepo.FindByGuardianIDs(ctx, profileIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load guardian phone numbers: %w", err)
+	}
+	for _, profile := range profiles {
+		profile.PhoneNumbers = phonesByProfile[profile.ID]
 	}
 
 	return profiles, nil
@@ -1326,4 +1375,12 @@ func (s *GuardianService) GetGuardianPhoneNumbers(ctx context.Context, guardianI
 // GetPhoneNumberByID retrieves a phone number by ID
 func (s *GuardianService) GetPhoneNumberByID(ctx context.Context, phoneID int64) (*users.GuardianPhoneNumber, error) {
 	return s.GuardianPhoneNumberRepo.FindByID(ctx, phoneID)
+}
+
+// resolveReplyTo returns the OGS reply address for this tenant, or the zero
+// value when none is configured. This send bypasses the outbox, so it stamps
+// the header itself; the degradation policy is shared (#1936).
+func (s *GuardianService) resolveReplyTo(ctx context.Context) email.Email {
+	identity := email.ResolveReplyToIdentity(ctx, s.MailIdentity, tenant.FromContext(ctx), nil)
+	return email.NewEmail(identity.Name, identity.Address)
 }

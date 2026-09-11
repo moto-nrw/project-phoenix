@@ -21,6 +21,37 @@ type Group struct {
 	// Students will be a relationship from the Student model
 }
 
+// GroupListQuery is the bounded read shape for the group overview. It exposes
+// only the filters and ordering that overview callers use.
+type GroupListQuery struct {
+	Name         string
+	NameContains string
+	RoomID       *int64
+	Limit        int
+	Offset       int
+	SortByName   bool
+	Descending   bool
+}
+
+// Filter returns a fresh generic filter for the fields shared by the list and
+// count queries. Ordering and pagination remain list-only concerns.
+func (q *GroupListQuery) Filter() *base.Filter {
+	filter := base.NewFilter()
+	if q == nil {
+		return filter
+	}
+	if q.Name != "" {
+		filter.Equal("name", q.Name)
+	}
+	if q.NameContains != "" {
+		filter.ILike("name", "%"+q.NameContains+"%")
+	}
+	if q.RoomID != nil {
+		filter.Equal("room_id", *q.RoomID)
+	}
+	return filter
+}
+
 // Validate ensures group data is valid
 func (g *Group) Validate() error {
 	if g.Name == "" {

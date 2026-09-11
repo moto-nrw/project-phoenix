@@ -16,6 +16,8 @@ import { useOrgSchoolFilter } from "../provisioning/use-org-school-filter";
 import { DataTable } from "~/components/ui/data-table";
 import type { DataTableColumn } from "~/components/ui/data-table";
 import { ListPageSkeleton } from "~/components/ui/page-skeletons";
+import { Button } from "~/components/ui/button";
+import { Modal } from "~/components/ui/modal";
 
 const logger = createLogger({ component: "OperatorUnregisteredTagsPage" });
 
@@ -285,7 +287,7 @@ function UnregisteredTagsTable({
   );
 }
 
-function ResolveScanModal({
+export function ResolveScanModal({
   scan,
   note,
   error,
@@ -302,47 +304,56 @@ function ResolveScanModal({
   onClose: () => void;
   onResolve: () => void;
 }>) {
+  const footer = (
+    <>
+      <Button
+        type="button"
+        variant="secondary"
+        size="md"
+        onClick={onClose}
+        disabled={loading}
+      >
+        Abbrechen
+      </Button>
+      <Button
+        type="button"
+        variant="primary"
+        size="md"
+        onClick={onResolve}
+        disabled={loading}
+      >
+        {loading ? "Speichern..." : "Erledigen"}
+      </Button>
+    </>
+  );
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="mx-4 w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-        <h3 className="text-lg font-semibold text-gray-900">Scan erledigen</h3>
-        <p className="mt-2 text-sm text-gray-600">
-          <span className="font-mono font-medium">{scan.tagUid}</span> ·{" "}
-          {scan.schoolName}
-        </p>
-        <label
-          htmlFor="resolution-note"
-          className="mt-4 block text-sm font-medium text-gray-700"
-        >
-          Notiz
-        </label>
-        <textarea
-          id="resolution-note"
-          value={note}
-          onChange={(event) => onNoteChange(event.target.value)}
-          className="mt-1 min-h-24 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:ring-2 focus:ring-gray-100 focus:outline-none"
-        />
-        {error && <p className="text-moto-red-strong mt-3 text-sm">{error}</p>}
-        <div className="mt-5 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={loading}
-            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
-          >
-            Abbrechen
-          </button>
-          <button
-            type="button"
-            onClick={onResolve}
-            disabled={loading}
-            className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:opacity-60"
-          >
-            {loading ? "Speichern..." : "Erledigen"}
-          </button>
-        </div>
-      </div>
-    </div>
+    <Modal
+      isOpen
+      onClose={onClose}
+      title="Scan erledigen"
+      footer={footer}
+      isDismissDisabled={loading}
+      isBackdropDismissDisabled
+    >
+      <p className="text-sm text-gray-600">
+        <span className="font-mono font-medium">{scan.tagUid}</span> ·{" "}
+        {scan.schoolName}
+      </p>
+      <label
+        htmlFor="resolution-note"
+        className="mt-4 block text-sm font-medium text-gray-700"
+      >
+        Notiz
+      </label>
+      <textarea
+        id="resolution-note"
+        value={note}
+        onChange={(event) => onNoteChange(event.target.value)}
+        className="mt-1 min-h-24 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:ring-2 focus:ring-gray-100 focus:outline-none"
+      />
+      {error && <p className="text-moto-red-strong mt-3 text-sm">{error}</p>}
+    </Modal>
   );
 }
 

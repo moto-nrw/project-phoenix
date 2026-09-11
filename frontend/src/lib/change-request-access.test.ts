@@ -7,6 +7,7 @@ import {
   canReviewChangeRequests,
   canReviewEnrollmentChangeRequests,
   canReviewStudentDataRequests,
+  resolveChangeRequestAccess,
 } from "./change-request-access";
 
 function session(roles: string[], permissions: string[]): Session {
@@ -17,6 +18,64 @@ function session(roles: string[], permissions: string[]): Session {
 }
 
 describe("change request access", () => {
+  it("hält Betreuer ohne effektive Elternanfragen-Freigabe aus dem Modul", () => {
+    const staff = session(["user"], ["users:read", "users:update"]);
+
+    expect(resolveChangeRequestAccess(staff, "none")).toMatchObject({
+      canReviewParentRequests: false,
+      canOpenParentRequestsTab: false,
+      canOpenRequestsPage: false,
+    });
+  });
+
+  it("öffnet das Modul für eine serverseitig bestätigte Gruppenleitung", () => {
+    const groupLeader = session(["user"], ["users:read", "users:update"]);
+
+    expect(
+      resolveChangeRequestAccess(groupLeader, "group_leader"),
+    ).toMatchObject({
+      canReviewParentRequests: true,
+      canReviewStudentDataRequests: true,
+      canOpenParentRequestsTab: true,
+      canOpenRequestsPage: true,
+    });
+  });
+
+  it.each([
+    {
+      permission: "config:manage",
+      capability: "canReviewEnrollmentChangeRequests" as const,
+    },
+    {
+      permission: "users:delete",
+      capability: "canReviewCareWithdrawals" as const,
+    },
+    {
+      permission: "vacation:approve",
+      capability: "canReviewStaffAbsenceRequests" as const,
+    },
+  ])(
+    "öffnet mit $permission unabhängig von der Elternanfragen-Freigabe",
+    ({ permission, capability }) => {
+      const staff = session(["user"], [permission]);
+      const access = resolveChangeRequestAccess(staff, "none");
+
+      expect(access.canReviewParentRequests).toBe(false);
+      expect(access[capability]).toBe(true);
+      expect(access.canOpenRequestsPage).toBe(true);
+    },
+  );
+
+  it("lässt OGS-Admins schulweite Elternanfragen sehen", () => {
+    const admin = session(["admin"], ["admin:*"]);
+
+    expect(resolveChangeRequestAccess(admin, "admin")).toMatchObject({
+      canReviewParentRequests: true,
+      canReviewStudentDataRequests: true,
+      canOpenRequestsPage: true,
+    });
+  });
+
   it("lets an admin review everything", () => {
     const admin = session(["admin"], ["admin:*"]);
     expect(canReviewStudentDataRequests(admin)).toBe(true);

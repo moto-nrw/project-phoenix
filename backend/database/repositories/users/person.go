@@ -30,7 +30,7 @@ func (r *PersonRepository) unlinkField(ctx context.Context, personID int64, fiel
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  opName,
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -38,7 +38,7 @@ func (r *PersonRepository) unlinkField(ctx context.Context, personID int64, fiel
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  opName + " - check rows affected",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -90,7 +90,7 @@ func (r *PersonRepository) FindByTagID(ctx context.Context, tagID string) (*user
 		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by tag ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -116,7 +116,7 @@ func (r *PersonRepository) FindByAccountID(ctx context.Context, accountID int64)
 		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by account ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -141,7 +141,7 @@ func (r *PersonRepository) FindByAccountIDs(ctx context.Context, accountIDs []in
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by account IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -169,7 +169,7 @@ func (r *PersonRepository) FindByIDForUpdate(ctx context.Context, id int64) (*us
 	query = base.WithTenantFilter(ctx, query, "person")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find person for update", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find person for update", Err: base.TranslateNotFound(err)}
 	}
 	return person, nil
 }
@@ -193,7 +193,7 @@ func (r *PersonRepository) FindByIDs(ctx context.Context, ids []int64) (map[int6
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -221,7 +221,7 @@ func (r *PersonRepository) LinkToAccount(ctx context.Context, personID int64, ac
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "link to account",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -229,7 +229,7 @@ func (r *PersonRepository) LinkToAccount(ctx context.Context, personID int64, ac
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "link to account - check rows affected",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -266,7 +266,7 @@ func (r *PersonRepository) LinkToRFIDCard(ctx context.Context, personID int64, t
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "link to RFID card",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -274,7 +274,7 @@ func (r *PersonRepository) LinkToRFIDCard(ctx context.Context, personID int64, t
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "link to RFID card - check rows affected",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -360,61 +360,13 @@ func (r *PersonRepository) FindWithAccount(ctx context.Context, id int64) (*user
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find with account",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
 	// Connect the account to the person
 	if result.Account != nil && result.Account.ID != 0 {
 		result.Person.Account = result.Account
-	}
-
-	return result.Person, nil
-}
-
-// FindWithRFIDCard retrieves a person with their associated RFID card
-func (r *PersonRepository) FindWithRFIDCard(ctx context.Context, id int64) (*users.Person, error) {
-	// Use a more explicit approach with result struct to avoid table name conflicts
-	type personRFIDResult struct {
-		Person   *users.Person   `bun:"person"`
-		RFIDCard *users.RFIDCard `bun:"rfid_card"`
-	}
-
-	result := &personRFIDResult{
-		Person:   new(users.Person),
-		RFIDCard: new(users.RFIDCard),
-	}
-
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(result).
-		ModelTableExpr(`users.persons AS "person"`).
-		// Person columns with proper aliasing
-		ColumnExpr(`"person".id AS "person__id", "person".created_at AS "person__created_at", "person".updated_at AS "person__updated_at"`).
-		ColumnExpr(`"person".tenant_id AS "person__tenant_id"`).
-		ColumnExpr(`"person".first_name AS "person__first_name", "person".last_name AS "person__last_name"`).
-		ColumnExpr(`"person".tag_id AS "person__tag_id", "person".account_id AS "person__account_id"`).
-		// RFID card columns
-		ColumnExpr(`"rfid_card".id AS "rfid_card__id", "rfid_card".created_at AS "rfid_card__created_at", "rfid_card".updated_at AS "rfid_card__updated_at"`).
-		ColumnExpr(`"rfid_card".is_active AS "rfid_card__is_active", "rfid_card".last_used AS "rfid_card__last_used"`).
-		// JOIN
-		Join(`LEFT JOIN users.rfid_cards AS "rfid_card" ON "rfid_card".id = "person".tag_id`).
-		Where(`"person".id = ?`, id).
-		Where(`"person".deleted_at IS NULL`)
-
-	query = base.WithTenantFilter(ctx, query, "person")
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find with RFID card",
-			Err: err,
-		}
-	}
-
-	// Connect the RFID card to the person
-	if result.RFIDCard != nil && result.RFIDCard.ID != "" {
-		result.Person.RFIDCard = result.RFIDCard
 	}
 
 	return result.Person, nil
@@ -489,7 +441,7 @@ func (r *PersonRepository) AnonymizeAndSoftDelete(ctx context.Context, personID 
 	if _, err := query.Exec(ctx); err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "anonymize and soft delete person",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return nil

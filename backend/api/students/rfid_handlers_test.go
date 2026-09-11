@@ -20,29 +20,26 @@ import (
 // RFID Handler Tests (Device Authentication)
 // =============================================================================
 
-// testDevicePIN is the OGS device PIN used to authenticate the RFID routes. The
-// students Router() wires device.DeviceAuthenticator with a nil PIN resolver, so
-// the PIN is read from the OGS_DEVICE_PIN env var (set per-request by deviceExec).
+// testDevicePIN is the OGS device PIN used to authenticate the RFID routes. It
+// matches the registry default of security.ogs_device_pin, which the Device
+// Fleet composition resolves per tenant before falling back to OGS_DEVICE_PIN.
 const testDevicePIN = "1234"
 
 // deviceExec authenticates as the given RFID device and runs the request through
-// the production Router(), which mounts the real device.DeviceAuthenticator +
+// the production Router(), which mounts the real device authenticator +
 // TenantTxMiddleware chain on the /{id}/rfid routes exactly as the server does.
 // The device API key goes in the Authorization header and the staff PIN in
-// X-Staff-PIN; the PIN must match OGS_DEVICE_PIN because the students Router uses
-// a nil PIN resolver.
+// X-Staff-PIN.
 func deviceExec(t *testing.T, tc *testContext, req *http.Request, device *iotModel.Device) *httptest.ResponseRecorder {
 	t.Helper()
-	t.Setenv("OGS_DEVICE_PIN", testDevicePIN)
 	req.Header.Set("Authorization", "Bearer "+*device.APIKey)
 	req.Header.Set("X-Staff-PIN", testDevicePIN)
 	return testutil.ExecuteRequest(tc.resource.Router(), req)
 }
 
-// Deliberately NOT parallel: process-global state — t.Setenv on
-// OGS_DEVICE_PIN through the device-auth helper.
 func TestAssignRFIDTag_WithDeviceAuth(t *testing.T) {
-	tc := setupTestContext(t)
+	t.Parallel()
+	tc := setupStudentsRoute(t)
 
 	// Create test device and student
 	device := testpkg.CreateTestDevice(t, tc.db, "rfid-reader")
@@ -104,10 +101,9 @@ func TestAssignRFIDTag_WithDeviceAuth(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: process-global state — t.Setenv on
-// OGS_DEVICE_PIN through the device-auth helper.
 func TestUnassignRFIDTag_WithDeviceAuth(t *testing.T) {
-	tc := setupTestContext(t)
+	t.Parallel()
+	tc := setupStudentsRoute(t)
 
 	// Create test device and student with RFID tag
 	device := testpkg.CreateTestDevice(t, tc.db, "rfid-unassign")
@@ -143,7 +139,7 @@ func TestUnassignRFIDTag_WithDeviceAuth(t *testing.T) {
 func TestAssignRFIDTag_RequiresDeviceAuth(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "NoDevice", "RND1")
 
@@ -161,7 +157,7 @@ func TestAssignRFIDTag_RequiresDeviceAuth(t *testing.T) {
 func TestUnassignRFIDTag_RequiresDeviceAuth(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "NoDeviceUnassign", "RNDU1")
 
@@ -173,10 +169,9 @@ func TestUnassignRFIDTag_RequiresDeviceAuth(t *testing.T) {
 	testutil.AssertUnauthorized(t, rr)
 }
 
-// Deliberately NOT parallel: process-global state — t.Setenv on
-// OGS_DEVICE_PIN through the device-auth helper.
 func TestUnassignRFIDTag_WithAssignedTag(t *testing.T) {
-	tc := setupTestContext(t)
+	t.Parallel()
+	tc := setupStudentsRoute(t)
 
 	// Create device and student
 	device := testpkg.CreateTestDevice(t, tc.db, "rfid-unassign-success")
@@ -203,10 +198,9 @@ func TestUnassignRFIDTag_WithAssignedTag(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: process-global state — t.Setenv on
-// OGS_DEVICE_PIN through the device-auth helper.
 func TestRFIDTagValidation(t *testing.T) {
-	tc := setupTestContext(t)
+	t.Parallel()
+	tc := setupStudentsRoute(t)
 
 	device := testpkg.CreateTestDevice(t, tc.db, "rfid-validation")
 	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "Validation", "RV1")
@@ -244,10 +238,9 @@ func TestRFIDTagValidation(t *testing.T) {
 // a bracelet created a tag the kiosk could see but never release. Releasing must
 // therefore work on an alumnus, while assigning a NEW tag to a soft-deleted
 // child stays blocked.
-// Deliberately NOT parallel: process-global state — t.Setenv on
-// OGS_DEVICE_PIN through the device-auth helper.
 func TestRFIDTagRoutes_GraduatedStudent(t *testing.T) {
-	tc := setupTestContext(t)
+	t.Parallel()
+	tc := setupStudentsRoute(t)
 
 	device := testpkg.CreateTestDevice(t, tc.db, "rfid-alumnus")
 	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "Graduated", "RG1")

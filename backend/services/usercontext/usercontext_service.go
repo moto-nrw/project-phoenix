@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
@@ -20,6 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -41,7 +43,7 @@ type UserContextRepositories struct {
 	EducationGroupRepo education.GroupRepository
 	ActivityGroupRepo  activities.GroupRepository
 	ActiveGroupRepo    active.GroupRepository
-	VisitsRepo         active.VisitRepository
+	Presence           VisitReader
 	SupervisorRepo     active.GroupSupervisorRepository
 	ProfileRepo        users.ProfileRepository
 	SubstitutionRepo   education.GroupSubstitutionRepository
@@ -64,7 +66,7 @@ type userContextService struct {
 	educationGroupRepo education.GroupRepository
 	activityGroupRepo  activities.GroupRepository
 	activeGroupRepo    active.GroupRepository
-	visitsRepo         active.VisitRepository
+	presence           VisitReader
 	supervisorRepo     active.GroupSupervisorRepository
 	profileRepo        users.ProfileRepository
 	substitutionRepo   education.GroupSubstitutionRepository
@@ -90,7 +92,7 @@ func NewUserContextServiceWithRepos(repos UserContextRepositories, logger *slog.
 		educationGroupRepo: repos.EducationGroupRepo,
 		activityGroupRepo:  repos.ActivityGroupRepo,
 		activeGroupRepo:    repos.ActiveGroupRepo,
-		visitsRepo:         repos.VisitsRepo,
+		presence:           repos.Presence,
 		supervisorRepo:     repos.SupervisorRepo,
 		profileRepo:        repos.ProfileRepo,
 		substitutionRepo:   repos.SubstitutionRepo,
@@ -99,6 +101,10 @@ func NewUserContextServiceWithRepos(repos UserContextRepositories, logger *slog.
 		sseSettings:        repos.SSESettings,
 		logger:             logger,
 	}
+}
+
+func DatabaseStatsCapabilities(ctx context.Context) authorize.DatabaseStatsCapabilities {
+	return authorize.NewDatabaseStatsCapabilities(jwt.PermissionsFromCtx(ctx))
 }
 
 // getUserIDFromContext extracts the user ID from the JWT context
@@ -210,6 +216,13 @@ func (s *userContextService) GetCurrentStaff(ctx context.Context) (*users.Staff,
 		cache.storeStaff(key, staff)
 	}
 	return staff, nil
+}
+
+// HasCurrentStaff exposes only the existence fact required by authorization
+// policies, keeping persistence models out of the policy boundary.
+func (s *userContextService) HasCurrentStaff(ctx context.Context) (bool, error) {
+	staff, err := s.GetCurrentStaff(ctx)
+	return err == nil && staff != nil, err
 }
 
 // GetCurrentTeacher retrieves the teacher linked to the currently authenticated user
@@ -696,7 +709,7 @@ func (s *userContextService) GetGroupStudents(ctx context.Context, groupID int64
 	}
 
 	// Get all visits for this group
-	visits, err := s.visitsRepo.FindByActiveGroupID(ctx, groupID)
+	visits, err := s.presence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{groupID}})
 	if err != nil {
 		return nil, &UserContextError{Op: opGetGroupStudents, Err: err}
 	}
@@ -729,7 +742,7 @@ func (s *userContextService) GetGroupStudents(ctx context.Context, groupID int64
 }
 
 // GetGroupVisits retrieves active visits for a specific group where the current user has access
-func (s *userContextService) GetGroupVisits(ctx context.Context, groupID int64) ([]*active.Visit, error) {
+func (s *userContextService) GetGroupVisits(ctx context.Context, groupID int64) ([]studentpresence.Visit, error) {
 	// Check access to the group
 	_, err := s.checkGroupAccess(ctx, groupID)
 	if err != nil {
@@ -737,13 +750,13 @@ func (s *userContextService) GetGroupVisits(ctx context.Context, groupID int64) 
 	}
 
 	// Get active visits for this group
-	visits, err := s.visitsRepo.FindByActiveGroupID(ctx, groupID)
+	visits, err := s.presence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{groupID}})
 	if err != nil {
 		return nil, &UserContextError{Op: "get group visits", Err: err}
 	}
 
 	// Filter to only include active visits (no end time)
-	var activeVisits []*active.Visit
+	var activeVisits []studentpresence.Visit
 	for _, visit := range visits {
 		if visit.ExitTime == nil {
 			activeVisits = append(activeVisits, visit)

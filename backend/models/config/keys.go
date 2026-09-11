@@ -113,45 +113,51 @@ const (
 
 // Operations settings.
 const (
-	KeySessionEndEnabled               = "operations.session_end_enabled"
-	KeySessionEndTime                  = "operations.session_end_time"
-	KeySessionEndTimeoutMinutes        = "operations.session_end_timeout_minutes"
-	KeyStudentDailyCheckoutTime        = "operations.student_daily_checkout_time"
-	KeyPerStudentCheckoutEnabled       = "operations.per_student_checkout_enabled"
-	KeyPerStudentCheckoutDeltaMinutes  = "operations.per_student_checkout_delta_minutes"
-	KeySessionCleanupEnabled           = "operations.session_cleanup_enabled"
-	KeySessionCleanupIntervalMinutes   = "operations.session_cleanup_interval_minutes"
-	KeySessionAbandonedThresholdMin    = "operations.session_abandoned_threshold_minutes"
-	KeySessionInactivityTimeoutMin     = "operations.session_inactivity_timeout_minutes"
-	KeyOperationalOverviewScope        = "operations.operational_overview_scope"
-	KeyStatusFlagClearTime             = "operations.status_flag_clear_time"
-	KeySickClearMode                   = "operations.sick_clear_mode"
-	KeyExcusedClearMode                = "operations.excused_clear_mode"
-	KeyPresenceMode                    = "operations.presence_mode"
-	KeyAttendanceWebEnabled            = "attendance.web_enabled"
-	KeyAttendanceNFCEnabled            = "attendance.nfc_enabled"
-	KeyStudentActivationIntervalMin    = "operations.student_activation_interval_minutes"
-	KeyWebSpontaneousActivities        = "attendance.web_spontaneous_activities_enabled"
-	KeyStudentPhotosEnabled            = "operations.student_photos_enabled"
-	KeyGroupMode                       = "operations.group_mode"
-	KeyBirthdayDisplayEnabled          = "operations.birthday_display_enabled"
-	KeyBirthdayDisplayIncludeStaff     = "operations.birthday_display_include_staff"
-	KeyEmergencyListHealthInfo         = "operations.emergency_list_health_info"
-	KeyCareConcept                     = "operations.care_concept"
-	KeyRequirePickupOfferingReview     = "operations.require_pickup_offering_review"
-	KeyParentSickNoteEnabled           = "operations.parent_sick_note_enabled"
-	KeyParentSickRequiresApproval      = "operations.parent_sick_requires_approval"
-	KeyParentExcusedRequiresApproval   = "operations.parent_excused_requires_approval"
-	KeyParentNotesEnabled              = "operations.parent_notes_enabled"
-	KeyParentCareArrivalRequestEnabled = "operations.parent_care_arrival_request_enabled"
-	KeyParentCarePickupRequestEnabled  = "operations.parent_care_pickup_request_enabled"
-	KeyParentCareModeRequestEnabled    = "operations.parent_care_mode_request_enabled"
-	KeyParentMessageStaffNameVisible   = "operations.parent_message_staff_name_visible"
-	KeyParentPickupChangeEnabled       = "operations.parent_pickup_change_enabled"
-	KeyParentGuardianManagementEnabled = "operations.parent_guardian_management_enabled"
-	KeyParentMasterDataEditEnabled     = "operations.parent_master_data_edit_enabled"
-	KeyParentMasterDataRequestEnabled  = "operations.parent_master_data_request_enabled"
-	KeyParentNewsEnabled               = "operations.parent_news_enabled"
+	KeySessionEndEnabled                     = "operations.session_end_enabled"
+	KeySessionEndTime                        = "operations.session_end_time"
+	KeySessionEndTimeoutMinutes              = "operations.session_end_timeout_minutes"
+	KeyStudentDailyCheckoutTime              = "operations.student_daily_checkout_time"
+	KeyPerStudentCheckoutEnabled             = "operations.per_student_checkout_enabled"
+	KeyPerStudentCheckoutDeltaMinutes        = "operations.per_student_checkout_delta_minutes"
+	KeySessionCleanupEnabled                 = "operations.session_cleanup_enabled"
+	KeySessionCleanupIntervalMinutes         = "operations.session_cleanup_interval_minutes"
+	KeySessionAbandonedThresholdMin          = "operations.session_abandoned_threshold_minutes"
+	KeySessionInactivityTimeoutMin           = "operations.session_inactivity_timeout_minutes"
+	KeyOperationalOverviewScope              = "operations.operational_overview_scope"
+	KeyClassArrivalExceptionEditors          = "operations.class_arrival_exception_editors"
+	KeySchoolPortalWriteScope                = "operations.school_portal_write_scope"
+	KeyParentRequestReasonPolicy             = "operations.parent_request_reason_policy"
+	KeyMealRegistrationEnabled               = "operations.meal_registration_enabled"
+	KeyMealRegistrationCutoffTime            = "operations.meal_registration_cutoff_time"
+	KeyStatusFlagClearTime                   = "operations.status_flag_clear_time"
+	KeySickClearMode                         = "operations.sick_clear_mode"
+	KeyExcusedClearMode                      = "operations.excused_clear_mode"
+	KeyPresenceMode                          = "operations.presence_mode"
+	KeyAttendanceWebEnabled                  = "attendance.web_enabled"
+	KeyAttendanceNFCEnabled                  = "attendance.nfc_enabled"
+	KeyStudentActivationIntervalMin          = "operations.student_activation_interval_minutes"
+	KeyWebSpontaneousActivities              = "attendance.web_spontaneous_activities_enabled"
+	KeyStudentPhotosEnabled                  = "operations.student_photos_enabled"
+	KeyGroupMode                             = "operations.group_mode"
+	KeyBirthdayDisplayEnabled                = "operations.birthday_display_enabled"
+	KeyBirthdayDisplayIncludeStaff           = "operations.birthday_display_include_staff"
+	KeyEmergencyListHealthInfo               = "operations.emergency_list_health_info"
+	KeyCareConcept                           = "operations.care_concept"
+	KeyRequirePickupOfferingReview           = "operations.require_pickup_offering_review"
+	KeyParentSickNoteEnabled                 = "operations.parent_sick_note_enabled"
+	KeyParentSickRequiresApproval            = "operations.parent_sick_requires_approval"
+	KeyParentExcusedRequiresApproval         = "operations.parent_excused_requires_approval"
+	KeyParentNotesEnabled                    = "operations.parent_notes_enabled"
+	KeyParentCareArrivalRequestEnabled       = "operations.parent_care_arrival_request_enabled"
+	KeyParentCarePickupRequestEnabled        = "operations.parent_care_pickup_request_enabled"
+	KeyParentCareModeRequestEnabled          = "operations.parent_care_mode_request_enabled"
+	KeyParentMessageStaffNameVisible         = "operations.parent_message_staff_name_visible"
+	KeyParentPickupChangeEnabled             = "operations.parent_pickup_change_enabled"
+	KeyParentGuardianManagementEnabled       = "operations.parent_guardian_management_enabled"
+	KeyParentMasterDataEditEnabled           = "operations.parent_master_data_edit_enabled"
+	KeyParentMasterDataRequestEnabled        = "operations.parent_master_data_request_enabled"
+	KeyParentRequestGroupLeaderReviewEnabled = "operations.parent_request_group_leader_review_enabled"
+	KeyParentNewsEnabled                     = "operations.parent_news_enabled"
 	// Whether colleagues at this school can write to each other inside moto
 	// (OGS-internal 1:1 chat, issue #2598). Defaults OFF: a school switches an
 	// internal staff channel on deliberately.
@@ -212,20 +218,60 @@ const (
 	GroupModeOpenCare    = "open_care"
 )
 
-// OperationalOverviewScope option values for KeyOperationalOverviewScope
-// (#2380). The setting is the ONLY rule deciding who may see and operate every
-// running module of the school; the organisational group mode
-// (KeyGroupMode) deliberately no longer grants operational access.
+// OperationalOverviewScope option values for KeyOperationalOverviewScope.
+// The setting decides which educational groups and running modules staff can
+// see; role permissions independently decide which actions they may perform.
 const (
-	// OverviewScopeOwn keeps every caller on the modules they supervise
-	// themselves. Administrators included — this is the default.
+	// OverviewScopeOwn keeps staff on their own and handed-over responsibilities.
+	// Administrators still see the whole school.
 	OverviewScopeOwn = "own"
-	// OverviewScopeAdmins opens every running module to administrators.
+	// OverviewScopeAdmins is the legacy spelling of the personal staff mode.
+	// Migration 1.15.351 canonicalizes stored values to OverviewScopeOwn.
 	OverviewScopeAdmins = "admins"
-	// OverviewScopeAllStaff opens every running module to administrators and
-	// to every verified staff member of the tenant. Role permissions still
-	// decide WHICH actions those callers may perform.
+	// OverviewScopeAllStaff opens every educational group and running module to
+	// administrators and every verified staff member of the tenant.
 	OverviewScopeAllStaff = "all_staff"
+)
+
+// ClassArrivalExceptionEditors option values for KeyClassArrivalExceptionEditors
+// (#2962). The setting says who may set a class-wide arrival day exception;
+// everybody sees it regardless.
+const (
+	// ClassArrivalExceptionEditorsAdmins limits the write to administrators
+	// (Koordination). It is the default.
+	ClassArrivalExceptionEditorsAdmins = "admins"
+	// ClassArrivalExceptionEditorsAllStaff lets every staff member holding
+	// users:update set one.
+	ClassArrivalExceptionEditorsAllStaff = "all_staff"
+)
+
+// SchoolPortalWriteScope option values for KeySchoolPortalWriteScope (#2970).
+// The OGS decides what a Lehrkraft may write into OGS data through "moto
+// schule"; the default is nothing. A single-select on purpose: the key is
+// meant to carry further school-portal write rights as more values, and a
+// multi-select is built once a second value exists.
+const (
+	// SchoolPortalWriteScopeNone keeps the school portal read-only. Default.
+	SchoolPortalWriteScopeNone = "none"
+	// SchoolPortalWriteScopeClassArrivalExceptions lets a Lehrkraft set the
+	// class-wide arrival day exception (#2962) for her assigned classes.
+	SchoolPortalWriteScopeClassArrivalExceptions = "class_arrival_exceptions"
+)
+
+// ReasonPolicy option values for KeyParentRequestReasonPolicy (#2267). The
+// setting says who has to write a reason for a parent request: the guardian
+// when submitting it, the staff member when approving it, both, or nobody. A
+// rejection always needs a reason and is not covered here — a family must
+// always learn why a request was refused.
+const (
+	// ReasonPolicyNobody asks nobody for a reason.
+	ReasonPolicyNobody = "nobody"
+	// ReasonPolicyGuardians requires a reason only from the submitting family.
+	ReasonPolicyGuardians = "guardians"
+	// ReasonPolicyStaff requires a reason only from the deciding staff member.
+	ReasonPolicyStaff = "staff"
+	// ReasonPolicyBoth requires a reason on both sides; it is the default.
+	ReasonPolicyBoth = "both"
 )
 
 // CareConcept option values for KeyCareConcept.
@@ -276,6 +322,7 @@ const (
 	KeyEnrollmentAutoInviteGuardianOnApprove            = "enrollment.auto_invite_guardian_on_approval"
 	KeyEnrollmentOfferingChangesEnabled                 = "enrollment.offering_changes_enabled"
 	KeyEnrollmentOfferingChangesLeadDays                = "enrollment.offering_changes_lead_days"
+	KeyEnrollmentParentCourseRequestsEnabled            = "enrollment.parent_course_requests_enabled"
 	KeyEnrollmentDuplicateHandling                      = "enrollment.duplicate_handling"
 	KeyEnrollmentBookingsAuthoritative                  = "enrollment.bookings_authoritative"
 	KeyEnrollmentAllowSubmissionEdit                    = "enrollment.allow_submission_edit"
@@ -306,7 +353,16 @@ const (
 	KeyEnrollmentLegalTermsEnabled        = "enrollment.legal_terms_enabled"
 	KeyEnrollmentLegalDSGVOEnabled        = "enrollment.legal_dsgvo_enabled"
 	KeyEnrollmentLegalEmailContactEnabled = "enrollment.legal_email_contact_enabled"
-	KeyEnrollmentLegalPhotoEnabled        = "enrollment.legal_photo_enabled"
+
+	// KeyEmailReplyToAddress is the address a parent reaches when they answer a
+	// tenant-bound e-mail (Einladung, Anmeldung, Elternmitteilung). Empty means
+	// fall back to the school's contact address in platform.schools.email; if
+	// that is empty too, no Reply-To header is written at all (#1936).
+	//
+	// This never becomes the visible sender. The From stays the central
+	// authenticated address so SPF/DKIM alignment is unaffected.
+	KeyEmailReplyToAddress         = "email.reply_to_address"
+	KeyEnrollmentLegalPhotoEnabled = "enrollment.legal_photo_enabled"
 )
 
 // Enrollment select-option values.
@@ -384,6 +440,11 @@ const (
 // (for guardians who asked for it) a push. Definitions live in
 // defaults/appointment_reminders.go.
 const (
+	// KeyCalendarCalDAVEnabled controls the read-only personal CalDAV endpoint
+	// for staff. The ordinary iCalendar subscription remains available when it
+	// is false.
+	KeyCalendarCalDAVEnabled = "calendar.caldav_enabled"
+
 	KeyCalendarAppointmentReminderEnabled   = "calendar.appointment_reminder_enabled"
 	KeyCalendarAppointmentReminderLeadHours = "calendar.appointment_reminder_lead_hours"
 )
@@ -418,6 +479,25 @@ const (
 const (
 	PayrollUnitHours = "stunden"
 	PayrollUnitDays  = "tage"
+)
+
+// SFTP target for the manual transfer of Zeitwirtschafts-/DATEV exports
+// (#3050). Exactly ONE target per school; the file transferred is the
+// unchanged export file the download produces.
+//
+// Every value is empty by default — an incomplete configuration means "not
+// set up", and no transfer is started. There is deliberately no environment
+// fallback and no host-key exception: the fingerprint is mandatory, and an
+// unknown or changed key aborts the transfer. Definitions live in
+// defaults/sftp.go, resolution in services/config/sftp_target_service.go.
+const (
+	KeySFTPEnabled            = "sftp.enabled"
+	KeySFTPHost               = "sftp.host"
+	KeySFTPPort               = "sftp.port"
+	KeySFTPUsername           = "sftp.username"
+	KeySFTPPassword           = "sftp.password"
+	KeySFTPRemoteDirectory    = "sftp.remote_directory"
+	KeySFTPHostKeyFingerprint = "sftp.host_key_fingerprint"
 )
 
 // School file storage (#2596).

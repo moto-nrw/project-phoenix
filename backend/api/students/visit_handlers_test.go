@@ -1,6 +1,7 @@
 package students_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -20,7 +21,7 @@ import (
 func TestGetStudentCurrentLocation(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Location", "Test", "LT1")
 
@@ -43,7 +44,7 @@ func TestGetStudentCurrentLocation(t *testing.T) {
 func TestGetStudentCurrentLocation_Extended(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("returns_absent_for_student_without_visit", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Absent", "Student", "AB1")
@@ -65,7 +66,7 @@ func TestGetStudentCurrentLocation_Extended(t *testing.T) {
 func TestGetStudentCurrentVisit(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Visit", "Test", "VT1")
 
@@ -88,7 +89,7 @@ func TestGetStudentCurrentVisit(t *testing.T) {
 func TestGetStudentCurrentVisit_Extended(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("returns_null_when_no_visit", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "NoVisit", "Student", "NV2")
@@ -109,7 +110,7 @@ func TestGetStudentCurrentVisit_Extended(t *testing.T) {
 func TestGetStudentVisitHistory(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "History", "Test", "HT1")
 
@@ -131,7 +132,7 @@ func TestGetStudentVisitHistory(t *testing.T) {
 func TestGetStudentVisitHistory_WithDateRange(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "DateRange", "Test", "DR1")
 
@@ -153,18 +154,38 @@ func TestGetStudentVisitHistory_WithDateRange(t *testing.T) {
 func TestGetStudentVisitHistory_WithVisits(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	// Create a student with an active visit to test visit history
 	student := testpkg.CreateTestStudent(t, tc.db, "Visit", "History", "VH1")
-	testpkg.CreateTestRoom(t, tc.db, "HistoryRoom")
-	testpkg.CreateTestActivityGroup(t, tc.db, "HistoryActivity")
+	room := testpkg.CreateTestRoom(t, tc.db, "HistoryRoom")
+	activity := testpkg.CreateTestActivityGroup(t, tc.db, "HistoryActivity")
+	group := testpkg.CreateTestActiveGroup(t, tc.db, activity.ID, room.ID)
+	entry := testpkg.TodayDate().BerlinMidnight().Add(8 * time.Hour)
+	visit := testpkg.CreateTestVisit(t, tc.db, student.ID, group.ID, entry, nil)
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/%d/visit-history", student.ID), nil)
 
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	assert.Equal(t, http.StatusOK, rr.Code, "Should return visit history. Body: %s", rr.Body.String())
+	var response struct {
+		Data []json.RawMessage `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+	require.Len(t, response.Data, 1)
+	expectedVisit := fmt.Sprintf(`{"id":%d,"created_at":%q,"updated_at":%q,"tenant_id":%d,"student_id":%d,"active_group_id":%d,"entry_time":%q}`,
+		visit.ID, visit.CreatedAt.Format(time.RFC3339Nano), visit.UpdatedAt.Format(time.RFC3339Nano),
+		testpkg.Tenant(t), student.ID, group.ID, entry.Format(time.RFC3339Nano))
+	assert.JSONEq(t, expectedVisit, string(response.Data[0]))
+	currentRequest := testutil.NewRequest("GET", fmt.Sprintf("/%d/current-visit", student.ID), nil)
+	currentResponse := authExec(t, tc, currentRequest, testutil.AdminTestClaims(1), []string{"admin:*"})
+	require.Equal(t, http.StatusOK, currentResponse.Code)
+	var currentBody struct {
+		Data json.RawMessage `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(currentResponse.Body.Bytes(), &currentBody))
+	assert.JSONEq(t, expectedVisit, string(currentBody.Data))
 }
 
 // =============================================================================
@@ -174,7 +195,7 @@ func TestGetStudentVisitHistory_WithVisits(t *testing.T) {
 func TestGetStudentInGroupRoom_InvalidStudentID(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	req := testutil.NewRequest("GET", "/invalid/in-group-room", nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -185,7 +206,7 @@ func TestGetStudentInGroupRoom_InvalidStudentID(t *testing.T) {
 func TestGetStudentInGroupRoom_NonexistentStudent(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	req := testutil.NewRequest("GET", "/999999/in-group-room", nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -196,7 +217,7 @@ func TestGetStudentInGroupRoom_NonexistentStudent(t *testing.T) {
 func TestGetStudentInGroupRoom_WithValidStudent(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "GroupRoom", "Test", "GR1")
 
@@ -211,7 +232,7 @@ func TestGetStudentInGroupRoom_WithValidStudent(t *testing.T) {
 func TestGetStudentInGroupRoom_Extended(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("student_no_educational_group", func(t *testing.T) {
 		// Student without group assigned
@@ -261,7 +282,7 @@ func TestGetStudentInGroupRoom_Extended(t *testing.T) {
 func TestGetStudentInGroupRoom_Authorization(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	// Create teacher and group
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Room", "Auth")
@@ -312,7 +333,7 @@ func TestGetStudentInGroupRoom_Authorization(t *testing.T) {
 func TestGetStudentInGroupRoom_WithActiveVisit(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("student_in_group_room", func(t *testing.T) {
 		// Create room, group, student
@@ -389,7 +410,7 @@ func TestGetStudentInGroupRoom_WithActiveVisit(t *testing.T) {
 func TestGetStudentCurrentLocation_WithActiveVisit(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("student_checked_in_with_room", func(t *testing.T) {
 		// Create fixtures for a fully checked-in student with room assignment
@@ -460,7 +481,7 @@ func TestGetStudentCurrentLocation_WithActiveVisit(t *testing.T) {
 func TestGetStudentCurrentVisit_WithActiveVisit(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("returns_current_visit", func(t *testing.T) {
 		// Create a student with an active visit

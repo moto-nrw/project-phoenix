@@ -1,3 +1,9 @@
+---
+paths:
+  - "backend/**"
+  - "frontend/src/**"
+---
+
 # Calendar Dates: timezone.Date, Not time.Time
 
 **RULE: A calendar day (no clock, no timezone) is represented as `timezone.Date` everywhere in the backend** — model fields for `DATE` columns, repository signatures, query parameters compared against `DATE` columns, and API payloads (`YYYY-MM-DD`). `time.Time` is for instants only. On the frontend, calendar dates travel as `"YYYY-MM-DD"` strings and are never derived via `.toISOString()`.
@@ -13,9 +19,9 @@ DATE columns scan back as UTC midnight. This single mechanism caused dozens
 of production and test-flake fixes before the 2026-06 migration eliminated
 the bug class.
 
-`timezone.Date` (backend/internal/timezone/date.go) carries year/month/day
-with no instant and no location. Its `driver.Valuer` binds the literal string
-`'2026-06-10'` — there is nothing for the driver to shift. The old
+`timezone.Date` (backend/internal/timezone/date.go) is a string-backed
+`YYYY-MM-DD` value with no instant and no location. bun binds that string
+directly — there is nothing for the driver to shift. The old
 compensation helpers `DateOfUTC`/`TodayUTC` are deleted; the remaining
 `Today()`/`DateOf()` return instants and exist only for TIMESTAMPTZ boundary
 math.
@@ -71,10 +77,9 @@ if entry.Date == today { ... }
 q.Where("check_in_time < ?", entry.Date.EndOfDay())
 ```
 
-**NULL semantics**: `Date{}.Value()` binds NULL. On a NOT NULL column that
-fails loudly (good — no silent `0001-01-01`); in WHERE position a NULL
-comparison matches nothing. An optional date is `*timezone.Date`, never a
-zero-Date sentinel.
+**NULL semantics**: the zero value is `timezone.Date("")` and means unset; do
+not bind it as a date or use it as a sentinel. An optional date is
+`*timezone.Date`, where `nil` binds NULL.
 
 ## Enforcement
 
@@ -121,7 +126,8 @@ rg -n '\.toISOString\(\)\s*\.\s*(split|slice)' frontend/src/                  # 
 ## Scope boundary
 
 TIME WITHOUT TIME ZONE columns (wall-clock times like `11:30`) are a separate
-concern: normalize via `timezone.NormalizeWallClock()` (see rule 11 in CLAUDE.md).
+concern: normalize via `timezone.NormalizeWallClock()` (see
+[backend date/time invariants](../../backend/CLAUDE.md#calendar-dates-timezonedate-mandatory)).
 `ActivityInstance` writes have a source ratchet; other TIME-backed models still
 rely on their repository/service normalization and code review. Instants
 (TIMESTAMPTZ) stay `time.Time` everywhere.

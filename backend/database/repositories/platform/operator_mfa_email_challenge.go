@@ -56,7 +56,7 @@ func (r *OperatorMFAEmailChallengeRepository) FindActiveByOperatorID(ctx context
 		Limit(1).
 		Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find active operator mfa email challenge", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find active operator mfa email challenge", Err: base.TranslateNotFound(err)}
 	}
 	return challenge, nil
 }
@@ -70,9 +70,23 @@ func (r *OperatorMFAEmailChallengeRepository) MarkConsumed(ctx context.Context, 
 		Where("consumed_at IS NULL").
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "mark operator mfa email challenge consumed", Err: err}
+		return &modelBase.DatabaseError{Op: "mark operator mfa email challenge consumed", Err: base.TranslateNotFound(err)}
 	}
 	return base.AssertRowsAffected(res, 1, "mark operator mfa email challenge consumed")
+}
+
+func (r *OperatorMFAEmailChallengeRepository) MarkActive(ctx context.Context, id int64) error {
+	res, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*platform.OperatorMFAEmailChallenge)(nil)).
+		ModelTableExpr(operatorMFAEmailChallengeTable).
+		Set("consumed_at = NULL").
+		Where(platformWhereID, id).
+		Where("consumed_at IS NOT NULL").
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "mark operator mfa email challenge active", Err: base.TranslateNotFound(err)}
+	}
+	return base.AssertRowsAffected(res, 1, "mark operator mfa email challenge active")
 }
 
 func (r *OperatorMFAEmailChallengeRepository) CountRecentByOperatorID(ctx context.Context, operatorID int64, since time.Time) (int, error) {
@@ -83,7 +97,7 @@ func (r *OperatorMFAEmailChallengeRepository) CountRecentByOperatorID(ctx contex
 		Where("created_at >= ?", since).
 		Count(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "count recent operator mfa email challenges", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "count recent operator mfa email challenges", Err: base.TranslateNotFound(err)}
 	}
 	return count, nil
 }

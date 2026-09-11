@@ -2,7 +2,6 @@ package schedule
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"testing"
 	"time"
@@ -17,6 +16,7 @@ import (
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -123,8 +123,8 @@ func TestTimetableOperationsPlannedNowIncludesSchulhof(t *testing.T) {
 	deps := newTimetableOpsDeps()
 	deps.settings.scope = configModel.OverviewScopeAdmins
 	deps.rooms.rooms = append(deps.rooms.rooms, &facilitiesModel.Room{
-		Model: modelBase.Model{ID: schulhofRoomID},
-		Name:  constants.SchulhofRoomName,
+		ID:   schulhofRoomID,
+		Name: constants.SchulhofRoomName,
 	})
 	deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
 		instanceWithRoomAndTimes(330, schulhofRoomID, scheduleModel.InstanceStatusPlanned, now.Add(-time.Minute), now.Add(time.Hour)),
@@ -305,7 +305,7 @@ func TestTimetableOperationsPlannedNowSupportsUpcomingOptions(t *testing.T) {
 	deps.students.byID[527] = &usersModel.Student{PersonID: 437, SchoolClass: "2a"}
 	deps.personService.people[437] = &usersModel.Person{FirstName: "Lina", LastName: "Lang"}
 	pickup := time.Date(1, time.January, 1, 15, 20, 0, 0, time.UTC)
-	deps.pickupService.byStudent[527] = &EffectivePickupTime{Date: deps.instanceRepo.byDate[0].Date, PickupTime: &pickup}
+	deps.pickupService.byStudent[527] = &EffectivePickupTime{Date: timezone.Date(deps.instanceRepo.byDate[0].Date), PickupTime: &pickup}
 
 	result, err := deps.service.PlannedNow(context.Background(), 628, false, timezone.DateFromTime(now), now, PlannedNowOptions{
 		HorizonMinutes: 120,
@@ -385,6 +385,80 @@ func TestTimetableOperationsPlannedNowPastScopeKeepsVisibilityRules(t *testing.T
 	require.Len(t, result, 2)
 }
 
+// Day scope follows the operational-overview rule (#2383): under all_staff a
+// verified staff member sees the whole day including foreign blocks, decorated
+// with the planned colour, Zielgruppe and staff names; without the setting the
+// day stays own-only (#2527).
+func TestTimetableOperationsPlannedNowDayScopeFollowsOperationalOverview(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 10, 15, 0, 0, 0, time.UTC)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 634, 441, 233, 380)
+
+	activeGroupID := int64(910)
+	activityGroupID := int64(720)
+	trackID := int64(55)
+	educationGroupID := int64(66)
+	cancelReason := "Personalausfall"
+
+	own := instanceWithTimes(380, scheduleModel.InstanceStatusPlanned, now.Add(time.Hour), now.Add(2*time.Hour))
+	foreignActive := instanceWithTimes(381, scheduleModel.InstanceStatusActive, now.Add(-30*time.Minute), now.Add(30*time.Minute))
+	foreignActive.ActiveGroupID = &activeGroupID
+	foreignActive.ActivityGroupID = &activityGroupID
+	foreignCancelled := instanceWithTimes(382, scheduleModel.InstanceStatusCancelled, now.Add(-2*time.Hour), now.Add(-time.Hour))
+	foreignCancelled.CancelReason = &cancelReason
+	deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{own, foreignActive, foreignCancelled}
+	deps.staffRepo.byInstance[381] = []*scheduleModel.InstanceStaff{{StaffID: 998, IsSubstitute: true}}
+	deps.staffRepo.byInstance[382] = []*scheduleModel.InstanceStaff{{StaffID: 999}}
+
+	track := &scheduleModel.PlanningTrack{Name: "Angebote", Color: "#5080D8"}
+	track.ID = trackID
+	deps.tracks.byID[trackID] = track
+	activityGroup := &activitiesModel.Group{PlanningTrackID: &trackID, EducationGroupID: &educationGroupID}
+	activityGroup.ID = activityGroupID
+	deps.activityGroups.byID[activityGroupID] = activityGroup
+	educationGroup := &educationModel.Group{Name: "Gruppe Sonne"}
+	educationGroup.ID = educationGroupID
+	deps.groups.byID[educationGroupID] = educationGroup
+	substitute := &usersModel.Staff{Person: &usersModel.Person{FirstName: "Vera", LastName: "Vertretung"}}
+	substitute.ID = 998
+	deps.personService.staffWithPerson[998] = substitute
+
+	// Without the school-wide overview the day stays own-only.
+	result, err := deps.service.PlannedNow(context.Background(), 634, false, timezone.DateFromTime(now), now, PlannedNowOptions{Scope: PlannedNowScopeDay})
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	assert.Equal(t, int64(380), result[0].ID)
+
+	deps.settings.scope = configModel.OverviewScopeAllStaff
+	result, err = deps.service.PlannedNow(context.Background(), 634, false, timezone.DateFromTime(now), now, PlannedNowOptions{Scope: PlannedNowScopeDay})
+	require.NoError(t, err)
+	require.Len(t, result, 3)
+	byID := map[int64]OperationPlannedInstance{}
+	for _, inst := range result {
+		byID[inst.ID] = inst
+	}
+	require.Contains(t, byID, int64(381))
+	require.NotNil(t, byID[381].ActiveGroupID)
+	assert.Equal(t, activeGroupID, *byID[381].ActiveGroupID)
+	require.NotNil(t, byID[381].PlanningTrackColor)
+	assert.Equal(t, "#5080D8", *byID[381].PlanningTrackColor)
+	require.NotNil(t, byID[381].PlanningTrackName)
+	assert.Equal(t, "Angebote", *byID[381].PlanningTrackName)
+	require.NotNil(t, byID[381].GroupName)
+	assert.Equal(t, "Gruppe Sonne", *byID[381].GroupName)
+	require.Len(t, byID[381].StaffNames, 1)
+	assert.Equal(t, "Vera Vertretung", byID[381].StaffNames[0].DisplayName)
+	assert.True(t, byID[381].StaffNames[0].IsSubstitute)
+	// A running or cancelled foreign block is never startable from the day list.
+	assert.False(t, byID[381].CanStart)
+	require.Contains(t, byID, int64(382))
+	require.NotNil(t, byID[382].CancelReason)
+	assert.Equal(t, cancelReason, *byID[382].CancelReason)
+	assert.False(t, byID[382].CanStart)
+}
+
 func TestTimetableOperationsStartRequiresAStaffIdentity(t *testing.T) {
 	t.Parallel()
 
@@ -434,7 +508,7 @@ func TestTimetableOperationsRosterCombinesPlannedStudentsAndLiveDropIns(t *testi
 	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
 		{StudentID: 530, Status: scheduleModel.AttendanceStatusExpected},
 	}
-	deps.visitRepo.byActiveGroup[activeGroupID] = []*activeModel.Visit{
+	deps.visitRepo.byActiveGroup[activeGroupID] = []*studentpresence.Visit{
 		{StudentID: 531, ActiveGroupID: activeGroupID, EntryTime: time.Date(2026, time.May, 10, 14, 5, 0, 0, time.UTC)},
 	}
 	deps.visitRepo.byActiveGroup[activeGroupID][0].ID = visitID
@@ -515,7 +589,7 @@ func TestTimetableOperationsRosterLoadsEffectivePickupTimesForBlockDate(t *testi
 	deps := newTimetableOpsDeps()
 	wireAssignedStaff(deps, 664, 489, 254, instanceID)
 	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
-	deps.instanceRepo.byID[instanceID].Date = blockDate
+	deps.instanceRepo.byID[instanceID].Date = scheduleModel.Date(blockDate)
 	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
 		{StudentID: 548, Status: scheduleModel.AttendanceStatusExpected},
 		{StudentID: 549, Status: scheduleModel.AttendanceStatusExpected},
@@ -943,7 +1017,7 @@ func TestTimetableOperationsCheckInCreatesVisitAndMarksPlannedPresent(t *testing
 
 	require.NoError(t, err)
 	require.Len(t, deps.activeService.created, 1)
-	assert.Equal(t, int64(720), deps.activeService.created[0].GetTenantID())
+	assert.Equal(t, int64(720), deps.activeService.created[0].TenantID)
 	assert.Equal(t, activeGroupID, deps.activeService.created[0].ActiveGroupID)
 	require.Len(t, deps.studentRepo.updates, 1)
 	assert.Equal(t, rowID, deps.studentRepo.updates[0].rowID)
@@ -951,6 +1025,26 @@ func TestTimetableOperationsCheckInCreatesVisitAndMarksPlannedPresent(t *testing
 	assert.True(t, deps.studentRepo.updates[0].patch.SubstatusClear)
 	assert.True(t, deps.activeGroups.lastActivity[activeGroupID].After(time.Time{}))
 	assert.Equal(t, studentID, roster.Rows[0].StudentID)
+}
+
+func TestTimetableOperationsCheckInStopsWhenPresenceReadFails(t *testing.T) {
+	t.Parallel()
+
+	const instanceID, studentID = int64(381), int64(541)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 661, 471, 251, instanceID)
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, 281)
+	readErr := errors.New("presence unavailable")
+	deps.visitRepo.err = readErr
+
+	roster, err := deps.service.CheckInStudent(context.Background(), 661, false, instanceID, studentID)
+
+	require.ErrorIs(t, err, readErr)
+	assert.Nil(t, roster)
+	assert.Empty(t, deps.activeService.created)
+	assert.Empty(t, deps.activeService.moveCalls)
+	assert.Empty(t, deps.studentRepo.updates)
+	assert.Empty(t, deps.activeGroups.lastActivity)
 }
 
 func TestTimetableOperationsCheckInMovesVisitCreatedDuringCheckIn(t *testing.T) {
@@ -970,7 +1064,7 @@ func TestTimetableOperationsCheckInMovesVisitCreatedDuringCheckIn(t *testing.T) 
 	deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, studentID}] = row
 	deps.students.byID[studentID] = &usersModel.Student{PersonID: 481, SchoolClass: "2c"}
 	deps.personService.people[481] = &usersModel.Person{FirstName: "Mila", LastName: "Muster"}
-	deps.visitRepo.currentByStudentSequence[studentID] = []*activeModel.Visit{
+	deps.visitRepo.currentByStudentSequence[studentID] = []*studentpresence.Visit{
 		nil,
 		{StudentID: studentID, ActiveGroupID: originActiveGroupID, EntryTime: time.Now()},
 	}
@@ -1004,7 +1098,7 @@ func TestTimetableOperationsCheckInMovesStudentActiveElsewhere(t *testing.T) {
 		deps := newTimetableOpsDeps()
 		wireAssignedStaff(deps, 670, 490, 251, instanceID)
 		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
-		deps.visitRepo.currentByStudent[studentID] = &activeModel.Visit{StudentID: studentID, ActiveGroupID: originActiveGroupID, EntryTime: time.Now()}
+		deps.visitRepo.currentByStudent[studentID] = &studentpresence.Visit{StudentID: studentID, ActiveGroupID: originActiveGroupID, EntryTime: time.Now()}
 		deps.activeService.moveResult = &activeSvc.StudentMoveResult{
 			Moved:                  []int64{studentID},
 			PreviousActiveGroupIDs: map[int64]int64{studentID: originActiveGroupID},
@@ -1126,7 +1220,7 @@ func TestTimetableOperationsCheckOutEndsMatchingVisit(t *testing.T) {
 	deps := newTimetableOpsDeps()
 	wireAssignedStaff(deps, 671, 491, 252, instanceID)
 	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
-	deps.visitRepo.byActiveGroup[activeGroupID] = []*activeModel.Visit{{StudentID: studentID, ActiveGroupID: activeGroupID, EntryTime: time.Now()}}
+	deps.visitRepo.byActiveGroup[activeGroupID] = []*studentpresence.Visit{{StudentID: studentID, ActiveGroupID: activeGroupID, EntryTime: time.Now()}}
 	deps.visitRepo.byActiveGroup[activeGroupID][0].ID = visitID
 	deps.students.byID[studentID] = &usersModel.Student{PersonID: 492, SchoolClass: "1a"}
 	deps.personService.people[492] = &usersModel.Person{FirstName: "Ben", LastName: "Beispiel"}
@@ -1147,7 +1241,7 @@ func TestTimetableOperationsCheckOutAlreadyEndedReturnsRoster(t *testing.T) {
 	deps := newTimetableOpsDeps()
 	wireAssignedStaff(deps, 682, 504, 263, instanceID)
 	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
-	deps.visitRepo.byActiveGroup[activeGroupID] = []*activeModel.Visit{{StudentID: studentID, ActiveGroupID: activeGroupID, EntryTime: time.Now()}}
+	deps.visitRepo.byActiveGroup[activeGroupID] = []*studentpresence.Visit{{StudentID: studentID, ActiveGroupID: activeGroupID, EntryTime: time.Now()}}
 	deps.visitRepo.byActiveGroup[activeGroupID][0].ID = visitID
 	deps.activeService.endErr = activeSvc.ErrVisitAlreadyEnded
 
@@ -1338,16 +1432,56 @@ func TestTimetableOperationsPermissionBranches(t *testing.T) {
 		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
 	})
 
-	t.Run("all_staff scope allows staff without instance assignment or supervision", func(t *testing.T) {
+	t.Run("all_staff scope grants visibility but no action rights", func(t *testing.T) {
 		deps := newTimetableOpsDeps()
 		deps.settings.scope = configModel.OverviewScopeAllStaff
 		wireAssignedStaff(deps, 693, 515, 274, instanceID)
 		deps.staffRepo.byInstance[instanceID] = nil
+		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
 
-		_, err := deps.service.Complete(context.Background(), 693, false, instanceID)
-
+		_, err := deps.service.Roster(context.Background(), 693, false, instanceID)
 		require.NoError(t, err)
-		assert.Equal(t, []int64{instanceID}, deps.instanceService.completed)
+
+		_, err = deps.service.Complete(context.Background(), 693, false, instanceID)
+		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+		assert.Empty(t, deps.instanceService.completed)
+	})
+
+	t.Run("all_staff scope rejects non-running rosters", func(t *testing.T) {
+		now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
+		for _, tc := range []struct {
+			name     string
+			instance *scheduleModel.ActivityInstance
+		}{
+			{
+				name:     "planned",
+				instance: instanceWithTimes(instanceID, scheduleModel.InstanceStatusPlanned, now, now.Add(time.Hour)),
+			},
+			{
+				name:     "completed",
+				instance: instanceWithTimes(instanceID, scheduleModel.InstanceStatusCompleted, now.Add(-time.Hour), now),
+			},
+			{
+				name:     "cancelled",
+				instance: instanceWithTimes(instanceID, scheduleModel.InstanceStatusCancelled, now, now.Add(time.Hour)),
+			},
+			{
+				name:     "active without active group",
+				instance: instanceWithTimes(instanceID, scheduleModel.InstanceStatusActive, now, now.Add(time.Hour)),
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				deps := newTimetableOpsDeps()
+				deps.settings.scope = configModel.OverviewScopeAllStaff
+				wireAssignedStaff(deps, 694, 516, 275, instanceID)
+				deps.staffRepo.byInstance[instanceID] = nil
+				deps.instanceRepo.byID[instanceID] = tc.instance
+
+				_, err := deps.service.Roster(context.Background(), 694, false, instanceID)
+
+				require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+			})
+		}
 	})
 
 	// The organisational group mode no longer opens running modules (#2380):
@@ -1399,9 +1533,9 @@ func TestTimetableOperationsPermissionBranches(t *testing.T) {
 		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
 	})
 
-	t.Run("admins scope allows an admin without a staff identity", func(t *testing.T) {
+	t.Run("admin can operate regardless of overview scope", func(t *testing.T) {
 		deps := newTimetableOpsDeps()
-		deps.settings.scope = configModel.OverviewScopeAdmins
+		deps.settings.scope = configModel.OverviewScopeOwn
 
 		_, err := deps.service.Complete(context.Background(), 697, true, instanceID)
 
@@ -1451,8 +1585,8 @@ func TestTimetableOperationsCheckInBranches(t *testing.T) {
 		row.ID = 411
 		deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, studentID}] = row
 		deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{row}
-		deps.visitRepo.currentByStudent[studentID] = &activeModel.Visit{StudentID: studentID, ActiveGroupID: activeGroupID, EntryTime: time.Now()}
-		deps.visitRepo.byActiveGroup[activeGroupID] = []*activeModel.Visit{deps.visitRepo.currentByStudent[studentID]}
+		deps.visitRepo.currentByStudent[studentID] = &studentpresence.Visit{StudentID: studentID, ActiveGroupID: activeGroupID, EntryTime: time.Now()}
+		deps.visitRepo.byActiveGroup[activeGroupID] = []*studentpresence.Visit{deps.visitRepo.currentByStudent[studentID]}
 		deps.students.byID[studentID] = &usersModel.Student{PersonID: 500, SchoolClass: "4a"}
 		deps.personService.people[500] = &usersModel.Person{FirstName: "Tom", LastName: "Test"}
 
@@ -1601,9 +1735,9 @@ func TestTimetableOperationsDependencyErrorsPropagate(t *testing.T) {
 		deps := newTimetableOpsDeps()
 		wireAssignedStaff(deps, 685, 507, 265, instanceID)
 		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
-		visit := &activeModel.Visit{StudentID: 561, ActiveGroupID: activeGroupID, EntryTime: time.Now()}
+		visit := &studentpresence.Visit{StudentID: 561, ActiveGroupID: activeGroupID, EntryTime: time.Now()}
 		visit.ID = 418
-		deps.visitRepo.byActiveGroup[activeGroupID] = []*activeModel.Visit{visit}
+		deps.visitRepo.byActiveGroup[activeGroupID] = []*studentpresence.Visit{visit}
 		deps.activeService.endErr = errors.New("end failed")
 
 		result, err := deps.service.CheckOutStudent(context.Background(), 685, false, instanceID, 561)
@@ -1729,20 +1863,20 @@ func TestTimetableOperationsDependencyAndErrorBranches(t *testing.T) {
 
 	deps := newTimetableOpsDeps()
 	// A settings fault must fail closed for every caller shape (#2380).
-	deps.settings.err = errors.New("settings down")
+	deps.settings.stringErr = errors.New("settings down")
 	assert.False(t, deps.service.(*timetableOperationsService).operationalOverview(context.Background(), true, true))
 	assert.False(t, deps.service.(*timetableOperationsService).operationalOverview(context.Background(), false, true))
 	assert.False(t, deps.service.(*timetableOperationsService).operationalOverview(context.Background(), false, false))
 
 	deps.personService.accountPerson = &usersModel.Person{}
 	deps.personService.accountPerson.ID = 505
-	deps.personService.staffErr = sql.ErrNoRows
+	deps.personService.staffErr = modelBase.ErrNotFound
 	staffID, hasStaff, err := deps.service.(*timetableOperationsService).resolveStaffID(context.Background(), 683)
 	require.NoError(t, err)
 	assert.Zero(t, staffID)
 	assert.False(t, hasStaff)
 
-	deps.instanceRepo.err = sql.ErrNoRows
+	deps.instanceRepo.err = modelBase.ErrNotFound
 	inst, err := deps.service.(*timetableOperationsService).loadInstance(context.Background(), 415)
 	require.ErrorIs(t, err, ErrTimetableOperationNotFound)
 	assert.Nil(t, inst)
@@ -1840,7 +1974,7 @@ func instanceWithTimes(id int64, status string, start, end time.Time) *scheduleM
 
 func instanceWithRoomAndTimes(id, roomID int64, status string, start, end time.Time) *scheduleModel.ActivityInstance {
 	inst := &scheduleModel.ActivityInstance{
-		Date:      timezone.NewDate(start.Year(), start.Month(), start.Day()),
+		Date:      scheduleModel.NewDate(start.Year(), start.Month(), start.Day()),
 		Title:     "Lernzeit",
 		StartTime: start,
 		EndTime:   end,
@@ -1875,9 +2009,25 @@ type timetableOpsTestDeps struct {
 	groups          *fakeOpsEducationGroupRepo
 	rooms           *fakeOpsRoomRepo
 	personService   *fakeOpsPersonService
+	tracks          *fakeOpsPlanningTrackRepo
 	settings        *fakeOpsSettings
 	broadcaster     *testpkg.RecordingBroadcaster
 	careDayService  *fakeOpsCareDayService
+}
+
+type fakeOpsPlanningTrackRepo struct {
+	scheduleModel.PlanningTrackRepository
+	byID map[int64]*scheduleModel.PlanningTrack
+}
+
+func (r *fakeOpsPlanningTrackRepo) FindByIDs(_ context.Context, ids []int64) ([]*scheduleModel.PlanningTrack, error) {
+	tracks := make([]*scheduleModel.PlanningTrack, 0, len(ids))
+	for _, id := range ids {
+		if track := r.byID[id]; track != nil {
+			tracks = append(tracks, track)
+		}
+	}
+	return tracks, nil
 }
 
 // fakeOpsCareDayService reports the care-plan verdict per student. Empty by
@@ -1925,14 +2075,15 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 		careDayService:  &fakeOpsCareDayService{byStudent: map[int64]CareDayStatus{}},
 		supervisors:     &fakeOpsSupervisorRepo{byActiveGroup: map[int64][]*activeModel.GroupSupervisor{}},
 		visitRepo: &fakeOpsVisitRepo{
-			byActiveGroup:            map[int64][]*activeModel.Visit{},
-			currentByStudent:         map[int64]*activeModel.Visit{},
-			currentByStudentSequence: map[int64][]*activeModel.Visit{},
+			byActiveGroup:            map[int64][]*studentpresence.Visit{},
+			currentByStudent:         map[int64]*studentpresence.Visit{},
+			currentByStudentSequence: map[int64][]*studentpresence.Visit{},
 		},
 		students:      &fakeOpsStudentRepo{byID: map[int64]*usersModel.Student{}},
 		groups:        &fakeOpsEducationGroupRepo{byID: map[int64]*educationModel.Group{}},
-		rooms:         &fakeOpsRoomRepo{rooms: []*facilitiesModel.Room{{Model: modelBase.Model{ID: 810}, Name: "Lernraum"}}},
-		personService: &fakeOpsPersonService{people: map[int64]*usersModel.Person{}, staffByPersonID: map[int64]*usersModel.Staff{}},
+		rooms:         &fakeOpsRoomRepo{rooms: []*facilitiesModel.Room{{ID: 810, Name: "Lernraum"}}},
+		personService: &fakeOpsPersonService{people: map[int64]*usersModel.Person{}, staffByPersonID: map[int64]*usersModel.Staff{}, staffWithPerson: map[int64]*usersModel.Staff{}},
+		tracks:        &fakeOpsPlanningTrackRepo{byID: map[int64]*scheduleModel.PlanningTrack{}},
 		settings:      &fakeOpsSettings{},
 		broadcaster:   testpkg.NewRecordingBroadcaster(),
 	}
@@ -1948,11 +2099,12 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 		ArrivalService:     deps.arrivalService,
 		PickupService:      deps.pickupService,
 		SupervisorRepo:     deps.supervisors,
-		VisitRepo:          deps.visitRepo,
+		Presence:           deps.visitRepo,
 		StudentRepo:        deps.students,
 		EducationGroupRepo: deps.groups,
 		RoomRepo:           deps.rooms,
 		PersonService:      deps.personService,
+		PlanningTrackRepo:  deps.tracks,
 		Settings:           deps.settings,
 		Broadcaster:        deps.broadcaster,
 		DB:                 &bun.DB{},
@@ -1975,7 +2127,7 @@ func (r *fakeOpsInstanceRepo) FindByID(_ context.Context, id interface{}) (*sche
 	return r.byID[id.(int64)], nil
 }
 
-func (r *fakeOpsInstanceRepo) FindByTenantAndDate(_ context.Context, _ timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (r *fakeOpsInstanceRepo) FindByTenantAndDate(_ context.Context, _ scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
 	if r.findByDateErr != nil {
 		return nil, r.findByDateErr
 	}
@@ -2024,7 +2176,7 @@ type fakeOpsInstanceStudentRepo struct {
 	parallelPresenceCall int
 }
 
-func (r *fakeOpsInstanceStudentRepo) FindPresentInOtherActiveInstances(_ context.Context, excludeInstanceID int64, _ timezone.Date, studentIDs []int64) ([]scheduleModel.ParallelPresence, error) {
+func (r *fakeOpsInstanceStudentRepo) FindPresentInOtherActiveInstances(_ context.Context, excludeInstanceID int64, _ scheduleModel.Date, studentIDs []int64) ([]scheduleModel.ParallelPresence, error) {
 	r.parallelPresenceCall++
 	if r.parallelPresenceErr != nil {
 		return nil, r.parallelPresenceErr
@@ -2103,7 +2255,7 @@ type fakeOpsActiveGroupRepo struct {
 func (r *fakeOpsActiveGroupRepo) FindByID(_ context.Context, id interface{}) (*activeModel.Group, error) {
 	group := r.byID[id.(int64)]
 	if group == nil {
-		return nil, sql.ErrNoRows
+		return nil, modelBase.ErrNotFound
 	}
 	return group, nil
 }
@@ -2137,13 +2289,26 @@ func (r *fakeOpsActivityGroupRepo) FindByID(_ context.Context, id interface{}) (
 	}
 	group := r.byID[id.(int64)]
 	if group == nil {
-		return nil, sql.ErrNoRows
+		return nil, modelBase.ErrNotFound
 	}
 	return group, nil
 }
 
+func (r *fakeOpsActivityGroupRepo) FindByIDs(_ context.Context, ids []int64) ([]*activitiesModel.Group, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	groups := make([]*activitiesModel.Group, 0, len(ids))
+	for _, id := range ids {
+		if group := r.byID[id]; group != nil {
+			groups = append(groups, group)
+		}
+	}
+	return groups, nil
+}
+
 type fakeOpsActiveService struct {
-	created    []*activeModel.Visit
+	created    []*studentpresence.Visit
 	ended      []int64
 	createErr  error
 	endErr     error
@@ -2169,7 +2334,7 @@ func (s *fakeOpsActiveService) MoveStudentsToActiveGroupAuthorized(_ context.Con
 	return &activeSvc.StudentMoveResult{Moved: studentIDs, ActiveGroupID: &activeGroupID}, nil
 }
 
-func (s *fakeOpsActiveService) CreateVisit(_ context.Context, visit *activeModel.Visit) error {
+func (s *fakeOpsActiveService) CreateVisit(_ context.Context, visit *studentpresence.Visit) error {
 	if s.createErr != nil {
 		return s.createErr
 	}
@@ -2241,27 +2406,34 @@ func (r *fakeOpsSupervisorRepo) FindByActiveGroupID(_ context.Context, activeGro
 }
 
 type fakeOpsVisitRepo struct {
-	activeModel.VisitRepository
-	byActiveGroup            map[int64][]*activeModel.Visit
-	currentByStudent         map[int64]*activeModel.Visit
-	currentByStudentSequence map[int64][]*activeModel.Visit
+	StudentVisitReader
+	byActiveGroup            map[int64][]*studentpresence.Visit
+	currentByStudent         map[int64]*studentpresence.Visit
+	currentByStudentSequence map[int64][]*studentpresence.Visit
 	err                      error
 }
 
-func (r *fakeOpsVisitRepo) FindByActiveGroupID(_ context.Context, activeGroupID int64) ([]*activeModel.Visit, error) {
+func (r *fakeOpsVisitRepo) ListVisits(_ context.Context, filter studentpresence.VisitFilter) ([]studentpresence.Visit, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
-	return r.byActiveGroup[activeGroupID], nil
-}
-
-func (r *fakeOpsVisitRepo) GetCurrentByStudentID(_ context.Context, studentID int64) (*activeModel.Visit, error) {
-	if sequence := r.currentByStudentSequence[studentID]; len(sequence) > 0 {
-		current := sequence[0]
-		r.currentByStudentSequence[studentID] = sequence[1:]
-		return current, nil
+	if len(filter.ActiveGroupIDs) > 0 {
+		var visits []studentpresence.Visit
+		for _, visit := range r.byActiveGroup[filter.ActiveGroupIDs[0]] {
+			visits = append(visits, *visit)
+		}
+		return visits, nil
 	}
-	return r.currentByStudent[studentID], nil
+	studentID := filter.StudentIDs[0]
+	current := r.currentByStudent[studentID]
+	if sequence := r.currentByStudentSequence[studentID]; len(sequence) > 0 {
+		current = sequence[0]
+		r.currentByStudentSequence[studentID] = sequence[1:]
+	}
+	if current == nil {
+		return nil, nil
+	}
+	return []studentpresence.Visit{*current}, nil
 }
 
 type fakeOpsStudentRepo struct {
@@ -2312,6 +2484,7 @@ type fakeOpsPersonService struct {
 	accountErr      error
 	people          map[int64]*usersModel.Person
 	staffByPersonID map[int64]*usersModel.Staff
+	staffWithPerson map[int64]*usersModel.Staff
 	staffErr        error
 }
 
@@ -2337,6 +2510,16 @@ func (s *fakeOpsPersonService) GetStaffByPersonID(_ context.Context, personID in
 		return nil, s.staffErr
 	}
 	return s.staffByPersonID[personID], nil
+}
+
+func (s *fakeOpsPersonService) GetStaffWithPersonByIDs(_ context.Context, ids []int64) (map[int64]*usersModel.Staff, error) {
+	out := map[int64]*usersModel.Staff{}
+	for _, id := range ids {
+		if staff := s.staffWithPerson[id]; staff != nil {
+			out[id] = staff
+		}
+	}
+	return out, nil
 }
 
 type fakeOpsSettings struct {

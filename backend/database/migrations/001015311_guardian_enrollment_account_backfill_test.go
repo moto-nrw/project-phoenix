@@ -9,35 +9,27 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-func insertGuardianBackfillRequest(t *testing.T, db *bun.DB, phaseID int64, email string, accountID *int64) *enrollmentModels.Request {
+func insertGuardianBackfillRequest(t *testing.T, db *testpkg.DB, phaseID int64, email string, accountID *int64) int64 {
 	t.Helper()
-	request := &enrollmentModels.Request{
-		PhaseID:           phaseID,
-		GuardianFirstName: "Guardian",
-		GuardianLastName:  "Backfill",
-		GuardianEmail:     email,
-		GuardianAccountID: accountID,
-		ConsentFlags:      map[string]any{},
-		CustomData:        map[string]any{},
-		SubmissionSource:  enrollmentModels.RequestSourcePublic,
-		SourceMetadata:    map[string]any{},
-		StatusToken:       fmt.Sprintf("guardian-account-backfill-%d", time.Now().UnixNano()),
-		SubmittedAt:       time.Now(),
-	}
-	request.SetTenantID(testpkg.Tenant(t))
-	_, err := db.NewInsert().Model(request).ModelTableExpr(`enrollment.requests AS "request"`).Exec(context.Background())
-	require.NoError(t, err)
-	return request
+	var id int64
+	require.NoError(t, db.NewRaw(`
+		INSERT INTO enrollment.requests
+			(tenant_id, phase_id, guardian_first_name, guardian_last_name, guardian_email,
+			 guardian_account_id, consent_flags, custom_data, submission_source,
+			 source_metadata, status_token, submitted_at)
+		VALUES (?, ?, 'Guardian', 'Backfill', ?, ?, '{}'::jsonb, '{}'::jsonb,
+			'public', '{}'::jsonb, ?, ?)
+		RETURNING id
+	`, testpkg.Tenant(t), phaseID, email, accountID,
+		fmt.Sprintf("guardian-account-backfill-%d", time.Now().UnixNano()), time.Now()).Scan(context.Background(), &id))
+	return id
 }
 
-func guardianAccountIDForRequest(t *testing.T, db *bun.DB, requestID int64) *int64 {
+func guardianAccountIDForRequest(t *testing.T, db *testpkg.DB, requestID int64) *int64 {
 	t.Helper()
 	var accountID *int64
 	require.NoError(t, db.NewRaw(`
@@ -71,27 +63,28 @@ func TestGuardianEnrollmentAccountBackfill(t *testing.T) {
 	unrelated := insertGuardianBackfillRequest(t, db, phase.ID, "no-account@example.invalid", nil)
 
 	ambiguousAccount := testpkg.CreateTestAccount(t, db, "guardian-backfill-ambiguous")
-	duplicate := &authModels.Account{Email: strings.ToUpper(ambiguousAccount.Email), Active: true}
-	_, err = db.NewInsert().Model(duplicate).ModelTableExpr(`auth.accounts AS "account"`).Exec(context.Background())
-	require.NoError(t, err)
-	testpkg.EnsureAccountTenant(t, db, duplicate.ID, testpkg.Tenant(t))
+	var duplicateID int64
+	require.NoError(t, db.NewRaw(`
+		INSERT INTO auth.accounts (email, active) VALUES (?, TRUE) RETURNING id
+	`, strings.ToUpper(ambiguousAccount.Email)).Scan(context.Background(), &duplicateID))
+	testpkg.EnsureAccountTenant(t, db, duplicateID, testpkg.Tenant(t))
 	ambiguous := insertGuardianBackfillRequest(t, db, phase.ID, ambiguousAccount.Email, nil)
 
 	require.NoError(t, guardianEnrollmentAccountBackfillUp(context.Background(), db))
 
-	matchingAccountID := guardianAccountIDForRequest(t, db, matching.ID)
+	matchingAccountID := guardianAccountIDForRequest(t, db, matching)
 	require.NotNil(t, matchingAccountID)
 	assert.Equal(t, uniqueAccount.ID, *matchingAccountID)
-	alreadyLinkedAccountID := guardianAccountIDForRequest(t, db, alreadyLinked.ID)
+	alreadyLinkedAccountID := guardianAccountIDForRequest(t, db, alreadyLinked)
 	require.NotNil(t, alreadyLinkedAccountID)
 	assert.Equal(t, existingOwner.ID, *alreadyLinkedAccountID)
-	assert.Nil(t, guardianAccountIDForRequest(t, db, unrelated.ID))
-	assert.Nil(t, guardianAccountIDForRequest(t, db, ambiguous.ID))
-	assert.Nil(t, guardianAccountIDForRequest(t, db, staffOnly.ID), "staff-only accounts must not receive enrollment ownership")
+	assert.Nil(t, guardianAccountIDForRequest(t, db, unrelated))
+	assert.Nil(t, guardianAccountIDForRequest(t, db, ambiguous))
+	assert.Nil(t, guardianAccountIDForRequest(t, db, staffOnly), "staff-only accounts must not receive enrollment ownership")
 
 	require.NoError(t, guardianEnrollmentAccountBackfillUp(context.Background(), db), "backfill must be idempotent")
 	require.NoError(t, guardianEnrollmentAccountBackfillDown(context.Background(), db))
-	matchingAccountID = guardianAccountIDForRequest(t, db, matching.ID)
+	matchingAccountID = guardianAccountIDForRequest(t, db, matching)
 	require.NotNil(t, matchingAccountID)
 	assert.Equal(t, uniqueAccount.ID, *matchingAccountID, "down migration must not erase valid ownership")
 }

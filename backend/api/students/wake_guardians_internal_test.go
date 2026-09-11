@@ -25,7 +25,7 @@ func TestResourceWakeChildGuardians(t *testing.T) {
 	// emitter). A bare emitter is a non-nil pointer, which is all the guard needs.
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&buf, nil))
-	emitter := parentmessaging.NewEmitter(nil, nil, nil, nil, nil, logger)
+	emitter := parentmessaging.NewEmitter(nil)
 	(&Resource{ResourceConfig: ResourceConfig{ParentEventEmitter: emitter, Logger: logger}}).
 		wakeChildGuardians(0, 100)
 	assert.Contains(t, buf.String(), "no tenant context")

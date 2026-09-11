@@ -5,13 +5,25 @@ import "testing"
 func TestCorrelationIDFromRequest_PreservesProvidedValue(t *testing.T) {
 	t.Parallel()
 
-	const requestValue = "edge-proxy/request-42"
+	const requestValue = "8dc3a9ca-8ac7-4b8e-9bfa-3c17760d92c0"
 	id, err := CorrelationIDFromRequest(requestValue)
 	if err != nil {
 		t.Fatalf("CorrelationIDFromRequest() error = %v", err)
 	}
 	if got := id.String(); got != requestValue {
 		t.Fatalf("CorrelationIDFromRequest() = %q, want %q", got, requestValue)
+	}
+}
+
+func TestCorrelationIDFromRequest_ReplacesUntrustedValue(t *testing.T) {
+	t.Parallel()
+
+	id, err := CorrelationIDFromRequest("student-Erika-Mustermann")
+	if err != nil {
+		t.Fatalf("CorrelationIDFromRequest() error = %v", err)
+	}
+	if id.String() == "" || id.String() == "student-Erika-Mustermann" {
+		t.Fatalf("CorrelationIDFromRequest() = %q, want generated UUID", id.String())
 	}
 }
 

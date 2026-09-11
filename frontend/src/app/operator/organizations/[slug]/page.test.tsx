@@ -12,6 +12,7 @@ import {
   screen,
   fireEvent,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -134,13 +135,26 @@ vi.mock("~/components/ui/modal", () => ({
         <div data-testid="modal-footer">{footer}</div>
       </div>
     ) : null,
-  ConfirmationModal: ({ isOpen, children, title, onConfirm }: any) =>
+  ConfirmationModal: ({
+    isOpen,
+    children,
+    title,
+    onConfirm,
+    confirmText = "Bestätigen",
+    isConfirmDisabled,
+    isConfirmLoading,
+  }: any) =>
     isOpen ? (
-      <div data-testid="confirmation-modal">
+      <div role="dialog" aria-label={title} data-testid="confirmation-modal">
         <h2>{title}</h2>
         {children}
-        <button type="button" data-testid="confirm-btn" onClick={onConfirm}>
-          Bestätigen
+        <button
+          type="button"
+          data-testid="confirm-btn"
+          onClick={onConfirm}
+          disabled={isConfirmDisabled || isConfirmLoading}
+        >
+          {confirmText}
         </button>
       </div>
     ) : null,
@@ -832,17 +846,16 @@ describe("OperatorOrganizationDetailPage", () => {
 
     fireEvent.click(await screen.findByText("Löschen"));
 
-    // SoftDeleteConfirmationModal renders an input that requires the org name.
-    const confirmInput = await screen.findByLabelText(
-      /Geben Sie den Trägernamen ein/,
+    // Soft-Delete mit Papierkorb: zweistufige ConfirmDeleteModal ohne
+    // Namenseingabe (#3110).
+    expect(
+      await screen.findByRole("heading", { name: "Träger löschen" }),
+    ).toBeInTheDocument();
+    const footer = screen.getByTestId("modal-footer");
+    fireEvent.click(within(footer).getByRole("button", { name: "Löschen" }));
+    fireEvent.click(
+      within(footer).getByRole("button", { name: "Endgültig löschen" }),
     );
-    fireEvent.change(confirmInput, { target: { value: "Test Org" } });
-
-    // The shared SoftDeleteConfirmationModal uses "Löschen" as its primary
-    // button label. Pick the latest one (inside the modal), not the one
-    // that opens the modal in the header.
-    const deleteButtons = screen.getAllByRole("button", { name: "Löschen" });
-    fireEvent.click(deleteButtons[deleteButtons.length - 1]!);
 
     await waitFor(() => {
       expect(mockSoftDeleteOrganization).toHaveBeenCalledWith("1");

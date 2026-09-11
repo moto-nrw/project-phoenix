@@ -41,6 +41,19 @@ vi.mock("~/lib/tenant-router", () => ({
   useTenantRouter: () => ({ push: mockPush }),
 }));
 
+vi.mock("~/lib/supervision-context", () => ({
+  useOptionalSupervision: () => ({
+    hasGroups: false,
+    isSupervising: false,
+    isLoadingGroups: false,
+    isLoadingSupervision: false,
+    overviewEnabled: false,
+    supervisedRooms: [],
+    groups: [],
+    refresh: () => undefined,
+  }),
+}));
+
 vi.mock("~/lib/tenant-context", () => ({
   useTenant: () => ({ tenantSlug: "t", tenant: null }),
   useTenantSafe: () => ({
@@ -51,6 +64,7 @@ vi.mock("~/lib/tenant-context", () => ({
   usePresenceMode: () => "detailed",
   useAttendanceWebEnabled: vi.fn(() => true),
   useNFCEnabled: () => true,
+  useOpenCareGroupMode: () => false,
   TenantProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 

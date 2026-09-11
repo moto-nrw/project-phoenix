@@ -7,16 +7,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -115,16 +118,15 @@ func checkinEventsOnTopic(b *testpkg.RecordingBroadcaster, topic string) []realt
 func newDailyCheckoutService(t *testing.T, db *bun.DB) (active.Service, *testpkg.RecordingBroadcaster) {
 	t.Helper()
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
 	svc := active.NewService(active.ServiceDependencies{
 		GroupRepo:          repos.ActiveGroup,
-		VisitRepo:          repos.ActiveVisit,
 		SupervisorRepo:     repos.GroupSupervisor,
 		CombinedGroupRepo:  repos.CombinedGroup,
 		GroupMappingRepo:   repos.GroupMapping,
-		AttendanceRepo:     repos.Attendance,
+		SchoolPresence:     testSchoolPresence(t, db),
 		StudentRepo:        repos.Student,
 		PersonRepo:         repos.Person,
 		TeacherRepo:        repos.Teacher,
@@ -148,6 +150,9 @@ func newDailyCheckoutService(t *testing.T, db *bun.DB) (active.Service, *testpkg
 		Logger:      slog.Default(),
 	})
 
+	svc.SetSettingsService(&configtest.Mock{ResolveStringFn: func(_ context.Context, key string) (string, error) {
+		return configModel.GetDefinition(key).Default.(string), nil
+	}})
 	return svc, broadcaster
 }
 
@@ -552,10 +557,10 @@ func TestCheckin_RoomCheckinBroadcastsOnce(t *testing.T) {
 
 	staff := &usersModels.Staff{}
 	staff.ID = f.staffID
-	ctx := context.WithValue(testpkg.Ctx(t), device.CtxStaff, staff)
+	ctx := context.WithValue(testpkg.Ctx(t), device.CtxStaff, staffPrincipal(staff))
 	broadcaster.Reset()
 
-	visit := &activeModels.Visit{
+	visit := &studentpresence.Visit{
 		StudentID:     f.studentID,
 		ActiveGroupID: f.activeGroupID,
 		EntryTime:     time.Now(),

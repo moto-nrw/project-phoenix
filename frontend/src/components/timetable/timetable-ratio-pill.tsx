@@ -31,7 +31,7 @@ function darkenHex(hex: string, amount: number): string {
 interface TimetableRatioPillProps {
   readonly icon: ReactNode;
   readonly label: string;
-  /** e.g. "2 / 3" or "—" when there is nothing to count. */
+  /** e.g. "2 / 3" or "–" when there is nothing to count. */
   readonly value: string;
   readonly tone: TimetableTone;
   /**

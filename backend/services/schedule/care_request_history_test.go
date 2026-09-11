@@ -37,7 +37,10 @@ func TestListHistory_DecidedRequestsWithReviewerAndSummary(t *testing.T) {
 	second := f.createPending(t, careWeekdays(
 		map[string]any{"weekday": 2, "arrival": "07:30"},
 	))
-	_, err = f.svc.WithdrawRequest(f.staffCtx(f.chain.AccountID), second.ID, f.chain.StudentID, f.chain.AccountID)
+	// Withdrawal is retired (#2267); the status stays valid for historic rows.
+	err = f.repos.CareScheduleChangeRequest.Decide(
+		f.staffCtx(f.chain.AccountID), second.ID, scheduleModels.CareRequestStatusWithdrawn, nil, nil, false,
+	)
 	require.NoError(t, err)
 
 	// Request 3: still pending — must never surface in the history.
@@ -89,8 +92,8 @@ func TestListHistory_DecidedRequestsWithReviewerAndSummary(t *testing.T) {
 func TestListHistory_IncludesPickupChangeWithPayloadSummary(t *testing.T) {
 	t.Parallel()
 
-	f := newCareFixture(t)
-	date := timezone.TodayDate().AddDays(1)
+	f := newPickupChangeFixture(t)
+	date := timezone.NewDate(2026, 8, 24).AddDays(1)
 	pickupTime := time.Date(0, 1, 1, 15, 30, 0, 0, time.UTC)
 
 	req, err := f.svc.CreatePickupChangeRequest(

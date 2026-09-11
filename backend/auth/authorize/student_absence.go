@@ -3,9 +3,12 @@ package authorize
 import (
 	"context"
 	"errors"
+)
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/models/users"
+const (
+	usersUpdate  = "users:update"
+	usersAbsence = "users:absence"
+	usersRead    = "users:read"
 )
 
 // ErrAbsenceReadRequired is the denial for a caller holding users:absence
@@ -23,8 +26,8 @@ var ErrAbsenceReadRequired = errors.New("the users:read permission is required a
 // holder's read requirements are that permission's own business; a caller
 // admitted purely by users:absence gets the prerequisite on every path.
 func absenceOnlyAuthority(userPermissions []string) bool {
-	return !HasPermission(permissions.UsersUpdate, userPermissions) &&
-		HasPermission(permissions.UsersAbsence, userPermissions)
+	return !HasPermission(usersUpdate, userPermissions) &&
+		HasPermission(usersAbsence, userPermissions)
 }
 
 // CanManageStudentAbsence decides whether the caller may write a child's
@@ -48,36 +51,13 @@ func absenceOnlyAuthority(userPermissions []string) bool {
 func CanManageStudentAbsence(
 	ctx context.Context,
 	userPermissions []string,
-	student *users.Student,
+	student authorizationStudent,
 	userCtx StudentAccessUserContext,
 ) (bool, error) {
-	if absenceOnlyAuthority(userPermissions) && !HasPermission(permissions.UsersRead, userPermissions) {
+	if absenceOnlyAuthority(userPermissions) && !HasPermission(usersRead, userPermissions) {
 		return false, ErrAbsenceReadRequired
 	}
 	return CanModifyStudent(ctx, userPermissions, student, userCtx, "update")
-}
-
-// AbsenceWritableStudentFilter is the set form of CanManageStudentAbsence,
-// resolving the caller's verdict once so a caller-side loop — the
-// excused-request review queue and its sidebar badge — does not re-resolve it
-// per student.
-//
-// Callers that scope a queue with this MUST gate the corresponding write with
-// CanManageStudentAbsence too: the filter decides visibility, the gate decides
-// the write, and they have to agree. That includes the read prerequisite: a
-// caller admitted on users:absence alone, without users:read, sees no child
-// here either — otherwise the queue would list entries the gate then refuses.
-func AbsenceWritableStudentFilter(
-	ctx context.Context,
-	userPermissions []string,
-	userCtx StudentAccessUserContext,
-) func(*users.Student) bool {
-	if !HasAdminWildcard(userPermissions) &&
-		absenceOnlyAuthority(userPermissions) &&
-		!HasPermission(permissions.UsersRead, userPermissions) {
-		return func(*users.Student) bool { return false }
-	}
-	return WritableStudentFilter(ctx, userPermissions, userCtx)
 }
 
 // CanReviewExcusedAbsenceRequests reports whether the caller may open and
@@ -95,9 +75,21 @@ func AbsenceWritableStudentFilter(
 // Per-child scope is decided separately (AbsenceWritableStudentFilter /
 // CanManageStudentAbsence); this is only the coarse permission question.
 func CanReviewExcusedAbsenceRequests(userPermissions []string) bool {
-	if HasPermission(permissions.UsersUpdate, userPermissions) {
+	if HasPermission(usersUpdate, userPermissions) {
 		return true
 	}
-	return HasPermission(permissions.UsersAbsence, userPermissions) &&
-		HasPermission(permissions.UsersRead, userPermissions)
+	return HasPermission(usersAbsence, userPermissions) &&
+		HasPermission(usersRead, userPermissions)
+}
+
+// AbsenceReadPrerequisiteUnmet reports whether the caller's only claim on
+// absence work is users:absence while users:read is missing — the pair
+// CanManageStudentAbsence requires. Exported so the parent-request review
+// policy can refuse the same callers the write gate would refuse, instead of
+// silently serving them an empty queue.
+func AbsenceReadPrerequisiteUnmet(userPermissions []string) bool {
+	if HasAdminWildcard(userPermissions) {
+		return false
+	}
+	return absenceOnlyAuthority(userPermissions) && !HasPermission(usersRead, userPermissions)
 }

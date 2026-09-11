@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy, Pencil, Plus, Trash2 } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -33,7 +32,21 @@ import {
   type CareOfferingBookingStats,
   fetchCareOfferingBookingStats,
 } from "~/lib/care-offering-booking-stats";
+import { Alert } from "~/components/ui/alert";
+import { useFormError } from "~/components/ui/form-error";
+import { Button, ButtonLink } from "~/components/ui/button";
+import { CheckboxCard } from "~/components/ui/checkbox-card";
+import { ToggleChip } from "~/components/ui/toggle-chip";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
+import {
+  SlideOver,
+  SlideOverBody,
+  SlideOverContent,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
 import { type Phase, listPhases } from "~/lib/enrollment-phase-api";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
@@ -58,6 +71,7 @@ import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { FeaturePill } from "~/components/enrollment/feature-pill";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { formatOfferingPrice } from "~/lib/care-offering-format";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 
 const logger = createLogger({ component: "CareOfferingsEditor" });
 
@@ -389,7 +403,18 @@ function linkedTemplateWarnings(
   return warnings;
 }
 
-export function CareOfferingsEditor() {
+export function CareOfferingsEditor({
+  onSummaryChange,
+}: {
+  /**
+   * Meldet Gesamtzahl und aktive Angebote an den Seitenkopf, damit dessen
+   * Statuszeile aus denselben Daten lebt statt aus einem zweiten Request.
+   * `null` heißt: noch am Laden.
+   */
+  readonly onSummaryChange?: (
+    summary: { total: number; active: number } | null,
+  ) => void;
+} = {}) {
   const { tenant } = useTenant();
   const gradeLevelMax = isSupportedGradeLevelMax(tenant?.gradeLevelMax)
     ? tenant.gradeLevelMax
@@ -410,12 +435,14 @@ export function CareOfferingsEditor() {
     useState<PlannerMetadataStatus>("loading");
   const [loading, setLoading] = useState(true);
   const [catalogError, setCatalogError] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useFormError();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<CareOfferingInput | null>(null);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [cloneSource, setCloneSource] = useState<CareOffering | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<CareOffering | null>(null);
+  const [deleteError, setDeleteError] = useState("");
   // Booking stats are display-only (#2186): the availability-rule editor uses
   // them to say how many existing bookings a rule would contradict. A failure
   // to load them must never block catalog editing, so it is logged and the
@@ -429,6 +456,13 @@ export function CareOfferingsEditor() {
   const activeOfferingCount = offerings.filter(
     (offering) => offering.is_active,
   ).length;
+  // Statuszeile des Seitenkopfs: derselbe Katalog, den die Tabelle zeigt.
+  useEffect(() => {
+    onSummaryChange?.(
+      loading ? null : { total: offerings.length, active: activeOfferingCount },
+    );
+  }, [loading, offerings.length, activeOfferingCount, onSummaryChange]);
+
   const selectableDaysCount = new Set(
     offerings.flatMap((offering) => offering.available_days),
   ).size;
@@ -542,7 +576,7 @@ export function CareOfferingsEditor() {
         if (catalogLoadSeq.current === requestSeq) setLoading(false);
       }
     },
-    [loadPlannerMetadata, toast],
+    [loadPlannerMetadata, setError, toast],
   );
 
   useEffect(() => {
@@ -580,12 +614,16 @@ export function CareOfferingsEditor() {
     setError(null);
   };
 
-  const beginEdit = (offering: CareOffering) => {
-    setDraft(offeringToInput(offering));
-    setEditingId(offering.id);
-    setCloneSource(null);
-    setError(null);
-  };
+  // Stabil, weil die Spaltendefinition der Tabelle (useMemo) darauf zeigt.
+  const beginEdit = useCallback(
+    (offering: CareOffering) => {
+      setDraft(offeringToInput(offering));
+      setEditingId(offering.id);
+      setCloneSource(null);
+      setError(null);
+    },
+    [setError],
+  );
 
   const cancelFocusMode = () => {
     setDraft(null);
@@ -598,14 +636,12 @@ export function CareOfferingsEditor() {
     if (!draft) return;
     if (draft.available_days.length === 0) {
       setError(CARE_OFFERING_DAYS_REQUIRED_MESSAGE);
-      toast.error(CARE_OFFERING_DAYS_REQUIRED_MESSAGE);
       return;
     }
     const missingPickupDays = missingRequiredPickupDays(draft);
     if (missingPickupDays.length > 0) {
       const message = missingPickupTimesMessage(missingPickupDays);
       setError(message);
-      toast.error(message);
       return;
     }
     const originalActivityGroupID =
@@ -621,7 +657,6 @@ export function CareOfferingsEditor() {
       )
     ) {
       setError(UNVERIFIABLE_TEMPLATE_CHANGE_MESSAGE);
-      toast.error(UNVERIFIABLE_TEMPLATE_CHANGE_MESSAGE);
       return;
     }
     if (
@@ -642,7 +677,6 @@ export function CareOfferingsEditor() {
         ? INACTIVE_TEMPLATE_PERIOD_MESSAGE
         : CARE_OFFERING_TEMPLATE_PERIOD_MISMATCH_MESSAGE;
       setError(message);
-      toast.error(message);
       return;
     }
     const weekdayError = linkedTemplateWeekdayError(
@@ -652,7 +686,6 @@ export function CareOfferingsEditor() {
     );
     if (weekdayError) {
       setError(weekdayError);
-      toast.error(weekdayError);
       return;
     }
     setSaving(true);
@@ -673,41 +706,35 @@ export function CareOfferingsEditor() {
       logger.error("care_offering_save_failed", { error: technicalMessage });
       const message = safeCareOfferingSaveMessage(err, editingId === "new");
       setError(message);
-      toast.error(message);
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = useCallback(
-    async (offering: CareOffering) => {
-      if (
-        !globalThis.window.confirm(
-          `Betreuungsangebot „${offering.name}" wirklich löschen? Diese Aktion ist nicht umkehrbar.`,
-        )
-      ) {
-        return;
-      }
-      setDeletingId(offering.id);
-      setError(null);
-      try {
-        await deleteCareOffering(offering.id);
-        toast.success(`Betreuungsangebot „${offering.name}" gelöscht.`);
-        await loadAll();
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Löschen fehlgeschlagen";
-        logger.error("care_offering_delete_failed", { error: message });
-        const hint =
-          "Wenn das Betreuungsangebot bereits in Anmeldungen verwendet wird, deaktiviere es stattdessen über Bearbeiten.";
-        setError(`${message}. ${hint}`);
-        toast.error(message);
-      } finally {
-        setDeletingId(null);
-      }
-    },
-    [loadAll, toast],
-  );
+  const handleDelete = useCallback(async () => {
+    const offering = deleteTarget;
+    if (!offering) return;
+    setDeletingId(offering.id);
+    setDeleteError("");
+    setError(null);
+    try {
+      await deleteCareOffering(offering.id);
+      toast.success(`Betreuungsangebot „${offering.name}" gelöscht.`);
+      setDeleteTarget(null);
+      await loadAll();
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Löschen fehlgeschlagen";
+      logger.error("care_offering_delete_failed", { error: message });
+      const hint =
+        "Wenn das Betreuungsangebot bereits in Anmeldungen verwendet wird, deaktivieren Sie es stattdessen über Bearbeiten.";
+      setDeleteError(`${message}. ${hint}`);
+      setError(`${message}. ${hint}`);
+      toast.error(message);
+    } finally {
+      setDeletingId(null);
+    }
+  }, [deleteTarget, loadAll, setError, toast]);
 
   const handleClone = async (targetPhaseId: string) => {
     if (!cloneSource) return;
@@ -725,7 +752,6 @@ export function CareOfferingsEditor() {
         err instanceof Error ? err.message : "Klonen fehlgeschlagen";
       logger.error("care_offering_clone_failed", { error: message });
       setError(message);
-      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -835,25 +861,30 @@ export function CareOfferingsEditor() {
               setEditingId(null);
               setError(null);
             }}
-            onDelete={() => void handleDelete(offering)}
+            onDelete={() => {
+              setDeleteError("");
+              setDeleteTarget(offering);
+            }}
           />
         ),
       },
     ],
-    [deletingId, gradeLevelMax, handleDelete, saving],
+    [beginEdit, deletingId, gradeLevelMax, saving, setError],
   );
 
+  const panelOpen = Boolean(draft ?? cloneSource);
+
   return (
-    <div className="space-y-4">
-      {error && (
-        <div
-          className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-4 text-sm"
-          role="alert"
-          aria-live="polite"
-        >
-          {error}
-        </div>
-      )}
+    // Flex-Spalte: als Editor-Wurzel einer Tenant-Seite reicht sie den
+    // Platz an die Tabelle weiter, die dann bis zur Unterkante des
+    // Bildschirms wächst (`.moto-tenant-body`).
+    <div className="flex flex-col space-y-4">
+      {/* Fehler einer Listenaktion stehen über der Liste. Ist das Panel
+          offen, trägt dessen Rumpf den Fehler (Bauart 2 Regel 5); hier
+          stünde er sonst hinter dem Panel und doppelt. */}
+      {error && !panelOpen ? (
+        <Alert type="error" message={error.message} />
+      ) : null}
 
       {metadataStatus === "unavailable" ? (
         <PlannerMetadataNotice onRetry={() => void loadPlannerMetadata()} />
@@ -891,49 +922,71 @@ export function CareOfferingsEditor() {
             onCreate={beginCreate}
           />
 
-          {cloneSource ? (
-            <CloneOfferingForm
-              source={cloneSource}
-              phases={phases}
-              selectedPhaseId={selectedPhaseId}
-              saving={saving}
-              onCancel={cancelFocusMode}
-              onClone={handleClone}
-            />
-          ) : null}
+          {/* Anlegen, Bearbeiten und Duplizieren laufen neben der stehenden
+              Liste: das Formular ist zu breit für eine aufgeklappte
+              Tabellenzeile, und der Katalog darf dabei nicht verschwinden. */}
+          <SlideOver
+            open={panelOpen}
+            onOpenChange={(open) => {
+              if (!open) cancelFocusMode();
+            }}
+          >
+            <SlideOverContent widthClass="sm:w-[760px]">
+              <SlideOverHeader>
+                <SlideOverTitle>
+                  {cloneSource
+                    ? "Betreuungsangebot duplizieren"
+                    : editingId === "new"
+                      ? "Neues Betreuungsangebot"
+                      : "Betreuungsangebot bearbeiten"}
+                </SlideOverTitle>
+              </SlideOverHeader>
+              <SlideOverBody error={error}>
+                {cloneSource ? (
+                  <CloneOfferingForm
+                    source={cloneSource}
+                    phases={phases}
+                    selectedPhaseId={selectedPhaseId}
+                    saving={saving}
+                    onCancel={cancelFocusMode}
+                    onClone={handleClone}
+                  />
+                ) : draft ? (
+                  <CareOfferingForm
+                    draft={draft}
+                    editing={editingId !== "new"}
+                    editingId={editingId}
+                    phases={phases}
+                    offerings={offerings}
+                    templates={templates}
+                    periods={periods}
+                    metadataStatus={metadataStatus}
+                    originalActivityGroupID={
+                      editingId && editingId !== "new"
+                        ? (offerings.find(
+                            (offering) => offering.id === editingId,
+                          )?.activity_group_id ?? null)
+                        : null
+                    }
+                    gradeLevelMax={gradeLevelMax}
+                    bookingStats={bookingStats}
+                    saving={saving}
+                    onChange={setDraft}
+                    onSubmit={handleSave}
+                    onCancel={cancelFocusMode}
+                    onTemplateUnlinked={() =>
+                      toast.warning(CARE_OFFERING_TEMPLATE_UNLINKED_MESSAGE)
+                    }
+                  />
+                ) : null}
+              </SlideOverBody>
+            </SlideOverContent>
+          </SlideOver>
 
-          {draft ? (
-            <CareOfferingForm
-              draft={draft}
-              editing={editingId !== "new"}
-              editingId={editingId}
-              phases={phases}
-              offerings={offerings}
-              templates={templates}
-              periods={periods}
-              metadataStatus={metadataStatus}
-              originalActivityGroupID={
-                editingId && editingId !== "new"
-                  ? (offerings.find((offering) => offering.id === editingId)
-                      ?.activity_group_id ?? null)
-                  : null
-              }
-              gradeLevelMax={gradeLevelMax}
-              bookingStats={bookingStats}
-              saving={saving}
-              onChange={setDraft}
-              onSubmit={handleSave}
-              onCancel={cancelFocusMode}
-              onTemplateUnlinked={() =>
-                toast.warning(CARE_OFFERING_TEMPLATE_UNLINKED_MESSAGE)
-              }
-            />
-          ) : null}
-
-          {!draft && !cloneSource && autoAddRules.length > 0 ? (
+          {autoAddRules.length > 0 ? (
             <SectionCard
               title="Mitbuchungs-Regeln"
-              description="Jede Regel wirkt nur in die genannte Richtung. Ändern kannst du sie beim jeweils mitgebuchten Angebot unter Bearbeiten."
+              description="Jede Regel wirkt nur in die genannte Richtung. Ändern können Sie sie beim jeweils mitgebuchten Angebot unter Bearbeiten."
               bodyClassName="mt-2"
             >
               <ul className="mt-2 space-y-1 text-sm text-gray-700">
@@ -944,12 +997,9 @@ export function CareOfferingsEditor() {
             </SectionCard>
           ) : null}
 
-          {selectedPhaseId &&
-          offerings.length === 0 &&
-          !draft &&
-          !cloneSource ? (
+          {selectedPhaseId && offerings.length === 0 ? (
             <EmptyCareOfferingState onCreate={beginCreate} />
-          ) : offerings.length > 0 && !draft && !cloneSource ? (
+          ) : offerings.length > 0 ? (
             <DataTable
               columns={columns}
               rows={offerings}
@@ -960,6 +1010,30 @@ export function CareOfferingsEditor() {
           ) : null}
         </>
       )}
+
+      <ConfirmDeleteModal
+        isOpen={deleteTarget !== null}
+        title="Betreuungsangebot löschen"
+        description={
+          deleteTarget
+            ? `„${deleteTarget.name}" wird gelöscht. Das lässt sich nicht rückgängig machen.`
+            : ""
+        }
+        warningSlot={
+          <p className="text-sm text-gray-600">
+            Wird das Angebot bereits in Anmeldungen verwendet, deaktivieren Sie
+            es stattdessen über Bearbeiten.
+          </p>
+        }
+        gate={{ mode: "twoStep" }}
+        onConfirm={handleDelete}
+        onClose={() => {
+          setDeleteTarget(null);
+          setDeleteError("");
+        }}
+        loading={deletingId !== null}
+        error={deleteError}
+      />
     </div>
   );
 }
@@ -987,7 +1061,10 @@ function CareOfferingToolbar({
 }>) {
   return (
     <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md">
-      <div className="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between">
+      {/* Kennzahlen, Phasenauswahl und Anlegen teilen sich auf dem Desktop
+          EINE Zeile; ohne Umbruch, damit darunter keine zweite, fast leere
+          Zeile entsteht. */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="grid gap-2 sm:grid-cols-4">
           <CareOfferingMetric
             icon={<MotoConceptIcon concept="carePlan" size={16} />}
@@ -1012,35 +1089,31 @@ function CareOfferingToolbar({
         </div>
 
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-          <label
-            className="flex items-center gap-2 text-sm"
-            htmlFor="care-offerings-phase"
-          >
-            <span className="font-medium text-gray-700">Anmeldephase</span>
-            <CustomSelect
-              id="care-offerings-phase"
-              ariaLabel="Anmeldephase"
-              value={selectedPhaseId}
-              onChange={onPhaseChange}
-              className="h-9 min-w-60"
-              options={phases.map((phase) => ({
-                value: phase.id,
-                label: `${phase.name} (${KIND_LABELS[phase.kind]})${
-                  !phase.is_active ? " (inaktiv)" : ""
-                }`,
-              }))}
-            />
-          </label>
+          <CustomSelect
+            id="care-offerings-phase"
+            ariaLabel="Anmeldephase"
+            value={selectedPhaseId}
+            onChange={onPhaseChange}
+            className="h-9 min-w-56"
+            options={phases.map((phase) => ({
+              value: phase.id,
+              label: `${phase.name} (${KIND_LABELS[phase.kind]})${
+                !phase.is_active ? " (inaktiv)" : ""
+              }`,
+            }))}
+          />
           {!focusMode ? (
-            <button
+            <Button
               type="button"
+              variant="primary"
+              size="md"
               onClick={onCreate}
               disabled={!selectedPhaseId}
-              className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+              className="shrink-0 gap-2"
             >
               <Plus className="h-4 w-4" aria-hidden="true" />
               Neues Betreuungsangebot
-            </button>
+            </Button>
           ) : null}
         </div>
       </div>
@@ -1079,13 +1152,15 @@ function PlannerMetadataNotice({ onRetry }: Readonly<{ onRetry: () => void }>) {
       role="status"
     >
       <p>{PLANNER_METADATA_UNAVAILABLE_MESSAGE}</p>
-      <button
+      <Button
         type="button"
+        variant="outline"
+        size="md"
         onClick={onRetry}
-        className="border-moto-amber/60 text-moto-amber-strong hover:bg-moto-amber/10 focus-visible:ring-moto-amber inline-flex h-9 shrink-0 items-center justify-center rounded-lg border bg-white px-3 text-sm font-medium shadow-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
+        className="shrink-0 bg-white"
       >
         Erneut laden
-      </button>
+      </Button>
     </div>
   );
 }
@@ -1095,47 +1170,46 @@ function CareOfferingCatalogError({
   onRetry,
 }: Readonly<{ message: string; onRetry: () => void }>) {
   return (
-    <section
-      className="moto-content-surface border-moto-red/20 rounded-2xl border px-6 py-10 text-center shadow-sm"
-      role="alert"
-    >
+    <section className="moto-content-surface space-y-3 rounded-2xl border p-4 shadow-sm sm:p-6">
       <h2 className="text-base font-semibold text-gray-900">
         Betreuungsangebote konnten nicht geladen werden
       </h2>
-      <p className="text-moto-red-strong mx-auto mt-2 max-w-xl text-sm leading-6">
-        {message}
-      </p>
-      <button
-        type="button"
-        onClick={onRetry}
-        className="mt-5 inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-      >
+      <Alert type="error" message={message} />
+      <Button type="button" variant="outline" size="md" onClick={onRetry}>
         Betreuungsangebote erneut laden
-      </button>
+      </Button>
     </section>
   );
 }
 
 function NoPhaseState() {
+  const tenantPath = useTenantAwarePath();
+
   return (
-    <section className="moto-content-surface rounded-2xl border px-6 py-12 text-center shadow-sm backdrop-blur-md">
-      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
-        <MotoConceptIcon concept="calendarPeriods" size={28} />
-      </div>
-      <h2 className="mt-4 text-base font-semibold text-gray-900">
-        Erst eine Anmeldephase anlegen
-      </h2>
-      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-600">
-        Betreuungsangebote gehören immer zu einer Anmeldephase. Lege zuerst den
-        Zeitraum an, danach kannst du die passenden Angebote ergänzen.
-      </p>
-      <Link
-        href="/enrollment-phases"
-        className="mt-5 inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-      >
-        <MotoConceptIcon concept="calendarPeriods" size={18} />
-        Anmeldephase anlegen
-      </Link>
+    <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-6">
+      <EmptyState
+        icon={
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
+            <MotoConceptIcon concept="calendarPeriods" size={28} />
+          </span>
+        }
+        title="Erst eine Anmeldephase anlegen"
+        description="Betreuungsangebote gehören immer zu einer Anmeldephase. Legen Sie zuerst den Zeitraum an, danach können Sie die passenden Angebote ergänzen."
+        action={
+          <ButtonLink
+            href={tenantPath("/enrollment-phases")}
+            size="md"
+            className="gap-2"
+          >
+            <MotoConceptIcon
+              concept="calendarPeriods"
+              colorMode="inherit"
+              size={18}
+            />
+            Anmeldephase anlegen
+          </ButtonLink>
+        }
+      />
     </section>
   );
 }
@@ -1144,25 +1218,28 @@ function EmptyCareOfferingState({
   onCreate,
 }: Readonly<{ onCreate: () => void }>) {
   return (
-    <section className="moto-content-surface rounded-2xl border px-6 py-12 text-center shadow-sm backdrop-blur-md">
-      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
-        <MotoConceptIcon concept="carePlan" size={24} />
-      </div>
-      <h2 className="mt-4 text-base font-semibold text-gray-900">
-        Noch kein Betreuungsangebot angelegt
-      </h2>
-      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-600">
-        Erstelle das erste Angebot, das Eltern auswählen können. Typisch sind
-        Regelbetreuung, Ferienbetreuung oder ein Angebot mit Mittagessen.
-      </p>
-      <button
-        type="button"
-        onClick={onCreate}
-        className="mt-5 inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-      >
-        <Plus className="h-4 w-4" aria-hidden="true" />
-        Erstes Betreuungsangebot anlegen
-      </button>
+    <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-6">
+      <EmptyState
+        icon={
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
+            <MotoConceptIcon concept="carePlan" size={24} />
+          </span>
+        }
+        title="Noch kein Betreuungsangebot angelegt"
+        description="Erstellen Sie das erste Angebot, das Eltern auswählen können. Typisch sind Regelbetreuung, Ferienbetreuung oder ein Angebot mit Mittagessen."
+        action={
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={onCreate}
+            className="gap-2"
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Erstes Betreuungsangebot anlegen
+          </Button>
+        }
+      />
     </section>
   );
 }
@@ -1239,7 +1316,7 @@ function CareOfferingActions({
           },
           { kind: "separator" },
           {
-            label: deleting ? "Löscht..." : "Löschen",
+            label: deleting ? "Löscht…" : "Löschen",
             icon: <Trash2 className="h-4 w-4" aria-hidden />,
             destructive: true,
             disabled: deleting || saving,
@@ -1477,14 +1554,15 @@ function CareOfferingTemplateField({
         den ausgewählten Angebotstagen erwartet.
       </p>
       {periodMismatch ? (
-        <p
-          className="border-moto-red/30 bg-moto-red/10 text-moto-red-strong mt-2 rounded-lg border px-3 py-2 text-xs"
-          role="alert"
-        >
-          {inactivePeriodMismatch
-            ? INACTIVE_TEMPLATE_PERIOD_MESSAGE
-            : CARE_OFFERING_TEMPLATE_PERIOD_MISMATCH_MESSAGE}
-        </p>
+        <Alert
+          type="error"
+          className="mt-2"
+          message={
+            inactivePeriodMismatch
+              ? INACTIVE_TEMPLATE_PERIOD_MESSAGE
+              : CARE_OFFERING_TEMPLATE_PERIOD_MISMATCH_MESSAGE
+          }
+        />
       ) : null}
       {compatibilityUnknown ? (
         <p className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong mt-2 rounded-lg border px-3 py-2 text-xs">
@@ -1492,12 +1570,7 @@ function CareOfferingTemplateField({
         </p>
       ) : null}
       {weekdayError ? (
-        <p
-          className="border-moto-red/30 bg-moto-red/10 text-moto-red-strong mt-2 rounded-lg border px-3 py-2 text-xs"
-          role="alert"
-        >
-          {weekdayError}
-        </p>
+        <Alert type="error" className="mt-2" message={weekdayError} />
       ) : null}
       {metadataStatus === "ready" &&
       !periodMismatch &&
@@ -1560,19 +1633,13 @@ function CareOfferingWeekdayFields({
         {WEEKDAY_KEYS.map((day) => {
           const active = draft.available_days.includes(day);
           return (
-            <button
+            <ToggleChip
               key={day}
-              type="button"
-              aria-pressed={active}
-              onClick={() => toggleDay(day)}
-              className={`h-9 rounded-lg border px-3 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-                active
-                  ? "border-gray-900 bg-gray-900 text-white"
-                  : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-              }`}
+              pressed={active}
+              onPressedChange={() => toggleDay(day)}
             >
               {DAY_LABELS[day]}
-            </button>
+            </ToggleChip>
           );
         })}
       </div>
@@ -1610,7 +1677,7 @@ function CareOfferingWeekdayFields({
         </div>
       ) : null}
       <div className="mt-3">
-        <CareOfferingCheckbox
+        <CheckboxCard
           checked={draft.days_of_week_mode === "parent_choice"}
           onChange={(checked) =>
             onChange({
@@ -1683,7 +1750,7 @@ function CareOfferingAutomationFields({
         Betreuungstage & Mitbuchung
       </legend>
       <div className="space-y-4">
-        <CareOfferingCheckbox
+        <CheckboxCard
           checked={draft.counts_as_care}
           onChange={(checked) => onChange({ counts_as_care: checked })}
           label="Als Betreuungstage zählen"
@@ -1698,7 +1765,7 @@ function CareOfferingAutomationFields({
           {triggerOptions.length > 0 ? (
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
               {triggerOptions.map((offering) => (
-                <CareOfferingCheckbox
+                <CheckboxCard
                   key={offering.id}
                   checked={(draft.auto_add_trigger_offering_ids ?? []).includes(
                     offering.id,
@@ -1746,20 +1813,14 @@ function CareOfferingAutomationFields({
               const aboveCurrentCap =
                 gradeLevelMax !== null && grade > gradeLevelMax;
               return (
-                <button
+                <ToggleChip
                   key={grade}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => toggleAutoAddGrade(grade)}
-                  className={`h-8 rounded-lg border px-3 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-                    active
-                      ? "border-gray-900 bg-gray-900 text-white"
-                      : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-                  }`}
+                  pressed={active}
+                  onPressedChange={() => toggleAutoAddGrade(grade)}
                 >
                   Klasse {grade}
                   {aboveCurrentCap ? " (bestehend)" : ""}
-                </button>
+                </ToggleChip>
               );
             })}
           </div>
@@ -1824,7 +1885,7 @@ function CareOfferingAvailabilityFields({
       <legend className="px-1 text-xs font-medium text-gray-700">
         Bedingungen für die Verfügbarkeit
       </legend>
-      <CareOfferingCheckbox
+      <CheckboxCard
         checked={rule !== null}
         onChange={(checked) =>
           onChange({
@@ -1888,26 +1949,32 @@ function CareOfferingAvailabilityFields({
                   Bedingung {index + 1}
                 </p>
                 <div className="flex gap-1">
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="compact"
                     disabled={index === 0}
                     onClick={() => moveCondition(index, -1)}
-                    className="rounded border border-gray-200 bg-white px-2 py-1 text-xs disabled:opacity-40"
+                    className="bg-white"
                     aria-label={`Bedingung ${index + 1} nach oben`}
                   >
                     ↑
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="compact"
                     disabled={index === rule.conditions.length - 1}
                     onClick={() => moveCondition(index, 1)}
-                    className="rounded border border-gray-200 bg-white px-2 py-1 text-xs disabled:opacity-40"
+                    className="bg-white"
                     aria-label={`Bedingung ${index + 1} nach unten`}
                   >
                     ↓
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="compact"
                     onClick={() =>
                       onChange({
                         availability_rule: {
@@ -1918,11 +1985,11 @@ function CareOfferingAvailabilityFields({
                         },
                       })
                     }
-                    className="border-moto-red/30 text-moto-red-strong rounded border bg-white px-2 py-1 text-xs"
+                    className="border-moto-red/30 text-moto-red-strong bg-white"
                     aria-label={`Bedingung ${index + 1} löschen`}
                   >
                     Löschen
-                  </button>
+                  </Button>
                 </div>
               </div>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -1979,29 +2046,29 @@ function CareOfferingAvailabilityFields({
                   {gradeOptions.map((grade) => {
                     const active = condition.value.includes(grade);
                     return (
-                      <button
+                      <ToggleChip
                         key={grade}
-                        type="button"
-                        aria-pressed={active}
-                        onClick={() =>
+                        pressed={active}
+                        onPressedChange={() =>
                           updateCondition(index, {
                             value: [
                               ...toggleSetValue(condition.value, grade),
                             ].sort((a, b) => a - b),
                           })
                         }
-                        className={`h-8 rounded-lg border px-3 text-xs font-medium ${active ? "border-gray-900 bg-gray-900 text-white" : "border-gray-200 bg-white text-gray-700"}`}
                       >
                         Klasse {grade}
-                      </button>
+                      </ToggleChip>
                     );
                   })}
                 </div>
               </div>
             </div>
           ))}
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="md"
             onClick={() =>
               onChange({
                 availability_rule: {
@@ -2013,19 +2080,12 @@ function CareOfferingAvailabilityFields({
                 },
               })
             }
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700"
+            className="gap-2 bg-white"
           >
             <Plus className="h-4 w-4" />
             Bedingung hinzufügen
-          </button>
-          {error ? (
-            <p
-              role="alert"
-              className="border-moto-red/30 bg-moto-red/10 text-moto-red-strong rounded-lg border px-3 py-2 text-xs"
-            >
-              {error}
-            </p>
-          ) : null}
+          </Button>
+          {error ? <Alert type="error" message={error} /> : null}
           {!error && conflicts > 0 ? (
             <p
               role="status"
@@ -2125,25 +2185,25 @@ function CareOfferingDisplayFields({
         Anzeige im Elternformular
       </legend>
       <div className="grid gap-2 sm:grid-cols-3">
-        <CareOfferingCheckbox
+        <CheckboxCard
           checked={draft.includes_holiday_care}
           onChange={(checked) => onChange({ includes_holiday_care: checked })}
           label="Ferienbetreuung"
           hint="Wird als Ferienangebot gekennzeichnet"
         />
-        <CareOfferingCheckbox
+        <CheckboxCard
           checked={draft.includes_lunch}
           onChange={(checked) => onChange({ includes_lunch: checked })}
           label="Mittagessen"
           hint="Zeigt Eltern, dass Essen enthalten ist"
         />
-        <CareOfferingCheckbox
+        <CheckboxCard
           checked={draft.is_active}
           onChange={(checked) => onChange({ is_active: checked })}
           label="Aktiv"
           hint="Nur aktive Angebote sind auswählbar"
         />
-        <CareOfferingCheckbox
+        <CheckboxCard
           checked={draft.is_required}
           onChange={(checked) =>
             onChange(
@@ -2161,7 +2221,7 @@ function CareOfferingDisplayFields({
 }
 
 function submitLabel(saving: boolean, editing: boolean): string {
-  if (saving) return "Speichert...";
+  if (saving) return "Speichert…";
   return editing ? "Speichern" : "Erstellen";
 }
 
@@ -2178,21 +2238,23 @@ function CareOfferingFormActions({
 }>) {
   return (
     <div className="flex justify-end gap-2">
-      <button
+      <Button
         type="button"
+        variant="outline"
+        size="md"
         onClick={onCancel}
         disabled={saving}
-        className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
       >
         Abbrechen
-      </button>
-      <button
+      </Button>
+      <Button
         type="submit"
+        variant="primary"
+        size="md"
         disabled={submitDisabled}
-        className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
       >
         {submitLabel(saving, editing)}
-      </button>
+      </Button>
     </div>
   );
 }
@@ -2234,23 +2296,13 @@ function CareOfferingForm({
   );
 
   return (
-    <form
-      onSubmit={onSubmit}
-      noValidate
-      className="moto-content-surface space-y-5 rounded-2xl border p-6 shadow-sm backdrop-blur-md"
-    >
+    <form onSubmit={onSubmit} noValidate className="space-y-5">
+      {/* Der Titel steht im Kopf des Panels; hier bleibt nur der erklärende
+          Satz. */}
       <header className="border-b border-gray-100 pb-4">
-        <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-          Betreuungsangebot
-        </p>
-        <h2 className="mt-1 text-base font-semibold text-gray-900">
-          {editing
-            ? "Betreuungsangebot bearbeiten"
-            : "Neues Betreuungsangebot anlegen"}
-        </h2>
-        <p className="mt-1 max-w-2xl text-sm text-gray-600">
-          Lege fest, was Eltern auswählen können, welche Tage möglich sind und
-          ob Kapazität oder Zusatzleistungen angezeigt werden.
+        <p className="max-w-2xl text-sm text-gray-600">
+          Legen Sie fest, was Eltern auswählen können, welche Tage möglich sind
+          und ob Kapazität oder Zusatzleistungen angezeigt werden.
         </p>
       </header>
 
@@ -2312,12 +2364,7 @@ function CareOfferingForm({
       />
 
       {unverifiableTemplateChange ? (
-        <p
-          className="border-moto-red/30 bg-moto-red/10 text-moto-red-strong rounded-lg border px-3 py-2 text-xs"
-          role="alert"
-        >
-          {UNVERIFIABLE_TEMPLATE_CHANGE_MESSAGE}
-        </p>
+        <Alert type="error" message={UNVERIFIABLE_TEMPLATE_CHANGE_MESSAGE} />
       ) : null}
 
       <label className="block">
@@ -2336,9 +2383,9 @@ function CareOfferingForm({
         <legend className="px-1 text-xs font-medium text-gray-700">
           Pflichtauswahl
         </legend>
-        <p className="mb-3 text-xs leading-5 text-gray-500">
+        <p className="mt-1 mb-3 text-sm leading-6 text-gray-600">
           Angebote mit demselben Gruppennamen werden bei der Anmeldung gemeinsam
-          geprüft. Verwende für eine Gruppe überall dieselbe Regel.
+          geprüft. Verwenden Sie für eine Gruppe überall dieselbe Regel.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block">
@@ -2433,51 +2480,6 @@ function CareOfferingForm({
   );
 }
 
-function CareOfferingCheckbox({
-  checked,
-  onChange,
-  label,
-  hint,
-}: Readonly<{
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  label: string;
-  hint?: string;
-}>) {
-  return (
-    <label
-      className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
-        checked
-          ? "border-moto-green/40 bg-moto-green/10"
-          : "border-gray-200 bg-white hover:bg-gray-50"
-      }`}
-    >
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-        className="sr-only"
-      />
-      <span
-        className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${
-          checked
-            ? "border-moto-green bg-moto-green text-gray-950"
-            : "border-gray-300 bg-white"
-        }`}
-        aria-hidden="true"
-      >
-        {checked ? <Check className="h-3.5 w-3.5" /> : null}
-      </span>
-      <span className="min-w-0">
-        <span className="block text-sm font-medium text-gray-900">{label}</span>
-        {hint ? (
-          <span className="mt-0.5 block text-xs text-gray-500">{hint}</span>
-        ) : null}
-      </span>
-    </label>
-  );
-}
-
 function CloneOfferingForm({
   source,
   phases,
@@ -2501,18 +2503,13 @@ function CloneOfferingForm({
         event.preventDefault();
         void onClone(targetPhaseId);
       }}
-      className="moto-content-surface space-y-4 rounded-2xl border p-6 shadow-sm backdrop-blur-md"
+      className="space-y-4"
     >
       <header className="border-b border-gray-100 pb-4">
-        <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-          Duplizieren
-        </p>
-        <h2 className="mt-1 text-base font-semibold text-gray-900">
-          „{source.name}" in eine Anmeldephase übernehmen
-        </h2>
-        <p className="mt-1 text-sm text-gray-600">
-          Wähle die Zielphase. Danach entsteht dort ein eigenes
-          Betreuungsangebot, das du separat bearbeiten kannst.
+        <p className="text-sm text-gray-600">
+          „{source.name}“ wird in eine andere Anmeldephase übernommen. Wählen
+          Sie die Zielphase. Danach entsteht dort ein eigenes Betreuungsangebot,
+          das Sie separat bearbeiten können.
         </p>
       </header>
 
@@ -2532,21 +2529,23 @@ function CloneOfferingForm({
       </label>
 
       <div className="flex justify-end gap-2">
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="md"
           onClick={onCancel}
           disabled={saving}
-          className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
         >
           Abbrechen
-        </button>
-        <button
+        </Button>
+        <Button
           type="submit"
+          variant="primary"
+          size="md"
           disabled={saving || !targetPhaseId}
-          className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {saving ? "Dupliziert..." : "Duplizieren"}
-        </button>
+          {saving ? "Dupliziert…" : "Duplizieren"}
+        </Button>
       </div>
     </form>
   );

@@ -35,18 +35,18 @@ func futureBirthdayGermanShortForTests() string {
 
 func TestEnrollmentStartsInFuture_UsesBusinessDate(t *testing.T) {
 	t.Parallel()
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	tomorrow := today.AddDays(1)
 
-	assert.False(t, enrollmentStartsInFuture(nil))
-	assert.False(t, enrollmentStartsInFuture(&today), "today must be active, not pending")
-	assert.True(t, enrollmentStartsInFuture(&tomorrow))
+	assert.False(t, enrollmentStartsAfter(nil, today))
+	assert.False(t, enrollmentStartsAfter(&today, today), "today must be active, not pending")
+	assert.True(t, enrollmentStartsAfter(&tomorrow, today))
 }
 
 func TestStudentImportConfig_CreateSingleGuardianRelationship_AssignsRolePermissions(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Import", "Guardian", "1a")
 

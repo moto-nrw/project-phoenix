@@ -8,6 +8,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/testdb"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -52,6 +53,32 @@ func TestSetupTestDBAllowsParallelTests(t *testing.T) {
 	}
 }
 
+func TestIsolatedTestDatabaseLimiterBoundsConcurrentClones(t *testing.T) {
+	t.Parallel()
+
+	limiter := newIsolatedTestDatabaseLimiter(1)
+	releaseFirst := limiter.acquire()
+	t.Cleanup(releaseFirst)
+
+	secondAcquired := make(chan func(), 1)
+	go func() { secondAcquired <- limiter.acquire() }()
+
+	select {
+	case releaseSecond := <-secondAcquired:
+		releaseSecond()
+		t.Fatal("second isolated database must wait for an available slot")
+	case <-time.After(25 * time.Millisecond):
+	}
+
+	releaseFirst()
+	select {
+	case releaseSecond := <-secondAcquired:
+		releaseSecond()
+	case <-time.After(time.Second):
+		t.Fatal("second isolated database did not acquire the released slot")
+	}
+}
+
 func TestNewTenantScopeCreatesTenantAndContext(t *testing.T) {
 	t.Parallel()
 
@@ -60,12 +87,20 @@ func TestNewTenantScopeCreatesTenantAndContext(t *testing.T) {
 	scope := NewTenantScope(t, db)
 	require.NotZero(t, scope.TenantID)
 	assert.Equal(t, scope.TenantID, tenantIDFromContextForTest(t, scope.Context()))
+	assert.Equal(t, scope.TenantID, AuditTenantIDFromContext(scope.Context()))
 
 	var exists bool
 	err := db.NewRaw(`SELECT EXISTS (SELECT 1 FROM platform.schools WHERE id = ?)`, scope.TenantID).
 		Scan(context.Background(), &exists)
 	require.NoError(t, err)
 	assert.True(t, exists)
+}
+
+func TestTenantContextsIncludeAuditTenant(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, Tenant(t), AuditTenantIDFromContext(Ctx(t)))
+	assert.Equal(t, OwnTenant(t), AuditTenantIDFromContext(OwnCtx(t)))
 }
 
 func tenantIDFromContextForTest(t *testing.T, ctx context.Context) int64 {

@@ -314,7 +314,7 @@ function StartChildCardSkeleton() {
     <article
       role="status"
       data-testid="parent-start-child-skeleton"
-      className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"
+      className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm"
     >
       <span className="sr-only">{t("childrenLoading")}</span>
       <div aria-hidden="true" className="space-y-5 p-5 sm:p-6">

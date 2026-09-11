@@ -2,12 +2,12 @@ package schedule
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"testing"
 	"time"
 
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -50,7 +50,7 @@ func TestValidateAssignableCategory(t *testing.T) {
 	t.Run("rejects an unknown tenant-scoped category", func(t *testing.T) {
 		err := validateAssignableCategory(
 			context.Background(),
-			&assignableCategoryRepo{err: sql.ErrNoRows},
+			&assignableCategoryRepo{err: modelBase.ErrNotFound},
 			categoryID,
 			"test",
 		)

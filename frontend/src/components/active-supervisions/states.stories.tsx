@@ -41,12 +41,6 @@ export const EmptyRooms: Story = {
       onClaimed={fn()}
       cachedActiveGroups={[]}
       currentStaffId={undefined}
-      searchTerm=""
-      setSearchTerm={fn()}
-      setGroupFilter={fn()}
-      setSelectedYear={fn()}
-      filterConfigs={[]}
-      activeFilters={[]}
     />
   ),
 };

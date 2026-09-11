@@ -87,6 +87,12 @@ export interface UseUnreadCountOptions {
   refetchOnFocus?: boolean;
   /** Error handler; defaults to swallowing — a badge must never break nav. */
   onError?: (error: unknown) => void;
+  /**
+   * Server-preloaded count for the first mount (#2973). Shown immediately and
+   * written to the cache; the mount refetch is skipped. Event-driven and focus
+   * refetches stay untouched. Ignored when `enabled` is false at mount.
+   */
+  initialCount?: number;
 }
 
 export interface UseUnreadCountResult {
@@ -103,9 +109,12 @@ export function useUnreadCount({
   refetchOnFocus = false,
   eventDebounceMs,
   onError,
+  initialCount,
 }: UseUnreadCountOptions): UseUnreadCountResult {
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
+  const seeded = initialCount !== undefined;
+  const [unreadCount, setUnreadCount] = useState(seeded ? initialCount : 0);
+  const [isLoading, setIsLoading] = useState(!seeded);
+  const seededRef = useRef(seeded);
   const isFetchingRef = useRef(false);
   // Set when a forced refresh (skipCache) arrives while a fetch is already in
   // flight. The in-flight fetch drains it after it resolves, so the force is
@@ -242,7 +251,18 @@ export function useUnreadCount({
   }, [refresh]);
 
   useEffect(() => {
+    // The server-preloaded count IS the first load: cache it and skip the
+    // mount refetch. Consumed once; later refresh identities fetch as usual.
+    if (seededRef.current) {
+      seededRef.current = false;
+      if (enabled) {
+        if (cacheKey) writeCache(cacheKey, initialCount ?? 0);
+        displayedKeyRef.current = cacheKey;
+        return;
+      }
+    }
     void refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initialCount is read once, on the first run only
   }, [refresh]);
 
   // Stable string key so the listener effect only re-runs when the set of

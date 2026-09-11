@@ -228,6 +228,12 @@ export function useDisplayEnabled(): boolean {
   return ctx?.tenant?.displayEnabled === true;
 }
 
+/** Whether staff may connect their personal calendar through CalDAV. */
+export function useCalDAVEnabled(): boolean {
+  const ctx = useContext(TenantContext);
+  return ctx?.tenant?.caldavEnabled === true;
+}
+
 /**
  * Returns whether approved-child care offerings may be corrected.
  *
@@ -302,6 +308,15 @@ export function useOperationalOverviewScope(): OperationalOverviewScope {
 export function useShowTimetableCounts(): boolean {
   const ctx = useContext(TenantContext);
   return ctx?.tenant?.showTimetableCounts !== false;
+}
+
+/**
+ * Whether the Betreuungsplan is enabled at this school (timetable.enabled,
+ * #2383). Missing tenant metadata reads as enabled — the registry default.
+ */
+export function useTimetableEnabled(): boolean {
+  const ctx = useContext(TenantContext);
+  return ctx?.tenant?.timetableEnabled !== false;
 }
 
 export function useWaitlistEnabled(): boolean {

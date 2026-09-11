@@ -70,18 +70,18 @@ func parseClosingDayDates(w http.ResponseWriter, r *http.Request, req *ClosingDa
 	startDate, err = timezone.ParseDate(req.StartDate)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid start_date format, expected YYYY-MM-DD")))
-		return timezone.Date{}, timezone.Date{}, false
+		return timezone.Date(""), timezone.Date(""), false
 	}
 
 	endDate, err = timezone.ParseDate(req.EndDate)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid end_date format, expected YYYY-MM-DD")))
-		return timezone.Date{}, timezone.Date{}, false
+		return timezone.Date(""), timezone.Date(""), false
 	}
 
 	if endDate.Before(startDate) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("end_date must not be before start_date")))
-		return timezone.Date{}, timezone.Date{}, false
+		return timezone.Date(""), timezone.Date(""), false
 	}
 
 	return startDate, endDate, true
@@ -115,8 +115,8 @@ func (rs *Resource) createClosingDay(w http.ResponseWriter, r *http.Request) {
 	}
 
 	day := &schedule.ClosingDay{
-		StartDate: startDate,
-		EndDate:   endDate,
+		StartDate: schedule.Date(startDate),
+		EndDate:   schedule.Date(endDate),
 		Reason:    req.Reason,
 	}
 
@@ -156,8 +156,8 @@ func (rs *Resource) updateClosingDay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	day.StartDate = startDate
-	day.EndDate = endDate
+	day.StartDate = schedule.Date(startDate)
+	day.EndDate = schedule.Date(endDate)
 	day.Reason = req.Reason
 
 	if err := rs.ClosingDayService.Update(r.Context(), day); err != nil {

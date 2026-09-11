@@ -10,6 +10,7 @@ import (
 )
 
 func TestNormalizeRoomCapacityMigration(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	tenantID, _ := testpkg.CreateTestTenant(t, db)

@@ -91,7 +91,7 @@ func TestGroupSubstitution_Validate(t *testing.T) {
 				GroupID:           1,
 				RegularStaffID:    ptr(1),
 				SubstituteStaffID: 2,
-				StartDate:         timezone.Date{}, // Zero date
+				StartDate:         timezone.Date(""), // Zero date
 				EndDate:           tomorrow,
 			},
 			wantErr:      true,
@@ -104,7 +104,7 @@ func TestGroupSubstitution_Validate(t *testing.T) {
 				RegularStaffID:    ptr(1),
 				SubstituteStaffID: 2,
 				StartDate:         currentTime,
-				EndDate:           timezone.Date{}, // Zero date
+				EndDate:           timezone.Date(""), // Zero date
 			},
 			wantErr:      true,
 			errorMessage: "end date is required",

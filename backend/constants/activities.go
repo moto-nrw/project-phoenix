@@ -61,34 +61,3 @@ const (
 	// WCMaxParticipants is the default max participants for the WC activity.
 	WCMaxParticipants = 20
 )
-
-// IsSystemRoomName returns true if the given room name is a system room
-// that must not be deleted or renamed.
-func IsSystemRoomName(name string) bool {
-	return IsSchulhofRoomName(name) || IsWCRoomName(name)
-}
-
-// IsSchulhofRoomName returns true if the given room name is the canonical
-// Schulhof room. Exact-case, matching the rest of the system-room contract.
-//
-// Split out from IsSystemRoomName because the Schulhof is protected less
-// strictly than the toilet rooms: it may not be renamed or deleted, but its
-// colour IS admin-configurable (#2405) — schools colour-code rooms and
-// tablets and need the yard to take part in that scheme.
-func IsSchulhofRoomName(name string) bool {
-	return name == SchulhofRoomName
-}
-
-// IsWCRoomName returns true if the given room name is one of the accepted
-// canonical toilet-room aliases ("WC" or "Toilette"). Matching is exact-case
-// to match the existing system-room contract, which has always compared
-// SchulhofRoomName and WCRoomName by `==`. See issue #1184.
-func IsWCRoomName(name string) bool {
-	return name == WCRoomName || name == WCRoomAliasName
-}
-
-// IsSystemActivityName returns true if the given activity name is a system activity
-// that must not be deleted or renamed.
-func IsSystemActivityName(name string) bool {
-	return name == SchulhofActivityName || name == WCActivityName
-}

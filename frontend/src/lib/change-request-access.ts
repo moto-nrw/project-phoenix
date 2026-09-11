@@ -2,6 +2,19 @@ import type { Session } from "next-auth";
 
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 
+export type ParentRequestReviewAccess = "admin" | "group_leader" | "none";
+
+export interface EffectiveChangeRequestAccess {
+  readonly parentReviewAccess: ParentRequestReviewAccess;
+  readonly canReviewParentRequests: boolean;
+  readonly canReviewStudentDataRequests: boolean;
+  readonly canReviewEnrollmentChangeRequests: boolean;
+  readonly canReviewCareWithdrawals: boolean;
+  readonly canReviewStaffAbsenceRequests: boolean;
+  readonly canOpenParentRequestsTab: boolean;
+  readonly canOpenRequestsPage: boolean;
+}
+
 /**
  * Zugriffsregeln des Anfragen-Moduls an einer Stelle, weil sie an vier Orten
  * gleich lauten müssen: Seite, Sidebar-Eintrag, mobile Navigation und das
@@ -74,9 +87,7 @@ export function canOpenParentRequestsTab(session: Session | null): boolean {
  * vacation:approve, das die Abwesenheits-Inbox und ihr Badge (#1419) tragen —
  * es schaltet im Anfragen-Modul den Reiter "Mitarbeitende" frei.
  */
-export function canReviewStaffAbsenceRequests(
-  session: Session | null,
-): boolean {
+function canReviewStaffAbsenceRequests(session: Session | null): boolean {
   return isAdmin(session) || hasPermission(session, "vacation:approve");
 }
 
@@ -89,4 +100,30 @@ export function canOpenRequestsPage(session: Session | null): boolean {
   return (
     canOpenParentRequestsTab(session) || canReviewStaffAbsenceRequests(session)
   );
+}
+
+export function resolveChangeRequestAccess(
+  session: Session | null,
+  parentReviewAccess: ParentRequestReviewAccess,
+): EffectiveChangeRequestAccess {
+  const canReviewParentRequests =
+    parentReviewAccess !== "none" && canReviewChangeRequests(session);
+  const canReviewStudentData =
+    canReviewParentRequests && canReviewStudentDataRequests(session);
+  const canReviewEnrollment = canReviewEnrollmentChangeRequests(session);
+  const canReviewWithdrawals = canReviewCareWithdrawals(session);
+  const canReviewStaff = canReviewStaffAbsenceRequests(session);
+  const canOpenParentTab =
+    canReviewParentRequests || canReviewEnrollment || canReviewWithdrawals;
+
+  return {
+    parentReviewAccess,
+    canReviewParentRequests,
+    canReviewStudentDataRequests: canReviewStudentData,
+    canReviewEnrollmentChangeRequests: canReviewEnrollment,
+    canReviewCareWithdrawals: canReviewWithdrawals,
+    canReviewStaffAbsenceRequests: canReviewStaff,
+    canOpenParentRequestsTab: canOpenParentTab,
+    canOpenRequestsPage: canOpenParentTab || canReviewStaff,
+  };
 }

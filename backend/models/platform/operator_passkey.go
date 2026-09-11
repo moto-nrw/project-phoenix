@@ -41,7 +41,7 @@ func (c *OperatorPasskeyCredential) Validate() error {
 }
 
 type OperatorPasskeySession struct {
-	ID             string          `bun:"id,pk" json:"id"`
+	base.StringIDModelWithoutNullZero
 	OperatorID     *int64          `bun:"operator_id" json:"operator_id,omitempty"`
 	Purpose        string          `bun:"purpose,notnull" json:"purpose"`
 	RPID           string          `bun:"rp_id,notnull" json:"rp_id"`
@@ -49,13 +49,7 @@ type OperatorPasskeySession struct {
 	SessionJSON    json.RawMessage `bun:"session_json,type:jsonb,notnull" json:"-"`
 	ExpiresAt      time.Time       `bun:"expires_at,notnull" json:"expires_at"`
 	ConsumedAt     *time.Time      `bun:"consumed_at" json:"consumed_at,omitempty"`
-	CreatedAt      time.Time       `bun:"created_at,notnull,default:current_timestamp" json:"created_at"`
-	UpdatedAt      time.Time       `bun:"updated_at,notnull,default:current_timestamp" json:"updated_at"`
 }
-
-func (s *OperatorPasskeySession) GetID() interface{}      { return s.ID }
-func (s *OperatorPasskeySession) GetCreatedAt() time.Time { return s.CreatedAt }
-func (s *OperatorPasskeySession) GetUpdatedAt() time.Time { return s.UpdatedAt }
 
 func (s *OperatorPasskeySession) Validate() error {
 	if s.ID == "" {

@@ -3,11 +3,9 @@ package timetable
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -16,15 +14,15 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -34,17 +32,53 @@ import (
 	"github.com/uptrace/bun"
 )
 
+func templateActivityDatePtr(date *timezone.Date) *activitiesModel.Date {
+	if date == nil {
+		return nil
+	}
+	value := activitiesModel.Date(*date)
+	return &value
+}
+
 type templateSetup struct {
-	res       *Resource
-	db        *bun.DB
-	ctx       context.Context
-	roomID    int64
-	category  *activitiesModel.Category
-	staffA    int64
-	staffB    int64
-	studentA  int64
-	studentB  int64
-	cleanupFn func()
+	res         *Resource
+	schedules   activitiesModel.ScheduleRepository
+	enrollments activitiesModel.StudentEnrollmentRepository
+	supervisors activitiesModel.SupervisorPlannedRepository
+	db          *bun.DB
+	ctx         context.Context
+	roomID      int64
+	category    *activitiesModel.Category
+	staffA      int64
+	staffB      int64
+	studentA    int64
+	studentB    int64
+	cleanupFn   func()
+}
+
+func listTimeframesByDescription(
+	t *testing.T,
+	repo timeframeQueryRepository,
+	ctx context.Context,
+	description string,
+) []*scheduleModel.Timeframe {
+	t.Helper()
+	options := modelBase.NewQueryOptions()
+	options.Filter.ILike("description", "%"+description+"%")
+	timeframes, err := repo.List(ctx, options)
+	require.NoError(t, err)
+	return timeframes
+}
+
+type timeframeQueryRepository interface {
+	scheduleModel.TimeframeRepository
+	List(context.Context, *modelBase.QueryOptions) ([]*scheduleModel.Timeframe, error)
+}
+
+func ownedTimeframeRepository(tb timetabletest.TB, db *bun.DB) timeframeQueryRepository {
+	tb.Helper()
+	factory := mustTimetableTestRepositories(db)
+	return factory.Timeframe.(timeframeQueryRepository)
 }
 
 type mockMaterializationService struct {
@@ -99,9 +133,9 @@ func (m *mockMaterializationService) DetectEditedInWindow(_ context.Context, act
 	return nil, nil
 }
 
-func buildTemplateSetup(t *testing.T, mat scheduleSvc.MaterializationService) *templateSetup {
+func buildTemplateModule(t *testing.T, mat scheduleSvc.MaterializationService, clocks ...func() time.Time) *templateSetup {
 	t.Helper()
-	db := testpkg.SetupTestDB(t)
+	db, serviceFactory := testutil.SetupTimetableModule(t, clocks...)
 
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
@@ -111,18 +145,17 @@ func buildTemplateSetup(t *testing.T, mat scheduleSvc.MaterializationService) *t
 	staffB := testpkg.CreateTestStaff(t, db, "Tpl", fmt.Sprintf("StaffB-%d", suffix))
 	studentA := testpkg.CreateTestStudent(t, db, "Tpl", fmt.Sprintf("StudentA-%d", suffix), "3a")
 	studentB := testpkg.CreateTestStudent(t, db, "Tpl", fmt.Sprintf("StudentB-%d", suffix), "3a")
-	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
-	require.NoError(t, err)
+	repoFactory := mustTimetableTestRepositories(db)
 
 	res := NewResource(Dependencies{
-		TimetableData: testTimetableData(db),
+		TimetableData: testTimetableData(db, clocks...),
 		CalendarPeriodService: scheduleSvc.NewCalendarPeriodServiceWithConfig(scheduleSvc.CalendarPeriodServiceConfig{
-			Repo: scheduleRepo.NewCalendarPeriodRepository(db),
+			Repo: repoFactory.CalendarPeriod,
 		}),
 		MaterializationService: mat,
 		InstanceService:        serviceFactory.Instance,
 		SettingsService:        templateGradeSettings(schoolclass.DefaultGradeLevelMax, nil),
+		Now:                    firstTemplateClock(clocks),
 		DB:                     db,
 	})
 	res.InstanceSeriesConverter = scheduleSvc.NewInstanceSeriesConversionService(
@@ -138,17 +171,31 @@ func buildTemplateSetup(t *testing.T, mat scheduleSvc.MaterializationService) *t
 	}
 
 	return &templateSetup{
-		res:       res,
-		db:        db,
-		ctx:       ctx,
-		roomID:    room.ID,
-		category:  category,
-		staffA:    staffA.ID,
-		staffB:    staffB.ID,
-		studentA:  studentA.ID,
-		studentB:  studentB.ID,
-		cleanupFn: cleanup,
+		res:         res,
+		schedules:   repoFactory.ActivitySchedule,
+		enrollments: repoFactory.StudentEnrollment,
+		supervisors: repoFactory.ActivitySupervisor,
+		db:          db,
+		ctx:         ctx,
+		roomID:      room.ID,
+		category:    category,
+		staffA:      staffA.ID,
+		staffB:      staffB.ID,
+		studentA:    studentA.ID,
+		studentB:    studentB.ID,
+		cleanupFn:   cleanup,
 	}
+}
+
+func firstTemplateClock(clocks []func() time.Time) func() time.Time {
+	if len(clocks) == 0 {
+		return nil
+	}
+	return clocks[0]
+}
+
+func fixedTemplateClock() time.Time {
+	return timezone.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour)
 }
 
 func templateGradeSettings(value int, resolveErr error) *configtest.Mock {
@@ -257,7 +304,7 @@ func createTemplateBody(s *templateSetup, name string) map[string]any {
 func TestTemplateCreateRejectsArchivedCategory(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, &mockMaterializationService{})
+	s := buildTemplateModule(t, &mockMaterializationService{})
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 
@@ -279,7 +326,7 @@ func TestTemplateCreateListGetUpdateArchive(t *testing.T) {
 	mat := &mockMaterializationService{
 		result: &scheduleSvc.MaterializationResult{InstancesCreated: 3},
 	}
-	s := buildTemplateSetup(t, mat)
+	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 	educationGroup := testpkg.CreateTestEducationGroup(t, s.db, "Tpl-EducationGroup")
@@ -375,7 +422,10 @@ func TestTemplateUpdatePropagatesListKindToFutureInstances(t *testing.T) {
 	t.Parallel()
 
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
-	s := buildTemplateSetup(t, mat)
+	clock := func() time.Time {
+		return timezone.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour)
+	}
+	s := buildTemplateModule(t, mat, clock)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 
@@ -388,11 +438,11 @@ func TestTemplateUpdatePropagatesListKindToFutureInstances(t *testing.T) {
 	require.NotZero(t, created.TemplateID)
 
 	instanceRepo := scheduleRepo.NewActivityInstanceRepository(s.db)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	mkInstance := func(name string, date timezone.Date, hour int, listKind *string) *scheduleModel.ActivityInstance {
 		tmplID := created.TemplateID
 		inst := &scheduleModel.ActivityInstance{
-			Date:            date,
+			Date:            scheduleModel.Date(date),
 			ActivityGroupID: &tmplID,
 			Title:           name,
 			StartTime:       time.Date(2024, 1, 1, hour, 0, 0, 0, time.UTC),
@@ -442,7 +492,7 @@ func TestListTemplates_CapacityFields(t *testing.T) {
 	t.Parallel()
 
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
-	s := buildTemplateSetup(t, mat)
+	s := buildTemplateModule(t, mat, fixedTemplateClock)
 	defer s.cleanupFn()
 
 	// Tenant-override ratio of 1 child per staff member, exercised via the
@@ -452,7 +502,7 @@ func TestListTemplates_CapacityFields(t *testing.T) {
 		HasTenantOverrideFn: func(context.Context, string) (bool, error) { return true, nil },
 		ResolveIntFn:        func(context.Context, string) (int, error) { return 1, nil },
 	}
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2030, 8, 26)
 	createTemplateTestPeriodRange(
 		t,
 		s.db,
@@ -499,7 +549,7 @@ func TestTemplateCreateUpdate_ZielgruppeRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
-	s := buildTemplateSetup(t, mat)
+	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 
@@ -540,7 +590,7 @@ func TestTemplateCreateUpdate_ZielgruppeRoundTrip(t *testing.T) {
 func TestTemplateCreate_MultipleTargetsRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}})
+	s := buildTemplateModule(t, &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}})
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Multiple-Targets-Read")
@@ -594,7 +644,7 @@ func TestTemplateCreate_MultipleTargetsRoundTrip(t *testing.T) {
 func TestTemplateCreate_MultipleTargetsRejectsCrossTenantEducationGroup(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, nil)
+	s := buildTemplateModule(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 
@@ -617,7 +667,7 @@ func TestTemplateCreate_MultipleTargetsRejectsCrossTenantEducationGroup(t *testi
 func TestTemplateUpdate_MultipleTargetsRejectsCrossTenantEducationGroup(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, nil)
+	s := buildTemplateModule(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 
@@ -649,7 +699,7 @@ func TestTemplateCreate_RejectsInvalidZielgruppe(t *testing.T) {
 	t.Parallel()
 
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
-	s := buildTemplateSetup(t, mat)
+	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 
@@ -664,7 +714,7 @@ func TestTemplateCreate_RejectsInvalidZielgruppe(t *testing.T) {
 func TestTemplateCreateRejectsForeignTopLevelEducationGroupWithDynamicTargets(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, &mockMaterializationService{})
+	s := buildTemplateModule(t, &mockMaterializationService{})
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 
@@ -699,7 +749,7 @@ func TestTemplateCreate_EnforcesTenantGradeLevelMax(t *testing.T) {
 	t.Parallel()
 
 	t.Run("rejects an above-cap Jahrgang before writing", func(t *testing.T) {
-		s := buildTemplateSetup(t, nil)
+		s := buildTemplateModule(t, nil)
 		defer s.cleanupFn()
 		s.res.SettingsService = templateGradeSettings(4, nil)
 		router := templateRouter(s.ctx, s.res)
@@ -720,13 +770,12 @@ func TestTemplateCreate_EnforcesTenantGradeLevelMax(t *testing.T) {
 			Count(s.ctx)
 		require.NoError(t, err)
 		assert.Zero(t, count)
-		timeframes, err := scheduleRepo.NewTimeframeRepository(s.db).FindByDescription(s.ctx, name)
-		require.NoError(t, err)
+		timeframes := listTimeframesByDescription(t, ownedTimeframeRepository(t, s.db), s.ctx, name)
 		assert.Empty(t, timeframes, "grade validation must run before timeframe creation")
 	})
 
 	t.Run("settings failure returns 500 before writing", func(t *testing.T) {
-		s := buildTemplateSetup(t, nil)
+		s := buildTemplateModule(t, nil)
 		defer s.cleanupFn()
 		s.res.SettingsService = templateGradeSettings(0, errors.New("settings unavailable"))
 		router := templateRouter(s.ctx, s.res)
@@ -743,8 +792,7 @@ func TestTemplateCreate_EnforcesTenantGradeLevelMax(t *testing.T) {
 			Count(s.ctx)
 		require.NoError(t, err)
 		assert.Zero(t, count)
-		timeframes, err := scheduleRepo.NewTimeframeRepository(s.db).FindByDescription(s.ctx, name)
-		require.NoError(t, err)
+		timeframes := listTimeframesByDescription(t, ownedTimeframeRepository(t, s.db), s.ctx, name)
 		assert.Empty(t, timeframes)
 	})
 }
@@ -753,7 +801,7 @@ func TestTemplateCreateValidationAndMaterializationFailure(t *testing.T) {
 	t.Parallel()
 
 	mat := &mockMaterializationService{err: errors.New("materializer unavailable")}
-	s := buildTemplateSetup(t, mat)
+	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 
@@ -791,7 +839,7 @@ func TestTemplateCreateValidationAndMaterializationFailure(t *testing.T) {
 func TestTemplateCreateReusesExistingTimeframe(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, nil)
+	s := buildTemplateModule(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 
@@ -814,7 +862,7 @@ func TestTemplateCreateReusesExistingTimeframe(t *testing.T) {
 func TestTemplateUpdateValidationAndNotFound(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, nil)
+	s := buildTemplateModule(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 
@@ -870,7 +918,7 @@ func TestTemplateUpdateValidationAndNotFound(t *testing.T) {
 func TestTemplateRoutesRejectBadIDsAndMissingContext(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, nil)
+	s := buildTemplateModule(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 
@@ -894,7 +942,7 @@ func TestTemplateRoutesRejectBadIDsAndMissingContext(t *testing.T) {
 func TestListTemplatesFiltersByPeriod(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, nil)
+	s := buildTemplateModule(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 
@@ -941,7 +989,7 @@ func TestListTemplatesFiltersByPeriod(t *testing.T) {
 func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, nil)
+	s := buildTemplateModule(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 
@@ -966,36 +1014,36 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 	periodBEnrollment := &activitiesModel.StudentEnrollment{
 		StudentID:        s.studentB,
 		ActivityGroupID:  created.TemplateID,
-		ValidFrom:        periodB.StartDate,
+		ValidFrom:        activitiesModel.Date(periodB.StartDate),
 		CalendarPeriodID: &periodB.ID,
 	}
 	periodBEnrollment.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, activitiesRepo.NewStudentEnrollmentRepository(s.db).Create(s.ctx, periodBEnrollment))
+	require.NoError(t, s.enrollments.Create(s.ctx, periodBEnrollment))
 
 	globalEnrollment := &activitiesModel.StudentEnrollment{
 		StudentID:       studentC.ID,
 		ActivityGroupID: created.TemplateID,
-		ValidFrom:       timezone.NewDate(2026, time.January, 1),
+		ValidFrom:       activitiesModel.Date(timezone.NewDate(2026, time.January, 1)),
 	}
 	globalEnrollment.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, activitiesRepo.NewStudentEnrollmentRepository(s.db).Create(s.ctx, globalEnrollment))
+	require.NoError(t, s.enrollments.Create(s.ctx, globalEnrollment))
 
 	periodBSupervisor := &activitiesModel.SupervisorPlanned{
 		StaffID:          s.staffB,
 		GroupID:          created.TemplateID,
-		ValidFrom:        periodB.StartDate,
+		ValidFrom:        activitiesModel.Date(periodB.StartDate),
 		CalendarPeriodID: &periodB.ID,
 	}
 	periodBSupervisor.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, activitiesRepo.NewSupervisorPlannedRepository(s.db).Create(s.ctx, periodBSupervisor))
+	require.NoError(t, s.supervisors.Create(s.ctx, periodBSupervisor))
 
 	globalSupervisor := &activitiesModel.SupervisorPlanned{
 		StaffID:   staffC.ID,
 		GroupID:   created.TemplateID,
-		ValidFrom: timezone.NewDate(2026, time.January, 1),
+		ValidFrom: activitiesModel.Date(timezone.NewDate(2026, time.January, 1)),
 	}
 	globalSupervisor.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, activitiesRepo.NewSupervisorPlannedRepository(s.db).Create(s.ctx, globalSupervisor))
+	require.NoError(t, s.supervisors.Create(s.ctx, globalSupervisor))
 
 	updateBody := createTemplateBody(s, "Tpl-People-Period-A")
 	updateBody["calendar_period_id"] = periodA.ID
@@ -1068,7 +1116,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 func TestUpdateTemplateCanMoveToAnotherCalendarPeriod(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, nil)
+	s := buildTemplateModule(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 
@@ -1096,7 +1144,7 @@ func TestUpdateTemplateCanMoveToAnotherCalendarPeriod(t *testing.T) {
 func TestGetTemplateExposesProtectedStudentWeekdays(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, nil)
+	s := buildTemplateModule(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 
@@ -1112,12 +1160,12 @@ func TestGetTemplateExposesProtectedStudentWeekdays(t *testing.T) {
 	protected := &activitiesModel.StudentEnrollment{
 		StudentID:        s.studentA,
 		ActivityGroupID:  created.TemplateID,
-		ValidFrom:        period.StartDate,
+		ValidFrom:        activitiesModel.Date(period.StartDate),
 		CalendarPeriodID: &period.ID,
 		SelectedWeekdays: []int{activitiesModel.WeekdayMonday},
 	}
 	protected.SetTenantID(tenant.FromContext(s.ctx))
-	require.NoError(t, activitiesRepo.NewStudentEnrollmentRepository(s.db).Create(s.ctx, protected))
+	require.NoError(t, s.enrollments.Create(s.ctx, protected))
 
 	getW := doTemplateJSON(t, router, http.MethodGet,
 		fmt.Sprintf("/templates/%d?period_id=%d", created.TemplateID, period.ID), nil)
@@ -1138,7 +1186,7 @@ func TestGetTemplateExposesProtectedStudentWeekdays(t *testing.T) {
 func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, nil)
+	s := buildTemplateModule(t, nil)
 	studentC := testpkg.CreateTestStudent(t, s.db, "Tpl", fmt.Sprintf("StudentC-%d", time.Now().UnixNano()), "3a")
 	staffC := testpkg.CreateTestStaff(t, s.db, "Tpl", fmt.Sprintf("StaffC-%d", time.Now().UnixNano()))
 	// Register this defer last so template roster rows are removed before the
@@ -1197,11 +1245,11 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 	wBounded := doTemplateJSON(t, router, http.MethodPost, "/templates", bodyBounded)
 	require.Equal(t, http.StatusCreated, wBounded.Code, "body=%s", wBounded.Body.String())
 	createdBounded := decodeTemplateData[createTemplateResponse](t, wBounded)
-	boundedUntil := periodP.EndDate
+	boundedUntil := activitiesModel.Date(periodP.EndDate)
 	boundedEnrollment := &activitiesModel.StudentEnrollment{
 		StudentID:        s.studentA,
 		ActivityGroupID:  createdBounded.TemplateID,
-		ValidFrom:        periodP.StartDate,
+		ValidFrom:        activitiesModel.Date(periodP.StartDate),
 		ValidUntil:       &boundedUntil,
 		CalendarPeriodID: &periodP.ID,
 	}
@@ -1222,7 +1270,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 		enrollment := &activitiesModel.StudentEnrollment{
 			StudentID:        roster.studentID,
 			ActivityGroupID:  createdGlobal.TemplateID,
-			ValidFrom:        periodP.StartDate,
+			ValidFrom:        activitiesModel.Date(periodP.StartDate),
 			CalendarPeriodID: roster.periodID,
 		}
 		enrollment.SetTenantID(testpkg.Tenant(t))
@@ -1231,7 +1279,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 	supervisor := &activitiesModel.SupervisorPlanned{
 		StaffID:          s.staffA,
 		GroupID:          createdGlobal.TemplateID,
-		ValidFrom:        periodP.StartDate,
+		ValidFrom:        activitiesModel.Date(periodP.StartDate),
 		CalendarPeriodID: &periodP.ID,
 	}
 	supervisor.SetTenantID(testpkg.Tenant(t))
@@ -1239,11 +1287,11 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 	// A bounded staff assignment contributes only on dates inside its own
 	// validity window. Occurrence-level capacity must count it there without
 	// smearing it across the rest of the period.
-	boundedSupervisorUntil := periodP.EndDate
+	boundedSupervisorUntil := activitiesModel.Date(periodP.EndDate)
 	boundedSupervisor := &activitiesModel.SupervisorPlanned{
 		StaffID:          s.staffB,
 		GroupID:          createdGlobal.TemplateID,
-		ValidFrom:        periodP.StartDate,
+		ValidFrom:        activitiesModel.Date(periodP.StartDate),
 		ValidUntil:       &boundedSupervisorUntil,
 		CalendarPeriodID: &periodP.ID,
 	}
@@ -1256,7 +1304,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 		periodQSupervisor := &activitiesModel.SupervisorPlanned{
 			StaffID:          staffID,
 			GroupID:          createdGlobal.TemplateID,
-			ValidFrom:        periodQ.StartDate,
+			ValidFrom:        activitiesModel.Date(periodQ.StartDate),
 			CalendarPeriodID: &periodQ.ID,
 		}
 		periodQSupervisor.SetTenantID(testpkg.Tenant(t))
@@ -1342,7 +1390,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, nil)
+	s := buildTemplateModule(t, nil)
 	defer s.cleanupFn()
 	s.res.SettingsService = &configtest.Mock{
 		HasTenantOverrideFn: func(context.Context, string) (bool, error) { return true, nil },
@@ -1363,7 +1411,7 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 		templateID := createCapacityTemplate(t, router, s, "Tpl-Occurrence-Dynamic-Overlap", period.ID,
 			[]int{activitiesModel.WeekdayMonday}, 0)
 		class := " 3A "
-		targetRepo, ok := activitiesRepo.NewGroupRepository(s.db).(activitiesModel.GroupTargetRepository)
+		targetRepo, ok := mustTimetableTestRepositories(s.db).ActivityGroup.(activitiesModel.GroupTargetRepository)
 		require.True(t, ok)
 		require.NoError(t, targetRepo.ReplaceTargets(s.ctx, templateID, []*activitiesModel.GroupTarget{
 			{TargetGroupType: activitiesModel.TargetGroupTypeKlasse, TargetSchoolClass: &class},
@@ -1485,7 +1533,7 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 		createCapacityEnrollment(t, s, templateID, s.studentA, date, &end, &period.ID, nil)
 		exception := &scheduleModel.ActivityException{
 			ActivityGroupID: templateID,
-			ExceptionDate:   date,
+			ExceptionDate:   scheduleModel.Date(date),
 			ExceptionType:   scheduleModel.ActivityExceptionCancelled,
 		}
 		exception.SetTenantID(testpkg.Tenant(t))
@@ -1559,7 +1607,7 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 		require.NoError(t, err)
 		exception := &scheduleModel.ActivityException{
 			ActivityGroupID: templateID,
-			ExceptionDate:   date,
+			ExceptionDate:   scheduleModel.Date(date),
 			ExceptionType:   scheduleModel.ActivityExceptionModified,
 			RoomID:          &s.roomID,
 		}
@@ -1658,7 +1706,8 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 		templateID := createCapacityTemplate(t, router, s, "Tpl-Occurrence-Inactive", period.ID,
 			[]int{activitiesModel.WeekdayMonday}, 0)
 		end := period.StartDate.AddDays(1)
-		createCapacityEnrollment(t, s, templateID, s.studentA, period.StartDate, &end, &period.ID, nil)
+		endDate := timezone.Date(end)
+		createCapacityEnrollment(t, s, templateID, s.studentA, timezone.Date(period.StartDate), &endDate, &period.ID, nil)
 		_, err := s.db.NewUpdate().Table("schedule.calendar_periods").
 			Set("is_active = FALSE").
 			Where("tenant_id = ?", testpkg.Tenant(t)).
@@ -1707,13 +1756,13 @@ func createCapacityEnrollment(
 	enrollment := &activitiesModel.StudentEnrollment{
 		StudentID:        studentID,
 		ActivityGroupID:  templateID,
-		ValidFrom:        validFrom,
-		ValidUntil:       validUntil,
+		ValidFrom:        activitiesModel.Date(validFrom),
+		ValidUntil:       templateActivityDatePtr(validUntil),
 		CalendarPeriodID: periodID,
 		SelectedWeekdays: selectedWeekdays,
 	}
 	enrollment.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, activitiesRepo.NewStudentEnrollmentRepository(s.db).Create(s.ctx, enrollment))
+	require.NoError(t, s.enrollments.Create(s.ctx, enrollment))
 }
 
 func createCapacitySupervisor(
@@ -1728,12 +1777,12 @@ func createCapacitySupervisor(
 	supervisor := &activitiesModel.SupervisorPlanned{
 		StaffID:          staffID,
 		GroupID:          templateID,
-		ValidFrom:        validFrom,
-		ValidUntil:       validUntil,
+		ValidFrom:        activitiesModel.Date(validFrom),
+		ValidUntil:       templateActivityDatePtr(validUntil),
 		CalendarPeriodID: periodID,
 	}
 	supervisor.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, activitiesRepo.NewSupervisorPlannedRepository(s.db).Create(s.ctx, supervisor))
+	require.NoError(t, s.supervisors.Create(s.ctx, supervisor))
 }
 
 func setCapacityScheduleWindow(
@@ -1761,11 +1810,11 @@ func TestTemplateScheduleResponseIncludesValidityBounds(t *testing.T) {
 	row := templateRow{
 		ScheduleID:         9,
 		Weekday:            1,
-		StartTime:          sql.NullString{String: "14:00", Valid: true},
-		EndTime:            sql.NullString{String: "15:00", Valid: true},
+		StartTime:          activitiesModel.NullString{String: "14:00", Valid: true},
+		EndTime:            activitiesModel.NullString{String: "15:00", Valid: true},
 		WeekPattern:        0,
-		ScheduleValidFrom:  sql.NullString{String: "2026-05-04", Valid: true},
-		ScheduleValidUntil: sql.NullString{String: "2026-06-01", Valid: true},
+		ScheduleValidFrom:  activitiesModel.NullString{String: "2026-05-04", Valid: true},
+		ScheduleValidUntil: activitiesModel.NullString{String: "2026-06-01", Valid: true},
 	}
 
 	response := templateScheduleResponseFromRow(row)
@@ -1820,13 +1869,18 @@ func createTemplateTestPeriodRange(
 	weekCycleAnchor *timezone.Date,
 ) *scheduleModel.CalendarPeriod {
 	t.Helper()
+	var scheduleAnchor *scheduleModel.Date
+	if weekCycleAnchor != nil {
+		value := scheduleModel.Date(*weekCycleAnchor)
+		scheduleAnchor = &value
+	}
 	period := &scheduleModel.CalendarPeriod{
 		Name:            fmt.Sprintf("%s-%d", name, time.Now().UnixNano()),
 		PeriodType:      scheduleModel.PeriodTypeCustom,
-		StartDate:       startDate,
-		EndDate:         endDate,
+		StartDate:       scheduleModel.Date(startDate),
+		EndDate:         scheduleModel.Date(endDate),
 		WeekCycleLength: weekCycleLength,
-		WeekCycleAnchor: weekCycleAnchor,
+		WeekCycleAnchor: scheduleAnchor,
 		IsActive:        true,
 	}
 	period.SetTenantID(testpkg.Tenant(t))
@@ -1845,7 +1899,7 @@ func TestTemplate_WochennotizRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
-	s := buildTemplateSetup(t, mat)
+	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 
@@ -1893,7 +1947,7 @@ func TestTemplate_CreateRejectsOverlongNotes(t *testing.T) {
 	t.Parallel()
 
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
-	s := buildTemplateSetup(t, mat)
+	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 
@@ -1910,16 +1964,18 @@ func TestTemplateList_IncludesShiftTypeBadge(t *testing.T) {
 	t.Parallel()
 
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
-	s := buildTemplateSetup(t, mat)
+	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 
-	stRepo := repositories.NewFactory(s.db).ShiftType
-	catRepo := repositories.NewFactory(s.db).ActivityCategory
+	stRepo := mustTimetableTestRepositories(s.db).ShiftType
+	catRepo := mustTimetableTestRepositories(s.db).ActivityCategory
 	st := &scheduleModel.ShiftType{Name: fmt.Sprintf("Betreuung-%d", time.Now().UnixNano()), Color: "#83CD2D", IsActive: true}
 	require.NoError(t, stRepo.Create(s.ctx, st))
 	t.Cleanup(func() { _ = stRepo.Delete(s.ctx, st.ID) })
-	require.NoError(t, catRepo.SetShiftTypeForCategories(s.ctx, st.ID, []int64{s.category.ID}))
+	s.category.ShiftTypeID = &st.ID
+	_, err := catRepo.UpdateColumns(s.ctx, s.category, "shift_type_id")
+	require.NoError(t, err)
 
 	body := createTemplateBody(s, "Tpl-ShiftBadge")
 	w := doTemplateJSON(t, router, http.MethodPost, "/templates", body)
@@ -1948,7 +2004,7 @@ func TestTemplateList_IncludesShiftTypeBadge(t *testing.T) {
 func TestTemplateCreateWithStartDateStampsValidity(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, nil)
+	s := buildTemplateModule(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 
@@ -1976,7 +2032,7 @@ func TestTemplateCreateWithStartDateStampsValidity(t *testing.T) {
 func TestTemplateCreateWithStartDateWithoutPeriod(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, nil)
+	s := buildTemplateModule(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 
@@ -2001,7 +2057,7 @@ func TestTemplateCreateWithStartDateWithoutPeriod(t *testing.T) {
 func TestTemplateCreateStartDateValidation(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, nil)
+	s := buildTemplateModule(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 
@@ -2037,7 +2093,7 @@ func TestTemplateCreateStartDateValidation(t *testing.T) {
 	for _, sched := range tpl.Schedules {
 		assert.Empty(t, sched.ValidFrom, "omitted start_date must leave schedules open-started")
 	}
-	assertTemplateRosterValidFrom(t, s, created.TemplateID, period.StartDate)
+	assertTemplateRosterValidFrom(t, s, created.TemplateID, timezone.Date(period.StartDate))
 }
 
 // assertTemplateRosterValidFrom checks that every enrollment and supervisor

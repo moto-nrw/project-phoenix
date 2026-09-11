@@ -38,7 +38,7 @@ func TestTimeTrackingCleanup_DeletesOldSessions(t *testing.T) {
 	insertBreak(t, db, ancientSessionID, daysAgo(1500))
 	freshSessionID := insertSession(t, db, staff.ID, daysAgo(10))
 
-	repos := repoFactory.NewFactory(db)
+	repos := repoFactory.NewFactory(db, repoFactory.NewUnobservedTimetableDependencies(db))
 	svc := activeSvc.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, repos.DataDeletion, nil, nil)
 
 	result, err := svc.CleanupExpiredTimeTrackingData(ctx)
@@ -81,7 +81,7 @@ func TestTimeTrackingCleanup_DeletesOldAbsences(t *testing.T) {
 	oldAbsenceID := insertAbsence(t, db, staff.ID, daysAgo(900))
 	freshAbsenceID := insertAbsence(t, db, staff.ID, daysAgo(20))
 
-	repos := repoFactory.NewFactory(db)
+	repos := repoFactory.NewFactory(db, repoFactory.NewUnobservedTimetableDependencies(db))
 	svc := activeSvc.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, repos.DataDeletion, nil, nil)
 
 	result, err := svc.CleanupExpiredTimeTrackingData(ctx)
@@ -110,7 +110,7 @@ func TestTimeTrackingCleanup_PreviewLeavesDataIntact(t *testing.T) {
 	oldSessionID := insertSession(t, db, staff.ID, daysAgo(800))
 	oldAbsenceID := insertAbsence(t, db, staff.ID, daysAgo(900))
 
-	repos := repoFactory.NewFactory(db)
+	repos := repoFactory.NewFactory(db, repoFactory.NewUnobservedTimetableDependencies(db))
 	svc := activeSvc.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, repos.DataDeletion, nil, nil)
 
 	preview, err := svc.PreviewExpiredTimeTrackingData(ctx)
@@ -138,7 +138,7 @@ func TestTimeTrackingCleanup_PreviewOldestOnlyShowsExpiredRows(t *testing.T) {
 	freshSessionID := insertSession(t, db, staff.ID, daysAgo(10))
 	freshAbsenceID := insertAbsence(t, db, staff.ID, daysAgo(10))
 
-	repos := repoFactory.NewFactory(db)
+	repos := repoFactory.NewFactory(db, repoFactory.NewUnobservedTimetableDependencies(db))
 	svc := activeSvc.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, repos.DataDeletion, nil, nil)
 
 	preview, err := svc.PreviewExpiredTimeTrackingData(ctx)
@@ -168,7 +168,7 @@ func TestTimeTrackingCleanup_NoOpWhenNothingExpired(t *testing.T) {
 
 	freshSessionID := insertSession(t, db, staff.ID, daysAgo(10))
 
-	repos := repoFactory.NewFactory(db)
+	repos := repoFactory.NewFactory(db, repoFactory.NewUnobservedTimetableDependencies(db))
 	svc := activeSvc.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, repos.DataDeletion, nil, nil)
 
 	result, err := svc.CleanupExpiredTimeTrackingData(ctx)
@@ -192,7 +192,7 @@ func TestTimeTrackingCleanup_AuditRequired(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Cleanup", "NoAudit")
 	insertSession(t, db, staff.ID, daysAgo(800))
 
-	repos := repoFactory.NewFactory(db)
+	repos := repoFactory.NewFactory(db, repoFactory.NewUnobservedTimetableDependencies(db))
 	svc := activeSvc.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, nil, nil, nil)
 	_, err := svc.CleanupExpiredTimeTrackingData(ctx)
 	require.Error(t, err)
@@ -212,7 +212,7 @@ func TestTimeTrackingCleanup_UsesBusinessDatesNotCreatedAt(t *testing.T) {
 	freshBusinessAbsenceID := insertAbsenceWithBusinessDates(t, db, staff.ID, daysAgo(900), daysAgo(10), daysAgo(10))
 	oldBusinessAbsenceID := insertAbsenceWithBusinessDates(t, db, staff.ID, daysAgo(10), daysAgo(900), daysAgo(900))
 
-	repos := repoFactory.NewFactory(db)
+	repos := repoFactory.NewFactory(db, repoFactory.NewUnobservedTimetableDependencies(db))
 	svc := activeSvc.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, repos.DataDeletion, nil, nil)
 
 	result, err := svc.CleanupExpiredTimeTrackingData(ctx)

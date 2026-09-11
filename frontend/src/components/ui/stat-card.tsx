@@ -13,6 +13,10 @@
 // (`tone`, ohne Angabe grau); die Form-Props der großen (hint, progressPct,
 // action) sind in ihr per Typ ausgeschlossen statt still wirkungslos.
 //
+// Mit `icon` und `href` deckt die große Variante auch die Kacheln der
+// Startseite und der Importvorschau ab, die sich vorher jede selbst gebaut
+// haben. Es gibt im Tenant-Portal keine zweite Kennzahl-Kachel mehr.
+//
 // InfoCard bleibt die Antwort für die Karte mit Icon, Überschrift und Inhalt;
 // DataField die für ein Label-Wert-Paar in einem Detail-Panel.
 //
@@ -25,11 +29,21 @@
 // green by a factor of two). Both come from LOCATION_COLORS, so this component
 // holds no palette values of its own and cannot go stale when the palette moves.
 
+import type { ReactNode } from "react";
+import Link from "~/components/ui/navigation-link";
 import { LOCATION_COLORS, getAccessibleTextColor } from "~/lib/location-helper";
+import { Skeleton } from "~/components/ui/skeleton";
 
-export type StatCardTone = "blue" | "green" | "orange" | "red" | "gray";
+/**
+ * `gray` ist die Farbe „unbekannt" aus dem Standort-Vokabular — ein mittleres
+ * Steingrau, das eine Zahl blass wirken lässt. `neutral` ist die Textfarbe
+ * der Seite (Dunkelgrau): für eine Kennzahl, die nichts einfärben soll, weil
+ * das Symbol daneben die Bedeutung schon trägt (Startseite, #2180).
+ */
+export type StatCardTone =
+  "blue" | "green" | "orange" | "red" | "gray" | "neutral";
 
-const TONE_COLOR: Record<StatCardTone, string> = {
+const TONE_COLOR: Record<Exclude<StatCardTone, "neutral">, string> = {
   blue: LOCATION_COLORS.OTHER_ROOM,
   green: LOCATION_COLORS.GROUP_ROOM,
   orange: LOCATION_COLORS.SCHOOLYARD,
@@ -37,10 +51,20 @@ const TONE_COLOR: Record<StatCardTone, string> = {
   gray: LOCATION_COLORS.UNKNOWN,
 };
 
+/** Textfarbe der Zahl; `undefined` lässt die Klasse (Dunkelgrau) gelten. */
+function figureStyle(tone: StatCardTone): { color: string } | undefined {
+  if (tone === "neutral") return undefined;
+  return { color: getAccessibleTextColor(TONE_COLOR[tone]) };
+}
+
+function barColor(tone: StatCardTone): string {
+  return tone === "neutral" ? LOCATION_COLORS.UNKNOWN : TONE_COLOR[tone];
+}
+
 type StatCardProps = {
   readonly variant?: "card";
   readonly label: string;
-  readonly value: string;
+  readonly value: string | number;
   readonly hint?: string;
   /** Renders the progress bar when set. Clamped to 0…100. */
   readonly progressPct?: number;
@@ -52,6 +76,21 @@ type StatCardProps = {
   readonly compactValue?: boolean;
   /** Optional control in the top-right corner (edit pencil, info button). */
   readonly action?: React.ReactNode;
+  /**
+   * Symbol rechts neben der Zahl. Die Startseite und die Importvorschau
+   * hatten dafür je eine eigene Kachel — das Symbol gehört in diese hier.
+   */
+  readonly icon?: ReactNode;
+  /** Macht die Kachel zum Link auf die Liste hinter der Zahl. */
+  readonly href?: string;
+  /** Zeigt statt der Zahl ein Skelett. */
+  readonly loading?: boolean;
+  /**
+   * Erklärung zur Zahl als Titel-Hinweis. Nur für Kennzahlen, deren
+   * Rechenweg jemand sonst falsch nachrechnet (Saldo-Veränderung). Kein
+   * Ersatz für `hint` — der ist sichtbar, dieser hier nicht.
+   */
+  readonly title?: string;
 };
 
 type StatTileProps = {
@@ -72,15 +111,11 @@ export function StatCard(props: StatCardProps | StatTileProps) {
       <div className="rounded-xl bg-gray-50 px-3 py-2">
         <span
           className="block text-sm font-semibold text-gray-900"
-          style={
-            props.tone === undefined
-              ? undefined
-              : { color: getAccessibleTextColor(TONE_COLOR[props.tone]) }
-          }
+          style={props.tone === undefined ? undefined : figureStyle(props.tone)}
         >
           {props.value}
         </span>
-        <span className="block text-[11px] font-medium text-gray-500">
+        <span className="block text-xs font-medium text-gray-500">
           {props.label}
         </span>
       </div>
@@ -95,26 +130,65 @@ export function StatCard(props: StatCardProps | StatTileProps) {
     tone = "gray",
     compactValue,
     action,
+    icon,
+    href,
+    loading = false,
+    title,
   } = props;
 
-  return (
-    <div className="moto-content-surface relative flex h-full flex-col rounded-2xl border p-4 shadow-sm sm:p-5">
+  const card = (
+    <div
+      title={title}
+      className={`moto-content-surface relative flex h-full flex-col rounded-2xl border p-4 shadow-sm max-sm:p-3 sm:p-5 ${
+        href
+          ? "transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-md"
+          : ""
+      }`}
+    >
       {/* Absolute so a tile carrying an action keeps the same label→value
           rhythm as its neighbours in the row. */}
       {action != null ? (
         <div className="absolute top-2.5 right-2.5">{action}</div>
       ) : null}
-      <p className="pr-8 text-xs font-semibold tracking-wider text-gray-500 uppercase">
-        {label}
-      </p>
-      <p
-        className={`mt-2 font-bold ${
-          compactValue ? "text-xl whitespace-nowrap" : "text-2xl"
-        }`}
-        style={{ color: getAccessibleTextColor(TONE_COLOR[tone]) }}
-      >
-        {value}
-      </p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          {/* Auch mobil 12 px: 10 px war unter dem Typo-Boden (nichts
+              Lesbares unter text-xs, und das nur für Versalien-Labels). */}
+          {/* Der rechte Rand hält nur dann Platz frei, wenn oben rechts
+              wirklich eine Aktion liegt; sonst nahm er dem Label auf dem
+              Telefon neben dem Symbol ein Drittel der Breite. */}
+          <p
+            className={`text-xs font-semibold tracking-wider text-gray-500 uppercase max-sm:tracking-wide ${
+              action != null ? "pr-8" : ""
+            }`}
+          >
+            {label}
+          </p>
+          {loading ? (
+            <Skeleton className="mt-2 h-8 w-16" />
+          ) : (
+            <p
+              className={`mt-2 font-bold text-gray-900 max-sm:mt-1 ${
+                compactValue
+                  ? "text-xl whitespace-nowrap"
+                  : "text-2xl max-sm:text-lg"
+              }`}
+              style={figureStyle(tone)}
+            >
+              {value}
+            </p>
+          )}
+        </div>
+        {icon != null ? (
+          // Auch auf dem Telefon: ohne Symbol waren vier Kacheln dort nur
+          // noch Versalien und Zahl, und die Bedeutung, die das Symbol trägt
+          // (die Zahl steht bewusst in Textfarbe), fehlte gerade dort.
+          // Eine Stufe kleiner, damit das Label daneben Platz behält.
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-gray-600 max-sm:h-8 max-sm:w-8 max-sm:rounded-lg max-sm:[&_svg]:size-5">
+            {icon}
+          </span>
+        ) : null}
+      </div>
       {hint !== undefined && hint !== "" ? (
         <p className="mt-1 text-xs text-gray-500">{hint}</p>
       ) : null}
@@ -124,11 +198,24 @@ export function StatCard(props: StatCardProps | StatTileProps) {
             className="h-full rounded-full transition-all"
             style={{
               width: `${Math.min(100, Math.max(0, progressPct))}%`,
-              backgroundColor: TONE_COLOR[tone],
+              backgroundColor: barColor(tone),
             }}
           />
         </div>
       ) : null}
     </div>
   );
+
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className="focus-visible:ring-moto-blue group block h-full rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+      >
+        {card}
+      </Link>
+    );
+  }
+
+  return card;
 }

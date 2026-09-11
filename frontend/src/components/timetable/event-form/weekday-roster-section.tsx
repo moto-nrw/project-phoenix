@@ -16,6 +16,7 @@
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { Field } from "./field";
@@ -65,11 +66,18 @@ export function WeekdayRosterSection({
   );
 
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-xs font-semibold text-gray-700">
-          Personal und Kinder
-        </span>
+    <SectionCard
+      title="Personal und Kinder"
+      titleClassName="text-sm"
+      description={
+        weekdays.length < 2
+          ? "Der Regeltermin findet nur an einem Wochentag statt. Sobald weitere Wochentage ausgewählt sind, kann die Zuordnung pro Tag festgelegt werden."
+          : form.perWeekdayRoster
+            ? "Jeder Wochentag hat eine eigene Zuordnung. Änderungen gelten nur für den ausgewählten Tag, bis Sie sie auf alle Tage übertragen."
+            : "Alle Wochentage teilen sich eine Zuordnung. Wechseln Sie zu „Pro Wochentag“, wenn montags andere Personen oder Kinder zuständig sind als dienstags."
+      }
+      headingLevel={3}
+      actions={
         <SegmentedControl
           items={[
             { value: "shared", label: "Für alle Tage gleich" },
@@ -79,22 +87,9 @@ export function WeekdayRosterSection({
           onChange={(next) => setPerWeekdayRoster(next === "per-weekday")}
           ariaLabel="Zuordnung von Personal und Kindern"
         />
-      </div>
-
-      {weekdays.length < 2 ? (
-        <p className="text-xs text-gray-500">
-          Der Regeltermin findet nur an einem Wochentag statt. Sobald weitere
-          Wochentage ausgewählt sind, kann die Zuordnung pro Tag festgelegt
-          werden.
-        </p>
-      ) : (
-        <p className="text-xs leading-5 text-gray-600">
-          {form.perWeekdayRoster
-            ? "Jeder Wochentag hat eine eigene Zuordnung. Änderungen gelten nur für den ausgewählten Tag, bis du sie auf alle Tage überträgst."
-            : "Alle Wochentage teilen sich eine Zuordnung. Wechsle zu „Pro Wochentag“, wenn montags andere Personen oder Kinder zuständig sind als dienstags."}
-        </p>
-      )}
-
+      }
+      bodyClassName="mt-4 flex flex-col gap-3"
+    >
       {form.perWeekdayRoster && weekdays.length >= 2 && (
         <>
           <SegmentedControl
@@ -160,7 +155,7 @@ export function WeekdayRosterSection({
           }
         />
       ) : null}
-    </div>
+    </SectionCard>
   );
 }
 

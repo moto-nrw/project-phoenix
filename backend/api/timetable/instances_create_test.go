@@ -14,7 +14,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -23,10 +22,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/services"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -111,7 +109,7 @@ func decodeCreate(t *testing.T, w *httptest.ResponseRecorder) enrichedInstance {
 	return out
 }
 
-func TestCreateInstance_Spontaneous(t *testing.T) {
+func TestCreateInstance_WithoutTemplateIsPlanned(t *testing.T) {
 	t.Parallel()
 
 	s := buildCreateSetup(t)
@@ -127,8 +125,8 @@ func TestCreateInstance_Spontaneous(t *testing.T) {
 	persisted := testpkg.CreateTestActivityInstance(t, s.db, tomorrow, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM:     "14:00",
 		EndHHMM:       "15:00",
-		Title:         "Spontane Bastelstunde",
-		IsSpontaneous: true,
+		Title:         "Geplante Bastelstunde",
+		IsSpontaneous: false,
 	})
 	s.mock.createRes = persisted
 
@@ -136,7 +134,7 @@ func TestCreateInstance_Spontaneous(t *testing.T) {
 		"date":       tomorrow.String(),
 		"start_time": "14:00",
 		"end_time":   "15:00",
-		"title":      "Spontane Bastelstunde",
+		"title":      "Geplante Bastelstunde",
 		"room_id":    s.roomID,
 	}
 
@@ -145,20 +143,21 @@ func TestCreateInstance_Spontaneous(t *testing.T) {
 
 	got := decodeCreate(t, w)
 	assert.Equal(t, persisted.ID, got.ID)
-	assert.Equal(t, "Spontane Bastelstunde", got.Title)
+	assert.Equal(t, "Geplante Bastelstunde", got.Title)
 	assert.Equal(t, "14:00", got.StartTime)
 	assert.Equal(t, "15:00", got.EndTime)
 	assert.Equal(t, scheduleModel.InstanceStatusPlanned, got.Status)
-	assert.True(t, got.IsSpontaneous, "is_spontaneous is serialized from the service result")
+	assert.False(t, got.IsSpontaneous, "is_spontaneous is serialized from the service result")
 	assert.False(t, got.IsLive)
 	assert.Equal(t, s.roomID, got.RoomID)
 	assert.NotEmpty(t, got.RoomName, "room name should resolve via RoomRepo")
 
 	// Verify the service was called with the parsed inputs.
 	require.NotNil(t, s.mock.lastCreate)
-	assert.Equal(t, "Spontane Bastelstunde", s.mock.lastCreate.Title)
+	assert.Equal(t, "Geplante Bastelstunde", s.mock.lastCreate.Title)
 	assert.Equal(t, s.roomID, s.mock.lastCreate.RoomID)
-	assert.Nil(t, s.mock.lastCreate.ActivityGroupID, "spontaneous ⇒ no template")
+	assert.Nil(t, s.mock.lastCreate.ActivityGroupID, "planning-created instance may omit a template")
+	assert.Nil(t, s.mock.lastCreate.IsSpontaneous, "planner must leave the creation origin unset")
 }
 
 func TestCreateInstance_Validation(t *testing.T) {
@@ -169,7 +168,7 @@ func TestCreateInstance_Validation(t *testing.T) {
 	router := createRouter(s.ctx, s.res)
 
 	tomorrow := nextTimetableWorkday().String()
-	weekend := timezone.TodayDate()
+	weekend := timezone.NewDate(2026, 8, 24)
 	for weekend.Weekday() != time.Saturday {
 		weekend = weekend.AddDays(1)
 	}
@@ -274,13 +273,15 @@ func TestCreateInstance_DuplicateTemplateBoundReturnsConflict(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
+	clock := func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, timezone.Berlin) }
+	instanceDate := timezone.DateFromTime(clock()).AddDays(1)
 
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Create-Dupe-Room-%d", suffix))
 	template := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Create-Dupe-Template-%d", suffix))
 	period := testpkg.CreateTestCalendarPeriod(t, db, fmt.Sprintf("Create-Dupe-Period-%d", suffix),
-		timezone.TodayDate().AddDays(-1), timezone.TodayDate().AddDays(7))
+		instanceDate.AddDays(-1), instanceDate.AddDays(7))
 	testpkg.SetCalendarPeriodActive(t, db, period, true)
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().
@@ -290,18 +291,10 @@ func TestCreateInstance_DuplicateTemplateBoundReturnsConflict(t *testing.T) {
 			Exec(ctx)
 	})
 
-	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
-	require.NoError(t, err)
-	res := NewResource(Dependencies{
-		TimetableData:   testTimetableData(db),
-		InstanceService: serviceFactory.Instance,
-		DB:              db,
-	})
-	router := createRouter(ctx, res)
+	router := setupDuplicateInstanceRoute(t, db, ctx, clock)
 
 	body := map[string]any{
-		"date":              nextTimetableWorkday().String(),
+		"date":              instanceDate.String(),
 		"start_time":        "10:00",
 		"end_time":          "11:00",
 		"title":             "Duplicate slot",
@@ -315,6 +308,20 @@ func TestCreateInstance_DuplicateTemplateBoundReturnsConflict(t *testing.T) {
 	second := doCreate(t, router, body)
 	assert.Equal(t, http.StatusConflict, second.Code, "body=%s", second.Body.String())
 	assert.Contains(t, second.Body.String(), "duplicate_instance")
+}
+
+func setupDuplicateInstanceRoute(
+	t *testing.T, db *bun.DB, ctx context.Context, clock func() time.Time,
+) chi.Router {
+	t.Helper()
+
+	_, serviceFactory := testutil.SetupTimetableModule(t)
+	resource := NewResource(Dependencies{
+		TimetableData:   testTimetableData(db, clock),
+		InstanceService: serviceFactory.Instance,
+		DB:              db,
+	})
+	return createRouter(ctx, resource)
 }
 
 func TestCreateInstance_UnwiredResource(t *testing.T) {

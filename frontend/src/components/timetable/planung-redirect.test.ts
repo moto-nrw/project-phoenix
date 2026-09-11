@@ -11,8 +11,7 @@ function params(query: string): URLSearchParams {
 }
 
 describe("resolvePlanungRedirect", () => {
-  // Jede Zeile der Übersetzungstabelle aus docs/planung-redesign/docs/03
-  // Abschnitt 3 plus die Randfälle aus Abschnitt 13.
+  // Übersetzung der alten Planungs-URLs einschließlich der Randfälle.
   const cases: Array<{
     name: string;
     query: string;
@@ -157,7 +156,7 @@ describe("resolvePlanungRedirect", () => {
       query: "tab=betreuung&view=week&week=1&instance=42",
       expected: "/betreuungsplan?d=2026-07-20&view=woche&block=42",
     },
-    // --- Kriterium 13 (06-betreuungsplan.md Abschnitt 13), wortgetreu ---
+    // Zusätzliche Redirect-Randfälle.
     {
       name: "criterion 13: /planung?tab=betreuung&instance=123 lands on /betreuungsplan?block=123",
       query: "tab=betreuung&instance=123",

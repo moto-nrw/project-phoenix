@@ -1452,7 +1452,7 @@ func TestWSGetHistory_AuditCountError(t *testing.T) {
 		return nil, errors.New("audit count error")
 	}
 
-	responses, err := svc.GetHistory(context.Background(), 100, timezone.TodayDate(), timezone.TodayDate())
+	responses, err := svc.GetHistory(context.Background(), 100, timezone.NewDate(2026, 8, 24), timezone.NewDate(2026, 8, 24))
 	require.Error(t, err)
 	assert.Nil(t, responses)
 	assert.Contains(t, err.Error(), "failed to get edit counts")
@@ -1477,7 +1477,7 @@ func TestWSGetHistory_BreaksError(t *testing.T) {
 		return nil, errors.New("breaks error")
 	}
 
-	responses, err := svc.GetHistory(context.Background(), 100, timezone.TodayDate(), timezone.TodayDate())
+	responses, err := svc.GetHistory(context.Background(), 100, timezone.NewDate(2026, 8, 24), timezone.NewDate(2026, 8, 24))
 	require.Error(t, err)
 	assert.Nil(t, responses)
 	assert.Contains(t, err.Error(), "failed to get breaks")

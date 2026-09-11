@@ -8,9 +8,21 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/stretchr/testify/assert"
 )
+
+type checkoutActiveServiceStub struct {
+	*stubActiveService
+	getStudentAttendanceStatus func(ctx context.Context, studentID int64) (*activeService.AttendanceStatus, error)
+}
+
+func (s *checkoutActiveServiceStub) GetStudentAttendanceStatus(ctx context.Context, studentID int64) (*activeService.AttendanceStatus, error) {
+	return s.getStudentAttendanceStatus(ctx, studentID)
+}
 
 // =============================================================================
 // parseStudentIDFromRequest Tests
@@ -85,6 +97,37 @@ func TestParseStudentIDFromRequest_LargeID(t *testing.T) {
 	id, err := parseStudentIDFromRequest(req)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(9999999999), id)
+}
+
+func TestCheckoutStudent_RejectsNonStaffBeforeReadingAttendance(t *testing.T) {
+	t.Parallel()
+
+	attendanceCalls := 0
+	rs := &Resource{
+		ActiveService: &checkoutActiveServiceStub{
+			stubActiveService: &stubActiveService{},
+			getStudentAttendanceStatus: func(_ context.Context, _ int64) (*activeService.AttendanceStatus, error) {
+				attendanceCalls++
+				return &activeService.AttendanceStatus{Status: "checked_in"}, nil
+			},
+		},
+		UserContextService: &mockUserContextService{
+			getCurrentStaffFunc: func(_ context.Context) (*users.Staff, error) {
+				return nil, usercontext.ErrUserNotLinkedToStaff
+			},
+		},
+	}
+
+	router := chi.NewRouter()
+	router.Post("/student/{studentId}/checkout", rs.checkoutStudent)
+	req := httptest.NewRequest(http.MethodPost, "/student/123/checkout", nil)
+	req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 11}))
+	rr := httptest.NewRecorder()
+
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusForbidden, rr.Code)
+	assert.Zero(t, attendanceCalls)
 }
 
 // =============================================================================

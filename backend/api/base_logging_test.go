@@ -60,6 +60,8 @@ func TestLoggingMiddlewareIgnoresScannerMethods(t *testing.T) {
 			logger := slog.New(capture)
 
 			router := chi.NewRouter()
+			tracer := newRuntimeTracer(logger)
+			router.Use(func(next http.Handler) http.Handler { return requestIDMiddleware(tracer, next) })
 			setupBasicMiddleware(router, logger, nil)
 			router.Get("/", func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusOK)

@@ -63,8 +63,10 @@ func buildSickCascadeEnv(t *testing.T) *sickCascadeEnv {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default(), func() time.Time {
+		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
+	})
 	require.NoError(t, err)
 
 	suffix := time.Now().UnixNano()
@@ -86,6 +88,7 @@ func buildSickCascadeEnv(t *testing.T) *sickCascadeEnv {
 		nil,
 		db,
 		slog.Default(),
+		func() timezone.Date { return timezone.NewDate(2026, 8, 24) },
 	)
 
 	return &sickCascadeEnv{
@@ -124,7 +127,7 @@ func (e *sickCascadeEnv) createShift(t *testing.T, staffID int64, date timezone.
 	t.Helper()
 	shift := &scheduleModels.StaffShift{
 		StaffID:   staffID,
-		Date:      date,
+		Date:      scheduleModels.Date(date),
 		StartTime: e.clock(t, start),
 		EndTime:   e.clock(t, end),
 		CreatedBy: staffID,
@@ -167,7 +170,7 @@ func (e *sickCascadeEnv) reloadRow(t *testing.T, id int64) *scheduleModels.Insta
 
 func (e *sickCascadeEnv) eventsByType(t *testing.T, from, to timezone.Date, eventType string) []*auditModels.DeviationEvent {
 	t.Helper()
-	events, err := e.repos.DeviationEvent.ListByRange(e.ctx, from, to, nil, nil)
+	events, err := e.repos.DeviationEvent.ListByRange(e.ctx, auditModels.Date(from), auditModels.Date(to), nil, nil)
 	require.NoError(t, err)
 	var filtered []*auditModels.DeviationEvent
 	for _, ev := range events {
@@ -185,7 +188,7 @@ func TestSickCascade_MarkSickForRange(t *testing.T) {
 	t.Parallel()
 
 	e := buildSickCascadeEnv(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	tomorrow := today.AddDays(1)
 	yesterday := today.AddDays(-1)
 
@@ -300,8 +303,8 @@ func TestSickCascade_PastShiftsRemainHistoricalDuringMarkAndReconcile(t *testing
 	t.Parallel()
 
 	e := buildSickCascadeEnv(t)
-	yesterday := timezone.TodayDate().AddDays(-1)
-	tomorrow := timezone.TodayDate().AddDays(1)
+	yesterday := timezone.NewDate(2026, 8, 24).AddDays(-1)
+	tomorrow := timezone.NewDate(2026, 8, 24).AddDays(1)
 	past := e.createShift(t, e.subject.ID, yesterday, "08:00", "12:00", nil)
 
 	e.inTx(t, func(ctx context.Context) error {
@@ -322,7 +325,7 @@ func TestSickCascade_PastShiftsRemainHistoricalDuringMarkAndReconcile(t *testing
 	stored.Cancelled = true
 	stored.ChangeReason = &reason
 	stored.SickAbsenceID = &absenceID
-	_, err := e.repos.StaffShift.UpdateColumns(e.ctx, stored, "cancelled", "change_reason", "sick_absence_id")
+	err := e.repos.StaffShift.Update(e.ctx, stored)
 	require.NoError(t, err)
 
 	before := activeSvc.SickCascadeInput{
@@ -361,7 +364,7 @@ func TestSickCascade_ShiftOnlyChangesBroadcastTenantInvalidation(t *testing.T) {
 		e.db,
 		slog.Default(),
 	)
-	dayOne := timezone.TodayDate().AddDays(1)
+	dayOne := timezone.NewDate(2026, 8, 24).AddDays(1)
 	dayTwo := dayOne.AddDays(1)
 	e.createShift(t, e.subject.ID, dayOne, "08:00", "09:00", nil)
 	e.createShift(t, e.subject.ID, dayTwo, "08:00", "09:00", nil)
@@ -396,7 +399,7 @@ func TestSickCascade_ConcurrentOverlappingReportsSerializeBeforeOverlapRead(t *t
 	t.Parallel()
 
 	e := buildSickCascadeEnv(t)
-	day := timezone.TodayDate().AddDays(1)
+	day := timezone.NewDate(2026, 8, 24).AddDays(1)
 
 	lockHeld := make(chan struct{})
 	releaseLock := make(chan struct{})
@@ -448,7 +451,7 @@ func TestSickCascade_HalfDayRules(t *testing.T) {
 	t.Parallel()
 
 	e := buildSickCascadeEnv(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	tomorrow := today.AddDays(1)
 	dayAfter := today.AddDays(2)
 
@@ -489,7 +492,7 @@ func TestSickCascade_ReconcileSickRangeAppliesOnlyDateDelta(t *testing.T) {
 	t.Parallel()
 
 	e := buildSickCascadeEnv(t)
-	dayOne := timezone.TodayDate().AddDays(1)
+	dayOne := timezone.NewDate(2026, 8, 24).AddDays(1)
 	dayTwo := dayOne.AddDays(1)
 	dayThree := dayTwo.AddDays(1)
 
@@ -551,7 +554,7 @@ func TestSickCascade_UpdateRangeRollsBackWhenRemovedShiftCannotReactivate(t *tes
 	t.Parallel()
 
 	e := buildSickCascadeEnv(t)
-	oldDay := timezone.TodayDate().AddDays(1)
+	oldDay := timezone.NewDate(2026, 8, 24).AddDays(1)
 	newDay := oldDay.AddDays(1)
 	original := e.createShift(t, e.subject.ID, oldDay, "08:00", "10:00", nil)
 	absenceID := e.createSickAbsence(t, oldDay, oldDay)
@@ -595,7 +598,7 @@ func TestSickCascade_MarkWaitsForConcurrentShiftWrite(t *testing.T) {
 		DateEnd:        day,
 	}
 	shift := &scheduleModels.StaffShift{
-		StaffID: e.subject.ID, Date: day, StartTime: e.clock(t, "08:00"),
+		StaffID: e.subject.ID, Date: scheduleModels.Date(day), StartTime: e.clock(t, "08:00"),
 		EndTime: e.clock(t, "09:00"), CreatedBy: e.admin.ID,
 	}
 	shift.SetTenantID(testpkg.Tenant(t))
@@ -654,7 +657,7 @@ func TestSickCascade_ClearWaitsForConcurrentReplacement(t *testing.T) {
 		DateEnd:        day,
 	}
 	cover := &scheduleModels.StaffShift{
-		StaffID: e.sub.ID, Date: day, StartTime: e.clock(t, "08:00"),
+		StaffID: e.sub.ID, Date: scheduleModels.Date(day), StartTime: e.clock(t, "08:00"),
 		EndTime: e.clock(t, "10:00"), CreatedBy: e.admin.ID, OriginShiftID: &origin.ID,
 	}
 	cover.SetTenantID(testpkg.Tenant(t))
@@ -775,7 +778,7 @@ func TestSickCascade_ClearSickForRange(t *testing.T) {
 	t.Parallel()
 
 	e := buildSickCascadeEnv(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	tomorrow := today.AddDays(1)
 
 	plain := e.createShift(t, e.subject.ID, tomorrow, "08:00", "12:00", nil)
@@ -840,7 +843,7 @@ func TestSickCascade_ClearSickForRange(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, clearableInstance.UnderstaffedAck)
 	assert.Nil(t, clearableInstance.UnderstaffedNote)
-	allEvents, err := e.repos.DeviationEvent.ListByRange(e.ctx, tomorrow, tomorrow, nil, nil)
+	allEvents, err := e.repos.DeviationEvent.ListByRange(e.ctx, auditModels.Date(tomorrow), auditModels.Date(tomorrow), nil, nil)
 	require.NoError(t, err)
 	var unackEvents []*auditModels.DeviationEvent
 	for _, event := range allEvents {

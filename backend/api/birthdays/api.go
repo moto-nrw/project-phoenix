@@ -16,7 +16,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
@@ -67,7 +66,7 @@ func (rs *Resource) Router() chi.Router {
 		// directory's own boundary. Staff entries are gated by the school
 		// setting and the personal opt-out, both applied in the service, so
 		// this route never widens what a colleague may see.
-		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.getOverview)
+		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.getOverview)
 
 		// The opt-out is self-service: it acts on the caller's own staff row,
 		// resolved from the JWT, so it needs no permission beyond being
@@ -78,7 +77,7 @@ func (rs *Resource) Router() chi.Router {
 		// The staff Geburtstagsliste reveals full birth dates, so it is gated
 		// on the permissions that already open the Stammdaten those dates come
 		// from — never on users:read, which every colleague holds.
-		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.TimeTrackingManage), withTx).
+		r.With(common.RequiresAnyPermission(permissions.UsersUpdate, permissions.TimeTrackingManage), withTx).
 			Post("/staff-export", rs.exportStaffBirthdays)
 	})
 

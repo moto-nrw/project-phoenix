@@ -14,9 +14,11 @@ import { useTenantRouter } from "~/lib/tenant-router";
 import { RoleGuard } from "~/components/auth/role-guard";
 import { OpenCareModeGuard } from "~/components/tenant/open-care-mode-guard";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
-import { Alert } from "~/components/ui/alert";
+import { CollectionGrid } from "~/components/ui/collection-grid";
+import { Button } from "~/components/ui/button";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { TenantPage } from "~/components/ui/tenant-page";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type {
   FilterConfig,
   ActiveFilter,
@@ -34,11 +36,10 @@ import { useMinuteClock } from "~/lib/pickup-helpers";
 import type { OGSGroup } from "./ogs-group-helpers";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import { GroupTransferModal } from "~/components/groups/group-transfer-modal";
-import { groupTransferService } from "~/lib/group-transfer-api";
-import type { StaffWithRole, GroupTransfer } from "~/lib/group-transfer-api";
+import { substitutionService } from "~/lib/substitution-api";
+import type { Substitution } from "~/lib/substitution-helpers";
 import { useToast } from "~/contexts/ToastContext";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
-import { useUserContext } from "~/lib/hooks/use-user-context";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 
 import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
@@ -62,6 +63,7 @@ import { usePresenceMode } from "~/lib/tenant-context";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { fetchOgsGroupLive } from "~/lib/ogs-group-live-api";
 import type {
+  GroupTransfer,
   OgsLiveViewData,
   OgsLiveWireStudent,
   OgsPickupInfo,
@@ -80,9 +82,105 @@ import {
 
 import { createLogger } from "~/lib/logger";
 import { OgsGroupsPageSkeleton } from "./page-skeleton";
+import { hasEffectiveAdminScope } from "~/lib/auth-utils";
+import { berlinTodayISO } from "~/lib/date-helpers";
 
 const logger = createLogger({ component: "OgsGroupsPage" });
 const GROUP_ACCESS_RECONCILE_INTERVAL_MS = 15 * 60_000;
+const EMPTY_GROUP_TRANSFERS: GroupTransfer[] = [];
+
+function groupTransfers(
+  handovers: Substitution[],
+  groupId: string,
+): GroupTransfer[] {
+  return handovers
+    .filter((handover) => handover.groupId === groupId)
+    .map((handover) => ({
+      substitutionId: handover.id,
+      groupId: handover.groupId,
+      targetStaffId: handover.substituteStaffId,
+      targetName: handover.substituteStaffName,
+      validUntil: handover.endDate,
+    }));
+}
+
+async function fetchGroupTransferContext(groupId: string) {
+  const overview = await substitutionService.fetchOverview();
+  return {
+    users: overview.targets,
+    transfers: groupTransfers(overview.groupHandovers, groupId),
+  };
+}
+
+async function assignGroupForToday(groupId: string, targetStaffId: string) {
+  const today = berlinTodayISO();
+  await substitutionService.createSubstitution(
+    groupId,
+    targetStaffId,
+    today,
+    today,
+  );
+}
+
+function useGroupTransferData(
+  groupId: string | undefined,
+  open: boolean,
+  initialTransfers: GroupTransfer[],
+) {
+  const [users, setUsers] = useState<Array<{ id: string; fullName: string }>>(
+    [],
+  );
+  const [transfers, setTransfers] = useState<GroupTransfer[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const reload = useCallback(async () => {
+    if (!groupId) return;
+    try {
+      const context = await fetchGroupTransferContext(groupId);
+      setUsers(context.users);
+      setTransfers(context.transfers);
+      setLoadError(null);
+    } catch (error) {
+      logger.error("failed to load group handover modal", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      setUsers([]);
+      setTransfers([]);
+      setLoadError(
+        "Fachkräfte und Übergaben konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
+      );
+    }
+  }, [groupId]);
+  useEffect(() => {
+    if (open) void reload();
+  }, [open, reload]);
+  useEffect(() => setTransfers(initialTransfers), [initialTransfers]);
+  return { users, transfers, loadError, reload };
+}
+
+function useGroupTransferModal(
+  group: OGSGroup | null,
+  initialTransfers: GroupTransfer[],
+) {
+  const [open, setOpen] = useState(false);
+  const { success } = useToast();
+  const data = useGroupTransferData(group?.id, open, initialTransfers);
+  const transfer = async (targetStaffId: string, targetName: string) => {
+    if (!group) return;
+    await assignGroupForToday(group.id, targetStaffId);
+    await data.reload();
+    success(`Gruppe "${group.name}" an ${targetName} übergeben`);
+  };
+  const cancel = async (substitutionId: string) => {
+    if (!group) return;
+    const transfer = data.transfers.find(
+      (item) => item.substitutionId === substitutionId,
+    );
+    await substitutionService.deleteSubstitution(substitutionId);
+    await data.reload();
+    success(`Übergabe an ${transfer?.targetName ?? "Betreuer"} zurückgenommen`);
+  };
+  return { ...data, open, setOpen, transfer, cancel };
+}
 
 // Maps the aggregated live-view wire student (backend "last_name" naming) to
 // the frontend Student shape the shared card components consume.
@@ -131,7 +229,8 @@ function areOgsGroupsEqual(a: OGSGroup[], b: OGSGroup[]): boolean {
       group.room_name === other.room_name &&
       group.student_count === other.student_count &&
       group.present_count === other.present_count &&
-      group.viaSubstitution === other.viaSubstitution
+      group.viaSubstitution === other.viaSubstitution &&
+      group.isPersonal === other.isPersonal
     );
   });
 }
@@ -160,6 +259,20 @@ function GroupAbsenceOverview({
   );
 }
 
+/**
+ * Gruppenreiter für die Kopfkarte. Bis zu vier Gruppen stehen einzeln; ab der
+ * fünften bleiben die ersten drei sichtbar und der Rest bündelt sich hinter
+ * „Weitere Gruppen". Mehr Reiter wären eine Werkzeugleiste, keine
+ * Orientierung (BAUARTEN-SPEC, Teil 3).
+ */
+function buildGroupTabItems(groups: readonly OGSGroup[]) {
+  const toItem = (group: OGSGroup) => ({
+    value: group.id,
+    label: formatGroupLabelWithAttendance(group),
+  });
+  return groups.map(toItem);
+}
+
 function OGSGroupPageContent() {
   const router = useTenantRouter();
   const searchParams = useSearchParams();
@@ -170,9 +283,8 @@ function OGSGroupPageContent() {
     },
   });
 
-  const { success: showSuccessToast } = useToast();
-  const { userContext } = useUserContext();
   const { setGroupAttendanceCount } = useGroupAttendanceCounts();
+  const canAdministerGroups = hasEffectiveAdminScope(session);
 
   // Only binary-mode tenants expose the web check-in toggle; in detailed
   // mode the kiosk owns check-in/out and a parallel web button would
@@ -228,8 +340,7 @@ function OGSGroupPageContent() {
     Record<string, { in_group_room: boolean; current_room_id?: string }>
   >({});
 
-  // State for mobile/desktop detection
-  const [isMobile, setIsMobile] = useState(false);
+  // State for desktop detection (die Gruppenreiter gibt es nur unterhalb lg)
   const [isDesktop, setIsDesktop] = useState(false);
 
   // State for pickup times (part of the aggregated live response)
@@ -245,10 +356,6 @@ function OGSGroupPageContent() {
   // Current time for urgency calculation (updates every minute)
   const now = useMinuteClock();
 
-  // State for group transfer modal
-  const [showTransferModal, setShowTransferModal] = useState(false);
-  const [availableUsers, setAvailableUsers] = useState<StaffWithRole[]>([]);
-  const [activeTransfers, setActiveTransfers] = useState<GroupTransfer[]>([]);
   const tenantMutate = useTenantMutate();
 
   // Single aggregated live fetch (#2056): one backend request returns groups,
@@ -322,6 +429,7 @@ function OGSGroupPageContent() {
         present_count: undefined as number | undefined,
         supervisor_name: undefined,
         viaSubstitution: group.viaSubstitution,
+        isPersonal: group.isPersonal,
       }))
       .sort((a, b) => a.name.localeCompare(b.name, "de"));
 
@@ -388,7 +496,6 @@ function OGSGroupPageContent() {
       setStudents(mappedStudents);
       setRoomStatus(liveData.roomStatus);
       setPickupTimes(liveData.pickupTimes);
-      setActiveTransfers(liveData.transfers);
       setError(null);
       setIsLoading(false);
     }
@@ -460,7 +567,12 @@ function OGSGroupPageContent() {
       allGroups.find((g) => g.id === selectedGroupId) ?? allGroups[0] ?? null,
     [allGroups, selectedGroupId],
   );
-  const currentGroupId = currentGroup?.id;
+  const groupTransfer = useGroupTransferModal(
+    currentGroup,
+    liveData && liveData.groupId === currentGroup?.id
+      ? liveData.transfers
+      : EMPTY_GROUP_TRANSFERS,
+  );
 
   // Set breadcrumb data
   useSetBreadcrumb({
@@ -478,131 +590,18 @@ function OGSGroupPageContent() {
     currentGroupRef.current = currentGroup;
   }, [currentGroup]);
 
-  // Load available users for transfer dropdown
-  // Query "teacher", "staff", and "user" roles to cover all deployment configurations
-  // Most production accounts use the "user" role (Nutzer)
-  const loadAvailableUsers = useCallback(async () => {
-    try {
-      const users = await groupTransferService.getAllAvailableStaff();
-      setAvailableUsers(users);
-    } catch (error) {
-      logger.error("failed to load available users", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      setAvailableUsers([]);
-    }
-  }, []);
-
-  // Check if current group has active transfers
-  // Pass token to skip redundant getSession() call (saves ~600ms)
-  const checkActiveTransfers = useCallback(
-    async (groupId: string, token?: string) => {
-      try {
-        const transfers = await groupTransferService.getActiveTransfersForGroup(
-          groupId,
-          token,
-        );
-        setActiveTransfers(transfers);
-      } catch (error) {
-        logger.error("failed to check active transfers", {
-          error: error instanceof Error ? error.message : String(error),
-        });
-        setActiveTransfers([]);
-      }
-    },
-    [],
-  );
-
-  // Load users when modal opens
-  // IMPORTANT: Use currentGroupId as dependency, not currentGroup object
-  // Otherwise setAllGroups() creates new object references and triggers this effect again
-  useEffect(() => {
-    if (showTransferModal && currentGroupId) {
-      loadAvailableUsers().catch((err: unknown) =>
-        logger.error("failed to load available users", {
-          error: err instanceof Error ? err.message : String(err),
-        }),
-      );
-      checkActiveTransfers(currentGroupId).catch((err: unknown) =>
-        logger.error("failed to check active transfers", {
-          error: err instanceof Error ? err.message : String(err),
-        }),
-      );
-    }
-  }, [
-    showTransferModal,
-    currentGroupId,
-    loadAvailableUsers,
-    checkActiveTransfers,
-  ]);
-
-  // Handle group transfer
-  const handleTransferGroup = async (
-    targetPersonId: string,
-    targetName: string,
-  ) => {
-    if (!currentGroup) return;
-
-    await groupTransferService.transferGroup(currentGroup.id, targetPersonId);
-
-    // Reload transfers for this group to show updated list
-    await checkActiveTransfers(currentGroup.id);
-
-    // NOTE: We intentionally do NOT reload groups here.
-    // A transfer only creates a substitution record - it doesn't change group data.
-    // Reloading groups could return them in a different order, causing the selection
-    // to point to a different group and making the modal switch unexpectedly.
-
-    // Show success toast
-    showSuccessToast(
-      `Gruppe "${currentGroup.name}" an ${targetName} übergeben`,
-    );
-
-    // Keep modal open to allow multiple transfers and show updated transfer list
-  };
-
-  // Handle cancel specific transfer by ID
-  const handleCancelTransfer = async (substitutionId: string) => {
-    if (!currentGroup) return;
-
-    // Find the transfer to get recipient name
-    const transfer = activeTransfers.find(
-      (t) => t.substitutionId === substitutionId,
-    );
-    const recipientName = transfer?.targetName ?? "Betreuer";
-
-    // Use the secure ownership-checked endpoint instead of direct substitution deletion
-    // This ensures only the original group leader can cancel transfers
-    await groupTransferService.cancelTransferBySubstitutionId(
-      currentGroup.id,
-      substitutionId,
-    );
-
-    // Reload transfers for this group
-    await checkActiveTransfers(currentGroup.id);
-
-    // NOTE: We intentionally do NOT reload groups here.
-    // Canceling a transfer only deletes a substitution record - it doesn't change group data.
-    // Reloading groups could return them in a different order, causing the selection
-    // to point to a different group and making the modal switch unexpectedly.
-
-    // Show success toast
-    showSuccessToast(`Übergabe an ${recipientName} wurde zurückgenommen`);
-  };
-
   // SSE is handled globally by TenantAuthWrapper - no page-level setup needed.
   // When student_checkin/checkout events occur, global SSE invalidates "student*" caches,
   // which triggers SWR refetch for ogs-students-* keys automatically.
 
-  // Handle mobile detection
+  // Handle desktop detection
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
+    const checkViewport = () => {
       setIsDesktop(window.innerWidth >= 1024);
     };
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
+    checkViewport();
+    window.addEventListener("resize", checkViewport);
+    return () => window.removeEventListener("resize", checkViewport);
   }, []);
 
   // Function to switch between groups (by ID — stable across re-sorts).
@@ -848,62 +847,26 @@ function OGSGroupPageContent() {
   // If user doesn't have access, show empty state
   if (!showSkeleton && !hasAccess) {
     return (
-      <div className="-mt-1.5 w-full">
-        <PageHeaderWithSearch title="Meine Gruppe" />
-
-        <div className="flex min-h-[60vh] items-center justify-center px-4">
-          <div className="flex max-w-md flex-col items-center gap-6 text-center">
-            <MotoConceptIcon concept="groups" size={48} />
-            <div className="space-y-2">
-              <h3 className="text-lg font-medium text-gray-900">
-                Keine OGS-Gruppe zugeordnet
-              </h3>
-              <p className="text-gray-600">
-                Du bist keiner OGS-Gruppe als Leiter:in zugeordnet. Wende dich
-                an deine Verwaltung, um einer Gruppe zugewiesen zu werden.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
+      <TenantPage
+        title="Meine Gruppen"
+        empty={{
+          icon: <MotoConceptIcon concept="groups" size={48} />,
+          title: "Keine OGS-Gruppe zugeordnet",
+          description:
+            "Sie sind keiner OGS-Gruppe als Leitung zugeordnet. Wenden Sie sich an Ihre Verwaltung, um einer Gruppe zugewiesen zu werden.",
+        }}
+      />
     );
   }
-
-  // Render helper for the substitution status pill. "In Vertretung" is a
-  // passive informational badge — it just signals that the current user is
-  // covering for someone else. Active actions ("Gruppe übergeben") moved into
-  // the kebab-menu, and the check-in mode lives in the SchoolCheckinFab.
-  const renderSubstitutionBadge = (variant: "desktop" | "mobile") => {
-    if (!currentGroup?.viaSubstitution) return undefined;
-
-    if (variant === "desktop") {
-      return (
-        <div className="flex h-10 items-center gap-2 px-4">
-          <MotoConceptIcon concept="substitution" size={18} />
-          <span className="text-sm font-medium text-gray-900">
-            In Vertretung
-          </span>
-        </div>
-      );
-    }
-
-    return (
-      <div
-        className="flex h-8 w-8 items-center justify-center"
-        title="In Vertretung"
-      >
-        <MotoConceptIcon concept="substitution" size={18} />
-      </div>
-    );
-  };
 
   // Build the kebab-menu items once per render. Skip when there's no current
   // group (loading state) so the menu doesn't appear with stale handlers.
   const overflowItems = currentGroup
     ? buildGroupOverflowItems({
         viaSubstitution: currentGroup.viaSubstitution ?? false,
-        activeTransfersCount: activeTransfers.length,
-        onOpenTransfer: () => setShowTransferModal(true),
+        canTransfer: canAdministerGroups || currentGroup.isPersonal === true,
+        activeTransfersCount: groupTransfer.transfers.length,
+        onOpenTransfer: () => groupTransfer.setOpen(true),
       })
     : [];
 
@@ -912,32 +875,10 @@ function OGSGroupPageContent() {
     if (showSkeleton) {
       return <StudentCardGridSkeleton />;
     }
-    if (students.length === 0) {
-      return (
-        <div className="mt-8 flex min-h-[30vh] items-center justify-center">
-          <div className="flex max-w-md flex-col items-center gap-4 text-center">
-            <MotoConceptIcon concept="children" size={48} />
-            <div className="space-y-1">
-              <h3 className="text-lg font-medium text-gray-900">
-                Keine Kinder in {currentGroup?.name ?? "dieser Gruppe"}
-              </h3>
-              <p className="text-sm text-gray-500">
-                Es wurden noch keine Kinder zu dieser OGS-Gruppe hinzugefügt.
-              </p>
-              {allGroups.length > 1 && (
-                <p className="mt-1 text-sm text-gray-500">
-                  Versuchen Sie eine andere Gruppe auszuwählen.
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      );
-    }
     if (sortedStudents.length > 0) {
       return (
         <div>
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
+          <CollectionGrid>
             {sortedStudents.map((student) => {
               const inGroupRoom = isStudentInGroupRoom(student, currentGroup);
               const studentPickup = pickupTimes.get(student.id.toString());
@@ -1067,7 +1008,7 @@ function OGSGroupPageContent() {
                 />
               );
             })}
-          </div>
+          </CollectionGrid>
         </div>
       );
     }
@@ -1081,25 +1022,32 @@ function OGSGroupPageContent() {
 
   return (
     <>
-      <div className="w-full">
-        {/* Page header — scrolls with the rest of the page (no sticky).
-            Active filters surface as a count badge on the filter pill (no
-            separate chips row), and the kebab menu carries the rare
-            "Gruppe übergeben" action. */}
-        <div className="-mx-1 px-1 pb-2 sm:mx-0 sm:px-0">
-          <PageHeaderWithSearch
-            title={
-              isMobile && allGroups.length === 1
-                ? currentGroup
-                  ? formatGroupLabelWithAttendance(currentGroup)
-                  : "Meine Gruppe"
-                : "" // No title when multiple groups (tabs show group names) or on desktop
-            }
-            actionButton={renderSubstitutionBadge("desktop")}
-            mobileActionButton={renderSubstitutionBadge("mobile")}
-            overflowMenu={overflowItems}
-            primaryAction={
-              isBinaryMode ? (
+      {/* Kopfkarte wie auf jeder Tenant-Seite. Der Titel bleibt konstant;
+          Gruppe und Anwesenheit stehen in der Statuszeile darunter, in den
+          Aktionen der An- und Abmelde-Modus, der Vertretungshinweis und das
+          Kebab-Menü. */}
+      <TenantPage
+        title="Meine Gruppen"
+        stats={
+          // Statuszeile aus den bereits geladenen Gruppendaten:
+          // Gruppenname und Anwesenheit.
+          [
+            currentGroup?.name,
+            currentGroup?.student_count !== undefined
+              ? `${currentGroup.present_count ?? 0} von ${currentGroup.student_count} da`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" · ") || "Keine Gruppe zugeordnet"
+        }
+        statsLoading={showSkeleton}
+        actions={
+          <>
+            {/* Der An- und Abmelde-Modus ist ab 1024px eine Kopfaktion;
+                darunter tragen ihn die Leiste am unteren Rand (Phone) und
+                der schwebende Knopf (Tablet). */}
+            {isBinaryMode ? (
+              <div className="hidden lg:block">
                 <SchoolCheckinFab
                   variant="inline"
                   isActive={schoolCheckin.isActive}
@@ -1107,60 +1055,116 @@ function OGSGroupPageContent() {
                   successCount={schoolCheckin.successCount}
                   pendingCount={schoolCheckin.pendingIds.size}
                 />
-              ) : undefined
-            }
-            activeFilterDisplay="count"
-            tabs={
-              allGroups.length > 1 && !isDesktop
-                ? {
-                    items: allGroups.map((group) => ({
-                      id: group.id,
-                      label: formatGroupLabelWithAttendance(group),
-                    })),
-                    activeTab: currentGroup?.id ?? "",
-                    onTabChange: (tabId) => {
-                      const group = allGroups.find((g) => g.id === tabId);
-                      if (group) {
-                        localStorage.setItem("sidebar-last-group", tabId);
-                        localStorage.setItem(
-                          "sidebar-last-group-name",
-                          group.name,
-                        );
-                        switchToGroup(tabId);
-                      }
-                    },
+              </div>
+            ) : null}
+            {currentGroup?.viaSubstitution ? (
+              <div className="flex items-center gap-2">
+                <MotoConceptIcon concept="substitution" size={18} />
+                <span className="text-sm font-medium text-gray-900">
+                  In Vertretung
+                </span>
+              </div>
+            ) : null}
+            {overflowItems.length > 0 ? (
+              <OverflowMenu
+                items={overflowItems}
+                ariaLabel="Weitere Aktionen"
+              />
+            ) : null}
+          </>
+        }
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: "Name suchen…",
+        }}
+        filters={filterConfigs}
+        activeFilters={activeFilters}
+        onClearAllFilters={() => {
+          setSearchTerm("");
+          setAttendanceFilter("all");
+          setSortMode("default");
+        }}
+        // Der Gruppenwechsel steht am Desktop in der Seitenleiste; auf
+        // schmalen Geräten tragen ihn die Seitenreiter.
+        tabs={
+          allGroups.length > 1 && !isDesktop
+            ? {
+                value: currentGroup?.id ?? "",
+                onChange: (tabId) => {
+                  const group = allGroups.find((g) => g.id === tabId);
+                  if (group) {
+                    localStorage.setItem("sidebar-last-group", tabId);
+                    localStorage.setItem("sidebar-last-group-name", group.name);
+                    switchToGroup(tabId);
                   }
-                : undefined
-            }
-            search={{
-              value: searchTerm,
-              onChange: setSearchTerm,
-              placeholder: "Name suchen...",
-            }}
-            filters={filterConfigs}
-            activeFilters={activeFilters}
-            onClearAllFilters={() => {
-              setSearchTerm("");
-              setAttendanceFilter("all");
-              setSortMode("default");
-            }}
-          />
-        </div>
-
-        {/* Mobile Error Display — outside the sticky stack so it doesn't
-            push everything down on small screens. */}
-        {error && (
-          <div className="mb-4 md:hidden">
-            <Alert type="error" message={error} />
-          </div>
-        )}
-
-        {/* Mobile (<md) check-in mode trigger — inline pill at the top of
+                },
+                // Höchstens vier Reiter (BAUARTEN-SPEC, Teil 3): ab der
+                // fünften Gruppe stehen die weiteren gebündelt hinter einem
+                // Reiter mit Menü, der den Namen der offenen Gruppe zeigt.
+                items: buildGroupTabItems(allGroups),
+                label: "Meine Gruppen",
+              }
+            : undefined
+        }
+        // Ladefehler stehen über der Liste, auf jeder Breite: der Desktop hat
+        // sonst keinen Hinweis, warum die Liste leer bleibt.
+        error={error}
+        // Der Leerzustand kommt aus dem Gerüst, nicht aus der Liste, und
+        // nennt den nächsten Schritt statt nur festzustellen, dass nichts da
+        // ist.
+        empty={
+          !showSkeleton && !error && students.length === 0
+            ? {
+                icon: <MotoConceptIcon concept="children" size={48} />,
+                title: `Keine Kinder in ${currentGroup?.name ?? "dieser Gruppe"}`,
+                description:
+                  allGroups.length > 1
+                    ? "Dieser Gruppe ist noch kein Kind zugeordnet. Ordnen Sie ein Kind in der Kindersuche zu, oder wählen Sie oben eine andere Gruppe."
+                    : "Dieser Gruppe ist noch kein Kind zugeordnet. Ordnen Sie ein Kind in der Kindersuche dieser Gruppe zu.",
+                action: (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    onClick={() => router.push("/students/search")}
+                  >
+                    Zur Kindersuche
+                  </Button>
+                ),
+              }
+            : null
+        }
+        overlays={
+          <>
+            {/* Group Transfer Modal */}
+            <GroupTransferModal
+              isOpen={groupTransfer.open}
+              onClose={() => groupTransfer.setOpen(false)}
+              group={
+                currentGroup
+                  ? {
+                      id: currentGroup.id,
+                      name: currentGroup.name,
+                      studentCount: currentGroup.student_count,
+                    }
+                  : null
+              }
+              availableUsers={groupTransfer.users}
+              loadError={groupTransfer.loadError}
+              onTransfer={groupTransfer.transfer}
+              existingTransfers={groupTransfer.transfers}
+              onCancelTransfer={groupTransfer.cancel}
+            />
+          </>
+        }
+      >
+        {/* Mobile (<md) check-in mode trigger: inline pill at the top of
             the card list when OFF; switches to a sticky bottom bar above
             the mobile nav when ON. Tablet keeps the floating FAB and
             desktop the header inline pill, both rendered below. */}
         {isBinaryMode && (
-          <div className="mb-3 md:hidden">
+          <div className="md:hidden">
             <SchoolCheckinModeMobile
               isActive={schoolCheckin.isActive}
               onToggle={schoolCheckin.toggleActive}
@@ -1184,7 +1188,7 @@ function OGSGroupPageContent() {
         <div className={isBinaryMode ? "pb-24 lg:pb-0" : undefined}>
           {renderStudentContent()}
         </div>
-      </div>
+      </TenantPage>
 
       {/* Tablet (md..lg) check-in mode trigger — floating FAB. Mobile
           renders the inline pill / sticky bar combo above; desktop
@@ -1201,36 +1205,6 @@ function OGSGroupPageContent() {
           />
         </div>
       )}
-
-      {/* Group Transfer Modal */}
-      <GroupTransferModal
-        isOpen={showTransferModal}
-        onClose={() => setShowTransferModal(false)}
-        group={
-          currentGroup
-            ? {
-                id: currentGroup.id,
-                name: currentGroup.name,
-                studentCount: currentGroup.student_count,
-              }
-            : null
-        }
-        availableUsers={
-          userContext?.currentStaff?.personId
-            ? availableUsers.filter(
-                (u) => u.personId !== userContext.currentStaff!.personId,
-              )
-            : availableUsers
-        }
-        onTransfer={handleTransferGroup}
-        existingTransfers={activeTransfers}
-        onCancelTransfer={handleCancelTransfer}
-        onRefreshTransfers={
-          currentGroup
-            ? async () => checkActiveTransfers(currentGroup.id)
-            : undefined
-        }
-      />
     </>
   );
 }
@@ -1246,7 +1220,7 @@ export default function OGSGroupPage() {
 
 function OGSGroupPageGuarded() {
   return (
-    <RoleGuard variant="staffOnly" fallback={<OgsGroupsPageSkeleton />}>
+    <RoleGuard variant="staffOrAdmin" fallback={<OgsGroupsPageSkeleton />}>
       <Suspense fallback={<OgsGroupsPageSkeleton />}>
         <SSEErrorBoundary>
           <OGSGroupPageContent />

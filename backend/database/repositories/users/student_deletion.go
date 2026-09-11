@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/timetableprojection"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -15,11 +16,94 @@ import (
 // permanent child deletion. Keeping the counts together prevents the UI
 // preview and the transactional stale-preview check from drifting apart.
 type StudentDeletionRepository struct {
-	db *bun.DB
+	db                   *bun.DB
+	assignments          StudentAssignmentDeletion
+	countAuditReferences func(context.Context, int64) (int, error)
+	// countConsents is served by the privacy-consent owner (student-presence,
+	// #2662); the preview must not join users.privacy_consents itself.
+	countConsents             func(context.Context, int64) (int, error)
+	countEnrollmentReferences func(context.Context, int64) (int, error)
+	countAttendanceRecords    func(context.Context, int64) (int, error)
+	carePlan                  interface {
+		CountCompanionLinks(context.Context, int64) (int, error)
+		CountStudentScheduleRows(context.Context, int64) (int, error)
+		CountCarePlanDeletionRecords(context.Context, int64) (CarePlanDeletionCounts, error)
+	}
+	appointments interface {
+		CountAppointmentRecipientStudents(context.Context, int64) (int, error)
+	}
+	// conversations is served by the Communication owner (#2675); the preview
+	// must not join users.parent_message* itself.
+	conversations StudentConversationDeletion
 }
 
-func NewStudentDeletionRepository(db *bun.DB) userModels.StudentDeletionRepository {
-	return &StudentDeletionRepository{db: db}
+// StudentConversationDeletion is the Communication owner seam used by permanent
+// student deletion. It shares the caller's tenant transaction.
+type StudentConversationDeletion interface {
+	CountStudentConversationRecords(context.Context, int64) (int, error)
+	LockStudentMessageThreads(context.Context, int64) error
+}
+
+// StudentAssignmentDeletion is the Timetable owner seam used by permanent
+// student deletion. It shares the caller's tenant transaction.
+type StudentAssignmentDeletion interface {
+	CountStudentAssignments(context.Context, int64) (int, error)
+	DeleteStudentAssignments(context.Context, int64) (int64, error)
+}
+
+type CarePlanDeletionCounts struct {
+	StatusDays      int
+	ExcusedRequests int
+	CareRequests    int
+	DataRequests    int
+}
+
+func (r *StudentDeletionRepository) BindCarePlan(capability interface {
+	CountCompanionLinks(context.Context, int64) (int, error)
+	CountStudentScheduleRows(context.Context, int64) (int, error)
+	CountCarePlanDeletionRecords(context.Context, int64) (CarePlanDeletionCounts, error)
+}) {
+	if capability == nil {
+		panic("student deletion repository: care plan capability is required")
+	}
+	r.carePlan = capability
+}
+
+func (r *StudentDeletionRepository) BindAppointments(capability interface {
+	CountAppointmentRecipientStudents(context.Context, int64) (int, error)
+}) {
+	if capability == nil {
+		panic("student deletion repository: appointments capability is required")
+	}
+	r.appointments = capability
+}
+
+func NewStudentDeletionRepository(
+	db *bun.DB,
+	countAuditReferences func(context.Context, int64) (int, error),
+	countConsents func(context.Context, int64) (int, error),
+	countEnrollmentReferences func(context.Context, int64) (int, error),
+	assignments StudentAssignmentDeletion,
+	conversations StudentConversationDeletion,
+	countAttendanceRecords func(context.Context, int64) (int, error),
+) userModels.StudentDeletionRepository {
+	if countEnrollmentReferences == nil {
+		panic("student deletion repository: enrollment references query is required")
+	}
+	if assignments == nil {
+		panic("student deletion repository: timetable assignments are required")
+	}
+	if conversations == nil {
+		panic("student deletion repository: communication conversations are required")
+	}
+	if countAttendanceRecords == nil {
+		panic("student deletion repository: presence query is required")
+	}
+	return &StudentDeletionRepository{
+		db: db, countAuditReferences: countAuditReferences, countConsents: countConsents,
+		countEnrollmentReferences: countEnrollmentReferences, assignments: assignments,
+		conversations: conversations, countAttendanceRecords: countAttendanceRecords,
+	}
 }
 
 func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64) (*userModels.StudentDeletionCounts, error) {
@@ -31,69 +115,91 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 	counts := new(userModels.StudentDeletionCounts)
 	err := base.GetDB(ctx, r.db).NewRaw(`
 		SELECT
-			(SELECT COUNT(*) FROM schedule.instance_students WHERE tenant_id = ? AND student_id = ?)::int AS timetable_assignments,
-			(SELECT COUNT(*) FROM activities.student_enrollments WHERE tenant_id = ? AND student_id = ?)::int AS activity_enrollments,
-			(
-				active.count_student_visits_for_deletion(?, ?) +
-				(SELECT COUNT(*) FROM active.attendance WHERE tenant_id = ? AND student_id = ?) +
-				(SELECT COUNT(*) FROM active.student_status_days WHERE tenant_id = ? AND student_id = ?) +
-				(SELECT COUNT(*) FROM active.scheduled_checkouts WHERE tenant_id = ? AND student_id = ?) +
-				(SELECT COUNT(*) FROM active.excused_absence_requests WHERE tenant_id = ? AND student_id = ?)
-			)::int AS attendance_records,
-			(
-				(SELECT COUNT(*) FROM schedule.student_pickup_schedules WHERE tenant_id = ? AND student_id = ?) +
-				(SELECT COUNT(*) FROM schedule.student_pickup_exceptions WHERE tenant_id = ? AND student_id = ?) +
-				(SELECT COUNT(*) FROM schedule.student_pickup_notes WHERE tenant_id = ? AND student_id = ?) +
-				(SELECT COUNT(*) FROM schedule.student_arrival_schedules WHERE tenant_id = ? AND student_id = ?) +
-				(SELECT COUNT(*) FROM schedule.student_arrival_exceptions WHERE tenant_id = ? AND student_id = ?) +
-				(SELECT COUNT(*) FROM schedule.student_arrival_notes WHERE tenant_id = ? AND student_id = ?)
-			)::int AS care_schedules,
+			0::int AS timetable_assignments,
+			0::int AS activity_enrollments,
+			active.count_student_visits_for_deletion(?, ?)::int AS attendance_records,
+			0::int AS care_schedules,
 			(
 				(SELECT COUNT(*) FROM users.students_guardians WHERE tenant_id = ? AND student_id = ?) +
 				(SELECT COUNT(*) FROM users.persons_guardians WHERE tenant_id = ? AND person_id = (SELECT person_id FROM users.students WHERE tenant_id = ? AND id = ?))
 			)::int AS guardian_links,
-			(SELECT COUNT(*) FROM users.student_companions WHERE tenant_id = ? AND (student_low_id = ? OR student_high_id = ?))::int AS companion_links,
+			0::int AS companion_links,
 			(
-				(SELECT COUNT(*) FROM users.parent_message_threads WHERE tenant_id = ? AND student_id = ?) +
-				(SELECT COUNT(*) FROM users.parent_messages WHERE tenant_id = ? AND student_id = ?) +
-				(
-					SELECT COUNT(*)
-					FROM users.parent_message_reads AS "parent_message_read"
-					JOIN users.parent_message_threads AS "parent_message_thread"
-						ON "parent_message_thread".id = "parent_message_read".thread_id
-						AND "parent_message_thread".tenant_id = "parent_message_read".tenant_id
-					WHERE "parent_message_read".tenant_id = ? AND "parent_message_thread".student_id = ?
-				) +
-				(SELECT COUNT(*) FROM users.student_data_change_requests WHERE tenant_id = ? AND student_id = ?) +
-				(SELECT COUNT(*) FROM schedule.care_schedule_change_requests WHERE tenant_id = ? AND student_id = ?) +
-				(SELECT COUNT(*) FROM auth.guardian_invitations WHERE tenant_id = ? AND student_id = ?)
+				SELECT COUNT(*) FROM auth.guardian_invitations WHERE tenant_id = ? AND student_id = ?
 			)::int AS communications,
-			(SELECT COUNT(*) FROM users.privacy_consents WHERE tenant_id = ? AND student_id = ?)::int AS consents,
-			(SELECT COUNT(*) FROM enrollment.request_children WHERE tenant_id = ? AND (created_student_id = ? OR matched_student_id = ?))::int AS enrollment_references,
+			0::int AS enrollment_references,
 			(
-				(SELECT COUNT(*) FROM feedback.entries WHERE tenant_id = ? AND student_id = ?) +
-				(SELECT COUNT(*) FROM calendar.appointment_recipient_students WHERE tenant_id = ? AND student_id = ?) +
-				(SELECT COUNT(*) FROM audit.enrollment_offering_adjustments WHERE tenant_id = ? AND student_id = ?) +
-				(SELECT COUNT(*) FROM audit.guardian_changes WHERE tenant_id = ? AND student_id = ?) +
-				(SELECT COUNT(*) FROM audit.student_field_edits WHERE tenant_id = ? AND student_id = ?) +
 				(SELECT COUNT(*) FROM schedule.grade_transition_roster_removals WHERE tenant_id = ? AND student_id = ?) +
 				(SELECT COUNT(*) FROM education.grade_transition_history WHERE tenant_id = ? AND student_id = ? AND person_name <> 'Gelöschtes Kind')
 			)::int AS other_records
 	`,
 		tenantID, studentID,
-		tenantID, studentID,
-		tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID,
-		tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID,
 		tenantID, studentID, tenantID, tenantID, studentID,
-		tenantID, studentID, studentID,
-		tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID,
 		tenantID, studentID,
-		tenantID, studentID, studentID,
-		tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID,
+		tenantID, studentID, tenantID, studentID,
 	).Scan(ctx, counts)
 	if err != nil {
 		return nil, fmt.Errorf("preview student deletion: %w", err)
 	}
+	conversations, err := r.conversations.CountStudentConversationRecords(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("preview student deletion: count conversations: %w", err)
+	}
+	counts.Communications += conversations
+	attendanceCount, err := r.countAttendanceRecords(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("preview student deletion: %w", err)
+	}
+	counts.AttendanceRecords += attendanceCount
+	counts.EnrollmentReferences, err = r.countEnrollmentReferences(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("preview student deletion: count enrollment references: %w", err)
+	}
+	counts.TimetableAssignments, err = r.assignments.CountStudentAssignments(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("preview student deletion: %w", err)
+	}
+	counts.ActivityEnrollments, err = timetableprojection.CountStudentEnrollments(ctx, base.GetDB(ctx, r.db), tenantID, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("preview student deletion: %w", err)
+	}
+	if r.carePlan == nil {
+		return nil, fmt.Errorf("preview student deletion: care plan capability is required")
+	}
+	counts.CareSchedules, err = r.carePlan.CountStudentScheduleRows(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("preview student deletion: count care schedules: %w", err)
+	}
+	carePlanCounts, err := r.carePlan.CountCarePlanDeletionRecords(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("preview student deletion: count care plan records: %w", err)
+	}
+	counts.AttendanceRecords += carePlanCounts.StatusDays + carePlanCounts.ExcusedRequests
+	counts.Communications += carePlanCounts.CareRequests + carePlanCounts.DataRequests
+	counts.CompanionLinks, err = r.carePlan.CountCompanionLinks(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("preview student deletion: count companion links: %w", err)
+	}
+	if r.appointments == nil {
+		return nil, fmt.Errorf("preview student deletion: appointments capability is required")
+	}
+	appointmentRecipients, err := r.appointments.CountAppointmentRecipientStudents(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("preview student deletion: count appointment recipient students: %w", err)
+	}
+	counts.OtherRecords += appointmentRecipients
+	if r.countAuditReferences == nil || r.countConsents == nil {
+		return nil, fmt.Errorf("preview student deletion: audit and consent count capabilities are required")
+	}
+	counts.Consents, err = r.countConsents(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("preview student deletion: count consents: %w", err)
+	}
+	auditReferences, err := r.countAuditReferences(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("preview student deletion: count audit references: %w", err)
+	}
+	counts.OtherRecords += auditReferences
 	return counts, nil
 }
 
@@ -102,24 +208,7 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 // FOR UPDATE lock serializes their FK checks until the deletion commits or
 // rolls back.
 func (r *StudentDeletionRepository) LockMessageThreads(ctx context.Context, studentID int64) error {
-	tenantID := tenant.FromContext(ctx)
-	if tenantID <= 0 {
-		return fmt.Errorf("lock student message threads: tenant context is required")
-	}
-
-	var threadIDs []int64
-	err := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr(`users.parent_message_threads AS "parent_message_thread"`).
-		ColumnExpr(`"parent_message_thread".id`).
-		Where(`"parent_message_thread".tenant_id = ?`, tenantID).
-		Where(`"parent_message_thread".student_id = ?`, studentID).
-		OrderExpr(`"parent_message_thread".id ASC`).
-		For("UPDATE").
-		Scan(ctx, &threadIDs)
-	if err != nil {
-		return fmt.Errorf("lock student message threads: %w", err)
-	}
-	return nil
+	return r.conversations.LockStudentMessageThreads(ctx, studentID)
 }
 
 // DeleteLegacyGuardianLinks removes relationships from the superseded
@@ -185,17 +274,9 @@ func (r *StudentDeletionRepository) DeleteTimetableAssignments(ctx context.Conte
 	if tenantID <= 0 {
 		return 0, fmt.Errorf("delete student timetable assignments: tenant context is required")
 	}
-	result, err := base.GetDB(ctx, r.db).NewDelete().
-		TableExpr(`schedule.instance_students AS "instance_student"`).
-		Where(`"instance_student".tenant_id = ?`, tenantID).
-		Where(`"instance_student".student_id = ?`, studentID).
-		Exec(ctx)
+	rows, err := r.assignments.DeleteStudentAssignments(ctx, studentID)
 	if err != nil {
 		return 0, fmt.Errorf("delete student timetable assignments: %w", err)
-	}
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return 0, fmt.Errorf("count deleted student timetable assignments: %w", err)
 	}
 	return rows, nil
 }

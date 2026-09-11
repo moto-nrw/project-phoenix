@@ -109,7 +109,7 @@ type SchoolPWAUsageRow struct {
 // OperatorSummariesRepository defines read-only aggregate queries that power
 // the operator dashboard's drill-in views. Each method runs a single CTE-based
 // query that participates in any transaction stored on the context via
-// modelBase.ContextWithTx, so it composes with TenantTx/AdminTx middleware.
+// tenant.WithTransactionForTest, so it composes with TenantTx/AdminTx middleware.
 type OperatorSummariesRepository interface {
 	// ListDeviceRows returns the operator device listing (optionally
 	// filtered by device row, school, or organization), excluding devices

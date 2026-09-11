@@ -6,6 +6,7 @@ import { canReviewEnrollmentChangeRequests } from "~/lib/change-request-access";
 import { fetchPendingEnrollmentChangeRequestCount } from "~/lib/change-request-list-api";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
+import { useShellSeed } from "~/lib/shell-seed";
 import { useUnreadCount } from "./use-unread-count";
 
 /**
@@ -33,5 +34,6 @@ export function useEnrollmentRequestsPending() {
     eventNames: ["change-requests-refresh"],
     eventDebounceMs: 500,
     refetchOnFocus: true,
+    initialCount: useShellSeed()?.counts.enrollmentRequestsPending,
   });
 }

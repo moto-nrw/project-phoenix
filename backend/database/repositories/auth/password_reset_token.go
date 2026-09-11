@@ -47,7 +47,7 @@ func (r *PasswordResetTokenRepository) FindByToken(ctx context.Context, token st
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by token",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -66,7 +66,7 @@ func (r *PasswordResetTokenRepository) FindByAccountID(ctx context.Context, acco
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by account ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -85,7 +85,7 @@ func (r *PasswordResetTokenRepository) FindValidByToken(ctx context.Context, tok
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find valid by token",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -104,7 +104,7 @@ func (r *PasswordResetTokenRepository) MarkAsUsed(ctx context.Context, tokenID i
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "mark as used",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -134,7 +134,7 @@ func (r *PasswordResetTokenRepository) DeleteExpiredTokens(ctx context.Context) 
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "delete expired tokens",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -142,7 +142,7 @@ func (r *PasswordResetTokenRepository) DeleteExpiredTokens(ctx context.Context) 
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "count affected rows",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -161,7 +161,7 @@ func (r *PasswordResetTokenRepository) InvalidateTokensByAccountID(ctx context.C
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "invalidate tokens by account ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -187,7 +187,7 @@ func (r *PasswordResetTokenRepository) Update(ctx context.Context, token *auth.P
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -212,7 +212,7 @@ func (r *PasswordResetTokenRepository) List(ctx context.Context, filters map[str
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

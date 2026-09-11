@@ -25,12 +25,11 @@ func TestTokenRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates token with valid data", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "tokenCreate")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		token := &auth.Token{
 			AccountID: account.ID,
@@ -46,7 +45,6 @@ func TestTokenRepository_Create(t *testing.T) {
 
 	t.Run("creates mobile token", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "mobileToken")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		token := &auth.Token{
 			AccountID: account.ID,
@@ -67,13 +65,12 @@ func TestTokenRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing token", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "tokenFindByID")
 		token := testpkg.CreateTestToken(t, db, account.ID, "refresh")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		found, err := repo.FindByID(ctx, token.ID)
 		require.NoError(t, err)
@@ -91,13 +88,12 @@ func TestTokenRepository_FindByToken(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds token by token string", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "tokenFindByToken")
 		token := testpkg.CreateTestToken(t, db, account.ID, "refresh")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		found, err := repo.FindByToken(ctx, token.Token)
 		require.NoError(t, err)
@@ -115,13 +111,12 @@ func TestTokenRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates token identifier", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "tokenUpdate")
 		token := testpkg.CreateTestToken(t, db, account.ID, "refresh")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		identifier := "updated-identifier"
 		token.Identifier = &identifier
@@ -140,13 +135,12 @@ func TestTokenRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing token", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "tokenDelete")
 		token := testpkg.CreateTestToken(t, db, account.ID, "refresh")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		err := repo.Delete(ctx, token.ID)
 		require.NoError(t, err)
@@ -165,13 +159,12 @@ func TestTokenRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all tokens", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "tokenList")
 		testpkg.CreateTestToken(t, db, account.ID, "refresh")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		tokens, err := repo.List(ctx, nil)
 		require.NoError(t, err)
@@ -184,13 +177,12 @@ func TestTokenRepository_FindByAccountID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds tokens by account ID", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "tokenByAccount")
 		token := testpkg.CreateTestToken(t, db, account.ID, "refresh")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		tokens, err := repo.FindByAccountID(ctx, account.ID)
 		require.NoError(t, err)
@@ -208,7 +200,6 @@ func TestTokenRepository_FindByAccountID(t *testing.T) {
 
 	t.Run("returns empty for account with no tokens", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "noTokens")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		tokens, err := repo.FindByAccountID(ctx, account.ID)
 		require.NoError(t, err)
@@ -225,12 +216,11 @@ func TestTokenRepository_DeleteExpiredTokens(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes expired tokens", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "expiredToken")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		// Create expired token directly using raw SQL (bypassing validation)
 		expiredTokenStr := uuid.Must(uuid.NewV4()).String()
@@ -266,10 +256,9 @@ func TestTokenRepository_HasLiveTokensCreatedAfter(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "liveAfterToken")
-	defer cleanupAccountRecords(t, db, account.ID)
 
 	testpkg.CreateTestToken(t, db, account.ID, "refresh")
 
@@ -287,10 +276,9 @@ func TestTokenRepository_RotationHandoffLifecycle(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "rotationHandoff")
-	defer cleanupAccountRecords(t, db, account.ID)
 	familyID := uuid.Must(uuid.NewV4()).String()
 	predecessor := &auth.Token{
 		AccountID:  account.ID,
@@ -335,14 +323,13 @@ func TestTokenRepository_DeleteByAccountID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all tokens for account", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "deleteByAccount")
 		token1 := testpkg.CreateTestToken(t, db, account.ID, "refresh")
 		token2 := testpkg.CreateTestToken(t, db, account.ID, "access")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		deleted, err := repo.DeleteByAccountIDReturning(ctx, account.ID)
 		require.NoError(t, err)
@@ -361,11 +348,10 @@ func TestTokenRepository_DeleteByAccountIDReturningKeepsOtherSchoolInAdminTx(t *
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
 	account := testpkg.CreateTestAccount(t, db, "adminTxTenantDelete")
-	defer cleanupAccountRecords(t, db, account.ID)
 	secondaryTenantID, _ := testpkg.CreateTestTenant(t, db)
 	testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
 
@@ -397,11 +383,10 @@ func TestTokenRepository_DeleteAllByAccountIDReturningIgnoresTenant(t *testing.T
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
 	account := testpkg.CreateTestAccount(t, db, "deleteAllAccountTokens")
-	defer cleanupAccountRecords(t, db, account.ID)
 	secondaryTenantID, _ := testpkg.CreateTestTenant(t, db)
 	testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
 
@@ -426,10 +411,9 @@ func TestTokenRepository_DeleteByAccountIDCreatedAtOrBeforeIncludesRefreshSucces
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "cutoffRefreshSuccessor")
-	defer cleanupAccountRecords(t, db, account.ID)
 
 	familyID := uuid.Must(uuid.NewV4()).String()
 	newFamilyID := uuid.Must(uuid.NewV4()).String()
@@ -453,7 +437,7 @@ func TestTokenRepository_DeleteByAccountIDCreatedAtOrBeforeIncludesRefreshSucces
 	require.NoError(t, err)
 	require.Len(t, deleted, 3)
 
-	remaining, err := repo.FindByFamilyID(ctx, newFamilyID)
+	remaining, err := repo.List(ctx, map[string]any{"family_id": newFamilyID})
 	require.NoError(t, err)
 	require.Len(t, remaining, 1)
 	assert.Equal(t, 0, remaining[0].Generation)
@@ -463,57 +447,16 @@ func TestTokenRepository_DeleteByAccountIDCreatedAtOrBeforeIncludesRefreshSucces
 // Token Family Tests
 // ============================================================================
 
-func TestTokenRepository_FindByFamilyID(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db).Token
-	ctx := testpkg.Ctx(t)
-
-	t.Run("finds tokens by family ID", func(t *testing.T) {
-		account := testpkg.CreateTestAccount(t, db, "tokenFamily")
-		defer cleanupAccountRecords(t, db, account.ID)
-
-		familyID := uuid.Must(uuid.NewV4()).String()
-
-		// Create tokens in same family
-		token1 := &auth.Token{
-			AccountID: account.ID,
-			Token:     uuid.Must(uuid.NewV4()).String(),
-			Expiry:    time.Now().Add(time.Hour),
-			FamilyID:  familyID,
-		}
-		err := repo.Create(ctx, token1)
-		require.NoError(t, err)
-
-		token2 := &auth.Token{
-			AccountID: account.ID,
-			Token:     uuid.Must(uuid.NewV4()).String(),
-			Expiry:    time.Now().Add(time.Hour),
-			FamilyID:  familyID,
-		}
-		err = repo.Create(ctx, token2)
-		require.NoError(t, err)
-
-		// Find by family
-		tokens, err := repo.FindByFamilyID(ctx, familyID)
-		require.NoError(t, err)
-		assert.Len(t, tokens, 2)
-	})
-}
-
 func TestTokenRepository_DeleteByFamilyID(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all tokens in family", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "deleteFamily")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		familyID := uuid.Must(uuid.NewV4()).String()
 
@@ -542,7 +485,7 @@ func TestTokenRepository_DeleteByFamilyID(t *testing.T) {
 		require.Len(t, deleted, 2)
 
 		// Verify tokens are gone
-		tokens, err := repo.FindByFamilyID(ctx, familyID)
+		tokens, err := repo.List(ctx, map[string]any{"family_id": familyID})
 		require.NoError(t, err)
 		assert.Empty(t, tokens)
 	})
@@ -553,10 +496,9 @@ func TestTokenRepository_CleanupOldTokensForAccount(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "cleanupTokens")
-	defer cleanupAccountRecords(t, db, account.ID)
 
 	var activeTokens []*auth.Token
 	for i := 0; i < 5; i++ {
@@ -628,10 +570,9 @@ func TestTokenRepository_CleanupOldTokensForAccount_IgnoresOtherPortal(t *testin
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "cleanupPortalTokens")
-	defer cleanupAccountRecords(t, db, account.ID)
 
 	parent := &auth.Token{
 		AccountID:   account.ID,
@@ -664,10 +605,9 @@ func TestTokenRepository_CleanupOldTokensForAccount_TenantCapLeavesUnknownIsolat
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "cleanupUnknownPortalTokens")
-	defer cleanupAccountRecords(t, db, account.ID)
 
 	var unknown []*auth.Token
 	for i := 0; i < 5; i++ {
@@ -706,10 +646,9 @@ func TestTokenRepository_CleanupOldTokensForAccount_StaffGroupSharesTenantAndOrg
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "cleanupStaffGroupTokens")
-	defer cleanupAccountRecords(t, db, account.ID)
 
 	var orgTokens []*auth.Token
 	for i := 0; i < 5; i++ {
@@ -745,10 +684,9 @@ func TestTokenRepository_CleanupOldTokensForAccount_AdminTxIgnoresTenantFilter(t
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "cleanupAdminCapTokens")
-	defer cleanupAccountRecords(t, db, account.ID)
 	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
 	testpkg.MapAccountToTenant(t, db, account.ID, otherTenantID)
@@ -790,10 +728,9 @@ func TestTokenRepository_CleanupOldTokensForAccount_EmptyPortalScopeUsesUnknown(
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "cleanupEmptyPortalScope")
-	defer cleanupAccountRecords(t, db, account.ID)
 
 	var created []*auth.Token
 	for i := 0; i < 6; i++ {
@@ -818,10 +755,9 @@ func TestTokenRepository_DeleteExpiredRotatedForAccount(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "cleanupAccountHandoffs")
-	defer cleanupAccountRecords(t, db, account.ID)
 
 	createHandoff := func(expiry time.Time) (*auth.Token, *auth.Token) {
 		familyID := uuid.Must(uuid.NewV4()).String()
@@ -861,12 +797,11 @@ func TestTokenRepository_GetLatestTokenInFamily(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 
 	t.Run("gets token with highest generation", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "familyLatest")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		familyID := uuid.Must(uuid.NewV4()).String()
 
@@ -919,12 +854,11 @@ func TestTokenRepository_ListWithFilters(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 
 	t.Run("filters by mobile", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "mobileFilter")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		mobileToken := &auth.Token{
 			AccountID: account.ID,
@@ -953,7 +887,6 @@ func TestTokenRepository_ListWithFilters(t *testing.T) {
 
 	t.Run("filters by active", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "activeFilter")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		testpkg.CreateTestToken(t, db, account.ID, "refresh")
 
@@ -974,7 +907,7 @@ func TestTokenRepository_CreateValidation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 
 	t.Run("rejects nil token", func(t *testing.T) {
@@ -993,7 +926,7 @@ func TestTokenRepository_DeleteByTenantID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 
 	t.Run("deletes tokens for tenant and returns count", func(t *testing.T) {
 		// ARRANGE — create account + token scoped to a dedicated test tenant
@@ -1001,7 +934,6 @@ func TestTokenRepository_DeleteByTenantID(t *testing.T) {
 		testpkg.EnsureTestTenant(t, db, tenantID)
 
 		account := testpkg.CreateTestAccount(t, db, "deleteByTenant")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		token := testpkg.CreateTestTokenForTenant(t, db, tenantID, account.ID)
 		// No defer cleanup needed — DeleteByTenantID is expected to remove it

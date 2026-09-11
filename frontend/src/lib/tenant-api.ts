@@ -5,6 +5,7 @@
  */
 
 import { clearSessionCache, sessionFetch } from "./session-cache";
+import { mapAccountTenant, type AccountTenantBackend } from "./account-tenants";
 
 const TENANT_ACCESS_DENIED_MESSAGE =
   "account does not have access to this tenant";
@@ -74,6 +75,8 @@ export interface TenantInfo {
    * admin page must stay hidden until a school explicitly enables it.
    */
   displayEnabled: boolean;
+  /** Whether staff may connect their personal calendar through CalDAV. */
+  caldavEnabled?: boolean;
   /**
    * Whether staff may correct care offerings on approved enrollments. Missing
    * metadata is treated as enabled for compatibility with older backends.
@@ -94,7 +97,20 @@ export interface TenantInfo {
    * request on its own. Unknown values collapse to "own".
    */
   operationalOverviewScope?: OperationalOverviewScope;
+  /**
+   * Wer eine Begründung eintragen muss, damit eine Elternanfrage entschieden
+   * werden kann (operations.parent_request_reason_policy, #2267). Unbekanntes
+   * gilt als „both" — die strengste Fassung.
+   */
+  parentRequestReasonPolicy?: ParentRequestReasonPolicy;
   showTimetableCounts?: boolean;
+  /**
+   * Whether the Betreuungsplan is enabled at this school (timetable.enabled,
+   * #2383). The post-login redirect sends Betreuungskräfte to the Tagesplan
+   * only when the school actually plans; a missing field (older backend)
+   * reads as enabled — the registry default.
+   */
+  timetableEnabled?: boolean;
   waitlistEnabled?: boolean;
   /**
    * Whether the printed Notfallliste carries the children's stored health
@@ -137,12 +153,15 @@ interface TenantResolveResponse {
   parent_messaging_enabled?: boolean;
   staff_messaging_enabled?: boolean;
   display_enabled?: boolean;
+  caldav_enabled?: boolean;
   care_offerings_enabled?: boolean;
   attendance_web_enabled?: boolean;
   attendance_log_enabled?: boolean;
   group_mode?: string;
   operational_overview_scope?: string;
+  parent_request_reason_policy?: string;
   show_timetable_counts?: boolean;
+  timetable_enabled?: boolean;
   waitlist_enabled?: boolean;
   emergency_list_health_info_enabled?: boolean;
   grade_level_max: number;
@@ -158,6 +177,30 @@ export type OperationalOverviewScope = "own" | "admins" | "all_staff";
  */
 export function normalizeOverviewScope(raw: unknown): OperationalOverviewScope {
   return raw === "admins" || raw === "all_staff" ? raw : "own";
+}
+
+/** Werte von operations.parent_request_reason_policy (#2267). */
+export type ParentRequestReasonPolicy =
+  "nobody" | "guardians" | "staff" | "both";
+
+/**
+ * Normalisiert die Begründungs-Pflicht des Backends. Alles Unbekannte wird zu
+ * "both", der strengsten Fassung: ein älteres Backend ohne dieses Feld darf die
+ * Pflicht nie stillschweigend abschalten. Gegenstück zu
+ * normalizeOverviewScope, das aus demselben Grund auf "own" fällt.
+ */
+function normalizeReasonPolicy(raw: unknown): ParentRequestReasonPolicy {
+  return raw === "nobody" || raw === "guardians" || raw === "staff"
+    ? raw
+    : "both";
+}
+
+/** Muss beim Freigeben einer Elternanfrage eine Begründung eingetragen werden? */
+export function staffReasonRequired(
+  policy: ParentRequestReasonPolicy | undefined,
+): boolean {
+  const normalized = normalizeReasonPolicy(policy);
+  return normalized === "staff" || normalized === "both";
 }
 
 /**
@@ -203,6 +246,7 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       messagingEnabled: data.parent_messaging_enabled === true,
       staffMessagingEnabled: data.staff_messaging_enabled === true,
       displayEnabled: data.display_enabled === true,
+      caldavEnabled: data.caldav_enabled === true,
       careOfferingsEnabled: data.care_offerings_enabled !== false,
       attendanceWebEnabled: data.attendance_web_enabled === true,
       attendanceLogEnabled: data.attendance_log_enabled === true,
@@ -210,7 +254,11 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       operationalOverviewScope: normalizeOverviewScope(
         data.operational_overview_scope,
       ),
+      parentRequestReasonPolicy: normalizeReasonPolicy(
+        data.parent_request_reason_policy,
+      ),
       showTimetableCounts: data.show_timetable_counts !== false,
+      timetableEnabled: data.timetable_enabled !== false,
       waitlistEnabled: data.waitlist_enabled !== false,
       emergencyHealthInfoEnabled:
         data.emergency_list_health_info_enabled === true,
@@ -295,15 +343,6 @@ function delay(ms: number): Promise<void> {
 }
 
 /** Backend response shape for account tenants (snake_case) */
-interface AccountTenantBackend {
-  tenant_id: number;
-  slug: string;
-  name: string;
-  subdomain: string;
-  organization_id: number;
-  organization_name: string;
-}
-
 /**
  * List tenants the current user has access to.
  * Requires an authenticated session.
@@ -314,15 +353,7 @@ export async function listAvailableTenants(): Promise<TenantSummary[]> {
     return [];
   }
   const json = (await response.json()) as { data?: AccountTenantBackend[] };
-  const items = json.data ?? [];
-  return items.map((t) => ({
-    tenantId: t.tenant_id,
-    slug: t.slug,
-    name: t.name,
-    subdomain: t.subdomain,
-    organizationId: t.organization_id,
-    organizationName: t.organization_name,
-  }));
+  return (json.data ?? []).map(mapAccountTenant);
 }
 
 /** Response shape from the switch-tenant endpoint */

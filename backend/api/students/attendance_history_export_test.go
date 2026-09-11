@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,7 +17,7 @@ import (
 func TestParseAttendanceExportOptions_RejectsFutureDates(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	future := today.AddDays(1)
 	tests := []struct {
 		name  string
@@ -29,7 +29,7 @@ func TestParseAttendanceExportOptions_RejectsFutureDates(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest("GET", "/attendance-history/export"+tt.query, nil)
-			_, err := parseAttendanceExportOptions(req, 30)
+			_, err := parseAttendanceExportOptions(req, 30, today)
 			require.EqualError(t, err, "attendance exports cannot include future dates")
 		})
 	}
@@ -38,9 +38,9 @@ func TestParseAttendanceExportOptions_RejectsFutureDates(t *testing.T) {
 func TestParseAttendanceExportOptions_AcceptsToday(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	req := httptest.NewRequest("GET", "/attendance-history/export?from="+today.String()+"&to="+today.String(), nil)
-	options, err := parseAttendanceExportOptions(req, 30)
+	options, err := parseAttendanceExportOptions(req, 30, today)
 	require.NoError(t, err)
 	assert.Equal(t, today, options.From)
 	assert.Equal(t, today, options.To)
@@ -56,7 +56,7 @@ func TestAttendanceExportRows_KeepSlotsAndExplicitUnassignedSession(t *testing.T
 	rows := attendanceExportRows([]*scheduleModel.ScheduledInstanceRow{
 		{
 			Instance: &scheduleModel.ActivityInstance{
-				Date: date, Title: "Morgenbetreuung",
+				Date: scheduleModel.Date(date), Title: "Morgenbetreuung",
 				StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
 				EndTime:   time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
 			},
@@ -66,7 +66,7 @@ func TestAttendanceExportRows_KeepSlotsAndExplicitUnassignedSession(t *testing.T
 		},
 		{
 			Instance: &scheduleModel.ActivityInstance{
-				Date: date, Title: "Nachmittagsbetreuung",
+				Date: scheduleModel.Date(date), Title: "Nachmittagsbetreuung",
 				StartTime: time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
 				EndTime:   time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
 			},
@@ -74,9 +74,9 @@ func TestAttendanceExportRows_KeepSlotsAndExplicitUnassignedSession(t *testing.T
 				Status: scheduleModel.AttendanceStatusAbsent, Substatus: &sick,
 			},
 		},
-	}, []*activeModel.Attendance{
-		{Date: date, CheckInTime: morningCheckIn},
-		{Date: date, CheckInTime: unassignedCheckIn},
+	}, []*studentpresence.Attendance{
+		{Date: date.String(), CheckInTime: morningCheckIn},
+		{Date: date.String(), CheckInTime: unassignedCheckIn},
 	})
 
 	require.Len(t, rows, 3)
@@ -103,7 +103,7 @@ func TestAttendanceExportRows_SameSlotReentryIsCoveredByWindow(t *testing.T) {
 	rows := attendanceExportRows([]*scheduleModel.ScheduledInstanceRow{
 		{
 			Instance: &scheduleModel.ActivityInstance{
-				Date: date, Title: "Ganztagsbetreuung",
+				Date: scheduleModel.Date(date), Title: "Ganztagsbetreuung",
 				StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
 				EndTime:   time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
 			},
@@ -112,9 +112,9 @@ func TestAttendanceExportRows_SameSlotReentryIsCoveredByWindow(t *testing.T) {
 				Status: scheduleModel.AttendanceStatusPresent, CheckedInAt: &reentryCheckIn,
 			},
 		},
-	}, []*activeModel.Attendance{
-		{Date: date, CheckInTime: firstCheckIn},
-		{Date: date, CheckInTime: reentryCheckIn},
+	}, []*studentpresence.Attendance{
+		{Date: date.String(), CheckInTime: firstCheckIn},
+		{Date: date.String(), CheckInTime: reentryCheckIn},
 	})
 
 	require.Len(t, rows, 1, "both sessions belong to the booked slot — no unassigned rows")
@@ -171,8 +171,8 @@ func TestAttendanceExportRows_KeepsSessionsWithoutAnyPlan(t *testing.T) {
 	checkIn := time.Date(2026, 7, 15, 9, 0, 0, 0, timezone.Berlin)
 	checkOut := time.Date(2026, 7, 15, 16, 0, 0, 0, timezone.Berlin)
 
-	rows := attendanceExportRows(nil, []*activeModel.Attendance{
-		{Date: date, CheckInTime: checkIn, CheckOutTime: &checkOut},
+	rows := attendanceExportRows(nil, []*studentpresence.Attendance{
+		{Date: date.String(), CheckInTime: checkIn, CheckOutTime: &checkOut},
 	})
 
 	require.Len(t, rows, 1)
@@ -191,7 +191,7 @@ func TestAttendanceExportRows_SortsChronologicallyAcrossSources(t *testing.T) {
 	rows := attendanceExportRows([]*scheduleModel.ScheduledInstanceRow{
 		{
 			Instance: &scheduleModel.ActivityInstance{
-				Date: day2, Title: "Nachmittagsbetreuung",
+				Date: scheduleModel.Date(day2), Title: "Nachmittagsbetreuung",
 				StartTime: time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
 				EndTime:   time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
 			},
@@ -201,14 +201,14 @@ func TestAttendanceExportRows_SortsChronologicallyAcrossSources(t *testing.T) {
 		},
 		{
 			Instance: &scheduleModel.ActivityInstance{
-				Date: day1, Title: "Morgenbetreuung",
+				Date: scheduleModel.Date(day1), Title: "Morgenbetreuung",
 				StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
 				EndTime:   time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
 			},
 			Attendance: &scheduleModel.InstanceStudent{Status: scheduleModel.AttendanceStatusAbsent},
 		},
-	}, []*activeModel.Attendance{
-		{Date: day1, CheckInTime: day1Unassigned},
+	}, []*studentpresence.Attendance{
+		{Date: day1.String(), CheckInTime: day1Unassigned},
 	})
 
 	require.Len(t, rows, 3)

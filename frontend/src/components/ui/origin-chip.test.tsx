@@ -10,7 +10,7 @@ describe("OriginChip", () => {
 
     const chip = screen.getByText("Soll aus Arbeitszeitmodell");
     expect(chip).toBeInTheDocument();
-    // Anatomy from docs/04-designsprache.md 6.2: neutral grays only.
+    // Neutral grays only.
     expect(chip.className).toContain("text-gray-600");
     expect(chip.className).toContain("border-gray-200");
     expect(chip.className).toContain("bg-gray-50");

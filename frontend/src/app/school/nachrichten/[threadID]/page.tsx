@@ -22,7 +22,7 @@ function SchoolMessagesBackNav() {
       <button
         type="button"
         onClick={() => router.push(inbox)}
-        className="mb-4 hidden items-center gap-1 text-sm text-gray-500 hover:text-gray-900 md:flex"
+        className="mb-4 hidden items-center gap-1 text-sm text-gray-500 hover:text-gray-900 lg:flex"
       >
         <ArrowLeft className="h-4 w-4" /> Zurück zu Nachrichten
       </button>

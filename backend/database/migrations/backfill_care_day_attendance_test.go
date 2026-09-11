@@ -5,8 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,12 +20,13 @@ import (
 // that never existed, and the marker cannot be undone. A child with no plan at
 // all is the same problem in a louder form.
 func TestBackfillCompletedAttendanceSplitsByCarePlan(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
 	// A Monday well in the past: the weekly plan below books its child on the
 	// instance's ISO weekday, and nothing about the assertion depends on today.
-	date := timezone.NewDate(2025, time.March, 3)
+	date := testpkg.Date(2025, time.March, 3)
 	require.Equal(t, time.Monday, date.Weekday(), "fixture date must be the booked weekday")
 
 	room := testpkg.CreateTestRoom(t, db, "Backfill-Room")
@@ -38,11 +37,11 @@ func TestBackfillCompletedAttendanceSplitsByCarePlan(t *testing.T) {
 
 	// booked: Monday plan. unbooked: a plan that covers Wednesday only —
 	// the difference between "not booked today" and "no plan on file".
-	testpkg.CreateTestArrivalSchedule(t, db, booked.ID, scheduleModel.WeekdayMonday, staff.ID, "08:00")
-	testpkg.CreateTestArrivalSchedule(t, db, unbooked.ID, scheduleModel.WeekdayWednesday, staff.ID, "08:00")
+	testpkg.CreateTestArrivalSchedule(t, db, booked.ID, 1, staff.ID, "08:00")
+	testpkg.CreateTestArrivalSchedule(t, db, unbooked.ID, 3, staff.ID, "08:00")
 
 	inst := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{
-		Status:    scheduleModel.InstanceStatusCompleted,
+		Status:    "completed",
 		StartHHMM: "14:00", EndHHMM: "15:00",
 	})
 	// The old force-completion path stamped completed_at and left the rows
@@ -51,10 +50,10 @@ func TestBackfillCompletedAttendanceSplitsByCarePlan(t *testing.T) {
 	_, err := db.NewRaw(`UPDATE schedule.activity_instances SET completed_at = NOW() + interval '1 hour' WHERE id = ?`, inst.ID).Exec(ctx)
 	require.NoError(t, err)
 
-	rows := map[string]*scheduleModel.InstanceStudent{
-		"booked":   testpkg.CreateTestInstanceStudent(t, db, inst.ID, booked.ID, scheduleModel.AttendanceStatusExpected),
-		"unbooked": testpkg.CreateTestInstanceStudent(t, db, inst.ID, unbooked.ID, scheduleModel.AttendanceStatusExpected),
-		"planless": testpkg.CreateTestInstanceStudent(t, db, inst.ID, planless.ID, scheduleModel.AttendanceStatusExpected),
+	rows := map[string]int64{
+		"booked":   testpkg.CreateTestInstanceStudent(t, db, inst.ID, booked.ID, "expected").ID,
+		"unbooked": testpkg.CreateTestInstanceStudent(t, db, inst.ID, unbooked.ID, "expected").ID,
+		"planless": testpkg.CreateTestInstanceStudent(t, db, inst.ID, planless.ID, "expected").ID,
 	}
 
 	require.NoError(t, backfillCompletedExpectedAttendanceUp(ctx, db))
@@ -64,15 +63,15 @@ func TestBackfillCompletedAttendanceSplitsByCarePlan(t *testing.T) {
 		var status string
 		var notScheduled bool
 		require.NoError(t, db.NewRaw(
-			`SELECT status, not_scheduled FROM schedule.instance_students WHERE id = ?`, rows[key].ID,
+			`SELECT status, not_scheduled FROM schedule.instance_students WHERE id = ?`, rows[key],
 		).Scan(ctx, &status, &notScheduled))
 		assert.Equal(t, wantStatus, status, "%s: status", key)
 		assert.Equal(t, wantMarker, notScheduled, "%s: not_scheduled marker", key)
 	}
 
-	assertRow("booked", scheduleModel.AttendanceStatusAbsent, false)
-	assertRow("unbooked", scheduleModel.AttendanceStatusExpected, false)
-	assertRow("planless", scheduleModel.AttendanceStatusExpected, false)
+	assertRow("booked", "absent", false)
+	assertRow("unbooked", "expected", false)
+	assertRow("planless", "expected", false)
 }
 
 // The plan tables carry no validity interval, so a weekly row written after the
@@ -80,10 +79,11 @@ func TestBackfillCompletedAttendanceSplitsByCarePlan(t *testing.T) {
 // would either invent an absence or stamp a genuine expectation as a
 // non-booking — both irreversible. Such a row is left exactly as it is.
 func TestBackfillCompletedAttendanceSkipsPlansWrittenAfterCompletion(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
-	date := timezone.NewDate(2025, time.March, 3)
+	date := testpkg.Date(2025, time.March, 3)
 
 	room := testpkg.CreateTestRoom(t, db, "Backfill-Late-Plan-Room")
 	staff := testpkg.CreateTestStaff(t, db, "Backfill", "LatePlanner")
@@ -92,11 +92,11 @@ func TestBackfillCompletedAttendanceSkipsPlansWrittenAfterCompletion(t *testing.
 	booked := testpkg.CreateTestStudent(t, db, "Spaeter", "Montagsplan", "1a")
 	unbooked := testpkg.CreateTestStudent(t, db, "Spaeter", "Mittwochsplan", "1a")
 
-	testpkg.CreateTestArrivalSchedule(t, db, booked.ID, scheduleModel.WeekdayMonday, staff.ID, "08:00")
-	testpkg.CreateTestArrivalSchedule(t, db, unbooked.ID, scheduleModel.WeekdayWednesday, staff.ID, "08:00")
+	testpkg.CreateTestArrivalSchedule(t, db, booked.ID, 1, staff.ID, "08:00")
+	testpkg.CreateTestArrivalSchedule(t, db, unbooked.ID, 3, staff.ID, "08:00")
 
 	inst := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{
-		Status:    scheduleModel.InstanceStatusCompleted,
+		Status:    "completed",
 		StartHHMM: "14:00", EndHHMM: "15:00",
 	})
 	// Completed an hour ago; the attendance rows are untouched since (so the
@@ -104,13 +104,13 @@ func TestBackfillCompletedAttendanceSkipsPlansWrittenAfterCompletion(t *testing.
 	_, err := db.NewRaw(`UPDATE schedule.activity_instances SET completed_at = NOW() - interval '1 hour' WHERE id = ?`, inst.ID).Exec(ctx)
 	require.NoError(t, err)
 
-	rows := map[string]*scheduleModel.InstanceStudent{
-		"booked":   testpkg.CreateTestInstanceStudent(t, db, inst.ID, booked.ID, scheduleModel.AttendanceStatusExpected),
-		"unbooked": testpkg.CreateTestInstanceStudent(t, db, inst.ID, unbooked.ID, scheduleModel.AttendanceStatusExpected),
+	rows := map[string]int64{
+		"booked":   testpkg.CreateTestInstanceStudent(t, db, inst.ID, booked.ID, "expected").ID,
+		"unbooked": testpkg.CreateTestInstanceStudent(t, db, inst.ID, unbooked.ID, "expected").ID,
 	}
 	_, err = db.NewRaw(
 		`UPDATE schedule.instance_students SET updated_at = NOW() - interval '2 hours' WHERE id IN (?, ?)`,
-		rows["booked"].ID, rows["unbooked"].ID,
+		rows["booked"], rows["unbooked"],
 	).Exec(ctx)
 	require.NoError(t, err)
 
@@ -120,9 +120,9 @@ func TestBackfillCompletedAttendanceSkipsPlansWrittenAfterCompletion(t *testing.
 		var status string
 		var notScheduled bool
 		require.NoError(t, db.NewRaw(
-			`SELECT status, not_scheduled FROM schedule.instance_students WHERE id = ?`, rows[key].ID,
+			`SELECT status, not_scheduled FROM schedule.instance_students WHERE id = ?`, rows[key],
 		).Scan(ctx, &status, &notScheduled))
-		assert.Equal(t, scheduleModel.AttendanceStatusExpected, status,
+		assert.Equal(t, "expected", status,
 			"%s: a plan written after the completion may not decide that day", key)
 		assert.False(t, notScheduled, "%s: and may not stamp a non-booking either", key)
 	}
@@ -132,25 +132,26 @@ func TestBackfillCompletedAttendanceSkipsPlansWrittenAfterCompletion(t *testing.
 // deliberate decision, not a leftover of the old path. The migration may not
 // touch it — it cannot be rolled back.
 func TestBackfillCompletedAttendanceSkipsPostCompletionEdits(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
-	date := timezone.NewDate(2025, time.March, 3)
+	date := testpkg.Date(2025, time.March, 3)
 
 	room := testpkg.CreateTestRoom(t, db, "Backfill-Reset-Room")
 	staff := testpkg.CreateTestStaff(t, db, "Backfill", "Resetter")
 	student := testpkg.CreateTestStudent(t, db, "Manuell", "Zurueckgesetzt", "1a")
-	testpkg.CreateTestArrivalSchedule(t, db, student.ID, scheduleModel.WeekdayMonday, staff.ID, "08:00")
+	testpkg.CreateTestArrivalSchedule(t, db, student.ID, 1, staff.ID, "08:00")
 
 	inst := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{
-		Status:    scheduleModel.InstanceStatusCompleted,
+		Status:    "completed",
 		StartHHMM: "14:00", EndHHMM: "15:00",
 	})
 	// Completed an hour ago, the row edited since.
 	_, err := db.NewRaw(`UPDATE schedule.activity_instances SET completed_at = NOW() - interval '1 hour' WHERE id = ?`, inst.ID).Exec(ctx)
 	require.NoError(t, err)
 
-	row := testpkg.CreateTestInstanceStudent(t, db, inst.ID, student.ID, scheduleModel.AttendanceStatusExpected)
+	row := testpkg.CreateTestInstanceStudent(t, db, inst.ID, student.ID, "expected")
 
 	require.NoError(t, backfillCompletedExpectedAttendanceUp(ctx, db))
 
@@ -159,7 +160,7 @@ func TestBackfillCompletedAttendanceSkipsPostCompletionEdits(t *testing.T) {
 	require.NoError(t, db.NewRaw(
 		`SELECT status, not_scheduled FROM schedule.instance_students WHERE id = ?`, row.ID,
 	).Scan(ctx, &status, &notScheduled))
-	assert.Equal(t, scheduleModel.AttendanceStatusExpected, status,
+	assert.Equal(t, "expected", status,
 		"a post-completion reset stays exactly as the human left it")
 	assert.False(t, notScheduled, "and must not be relabelled a non-booking")
 }

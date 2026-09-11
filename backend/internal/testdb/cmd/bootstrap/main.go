@@ -2,16 +2,13 @@
 // lifecycle: make sure the server is reachable (starting the local container
 // if needed) and the template for this worktree's migrations hash is built.
 // It prints the resolved template name, which the wrapper exports as
-// PHX_TEST_TEMPLATE so the ~93 package binaries can skip both steps:
+// PHX_TEST_TEMPLATE so package binaries can skip template preparation:
 //
 //	PHX_TEST_TEMPLATE=$(go run ./internal/testdb/cmd/bootstrap)
 //
-// Measured on the full suite, the two steps cost 2,6s summed across the
-// binaries (0,7s server ping + 1,9s template check) against ~0,2s for this
-// command with a warm build cache.
-//
-// A naked `go test ./...` never runs this and does both steps itself — that
-// is the point of the env var being optional (ADR 0004).
+// Package binaries still acquire a server lease and check readiness, including
+// when a long compilation outlives the local server's idle timeout. A naked
+// `go test ./...` resolves its own template as before.
 package main
 
 import (
@@ -26,6 +23,31 @@ import (
 )
 
 func main() {
+	// Dispatch before loading .env: the detached watcher needs no credentials.
+	if len(os.Args) > 1 {
+		var err error
+		switch {
+		case len(os.Args) == 2 && os.Args[1] == "--idle-status":
+			err = testdb.IdleStatus(context.Background())
+		case len(os.Args) == 3 && os.Args[1] == "--idle-watch":
+			lock := os.NewFile(3, "watcher.lock")
+			if lock == nil {
+				fail(fmt.Errorf("watcher requires an inherited lock"))
+			}
+			if _, err := lock.Stat(); err != nil {
+				fail(err)
+			}
+			defer func() { _ = lock.Close() }()
+			err = testdb.WatchIdle(context.Background(), os.Args[2], lock, 15*time.Minute, 30*time.Second)
+		default:
+			err = fmt.Errorf("usage: bootstrap [--idle-status]")
+		}
+		if err != nil {
+			fail(err)
+		}
+		return
+	}
+
 	if root, err := testdb.ProjectRoot(); err == nil {
 		_ = gotenv.Load(filepath.Join(root, ".env"))
 	}

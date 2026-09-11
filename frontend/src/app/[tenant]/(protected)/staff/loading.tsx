@@ -1,20 +1,23 @@
 "use client";
 
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { StaffCardsSkeleton } from "./page-skeleton";
 
 export default function StaffLoading() {
   return (
-    <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch
-        title="Mitarbeiter"
-        search={{
-          value: "",
-          onChange: () => {},
-          inputProps: { disabled: true },
-        }}
-      />
+    // Titel und Suchfeld sind fest und rendern sofort im echten Gerüst; nur
+    // die Statuszeile und die Kartenliste darunter skelettieren.
+    <TenantPage
+      title="Mitarbeiter"
+      statsLoading
+      search={{
+        value: "",
+        onChange: () => {},
+        placeholder: "Mitarbeiter suchen…",
+        inputProps: { disabled: true },
+      }}
+    >
       <StaffCardsSkeleton />
-    </div>
+    </TenantPage>
   );
 }

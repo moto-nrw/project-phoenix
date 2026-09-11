@@ -3,36 +3,41 @@ package email
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"html/template"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/k3a/html2text"
 	"github.com/vanng822/go-premailer/premailer"
 )
 
-// templates is the process-wide parsed template set. NewMailer rebuilds it,
-// and every Message.parse reads it, so both sides take templatesMu: without
-// it two concurrent NewMailer calls (each service factory builds a mailer)
-// race on the pointer and on the set being parsed into it.
-var (
-	templates   *template.Template
-	templatesMu sync.RWMutex
-)
-
 type Mailer interface {
 	Send(Message) error
 }
 
+// ContextMailer is implemented by transports that report caller cancellation.
+// Mailer stays source-compatible for the durable outbox and existing adapters;
+// synchronous Delivery requires the production SMTP adapter to implement this
+// stronger contract.
+type ContextMailer interface {
+	SendContext(context.Context, Message) error
+}
+
 // Message struct holds all parts of a specific email Message.
 type Message struct {
-	From     Email
-	To       Email
+	From Email
+	To   Email
+	// ReplyTo is where answers go when that is not the sender. Tenant-bound
+	// mail (Eltern-Einladung, Anmeldung, Elternmitteilung) keeps the central
+	// authenticated From and points replies at the OGS instead, so a parent
+	// answering does not reach moto (#1936). The zero value emits no header,
+	// which is what every global system mail keeps.
+	ReplyTo  Email
 	Subject  string
 	Template string
 	Content  any
@@ -41,12 +46,12 @@ type Message struct {
 }
 
 // parse parses the corrsponding template and content
-func (m *Message) parse() error {
+func (m *Message) parse(templates *template.Template) error {
+	if templates == nil {
+		return fmt.Errorf("email templates are not configured")
+	}
 	buf := new(bytes.Buffer)
-	templatesMu.RLock()
-	set := templates
-	templatesMu.RUnlock()
-	if err := set.ExecuteTemplate(buf, m.Template, m.Content); err != nil {
+	if err := templates.ExecuteTemplate(buf, m.Template, m.Content); err != nil {
 		return err
 	}
 	prem, err := premailer.NewPremailerFromString(buf.String(), premailer.NewOptions())
@@ -78,24 +83,18 @@ func NewEmail(name, address string) Email {
 	}
 }
 
-func parseTemplates() error {
+func parseTemplates(dir string) (*template.Template, error) {
 	set := template.New("").Funcs(fMap)
-	if err := filepath.Walk("./templates", func(path string, info os.FileInfo, err error) error {
+	if err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if strings.Contains(path, ".html") {
 			_, err = set.ParseFiles(path)
 			return err
 		}
 		return err
 	}); err != nil {
-		return err
+		return nil, err
 	}
-
-	// Publish only a fully parsed set: a reader must never observe a
-	// half-populated template set.
-	templatesMu.Lock()
-	templates = set
-	templatesMu.Unlock()
-	return nil
+	return set, nil
 }
 
 var fMap = template.FuncMap{

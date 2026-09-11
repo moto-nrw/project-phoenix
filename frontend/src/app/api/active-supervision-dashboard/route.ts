@@ -20,6 +20,8 @@ interface WireGroup {
   room_id?: string;
   room_name?: string;
   room_color?: string | null;
+  is_current_user_supervising: boolean;
+  can_assign: boolean;
 }
 
 interface WireUnclaimedGroup {
@@ -157,6 +159,11 @@ interface WireArrivalTime {
 }
 
 interface WireDashboard {
+  business_day: string;
+  spontaneous_start_availability: {
+    available: boolean;
+    blocked_reason?: "weekend";
+  };
   groups: WireGroup[];
   selected_group_id?: string;
   unclaimed_groups: WireUnclaimedGroup[];
@@ -175,9 +182,15 @@ interface WireDashboard {
 // ===== Frontend response type (camelCase view the page consumes) =====
 
 interface ActiveSupervisionDashboardResponse {
+  businessDay: string;
+  spontaneousStartAvailability: {
+    available: boolean;
+    blockedReason?: "weekend";
+  };
   supervisedGroups: Array<{
     id: string;
     name: string;
+    canAssign: boolean;
     room_id?: string;
     room?: { id: string; name: string; color?: string | null };
   }>;
@@ -305,9 +318,16 @@ interface ActiveSupervisionDashboardResponse {
 
 function mapDashboard(wire: WireDashboard): ActiveSupervisionDashboardResponse {
   return {
+    businessDay: wire.business_day,
+    spontaneousStartAvailability: {
+      available: wire.spontaneous_start_availability.available,
+      blockedReason: wire.spontaneous_start_availability.blocked_reason,
+    },
     supervisedGroups: (wire.groups ?? []).map((g) => ({
       id: g.id,
       name: g.name,
+      canAssign: g.can_assign,
+      isCurrentUserSupervising: g.is_current_user_supervising,
       room_id: g.room_id,
       room: g.room_id
         ? {

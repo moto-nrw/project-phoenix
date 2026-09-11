@@ -3,7 +3,7 @@
 
 "use client";
 
-import Link from "next/link";
+import { NavLink } from "~/components/ui/nav-link";
 import Image from "next/image";
 
 /**
@@ -43,27 +43,40 @@ export function brandLabelClass(
 }
 
 /**
+ * Tailwind kennt keine zusammengesetzten Klassennamen zur Laufzeit, deshalb
+ * beide Varianten als vollständige Literale.
+ */
+const HIDE_LABEL_CLASS = {
+  md: "hidden md:flex",
+  lg: "hidden lg:flex",
+} as const;
+
+/**
  * Brand link with logo and text
  */
 interface BrandLinkProps {
   readonly isScrolled?: boolean;
   readonly href?: string;
   readonly label?: string | null;
-  /** Unterhalb lg nur das Logo zeigen (Elternportal: Platz für Seitentitel und Aktionen). */
-  readonly hideLabelOnMobile?: boolean;
+  /**
+   * Unterhalb dieser Breite nur das Logo zeigen, damit die Kopfzeile Platz
+   * für die Ortsangabe der Seite hat: `"lg"` im Elternportal, `"md"` im
+   * Mitarbeiterportal (dort beginnen die Brotkrumen ab md).
+   */
+  readonly hideLabelBelow?: "md" | "lg";
 }
 
 export function BrandLink({
   isScrolled = false,
-  href = "/dashboard",
+  href = "/home",
   label,
-  hideLabelOnMobile = false,
+  hideLabelBelow,
 }: BrandLinkProps) {
   const displayLabel = label?.trim() || "moto";
   const usesTenantLabel = Boolean(label?.trim());
 
   return (
-    <Link
+    <NavLink
       href={href}
       className="group flex max-w-[180px] min-w-0 items-center space-x-3 sm:max-w-[240px] lg:max-w-[280px]"
     >
@@ -71,14 +84,14 @@ export function BrandLink({
 
       <div
         className={`min-w-0 items-center space-x-3 ${
-          hideLabelOnMobile ? "hidden lg:flex" : "flex"
+          hideLabelBelow ? HIDE_LABEL_CLASS[hideLabelBelow] : "flex"
         }`}
       >
         <span className={brandLabelClass(isScrolled, usesTenantLabel)}>
           {displayLabel}
         </span>
       </div>
-    </Link>
+    </NavLink>
   );
 }
 

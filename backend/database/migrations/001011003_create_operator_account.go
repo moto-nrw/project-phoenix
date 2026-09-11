@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/uptrace/bun"
 )
 
@@ -78,7 +77,7 @@ func createOperatorAccount(ctx context.Context, db *bun.DB) error {
 		operatorName = "Administrator"
 	}
 
-	hashedPassword, err := userpass.HashPassword(operatorPassword, userpass.DefaultParams())
+	hashedPassword, err := hashBootstrapPassword(ctx, tx, operatorPassword)
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}

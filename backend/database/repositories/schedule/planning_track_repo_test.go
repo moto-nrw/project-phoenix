@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	model "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -14,12 +15,19 @@ import (
 	"github.com/uptrace/bun"
 )
 
+func planningTrackRepository(t *testing.T, db *bun.DB) model.PlanningTrackRepository {
+	t.Helper()
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	factory.BindTimetable(timetabletest.New(t, db))
+	return factory.PlanningTrack
+}
+
 func TestPlanningTrackRepositoryTenantCRUDAndOrdering(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
-	repo := repositories.NewFactory(db).PlanningTrack
+	repo := planningTrackRepository(t, db)
 	service := scheduleSvc.NewPlanningTrackService(repo, db)
 	ctx := scope.Context()
 
@@ -66,12 +74,54 @@ func TestPlanningTrackRepositoryTenantCRUDAndOrdering(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestPlanningTrackRepositoryFindByIDs(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	scope := testpkg.NewTenantScope(t, db)
+	repo := planningTrackRepository(t, db)
+	ctx := scope.Context()
+
+	active := &model.PlanningTrack{Name: "Früh", Color: "#5080D8", SortOrder: 0}
+	archived := &model.PlanningTrack{Name: "Mittag", Color: "#F78C10", SortOrder: 1}
+	require.NoError(t, repo.Create(ctx, active))
+	require.NoError(t, repo.Create(ctx, archived))
+	archivedAt := time.Now()
+	archived.ArchivedAt = &archivedAt
+	updated, err := repo.UpdateColumns(ctx, archived, "archived_at")
+	require.NoError(t, err)
+	require.Positive(t, updated)
+
+	empty, err := repo.FindByIDs(ctx, nil)
+	require.NoError(t, err)
+	assert.Empty(t, empty)
+
+	// Archived rows resolve too (historical references keep their colour);
+	// unknown IDs are simply absent instead of an error.
+	tracks, err := repo.FindByIDs(ctx, []int64{active.ID, archived.ID, archived.ID + 1000})
+	require.NoError(t, err)
+	require.Len(t, tracks, 2)
+	byID := map[int64]*model.PlanningTrack{}
+	for _, track := range tracks {
+		byID[track.ID] = track
+	}
+	require.NotNil(t, byID[active.ID])
+	require.NotNil(t, byID[archived.ID])
+	assert.True(t, byID[archived.ID].IsArchived())
+
+	// Tenant isolation: another tenant sees none of these rows.
+	otherScope := testpkg.NewTenantScope(t, db)
+	foreign, err := repo.FindByIDs(otherScope.Context(), []int64{active.ID, archived.ID})
+	require.NoError(t, err)
+	assert.Empty(t, foreign)
+}
+
 func TestPlanningTrackRepositoryRejectsPartialOrder(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
-	repo := repositories.NewFactory(db).PlanningTrack
+	repo := planningTrackRepository(t, db)
 	service := scheduleSvc.NewPlanningTrackService(repo, db)
 	first := &model.PlanningTrack{Name: "Früh", Color: "#5080D8", SortOrder: 0}
 	second := &model.PlanningTrack{Name: "Mittag", Color: "#F78C10", SortOrder: 1}
@@ -103,7 +153,7 @@ func TestPlanningTrackServiceNameConflictAndArchiveLifecycle(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
-	service := scheduleSvc.NewPlanningTrackService(repositories.NewFactory(db).PlanningTrack, db)
+	service := scheduleSvc.NewPlanningTrackService(planningTrackRepository(t, db), db)
 	input := scheduleSvc.PlanningTrackInput{Name: "Nord", Color: "#5080D8", SortOrder: 0}
 
 	first, err := service.CreatePlanningTrack(scope.Context(), input)

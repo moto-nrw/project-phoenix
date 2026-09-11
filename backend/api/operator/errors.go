@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
@@ -124,8 +125,8 @@ func AuthErrorRenderer(err error) render.Renderer {
 
 // AnnouncementErrorRenderer maps announcement service errors to HTTP responses
 func AnnouncementErrorRenderer(err error) render.Renderer {
-	var notFound *platformSvc.AnnouncementNotFoundError
-	var invalidData *platformSvc.InvalidDataError
+	var notFound *communication.AnnouncementNotFoundError
+	var invalidData *communication.InvalidDataError
 
 	switch {
 	case errors.As(err, &notFound):

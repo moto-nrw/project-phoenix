@@ -7,7 +7,7 @@ import {
   useUserContext,
   useHasEducationalGroups,
 } from "./usercontext-context";
-import type { BackendEducationalGroup } from "./usercontext-helpers";
+import type { NavigationEducationalGroup } from "./usercontext-helpers";
 import { mockSessionData } from "~/test/mocks/next-auth";
 
 // Mock dependencies
@@ -24,14 +24,14 @@ vi.mock("./supervision-context", () => ({
 }));
 
 vi.mock("./usercontext-helpers", () => ({
-  mapEducationalGroupResponse: vi.fn(),
+  mapNavigationEducationalGroupResponse: vi.fn(),
 }));
 
 // Import mocked modules for type-safe access
 import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import { useSupervision } from "./supervision-context";
-import { mapEducationalGroupResponse } from "./usercontext-helpers";
+import { mapNavigationEducationalGroupResponse } from "./usercontext-helpers";
 
 describe("UserContextProvider", () => {
   const mockSession: Session = mockSessionData({
@@ -41,19 +41,22 @@ describe("UserContextProvider", () => {
     expires: new Date(Date.now() + 1000 * 60 * 60).toISOString(),
   });
 
-  const mockBackendGroups: BackendEducationalGroup[] = [
+  const mockBackendGroups: NavigationEducationalGroup[] = [
     {
-      id: 1,
+      id: "1",
       name: "Group A",
-      room_id: 101,
-      room: { id: 101, name: "Room 101" },
+      room_id: "101",
+      room_name: "Room 101",
+      via_substitution: false,
+      is_personal: true,
     },
     {
-      id: 2,
+      id: "2",
       name: "Group B",
-      room_id: 102,
-      room: { id: 102, name: "Room 102" },
+      room_id: "102",
+      room_name: "Room 102",
       via_substitution: true,
+      is_personal: true,
     },
   ];
 
@@ -99,18 +102,21 @@ describe("UserContextProvider", () => {
       refresh: vi.fn(),
     });
 
-    vi.mocked(mapEducationalGroupResponse).mockImplementation((group) => ({
-      id: group.id.toString(),
-      name: group.name,
-      roomId: group.room_id?.toString(),
-      room: group.room
-        ? {
-            id: group.room.id.toString(),
-            name: group.room.name,
-          }
-        : undefined,
-      viaSubstitution: group.via_substitution ?? false,
-    }));
+    vi.mocked(mapNavigationEducationalGroupResponse).mockImplementation(
+      (group) => ({
+        id: group.id,
+        name: group.name,
+        roomId: group.room_id,
+        room:
+          group.room_id && group.room_name
+            ? {
+                id: group.room_id,
+                name: group.room_name,
+              }
+            : undefined,
+        viaSubstitution: group.via_substitution,
+      }),
+    );
   });
 
   describe("Provider Rendering", () => {
@@ -222,17 +228,17 @@ describe("UserContextProvider", () => {
         ),
       });
 
-      expect(mapEducationalGroupResponse).toHaveBeenCalledTimes(
+      expect(mapNavigationEducationalGroupResponse).toHaveBeenCalledTimes(
         mockBackendGroups.length,
       );
       // Array.map passes (item, index, array) - check first argument only
-      expect(mapEducationalGroupResponse).toHaveBeenNthCalledWith(
+      expect(mapNavigationEducationalGroupResponse).toHaveBeenNthCalledWith(
         1,
         mockBackendGroups[0],
         0,
         mockBackendGroups,
       );
-      expect(mapEducationalGroupResponse).toHaveBeenNthCalledWith(
+      expect(mapNavigationEducationalGroupResponse).toHaveBeenNthCalledWith(
         2,
         mockBackendGroups[1],
         1,
@@ -485,10 +491,12 @@ describe("UserContextProvider", () => {
     });
 
     it("should handle groups without room information", () => {
-      const groupsWithoutRooms: BackendEducationalGroup[] = [
+      const groupsWithoutRooms: NavigationEducationalGroup[] = [
         {
-          id: 1,
+          id: "1",
           name: "Group A",
+          via_substitution: false,
+          is_personal: true,
         },
       ];
 
@@ -574,10 +582,12 @@ describe("UserContextProvider", () => {
         isLoadingGroups: false,
         groups: [
           {
-            id: 3,
+            id: "3",
             name: "Group C",
-            room_id: 103,
-            room: { id: 103, name: "Room 103" },
+            room_id: "103",
+            room_name: "Room 103",
+            via_substitution: false,
+            is_personal: true,
           },
         ],
         isSupervising: false,

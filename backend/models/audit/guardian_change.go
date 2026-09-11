@@ -3,8 +3,6 @@ package audit
 import (
 	"context"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // Change types for an audited guardian change.
@@ -39,7 +37,7 @@ const (
 // The actor name/email are snapshotted so the trail survives account deletion.
 type GuardianChange struct {
 	ID int64 `bun:"id,pk,autoincrement" json:"id"`
-	base.TenantModel
+	TenantModel
 	StudentID         int64 `bun:"student_id,notnull" json:"student_id"`
 	GuardianProfileID int64 `bun:"guardian_profile_id,notnull" json:"guardian_profile_id"`
 	// ActorAccountID is nulled if the acting account is later deleted; the
@@ -52,18 +50,6 @@ type GuardianChange struct {
 	OldValue           *string   `bun:"old_value" json:"old_value,omitempty"`
 	NewValue           *string   `bun:"new_value" json:"new_value,omitempty"`
 	ChangedAt          time.Time `bun:"changed_at,notnull,default:now()" json:"changed_at"`
-}
-
-func (e *GuardianChange) GetID() interface{} {
-	return e.ID
-}
-
-func (e *GuardianChange) GetCreatedAt() time.Time {
-	return e.ChangedAt
-}
-
-func (e *GuardianChange) GetUpdatedAt() time.Time {
-	return e.ChangedAt
 }
 
 type GuardianChangeRepository interface {

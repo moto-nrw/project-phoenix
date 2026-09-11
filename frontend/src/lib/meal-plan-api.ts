@@ -30,6 +30,19 @@ export interface DishInput {
   note: string | null;
 }
 
+export interface DailyMealParticipant {
+  studentId: string;
+  firstName: string;
+  lastName: string;
+  schoolClass: string;
+}
+
+export interface DailyMealList {
+  date: string;
+  cutoffTime: string;
+  participants: DailyMealParticipant[];
+}
+
 function mapEntry(entry: BackendMealPlanEntry): MealPlanEntry {
   return {
     date: entry.date,
@@ -77,6 +90,68 @@ export async function setDay(date: string, dishes: DishInput[]): Promise<void> {
     logger.error("meal_set_day_failed", { status: response.status });
     throw new Error(`Failed to save meal plan day: ${response.statusText}`);
   }
+}
+
+export async function getDailyMealParticipants(
+  date: string,
+): Promise<DailyMealList> {
+  const response = await sessionFetch(
+    `/api/meal-plan/participants?date=${encodeURIComponent(date)}`,
+    { credentials: "include" },
+  );
+  if (!response.ok) {
+    throw new Error(
+      `Failed to fetch meal participants: ${response.statusText}`,
+    );
+  }
+  const json = (await response.json()) as {
+    data?: {
+      date: string;
+      cutoff_time: string;
+      participants: Array<{
+        student_id: string;
+        first_name: string;
+        last_name: string;
+        school_class: string;
+      }>;
+    };
+  };
+  const data = json.data;
+  if (!data) throw new Error("Meal participant response is missing data");
+  return {
+    date: data.date,
+    cutoffTime: data.cutoff_time,
+    participants: data.participants.map((participant) => ({
+      studentId: participant.student_id,
+      firstName: participant.first_name,
+      lastName: participant.last_name,
+      schoolClass: participant.school_class,
+    })),
+  };
+}
+
+export async function downloadDailyMealParticipants(
+  date: string,
+  format: "pdf" | "xlsx",
+): Promise<void> {
+  const response = await sessionFetch(
+    `/api/meal-plan/participants/export?date=${encodeURIComponent(date)}&format=${format}`,
+    { credentials: "include" },
+  );
+  if (!response.ok) {
+    throw new Error(
+      `Failed to export meal participants: ${response.statusText}`,
+    );
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `mittagessen-${date}.${format}`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 /** Monday (ISO) of the week containing the given Date. */

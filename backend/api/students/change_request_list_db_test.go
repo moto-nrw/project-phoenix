@@ -2,9 +2,11 @@ package students_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,7 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	userService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -20,6 +24,7 @@ type aggListEnvelope struct {
 	Data struct {
 		Items []struct {
 			RequestType string          `json:"request_type"`
+			GroupName   string          `json:"group_name"`
 			Data        json.RawMessage `json:"data"`
 		} `json:"items"`
 		NextCursor string `json:"next_cursor"`
@@ -54,7 +59,7 @@ func insertDecidedMasterDataRequest(t *testing.T, tc *testContext, studentID, te
 func TestAggregatedChangeRequests_RouterHistoryCursor(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Agg", "Reviewer")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "AggListGroup")
@@ -67,7 +72,7 @@ func TestAggregatedChangeRequests_RouterHistoryCursor(t *testing.T) {
 	middle := insertDecidedMasterDataRequest(t, tc, student.ID, student.TenantID, account.ID, userModels.DataChangeStatusRejected, base.Add(-time.Minute))
 	oldest := insertDecidedMasterDataRequest(t, tc, student.ID, student.TenantID, account.ID, userModels.DataChangeStatusApproved, base.Add(-2*time.Minute))
 
-	claims := testutil.TeacherTestClaims(int(account.ID))
+	claims := testutil.AdminTestClaims(int(account.ID))
 	perms := []string{"users:read", "users:update"}
 
 	fetch := func(t *testing.T, query string) aggListEnvelope {
@@ -111,7 +116,7 @@ func TestAggregatedChangeRequests_RouterHistoryCursor(t *testing.T) {
 func TestAggregatedChangeRequests_RouterOpenSearchAndPermissions(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Agg", "OpenReviewer")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "AggOpenGroup")
@@ -131,15 +136,17 @@ func TestAggregatedChangeRequests_RouterOpenSearchAndPermissions(t *testing.T) {
 	_, err := tc.db.NewInsert().Model(request).Exec(t.Context())
 	require.NoError(t, err)
 
-	claims := testutil.TeacherTestClaims(int(account.ID))
+	claims := testutil.AdminTestClaims(int(account.ID))
 
-	// A users:update reviewer finds the pending Stammdaten request by name.
+	// Administrators see the complete school queue regardless of the optional
+	// group-leader restriction.
 	rr := authExec(t, tc, testutil.NewRequest("GET", "/change-requests?search=Zoffen", nil), claims, []string{"users:read", "users:update"})
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	var env aggListEnvelope
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &env))
 	require.Len(t, env.Data.Items, 1)
 	assert.Equal(t, "master_data", env.Data.Items[0].RequestType)
+	assert.Equal(t, group.Name, env.Data.Items[0].GroupName)
 
 	// An absence-only caller may open the route but is narrowed to the
 	// excused queue — the users:update request stays invisible (#2232).
@@ -154,6 +161,59 @@ func TestAggregatedChangeRequests_RouterOpenSearchAndPermissions(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, rr.Code, rr.Body.String())
 }
 
+func TestAggregatedChangeRequests_GroupLeaderPolicyAtRouterAndBulkSeam(t *testing.T) {
+	t.Parallel()
+	tc := setupStudentsRoute(t)
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Queue", "Lead")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "Eigene Gruppe")
+	otherGroup := testpkg.CreateTestEducationGroup(t, tc.db, "Fremde Gruppe")
+	student := testpkg.CreateTestStudent(t, tc.db, "Zgruppe", "Eigen", "1a")
+	other := testpkg.CreateTestStudent(t, tc.db, "Zgruppe", "Fremd", "1b")
+	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
+	testpkg.AssignStudentToGroup(t, tc.db, other.ID, otherGroup.ID)
+	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
+	insert := func(child *userModels.Student, field, oldValue, newValue string) *userModels.StudentDataChangeRequest {
+		row := &userModels.StudentDataChangeRequest{StudentID: child.ID, SubmittedBy: account.ID,
+			Target: userModels.DataChangeTargetPerson, FieldKey: field,
+			OldValue: json.RawMessage(strconv.Quote(oldValue)), NewValue: json.RawMessage(strconv.Quote(newValue)),
+			Status: userModels.DataChangeStatusPending}
+		row.TenantID = child.TenantID
+		_, err := tc.db.NewInsert().Model(row).Exec(t.Context())
+		require.NoError(t, err)
+		return row
+	}
+	one := insert(student, "first_name", "Zgruppe", "Neu")
+	two := insert(student, "last_name", "Eigen", "Name")
+	foreign := insert(other, "first_name", "Zgruppe", "Fremdneu")
+	claims := testutil.TeacherTestClaims(int(account.ID))
+	perms := []string{"users:read", "users:update"}
+
+	list := func() aggListEnvelope {
+		rr := authExec(t, tc, testutil.NewRequest("GET", "/change-requests?search=Zgruppe", nil), claims, perms)
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		var env aggListEnvelope
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &env))
+		return env
+	}
+	assert.Empty(t, list().Data.Items, "group leaders are disabled by default")
+	require.NoError(t, tc.resource.SettingsService.SetValue(testpkg.Ctx(t), configModels.KeyParentRequestGroupLeaderReviewEnabled, true, nil, nil))
+	require.Len(t, list().Data.Items, 2, "the enabled leader sees only their own group")
+
+	bulkBody := func(rows ...*userModels.StudentDataChangeRequest) *strings.Reader {
+		refs := make([]string, 0, len(rows))
+		for _, row := range rows {
+			refs = append(refs, fmt.Sprintf(`{"kind":"master_data","id":"%d","expected_version":"%s"}`, row.ID, userService.ParentRequestVersion(row.UpdatedAt)))
+		}
+		return strings.NewReader(`{"requests":[` + strings.Join(refs, ",") + `],"reason":"Geprüft"}`)
+	}
+	denied := authExec(t, tc, testutil.NewRequest("POST", "/change-requests/bulk-approve", bulkBody(one, foreign)), claims, perms)
+	assert.NotEqual(t, http.StatusOK, denied.Code, denied.Body.String())
+	require.Len(t, list().Data.Items, 2, "a foreign child rolls the whole bulk command back")
+	approved := authExec(t, tc, testutil.NewRequest("POST", "/change-requests/bulk-approve", bulkBody(one, two)), claims, perms)
+	require.Equal(t, http.StatusOK, approved.Code, approved.Body.String())
+	assert.Empty(t, list().Data.Items)
+}
+
 // The child-name search runs as a SQL predicate, so the two things a
 // hand-written LIKE gets wrong have to hold in the real query: it matches
 // across the first/last name boundary, and typed wildcards match literally
@@ -161,7 +221,7 @@ func TestAggregatedChangeRequests_RouterOpenSearchAndPermissions(t *testing.T) {
 func TestAggregatedChangeRequests_RouterSearchMatchesFullNameAndEscapesWildcards(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Agg", "SearchReviewer")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "AggSearchGroup")
@@ -172,7 +232,7 @@ func TestAggregatedChangeRequests_RouterSearchMatchesFullNameAndEscapesWildcards
 	base := time.Now().UTC().Add(-time.Hour)
 	decided := insertDecidedMasterDataRequest(t, tc, student.ID, student.TenantID, account.ID, userModels.DataChangeStatusApproved, base)
 
-	claims := testutil.TeacherTestClaims(int(account.ID))
+	claims := testutil.AdminTestClaims(int(account.ID))
 	perms := []string{"users:read", "users:update"}
 	fetch := func(t *testing.T, query string) aggListEnvelope {
 		t.Helper()
@@ -209,7 +269,7 @@ func TestAggregatedChangeRequests_RouterSearchMatchesFullNameAndEscapesWildcards
 func TestAggregatedChangeRequests_RouterStudentFilter(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Agg", "ProtocolReviewer")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "AggProtocolGroup")
@@ -223,7 +283,7 @@ func TestAggregatedChangeRequests_RouterStudentFilter(t *testing.T) {
 	own := insertDecidedMasterDataRequest(t, tc, child.ID, child.TenantID, account.ID, userModels.DataChangeStatusApproved, base)
 	foreign := insertDecidedMasterDataRequest(t, tc, other.ID, other.TenantID, account.ID, userModels.DataChangeStatusApproved, base.Add(-time.Minute))
 
-	claims := testutil.TeacherTestClaims(int(account.ID))
+	claims := testutil.AdminTestClaims(int(account.ID))
 	perms := []string{"users:read", "users:update"}
 
 	fetch := func(t *testing.T, query string) aggListEnvelope {

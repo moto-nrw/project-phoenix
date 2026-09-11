@@ -17,18 +17,22 @@ describe("StatusBadge", () => {
     expect((pill as HTMLElement).style.color).toBe("#B91C1C");
   });
 
-  it("renders a decorative dot hidden from assistive tech", () => {
-    const { container } = render(
-      <StatusBadge label="Warteliste" tone="orange" />,
-    );
-    const dot = container.querySelector("span[aria-hidden='true']");
-    expect(dot).not.toBeNull();
+  it("renders the label as the pill's only content, without a decorative dot (#2476)", () => {
+    render(<StatusBadge label="Warteliste" tone="orange" />);
+    const pill = screen.getByText("Warteliste");
+    expect(pill.children).toHaveLength(0);
+    expect(pill.textContent).toBe("Warteliste");
+    // No spacer left behind where the dot used to sit.
+    expect(pill.className).not.toMatch(/\bgap-/);
   });
 
-  it("can render without the decorative dot", () => {
-    const { container } = render(
-      <StatusBadge label="In der OGS" tone="green" showDot={false} />,
+  it("passes the title through to the pill element", () => {
+    render(
+      <StatusBadge label="Feiertag" tone="gray" title="Tag der Einheit" />,
     );
-    expect(container.querySelector("span[aria-hidden='true']")).toBeNull();
+    expect(screen.getByText("Feiertag")).toHaveAttribute(
+      "title",
+      "Tag der Einheit",
+    );
   });
 });

@@ -10,9 +10,9 @@ run_deadcode() {
 
   set +e
   if [[ "$mode" == "tests" ]]; then
-    output=$(go tool deadcode -test ./... 2>&1)
+    output=$(go tool deadcode -test ./...)
   else
-    output=$(go tool deadcode ./... 2>&1)
+    output=$(go tool deadcode ./...)
   fi
   status=$?
   set -e
@@ -25,7 +25,8 @@ run_deadcode() {
   printf '%s\n' "$output" | grep -v '^go: ' || true
 }
 
-test_findings=$(run_deadcode tests)
+test_output=$(run_deadcode tests)
+test_findings=$(printf '%s\n' "$test_output" | grep -v '^internal/architecture/' || true)
 if [[ -n "$test_findings" ]]; then
   echo "Dead code detected with test entry points included:"
   printf '%s\n' "$test_findings"
@@ -34,7 +35,7 @@ fi
 
 production_output=$(run_deadcode production)
 if production_findings=$(printf '%s\n' "$production_output" | grep -Ev \
-  '(^|/)(test|testutil|testdb|[[:alpha:]]+test)/|_test_helpers\.go|models/config/registry\.go:.*unreachable func: ResetRegistry$'); then
+  '(^|/)(test|testutil|testdb|[[:alpha:]]+test)/|^internal/architecture/|_test_helpers\.go|models/config/registry\.go:.*unreachable func: ResetRegistry$'); then
   :
 else
   production_filter_status=$?
@@ -46,6 +47,24 @@ fi
 if [[ -n "$production_findings" ]]; then
   echo "Production code reachable only from tests or from no entry point:"
   printf '%s\n' "$production_findings"
+  exit 1
+fi
+
+# The architecture command has its own module. Build the backend-pinned tool
+# to an owned path: `go tool -n` may name a temporary executable that is removed
+# when the Go command exits, particularly with an external cache plugin.
+tool_directory=$(mktemp -d)
+trap 'rm -rf -- "$tool_directory"' EXIT
+deadcode_binary="$tool_directory/deadcode"
+go build -o "$deadcode_binary" golang.org/x/tools/cmd/deadcode
+tool_output=$(
+  cd "$repo_root/scripts/backend-architecture"
+  "$deadcode_binary" ./...
+)
+tool_findings=$(printf '%s\n' "$tool_output" | grep -v '^go: ' || true)
+if [[ -n "$tool_findings" ]]; then
+  echo "Dead code detected in the architecture command:"
+  printf '%s\n' "$tool_findings"
   exit 1
 fi
 

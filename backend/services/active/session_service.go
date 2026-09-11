@@ -11,14 +11,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/uptrace/bun"
-
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -28,7 +27,7 @@ import (
 
 // determineSessionRoomID determines the room for a session with conflict checking
 func (s *service) determineSessionRoomID(ctx context.Context, activityID int64, roomID *int64) (int64, error) {
-	return s.determineRoomIDWithStrategy(ctx, activityID, roomID, RoomConflictFail)
+	return s.determineRoomIDWithStrategy(ctx, activityID, roomID, RoomConflictFail, true)
 }
 
 // broadcastActivityStartEvent broadcasts SSE event for activity start
@@ -104,7 +103,7 @@ func (s *service) StartActivitySessionWithSupervisors(ctx context.Context, activ
 	}
 
 	var newGroup *active.Group
-	err := s.executeSessionStart(ctx, activityID, deviceID, roomID, "StartActivitySessionWithSupervisors", func(ctx context.Context, finalRoomID int64) (*active.Group, error) {
+	err := s.executeSessionStart(ctx, activityID, deviceID, roomID, "StartActivitySessionWithSupervisors", supervisorIDs, func(ctx context.Context, finalRoomID int64) (*active.Group, error) {
 		group, err := s.createSessionWithMultipleSupervisors(ctx, activityID, deviceID, supervisorIDs, finalRoomID)
 		newGroup = group
 		return group, err
@@ -122,11 +121,12 @@ func (s *service) StartActivitySessionWithSupervisors(ctx context.Context, activ
 // Uses PostgreSQL advisory locks to prevent race conditions when multiple requests try to start the same activity concurrently.
 // Wraps all operations in a transaction (via TxHandler.RunInTx) so the advisory lock is always available.
 // If a transaction already exists in context (e.g. from handler-level WithTenantTx), it is reused.
-func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID int64, roomID *int64, operation string, createSession func(context.Context, int64) (*active.Group, error)) error {
-	txHandler := modelBase.NewTxHandler(s.DB)
-
-	err := txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
-		if err := s.acquireActivitySessionLock(txCtx, tx, activityID, operation); err != nil {
+func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID int64, roomID *int64, operation string, supervisorIDs []int64, createSession func(context.Context, int64) (*active.Group, error)) error {
+	err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		if err := s.acquireActivitySessionLock(txCtx, activityID, operation); err != nil {
+			return err
+		}
+		if err := s.lockSupervisorsForAssignment(txCtx, supervisorIDs); err != nil {
 			return err
 		}
 
@@ -143,6 +143,9 @@ func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID 
 		if err != nil {
 			return err
 		}
+		if err := s.GroupRepo.LockRoomSessionWrites(txCtx, finalRoomID); err != nil {
+			return &ActiveError{Op: operation, Err: ErrDatabaseOperation}
+		}
 
 		_, err = createSession(txCtx, finalRoomID)
 		return err
@@ -150,11 +153,11 @@ func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID 
 	return markRollbackOnRoomCapacity(ctx, err)
 }
 
-func (s *service) acquireActivitySessionLock(ctx context.Context, tx bun.Tx, activityID int64, operation string) error {
-	// Acquire advisory lock on (tenant_id, activity_id) to serialize concurrent session starts.
-	// The two-argument form scopes locks per tenant; PostgreSQL releases it when the tx ends.
-	tenantID := tenant.FromContext(ctx)
-	if _, err := tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock(?, ?)", tenantID, activityID); err != nil {
+func (s *service) acquireActivitySessionLock(ctx context.Context, activityID int64, operation string) error {
+	if s.SessionStartLock == nil {
+		return &ActiveError{Op: operation, Err: errors.New("session start lock repository is not configured")}
+	}
+	if err := s.SessionStartLock.LockSessionStart(ctx, tenant.FromContext(ctx), activityID); err != nil {
 		return &ActiveError{Op: operation, Err: fmt.Errorf("failed to acquire activity lock: %w", err)}
 	}
 	return nil
@@ -281,7 +284,7 @@ func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, r
 		s.updateDeviceLocation(ctx, deviceID, roomID)
 	}
 
-	transferredCount, err := s.VisitRepo.TransferVisitsFromRecentSessions(ctx, newGroup.ID, deviceID)
+	transferredCount, err := s.SchoolPresence.TransferRecentDeviceVisits(ctx, newGroup.ID, deviceID)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -291,7 +294,7 @@ func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, r
 		}
 	}
 
-	return newGroup, transferredCount, nil
+	return newGroup, int(transferredCount), nil
 }
 
 // updateDeviceLocation updates the device's room_id to track its last-used location.
@@ -309,39 +312,28 @@ func (s *service) updateDeviceLocation(ctx context.Context, deviceID, roomID int
 }
 
 func (s *service) runBestEffortDB(ctx context.Context, label string, fn func() error, logFailure func(error)) {
-	tx, ok := modelBase.TxFromContext(ctx)
-	if !ok || tx == nil {
+	if _, ok := tenant.TransactionFromContext(ctx); !ok {
 		if err := fn(); err != nil {
 			logFailure(err)
 		}
 		return
 	}
 
-	savepointName := "sp_active_" + label
-	if _, err := (*tx).ExecContext(ctx, "SAVEPOINT "+savepointName); err != nil {
-		s.getLogger().WarnContext(ctx, "failed to create savepoint for best-effort operation",
-			slog.String("operation", label),
-			slog.String("error", err.Error()),
-		)
-		return
+	var operationErr error
+	err := tenant.WithSavepoint(ctx, func(context.Context) error {
+		operationErr = fn()
+		return operationErr
+	})
+	if operationErr != nil {
+		logFailure(operationErr)
 	}
-
-	if err := fn(); err != nil {
-		logFailure(err)
-		if _, rollbackErr := (*tx).ExecContext(ctx, "ROLLBACK TO SAVEPOINT "+savepointName); rollbackErr != nil {
-			s.getLogger().WarnContext(ctx, "failed to rollback savepoint for best-effort operation",
+	if err != nil {
+		if errors.Is(err, tenant.ErrSavepointControl) {
+			s.getLogger().WarnContext(ctx, "failed to control savepoint for best-effort operation",
 				slog.String("operation", label),
-				slog.String("error", rollbackErr.Error()),
+				slog.String("error", err.Error()),
 			)
 		}
-		return
-	}
-
-	if _, err := (*tx).ExecContext(ctx, "RELEASE SAVEPOINT "+savepointName); err != nil {
-		s.getLogger().WarnContext(ctx, "failed to release savepoint for best-effort operation",
-			slog.String("operation", label),
-			slog.String("error", err.Error()),
-		)
 	}
 }
 
@@ -369,11 +361,21 @@ func (s *service) ForceStartActivitySessionWithSupervisors(ctx context.Context, 
 
 func (s *service) forceStartActivitySessionTx(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64, newGroup **active.Group) error {
 	const operation = "ForceStartActivitySessionWithSupervisors"
-	txHandler := modelBase.NewTxHandler(s.DB)
-
-	err := txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
-		if err := s.acquireActivitySessionLock(txCtx, tx, activityID, operation); err != nil {
+	err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		if err := s.acquireActivitySessionLock(txCtx, activityID, operation); err != nil {
 			return err
+		}
+		lockedStaff, err := s.lockForceStartSupervisors(txCtx, activityID, supervisorIDs)
+		if err != nil {
+			return err
+		}
+
+		finalRoomID, err := s.determineRoomIDForForceStart(txCtx, activityID, roomID)
+		if err != nil {
+			return &ActiveError{Op: operation, Err: err}
+		}
+		if err := s.lockForceStartRooms(txCtx, activityID, deviceID, finalRoomID); err != nil {
+			return &ActiveError{Op: operation, Err: ErrDatabaseOperation}
 		}
 
 		// Use simple cleanup (fullCleanup=false) to only mark the group as ended
@@ -391,10 +393,8 @@ func (s *service) forceStartActivitySessionTx(ctx context.Context, activityID, d
 		}
 		endedSessionIDs := appendActiveGroupID(nil, deviceEndedSessionID)
 		endedSessionIDs = appendActiveGroupIDs(endedSessionIDs, conflictingSessionIDs...)
-
-		finalRoomID, err := s.determineRoomIDForForceStart(txCtx, activityID, roomID)
-		if err != nil {
-			return &ActiveError{Op: operation, Err: err}
+		if err := s.validateTransferredSupervisorLocks(txCtx, conflictingSessionIDs, lockedStaff); err != nil {
+			return err
 		}
 
 		group, err := s.createSessionWithMultipleSupervisors(txCtx, activityID, deviceID, supervisorIDs, finalRoomID)
@@ -414,6 +414,49 @@ func (s *service) forceStartActivitySessionTx(ctx context.Context, activityID, d
 		return nil
 	})
 	return markRollbackOnRoomCapacity(ctx, err)
+}
+
+func (s *service) lockForceStartSupervisors(ctx context.Context, activityID int64, requested []int64) (map[int64]bool, error) {
+	staffIDs := deduplicateSupervisorIDs(requested)
+	groups, err := s.GroupRepo.FindActiveByGroupID(ctx, activityID)
+	if err != nil {
+		return nil, err
+	}
+	for _, group := range groups {
+		if group == nil {
+			continue
+		}
+		supervisors, err := s.SupervisorRepo.FindByActiveGroupID(ctx, group.ID, true)
+		if err != nil {
+			return nil, err
+		}
+		for _, supervisor := range supervisors {
+			if supervisor != nil {
+				staffIDs[supervisor.StaffID] = true
+			}
+		}
+	}
+	if err := s.lockSupervisorsForAssignment(ctx, slices.Collect(maps.Keys(staffIDs))); err != nil {
+		return nil, err
+	}
+	return staffIDs, nil
+}
+
+// Group locks are now held. A supervisor added since discovery requires a
+// fresh command, not an out-of-order staff lock while holding supervision rows.
+func (s *service) validateTransferredSupervisorLocks(ctx context.Context, groupIDs []int64, lockedStaff map[int64]bool) error {
+	for _, groupID := range groupIDs {
+		supervisors, err := s.SupervisorRepo.FindByActiveGroupID(ctx, groupID, true)
+		if err != nil {
+			return err
+		}
+		for _, supervisor := range supervisors {
+			if supervisor != nil && !lockedStaff[supervisor.StaffID] {
+				return ErrSessionConflict
+			}
+		}
+	}
+	return nil
 }
 
 func markRollbackOnRoomCapacity(ctx context.Context, err error) error {
@@ -478,7 +521,16 @@ func (s *service) endExistingActivitySessionsForForceStart(ctx context.Context, 
 		if session == nil || session.ID <= 0 {
 			continue
 		}
-		if err := s.GroupRepo.EndSession(ctx, session.ID); err != nil {
+		locked, err := s.GroupRepo.FindByIDForUpdate(ctx, session.ID)
+		if err != nil {
+			return nil, err
+		}
+		if locked == nil || !locked.IsActive() {
+			continue
+		}
+		// The Student Presence owner releases the group; its visits and
+		// supervisors move to the new session afterwards (#2697).
+		if err := s.SchoolPresence.EndGroup(ctx, session.ID, s.now()); err != nil {
 			return nil, err
 		}
 		endedIDs = append(endedIDs, session.ID)
@@ -496,8 +548,15 @@ func (s *service) endExistingDeviceSessionForForceStart(ctx context.Context, dev
 	if existingSession == nil {
 		return 0, nil
 	}
+	locked, err := s.GroupRepo.FindByIDForUpdate(ctx, existingSession.ID)
+	if err != nil {
+		return 0, err
+	}
+	if locked == nil || !locked.IsActive() {
+		return 0, nil
+	}
 
-	if err := s.GroupRepo.EndSession(ctx, existingSession.ID); err != nil {
+	if err := s.SchoolPresence.EndGroup(ctx, existingSession.ID, s.now()); err != nil {
 		return 0, err
 	}
 
@@ -531,7 +590,8 @@ func (s *service) transferForceStartedActivityState(ctx context.Context, oldGrou
 
 func (s *service) transferActiveVisitsBetweenGroups(ctx context.Context, oldGroupID, newGroupID int64) (int, error) {
 	if s.GroupRepo == nil {
-		return s.VisitRepo.TransferActiveVisitsBetweenGroups(ctx, oldGroupID, newGroupID)
+		count, err := s.SchoolPresence.TransferOpenVisits(ctx, oldGroupID, newGroupID)
+		return int(count), err
 	}
 	oldGroup, err := s.GroupRepo.FindByID(ctx, oldGroupID)
 	if err != nil {
@@ -542,7 +602,7 @@ func (s *service) transferActiveVisitsBetweenGroups(ctx context.Context, oldGrou
 		return 0, err
 	}
 	if oldGroup != nil && newGroup != nil && oldGroup.RoomID != newGroup.RoomID {
-		incoming, err := s.VisitRepo.CountActiveByGroupID(ctx, oldGroupID)
+		incoming, err := s.SchoolPresence.CountOpenVisitsInGroup(ctx, oldGroupID)
 		if err != nil {
 			return 0, err
 		}
@@ -552,7 +612,8 @@ func (s *service) transferActiveVisitsBetweenGroups(ctx context.Context, oldGrou
 			}
 		}
 	}
-	return s.VisitRepo.TransferActiveVisitsBetweenGroups(ctx, oldGroupID, newGroupID)
+	count, err := s.SchoolPresence.TransferOpenVisits(ctx, oldGroupID, newGroupID)
+	return int(count), err
 }
 
 func (s *service) transferActiveSupervisorsBetweenGroups(ctx context.Context, oldGroupID, newGroupID int64, newGroupStartTime time.Time) (int, error) {
@@ -614,14 +675,16 @@ func normalizeTransferredSupervisorRole(role string) string {
 
 // determineRoomIDForForceStart determines room ID for force start with conflict warning but no failure
 func (s *service) determineRoomIDForForceStart(ctx context.Context, activityID int64, roomID *int64) (int64, error) {
-	return s.determineRoomIDWithStrategy(ctx, activityID, roomID, RoomConflictWarn)
+	return s.determineRoomIDWithStrategy(ctx, activityID, roomID, RoomConflictWarn, false)
 }
 
-// determineRoomIDWithStrategy determines room ID with configurable conflict handling strategy
-func (s *service) determineRoomIDWithStrategy(ctx context.Context, activityID int64, roomID *int64, strategy RoomConflictStrategy) (int64, error) {
+// determineRoomIDWithStrategy determines room ID with configurable conflict
+// handling strategy. lockRoom serializes the room against concurrent session
+// writes; a force start locks its rooms itself once the final room is known.
+func (s *service) determineRoomIDWithStrategy(ctx context.Context, activityID int64, roomID *int64, strategy RoomConflictStrategy, lockRoom bool) (int64, error) {
 	// Manual room selection has highest priority
 	if roomID != nil && *roomID > 0 {
-		return s.validateManualRoomSelection(ctx, *roomID, strategy)
+		return s.validateManualRoomSelection(ctx, *roomID, strategy, lockRoom)
 	}
 
 	// Try to get planned room from activity configuration.
@@ -638,7 +701,12 @@ func (s *service) determineRoomIDWithStrategy(ctx context.Context, activityID in
 }
 
 // validateManualRoomSelection validates manually selected room based on conflict strategy
-func (s *service) validateManualRoomSelection(ctx context.Context, roomID int64, strategy RoomConflictStrategy) (int64, error) {
+func (s *service) validateManualRoomSelection(ctx context.Context, roomID int64, strategy RoomConflictStrategy, lockRoom bool) (int64, error) {
+	if lockRoom && s.GroupRepo != nil {
+		if err := s.GroupRepo.LockRoomSessionWrites(ctx, roomID); err != nil {
+			return 0, err
+		}
+	}
 	if strategy == RoomConflictIgnore {
 		return roomID, nil
 	}
@@ -660,6 +728,38 @@ func (s *service) validateManualRoomSelection(ctx context.Context, roomID int64,
 	return roomID, nil
 }
 
+func (s *service) lockForceStartRooms(ctx context.Context, activityID, deviceID, finalRoomID int64) error {
+	roomIDs := map[int64]struct{}{finalRoomID: {}}
+	activitySessions, err := s.GroupRepo.FindActiveByGroupID(ctx, activityID)
+	if err != nil {
+		return err
+	}
+	for _, session := range activitySessions {
+		if session != nil && session.RoomID > 0 {
+			roomIDs[session.RoomID] = struct{}{}
+		}
+	}
+	deviceSession, err := s.GroupRepo.FindActiveByDeviceID(ctx, deviceID)
+	if err != nil {
+		return err
+	}
+	if deviceSession != nil && deviceSession.RoomID > 0 {
+		roomIDs[deviceSession.RoomID] = struct{}{}
+	}
+
+	ids := make([]int64, 0, len(roomIDs))
+	for roomID := range roomIDs {
+		ids = append(ids, roomID)
+	}
+	slices.Sort(ids)
+	for _, roomID := range ids {
+		if err := s.GroupRepo.LockRoomSessionWrites(ctx, roomID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // getPlannedRoomID retrieves the planned room ID from activity configuration.
 // A missing planned room is distinct from a repository error: callers return
 // ErrNoRoomAvailable only for the former and preserve the latter's 5xx path.
@@ -676,17 +776,20 @@ func (s *service) getPlannedRoomID(ctx context.Context, activityID int64) (int64
 
 // UpdateActiveGroupSupervisors replaces all supervisors for an active group
 func (s *service) UpdateActiveGroupSupervisors(ctx context.Context, activeGroupID int64, supervisorIDs []int64) (*active.Group, error) {
-	if err := s.validateActiveGroupForSupervisorUpdate(ctx, activeGroupID); err != nil {
-		return nil, err
-	}
-
 	if err := s.validateSupervisorIDs(ctx, supervisorIDs); err != nil {
 		return nil, err
 	}
 
 	uniqueSupervisors := deduplicateSupervisorIDs(supervisorIDs)
-
-	if err := s.replaceSupervisorsInTransaction(ctx, activeGroupID, uniqueSupervisors); err != nil {
+	if err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		if err := s.lockSupervisorsForAssignment(txCtx, supervisorIDs); err != nil {
+			return err
+		}
+		if err := s.lockActiveGroupForSupervisorUpdate(txCtx, activeGroupID); err != nil {
+			return err
+		}
+		return s.replaceSupervisorsInTransaction(txCtx, activeGroupID, uniqueSupervisors)
+	}); err != nil {
 		return nil, &ActiveError{Op: "UpdateActiveGroupSupervisors", Err: err}
 	}
 
@@ -709,10 +812,23 @@ func (s *service) UpdateActiveGroupSupervisors(ctx context.Context, activeGroupI
 	return updatedGroup, nil
 }
 
+// Lock requested staff in a stable order before locking supervision rows.
+// Revalidation inside the write transaction closes the preflight/offboarding gap.
+func (s *service) lockSupervisorsForAssignment(ctx context.Context, supervisorIDs []int64) error {
+	ids := slices.Collect(maps.Keys(deduplicateSupervisorIDs(supervisorIDs)))
+	slices.Sort(ids)
+	for _, id := range ids {
+		if err := s.lockStaffForSupervision(ctx, id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // validateActiveGroupForSupervisorUpdate validates that the group exists and is active
-func (s *service) validateActiveGroupForSupervisorUpdate(ctx context.Context, activeGroupID int64) error {
-	activeGroup, err := s.GroupRepo.FindByID(ctx, activeGroupID)
-	if err != nil {
+func (s *service) lockActiveGroupForSupervisorUpdate(ctx context.Context, activeGroupID int64) error {
+	activeGroup, err := s.GroupRepo.FindByIDForUpdate(ctx, activeGroupID)
+	if err != nil || activeGroup == nil {
 		return &ActiveError{Op: "UpdateActiveGroupSupervisors", Err: ErrActiveGroupNotFound}
 	}
 
@@ -720,6 +836,27 @@ func (s *service) validateActiveGroupForSupervisorUpdate(ctx context.Context, ac
 		return &ActiveError{Op: "UpdateActiveGroupSupervisors", Err: fmt.Errorf("cannot update supervisors for an ended session")}
 	}
 
+	return nil
+}
+
+func (s *service) lockGroupRows(ctx context.Context, groupIDs ...int64) error {
+	unique := make(map[int64]struct{}, len(groupIDs))
+	for _, id := range groupIDs {
+		if id > 0 {
+			unique[id] = struct{}{}
+		}
+	}
+	ids := slices.Collect(maps.Keys(unique))
+	slices.Sort(ids)
+	for _, id := range ids {
+		group, err := s.GroupRepo.FindByIDForUpdate(ctx, id)
+		if err != nil {
+			return err
+		}
+		if group == nil {
+			return ErrActiveGroupNotFound
+		}
+	}
 	return nil
 }
 
@@ -739,6 +876,7 @@ func (s *service) replaceSupervisorsInTransaction(ctx context.Context, activeGro
 		return err
 	}
 
+	uniqueSupervisors = primarySupervisorIDs(uniqueSupervisors, currentSupervisors)
 	if err := s.endAllCurrentSupervisors(ctx, currentSupervisors); err != nil {
 		return err
 	}
@@ -746,10 +884,26 @@ func (s *service) replaceSupervisorsInTransaction(ctx context.Context, activeGro
 	return s.upsertSupervisors(ctx, activeGroupID, uniqueSupervisors, currentSupervisors)
 }
 
-// endAllCurrentSupervisors ends all current supervisors by setting end_date
+// primarySupervisorIDs excludes non-primary roles from a primary-supervisor
+// replacement. IoT check-ins pass every active supervisor ID, including
+// additional supervisors, which must remain assigned to the session.
+func primarySupervisorIDs(supervisorIDs map[int64]bool, currentSupervisors []*active.GroupSupervisor) map[int64]bool {
+	primaryIDs := maps.Clone(supervisorIDs)
+	for _, supervisor := range currentSupervisors {
+		if supervisor.Role != "supervisor" {
+			delete(primaryIDs, supervisor.StaffID)
+		}
+	}
+	return primaryIDs
+}
+
+// endAllCurrentSupervisors ends the current primary supervisors by setting end_date.
 func (s *service) endAllCurrentSupervisors(ctx context.Context, supervisors []*active.GroupSupervisor) error {
 	today := timezone.TodayDate()
 	for _, supervisor := range supervisors {
+		if supervisor.Role != "supervisor" {
+			continue
+		}
 		supervisor.EndDate = &today
 		if err := s.SupervisorRepo.Update(ctx, supervisor); err != nil {
 			return err
@@ -871,53 +1025,125 @@ func getDeviceIDString(deviceID *int64) string {
 
 // EndActivitySession ends an active activity session
 func (s *service) EndActivitySession(ctx context.Context, activeGroupID int64) error {
-	// Verify the session exists and is active
-	group, err := s.GroupRepo.FindByID(ctx, activeGroupID)
+	var broadcasts sessionEndSSEData
+	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		group, err := s.GroupRepo.FindByIDForUpdate(txCtx, activeGroupID)
+		if err != nil || group == nil {
+			return &ActiveError{Op: "EndActivitySession", Err: ErrActiveGroupNotFound}
+		}
+		if !group.IsActive() {
+			return &ActiveError{Op: "EndActivitySession", Err: ErrActiveGroupAlreadyEnded}
+		}
+		broadcasts, err = s.endActivitySessionLocked(txCtx, group)
+		return err
+	})
 	if err != nil {
-		return &ActiveError{Op: "EndActivitySession", Err: ErrActiveGroupNotFound}
+		return err
+	}
+	s.queueActivitySessionEndBroadcasts(ctx, activeGroupID, broadcasts)
+	return nil
+}
+
+// sessionEndSSEData is everything the session-end SSE events need, read
+// inside the ending transaction. The after-commit hook that emits the events
+// runs without a tenant transaction, on the pool connection as phoenix_auth,
+// which has no rights until SET ROLE. So it must not touch the database
+// (#2951).
+type sessionEndSSEData struct {
+	Visits []visitSSEData
+	End    activityEndSSEData
+}
+
+// activityEndSSEData is the activity_end event payload.
+type activityEndSSEData struct {
+	RoomID       int64
+	ActivityName string
+	RoomName     string
+}
+
+// collectActivityEndSSE resolves the activity_end payload for group. It only
+// queries when there is a broadcaster to deliver the event to. Without the
+// name repositories (the shape unit tests build) the event carries empty
+// names, as broadcastActivityEndEvent always did on a failed lookup.
+func (s *service) collectActivityEndSSE(ctx context.Context, group *active.Group) (activityEndSSEData, error) {
+	if s.Broadcaster == nil || s.RoomRepo == nil || s.ActivityGroupRepo == nil {
+		return activityEndSSEData{RoomID: group.RoomID}, nil
 	}
 
-	if !group.IsActive() {
-		return &ActiveError{Op: "EndActivitySession", Err: ErrActiveGroupAlreadyEnded}
+	activityName, err := s.getActivityEndActivityName(ctx, group.GroupID)
+	if err != nil {
+		return activityEndSSEData{}, err
 	}
+	roomName, err := s.getActivityEndRoomName(ctx, group.RoomID)
+	if err != nil {
+		return activityEndSSEData{}, err
+	}
+	return activityEndSSEData{RoomID: group.RoomID, ActivityName: activityName, RoomName: roomName}, nil
+}
 
-	// Collect active visits BEFORE transaction for SSE broadcasts
+func (s *service) endActivitySessionLocked(ctx context.Context, group *active.Group) (sessionEndSSEData, error) {
+	activeGroupID := group.ID
+	// Collect active visits before mutating them for the SSE payloads.
 	visitsToNotify, err := s.collectActiveVisitsForSSE(ctx, activeGroupID)
 	if err != nil {
-		return &ActiveError{Op: "EndActivitySession", Err: ErrDatabaseOperation}
+		return sessionEndSSEData{}, &ActiveError{Op: "EndActivitySession", Err: ErrDatabaseOperation}
 	}
 
-	// End all active visits
-	for _, visitData := range visitsToNotify {
-		if _, _, err := s.endVisitWithAttendanceSync(ctx, visitData.VisitID); err != nil {
-			return &ActiveError{Op: "EndActivitySession", Err: err}
-		}
+	if _, err := s.closeGroupSession(ctx, "EndActivitySession", activeGroupID); err != nil {
+		return sessionEndSSEData{}, err
 	}
-
-	// End all active supervisors
-	activeSupervisors, err := s.SupervisorRepo.FindByActiveGroupID(ctx, activeGroupID, true)
+	endData, err := s.collectActivityEndSSE(ctx, group)
 	if err != nil {
-		return &ActiveError{Op: "EndActivitySession", Err: err}
+		return sessionEndSSEData{}, &ActiveError{Op: "EndActivitySession", Err: err}
 	}
-	for _, sup := range activeSupervisors {
-		if err := s.SupervisorRepo.EndSupervision(ctx, sup.ID); err != nil {
-			return &ActiveError{Op: "EndActivitySession", Err: err}
+	return sessionEndSSEData{Visits: visitsToNotify, End: endData}, nil
+}
+
+// closeGroupSession is the one presence write behind every session end in
+// this service: the Student Presence owner closes the group's open visits,
+// supervisions, and the group in one command (#2697). The slot check-outs of
+// the closed visits are then mirrored into the timetable in one statement,
+// and the guardians of every checked-out child are woken after the commit.
+// The caller holds the group lock and has verified the group is open.
+func (s *service) closeGroupSession(ctx context.Context, op string, activeGroupID int64) (studentpresence.EndedGroupSession, error) {
+	now := s.now()
+	ended, err := s.SchoolPresence.EndGroupSession(ctx, activeGroupID, now)
+	switch {
+	case errors.Is(err, studentpresence.ErrGroupNotFound):
+		return ended, &ActiveError{Op: op, Err: ErrActiveGroupNotFound}
+	case errors.Is(err, studentpresence.ErrGroupEnded):
+		return ended, &ActiveError{Op: op, Err: ErrActiveGroupAlreadyEnded}
+	case err != nil:
+		return ended, &ActiveError{Op: op, Err: err}
+	}
+	if s.AttendanceSyncer != nil && len(ended.ClosedVisits) > 0 {
+		visits := make([]*studentpresence.Visit, 0, len(ended.ClosedVisits))
+		for i := range ended.ClosedVisits {
+			visits = append(visits, &ended.ClosedVisits[i])
+		}
+		if err := s.AttendanceSyncer.MirrorCheckOutForVisits(ctx, visits, now); err != nil {
+			return ended, &ActiveError{Op: op, Err: errors.Join(ErrDatabaseOperation, err)}
 		}
 	}
-
-	// End the session
-	if err := s.GroupRepo.EndSession(ctx, activeGroupID); err != nil {
-		return &ActiveError{Op: "EndActivitySession", Err: err}
+	for _, visit := range ended.ClosedVisits {
+		s.wakeGuardiansAfterCommit(ctx, visit.StudentID)
 	}
+	return ended, nil
+}
 
-	// Broadcast SSE events (fire-and-forget, outside transaction)
-	if s.Broadcaster != nil {
+// queueActivitySessionEndBroadcasts emits the session-end SSE events once the
+// surrounding transaction has committed. The hook performs no database access:
+// every lookup lives in data, gathered inside the transaction (#2951).
+func (s *service) queueActivitySessionEndBroadcasts(ctx context.Context, activeGroupID int64, data sessionEndSSEData) {
+	if s.Broadcaster == nil {
+		return
+	}
+	broadcastCtx := tenant.ContextWithoutTransaction(ctx)
+	tenant.RegisterAfterCommit(ctx, func() {
 		activeGroupIDStr := fmt.Sprintf("%d", activeGroupID)
-		s.broadcastStudentCheckoutEvents(ctx, activeGroupIDStr, visitsToNotify)
-		s.broadcastActivityEndEvent(ctx, activeGroupID, activeGroupIDStr)
-	}
-
-	return nil
+		s.broadcastStudentCheckoutEvents(broadcastCtx, activeGroupIDStr, data.Visits)
+		s.broadcastActivityEndEvent(broadcastCtx, activeGroupIDStr, data.End)
+	})
 }
 
 // GetDeviceCurrentSession gets the current active session for a device
@@ -946,54 +1172,18 @@ func (s *service) ProcessSessionTimeout(ctx context.Context, deviceID int64) (*T
 	return s.ProcessSessionTimeoutByID(ctx, session.ID)
 }
 
-// validateSessionForTimeout validates that a session exists and is still active.
-// Returns the session if valid, or an error if not found or already ended.
-func (s *service) validateSessionForTimeout(ctx context.Context, sessionID int64) (*active.Group, error) {
-	session, err := s.GroupRepo.FindByID(ctx, sessionID)
-	if err != nil {
-		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: ErrActiveGroupNotFound}
-	}
-
-	if !session.IsActive() {
-		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: ErrActiveGroupAlreadyEnded}
-	}
-
-	return session, nil
-}
-
-// checkoutActiveVisits ends all active visits for a session and returns the count of students checked out.
-func (s *service) checkoutActiveVisits(ctx context.Context, sessionID int64) (int, error) {
-	visits, err := s.VisitRepo.FindByActiveGroupID(ctx, sessionID)
-	if err != nil {
-		return 0, err
-	}
-
-	studentsCheckedOut := 0
-	for _, visit := range visits {
-		if !visit.IsActive() {
-			continue
-		}
-		if _, _, err := s.endVisitWithAttendanceSync(ctx, visit.ID); err != nil {
-			return 0, err
-		}
-		studentsCheckedOut++
-	}
-
-	return studentsCheckedOut, nil
-}
-
 // collectActiveVisitsForSSE gathers visit and student data needed for SSE broadcasts
 func (s *service) collectActiveVisitsForSSE(ctx context.Context, sessionID int64) ([]visitSSEData, error) {
-	visits, err := s.VisitRepo.FindByActiveGroupID(ctx, sessionID)
+	visits, err := s.SchoolPresence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{sessionID}})
 	if err != nil {
 		return nil, err
 	}
 
 	// Filter active visits and collect unique student IDs
-	var activeVisits []*active.Visit
+	var activeVisits []studentpresence.Visit
 	studentIDSet := make(map[int64]struct{})
 	for _, visit := range visits {
-		if !visit.IsActive() {
+		if visit.ExitTime != nil {
 			continue
 		}
 		activeVisits = append(activeVisits, visit)
@@ -1048,12 +1238,13 @@ func (s *service) ProcessSessionTimeoutByID(ctx context.Context, sessionID int64
 	// transaction when there is one (the kiosk timeout endpoint), so the
 	// request path is unchanged.
 	var result *TimeoutResult
+	var endData activityEndSSEData
 	if err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
-		res, err := s.processSessionTimeoutTx(txCtx, sessionID)
+		res, end, err := s.processSessionTimeoutTx(txCtx, sessionID)
 		if err != nil {
 			return err
 		}
-		result = res
+		result, endData = res, end
 		return nil
 	}); err != nil {
 		if activeErr, ok := err.(*ActiveError); ok {
@@ -1062,26 +1253,24 @@ func (s *service) ProcessSessionTimeoutByID(ctx context.Context, sessionID int64
 		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
 	}
 
-	// Broadcast SSE events (fire-and-forget, outside transaction)
-	if s.Broadcaster != nil && result != nil {
-		sessionIDStr := fmt.Sprintf("%d", sessionID)
-		s.broadcastStudentCheckoutEvents(ctx, sessionIDStr, visitsToNotify)
-		s.broadcastActivityEndEvent(ctx, sessionID, sessionIDStr)
-	}
+	// The SSE events go out after the commit; the payload was read inside the
+	// transaction, so the hook needs no database access (#2951).
+	s.queueActivitySessionEndBroadcasts(ctx, sessionID, sessionEndSSEData{Visits: visitsToNotify, End: endData})
 
 	return result, nil
 }
 
 // processSessionTimeoutTx holds every write of a session timeout. It runs
 // inside one transaction and announces nothing — the SSE events belong to the
-// caller, after the commit.
-func (s *service) processSessionTimeoutTx(ctx context.Context, sessionID int64) (*TimeoutResult, error) {
-	session, err := s.validateSessionForTimeout(ctx, sessionID)
-	if err != nil {
-		if activeErr, ok := err.(*ActiveError); ok {
-			return nil, activeErr
-		}
-		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
+// caller, after the commit. The returned activityEndSSEData is that event's
+// payload, resolved while the transaction still holds the tenant role.
+func (s *service) processSessionTimeoutTx(ctx context.Context, sessionID int64) (*TimeoutResult, activityEndSSEData, error) {
+	session, err := s.GroupRepo.FindByIDForUpdate(ctx, sessionID)
+	if err != nil || session == nil {
+		return nil, activityEndSSEData{}, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: ErrActiveGroupNotFound}
+	}
+	if !session.IsActive() {
+		return nil, activityEndSSEData{}, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: ErrActiveGroupAlreadyEnded}
 	}
 
 	// The timetable side closes FIRST, before anything is announced (#1747
@@ -1091,24 +1280,25 @@ func (s *service) processSessionTimeoutTx(ctx context.Context, sessionID int64) 
 	// keeps the failure-prone half in front of the SSE events the caller fires,
 	// so a bridge error never announces an end that the transaction rolls back.
 	if err := s.completeTimetableMirrorsForEndedSessions(ctx, []int64{sessionID}); err != nil {
-		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
+		return nil, activityEndSSEData{}, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
 	}
 
-	studentsCheckedOut, err := s.checkoutActiveVisits(ctx, sessionID)
+	ended, err := s.closeGroupSession(ctx, "ProcessSessionTimeoutByID", sessionID)
 	if err != nil {
-		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
+		return nil, activityEndSSEData{}, err
 	}
 
-	if err := s.GroupRepo.EndSession(ctx, sessionID); err != nil {
-		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
+	endData, err := s.collectActivityEndSSE(ctx, session)
+	if err != nil {
+		return nil, activityEndSSEData{}, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
 	}
 
 	return &TimeoutResult{
 		SessionID:          sessionID,
 		ActivityID:         session.GroupID,
-		StudentsCheckedOut: studentsCheckedOut,
-		TimeoutAt:          time.Now(),
-	}, nil
+		StudentsCheckedOut: len(ended.ClosedVisits),
+		TimeoutAt:          ended.EndedAt,
+	}, endData, nil
 }
 
 // runInSessionTx runs fn inside a transaction, joining the caller's when one is
@@ -1119,7 +1309,10 @@ func (s *service) runInSessionTx(ctx context.Context, fn func(context.Context) e
 	if s.DB == nil {
 		return fn(ctx)
 	}
-	return modelBase.NewTxHandler(s.DB).RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+	if _, hasTransaction := tenant.TransactionFromContext(ctx); !hasTransaction && s.tenantRuntime != nil {
+		ctx = tenant.WithUnitOfWork(ctx, *s.tenantRuntime)
+	}
+	return tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
 		return fn(txCtx)
 	})
 }
@@ -1193,14 +1386,14 @@ func (s *service) GetSessionTimeoutInfo(ctx context.Context, deviceID int64) (*S
 	}
 
 	// Count active students in the session
-	visits, err := s.VisitRepo.FindByActiveGroupID(ctx, session.ID)
+	visits, err := s.SchoolPresence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{session.ID}})
 	if err != nil {
 		return nil, &ActiveError{Op: "GetSessionTimeoutInfo", Err: err}
 	}
 
 	activeStudentCount := 0
 	for _, visit := range visits {
-		if visit.IsActive() {
+		if visit.ExitTime == nil {
 			activeStudentCount++
 		}
 	}
@@ -1299,7 +1492,13 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 	// CreateVisit/EndVisit to no-ops), so this job has nothing to close for
 	// them. Returning early saves a handful of per-tenant queries on every
 	// scheduler tick and keeps the result shape unchanged for callers.
-	if s.GetPresenceMode(ctx) == "binary" {
+	mode, err := s.GetPresenceMode(ctx)
+	if err != nil {
+		result := newDailySessionCleanupResult()
+		result.Success = false
+		return result, &ActiveError{Op: "EndDailySessions", Err: errors.Join(ErrDatabaseOperation, err)}
+	}
+	if mode == PresenceModeBinary {
 		return &DailySessionCleanupResult{
 			ExecutedAt: time.Now(),
 			Success:    true,
@@ -1307,26 +1506,12 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 		}, nil
 	}
 
-	result := &DailySessionCleanupResult{
-		ExecutedAt: time.Now(),
-		Success:    true,
-		Errors:     make([]string, 0),
-	}
-
-	// 1. Get all active group IDs
-	activeGroups, err := s.GroupRepo.List(ctx, nil)
+	result := newDailySessionCleanupResult()
+	activeIDs, err := s.activeSessionIDs(ctx)
 	if err != nil {
 		result.Success = false
 		return result, &ActiveError{Op: "EndDailySessions", Err: ErrDatabaseOperation}
 	}
-
-	activeIDs := make([]int64, 0, len(activeGroups))
-	for _, g := range activeGroups {
-		if g.IsActive() {
-			activeIDs = append(activeIDs, g.ID)
-		}
-	}
-
 	// Always clean up orphaned supervisors from previous days, regardless of
 	// whether today's bulk steps succeed or are skipped.
 	defer s.cleanupOrphanedSupervisors(ctx, result)
@@ -1334,37 +1519,77 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 	if len(activeIDs) == 0 {
 		return result, nil
 	}
-
-	// 2. Bulk end visits — abort remaining steps on failure to prevent
-	// sessions/supervisors being closed while visits remain active.
-	visitsEnded, err := s.VisitRepo.EndVisitsByActiveGroupIDs(ctx, activeIDs)
-	if err != nil {
-		result.Errors = append(result.Errors, fmt.Sprintf("Failed to bulk-end visits: %v", err))
+	slices.Sort(activeIDs)
+	if err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		lockedIDs, err := s.lockActiveSessionIDs(txCtx, activeIDs)
+		if err != nil {
+			return err
+		}
+		return s.endDailySessionsLocked(txCtx, lockedIDs, result)
+	}); err != nil {
 		result.Success = false
-		return result, nil
+		return result, &ActiveError{Op: "EndDailySessions", Err: err}
 	}
-	result.VisitsEnded = int(visitsEnded)
+	return result, nil
+}
 
-	// 3. Bulk end sessions
-	sessionsEnded, err := s.GroupRepo.EndSessionsByIDs(ctx, activeIDs)
+func newDailySessionCleanupResult() *DailySessionCleanupResult {
+	return &DailySessionCleanupResult{
+		ExecutedAt: time.Now(),
+		Success:    true,
+		Errors:     make([]string, 0),
+	}
+}
+
+func (s *service) activeSessionIDs(ctx context.Context) ([]int64, error) {
+	activeGroups, err := s.GroupRepo.List(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	activeIDs := make([]int64, 0, len(activeGroups))
+	for _, group := range activeGroups {
+		if group.IsActive() {
+			activeIDs = append(activeIDs, group.ID)
+		}
+	}
+	return activeIDs, nil
+}
+
+func (s *service) lockActiveSessionIDs(ctx context.Context, ids []int64) ([]int64, error) {
+	lockedIDs := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		group, err := s.GroupRepo.FindByIDForUpdate(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if group != nil && group.IsActive() {
+			lockedIDs = append(lockedIDs, id)
+		}
+	}
+	return lockedIDs, nil
+}
+
+func (s *service) endDailySessionsLocked(ctx context.Context, activeIDs []int64, result *DailySessionCleanupResult) error {
+	if len(activeIDs) == 0 {
+		return nil
+	}
+
+	// The Student Presence owner closes visits, sessions, and supervisions of
+	// every still-open group in one command (#2697); a failure inside rolls
+	// the whole batch back with the surrounding transaction, so no session
+	// is ever closed while its visits remain open.
+	ended, err := s.SchoolPresence.EndGroupSessions(ctx, activeIDs, s.now())
 	if err != nil {
 		result.Errors = append(result.Errors, fmt.Sprintf("Failed to bulk-end sessions: %v", err))
 		result.Success = false
-	} else {
-		result.SessionsEnded = int(sessionsEnded)
-		result.EndedActiveGroupIDs = append(result.EndedActiveGroupIDs, activeIDs...)
+		return err
 	}
+	result.VisitsEnded = int(ended.VisitsClosed)
+	result.SessionsEnded = int(ended.SessionsEnded)
+	result.SupervisorsEnded = int(ended.SupervisorsEnded)
+	result.EndedActiveGroupIDs = append(result.EndedActiveGroupIDs, ended.EndedActiveGroupIDs...)
 
-	// 4. Bulk end supervisors
-	supervisorsEnded, err := s.SupervisorRepo.EndSupervisionsByActiveGroupIDs(ctx, activeIDs)
-	if err != nil {
-		result.Errors = append(result.Errors, fmt.Sprintf("Failed to bulk-end supervisors: %v", err))
-		result.Success = false
-	} else {
-		result.SupervisorsEnded = int(supervisorsEnded)
-	}
-
-	return result, nil
+	return nil
 }
 
 // cleanupOrphanedSupervisors closes supervisor records from previous days
@@ -1382,17 +1607,39 @@ func (s *service) cleanupOrphanedSupervisors(ctx context.Context, result *DailyS
 	}
 
 	for _, record := range staleRecords {
-		// end_date is a DATE column, so set it to the start_date itself
-		endDate := record.StartDate
-
-		record.EndDate = &endDate
-		record.UpdatedAt = time.Now()
-		if _, err := s.SupervisorRepo.UpdateColumns(ctx, record, "end_date", "updated_at"); err != nil {
+		closed, err := s.closeStaleSupervisor(ctx, record, today)
+		if err != nil {
 			errMsg := fmt.Sprintf("Failed to close orphaned supervisor %d: %v", record.ID, err)
 			result.Errors = append(result.Errors, errMsg)
 			result.Success = false
-		} else {
+		} else if closed {
 			result.SupervisorsEnded++
 		}
 	}
+}
+
+func (s *service) closeStaleSupervisor(ctx context.Context, record *active.GroupSupervisor, today timezone.Date) (bool, error) {
+	closed := false
+	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		if err := s.lockGroupRows(txCtx, record.GroupID); err != nil {
+			return err
+		}
+		current, err := s.SupervisorRepo.FindByID(txCtx, record.ID)
+		if err != nil {
+			return err
+		}
+		if current == nil || current.GroupID != record.GroupID {
+			return ErrGroupSupervisorNotFound
+		}
+		if current.EndDate != nil || !current.StartDate.Before(today) {
+			return nil
+		}
+		endDate := current.StartDate
+		current.EndDate = &endDate
+		current.UpdatedAt = time.Now()
+		_, err = s.SupervisorRepo.UpdateColumns(txCtx, current, "end_date", "updated_at")
+		closed = err == nil
+		return err
+	})
+	return closed, err
 }

@@ -86,7 +86,7 @@ func yardColorService(repo facilityModels.RoomRepository) *service {
 
 func schulhofRoom(color *string) *facilityModels.Room {
 	return &facilityModels.Room{
-		Model:    base.Model{ID: 7},
+		ID:       7,
 		Name:     constants.SchulhofRoomName,
 		IsSystem: true,
 		Color:    color,

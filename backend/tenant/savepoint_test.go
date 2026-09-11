@@ -12,7 +12,7 @@ import (
 
 func savepointContext(t *testing.T, control func(tenant.SavepointAction) error) context.Context {
 	t.Helper()
-	runtime, err := tenant.NewRuntime(
+	runtime, err := tenant.NewUnitOfWork(
 		func(_ context.Context, _ int64, fn func(context.Context, any) error) error {
 			return fn(context.Background(), struct{}{})
 		},
@@ -20,9 +20,10 @@ func savepointContext(t *testing.T, control func(tenant.SavepointAction) error) 
 			return fn(context.Background(), struct{}{})
 		},
 		func(_ context.Context, action tenant.SavepointAction) error { return control(action) },
+		func(error) bool { return false },
 	)
 	require.NoError(t, err)
-	return tenant.WithRuntime(context.Background(), runtime)
+	return tenant.WithUnitOfWork(context.Background(), runtime)
 }
 
 func TestWithSavepoint_Success(t *testing.T) {
@@ -54,6 +55,29 @@ func TestWithSavepoint_OperationFailureRollsBack(t *testing.T) {
 		tenant.RollbackSavepoint,
 		tenant.ReleaseSavepoint,
 	}, actions)
+}
+
+func TestWithSavepoint_OperationFailureRunsOnlyItsRollbackHooks(t *testing.T) {
+	t.Parallel()
+	ctx, commit, rollback := tenant.WithTransactionHooksForTest(savepointContext(t, func(tenant.SavepointAction) error {
+		return nil
+	}))
+	var outerCommit, innerCommit, innerRollback int
+	tenant.RegisterAfterCommit(ctx, func() { outerCommit++ })
+
+	err := tenant.WithSavepoint(ctx, func(ctx context.Context) error {
+		tenant.RegisterAfterCommit(ctx, func() { innerCommit++ })
+		tenant.RegisterAfterRollback(ctx, func() { innerRollback++ })
+		return errors.New("operation failed")
+	})
+	require.Error(t, err)
+	assert.Zero(t, innerCommit)
+	assert.Equal(t, 1, innerRollback)
+
+	commit()
+	rollback()
+	assert.Equal(t, 1, outerCommit)
+	assert.Zero(t, innerCommit)
 }
 
 func TestWithSavepoint_FailsWithoutRuntime(t *testing.T) {

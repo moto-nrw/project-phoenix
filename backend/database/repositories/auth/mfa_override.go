@@ -50,7 +50,7 @@ func (r *MFAOverrideRepository) FindGlobal(ctx context.Context, accountID int64)
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "find global mfa override", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find global mfa override", Err: base.TranslateNotFound(err)}
 	}
 	return row, nil
 }
@@ -77,7 +77,7 @@ func (r *MFAOverrideRepository) FindByAccountAndTenant(ctx context.Context, acco
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "find tenant mfa override", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find tenant mfa override", Err: base.TranslateNotFound(err)}
 	}
 	return row, nil
 }
@@ -117,7 +117,7 @@ func (r *MFAOverrideRepository) UpsertGlobal(ctx context.Context, override *auth
 		Set("updated_at = CURRENT_TIMESTAMP").
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "upsert global mfa override", Err: err}
+		return &modelBase.DatabaseError{Op: "upsert global mfa override", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -149,7 +149,7 @@ func (r *MFAOverrideRepository) UpsertTenant(ctx context.Context, override *auth
 		Set("updated_at = CURRENT_TIMESTAMP").
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "upsert tenant mfa override", Err: err}
+		return &modelBase.DatabaseError{Op: "upsert tenant mfa override", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -165,7 +165,7 @@ func (r *MFAOverrideRepository) DeleteGlobal(ctx context.Context, accountID int6
 		Where("tenant_id IS NULL").
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "delete global mfa override", Err: err}
+		return &modelBase.DatabaseError{Op: "delete global mfa override", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -182,7 +182,7 @@ func (r *MFAOverrideRepository) DeleteTenant(ctx context.Context, accountID, ten
 		Where("tenant_id = ?", tenantID).
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "delete tenant mfa override", Err: err}
+		return &modelBase.DatabaseError{Op: "delete tenant mfa override", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -202,26 +202,7 @@ func (r *MFAOverrideRepository) ListByAccount(ctx context.Context, accountID int
 		OrderExpr("tenant_id IS NULL DESC, tenant_id ASC").
 		Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list mfa overrides by account", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list mfa overrides by account", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
-}
-
-// DeleteAllByAccount wipes every row for the account in a single
-// statement. Used by the AdminDisable cascade so a reset clears the
-// override slate alongside trusted devices + credential.
-func (r *MFAOverrideRepository) DeleteAllByAccount(ctx context.Context, accountID int64) (int64, error) {
-	res, err := base.GetDB(ctx, r.db).NewDelete().
-		Model((*auth.MFAOverride)(nil)).
-		ModelTableExpr(mfaOverrideTable).
-		Where("account_id = ?", accountID).
-		Exec(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete all mfa overrides for account", Err: err}
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "rows affected for delete all mfa overrides", Err: err}
-	}
-	return n, nil
 }

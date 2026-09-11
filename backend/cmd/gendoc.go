@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"log"
-	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,8 +11,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/docgen"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -34,18 +31,25 @@ This command can generate:
 - OpenAPI specification (compatible with Swagger)
 
 Use the appropriate flags to generate the desired documentation.`,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		if routes {
-			genRoutesDoc()
+			if err := genRoutesDoc(); err != nil {
+				return err
+			}
 		}
 		if openapi {
-			genOpenAPIDoc()
+			if err := genOpenAPIDoc(); err != nil {
+				return err
+			}
 		}
 		if !routes && !openapi {
 			// Default: generate both if no flags specified
-			genRoutesDoc()
-			genOpenAPIDoc()
+			if err := genRoutesDoc(); err != nil {
+				return err
+			}
+			return genOpenAPIDoc()
 		}
+		return nil
 	},
 }
 
@@ -57,39 +61,38 @@ func init() {
 	gendocCmd.Flags().BoolVarP(&openapi, "openapi", "o", false, "create or update OpenAPI specification")
 }
 
-func genRoutesDoc() {
-	apiInstance, err := api.New(false, slog.Default())
-	if err != nil {
-		log.Fatalf("Failed to initialize API: %v", err)
-	}
-
-	// Use the Router field from the API instance, which is a chi.Router
-	fmt.Print("Generating routes markdown file: ")
-	md := docgen.MarkdownRoutesDoc(apiInstance.Router, docgen.MarkdownOpts{
-		ProjectPath: "github.com/moto-nrw/project-phoenix",
-		Intro:       "MOTO REST API for RFID-based system.",
-	})
-	if err := os.WriteFile("routes.md", []byte(md), 0644); err != nil {
-		log.Println(err)
-		return
-	}
-	fmt.Println("OK")
+func genRoutesDoc() error {
+	return genRoutesDocAt("routes.md")
 }
 
-func genOpenAPIDoc() {
+func genRoutesDocAt(path string) error {
+	routes, err := documentationRoutes()
+	if err != nil {
+		return fmt.Errorf("load route catalog: %w", err)
+	}
+
+	fmt.Print("Generating routes markdown file: ")
+	md := catalogMarkdown(routes)
+	if err := os.WriteFile(path, []byte(md), 0644); err != nil {
+		return fmt.Errorf("write routes documentation: %w", err)
+	}
+	fmt.Println("OK")
+	return nil
+}
+
+func genOpenAPIDoc() error {
 	fmt.Print("Generating OpenAPI specification: ")
 
-	// Initialize API to get the router
-	apiInstance, err := api.New(false, slog.Default())
+	routes, err := documentationRoutes()
 	if err != nil {
-		log.Fatalf("Failed to initialize API: %v", err)
+		return fmt.Errorf("load route catalog: %w", err)
 	}
 
 	// Ensure docs directory exists
 	docsDir := "docs"
 	if _, err := os.Stat(docsDir); os.IsNotExist(err) {
 		if err := os.Mkdir(docsDir, 0755); err != nil {
-			log.Fatalf("Failed to create docs directory: %v", err)
+			return fmt.Errorf("create docs directory: %w", err)
 		}
 	}
 
@@ -97,17 +100,17 @@ func genOpenAPIDoc() {
 	openAPIPath := filepath.Join(docsDir, "openapi.yaml")
 
 	// Create base specification
-	spec := createBaseOpenAPISpecFromRouter(apiInstance.Router)
+	spec := createBaseOpenAPISpecFromMarkdown(catalogMarkdown(routes))
 
 	// Convert to YAML
 	data, err := yaml.Marshal(spec)
 	if err != nil {
-		log.Fatalf("Failed to marshal OpenAPI spec: %v", err)
+		return fmt.Errorf("marshal OpenAPI spec: %w", err)
 	}
 
 	// Write to file
 	if err := os.WriteFile(openAPIPath, data, 0644); err != nil {
-		log.Fatalf("Failed to write OpenAPI spec to file: %v", err)
+		return fmt.Errorf("write OpenAPI spec: %w", err)
 	}
 
 	// Run swagger CLI to validate the spec if swag is installed
@@ -121,12 +124,24 @@ func genOpenAPIDoc() {
 	}
 
 	fmt.Println("OK - OpenAPI specification generated/updated at", openAPIPath)
+	return nil
 }
 
-// createBaseOpenAPISpecFromRouter creates an OpenAPI specification from the chi router
-func createBaseOpenAPISpecFromRouter(router chi.Router) map[string]interface{} {
+func documentationRoutes() ([]api.Route, error) {
+	return api.RouteCatalog()
+}
+
+func catalogMarkdown(routes []api.Route) string {
+	var document strings.Builder
+	document.WriteString("# MOTO REST API routes\n\n")
+	for _, route := range routes {
+		fmt.Fprintf(&document, "<details><summary>`%s`</summary>\n\n_%s_\n\n</details>\n\n", route.Pattern, route.Method)
+	}
+	return document.String()
+}
+
+func createBaseOpenAPISpecFromMarkdown(md string) map[string]interface{} {
 	spec := createOpenAPIBaseStructure()
-	md := docgen.MarkdownRoutesDoc(router, docgen.MarkdownOpts{})
 	paths := spec["paths"].(map[string]interface{})
 
 	parseRoutesFromMarkdown(md, paths)

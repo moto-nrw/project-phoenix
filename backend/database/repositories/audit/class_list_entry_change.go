@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	"github.com/uptrace/bun"
 )
 
 // ClassListEntryChangeRepository is the append-only writer for
 // audit.class_list_entry_changes (#2382).
 type ClassListEntryChangeRepository struct {
-	db *bun.DB
+	runtime Runtime
 }
 
 // NewClassListEntryChangeRepository creates the audit writer.
-func NewClassListEntryChangeRepository(db *bun.DB) auditModels.ClassListEntryChangeRepository {
-	return &ClassListEntryChangeRepository{db: db}
+func NewClassListEntryChangeRepository(runtime Runtime) auditModels.ClassListEntryChangeRepository {
+	return &ClassListEntryChangeRepository{runtime: requireRuntime(runtime)}
 }
 
 // Create inserts one change row.
@@ -28,21 +26,13 @@ func (r *ClassListEntryChangeRepository) Create(ctx context.Context, change *aud
 	if err := change.Validate(); err != nil {
 		return fmt.Errorf("invalid class list entry change audit event: %w", err)
 	}
-	base.EnsureTenantID(ctx, change)
-	_, err := base.GetDB(ctx, r.db).NewInsert().
-		Model(change).
-		ModelTableExpr(`audit.class_list_entry_changes AS "class_list_entry_change"`).
-		Exec(ctx)
-	if err != nil {
-		return fmt.Errorf("create class list entry change audit event: %w", err)
-	}
-	return nil
+	return NewAppender(r.runtime).Append(ctx, change)
 }
 
 // ListByEntryID returns the trail of one entry, newest first.
 func (r *ClassListEntryChangeRepository) ListByEntryID(ctx context.Context, entryID int64) ([]*auditModels.ClassListEntryChange, error) {
 	var changes []*auditModels.ClassListEntryChange
-	err := base.GetDB(ctx, r.db).NewSelect().
+	err := runtimeDB(ctx, r.runtime).NewSelect().
 		Model(&changes).
 		ModelTableExpr(`audit.class_list_entry_changes AS "class_list_entry_change"`).
 		Where(`"class_list_entry_change".entry_id = ?`, entryID).

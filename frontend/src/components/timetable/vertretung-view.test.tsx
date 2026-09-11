@@ -18,6 +18,7 @@ const {
   mockTenantMutate,
   mockUseSWRAuth,
   mockApplyDeviations,
+  mockApplyScheduleSubstitution,
   mockDayListProps,
   mockGridProps,
   mockEditorProps,
@@ -29,6 +30,7 @@ const {
   mockTenantMutate: vi.fn(),
   mockUseSWRAuth: vi.fn(),
   mockApplyDeviations: vi.fn(),
+  mockApplyScheduleSubstitution: vi.fn(),
   mockDayListProps: vi.fn(),
   mockGridProps: vi.fn(),
   mockEditorProps: vi.fn(),
@@ -70,17 +72,19 @@ vi.mock("~/lib/timetable-api", () => ({
   },
 }));
 
+vi.mock("~/lib/substitution-api", () => ({
+  substitutionService: {
+    fetchScheduleOverview: vi.fn(),
+    applyScheduleSubstitution: mockApplyScheduleSubstitution,
+    applyBulkSubstitution: vi.fn(),
+  },
+}));
+
 // Nur den Netzwerk-Fetcher mocken; getSettingValue & Co. bleiben die echten
 // Implementierungen, damit die Tests nicht gegen eine driftende Kopie laufen.
 vi.mock("~/lib/settings-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/settings-api")>()),
   fetchSettingsSchema: vi.fn(),
-}));
-
-vi.mock("~/lib/staff-api", () => ({
-  staffService: {
-    getAllStaff: vi.fn(),
-  },
 }));
 
 vi.mock("~/lib/shift-api", () => ({
@@ -281,8 +285,11 @@ function setupSWR(state: SwrState = {}) {
         ? { isLoading: true }
         : { data: settingsSchema, isLoading: false };
     }
-    if (key === "vertretung-staff-list") {
-      return { data: staffData, error: staffError };
+    if (key.startsWith("vertretung-staff-list-")) {
+      return {
+        data: { appointments: [], staff: staffData },
+        error: staffError,
+      };
     }
     if (key.startsWith("vertretung-gaps")) {
       if (gapsLoading) return { isLoading: true };
@@ -320,6 +327,13 @@ describe("VertretungView", () => {
     mockApplyDeviations.mockResolvedValue({
       instanceId: "42",
       cancelled: true,
+      understaffedAck: false,
+      affectedInstances: [],
+      warnings: [],
+    });
+    mockApplyScheduleSubstitution.mockResolvedValue({
+      instanceId: "42",
+      cancelled: false,
       understaffedAck: false,
       affectedInstances: [],
       warnings: [],
@@ -533,10 +547,11 @@ describe("VertretungView", () => {
     setupSWR({ weekError: new Error("boom") });
     render(<VertretungView />);
 
-    expect(screen.getByTestId("vertretung-week-error")).toBeVisible();
+    // Der Ladefehler kommt aus dem TenantPage-Gerüst (`error`), nicht aus
+    // einer eigenen Fehlerfläche der Seite.
     expect(
-      screen.getByText("Vertretung konnte nicht geladen werden"),
-    ).toBeInTheDocument();
+      screen.getByText(/Vertretung konnte nicht geladen werden/),
+    ).toBeVisible();
     expect(
       screen.getByRole("button", { name: "Erneut versuchen" }),
     ).toBeInTheDocument();
@@ -555,7 +570,7 @@ describe("VertretungView", () => {
     expect(mockTenantMutate.mock.calls.map((c) => c[0] as string)).toEqual([
       "vertretung-week-2026-07-13-2026-07-19",
       "vertretung-gaps-2026-07-15-2026-07-19",
-      "vertretung-staff-list",
+      "vertretung-staff-list-2026-07-13-2026-07-19",
     ]);
   });
 
@@ -606,7 +621,7 @@ describe("VertretungView", () => {
       "",
       "/acme/vertretung?d=2026-07-15&block=42",
     );
-    mockApplyDeviations.mockResolvedValueOnce({
+    mockApplyScheduleSubstitution.mockResolvedValueOnce({
       instanceId: "42",
       cancelled: false,
       understaffedAck: false,
@@ -631,6 +646,17 @@ describe("VertretungView", () => {
     fireEvent.click(screen.getByText("editor-save"));
 
     await waitFor(() =>
+      expect(mockApplyScheduleSubstitution).toHaveBeenCalledWith("42", {
+        substitutions: [
+          {
+            absentStaffId: "11",
+            substituteStaffId: "12",
+            instanceIds: ["42", "43"],
+          },
+        ],
+      }),
+    );
+    await waitFor(() =>
       expect(mockToastSuccess).toHaveBeenCalledWith(
         "2 Termine wurden für Anna Alt angepasst.",
       ),
@@ -644,8 +670,8 @@ describe("VertretungView", () => {
   it("startet in der Tagesansicht und gibt dem Raster genau einen Tag", () => {
     render(<VertretungView />);
 
-    expect(screen.getByRole("tab", { name: "Tag" })).toHaveAttribute(
-      "aria-selected",
+    expect(screen.getByRole("button", { name: "Tag" })).toHaveAttribute(
+      "aria-pressed",
       "true",
     );
     expect(mockGridProps.mock.calls.at(-1)?.[0].weekDays).toHaveLength(1);
@@ -659,10 +685,7 @@ describe("VertretungView", () => {
   it("schaltet über die Kontextleiste auf die Woche und schreibt view=woche in die URL", async () => {
     render(<VertretungView />);
 
-    // Radix-Tabs aktivieren per mousedown, nicht click.
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "Woche" }), {
-      button: 0,
-    });
+    fireEvent.click(screen.getByRole("button", { name: "Woche" }));
 
     await waitFor(() =>
       expect(new URLSearchParams(window.location.search).get("view")).toBe(
@@ -675,8 +698,8 @@ describe("VertretungView", () => {
     mockSearch.value = "view=woche";
     render(<VertretungView />);
 
-    expect(screen.getByRole("tab", { name: "Woche" })).toHaveAttribute(
-      "aria-selected",
+    expect(screen.getByRole("button", { name: "Woche" })).toHaveAttribute(
+      "aria-pressed",
       "true",
     );
     expect(screen.getByTestId("vertretung-week-list")).toBeInTheDocument();

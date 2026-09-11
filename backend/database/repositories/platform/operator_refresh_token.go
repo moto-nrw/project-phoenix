@@ -41,7 +41,7 @@ func (r *OperatorRefreshTokenRepository) FindByTokenForUpdate(ctx context.Contex
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "find operator refresh token for update", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find operator refresh token for update", Err: base.TranslateNotFound(err)}
 	}
 	return token, nil
 }
@@ -57,11 +57,11 @@ func (r *OperatorRefreshTokenRepository) MarkRotated(ctx context.Context, id int
 		Where(`"operator_refresh_token".rotated_at IS NULL`).
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "mark operator refresh token rotated", Err: err}
+		return &modelBase.DatabaseError{Op: "mark operator refresh token rotated", Err: base.TranslateNotFound(err)}
 	}
 	affected, err := result.RowsAffected()
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "count rotated operator refresh tokens", Err: err}
+		return &modelBase.DatabaseError{Op: "count rotated operator refresh tokens", Err: base.TranslateNotFound(err)}
 	}
 	if affected != 1 {
 		return &modelBase.DatabaseError{Op: "mark operator refresh token rotated", Err: errors.New("operator refresh token was already rotated or not found")}
@@ -88,7 +88,7 @@ func (r *OperatorRefreshTokenRepository) DeleteExpiredRotated(ctx context.Contex
 		Where(`"operator_refresh_token".id IN (?)`, candidates).
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "delete expired rotated operator refresh tokens", Err: err}
+		return &modelBase.DatabaseError{Op: "delete expired rotated operator refresh tokens", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -100,7 +100,7 @@ func (r *OperatorRefreshTokenRepository) Delete(ctx context.Context, id any) err
 		Where(`"operator_refresh_token".id = ?`, id).
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "delete operator refresh token", Err: err}
+		return &modelBase.DatabaseError{Op: "delete operator refresh token", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -116,7 +116,7 @@ func (r *OperatorRefreshTokenRepository) DeleteByOperatorIDReturning(ctx context
 		Returning("*").
 		Scan(ctx, &deleted)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "delete and return operator refresh tokens", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "delete and return operator refresh tokens", Err: base.TranslateNotFound(err)}
 	}
 	return deleted, nil
 }
@@ -132,7 +132,7 @@ func (r *OperatorRefreshTokenRepository) DeleteByFamilyIDReturning(ctx context.C
 		Returning("*").
 		Scan(ctx, &deleted)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "delete and return operator refresh-token family", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "delete and return operator refresh-token family", Err: base.TranslateNotFound(err)}
 	}
 	return deleted, nil
 }
@@ -150,7 +150,7 @@ func (r *OperatorRefreshTokenRepository) GetLatestTokenInFamily(ctx context.Cont
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "get latest operator refresh token in family", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "get latest operator refresh token in family", Err: base.TranslateNotFound(err)}
 	}
 	return token, nil
 }

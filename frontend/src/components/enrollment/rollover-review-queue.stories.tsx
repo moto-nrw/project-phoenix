@@ -18,6 +18,5 @@ type Story = StoryObj<typeof RolloverReviewQueue>;
 export const FetchFailed: Story = {
   args: {
     phaseID: "storybook-phase-id",
-    phaseName: "Anmeldephase 2026/27",
   },
 };

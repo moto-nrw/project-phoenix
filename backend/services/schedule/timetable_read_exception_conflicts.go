@@ -41,7 +41,7 @@ type ExceptionConflict struct {
 // [from, to] window. Read-only: no writes, no transactional concerns. Returns
 // an unsorted slice (the caller sorts before responding).
 func (s *TimetableDataService) DetectExceptionConflicts(ctx context.Context, from, to timezone.Date, logger *slog.Logger) ([]ExceptionConflict, error) {
-	exceptions, err := s.deps.ActivityExceptionRepo.FindByDateRange(ctx, from, to)
+	exceptions, err := s.deps.ActivityExceptionRepo.FindByDateRange(ctx, scheduleModel.Date(from), scheduleModel.Date(to))
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +49,7 @@ func (s *TimetableDataService) DetectExceptionConflicts(ctx context.Context, fro
 		return []ExceptionConflict{}, nil
 	}
 
-	instances, err := s.deps.ActivityInstanceRepo.FindByTenantAndDateRange(ctx, from, to)
+	instances, err := s.deps.ActivityInstanceRepo.FindByTenantAndDateRange(ctx, scheduleModel.Date(from), scheduleModel.Date(to))
 	if err != nil {
 		return nil, err
 	}
@@ -110,12 +110,12 @@ func buildAffectedPairs(
 	instancesByKey := indexInstancesByGroupDate(instances)
 	affected := make([]exceptionInstancePair, 0, len(exceptions))
 	for _, exc := range exceptions {
-		key := groupDateKey{GroupID: exc.ActivityGroupID, Date: timetableDateKey(exc.ExceptionDate)}
+		key := groupDateKey{GroupID: exc.ActivityGroupID, Date: timetableDateKey(timezone.Date(exc.ExceptionDate))}
 		matching := instancesByKey[key]
 		if len(matching) == 0 {
 			logger.Debug("exception without matching instance, skipping",
 				slog.Int64("activity_group_id", exc.ActivityGroupID),
-				slog.String("exception_date", timetableDateKey(exc.ExceptionDate)),
+				slog.String("exception_date", timetableDateKey(timezone.Date(exc.ExceptionDate))),
 				slog.String("exception_type", exc.ExceptionType),
 			)
 			continue
@@ -133,7 +133,7 @@ func indexInstancesByGroupDate(instances []*scheduleModel.ActivityInstance) map[
 		if inst.ActivityGroupID == nil {
 			continue // spontaneous — no template, so never tied to an exception
 		}
-		key := groupDateKey{GroupID: *inst.ActivityGroupID, Date: timetableDateKey(inst.Date)}
+		key := groupDateKey{GroupID: *inst.ActivityGroupID, Date: timetableDateKey(timezone.Date(inst.Date))}
 		out[key] = append(out[key], inst)
 	}
 	return out
@@ -164,7 +164,7 @@ func datesToStudents(
 		if !ok {
 			continue
 		}
-		dk := timetableDateKey(a.exception.ExceptionDate)
+		dk := timetableDateKey(timezone.Date(a.exception.ExceptionDate))
 		if out[dk] == nil {
 			out[dk] = make(map[int64]struct{})
 		}
@@ -205,11 +205,11 @@ func (s *TimetableDataService) loadArrivalPreload(
 	// MaxTimetableReadRangeDays upstream so this is bounded.
 	dateObjByKey := make(map[string]timezone.Date)
 	for _, a := range affected {
-		dateObjByKey[timetableDateKey(a.exception.ExceptionDate)] = a.exception.ExceptionDate
+		dateObjByKey[timetableDateKey(timezone.Date(a.exception.ExceptionDate))] = timezone.Date(a.exception.ExceptionDate)
 	}
 	for dk, stuMap := range dates {
 		ids := slices.Collect(maps.Keys(stuMap))
-		excs, err := s.deps.ArrivalExceptionRepo.FindByStudentIDsAndDate(ctx, ids, dateObjByKey[dk])
+		excs, err := s.deps.ArrivalExceptionRepo.FindByStudentIDsAndDate(ctx, ids, scheduleModel.Date(dateObjByKey[dk]))
 		if err != nil {
 			return nil, err
 		}
@@ -483,7 +483,7 @@ func conflictForStudent(
 	templatePre *templatePreload,
 	logger *slog.Logger,
 ) (ExceptionConflict, bool) {
-	arrivalTime, arrivalSource := arrivalPre.resolveArrival(is.StudentID, a.exception.ExceptionDate)
+	arrivalTime, arrivalSource := arrivalPre.resolveArrival(is.StudentID, timezone.Date(a.exception.ExceptionDate))
 
 	// Explicit-absence handling: if the arrival exception says the student is
 	// absent on that date (ExpectedArrival=nil → source=exception with zero
@@ -494,7 +494,7 @@ func conflictForStudent(
 	}
 
 	base := ExceptionConflict{
-		Date:            timetableDateKey(a.exception.ExceptionDate),
+		Date:            timetableDateKey(timezone.Date(a.exception.ExceptionDate)),
 		ActivityGroupID: a.exception.ActivityGroupID,
 		InstanceID:      a.instance.ID,
 		ActivityTitle:   a.instance.Title,
@@ -536,9 +536,9 @@ func conflictForStudent(
 		base.ModifiedStartTime = modifiedStart.Format("15:04")
 		if original, ok := templatePre.resolveOriginalStart(
 			a.exception.ActivityGroupID,
-			isoWeekday(a.exception.ExceptionDate),
+			isoWeekday(timezone.Date(a.exception.ExceptionDate)),
 			logger,
-			a.exception.ExceptionDate,
+			timezone.Date(a.exception.ExceptionDate),
 		); ok {
 			base.OriginalStartTime = original
 		}

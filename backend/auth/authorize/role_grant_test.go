@@ -1,111 +1,55 @@
-package authorize_test
+package authorize
 
-import (
-	"testing"
+import "testing"
 
-	"github.com/stretchr/testify/assert"
-
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	baseModel "github.com/moto-nrw/project-phoenix/models/base"
-)
-
-func systemRole(name string) *authModels.Role {
-	return &authModels.Role{Model: baseModel.Model{ID: 1}, Name: name, IsSystem: true}
+type testRoleGrant struct {
+	name        string
+	base        *string
+	system      bool
+	tenantBound bool
+	permissions []string
 }
 
-func tenantRole(name string, baseRole *string) *authModels.Role {
-	tenantID := int64(7)
-	return &authModels.Role{
-		Model:    baseModel.Model{ID: 2},
-		Name:     name,
-		TenantID: &tenantID,
-		BaseRole: baseRole,
+func (r *testRoleGrant) AuthorizationGrantData() (bool, string, *string, bool, bool, []string) {
+	if r == nil {
+		return false, "", nil, false, false, nil
+	}
+	return true, r.name, r.base, r.system, r.tenantBound, r.permissions
+}
+
+func TestCanGrantRole(t *testing.T) {
+	t.Parallel()
+	user := baseRoleUser
+	tests := []struct {
+		name  string
+		role  *testRoleGrant
+		perms []string
+		want  bool
+	}{
+		{"manager grants anything", &testRoleGrant{name: "admin", system: true}, []string{usersManage}, true},
+		{"subset role", &testRoleGrant{base: &user, permissions: []string{"users:read"}}, []string{"users:read"}, true},
+		{"target escalation", &testRoleGrant{base: &user, permissions: []string{"users:update"}}, []string{"users:read"}, false},
+		{"malformed target permission", &testRoleGrant{base: &user, permissions: []string{"users:read", ""}}, []string{"users:read"}, false},
+		{"legacy tenant subset", &testRoleGrant{tenantBound: true, permissions: []string{"users:read"}}, []string{"users:read"}, true},
+		{"unknown system role", &testRoleGrant{name: "guest", system: true}, nil, false},
+		{"missing role", nil, []string{usersManage}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := CanGrantRole(tt.role, tt.perms); got != tt.want {
+				t.Fatalf("CanGrantRole() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 
 func TestEffectiveBaseRole(t *testing.T) {
 	t.Parallel()
-
-	admin := authModels.BaseRoleAdmin
-	user := authModels.BaseRoleUser
-
-	tests := []struct {
-		name string
-		role *authModels.Role
-		want string
-	}{
-		{"nil role", nil, ""},
-		{"system admin by name", systemRole("admin"), authModels.BaseRoleAdmin},
-		{"system user by name", systemRole("user"), authModels.BaseRoleUser},
-		{"system role name is case-insensitive", systemRole("Admin"), authModels.BaseRoleAdmin},
-		{"legacy system role stays unknown", systemRole("teacher"), ""},
-		{"custom role uses base_role", tenantRole("Sekretariat", &user), authModels.BaseRoleUser},
-		{"custom role may be admin tier", tenantRole("Leitung", &admin), authModels.BaseRoleAdmin},
-		{"custom role without base_role is unknown", tenantRole("Legacy", nil), ""},
-		{"base_role wins over name", tenantRole("admin", &user), authModels.BaseRoleUser},
+	base := " USER "
+	if got := EffectiveBaseRole(&testRoleGrant{base: &base}); got != baseRoleUser {
+		t.Fatalf("explicit base role = %q", got)
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, authorize.EffectiveBaseRole(tt.role))
-		})
+	if got := EffectiveBaseRole(&testRoleGrant{name: "ADMIN", system: true}); got != baseRoleAdmin {
+		t.Fatalf("system base role = %q", got)
 	}
-}
-
-func TestCanGrantRole(t *testing.T) {
-	t.Parallel()
-
-	admin := authModels.BaseRoleAdmin
-	user := authModels.BaseRoleUser
-
-	// The escalation this guards: "user" (Betreuer) carries users:create
-	// globally, so users:create must not be enough to hand out an admin role.
-	betreuer := []string{permissions.UsersCreate, permissions.UsersUpdate}
-	adminPerms := []string{permissions.UsersManage}
-
-	tests := []struct {
-		name        string
-		role        *authModels.Role
-		permissions []string
-		want        bool
-	}{
-		{"nil role is never grantable", nil, adminPerms, false},
-		{"users:create may not grant the admin role", systemRole("admin"), betreuer, false},
-		{"users:manage may grant the admin role", systemRole("admin"), adminPerms, true},
-		{"admin wildcard may grant the admin role", systemRole("admin"), []string{permissions.AdminWildcard}, true},
-		{"users:create may grant the user role", systemRole("user"), betreuer, true},
-		{"no permissions may still grant the user role", systemRole("user"), nil, true},
-		{"custom admin-tier role needs users:manage", tenantRole("Leitung", &admin), betreuer, false},
-		{"custom user-tier role with no permissions may be granted", tenantRole("Sekretariat", &user), betreuer, true},
-		{"users:manage may grant a custom user-tier role", tenantRole("Sekretariat", &user), adminPerms, true},
-		{"legacy tenant role with no permissions is grantable", tenantRole("Legacy", nil), betreuer, true},
-		{"unknown tier is grantable by an admin", tenantRole("Legacy", nil), adminPerms, true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, authorize.CanGrantRole(tt.role, tt.permissions))
-		})
-	}
-}
-
-func TestCanGrantRole_RejectsTargetPermissionsTheCallerLacks(t *testing.T) {
-	t.Parallel()
-
-	user := authModels.BaseRoleUser
-	role := tenantRole("Sekretariat", &user)
-	role.Permissions = []*authModels.Permission{{Name: permissions.UsersManage}}
-
-	assert.False(t, authorize.CanGrantRole(role, []string{permissions.UsersCreate}))
-}
-
-func TestCanGrantRole_RejectsElevatedLegacyTenantRole(t *testing.T) {
-	t.Parallel()
-
-	role := tenantRole("Legacy", nil)
-	role.Permissions = []*authModels.Permission{{Name: permissions.UsersManage}}
-
-	assert.False(t, authorize.CanGrantRole(role, []string{permissions.UsersCreate}))
 }

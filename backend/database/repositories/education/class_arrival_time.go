@@ -48,7 +48,7 @@ func (r *ClassArrivalTimeRepository) FindByClasses(ctx context.Context, classes 
 	query = base.WithTenantFilter(ctx, query, "class_arrival_time")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find class arrival times by classes", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find class arrival times by classes", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -68,7 +68,7 @@ func (r *ClassArrivalTimeRepository) Upsert(ctx context.Context, row *education.
 		Returning("*").
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "upsert class arrival time", Err: err}
+		return &modelBase.DatabaseError{Op: "upsert class arrival time", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -78,7 +78,7 @@ func (r *ClassArrivalTimeRepository) Upsert(ctx context.Context, row *education.
 func (r *ClassArrivalTimeRepository) LockClass(ctx context.Context, class string) error {
 	key := fmt.Sprintf("class-arrival:%d:%s", tenant.FromContext(ctx), schoolclass.Normalize(class))
 	if _, err := base.GetDB(ctx, r.db).NewRaw("SELECT pg_advisory_xact_lock(hashtext(?))", key).Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "lock class arrival times", Err: err}
+		return &modelBase.DatabaseError{Op: "lock class arrival times", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }

@@ -333,11 +333,11 @@ func parseRolloverCreateRequest(sourceID int64, body *RolloverCreateRequest, adm
 // useful 400.
 func parseDateField(name, raw string) (timezone.Date, error) {
 	if raw == "" {
-		return timezone.Date{}, fmt.Errorf("%s is required", name)
+		return timezone.Date(""), fmt.Errorf("%s is required", name)
 	}
 	d, err := timezone.ParseDate(raw)
 	if err != nil {
-		return timezone.Date{}, fmt.Errorf("%s must be YYYY-MM-DD: %w", name, err)
+		return timezone.Date(""), fmt.Errorf("%s must be YYYY-MM-DD: %w", name, err)
 	}
 	return d, nil
 }

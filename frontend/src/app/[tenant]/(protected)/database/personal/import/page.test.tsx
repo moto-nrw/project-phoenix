@@ -8,17 +8,26 @@ import {
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import StaffImportPage from "./page";
 
-// Mock next-auth/react
+// Mock next-auth/react. The default session may change existing records
+// (#2906); the mode switcher only renders for that permission pair.
+const personnelSession = {
+  data: {
+    user: {
+      token: "test-token",
+      permissions: ["users:create", "staff:manage", "staff:stammdaten"],
+    },
+  },
+  status: "authenticated",
+};
 vi.mock("next-auth/react", () => ({
-  useSession: vi.fn(() => ({
-    data: { user: { token: "test-token" } },
-    status: "authenticated",
-  })),
+  useSession: vi.fn(() => personnelSession),
 }));
 
 // Mock next/navigation
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
+  // BackButton (via useTenantRouter) braucht useRouter.
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
 }));
 
 // Mock ToastContext
@@ -181,11 +190,13 @@ describe("StaffImportPage", () => {
     render(<StaffImportPage />);
 
     expect(
-      screen.getByText("Schritt 1: Vorlage herunterladen"),
+      screen.getByRole("heading", { name: "Vorlage herunterladen" }),
     ).toBeInTheDocument();
     // Regression: the alignment spacer must not duplicate this label.
     expect(screen.getByText("Format wählen")).toBeInTheDocument();
-    expect(screen.getByText("Vorlage herunterladen")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Vorlage herunterladen/ }),
+    ).toBeInTheDocument();
   });
 
   it("renders the upload section", () => {
@@ -225,7 +236,9 @@ describe("StaffImportPage", () => {
 
     render(<StaffImportPage />);
 
-    fireEvent.click(screen.getByText("Vorlage herunterladen"));
+    fireEvent.click(
+      screen.getByRole("button", { name: /Vorlage herunterladen/ }),
+    );
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
@@ -243,7 +256,9 @@ describe("StaffImportPage", () => {
     });
 
     render(<StaffImportPage />);
-    fireEvent.click(screen.getByText("Vorlage herunterladen"));
+    fireEvent.click(
+      screen.getByRole("button", { name: /Vorlage herunterladen/ }),
+    );
 
     await waitFor(() => {
       expect(screen.getByTestId("alert-error")).toBeInTheDocument();
@@ -713,6 +728,57 @@ describe("StaffImportPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Keine Authentifizierung")).toBeInTheDocument();
     });
+  });
+
+  it("keeps a create-only user in create mode and says so (#2906)", async () => {
+    const useSession = await import("next-auth/react");
+    vi.mocked(useSession.useSession).mockReturnValue({
+      data: { user: { token: "test-token", permissions: ["users:create"] } },
+      status: "authenticated",
+      update: vi.fn(),
+    } as unknown as ReturnType<typeof useSession.useSession>);
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          data: {
+            TotalRows: 1,
+            CreatedCount: 1,
+            UpdatedCount: 0,
+            ErrorCount: 0,
+            Errors: [],
+          },
+        }),
+    });
+
+    try {
+      render(<StaffImportPage />);
+      expect(
+        screen.queryByRole("button", { name: "Beides" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Nur bestehende aktualisieren" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByText(/legt der Import nur neue Mitarbeiter an/),
+      ).toBeInTheDocument();
+
+      fireEvent.click(screen.getByTestId("file-select-trigger"));
+      await waitFor(() => {
+        expect(screen.getByText("1 Mitarbeiter anlegen")).toBeInTheDocument();
+      });
+      const previewCall = (
+        global.fetch as ReturnType<typeof vi.fn>
+      ).mock.calls.find((call) => call[0] === "/api/import/teachers/preview");
+      expect(previewCall).toBeDefined();
+      expect((previewCall![1] as { body: FormData }).body.get("mode")).toBe(
+        "create",
+      );
+    } finally {
+      vi.mocked(useSession.useSession).mockReturnValue(
+        personnelSession as unknown as ReturnType<typeof useSession.useSession>,
+      );
+    }
   });
 
   it("sends the chosen import mode with the preview and relabels the button", async () => {

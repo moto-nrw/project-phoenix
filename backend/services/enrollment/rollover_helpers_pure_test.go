@@ -69,7 +69,7 @@ func TestValidateCreateRequest_RequiresServiceStartDate(t *testing.T) {
 	t.Parallel()
 
 	r := validRolloverReq()
-	r.ServiceStartDate = timezone.Date{}
+	r.ServiceStartDate = timezone.Date("")
 	err := newSvc().validateCreateRequest(r)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "service dates")
@@ -79,7 +79,7 @@ func TestValidateCreateRequest_RequiresServiceEndDate(t *testing.T) {
 	t.Parallel()
 
 	r := validRolloverReq()
-	r.ServiceEndDate = timezone.Date{}
+	r.ServiceEndDate = timezone.Date("")
 	err := newSvc().validateCreateRequest(r)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "service dates")

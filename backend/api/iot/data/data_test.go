@@ -6,47 +6,39 @@ package data_test
 
 import (
 	"context"
-	"net/http"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
 	dataAPI "github.com/moto-nrw/project-phoenix/api/iot/data"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // testContext holds shared test dependencies.
 type testContext struct {
-	db       *bun.DB
-	services *services.Factory
+	db       *testpkg.DB
 	resource *dataAPI.Resource
 }
 
-// setupTestContext initializes test database, services, and resource.
-func setupTestContext(t *testing.T) *testContext {
+// setupDataRoute initializes the data route.
+func setupDataRoute(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupIoTDataModule(t)
 
 	// Create data resource
 	resource := dataAPI.NewResource(
-		svc.IoT,
-		svc.Users,
-		svc.Activities,
-		svc.Facilities,
-		nil,
+		svc.Directory,
+		svc.TagAssignments,
+		svc.RoomAvailability,
+		testRuntime(),
 	)
 
 	return &testContext{
 		db:       db,
-		services: svc,
 		resource: resource,
 	}
 }
@@ -57,7 +49,7 @@ func setupTestContext(t *testing.T) *testContext {
 
 func TestGetAvailableTeachers_NoDevice(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupDataRoute(t)
 
 	router := ctx.resource.TeachersRouter()
 
@@ -66,12 +58,12 @@ func TestGetAvailableTeachers_NoDevice(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for missing device authentication")
+	assert.Equal(t, 401, rr.Code, "Expected 401 for missing device authentication")
 }
 
 func TestGetAvailableTeachers_Success(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupDataRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-1")
 
@@ -84,12 +76,12 @@ func TestGetAvailableTeachers_Success(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	// Should succeed even if no teachers exist
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	testutil.AssertSuccessResponse(t, rr, 200)
 }
 
 func TestGetAvailableTeachers_ReturnsTeacherRosterIndependentOfCaregiverState(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupDataRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-caregiver")
 	linkedTeacher, linkedAccount := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Ada", "Caregiver")
@@ -119,7 +111,7 @@ func TestGetAvailableTeachers_ReturnsTeacherRosterIndependentOfCaregiverState(t 
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	testutil.AssertSuccessResponse(t, rr, 200)
 
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 	data, ok := response["data"].([]interface{})
@@ -146,7 +138,7 @@ func TestGetAvailableTeachers_ReturnsTeacherRosterIndependentOfCaregiverState(t 
 
 func TestGetTeacherStudents_NoDevice(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupDataRoute(t)
 
 	router := ctx.resource.Router()
 
@@ -155,12 +147,12 @@ func TestGetTeacherStudents_NoDevice(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for missing device authentication")
+	assert.Equal(t, 401, rr.Code, "Expected 401 for missing device authentication")
 }
 
 func TestGetTeacherStudents_NoTeacherIDs_ReturnsAllStudents(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupDataRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-2")
 	student := testpkg.CreateTestStudent(t, ctx.db, "AllVis", "Student", "2c")
@@ -174,7 +166,7 @@ func TestGetTeacherStudents_NoTeacherIDs_ReturnsAllStudents(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	testutil.AssertSuccessResponse(t, rr, 200)
 
 	// Parse response and verify our student is in the list
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
@@ -197,7 +189,7 @@ func TestGetTeacherStudents_NoTeacherIDs_ReturnsAllStudents(t *testing.T) {
 
 func TestGetTeacherStudents_InvalidTeacherID(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupDataRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-3")
 
@@ -215,7 +207,7 @@ func TestGetTeacherStudents_InvalidTeacherID(t *testing.T) {
 
 func TestGetTeacherStudents_EmptyTeacherIDs_ReturnsEmptyList(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupDataRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-4")
 	// Create a student to verify it is NOT returned
@@ -231,7 +223,7 @@ func TestGetTeacherStudents_EmptyTeacherIDs_ReturnsEmptyList(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	testutil.AssertSuccessResponse(t, rr, 200)
 
 	// Verify the data array is empty — explicit empty filter returns no students
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
@@ -242,7 +234,7 @@ func TestGetTeacherStudents_EmptyTeacherIDs_ReturnsEmptyList(t *testing.T) {
 
 func TestGetTeacherStudents_NonExistentTeacher(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupDataRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-5")
 
@@ -256,7 +248,7 @@ func TestGetTeacherStudents_NonExistentTeacher(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	// Returns success with empty list for non-existent teacher
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	testutil.AssertSuccessResponse(t, rr, 200)
 }
 
 // =============================================================================
@@ -265,7 +257,7 @@ func TestGetTeacherStudents_NonExistentTeacher(t *testing.T) {
 
 func TestGetTeacherActivities_NoDevice(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupDataRoute(t)
 
 	router := ctx.resource.Router()
 
@@ -274,12 +266,12 @@ func TestGetTeacherActivities_NoDevice(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for missing device authentication")
+	assert.Equal(t, 401, rr.Code, "Expected 401 for missing device authentication")
 }
 
 func TestGetTeacherActivities_Success(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupDataRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-6")
 
@@ -291,12 +283,12 @@ func TestGetTeacherActivities_Success(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	testutil.AssertSuccessResponse(t, rr, 200)
 }
 
 func TestGetTeacherActivities_WithOccupancy(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupDataRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, tc.db, "data-test-device-occ")
 	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "occ-test-activity")
@@ -304,21 +296,7 @@ func TestGetTeacherActivities_WithOccupancy(t *testing.T) {
 
 	// Create an active session for this activity group
 	bgCtx := context.Background()
-	now := time.Now()
-	activityGroupID := activityGroup.ID
-	activeGroup := &active.Group{
-		StartTime:      now,
-		LastActivity:   now,
-		TimeoutMinutes: 30,
-		GroupID:        &activityGroupID,
-		RoomID:         room.ID,
-	}
-	activeGroup.SetTenantID(testpkg.Tenant(t))
-	err := tc.db.NewInsert().
-		Model(activeGroup).
-		ModelTableExpr(`active.groups AS "active_group"`).
-		Scan(bgCtx)
-	require.NoError(t, err)
+	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
 	defer func() {
 		_, _ = tc.db.NewDelete().
 			TableExpr("active.groups").
@@ -333,7 +311,7 @@ func TestGetTeacherActivities_WithOccupancy(t *testing.T) {
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	testutil.AssertSuccessResponse(t, rr, 200)
 
 	// Verify the response contains is_occupied field
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
@@ -359,7 +337,7 @@ func TestGetTeacherActivities_WithOccupancy(t *testing.T) {
 
 func TestGetAvailableRooms_NoDevice(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupDataRoute(t)
 
 	router := ctx.resource.Router()
 
@@ -368,12 +346,12 @@ func TestGetAvailableRooms_NoDevice(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for missing device authentication")
+	assert.Equal(t, 401, rr.Code, "Expected 401 for missing device authentication")
 }
 
 func TestGetAvailableRooms_Success(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupDataRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-7")
 
@@ -385,12 +363,12 @@ func TestGetAvailableRooms_Success(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	testutil.AssertSuccessResponse(t, rr, 200)
 }
 
 func TestGetAvailableRooms_WithCapacityFilter(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupDataRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-8")
 
@@ -403,12 +381,12 @@ func TestGetAvailableRooms_WithCapacityFilter(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	testutil.AssertSuccessResponse(t, rr, 200)
 }
 
 func TestGetAvailableRooms_InvalidCapacity(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupDataRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-9")
 
@@ -422,7 +400,7 @@ func TestGetAvailableRooms_InvalidCapacity(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	// Invalid capacity is silently ignored
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	testutil.AssertSuccessResponse(t, rr, 200)
 }
 
 // =============================================================================
@@ -431,7 +409,7 @@ func TestGetAvailableRooms_InvalidCapacity(t *testing.T) {
 
 func TestCheckRFIDTagAssignment_NoDevice(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupDataRoute(t)
 
 	router := ctx.resource.Router()
 
@@ -440,12 +418,12 @@ func TestCheckRFIDTagAssignment_NoDevice(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for missing device authentication")
+	assert.Equal(t, 401, rr.Code, "Expected 401 for missing device authentication")
 }
 
 func TestCheckRFIDTagAssignment_MissingTagID(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupDataRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-10")
 
@@ -459,12 +437,12 @@ func TestCheckRFIDTagAssignment_MissingTagID(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	// Chi routing will result in 404 for missing param in URL
-	assert.Contains(t, []int{http.StatusBadRequest, http.StatusNotFound}, rr.Code)
+	assert.Contains(t, []int{400, 404}, rr.Code)
 }
 
 func TestCheckRFIDTagAssignment_TagNotAssigned(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupDataRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-11")
 
@@ -478,12 +456,12 @@ func TestCheckRFIDTagAssignment_TagNotAssigned(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	// Returns success with assigned=false for non-existent tag
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	testutil.AssertSuccessResponse(t, rr, 200)
 }
 
 func TestCheckRFIDTagAssignment_AssignedToStudent(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupDataRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-12")
 	student := testpkg.CreateTestStudent(t, ctx.db, "RFID", "Student", "2a")
@@ -498,12 +476,12 @@ func TestCheckRFIDTagAssignment_AssignedToStudent(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	testutil.AssertSuccessResponse(t, rr, 200)
 }
 
 func TestCheckRFIDTagAssignment_AssignedToStaff(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupDataRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-13")
 	staff := testpkg.CreateTestStaff(t, ctx.db, "RFID", "Staff")
@@ -519,7 +497,7 @@ func TestCheckRFIDTagAssignment_AssignedToStaff(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	testutil.AssertSuccessResponse(t, rr, 200)
 }
 
 // TestCheckRFIDTagAssignment_GraduatedStudentReadsAsUnassigned covers the P1 fix
@@ -531,7 +509,7 @@ func TestCheckRFIDTagAssignment_AssignedToStaff(t *testing.T) {
 // so it can be handed to a current child.
 func TestCheckRFIDTagAssignment_GraduatedStudentReadsAsUnassigned(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupDataRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-alumnus")
 	student := testpkg.CreateTestStudent(t, ctx.db, "RFID", "Alumnus", "4a")
@@ -542,7 +520,7 @@ func TestCheckRFIDTagAssignment_GraduatedStudentReadsAsUnassigned(t *testing.T) 
 	defer cancel()
 	_, err := ctx.db.NewUpdate().
 		TableExpr(`users.students`).
-		Set("status = ?", string(users.StudentStatusAlumnus)).
+		Set("status = ?", "alumnus").
 		Where("id = ?", student.ID).
 		Exec(dbCtx)
 	require.NoError(t, err)
@@ -555,7 +533,7 @@ func TestCheckRFIDTagAssignment_GraduatedStudentReadsAsUnassigned(t *testing.T) 
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	testutil.AssertSuccessResponse(t, rr, 200)
 	body := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 	data, ok := body["data"].(map[string]interface{})
 	require.True(t, ok, "response must carry a data object: %s", rr.Body.String())

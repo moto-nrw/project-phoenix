@@ -29,6 +29,9 @@ interface CareExceptionBody {
   date: string;
   pickup_time?: string | null;
   arrival_time?: string | null;
+  reason?: string;
+  /** Guardians the request is shared with, saved with the request itself. */
+  recipient_guardian_profile_ids?: string[];
 }
 
 /**

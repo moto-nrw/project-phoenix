@@ -8,7 +8,8 @@ import (
 	"text/tabwriter"
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	platformModel "github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/spf13/cobra"
 )
 
@@ -47,17 +48,40 @@ type settingOverrideRow struct {
 	Value      json.RawMessage `json:"value"`
 }
 
+type settingsCommandContext struct {
+	*cleanupContext
+	schools services.SchoolQuery
+	values  configModel.SettingValueRepository
+}
+
+func newSettingsCommandContext() (*settingsCommandContext, error) {
+	base, err := newCleanupContext()
+	if err != nil {
+		return nil, err
+	}
+	return &settingsCommandContext{
+		cleanupContext: base,
+		schools:        base.Schools,
+		values:         services.NewSettingsCommandRepository(base.DB),
+	}, nil
+}
+
 func runSettingsOverrides(_ *cobra.Command, _ []string) error {
-	ctx, err := newCleanupContext()
+	commandContext, err := newSettingsCommandContext()
 	if err != nil {
 		return err
 	}
-	defer ctx.Close()
-	schools, err := ctx.RepoFactory.School.List(context.Background())
+	defer commandContext.Close()
+	return runSettingsOverridesWithContext(commandContext)
+}
+
+func runSettingsOverridesWithContext(commandContext *settingsCommandContext) error {
+	ctx := tenant.WithUnitOfWork(context.Background(), commandContext.TenantRuntime)
+	schools, err := commandContext.schools.ListSchools(ctx)
 	if err != nil {
 		return fmt.Errorf("list schools: %w", err)
 	}
-	rows, err := collectSettingOverrideRows(context.Background(), schools, selectedSettingOverrideKeys(), ctx.RepoFactory.SettingValue)
+	rows, err := collectSettingOverrideRows(ctx, schools, selectedSettingOverrideKeys(), commandContext.values)
 	if err != nil {
 		return err
 	}
@@ -71,7 +95,7 @@ func selectedSettingOverrideKeys() []string {
 	return activationSettingKeys
 }
 
-func collectSettingOverrideRows(ctx context.Context, schools []*platformModel.School, keys []string, values configModel.SettingValueRepository) ([]settingOverrideRow, error) {
+func collectSettingOverrideRows(ctx context.Context, schools []services.School, keys []string, values configModel.SettingValueRepository) ([]settingOverrideRow, error) {
 	rows := []settingOverrideRow{}
 	for _, school := range schools {
 		for _, key := range keys {

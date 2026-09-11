@@ -14,8 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
@@ -105,11 +104,11 @@ func TestToEditDraftChildResponses_PreserveOnlyLockedOfferingsWhenDisabled(t *te
 
 	studentID := int64(42)
 	responses := toEditDraftChildResponses(&enrollmentService.EditDraft{
-		Children: []*enrollmentModels.RequestChild{
-			{Model: base.Model{ID: 1}},
-			{Model: base.Model{ID: 2}, CreatedStudentID: &studentID},
+		Children: []*enrollmentService.RequestChild{
+			{ID: 1},
+			{ID: 2, CreatedStudentID: &studentID},
 		},
-		OfferingsByChild: map[int64][]*enrollmentModels.RequestChildOffering{
+		OfferingsByChild: map[int64][]*enrollmentService.RequestChildOffering{
 			1: {{CareOfferingID: 6}},
 			2: {{CareOfferingID: 7}},
 		},

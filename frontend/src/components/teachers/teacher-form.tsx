@@ -29,6 +29,12 @@ interface TeacherFormProps {
   readonly showRFID?: boolean;
   // Existing positions for autocomplete suggestions
   readonly existingPositions?: readonly string[];
+  // Vorname, Nachname und NFC-Karte liegen am Personen-Datensatz und werden
+  // über PUT /api/users/{id} geschrieben — das verlangt users:update. Wer nur
+  // staff:manage hat (#2906), darf den Mitarbeiter-Datensatz ändern, den
+  // Personen-Datensatz aber nicht: dann werden diese Felder nur angezeigt und
+  // nicht mitgeschickt.
+  readonly canEditPersonFields?: boolean;
 }
 
 export function TeacherForm({
@@ -42,6 +48,7 @@ export function TeacherForm({
   wrapInCard = true,
   showRFID = false,
   existingPositions = EMPTY_POSITIONS,
+  canEditPersonFields = true,
 }: TeacherFormProps) {
   // Form state
   const [firstName, setFirstName] = useState(initialData.first_name ?? "");
@@ -80,6 +87,13 @@ export function TeacherForm({
   const hidePosition = initialData.id
     ? !(initialData.is_teacher ?? Boolean(initialData.teacher_id))
     : selectedRoleIsLehrkraft;
+
+  // Beim Anlegen wird der Personen-Datensatz ohnehin neu geschrieben — die
+  // Einschränkung greift nur beim Bearbeiten.
+  const personFieldsReadOnly = Boolean(initialData.id) && !canEditPersonFields;
+  // Ohne Namensfelder und ohne Position bleibt nichts zu ändern. Dann ist ein
+  // Speichern-Knopf eine leere Zusage.
+  const nothingEditable = personFieldsReadOnly && hidePosition;
 
   // Fetch roles on mount (only for new teachers)
   useEffect(() => {
@@ -151,6 +165,12 @@ export function TeacherForm({
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
+    // Nur-Anzeige-Felder können nicht falsch ausgefüllt sein.
+    if (personFieldsReadOnly) {
+      setErrors(newErrors);
+      return true;
+    }
+
     if (!firstName.trim()) {
       newErrors.firstName = "Vorname ist erforderlich";
     }
@@ -210,13 +230,21 @@ export function TeacherForm({
         password?: string;
         role_id?: number;
       } = {
-        first_name: firstName.trim(),
-        last_name: lastName.trim(),
+        // Ohne users:update dürfen die Personen-Felder nicht mitgeschickt
+        // werden: teacherService.updateTeacher würde sonst PUT
+        // /api/users/{person_id} aufrufen und die Änderung am
+        // Mitarbeiter-Datensatz an einem 403 scheitern lassen (#2906).
+        ...(personFieldsReadOnly
+          ? {}
+          : {
+              first_name: firstName.trim(),
+              last_name: lastName.trim(),
+              tag_id: tagId || null,
+            }),
         email: email.trim() || undefined,
         // Ohne Betreuungsprofil gibt es kein Position-Feld — den Wert dann
         // auch nicht mitschicken, das Backend würde ihn ohnehin verwerfen.
         ...(!hidePosition && { role: role.trim() || null }),
-        tag_id: tagId || null, // Use the TagID directly
         // Preserve existing IDs when editing
         ...(initialData.id && { id: initialData.id }),
         ...(initialData.person_id && { person_id: initialData.person_id }),
@@ -284,65 +312,90 @@ export function TeacherForm({
             Persönliche Informationen
           </h4>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
-            {/* First Name */}
-            <div>
-              <label
-                htmlFor="firstName"
-                className="mb-1 block text-xs font-medium text-gray-700"
-              >
-                Vorname <span className="text-moto-red">*</span>
-              </label>
-              <input
-                type="text"
-                id="firstName"
-                name="firstName"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                className={`w-full rounded-lg border ${
-                  errors.firstName
-                    ? "border-moto-red/40 bg-moto-red-soft"
-                    : "focus:border-moto-orange focus:ring-moto-orange border-gray-200 bg-white focus:ring-1"
-                } px-3 py-2 text-sm transition-colors`}
-                disabled={isLoading}
-                autoComplete="given-name"
-                maxLength={255}
-              />
-              {errors.firstName && (
-                <p className="text-moto-red-strong mt-1 text-xs">
-                  {errors.firstName}
+            {/* Name und NFC-Karte gehören zum Personen-Datensatz. Ohne
+                users:update sind sie nur Anzeige — und sehen auch so aus,
+                statt als Eingabefeld, das beim Speichern scheitert. */}
+            {personFieldsReadOnly ? (
+              <>
+                <div>
+                  <p className="mb-1 text-xs font-medium text-gray-700">
+                    Vorname
+                  </p>
+                  <p className="text-sm text-gray-900">{firstName || "—"}</p>
+                </div>
+                <div>
+                  <p className="mb-1 text-xs font-medium text-gray-700">
+                    Nachname
+                  </p>
+                  <p className="text-sm text-gray-900">{lastName || "—"}</p>
+                </div>
+                <p className="text-xs text-gray-600 md:col-span-2">
+                  Name und NFC-Karte ändert die OGS-Leitung.
                 </p>
-              )}
-            </div>
+              </>
+            ) : (
+              <>
+                {/* First Name */}
+                <div>
+                  <label
+                    htmlFor="firstName"
+                    className="mb-1 block text-xs font-medium text-gray-700"
+                  >
+                    Vorname <span className="text-moto-red">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    id="firstName"
+                    name="firstName"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    className={`w-full rounded-lg border ${
+                      errors.firstName
+                        ? "border-moto-red/40 bg-moto-red-soft"
+                        : "focus:border-moto-orange focus:ring-moto-orange border-gray-200 bg-white focus:ring-1"
+                    } px-3 py-2 text-sm transition-colors`}
+                    disabled={isLoading}
+                    autoComplete="given-name"
+                    maxLength={255}
+                  />
+                  {errors.firstName && (
+                    <p className="text-moto-red-strong mt-1 text-xs">
+                      {errors.firstName}
+                    </p>
+                  )}
+                </div>
 
-            {/* Last Name */}
-            <div>
-              <label
-                htmlFor="lastName"
-                className="mb-1 block text-xs font-medium text-gray-700"
-              >
-                Nachname <span className="text-moto-red">*</span>
-              </label>
-              <input
-                type="text"
-                id="lastName"
-                name="lastName"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                className={`w-full rounded-lg border ${
-                  errors.lastName
-                    ? "border-moto-red/40 bg-moto-red-soft"
-                    : "focus:border-moto-orange focus:ring-moto-orange border-gray-200 bg-white focus:ring-1"
-                } px-3 py-2 text-sm transition-colors`}
-                disabled={isLoading}
-                autoComplete="family-name"
-                maxLength={255}
-              />
-              {errors.lastName && (
-                <p className="text-moto-red-strong mt-1 text-xs">
-                  {errors.lastName}
-                </p>
-              )}
-            </div>
+                {/* Last Name */}
+                <div>
+                  <label
+                    htmlFor="lastName"
+                    className="mb-1 block text-xs font-medium text-gray-700"
+                  >
+                    Nachname <span className="text-moto-red">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    id="lastName"
+                    name="lastName"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    className={`w-full rounded-lg border ${
+                      errors.lastName
+                        ? "border-moto-red/40 bg-moto-red-soft"
+                        : "focus:border-moto-orange focus:ring-moto-orange border-gray-200 bg-white focus:ring-1"
+                    } px-3 py-2 text-sm transition-colors`}
+                    disabled={isLoading}
+                    autoComplete="family-name"
+                    maxLength={255}
+                  />
+                  {errors.lastName && (
+                    <p className="text-moto-red-strong mt-1 text-xs">
+                      {errors.lastName}
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
 
             {/* Email - only for new teachers */}
             {!initialData.id && (
@@ -543,6 +596,15 @@ export function TeacherForm({
           </div>
         )}
 
+        {/* Bleibt kein Feld zum Ändern übrig, wäre ein Speichern-Knopf eine
+            leere Zusage — dann nur schließen. */}
+        {nothingEditable && (
+          <p className="text-xs text-gray-600">
+            Sie können an diesem Datensatz nichts ändern. Wenden Sie sich an die
+            OGS-Leitung.
+          </p>
+        )}
+
         {/* Form Actions */}
         <div className="sticky bottom-0 -mx-4 mt-4 -mb-4 flex gap-2 border-t border-gray-100 bg-white/95 px-4 pt-3 pb-3 backdrop-blur-sm md:-mx-6 md:mt-6 md:-mb-6 md:gap-3 md:px-6 md:pt-4 md:pb-4">
           <button
@@ -553,33 +615,35 @@ export function TeacherForm({
           >
             <span className="flex items-center justify-center gap-2">
               <X className="h-4 w-4" aria-hidden />
-              Abbrechen
+              {nothingEditable ? "Schließen" : "Abbrechen"}
             </span>
           </button>
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="flex-1 rounded-lg bg-gray-900 px-3 py-2 text-xs font-medium text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm md:hover:scale-105"
-          >
-            {isLoading ? (
-              <span className="flex items-center justify-center gap-2">
-                <Loader2
-                  className="h-4 w-4 animate-spin text-white"
-                  aria-hidden
-                />
-                Wird gespeichert...
-              </span>
-            ) : (
-              <span className="flex items-center justify-center gap-2">
-                {submitLabel === "Erstellen" ? (
-                  <Plus className="h-4 w-4" aria-hidden />
-                ) : (
-                  <Check className="h-4 w-4" aria-hidden />
-                )}
-                {submitLabel}
-              </span>
-            )}
-          </button>
+          {nothingEditable ? null : (
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="flex-1 rounded-lg bg-gray-900 px-3 py-2 text-xs font-medium text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm md:hover:scale-105"
+            >
+              {isLoading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <Loader2
+                    className="h-4 w-4 animate-spin text-white"
+                    aria-hidden
+                  />
+                  Wird gespeichert...
+                </span>
+              ) : (
+                <span className="flex items-center justify-center gap-2">
+                  {submitLabel === "Erstellen" ? (
+                    <Plus className="h-4 w-4" aria-hidden />
+                  ) : (
+                    <Check className="h-4 w-4" aria-hidden />
+                  )}
+                  {submitLabel}
+                </span>
+              )}
+            </button>
+          )}
         </div>
       </form>
     </div>

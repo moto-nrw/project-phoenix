@@ -146,7 +146,7 @@ func newDienstplanData(
 		if shift == nil {
 			continue
 		}
-		key := staffDay{staffID: shift.StaffID, date: shift.Date}
+		key := staffDay{staffID: shift.StaffID, date: timezone.Date(shift.Date)}
 		data.shifts[key] = append(data.shifts[key], shift)
 		if shift.OriginShiftID != nil {
 			data.coversByOrigin[*shift.OriginShiftID] = append(data.coversByOrigin[*shift.OriginShiftID], shift)

@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	jwtPkg "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
-	"github.com/moto-nrw/project-phoenix/internal/clientip"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
 
@@ -205,5 +204,5 @@ func (rs *AuthResource) RefreshToken(w http.ResponseWriter, r *http.Request) {
 
 // getClientIP extracts the client IP from the request
 func getClientIP(r *http.Request) net.IP {
-	return clientip.ParseClientIP(r)
+	return common.ParseClientIP(r)
 }

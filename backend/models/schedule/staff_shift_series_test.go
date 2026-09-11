@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -13,7 +12,7 @@ func seriesTestClock(t *testing.T, value string) time.Time {
 	t.Helper()
 	parsed, err := time.Parse("15:04", value)
 	require.NoError(t, err)
-	return timezone.NormalizeWallClock(parsed)
+	return normalizeWallClock(parsed)
 }
 
 func validSeries(t *testing.T) *StaffShiftSeries {
@@ -26,7 +25,7 @@ func validSeries(t *testing.T) *StaffShiftSeries {
 		BreakMinutes:     30,
 		CalendarPeriodID: 1,
 		WeekPattern:      WeekPatternEvery,
-		ValidFrom:        timezone.NewDate(2026, time.September, 1),
+		ValidFrom:        NewDate(2026, time.September, 1),
 		CreatedBy:        1,
 	}
 }

@@ -5,9 +5,6 @@ import (
 	"errors"
 	"strings"
 	"unicode/utf8"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // ClosingDayReasonMaxLength is the maximum length of the reason field.
@@ -18,12 +15,12 @@ const ClosingDayReasonMaxLength = 255
 // range; a single closed day has start_date = end_date. On these days the
 // staff Soll is 0, exactly like on public holidays.
 type ClosingDay struct {
-	base.Model `bun:"schema:schedule,table:closing_days"`
-	base.TenantModel
+	Model `bun:"schema:schedule,table:closing_days"`
+	TenantModel
 
-	StartDate timezone.Date `bun:"start_date,notnull" json:"start_date"`
-	EndDate   timezone.Date `bun:"end_date,notnull" json:"end_date"`
-	Reason    string        `bun:"reason,notnull" json:"reason"`
+	StartDate Date   `bun:"start_date,notnull" json:"start_date"`
+	EndDate   Date   `bun:"end_date,notnull" json:"end_date"`
+	Reason    string `bun:"reason,notnull" json:"reason"`
 }
 
 // Validate ensures closing day data is valid
@@ -49,7 +46,7 @@ func (c *ClosingDay) Validate() error {
 
 // ClosingDayRepository defines operations for managing closing days
 type ClosingDayRepository interface {
-	base.Repository[*ClosingDay]
+	repository[*ClosingDay]
 
 	// FindByTenantID finds all closing days for the current tenant,
 	// ordered by start_date.
@@ -58,5 +55,5 @@ type ClosingDayRepository interface {
 	// FindOverlappingRange returns all closing days of the current tenant
 	// whose [start_date, end_date] range overlaps [from, to] (inclusive on
 	// both ends), ordered by start_date.
-	FindOverlappingRange(ctx context.Context, from, to timezone.Date) ([]*ClosingDay, error)
+	FindOverlappingRange(ctx context.Context, from, to Date) ([]*ClosingDay, error)
 }

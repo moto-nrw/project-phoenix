@@ -181,7 +181,7 @@ describe("MobileTabsActionArea", () => {
   });
 
   it("renders action button alongside status and badge", () => {
-    render(
+    const { container } = render(
       <MobileTabsActionArea
         hasTitle={false}
         actionButton={mockActionButton}
@@ -193,6 +193,7 @@ describe("MobileTabsActionArea", () => {
     expect(screen.getByTestId("mobile-action-btn")).toBeInTheDocument();
     expect(screen.getByTestId("status-indicator")).toBeInTheDocument();
     expect(screen.getByTestId("badge-display-compact")).toBeInTheDocument();
+    expect(container.firstChild).toHaveClass("flex-col-reverse");
   });
 
   it("has mobile visibility classes", () => {

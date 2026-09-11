@@ -69,7 +69,7 @@ func (r *StaffMonthBalanceSnapshotRepository) GetLatestClosedThrough(ctx context
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "get latest month balance snapshot", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "get latest month balance snapshot", Err: base.TranslateNotFound(err)}
 	}
 	return snapshot, nil
 }
@@ -89,7 +89,7 @@ func (r *StaffMonthBalanceSnapshotRepository) GetByMonth(ctx context.Context, ye
 	query = r.withTenantFilter(ctx, query)
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "get month balance snapshots by month", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "get month balance snapshots by month", Err: base.TranslateNotFound(err)}
 	}
 	return snapshots, nil
 }

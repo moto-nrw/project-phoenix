@@ -60,7 +60,7 @@ func companionLinkDays(t *testing.T, tc *testContext, studentID int64) map[int64
 func TestUpdateStudent_PlanOnlyTrimNeedsBaseline(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "StaleTrim", "Subject", "ST1")
 	companion := testpkg.CreateTestStudent(t, tc.db, "StaleTrim", "Partner", "ST1")
@@ -149,7 +149,7 @@ func TestUpdateStudent_PlanOnlyTrimNeedsBaseline(t *testing.T) {
 func TestUpdateStudent_ReportsCompanionVerdict(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "CompanionVerdict", "Subject", "CV1")
 	companion := testpkg.CreateTestStudent(t, tc.db, "CompanionVerdict", "Partner", "CV1")
@@ -201,7 +201,7 @@ func TestUpdateStudent_ReportsCompanionVerdict(t *testing.T) {
 func TestUpdateStudent_CompanionsWithoutAccompaniedDayRefused(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "NoAccompaniedDay", "Subject", "NA1")
 	companion := testpkg.CreateTestStudent(t, tc.db, "NoAccompaniedDay", "Partner", "NA1")

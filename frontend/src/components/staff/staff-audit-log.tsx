@@ -124,6 +124,15 @@ function describeEvent(event: AuditLogEvent): string {
           : "";
       return `Urlaubs-Übernahme ${year}: ${formatOpeningDays(d.entered_remaining_days)} Rest zum ${day}`;
     }
+    case "absence_type_allowance": {
+      const label =
+        typeof d.absence_type_label === "string"
+          ? d.absence_type_label
+          : "Abwesenheitsart";
+      const days =
+        typeof d.new_entitled_days === "number" ? d.new_entitled_days : 0;
+      return `${label} ${String(d.year ?? "")}: Anspruch ${formatOpeningDays(days)}`;
+    }
     case "month_close": {
       const count = typeof d.account_count === "number" ? d.account_count : 0;
       return `Monat ${String(d.month).padStart(2, "0")}/${String(d.year)} abgeschlossen (${count} ${count === 1 ? "Konto" : "Konten"})`;

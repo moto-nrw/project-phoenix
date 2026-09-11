@@ -2,10 +2,18 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
+import { EmptyState } from "~/components/ui/empty-state";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import {
+  AttendanceCorrectionModal,
+  type CorrectableSlot,
+} from "~/components/students/attendance-correction-modal";
+import { hasPermission } from "~/lib/auth-utils";
+import { SectionCard } from "~/components/ui/section-card";
 import { getCachedSession } from "~/lib/session-cache";
 import {
   formatAttendanceSlotStatus,
+  type ActivityInstanceStatus,
   type AttendanceSlotStatus,
 } from "~/lib/attendance-history-helpers";
 import { createLogger } from "~/lib/logger";
@@ -37,11 +45,13 @@ interface AttendanceHistoryDay {
   visits: AttendanceVisitEntry[];
   slots?: Array<{
     instance_id: string;
+    instance_status?: ActivityInstanceStatus;
     title: string;
     start_time: string;
     end_time: string;
     status: AttendanceSlotStatus;
     substatus?: string | null;
+    note?: string | null;
     is_unplanned: boolean;
   }>;
 }
@@ -75,7 +85,7 @@ function formatDateLabel(isoDate: string): string {
 
 function formatTime(isoString: string): string {
   const date = new Date(isoString);
-  if (Number.isNaN(date.getTime())) return "—";
+  if (Number.isNaN(date.getTime())) return "–";
   return date.toLocaleTimeString("de-DE", {
     timeZone: "Europe/Berlin",
     hour: "2-digit",
@@ -84,7 +94,7 @@ function formatTime(isoString: string): string {
 }
 
 function formatDuration(minutes: number | null | undefined): string {
-  if (typeof minutes !== "number" || minutes <= 0) return "—";
+  if (typeof minutes !== "number" || minutes <= 0) return "–";
   const hours = Math.floor(minutes / 60);
   const remaining = minutes % 60;
   if (hours === 0) return `${remaining} min`;
@@ -93,6 +103,10 @@ function formatDuration(minutes: number | null | undefined): string {
 
 export function StudentHistorieTab({ studentId }: StudentHistorieTabProps) {
   const [state, setState] = useState<LoadState>({ status: "loading" });
+  // Korrigieren darf nur, wer den Plan verwaltet (#2898) — dieselbe
+  // Berechtigung, die das Backend auf der Korrektur-Route verlangt.
+  const [canCorrect, setCanCorrect] = useState(false);
+  const [correcting, setCorrecting] = useState<CorrectableSlot | null>(null);
 
   const loadData = useCallback(async () => {
     setState({ status: "loading" });
@@ -143,6 +157,13 @@ export function StudentHistorieTab({ studentId }: StudentHistorieTabProps) {
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    void (async () => {
+      const session = await getCachedSession();
+      setCanCorrect(hasPermission(session, "schedules:manage"));
+    })();
+  }, []);
 
   if (state.status === "loading") {
     return (
@@ -195,91 +216,130 @@ export function StudentHistorieTab({ studentId }: StudentHistorieTabProps) {
   );
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-sm font-semibold text-gray-700">
-            Anwesenheits-Historie
-          </h3>
-          <p className="mt-0.5 text-xs text-gray-500">
-            Letzte {data.caps.attendance_days} Tage. Raum-Details für{" "}
-            {data.caps.room_detail_days} Tage sichtbar.
-          </p>
-        </div>
-      </div>
-
-      {daysWithData.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-gray-200 p-8 text-center text-sm text-gray-500">
-          Keine Einträge im sichtbaren Zeitraum.
-        </div>
-      ) : (
-        <ul className="space-y-2" role="list">
-          {daysWithData.map((day) => (
-            <li
-              key={day.date}
-              className="moto-content-surface rounded-lg border p-4"
-            >
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold text-gray-900">
-                  {formatDateLabel(day.date)}
+    <>
+      <SectionCard
+        title="Anwesenheits-Historie"
+        titleClassName="text-sm"
+        headingLevel={3}
+        description={`Letzte ${data.caps.attendance_days} Tage. Raum-Details für ${data.caps.room_detail_days} Tage sichtbar.`}
+        bodyClassName="mt-4"
+      >
+        {daysWithData.length === 0 ? (
+          <EmptyState
+            variant="compact"
+            title="Keine Einträge im sichtbaren Zeitraum"
+          />
+        ) : (
+          <ul className="space-y-2" role="list">
+            {daysWithData.map((day) => (
+              <li
+                key={day.date}
+                className="moto-content-surface rounded-lg border p-4"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-semibold text-gray-900">
+                    {formatDateLabel(day.date)}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {day.attendance?.check_in_time
+                      ? formatTime(day.attendance.check_in_time)
+                      : "–"}{" "}
+                    –{" "}
+                    {day.attendance?.check_out_time
+                      ? formatTime(day.attendance.check_out_time)
+                      : "offen"}
+                    {typeof day.attendance?.duration_minutes === "number"
+                      ? ` · ${formatDuration(day.attendance.duration_minutes)}`
+                      : null}
+                  </div>
                 </div>
-                <div className="text-xs text-gray-500">
-                  {day.attendance?.check_in_time
-                    ? formatTime(day.attendance.check_in_time)
-                    : "—"}{" "}
-                  –{" "}
-                  {day.attendance?.check_out_time
-                    ? formatTime(day.attendance.check_out_time)
-                    : "offen"}
-                  {typeof day.attendance?.duration_minutes === "number"
-                    ? ` · ${formatDuration(day.attendance.duration_minutes)}`
-                    : null}
-                </div>
-              </div>
-              {(day.slots?.length ?? 0) > 0 ? (
-                <ul className="mt-2 space-y-1 border-t border-gray-100 pt-2">
-                  {day.slots?.map((slot) => (
-                    <li
-                      key={slot.instance_id}
-                      className="flex items-center justify-between text-xs text-gray-600"
-                    >
-                      <span>
-                        {slot.title}
-                        {slot.is_unplanned ? " · ungeplant" : ""}
-                      </span>
-                      <span>
-                        {slot.start_time}–{slot.end_time} ·{" "}
-                        {formatAttendanceSlotStatus(
-                          slot.status,
-                          slot.substatus,
-                        ).toLocaleLowerCase("de-DE")}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-              {day.room_detail_available && day.visits.length > 0 ? (
-                <ul className="mt-2 space-y-1 border-t border-gray-100 pt-2">
-                  {day.visits.map((visit, index) => (
-                    <li
-                      key={`${day.date}-${index}`}
-                      className="flex items-center justify-between text-xs text-gray-600"
-                    >
-                      <span>{visit.room_name || "Raum unbekannt"}</span>
-                      <span>
-                        {formatTime(visit.entry_time)} –{" "}
-                        {visit.exit_time
-                          ? formatTime(visit.exit_time)
-                          : "offen"}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+                {(day.slots?.length ?? 0) > 0 ? (
+                  <ul className="mt-2 space-y-1 border-t border-gray-100 pt-2">
+                    {day.slots?.map((slot) => (
+                      <li
+                        key={slot.instance_id}
+                        className="text-xs text-gray-600"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span>
+                            {slot.title}
+                            {slot.is_unplanned ? " · ungeplant" : ""}
+                          </span>
+                          <span>
+                            {slot.start_time}–{slot.end_time} ·{" "}
+                            {formatAttendanceSlotStatus(
+                              slot.status,
+                              slot.substatus,
+                            ).toLocaleLowerCase("de-DE")}
+                          </span>
+                        </div>
+                        {/* Die Bemerkung aus der Betreuung (#2898). Sie steht
+                          eingerückt unter dem Block, zu dem sie gehört, und
+                          ist ruhige Information — nicht klickbar. */}
+                        {slot.note ? (
+                          <p className="mt-0.5 pl-3 text-gray-500 italic">
+                            Bemerkung: {slot.note}
+                          </p>
+                        ) : null}
+                        {/* Korrigieren nur mit Recht und nach Abschluss. Der
+                          fehlende Instanzstatus synthetischer
+                          "Ohne Zuordnung"-Zeilen schließt sie ebenfalls aus. */}
+                        {canCorrect && slot.instance_status === "completed" ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setCorrecting({
+                                instanceId: slot.instance_id,
+                                title: slot.title,
+                                date: day.date,
+                                startTime: slot.start_time,
+                                endTime: slot.end_time,
+                                status: slot.status,
+                                substatus: slot.substatus ?? null,
+                                note: slot.note ?? null,
+                              })
+                            }
+                            className="mt-0.5 pl-3 text-gray-500 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-600"
+                          >
+                            Korrigieren
+                          </button>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                {day.room_detail_available && day.visits.length > 0 ? (
+                  <ul className="mt-2 space-y-1 border-t border-gray-100 pt-2">
+                    {day.visits.map((visit, index) => (
+                      <li
+                        key={`${day.date}-${index}`}
+                        className="flex items-center justify-between text-xs text-gray-600"
+                      >
+                        <span>{visit.room_name || "Raum unbekannt"}</span>
+                        <span>
+                          {formatTime(visit.entry_time)} –{" "}
+                          {visit.exit_time
+                            ? formatTime(visit.exit_time)
+                            : "offen"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </SectionCard>
+      {correcting ? (
+        <AttendanceCorrectionModal
+          isOpen
+          onClose={() => setCorrecting(null)}
+          studentId={studentId}
+          slot={correcting}
+          onCorrected={() => void loadData()}
+        />
+      ) : null}
+    </>
   );
 }

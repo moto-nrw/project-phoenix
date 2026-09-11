@@ -32,7 +32,7 @@ func createGroupMappingTestData(t *testing.T, db *bun.DB) *groupMappingTestData 
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "MappingActivity")
 	room := testpkg.CreateTestRoom(t, db, "MappingRoom")
 
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	groupRepo := factory.ActiveGroup
 	combinedGroupRepo := factory.CombinedGroup
 	ctx := testpkg.Ctx(t)
@@ -87,7 +87,7 @@ func TestGroupMappingRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GroupMapping
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupMapping
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates group mapping with valid data", func(t *testing.T) {
@@ -130,7 +130,7 @@ func TestGroupMappingRepository_FindByActiveCombinedGroupID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GroupMapping
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupMapping
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns empty slice when no mappings exist", func(t *testing.T) {
@@ -175,7 +175,7 @@ func TestGroupMappingRepository_FindByActiveGroupID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GroupMapping
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupMapping
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns empty slice when no mappings exist", func(t *testing.T) {
@@ -214,7 +214,7 @@ func TestGroupMappingRepository_AddGroupToCombination(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GroupMapping
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupMapping
 	ctx := testpkg.Ctx(t)
 
 	t.Run("adds group to combination successfully", func(t *testing.T) {
@@ -255,7 +255,7 @@ func TestGroupMappingRepository_RemoveGroupFromCombination(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GroupMapping
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupMapping
 	ctx := testpkg.Ctx(t)
 
 	t.Run("removes group from combination", func(t *testing.T) {
@@ -291,86 +291,6 @@ func TestGroupMappingRepository_RemoveGroupFromCombination(t *testing.T) {
 // ============================================================================
 
 // ============================================================================
-// FindWithRelations Tests
-// ============================================================================
-
-func TestGroupMappingRepository_FindWithRelations(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db).GroupMapping
-	ctx := testpkg.Ctx(t)
-
-	t.Run("finds mapping with combined group and active group relations", func(t *testing.T) {
-		data := createGroupMappingTestData(t, db)
-		// Create a mapping
-		mapping := &active.GroupMapping{
-			ActiveCombinedGroupID: data.CombinedGroup.ID,
-			ActiveGroupID:         data.ActiveGroup1.ID,
-		}
-		err := repo.Create(ctx, mapping)
-		require.NoError(t, err)
-
-		// Find with relations
-		found, err := repo.FindWithRelations(ctx, mapping.ID)
-		require.NoError(t, err)
-		assert.NotNil(t, found)
-		assert.Equal(t, mapping.ID, found.ID)
-		assert.Equal(t, data.CombinedGroup.ID, found.ActiveCombinedGroupID)
-		assert.Equal(t, data.ActiveGroup1.ID, found.ActiveGroupID)
-
-		// Check that relations are loaded
-		assert.NotNil(t, found.CombinedGroup, "CombinedGroup relation should be loaded")
-		assert.Equal(t, data.CombinedGroup.ID, found.CombinedGroup.ID)
-
-		assert.NotNil(t, found.ActiveGroup, "ActiveGroup relation should be loaded")
-		assert.Equal(t, data.ActiveGroup1.ID, found.ActiveGroup.ID)
-	})
-
-	t.Run("returns error for non-existent mapping", func(t *testing.T) {
-		_, err := repo.FindWithRelations(ctx, int64(999999))
-		require.Error(t, err)
-	})
-
-	t.Run("loads relations for multiple mappings", func(t *testing.T) {
-		data := createGroupMappingTestData(t, db)
-		// Create first mapping
-		mapping1 := &active.GroupMapping{
-			ActiveCombinedGroupID: data.CombinedGroup.ID,
-			ActiveGroupID:         data.ActiveGroup1.ID,
-		}
-		err := repo.Create(ctx, mapping1)
-		require.NoError(t, err)
-
-		// Create second mapping with different active group
-		mapping2 := &active.GroupMapping{
-			ActiveCombinedGroupID: data.CombinedGroup.ID,
-			ActiveGroupID:         data.ActiveGroup2.ID,
-		}
-		err = repo.Create(ctx, mapping2)
-		require.NoError(t, err)
-
-		// Find first mapping with relations
-		found1, err := repo.FindWithRelations(ctx, mapping1.ID)
-		require.NoError(t, err)
-		assert.NotNil(t, found1.CombinedGroup)
-		assert.NotNil(t, found1.ActiveGroup)
-		assert.Equal(t, data.ActiveGroup1.ID, found1.ActiveGroup.ID)
-
-		// Find second mapping with relations
-		found2, err := repo.FindWithRelations(ctx, mapping2.ID)
-		require.NoError(t, err)
-		assert.NotNil(t, found2.CombinedGroup)
-		assert.NotNil(t, found2.ActiveGroup)
-		assert.Equal(t, data.ActiveGroup2.ID, found2.ActiveGroup.ID)
-
-		// Both should reference the same combined group
-		assert.Equal(t, found1.CombinedGroup.ID, found2.CombinedGroup.ID)
-	})
-}
-
-// ============================================================================
 // List Tests
 // ============================================================================
 
@@ -379,7 +299,7 @@ func TestGroupMappingRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GroupMapping
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupMapping
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists with no results returns empty slice", func(t *testing.T) {

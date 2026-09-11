@@ -180,7 +180,7 @@ export function AuthShellSkeleton() {
       aria-hidden="true"
     >
       <section className="flex min-h-screen items-center justify-center px-4 py-8 sm:px-6 lg:px-10">
-        <div className="w-full max-w-[29rem] rounded-2xl border border-gray-200 bg-white px-6 py-10 shadow-sm sm:p-8">
+        <div className="moto-content-surface w-full max-w-[29rem] rounded-2xl border px-6 py-10 shadow-sm sm:p-8">
           <Skeleton className="mx-auto h-10 w-28 rounded-lg" />
           <Skeleton className="mx-auto mt-8 h-3 w-24" />
           <Skeleton className="mx-auto mt-3 h-8 w-64 max-w-full" />
@@ -261,7 +261,7 @@ export function AuthShell({
     <main className="moto-auth-shell-background grid min-h-screen lg:grid-cols-[minmax(0,0.9fr)_minmax(34rem,1.1fr)]">
       <section className="relative z-10 flex min-h-screen items-center justify-center px-4 py-8 sm:px-6 lg:px-10">
         <div className={cn("w-full", formMaxWidth)}>
-          <div className="rounded-2xl border border-gray-200 bg-white px-6 py-10 shadow-sm sm:p-8">
+          <div className="moto-content-surface rounded-2xl border px-6 py-10 shadow-sm sm:p-8">
             {brand && <div className="mb-8 flex justify-center">{brand}</div>}
             <div className="mb-9 text-center">
               <p

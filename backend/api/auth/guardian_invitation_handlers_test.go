@@ -15,9 +15,9 @@ import (
 func setupGuardianInvitationRouter(t *testing.T) chi.Router {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, nil, db)
-	resource.SetGuardianInvitationService(svc.GuardianInvitation)
+	db, authRoute := setupAuthDependenciesRoute(t)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, nil, db)
+	resource.SetGuardianInvitationService(authRoute.GuardianInvitationService)
 
 	router := testutil.NewTenantRouter(db)
 	router.Mount("/auth", resource.Router())

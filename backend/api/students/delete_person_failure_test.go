@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/services/users/userstest"
@@ -21,7 +20,7 @@ import (
 func TestPurgeGraduatedStudent_PersonDeleteFailureRollsBack(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Delete", "PersonFailure", "4a")
 
@@ -32,8 +31,7 @@ func TestPurgeGraduatedStudent_PersonDeleteFailureRollsBack(t *testing.T) {
 		Exec(t.Context())
 	require.NoError(t, err)
 
-	tc.resource.GradeTransitionService = tc.services.GradeTransition
-	repos := repositories.NewFactory(tc.db)
+	repos := newStudentTestRepositories(tc.db)
 	tc.resource.StudentDeletionService = usersService.NewStudentDeletionService(
 		tc.resource.StudentService,
 		repos.Student,
@@ -42,6 +40,7 @@ func TestPurgeGraduatedStudent_PersonDeleteFailureRollsBack(t *testing.T) {
 		repos.GradeTransition,
 		repos.DataDeletion,
 		repos.StudentDeletionAudit,
+		&testpkg.FeedbackEntryCounterMock{},
 		tc.db,
 	)
 

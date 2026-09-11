@@ -2,14 +2,20 @@ package common
 
 import (
 	"context"
-	"log/slog"
+	"fmt"
 
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
-	educationService "github.com/moto-nrw/project-phoenix/services/education"
-	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
+
+type snapshotPersonReader interface {
+	GetByIDs(context.Context, []int64) (map[int64]*userModels.Person, error)
+}
+
+type snapshotGroupReader interface {
+	GetGroupsByIDs(context.Context, []int64) (map[int64]*educationModels.Group, error)
+}
 
 // StudentDataSnapshot caches all data needed for building student list responses.
 // This eliminates N+1 query problems by loading all related data in bulk.
@@ -23,59 +29,65 @@ type StudentDataSnapshot struct {
 // This prevents N+1 queries by loading persons, groups, and locations in bulk.
 func LoadStudentDataSnapshot(
 	ctx context.Context,
-	personService userService.PersonService,
-	educationSvc educationService.Service,
+	personService snapshotPersonReader,
+	educationSvc snapshotGroupReader,
 	activeSvc activeService.Service,
 	studentIDs []int64,
 	personIDs []int64,
 	groupIDs []int64,
-) *StudentDataSnapshot {
+) (*StudentDataSnapshot, error) {
 	snapshot := &StudentDataSnapshot{
 		Persons: make(map[int64]*userModels.Person),
 		Groups:  make(map[int64]*educationModels.Group),
 	}
 
-	loadSnapshotPersons(ctx, snapshot, personService, personIDs)
-	loadSnapshotGroups(ctx, snapshot, educationSvc, groupIDs)
-	loadSnapshotLocations(ctx, snapshot, activeSvc, studentIDs)
+	if err := loadSnapshotPersons(ctx, snapshot, personService, personIDs); err != nil {
+		return nil, err
+	}
+	if err := loadSnapshotGroups(ctx, snapshot, educationSvc, groupIDs); err != nil {
+		return nil, err
+	}
+	if err := loadSnapshotLocations(ctx, snapshot, activeSvc, studentIDs); err != nil {
+		return nil, err
+	}
 
-	return snapshot
+	return snapshot, nil
 }
 
-func loadSnapshotPersons(ctx context.Context, snapshot *StudentDataSnapshot, svc userService.PersonService, ids []int64) {
+func loadSnapshotPersons(ctx context.Context, snapshot *StudentDataSnapshot, svc snapshotPersonReader, ids []int64) error {
 	if len(ids) == 0 {
-		return
+		return nil
 	}
 	persons, err := svc.GetByIDs(ctx, ids)
 	if err == nil {
 		snapshot.Persons = persons
-		return
+		return nil
 	}
-	slog.Default().Warn("failed to bulk load persons", slog.String("error", err.Error()))
+	return fmt.Errorf("load student snapshot persons: %w", err)
 }
 
-func loadSnapshotGroups(ctx context.Context, snapshot *StudentDataSnapshot, svc educationService.Service, ids []int64) {
+func loadSnapshotGroups(ctx context.Context, snapshot *StudentDataSnapshot, svc snapshotGroupReader, ids []int64) error {
 	if len(ids) == 0 {
-		return
+		return nil
 	}
 	groups, err := svc.GetGroupsByIDs(ctx, ids)
 	if err == nil {
 		snapshot.Groups = groups
-		return
+		return nil
 	}
-	slog.Default().Warn("failed to bulk load groups", slog.String("error", err.Error()))
+	return fmt.Errorf("load student snapshot groups: %w", err)
 }
 
-func loadSnapshotLocations(ctx context.Context, snapshot *StudentDataSnapshot, svc activeService.Service, ids []int64) {
+func loadSnapshotLocations(ctx context.Context, snapshot *StudentDataSnapshot, svc activeService.Service, ids []int64) error {
 	if len(ids) == 0 {
-		return
+		return nil
 	}
 	locations, err := LoadStudentLocationSnapshot(ctx, svc, ids)
 	if err == nil {
 		snapshot.LocationSnapshot = locations
-		return
+		return nil
 	}
-	slog.Default().Warn("failed to load student location snapshot", slog.String("error", err.Error()))
+	return fmt.Errorf("load student snapshot locations: %w", err)
 }
 
 // GetPerson retrieves a person from the snapshot with nil safety

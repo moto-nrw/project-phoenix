@@ -75,6 +75,33 @@ type SettingsResource struct {
 	careLifecycle usersSvc.CareLifecycleService
 }
 
+type operatorSettingsRuntime struct{ db *bun.DB }
+
+func (r operatorSettingsRuntime) WithinTenant(ctx context.Context, schoolID int64, fn func(context.Context) error) error {
+	return tenant.WithTenantTx(ctx, r.db, schoolID, func(txCtx context.Context, _ bun.Tx) error {
+		return fn(txCtx)
+	})
+}
+
+func (operatorSettingsRuntime) AfterCommit(ctx context.Context, fn func()) {
+	tenant.RegisterAfterCommit(ctx, fn)
+}
+
+func (operatorSettingsRuntime) Today() configModel.CalendarDate {
+	today := timezone.TodayDate()
+	return configModel.NewCalendarDate(today.Year(), today.Month(), today.Day())
+}
+
+type openAttendanceAdapter struct{ service activeSvc.Service }
+
+func (a openAttendanceAdapter) HasOpenAttendanceOn(ctx context.Context, day configModel.CalendarDate) (bool, error) {
+	if a.service == nil {
+		return false, nil
+	}
+	value := day.UTCMidnight()
+	return a.service.HasOpenAttendanceOn(ctx, timezone.NewDate(value.Year(), value.Month(), value.Day()))
+}
+
 // NewSettingsResource creates a new operator settings resource. broadcaster
 // emits the cross-origin tenant_settings_changed SSE event so open tenant
 // tabs invalidate their settings caches when an operator flips a value.
@@ -92,11 +119,27 @@ func NewSettingsResource(
 	lifecycle usersSvc.CareLifecycleService,
 ) *SettingsResource {
 	return &SettingsResource{
-		settingsService:  svc,
-		db:               db,
-		operatorSettings: configSvc.NewOperatorSettingsService(svc, db, broadcaster, activeService, slog.Default()),
-		schoolService:    schoolService,
-		careLifecycle:    lifecycle,
+		settingsService: svc,
+		db:              db,
+		operatorSettings: configSvc.NewOperatorSettingsService(
+			svc,
+			operatorSettingsRuntime{db: db},
+			settingsChangedNotifier(broadcaster),
+			openAttendanceAdapter{service: activeService},
+			slog.Default(),
+		),
+		schoolService: schoolService,
+		careLifecycle: lifecycle,
+	}
+}
+
+func settingsChangedNotifier(broadcaster realtime.Broadcaster) configSvc.SettingsChangedNotifier {
+	if broadcaster == nil {
+		return nil
+	}
+	return func(_ context.Context, tenantID int64, key string) {
+		event := realtime.NewEvent(realtime.EventTenantSettingsChanged, "", realtime.EventData{Source: &key})
+		_ = broadcaster.BroadcastToTenant(tenantID, event)
 	}
 }
 

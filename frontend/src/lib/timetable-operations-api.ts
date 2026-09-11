@@ -6,7 +6,6 @@ import type {
   StartOperationResult,
   TimetableRoster,
 } from "./timetable-operations-types";
-import type { CreateInstanceBody } from "./timetable-types";
 import {
   mapPlannedInstance,
   mapRoster,
@@ -22,8 +21,18 @@ interface PlannedNowOptions {
   horizonMinutes?: number;
   limit?: number;
   includeRoster?: boolean;
-  /** "past" lists today's finished blocks instead of the upcoming window (#2335). */
-  scope?: "past";
+  /**
+   * "past" lists today's finished blocks instead of the upcoming window
+   * (#2335); "day" lists the whole day in every lifecycle state (#2383).
+   */
+  scope?: "past" | "day";
+}
+
+export interface SpontaneousStartBody {
+  title: string;
+  room_id: number;
+  activity_group_id?: number;
+  staff_ids?: number[];
 }
 
 export class TimetableOperationsApiError extends Error {
@@ -114,7 +123,7 @@ export const timetableOperationsApi = {
   },
 
   async createAndStartSpontaneous(
-    body: CreateInstanceBody,
+    body: SpontaneousStartBody,
   ): Promise<StartOperationResult> {
     const raw = await unwrap<BackendStartOperationResult>(
       await fetch("/api/timetable/operations/spontaneous/start", {

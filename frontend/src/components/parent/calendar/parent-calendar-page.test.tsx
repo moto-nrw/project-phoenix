@@ -6,6 +6,7 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setTestClock } from "~/test/clock";
 import {
   getParentCalendar,
   respondParentCalendar,
@@ -74,8 +75,7 @@ function renderPage() {
 beforeEach(() => {
   vi.clearAllMocks();
   searchParams = new URLSearchParams();
-  vi.useFakeTimers({ toFake: ["Date"] });
-  vi.setSystemTime(MONDAY);
+  setTestClock(MONDAY);
   mockedCalendar.mockResolvedValue(calendarResponse([]));
   mockedRespond.mockResolvedValue(undefined as never);
 });

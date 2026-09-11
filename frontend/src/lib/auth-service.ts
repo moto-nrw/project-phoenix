@@ -1,7 +1,6 @@
 // lib/auth-service.ts
 import { getCachedSession } from "./session-cache";
 import { isAxiosError } from "axios";
-import { env } from "~/env";
 import api from "./api-transport";
 import { resolveApiUrl } from "./api-url";
 import { createLogger } from "~/lib/logger";
@@ -364,7 +363,7 @@ async function authFetch<TBackend, TFrontend = void>(
   } = options;
 
   const useProxyApi = globalThis.window !== undefined;
-  const url = resolveApiUrl(`/api${endpoint}`, endpoint);
+  const url = await resolveApiUrl(`/api${endpoint}`, endpoint);
 
   try {
     let backendData: TBackend;
@@ -493,7 +492,7 @@ export const authService = {
   // Public endpoints
   login: async (credentials: LoginRequest): Promise<TokenResponse> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi ? "/api/auth/login" : `${env.API_URL}/auth/login`;
+    const url = await resolveApiUrl("/api/auth/login", "/auth/login");
 
     try {
       if (useProxyApi) {
@@ -527,9 +526,7 @@ export const authService = {
 
   register: async (data: RegisterRequest): Promise<Account> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? "/api/auth/register"
-      : `${env.API_URL}/auth/register`;
+    const url = await resolveApiUrl("/api/auth/register", "/auth/register");
 
     try {
       if (useProxyApi) {
@@ -579,7 +576,7 @@ export const authService = {
 
   logout: async (): Promise<void> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi ? "/api/auth/logout" : `${env.API_URL}/auth/logout`;
+    const url = await resolveApiUrl("/api/auth/logout", "/auth/logout");
 
     try {
       const session = await getCachedSession();
@@ -614,9 +611,7 @@ export const authService = {
 
   refreshToken: async (refreshToken: string): Promise<TokenResponse> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? "/api/auth/refresh"
-      : `${env.API_URL}/auth/refresh`;
+    const url = await resolveApiUrl("/api/auth/refresh", "/auth/refresh");
 
     try {
       if (useProxyApi) {
@@ -658,9 +653,10 @@ export const authService = {
 
   initiatePasswordReset: async (data: PasswordResetRequest): Promise<void> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? "/api/auth/password-reset"
-      : `${env.API_URL}/auth/password-reset`;
+    const url = await resolveApiUrl(
+      "/api/auth/password-reset",
+      "/auth/password-reset",
+    );
 
     try {
       if (useProxyApi) {
@@ -693,9 +689,10 @@ export const authService = {
     data: PasswordResetConfirmRequest,
   ): Promise<PasswordResetResponse> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? "/api/auth/password-reset/confirm"
-      : `${env.API_URL}/auth/password-reset/confirm`;
+    const url = await resolveApiUrl(
+      "/api/auth/password-reset/confirm",
+      "/auth/password-reset/confirm",
+    );
     const fallbackMessage = "Fehler beim Zurücksetzen des Passworts";
     const payload = {
       token: data.token,

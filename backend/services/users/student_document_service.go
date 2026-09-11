@@ -134,6 +134,7 @@ type StudentDocumentService interface {
 // named interface rather than a package alias.
 type StudentDocumentUserContext interface {
 	GetCurrentStaff(ctx context.Context) (*userModels.Staff, error)
+	HasCurrentStaff(ctx context.Context) (bool, error)
 }
 
 type studentDocumentService struct {

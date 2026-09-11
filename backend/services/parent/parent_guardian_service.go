@@ -11,7 +11,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/driver/pgdriver"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
@@ -285,7 +284,7 @@ func (s *service) CreateGuardianContact(ctx context.Context, accountID, studentI
 		return nil
 	})
 	if txErr != nil {
-		if isGuardianEmailUniqueViolation(txErr) {
+		if base.IsUniqueViolationOn(txErr, guardianEmailUniqueIndex) {
 			return nil, ErrGuardianEmailConflict
 		}
 		return nil, txErr
@@ -556,7 +555,7 @@ func (s *service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 		return nil
 	})
 	if txErr != nil {
-		if isGuardianEmailUniqueViolation(txErr) {
+		if base.IsUniqueViolationOn(txErr, guardianEmailUniqueIndex) {
 			return nil, ErrGuardianEmailConflict
 		}
 		return nil, txErr
@@ -1293,27 +1292,6 @@ var (
 	guardianPhoneNumberPattern = regexp.MustCompile(`^[\d\s\+\-\(\)]+$`)
 	guardianPhoneDigitPattern  = regexp.MustCompile(`\d`)
 )
-
-func isGuardianEmailUniqueViolation(err error) bool {
-	if err == nil {
-		return false
-	}
-	if strings.Contains(err.Error(), "SQLSTATE=23505") && strings.Contains(err.Error(), guardianEmailUniqueIndex) {
-		return true
-	}
-	var dbErr *base.DatabaseError
-	if errors.As(err, &dbErr) {
-		err = dbErr.Err
-	}
-	var pgErr pgdriver.Error
-	if !errors.As(err, &pgErr) {
-		return false
-	}
-	if pgErr.Field('C') != "23505" {
-		return false
-	}
-	return pgErr.Field('n') == guardianEmailUniqueIndex || strings.Contains(pgErr.Error(), guardianEmailUniqueIndex)
-}
 
 func validateRelationshipInput(input *GuardianRelationshipInput) error {
 	if input.PickupNotes != nil && utf8.RuneCountInString(*input.PickupNotes) > maxGuardianNotesLen {

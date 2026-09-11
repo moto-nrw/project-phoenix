@@ -194,7 +194,7 @@ func (s *staffBalanceAdjustmentService) rejectFrozenMonth(ctx context.Context, s
 	if s.snapshotRepo == nil {
 		return nil
 	}
-	year, month := effectiveDate.Year, int(effectiveDate.Month)
+	year, month := effectiveDate.Year(), int(effectiveDate.Month())
 	snapshot, err := s.snapshotRepo.GetLatestClosedThrough(ctx, staffID, year, month)
 	if err != nil {
 		return fmt.Errorf("failed to check month close state for adjustment: %w", err)

@@ -2,6 +2,7 @@
 
 import { Header } from "~/components/dashboard/header";
 import { PortalShell } from "~/components/ui/portal-shell";
+import { useSchoolStaffNoticesPending } from "~/lib/hooks/use-school-staff-notices-pending";
 import { useSchoolTeamChatUnread } from "~/lib/hooks/use-school-team-chat-unread";
 import { SchoolBottomNav } from "./school-bottom-nav";
 import { SchoolSidebar } from "./school-sidebar";
@@ -25,11 +26,12 @@ export function SchoolShell({
   readonly children: React.ReactNode;
 }) {
   const teamChat = useSchoolTeamChatUnread();
+  const notices = useSchoolStaffNoticesPending();
   return (
     <PortalShell
       header={<Header />}
-      sidebar={<SchoolSidebar teamChat={teamChat} />}
-      bottomNav={<SchoolBottomNav teamChat={teamChat} />}
+      sidebar={<SchoolSidebar teamChat={teamChat} notices={notices} />}
+      bottomNav={<SchoolBottomNav teamChat={teamChat} notices={notices} />}
     >
       {children}
     </PortalShell>

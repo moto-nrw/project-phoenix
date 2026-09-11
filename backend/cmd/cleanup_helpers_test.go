@@ -2,25 +2,127 @@ package cmd
 
 import (
 	"bytes"
-	"log"
+	"context"
+	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+func TestCleanupRootsExposeOnlyCommandSpecificBuilders(t *testing.T) {
+	t.Parallel()
+
+	contextType := reflect.TypeFor[cleanupContext]()
+	_, hasRepositoriesFactory := contextType.FieldByName("RepoFactory")
+	_, hasServicesFactory := contextType.FieldByName("ServiceFactory")
+	assert.False(t, hasRepositoriesFactory)
+	assert.False(t, hasServicesFactory)
+	assert.NotNil(t, defaultCleanupRoot.authCleanup)
+	assert.NotNil(t, defaultCleanupRoot.invitationCleanup)
+	assert.NotNil(t, defaultCleanupRoot.sessionCleanup)
+	assert.NotNil(t, defaultCleanupRoot.retentionCleanup)
+	assert.NotNil(t, defaultCleanupRoot.timetableCleanup)
+	assert.NotNil(t, defaultCleanupRoot.timeTrackingCleanup)
+}
+
+func TestCleanupRootFailsFastForEveryMissingCapability(t *testing.T) {
+	t.Parallel()
+
+	for _, capability := range []string{"auth", "invitation", "session", "retention", "timetable", "time-tracking"} {
+		root := defaultCleanupRoot
+		switch capability {
+		case "auth":
+			root.authCleanup = nil
+		case "invitation":
+			root.invitationCleanup = nil
+		case "session":
+			root.sessionCleanup = nil
+		case "retention":
+			root.retentionCleanup = nil
+		case "timetable":
+			root.timetableCleanup = nil
+		case "time-tracking":
+			root.timeTrackingCleanup = nil
+		}
+		require.EqualError(t, root.validateCapability(capability), capability+" cleanup service builder is required")
+	}
+
+	root := defaultCleanupRoot
+	root.openDatabase = nil
+	require.EqualError(t, root.validateCapability("auth"), "cleanup database opener is required")
+}
+
+func TestCleanupRootFailsFastForEveryNilBuiltCapability(t *testing.T) {
+	t.Parallel()
+
+	ctx := &cleanupContext{}
+	tests := []struct {
+		capability string
+		build      func() error
+	}{
+		{"auth", func() error {
+			_, err := buildCleanupDependency(ctx, func(*cleanupContext) authCleanupService { return nil }, "auth")
+			return err
+		}},
+		{"invitation", func() error {
+			_, err := buildCleanupDependency(ctx, func(*cleanupContext) invitationCleanupService { return nil }, "invitation")
+			return err
+		}},
+		{"session", func() error {
+			_, err := buildCleanupDependency(ctx, func(*cleanupContext) sessionCleanupService { return nil }, "session")
+			return err
+		}},
+		{"retention", func() error {
+			_, err := buildCleanupDependency(ctx, func(*cleanupContext) retentionCleanupService { return nil }, "retention")
+			return err
+		}},
+		{"timetable", func() error {
+			_, err := buildCleanupDependency(ctx, func(*cleanupContext) timetableCleanupService { return nil }, "timetable")
+			return err
+		}},
+		{"time-tracking", func() error {
+			_, err := buildCleanupDependency(ctx, func(*cleanupContext) timeTrackingCleanupService { return nil }, "time-tracking")
+			return err
+		}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.capability, func(t *testing.T) {
+			require.EqualError(t, test.build(), test.capability+" cleanup service builder returned nil")
+		})
+	}
+}
+
+type nilAuthCleanup struct{}
+
+func (*nilAuthCleanup) CleanupExpiredTokens(context.Context) (int, error)     { return 0, nil }
+func (*nilAuthCleanup) CleanupExpiredRateLimits(context.Context) (int, error) { return 0, nil }
+
+func TestCleanupRootRejectsTypedNilBuiltCapability(t *testing.T) {
+	t.Parallel()
+
+	_, err := buildCleanupDependency(&cleanupContext{}, func(*cleanupContext) authCleanupService {
+		var service *nilAuthCleanup
+		return service
+	}, "auth")
+	require.EqualError(t, err, "auth cleanup service builder returned nil")
+}
+
 // =============================================================================
 // Constants Tests
 // =============================================================================
 
 func TestConstants(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "2006-01-02", dateFormat)
 	assert.Equal(t, "2006-01-02 15:04:05", dateTimeFormat)
 	assert.Equal(t, "failed to initialize database: %w", errInitDB)
 	assert.Equal(t, "failed to close database: %v", errCloseDB)
-	assert.Equal(t, "failed to create service factory: %w", errServiceFactory)
 	assert.Equal(t, "failed to flush writer: %v", errFlushWriter)
 }
 
@@ -29,7 +131,8 @@ func TestConstants(t *testing.T) {
 // =============================================================================
 
 func TestSetupLogger_Stdout(t *testing.T) {
-	logger, cleanup, err := setupLogger("")
+	t.Parallel()
+	logger, cleanup, err := setupLogger("", io.Discard)
 
 	require.NoError(t, err)
 	require.NotNil(t, logger)
@@ -40,11 +143,12 @@ func TestSetupLogger_Stdout(t *testing.T) {
 }
 
 func TestSetupLogger_File(t *testing.T) {
+	t.Parallel()
 	// Create temp directory
 	tmpDir := t.TempDir()
 	logPath := filepath.Join(tmpDir, "test.log")
 
-	logger, cleanup, err := setupLogger(logPath)
+	logger, cleanup, err := setupLogger(logPath, io.Discard)
 
 	require.NoError(t, err)
 	require.NotNil(t, logger)
@@ -60,8 +164,9 @@ func TestSetupLogger_File(t *testing.T) {
 }
 
 func TestSetupLogger_InvalidPath(t *testing.T) {
+	t.Parallel()
 	// Try to create log file in non-existent directory
-	logger, cleanup, err := setupLogger("/nonexistent/path/test.log")
+	logger, cleanup, err := setupLogger("/nonexistent/path/test.log", io.Discard)
 
 	assert.Error(t, err)
 	assert.Nil(t, logger)
@@ -72,177 +177,125 @@ func TestSetupLogger_InvalidPath(t *testing.T) {
 // printStudentBreakdown Tests
 // =============================================================================
 
-func TestPrintStudentBreakdown_Empty(_ *testing.T) {
+func TestPrintStudentBreakdown_Empty(t *testing.T) {
+	t.Parallel()
 	// Should not panic with empty data
-	printStudentBreakdown("Test Header", "Count", map[int64]int{})
+	printStudentBreakdown(io.Discard, "Test Header", "Count", map[int64]int{})
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPrintStudentBreakdown_WithData(t *testing.T) {
-	// Capture output
-	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
+	t.Parallel()
+	var output bytes.Buffer
 
 	data := map[int64]int{
 		1: 10,
 		2: 20,
 	}
-	printStudentBreakdown("Test Header", "Visit Count", data)
+	printStudentBreakdown(&output, "Test Header", "Visit Count", data)
 
-	// Restore stdout
-	_ = w.Close()
-	os.Stdout = oldStdout
-
-	var buf bytes.Buffer
-	_, _ = buf.ReadFrom(r)
-	output := buf.String()
-
-	assert.Contains(t, output, "Test Header")
-	assert.Contains(t, output, "Visit Count")
+	assert.Contains(t, output.String(), "Test Header")
+	assert.Contains(t, output.String(), "Visit Count")
 }
 
 // =============================================================================
 // printDateBreakdown Tests
 // =============================================================================
 
-func TestPrintDateBreakdown_Empty(_ *testing.T) {
+func TestPrintDateBreakdown_Empty(t *testing.T) {
+	t.Parallel()
 	// Should not panic with empty data
-	printDateBreakdown(map[string]int{})
+	printDateBreakdown(io.Discard, map[string]int{})
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPrintDateBreakdown_WithData(t *testing.T) {
-	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
+	t.Parallel()
+	var output bytes.Buffer
 
 	data := map[string]int{
 		"2024-01-15": 5,
 		"2024-01-16": 10,
 	}
-	printDateBreakdown(data)
+	printDateBreakdown(&output, data)
 
-	_ = w.Close()
-	os.Stdout = oldStdout
-
-	var buf bytes.Buffer
-	_, _ = buf.ReadFrom(r)
-	output := buf.String()
-
-	assert.Contains(t, output, "Per-date breakdown")
-	assert.Contains(t, output, "Date")
-	assert.Contains(t, output, "Records")
+	assert.Contains(t, output.String(), "Per-date breakdown")
+	assert.Contains(t, output.String(), "Date")
+	assert.Contains(t, output.String(), "Records")
 }
 
 // =============================================================================
 // printStudentBreakdownWithTotal Tests
 // =============================================================================
 
-func TestPrintStudentBreakdownWithTotal_Empty(_ *testing.T) {
+func TestPrintStudentBreakdownWithTotal_Empty(t *testing.T) {
+	t.Parallel()
 	// Should not panic with empty data
-	printStudentBreakdownWithTotal("Count", map[int64]int{})
+	printStudentBreakdownWithTotal(io.Discard, "Count", map[int64]int{})
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPrintStudentBreakdownWithTotal_WithData(t *testing.T) {
-	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
+	t.Parallel()
+	var output bytes.Buffer
 
 	data := map[int64]int{
 		1: 10,
 		2: 20,
 		3: 30,
 	}
-	printStudentBreakdownWithTotal("Visits", data)
+	printStudentBreakdownWithTotal(&output, "Visits", data)
 
-	_ = w.Close()
-	os.Stdout = oldStdout
-
-	var buf bytes.Buffer
-	_, _ = buf.ReadFrom(r)
-	output := buf.String()
-
-	assert.Contains(t, output, "Per-student breakdown")
-	assert.Contains(t, output, "Student ID")
-	assert.Contains(t, output, "TOTAL")
+	assert.Contains(t, output.String(), "Per-student breakdown")
+	assert.Contains(t, output.String(), "Student ID")
+	assert.Contains(t, output.String(), "TOTAL")
 }
 
 // =============================================================================
 // printMonthlyBreakdownWithTotal Tests
 // =============================================================================
 
-func TestPrintMonthlyBreakdownWithTotal_Empty(_ *testing.T) {
+func TestPrintMonthlyBreakdownWithTotal_Empty(t *testing.T) {
+	t.Parallel()
 	// Should not panic with empty data
-	printMonthlyBreakdownWithTotal("Test Header", map[string]int64{})
+	printMonthlyBreakdownWithTotal(io.Discard, "Test Header", map[string]int64{})
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPrintMonthlyBreakdownWithTotal_WithData(t *testing.T) {
-	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
+	t.Parallel()
+	var output bytes.Buffer
 
 	data := map[string]int64{
 		"2024-01": 100,
 		"2024-02": 200,
 	}
-	printMonthlyBreakdownWithTotal("Monthly Stats", data)
+	printMonthlyBreakdownWithTotal(&output, "Monthly Stats", data)
 
-	_ = w.Close()
-	os.Stdout = oldStdout
-
-	var buf bytes.Buffer
-	_, _ = buf.ReadFrom(r)
-	output := buf.String()
-
-	assert.Contains(t, output, "Monthly Stats")
-	assert.Contains(t, output, "Month")
-	assert.Contains(t, output, "TOTAL")
+	assert.Contains(t, output.String(), "Monthly Stats")
+	assert.Contains(t, output.String(), "Month")
+	assert.Contains(t, output.String(), "TOTAL")
 }
 
 // =============================================================================
 // printRecentDeletions Tests
 // =============================================================================
 
-func TestPrintRecentDeletions_Empty(_ *testing.T) {
+func TestPrintRecentDeletions_Empty(t *testing.T) {
+	t.Parallel()
 	// Should not panic with empty slice
-	printRecentDeletions([]recentDeletionRow{})
+	printRecentDeletions(io.Discard, []recentDeletionRow{})
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPrintRecentDeletions_WithData(t *testing.T) {
-	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
+	t.Parallel()
+	var output bytes.Buffer
 
 	data := []recentDeletionRow{
 		{Date: "2024-01-15", RecordsDeleted: 50, StudentCount: 5},
 		{Date: "2024-01-14", RecordsDeleted: 30, StudentCount: 3},
 	}
-	printRecentDeletions(data)
+	printRecentDeletions(&output, data)
 
-	_ = w.Close()
-	os.Stdout = oldStdout
-
-	var buf bytes.Buffer
-	_, _ = buf.ReadFrom(r)
-	output := buf.String()
-
-	assert.Contains(t, output, "Date")
-	assert.Contains(t, output, "Records Deleted")
-	assert.Contains(t, output, "Students")
+	assert.Contains(t, output.String(), "Date")
+	assert.Contains(t, output.String(), "Records Deleted")
+	assert.Contains(t, output.String(), "Students")
 }
 
 // =============================================================================
@@ -250,6 +303,7 @@ func TestPrintRecentDeletions_WithData(t *testing.T) {
 // =============================================================================
 
 func TestRecentDeletionRow_Struct(t *testing.T) {
+	t.Parallel()
 	row := recentDeletionRow{
 		Date:           "2024-01-15",
 		RecordsDeleted: 100,
@@ -265,7 +319,8 @@ func TestRecentDeletionRow_Struct(t *testing.T) {
 // cleanupContext Tests
 // =============================================================================
 
-func TestCleanupContext_Close_NilDB(_ *testing.T) {
+func TestCleanupContext_Close_NilDB(t *testing.T) {
+	t.Parallel()
 	ctx := &cleanupContext{
 		DB: nil,
 	}
@@ -274,17 +329,8 @@ func TestCleanupContext_Close_NilDB(_ *testing.T) {
 	ctx.Close()
 }
 
-func TestCleanupContext_Close_WithDB(_ *testing.T) {
-	// Capture log output
-	var logBuf bytes.Buffer
-	log.SetOutput(&logBuf)
-	defer log.SetOutput(os.Stderr)
-
-	// Create a context with nil DB (simulating closed DB)
-	ctx := &cleanupContext{
-		DB: nil,
-	}
-
-	// Should not panic
-	ctx.Close()
+func TestCleanupRootFailsFastWithoutDatabaseDependency(t *testing.T) {
+	t.Parallel()
+	_, err := (cleanupRoot{}).newContext()
+	require.ErrorContains(t, err, "cleanup database opener is required")
 }

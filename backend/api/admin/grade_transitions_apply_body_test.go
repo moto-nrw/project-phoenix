@@ -26,7 +26,7 @@ import (
 
 func TestGradeTransitionResource_Apply_BodyHandling(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupGradeTransitionsModule(t)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "apply-body-test@example.com")
 

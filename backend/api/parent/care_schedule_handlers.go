@@ -30,7 +30,7 @@ type CareScheduleResponse struct {
 	// cached absence signal to this date instead of the browser's request-start
 	// day so a response crossing Berlin midnight can't stamp the new day's
 	// today_absent onto yesterday's pickup tile (#1725 review). Empty on the
-	// write views (POST/withdraw), which don't populate TodayAbsent.
+	// write views (POST/PUT), which do not populate TodayAbsent.
 	TodayDate string `json:"today_date,omitempty"`
 }
 
@@ -167,27 +167,4 @@ func (rs *Resource) createCareScheduleRequest(w http.ResponseWriter, r *http.Req
 		return
 	}
 	common.Respond(w, r, http.StatusCreated, toCareScheduleResponse(view), "Care schedule request submitted")
-}
-
-// withdrawCareScheduleRequest flips the caller's own pending request to
-// withdrawn.
-func (rs *Resource) withdrawCareScheduleRequest(w http.ResponseWriter, r *http.Request) {
-	accountID, ok := rs.parentAccountID(w, r)
-	if !ok {
-		return
-	}
-	studentID, ok := parsePathStudentID(w, r)
-	if !ok {
-		return
-	}
-	requestID, ok := common.ParsePositiveInt64IDWithError(w, r, "requestId", "invalid request ID")
-	if !ok {
-		return
-	}
-	view, svcErr := rs.ParentService.WithdrawCareScheduleRequest(r.Context(), accountID, studentID, requestID)
-	if svcErr != nil {
-		renderParentWriteError(w, r, svcErr)
-		return
-	}
-	common.Respond(w, r, http.StatusOK, toCareScheduleResponse(view), "Care schedule request withdrawn")
 }

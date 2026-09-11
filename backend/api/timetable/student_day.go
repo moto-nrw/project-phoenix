@@ -24,7 +24,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
@@ -197,7 +196,7 @@ func (rs *Resource) resolveStudentForRead(w http.ResponseWriter, r *http.Request
 	// A child whose care has ended leaves the operational timetable the same
 	// way (#2487). Their past days stay in the history exports; the live
 	// day/week view is for children who still attend.
-	if student.CareEndedOn(timezone.TodayDate()) {
+	if student.CareEndedOn(rs.todayDate()) {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("student not found")))
 		return nil, false
 	}
@@ -290,22 +289,11 @@ func appendUnplannedInstances(
 			inst.Status != scheduleModel.InstanceStatusCompleted {
 			continue
 		}
-		if v := firstNonNilVisit(pre.VisitsByActiveGroup[*inst.ActiveGroupID]); v != nil {
-			instances = append(instances, mapUnplannedInstance(inst, v))
+		if visits := pre.VisitsByActiveGroup[*inst.ActiveGroupID]; len(visits) > 0 {
+			instances = append(instances, mapUnplannedInstance(inst, visits[0]))
 		}
 	}
 	return instances
-}
-
-// firstNonNilVisit returns the first non-nil visit in the slice, or nil. Dedup
-// across instances is handled upstream by the 1:1 active_group_id mapping.
-func firstNonNilVisit(visits []*activeModel.Visit) *activeModel.Visit {
-	for _, candidate := range visits {
-		if candidate != nil {
-			return candidate
-		}
-	}
-	return nil
 }
 
 // resolveArrivalSlotFromPreload applies the shared exception-over-schedule rule

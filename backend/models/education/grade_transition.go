@@ -201,6 +201,7 @@ type GradeTransitionRepository interface {
 	// Bulk operations
 	GetDistinctClasses(ctx context.Context) ([]string, error)
 	GetStudentCountByClass(ctx context.Context, className string) (int, error)
+	GetStudentCountsByClasses(ctx context.Context, classes []string) (map[string]int, error)
 	GetStudentsByClasses(ctx context.Context, classes []string) ([]*StudentClassInfo, error)
 	// UpdateStudentClasses promotes every student currently sitting in a mapped
 	// from-class. Apply does NOT use it: a class-wide update re-evaluates
@@ -243,6 +244,10 @@ type GradeTransitionRepository interface {
 	// key and outlive both the student and the person row, so without this the
 	// "endgültig löschen" would leave identifying data in the database.
 	AnonymizeHistoryForStudent(ctx context.Context, studentID int64) error
+	// PersonIDsByStudentIDs maps each given student id to its person id. The
+	// tag commands below run against the persons through the People
+	// Directory (#2661); this is the student-side half of that seam.
+	PersonIDsByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]int64, error)
 	// ReleaseStudentTagsByIDs clears the RFID tag on the given students' person
 	// rows and returns what each of them was holding, keyed by student id.
 	// Graduation must free the bracelet: an alumnus is invisible to every

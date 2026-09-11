@@ -71,7 +71,8 @@ func (relAcctSocialWorkerInvites) InviteToStudent(_ context.Context, _ authServi
 
 func newRelAcctRouter(t *testing.T, db *bun.DB, inviteMode string, canRemove bool) http.Handler {
 	t.Helper()
-	repos := repositories.NewFactory(db)
+	repos, repoErr := repositories.NewParentRouteTestRepositories(db)
+	require.NoError(t, repoErr)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,
 		StatusDayRepo:       repos.StudentStatusDay,
@@ -175,7 +176,8 @@ func (s *relAcctCaptureInvites) InviteToStudent(_ context.Context, req authServi
 
 func newRelAcctRouterWithInvites(t *testing.T, db *bun.DB, invites authService.GuardianInvitationService) http.Handler {
 	t.Helper()
-	repos := repositories.NewFactory(db)
+	repos, repoErr := repositories.NewParentRouteTestRepositories(db)
+	require.NoError(t, repoErr)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,
 		StatusDayRepo:       repos.StudentStatusDay,

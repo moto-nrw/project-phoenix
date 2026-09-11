@@ -13,11 +13,11 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/active"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -58,62 +58,6 @@ func TestActiveGroup_IsActive(t *testing.T) {
 			EndTime: &pastTime,
 		}
 		assert.False(t, group.IsActive())
-	})
-}
-
-// =============================================================================
-// Visit Model Tests
-// =============================================================================
-
-func TestVisit_Fields(t *testing.T) {
-	t.Parallel()
-
-	t.Run("visit has required fields", func(t *testing.T) {
-		now := time.Now()
-		visit := &activeModels.Visit{
-			StudentID:     123,
-			ActiveGroupID: 456,
-			EntryTime:     now,
-		}
-
-		assert.Equal(t, int64(123), visit.StudentID)
-		assert.Equal(t, int64(456), visit.ActiveGroupID)
-		assert.Equal(t, now, visit.EntryTime)
-		assert.Nil(t, visit.ExitTime)
-	})
-
-	t.Run("visit can have exit time", func(t *testing.T) {
-		now := time.Now()
-		exitTime := now.Add(1 * time.Hour)
-		visit := &activeModels.Visit{
-			StudentID:     123,
-			ActiveGroupID: 456,
-			EntryTime:     now,
-			ExitTime:      &exitTime,
-		}
-
-		require.NotNil(t, visit.ExitTime)
-		assert.True(t, visit.ExitTime.After(visit.EntryTime))
-	})
-
-	t.Run("visit IsActive returns true when no exit time", func(t *testing.T) {
-		visit := &activeModels.Visit{
-			StudentID:     123,
-			ActiveGroupID: 456,
-			EntryTime:     time.Now(),
-		}
-		assert.True(t, visit.IsActive())
-	})
-
-	t.Run("visit IsActive returns false when exit time is set", func(t *testing.T) {
-		exitTime := time.Now()
-		visit := &activeModels.Visit{
-			StudentID:     123,
-			ActiveGroupID: 456,
-			EntryTime:     time.Now().Add(-1 * time.Hour),
-			ExitTime:      &exitTime,
-		}
-		assert.False(t, visit.IsActive())
 	})
 }
 
@@ -165,68 +109,16 @@ func TestCheckinRequest_JSONDecoding(t *testing.T) {
 }
 
 // =============================================================================
-// Attendance Model Tests
-// =============================================================================
-
-func TestAttendance_Fields(t *testing.T) {
-	t.Parallel()
-
-	t.Run("attendance has required fields", func(t *testing.T) {
-		now := time.Now()
-		today := timezone.TodayDate()
-		attendance := &activeModels.Attendance{
-			StudentID:   123,
-			Date:        today,
-			CheckInTime: now,
-			CheckedInBy: 456,
-			DeviceID:    789,
-		}
-
-		assert.Equal(t, int64(123), attendance.StudentID)
-		assert.Equal(t, today, attendance.Date)
-		assert.Equal(t, now, attendance.CheckInTime)
-		assert.Equal(t, int64(456), attendance.CheckedInBy)
-		assert.Equal(t, int64(789), attendance.DeviceID)
-		assert.Nil(t, attendance.CheckOutTime)
-		assert.Nil(t, attendance.CheckedOutBy)
-	})
-
-	t.Run("attendance can have checkout fields", func(t *testing.T) {
-		now := time.Now()
-		checkoutTime := now.Add(4 * time.Hour)
-		checkedOutBy := int64(789)
-
-		attendance := &activeModels.Attendance{
-			StudentID:    123,
-			Date:         timezone.TodayDate(),
-			CheckInTime:  now,
-			CheckedInBy:  456,
-			DeviceID:     111,
-			CheckOutTime: &checkoutTime,
-			CheckedOutBy: &checkedOutBy,
-		}
-
-		require.NotNil(t, attendance.CheckOutTime)
-		require.NotNil(t, attendance.CheckedOutBy)
-		assert.True(t, attendance.CheckOutTime.After(attendance.CheckInTime))
-		assert.Equal(t, int64(789), *attendance.CheckedOutBy)
-	})
-}
-
-// =============================================================================
 // Handler Integration Tests (Hermetic with Test DB)
 // =============================================================================
 
-// setupCheckinTestHandler creates a handler with real services for integration testing
-func setupCheckinTestHandler(t *testing.T, db *bun.DB) *active.Resource {
+// setupCheckinRoute creates the check-in route with real services.
+func setupCheckinRoute(t *testing.T, db *bun.DB) *active.Resource {
 	t.Helper()
 
-	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
-	require.NoError(t, err, "Failed to create service factory")
-	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
+	_, serviceFactory := testutil.SetupActiveModule(t)
 
-	return active.NewResource(serviceFactory.Active, serviceFactory.Users, serviceFactory.Education, serviceFactory.Schulhof, serviceFactory.UserContext, serviceFactory.Settings, db, slog.Default())
+	return active.NewResource(serviceFactory.Active, serviceFactory.Users, serviceFactory.Education, serviceFactory.Schulhof, serviceFactory.UserContext, serviceFactory.Settings, db, slog.Default(), testPresenceQueries(t, db))
 }
 
 // makeCheckinRequest creates an HTTP request with JWT auth for the checkin endpoint
@@ -258,7 +150,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 	checkinPermissions := []string{permissions.VisitsUpdate}
 
 	t.Run("returns 401 when no JWT token", func(t *testing.T) {
-		handler := setupCheckinTestHandler(t, db)
+		handler := setupCheckinRoute(t, db)
 
 		// Create minimal fixtures
 		activity := testpkg.CreateTestActivityGroup(t, db, "no-auth-test")
@@ -279,7 +171,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 	})
 
 	t.Run("returns 401 for invalid JWT token", func(t *testing.T) {
-		handler := setupCheckinTestHandler(t, db)
+		handler := setupCheckinRoute(t, db)
 
 		student := testpkg.CreateTestStudent(t, db, "InvalidToken", "Student", "1a")
 
@@ -294,7 +186,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 	})
 
 	t.Run("returns 400 for invalid student ID in URL", func(t *testing.T) {
-		handler := setupCheckinTestHandler(t, db)
+		handler := setupCheckinRoute(t, db)
 
 		// Create staff with account
 		_, account := testpkg.CreateTestStaffWithAccount(t, db, "Invalid", "IDTest")
@@ -318,7 +210,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 	})
 
 	t.Run("returns 400 when active_group_id is missing", func(t *testing.T) {
-		handler := setupCheckinTestHandler(t, db)
+		handler := setupCheckinRoute(t, db)
 
 		// Create staff with account
 		_, account := testpkg.CreateTestStaffWithAccount(t, db, "Missing", "GroupID")
@@ -339,7 +231,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 	})
 
 	t.Run("returns 404 when active group does not exist", func(t *testing.T) {
-		handler := setupCheckinTestHandler(t, db)
+		handler := setupCheckinRoute(t, db)
 
 		// Create staff with account
 		_, account := testpkg.CreateTestStaffWithAccount(t, db, "NotFound", "GroupTest")
@@ -360,7 +252,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 	})
 
 	t.Run("returns 403 when user is not staff", func(t *testing.T) {
-		handler := setupCheckinTestHandler(t, db)
+		handler := setupCheckinRoute(t, db)
 
 		// Create person with account but NO staff record
 		_, account := testpkg.CreateTestPersonWithAccount(t, db, "NotStaff", "User")
@@ -387,7 +279,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 	t.Run("staff without a group relation to the student may check in", func(t *testing.T) {
 		// #2329: being verified staff of the tenant is the whole gate — the
 		// former "you must be their group teacher" refusal is gone.
-		handler := setupCheckinTestHandler(t, db)
+		handler := setupCheckinRoute(t, db)
 
 		_, account := testpkg.CreateTestStaffWithAccount(t, db, "NoAccess", "Staff")
 		student := testpkg.CreateTestStudent(t, db, "NoAccess", "Student", "3a")
@@ -409,7 +301,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 	})
 
 	t.Run("returns 409 when active group session has ended", func(t *testing.T) {
-		handler := setupCheckinTestHandler(t, db)
+		handler := setupCheckinRoute(t, db)
 
 		// Create teacher with account and education group
 		teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "EndedSession", "Teacher")
@@ -448,7 +340,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 	})
 
 	t.Run("returns 409 when room capacity is reached", func(t *testing.T) {
-		handler := setupCheckinTestHandler(t, db)
+		handler := setupCheckinRoute(t, db)
 		teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "FullRoom", "Teacher")
 		educationGroup := testpkg.CreateTestEducationGroup(t, db, "Full Room Group")
 		testpkg.CreateTestGroupTeacher(t, db, educationGroup.ID, teacher.ID)
@@ -475,7 +367,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 	})
 
 	t.Run("successful checkin creates visit", func(t *testing.T) {
-		handler := setupCheckinTestHandler(t, db)
+		handler := setupCheckinRoute(t, db)
 
 		// Ensure web manual device exists (required for manual check-ins)
 		_ = testpkg.EnsureWebManualDevice(t, db)
@@ -521,4 +413,11 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		assert.Equal(t, "checked_in", data["action"])
 		assert.NotZero(t, data["visit_id"])
 	})
+}
+
+func testPresenceQueries(t *testing.T, db *bun.DB) *studentpresence.Module {
+	t.Helper()
+	module, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
+	return module
 }

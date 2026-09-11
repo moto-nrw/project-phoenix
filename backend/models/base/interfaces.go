@@ -5,7 +5,8 @@ import (
 	"time"
 )
 
-// Entity represents the basic interface for all model entities
+// Entity represents models with the conventional identity and timestamps.
+// Audit models with domain-specific timestamps deliberately do not implement it.
 type Entity interface {
 	// GetID returns the entity's ID
 	GetID() interface{}
@@ -24,7 +25,7 @@ type Validator interface {
 }
 
 // Repository represents a generic repository interface for database operations
-type Repository[T Entity] interface {
+type Repository[T any] interface {
 	// Create inserts a new entity into the database
 	Create(ctx context.Context, entity T) error
 
@@ -43,8 +44,8 @@ type Repository[T Entity] interface {
 
 // CRUDRepository is the generic 5-method CRUD contract implemented by the
 // concrete database/repositories/base.Repository[T]. Repository interfaces
-// embed it instead of re-declaring the block. Unlike Repository[T Entity],
-// its List takes plain equality filters — matching the concrete generic.
+// embed it instead of re-declaring the block. Its List takes plain equality
+// filters, matching the concrete generic repository.
 type CRUDRepository[T any] interface {
 	// Create inserts a new entity into the database
 	Create(ctx context.Context, entity T) error

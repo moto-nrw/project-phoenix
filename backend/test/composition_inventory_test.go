@@ -25,16 +25,14 @@ var (
 )
 
 var expectedCompositionRoots = []compositionRoot{
-	{ID: "serve", Kind: "http", File: "api/server.go", Declaration: "NewServer", SmokeTest: "api/route_table_golden_test.go#TestRouteTableGolden", Tables: []string{}},
-	{ID: "worker", Kind: "embedded-worker", File: "api/server.go", Declaration: "newScheduler", SmokeTest: "test/composition_inventory_test.go#TestWorkerJobRegistryInventory", Tables: []string{}},
+	{ID: "serve", Kind: "http", File: "api/server.go", Declaration: "WithRuntime", SmokeTest: "api/route_table_golden_test.go#TestFullProductionRouterGolden", Tables: []string{}},
+	{ID: "worker", Kind: "embedded-worker", File: "api/server.go", Declaration: "newWorker", SmokeTest: "test/composition_inventory_test.go#TestWorkerJobRegistryInventory", Tables: []string{}},
 	{ID: "commands", Kind: "cli", File: "cmd/root.go", Declaration: "RootCmd", SmokeTest: "cmd/root_test.go#TestRootCmd_HasCommands", Tables: []string{}},
 }
 
 var expectedCompositionSmokeTests = []string{
-	"api/route_table_golden_test.go#TestRouteTableGolden",
-	"api/route_table_golden_test.go#TestIoTAuthMatrixGolden",
-	"api/school_scope_matrix_test.go#TestSchoolScopeRejectedOnAllAPIRoutes",
-	"api/testutil/helpers_test.go#TestSetupAPITest",
+	"api/route_table_golden_test.go#TestFullProductionRouterGolden",
+	"api/testutil/helpers_test.go#TestSetupAuthModule",
 	"cmd/root_test.go#TestRootCmd_HasCommands",
 	"database/repositories/factory_test.go#TestNewFactory",
 	"internal/architecture/composition_inventory_test.go#TestCompositionLegacyCallerInventory",
@@ -57,8 +55,8 @@ var compositionTestPackages = []string{
 }
 
 var compositionTestSmokeByPackage = map[string]string{
-	"api":                   "api/route_table_golden_test.go#TestRouteTableGolden",
-	"api/testutil":          "api/testutil/helpers_test.go#TestSetupAPITest",
+	"api":                   "api/route_table_golden_test.go#TestFullProductionRouterGolden",
+	"api/testutil":          "api/testutil/helpers_test.go#TestSetupAuthModule",
 	"cmd":                   "cmd/root_test.go#TestRootCmd_HasCommands",
 	"database/repositories": "database/repositories/factory_test.go#TestNewFactory",
 	"services":              "services/factory_test.go#TestNewFactory",
@@ -270,8 +268,10 @@ func TestWorkerJobRegistryInventory(t *testing.T) {
 	}
 	inventory := loadCompositionInventory(t, filepath.Join(backendRoot, "architecture", "composition.json"))
 	actualJobs := discoverWorkerJobIDs(t, backendRoot)
+	requiredJobs := discoverRequiredWorkerJobIDs(t, backendRoot)
 	assertJSONEqual(t, "worker job IDs", inventory.WorkerJobIDs, actualJobs)
 	assertJSONEqual(t, "runtime baseline job IDs", inventory.RuntimeBaseline.RegisteredJobIDs, actualJobs)
+	assertJSONEqual(t, "required registry job IDs", actualJobs, requiredJobs)
 }
 
 func loadCompositionInventory(t *testing.T, path string) compositionInventory {
@@ -340,11 +340,11 @@ func receiverName(expression ast.Expr) string {
 }
 
 var compositionConstructors = map[string]map[string]string{
-	"github.com/moto-nrw/project-phoenix/api":                   {"New": "api.New", "NewServer": "api.NewServer"},
+	"github.com/moto-nrw/project-phoenix/api":                   {"New": "api.New", "NewServer": "api.NewServer", "WithRuntime": "api.WithRuntime"},
 	"github.com/moto-nrw/project-phoenix/api/testutil":          {"SetupAPITest": "api/testutil.SetupAPITest"},
 	"github.com/moto-nrw/project-phoenix/database/repositories": {"NewFactory": "database/repositories.NewFactory"},
 	"github.com/moto-nrw/project-phoenix/services":              {"NewFactory": "services.NewFactory"},
-	"github.com/moto-nrw/project-phoenix/services/scheduler":    {"NewScheduler": "services/scheduler.NewScheduler"},
+	"github.com/moto-nrw/project-phoenix/services/scheduler":    {"NewScheduler": "services/scheduler.NewScheduler", "NewWorker": "services/scheduler.NewWorker"},
 }
 
 type callerAggregate struct {
@@ -525,6 +525,36 @@ func discoverWorkerJobIDs(t *testing.T, backendRoot string) []string {
 	return sortedStringSet(jobs)
 }
 
+func discoverRequiredWorkerJobIDs(t *testing.T, backendRoot string) []string {
+	t.Helper()
+	path := filepath.Join(backendRoot, "services", "scheduler", "worker.go")
+	fileSet := token.NewFileSet()
+	file, err := parser.ParseFile(fileSet, path, nil, 0)
+	if err != nil {
+		t.Fatalf("parse worker registry: %v", err)
+	}
+	jobs := make(map[string]struct{})
+	for _, declaration := range file.Decls {
+		function, ok := declaration.(*ast.FuncDecl)
+		if !ok || function.Name.Name != "requiredWorkerJobIDs" {
+			continue
+		}
+		ast.Inspect(function.Body, func(node ast.Node) bool {
+			literal, ok := node.(*ast.BasicLit)
+			if ok && literal.Kind == token.STRING {
+				if value, unquoteErr := strconv.Unquote(literal.Value); unquoteErr == nil {
+					jobs[value] = struct{}{}
+				}
+			}
+			return true
+		})
+	}
+	if len(jobs) == 0 {
+		t.Fatal("requiredWorkerJobIDs declares no jobs")
+	}
+	return sortedStringSet(jobs)
+}
+
 func collectRegisteredJobs(path string, jobs map[string]struct{}) error {
 	fileSet := token.NewFileSet()
 	file, err := parser.ParseFile(fileSet, path, nil, 0)
@@ -693,11 +723,14 @@ func assertJSONEqual(t *testing.T, label string, want, got any) {
 
 func writeCompositionInventory(t *testing.T, path string, inventory compositionInventory) {
 	t.Helper()
-	encoded, err := json.MarshalIndent(inventory, "", "  ")
-	if err != nil {
-		t.Fatal(err)
+	replacements := map[string]any{
+		"constructor_calls":          inventory.ConstructorCalls,
+		"evidence_constructor_calls": inventory.EvidenceConstructorCalls,
+		"runtime_baseline":           inventory.RuntimeBaseline,
+		"test_roots":                 inventory.TestRoots,
+		"worker_job_ids":             inventory.WorkerJobIDs,
 	}
-	if err := os.WriteFile(path, append(encoded, '\n'), 0o644); err != nil {
+	if err := ReplaceCompositionFields(path, replacements); err != nil {
 		t.Fatal(err)
 	}
 }

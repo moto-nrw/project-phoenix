@@ -20,6 +20,7 @@ type StudentStatusDayService struct {
 	repo             activeModels.StudentStatusDayRepository
 	pickupExceptions scheduleModels.StudentPickupExceptionRepository
 	db               *bun.DB
+	now              func() time.Time
 }
 
 // NewStudentStatusDayServiceWithPartialAbsences also prevents a full-day
@@ -28,8 +29,13 @@ func NewStudentStatusDayServiceWithPartialAbsences(
 	repo activeModels.StudentStatusDayRepository,
 	pickupExceptions scheduleModels.StudentPickupExceptionRepository,
 	db *bun.DB,
+	clocks ...func() time.Time,
 ) *StudentStatusDayService {
-	return &StudentStatusDayService{repo: repo, pickupExceptions: pickupExceptions, db: db}
+	now := time.Now
+	if len(clocks) > 0 && clocks[0] != nil {
+		now = clocks[0]
+	}
+	return &StudentStatusDayService{repo: repo, pickupExceptions: pickupExceptions, db: db, now: now}
 }
 
 // GetActiveByStudentIDsAndDate returns the active status rows of many
@@ -68,7 +74,7 @@ func (s *StudentStatusDayService) UpsertReported(ctx context.Context, entry *act
 		if s.db == nil {
 			return errors.New("student status day service database is not configured")
 		}
-		if err := careplanning.LockExceptionDay(ctx, s.db, entry.StudentID, entry.Date); err != nil {
+		if err := careplanning.LockExceptionDay(ctx, s.db, entry.StudentID, entry.Date.String()); err != nil {
 			return err
 		}
 		if err := s.ensureNoPartialAbsenceConflicts(ctx, entry.StudentID, []timezone.Date{entry.Date}); err != nil {

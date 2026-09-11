@@ -18,7 +18,7 @@ import (
 )
 
 // Staff documents (#1424): per-category authority (AU → staff_documents:health,
-// Lohn → staff:financial, rest → users:update) is enforced in the service —
+// Lohn → staff:financial, rest → staff:documents, #2906) is enforced in the service —
 // uploads, downloads, deletes AND list visibility. Every upload/delete writes
 // a Stammdaten audit row; sensitive downloads write a data-access log row.
 
@@ -36,7 +36,7 @@ func newStaffDocumentScenario(t *testing.T) *staffDocumentScenario {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := usersSvc.NewStaffDocumentService(
 		db,
 		repos.StaffDocument,
@@ -105,7 +105,7 @@ func TestStaffDocumentService_CategoryAuthority(t *testing.T) {
 
 	s := newStaffDocumentScenario(t)
 
-	directory := s.actor("users:update")
+	directory := s.actor("staff:documents")
 	health := s.actor("staff_documents:health")
 	payroll := s.actor("staff:financial")
 	admin := s.actor("admin:*")
@@ -200,7 +200,7 @@ func TestStaffDocumentService_AuditTrailAndSoftDelete(t *testing.T) {
 	t.Parallel()
 
 	s := newStaffDocumentScenario(t)
-	directory := s.actor("users:update")
+	directory := s.actor("staff:documents")
 
 	info := s.create(t, userModels.StaffDocumentCategoryZeugnis, directory)
 
@@ -248,14 +248,14 @@ func TestStaffDocumentService_CreateHydratesGeneratedTimestamps(t *testing.T) {
 
 	assert.False(t, info.Document.CreatedAt.IsZero())
 	require.NotNil(t, info.RetainUntil)
-	assert.Equal(t, timezone.DateFromTime(info.Document.CreatedAt).Year+10, info.RetainUntil.Year)
+	assert.Equal(t, timezone.DateFromTime(info.Document.CreatedAt).Year()+10, info.RetainUntil.Year())
 }
 
 func TestStaffDocumentService_RefusesDownloadsAfterOffboarding(t *testing.T) {
 	t.Parallel()
 
 	s := newStaffDocumentScenario(t)
-	actor := s.actor("users:update")
+	actor := s.actor("staff:documents")
 	info := s.create(t, userModels.StaffDocumentCategoryZeugnis, actor)
 
 	_, err := s.db.ExecContext(s.ctx, `UPDATE users.staff SET deleted_at = NOW() WHERE id = ?`, s.staffID)
@@ -274,17 +274,17 @@ func TestStaffDocumentService_RetentionSchedule(t *testing.T) {
 	lohn := s.create(t, userModels.StaffDocumentCategoryLohnabrechnung, admin)
 	uploaded := timezone.DateFromTime(lohn.Document.CreatedAt)
 	require.NotNil(t, lohn.RetainUntil)
-	assert.Equal(t, timezone.NewDate(uploaded.Year+10, uploaded.Month, uploaded.Day), *lohn.RetainUntil)
+	assert.Equal(t, timezone.NewDate(uploaded.Year()+10, uploaded.Month(), uploaded.Day()), *lohn.RetainUntil)
 	assert.Nil(t, lohn.ReviewDue)
 
 	au := s.create(t, userModels.StaffDocumentCategoryAUBescheinigung, admin)
 	require.NotNil(t, au.RetainUntil)
-	assert.Equal(t, uploaded.Year+4, au.RetainUntil.Year)
+	assert.Equal(t, uploaded.Year()+4, au.RetainUntil.Year())
 
 	bewerbung := s.create(t, userModels.StaffDocumentCategoryBewerbung, admin)
 	assert.Nil(t, bewerbung.RetainUntil)
 	require.NotNil(t, bewerbung.ReviewDue)
-	assert.Equal(t, timezone.NewDate(uploaded.Year, uploaded.Month+6, uploaded.Day), *bewerbung.ReviewDue)
+	assert.Equal(t, timezone.NewDate(uploaded.Year(), uploaded.Month()+6, uploaded.Day()), *bewerbung.ReviewDue)
 
 	// Arbeitsvertrag: open without a contract end, contract end + 6 years
 	// once the Stammdaten row carries one.

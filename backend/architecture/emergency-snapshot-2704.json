@@ -1,0 +1,69 @@
+{
+  "schema_version": 2,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#2662",
+    "#2663",
+    "#2665",
+    "#2691",
+    "#2703"
+  ],
+  "owner_and_capability": "Emergency Snapshot read projection with consumer-owned ports and document rendering consumer",
+  "affected_packages": [
+    "modules/emergencysnapshot",
+    "modules/emergencysnapshot/legacy",
+    "modules/emergencysnapshot/http",
+    "services/factory.go",
+    "api/base.go"
+  ],
+  "affected_tables": [
+    "users.students",
+    "users.students_guardians",
+    "users.guardian_profiles",
+    "facilities.rooms",
+    "active.attendance",
+    "active.visits",
+    "documents.files"
+  ],
+  "exact_ratchet_keys": [
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/emergency|github.com/moto-nrw/project-phoenix/database/repositories/active",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/emergency|github.com/moto-nrw/project-phoenix/database/repositories/users",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/emergency|github.com/moto-nrw/project-phoenix/internal/strutil",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/emergency|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/emergency|github.com/moto-nrw/project-phoenix/models/users",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/emergency|github.com/moto-nrw/project-phoenix/services/active",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/emergency|github.com/moto-nrw/project-phoenix/services/listexport",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/emergency|github.com/uptrace/bun",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/emergency|github.com/uptrace/bun/dialect/pgdialect",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/emergency|github.com/moto-nrw/project-phoenix/api/common",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/emergency|github.com/moto-nrw/project-phoenix/auth/authorize",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/emergency|github.com/moto-nrw/project-phoenix/auth/authorize/permissions",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/emergency|github.com/moto-nrw/project-phoenix/services/emergency",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/emergency|github.com/uptrace/bun",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/emergency|github.com/moto-nrw/project-phoenix/internal/collation",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/emergency|github.com/moto-nrw/project-phoenix/internal/strutil",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/emergency|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/emergency|github.com/moto-nrw/project-phoenix/models/base",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/emergency|github.com/moto-nrw/project-phoenix/models/config",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/emergency|github.com/moto-nrw/project-phoenix/models/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/emergency|github.com/moto-nrw/project-phoenix/services/active",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/emergency|github.com/moto-nrw/project-phoenix/services/listexport"
+  ],
+  "atomic_cutover": "One read-only capability serves the existing protected snapshot export. Old services/emergency and api/emergency are deleted; no authoritative data ownership changes.",
+  "tests": [
+    "Retained document golden, ordering/filtering/health/empty/error cases, real two-school RLS over all input tables, routed JWT/permission/portal/tenant tests, binary owner-error wire, retained ORM soft-delete parity."
+  ],
+  "runtime_evidence": {
+    "source": "docs/runtime-checkpoints/emergency-snapshot-2704.md and accompanying raw JSON, baseline harness, and EXPLAIN plans",
+    "workload": "Local isolated PostgreSQL17.11; baseline fixed at0d93d9163a; empty,32-child document,128-child document,and128-child PDF; five warmups and30samples each,concurrency1,real owner reads with fixed mode/health setting ports.",
+    "thresholds": "No new SLO. Compare local same-workload baseline, not staging/production parity. Real settings resolution and HTTP latency excluded.",
+    "query_count": "Both readers:5queries empty,11nonempty including commit (10inside transaction);32/128children return194/770driver-reported rows;0DML.",
+    "errors": "Zero unexpected errors, pool waits, deadlocks,or observed lock waiters in both readers. No projection cache. Full plans retain actual scan row counts/loops.",
+    "failure": "Binary owner failure was reproduced and repaired to retain the stable HTTP500 text; permission/portal failures reject before projection.",
+    "rollback": "Projection persists nothing; measured DML rows zero. Revert complete wiring to restore retained reader, without data migration.",
+    "smoke": "Real renderer emits PDF; production resource router verifies permission and JWT/tenant middleware; RLS test uses real owner adapters."
+  },
+  "rollback_and_cleanup": "Revert consumer wiring as a whole. Read-only projection owns no authoritative state and no document metadata is persisted by this direct-download path. No deployment or staging/production requests.",
+  "exit_criterion": "One projection serves all named emergency consumers with unchanged filtering/order/document/authorization contracts; listed keys absent,legacy1733 from1754,composition798unchanged,ownership and policy epoch5 preserved."
+}

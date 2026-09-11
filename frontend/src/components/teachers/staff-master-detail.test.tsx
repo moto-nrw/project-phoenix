@@ -143,6 +143,23 @@ describe("StaffMasterDetail", () => {
     expect(onDeleteClick).toHaveBeenCalled();
   });
 
+  // Ohne staff:manage beantwortet das Backend PUT /api/staff/{id} mit 403,
+  // deshalb bietet die Seite die Schaltflaeche gar nicht erst an (#2906).
+  it("hides the edit button when editing is not permitted", () => {
+    render(
+      <StaffMasterDetail
+        groupDefinitions={flatGroup([baseTeacher])}
+        selectedId="1"
+        selectedTeacher={baseTeacher}
+        onSelect={onSelect}
+        onDeleteClick={onDeleteClick}
+      />,
+    );
+
+    expect(screen.queryByText("Bearbeiten")).not.toBeInTheDocument();
+    expect(screen.getByText("Löschen")).toBeInTheDocument();
+  });
+
   it("shows the manage caregiver button only when the callback is provided", () => {
     const { rerender } = render(
       <StaffMasterDetail

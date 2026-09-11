@@ -151,8 +151,8 @@ func TestRelationshipResolver_ResolveRoom_ExactMatch(t *testing.T) {
 
 	resolver := &RelationshipResolver{
 		roomCache: map[string]*facilities.Room{
-			"raum 101": {Model: base.Model{ID: 1}, Name: "Raum 101"},
-			"raum 202": {Model: base.Model{ID: 2}, Name: "Raum 202"},
+			"raum 101": {ID: 1, Name: "Raum 101"},
+			"raum 202": {ID: 2, Name: "Raum 202"},
 		},
 	}
 
@@ -204,9 +204,9 @@ func TestRelationshipResolver_ResolveRoom_FuzzyMatch(t *testing.T) {
 
 	resolver := &RelationshipResolver{
 		roomCache: map[string]*facilities.Room{
-			"raum 101": {Model: base.Model{ID: 1}, Name: "Raum 101"},
-			"raum 102": {Model: base.Model{ID: 2}, Name: "Raum 102"},
-			"raum 201": {Model: base.Model{ID: 3}, Name: "Raum 201"},
+			"raum 101": {ID: 1, Name: "Raum 101"},
+			"raum 102": {ID: 2, Name: "Raum 102"},
+			"raum 201": {ID: 3, Name: "Raum 201"},
 		},
 	}
 
@@ -350,6 +350,9 @@ func (m *mockGroupRepo) Create(_ context.Context, _ *education.Group) error { re
 func (m *mockGroupRepo) FindByID(_ context.Context, _ interface{}) (*education.Group, error) {
 	return nil, nil
 }
+func (m *mockGroupRepo) FindByIDForUpdate(_ context.Context, _ interface{}) (*education.Group, error) {
+	return nil, nil
+}
 func (m *mockGroupRepo) FindByIDs(_ context.Context, _ []int64) (map[int64]*education.Group, error) {
 	return nil, nil
 }
@@ -362,6 +365,9 @@ func (m *mockGroupRepo) List(_ context.Context, _ map[string]interface{}) ([]*ed
 	return m.groups, m.err
 }
 func (m *mockGroupRepo) ListWithOptions(_ context.Context, _ *base.QueryOptions) ([]*education.Group, error) {
+	return m.groups, m.err
+}
+func (m *mockGroupRepo) ListWithRooms(_ context.Context, _ *education.GroupListQuery) ([]*education.Group, error) {
 	return m.groups, m.err
 }
 func (m *mockGroupRepo) FindByName(_ context.Context, _ string) (*education.Group, error) {
@@ -450,9 +456,6 @@ func (m *mockRoomRepo) FindByName(_ context.Context, _ string) (*facilities.Room
 func (m *mockRoomRepo) FindByBuilding(_ context.Context, _ string) ([]*facilities.Room, error) {
 	return nil, nil
 }
-func (m *mockRoomRepo) FindByCategory(_ context.Context, _ string) ([]*facilities.Room, error) {
-	return nil, nil
-}
 func (m *mockRoomRepo) FindByFloor(_ context.Context, _ string, _ int) ([]*facilities.Room, error) {
 	return nil, nil
 }
@@ -471,8 +474,8 @@ func TestRelationshipResolver_PreloadRooms(t *testing.T) {
 		// ARRANGE
 		mockRepo := &mockRoomRepo{
 			rooms: []*facilities.Room{
-				{Model: base.Model{ID: 1}, Name: "Raum 101"},
-				{Model: base.Model{ID: 2}, Name: "Raum 202"},
+				{ID: 1, Name: "Raum 101"},
+				{ID: 2, Name: "Raum 202"},
 			},
 		}
 		resolver := NewRelationshipResolver(nil, mockRepo)
@@ -512,9 +515,9 @@ func TestRelationshipResolver_FindSimilarRooms(t *testing.T) {
 
 	resolver := &RelationshipResolver{
 		roomCache: map[string]*facilities.Room{
-			"raum 101": {Model: base.Model{ID: 1}, Name: "Raum 101"},
-			"raum 102": {Model: base.Model{ID: 2}, Name: "Raum 102"},
-			"raum 201": {Model: base.Model{ID: 3}, Name: "Raum 201"},
+			"raum 101": {ID: 1, Name: "Raum 101"},
+			"raum 102": {ID: 2, Name: "Raum 102"},
+			"raum 201": {ID: 3, Name: "Raum 201"},
 		},
 	}
 

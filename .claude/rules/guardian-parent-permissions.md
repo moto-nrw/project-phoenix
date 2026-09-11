@@ -1,3 +1,13 @@
+---
+paths:
+  - "backend/auth/**"
+  - "backend/api/**"
+  - "backend/services/**"
+  - "backend/models/users/**"
+  - "backend/database/repositories/**"
+  - "frontend/src/**"
+---
+
 # Guardian Parent Portal Permissions
 
 Parent portal authorization is relationship-scoped. A parent account can have different authority for different students, so parent portal checks must use the matching `users.students_guardians` row and its guardian role / permissions.
@@ -49,6 +59,7 @@ Use action-specific permissions:
 - parent note write: `parent_portal.notes.write`
 - enrollment request visibility: `parent_portal.enrollments.view`
 - enrollment submit when tied to an existing child: `parent_portal.enrollment.submit`
+- meal participation changes: `parent_portal.meal_participation.manage`
 
 School-level feature flags still apply after guardian permission passes.
 

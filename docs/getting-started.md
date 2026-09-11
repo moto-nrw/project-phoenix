@@ -14,9 +14,42 @@ Install these before cloning:
 git clone git@github.com:moto-nrw/project-phoenix.git
 cd project-phoenix
 direnv allow
+devbox run bootstrap
 ```
 
-Wait for devbox to install all dependencies (Go, Node, pnpm, etc.). This only happens once.
+Wait for Devbox to install the pinned tools, then let bootstrap install the
+frontend and browser dependencies. Each worktree gets its own frontend install;
+browser tooling is installed only when missing. The Devbox lock
+supports Apple Silicon macOS and Linux on arm64 or amd64; Intel macOS is not
+supported by the current Nixpkgs package set.
+
+### Worktree setup
+
+`wt add <reference>` runs bootstrap by default, leaving frontend tools ready to
+use. For backend or documentation work that does not need host-side frontend
+tools, use `wt add --no-bootstrap <reference>`. Run `devbox run bootstrap` from
+that worktree when you need the frontend later. Skipping bootstrap does not
+disable the other worktree setup steps, including Compose configuration.
+
+### Dependency audits
+
+Run `devbox run -- pnpm --dir frontend exec knip --include dependencies,unlisted`
+to check dependencies without starting services or seeding a database. Knip's
+Playwright plugin is disabled because it executes performance configurations
+that require test credentials. The `entry` list covers those configurations,
+E2E tests, performance tests, and the guide PDF generator as source files;
+keep it aligned when adding Playwright entry points.
+
+Tests use Node and happy-dom. jsdom is neither a direct dependency nor an
+installed optional dependency; the pnpm workspace excludes Vitest's unused
+optional jsdom peer.
+
+Both Lucide and Phosphor remain in use. Next.js optimizes Lucide imports by
+default, and the frontend config enables Phosphor import optimization. These
+optimizations affect compiled modules, not the contents of installed npm
+packages. Do not delete unused icon files from `node_modules`.
+
+### Local services
 
 Then run the setup script:
 
@@ -55,6 +88,93 @@ docker compose run server go run . seed \
 The server container must be running (`docker compose up -d`) before you seed.
 
 After seeding, you get 20 staff accounts, 100 students, rooms, groups, and activities.
+The default `vollbetrieb` profile has stable credentials and fails with a clear
+conflict if it already exists.
+
+### Demo school profile contract
+
+The seeder writes `backend/.seed-state.json`. Contract version 3 stores a
+`profiles` map and declares `default_profile: "vollbetrieb"`. Seeder,
+simulator, performance tests, and browser tests read this profile contract;
+unknown versions are rejected. Each profile records its organization, school,
+settings and owner, role-based credentials, physical and virtual devices,
+semantic entity maps, expected counts, and scenario metadata.
+
+The stable bootstrap identity is `Demo-Träger Nord` / `demo-traeger-nord` and
+`Demo-Schule Vollbetrieb` / `vollbetrieb`. Its school-admin login is
+`vollbetrieb-admin@example.test` / `Vollbetrieb1234%`. The profile explicitly
+enables detailed presence, NFC and web attendance, fixed groups, a fixed care
+schedule, online enrollment, and weekly-plan-driven care. The seeder reads
+these settings and the expected children, devices, and planned activities back
+through the API before it writes the state file.
+
+The same command also creates `anmeldung-wochenplan` as the first school of
+`Demo-Träger Süd` / `demo-traeger-sued`. Its isolated school-admin login is
+`anmeldung-wochenplan-admin@example.test` / `Wochenplan1234%` (the shared
+`--staff-password` flag overrides all school-admin passwords). The developer
+admin `demo1@mail.de` can switch between the two organizations using the normal
+tenant switch. The school-admin accounts remain school-local.
+
+This smaller profile has detailed web attendance, no physical terminals or
+NFC attendance, fixed groups, an open-room concept, enrollment and care
+offerings enabled, and `enrollment.bookings_authoritative=false`. Twelve
+children have contacts, parent accounts, and weekly plans for Monday, Tuesday and
+Thursday, 12:00–15:00. Their bookings deliberately cover Monday until 16:00.
+The seed verifies each child's parent-facing care days and times against the
+weekly plan, despite the Monday booking. Sixteen requests cover approval,
+submission through a parent account, waiting list, rejection, and withdrawal.
+The active phase, schema, offerings, request keys, and parent credentials are
+recorded under `profiles["anmeldung-wochenplan"]` in the version 3 state.
+The second school in `demo-traeger-sued` is `anmeldung-buchungen`. Its isolated
+school-admin login is `anmeldung-buchungen-admin@example.test` / `Buchungen1234%`.
+This profile uses binary web and NFC attendance, open care, and open rooms.
+The seed approves bookings for all twelve children before enabling
+`enrollment.bookings_authoritative=true`. It then closes online enrollment and
+checks that the remaining active bookings still determine Monday care days,
+not the old Tuesday and Thursday weekly-plan rows. Pickup times remain in the
+weekly plan.
+
+Under `profiles["anmeldung-buchungen"]`, the student and enrollment-request keys
+`abschluss-geplant`, `abschluss-faellig`, and `abschluss-erledigt` identify the
+three complete-withdrawal examples. The profile includes a physical terminal
+and the protected virtual web device. The seed checks NFC check-in/check-out,
+web attendance, empty room history, and withdrawal states through the API.
+There is no separate withdrawal-demo school or special state field.
+
+The normal seed always creates and checks all four profiles through production
+HTTP endpoints against the local server. The shared developer admin can switch
+between all four schools; each school-admin account stays school-local.
+
+`Demo-Träger Nord` also contains `Demo-Schule Manuell` / `manuell`. Its
+school-admin login is `manuell-admin@example.test` / `Manuell1234%`. This
+profile uses binary presence, web attendance without NFC terminals, open care,
+open rooms, disabled enrollment, and weekly-plan-driven care. It contains 12
+children with contacts and weekly plans. Four children are present and four
+have already checked out; room-visit history stays empty. The account with the
+semantic key `entwickler-admin` can switch between `vollbetrieb` and `manuell`.
+Each school's dedicated school-admin account remains isolated to that school.
+
+The simulator uses `vollbetrieb` without a flag. Select it explicitly with:
+
+```bash
+docker compose run server go run . simulate full-day --profile vollbetrieb
+```
+
+Inspect the manual profile without starting an IoT simulation:
+
+```bash
+docker compose run server go run . simulate status --profile manuell
+```
+
+Reset the development database before recreating this deterministic profile:
+
+```bash
+docker compose run server go run . migrate reset
+```
+
+Use the seed command's `--randomize` flag only for an intentionally disposable,
+uniquely named school. The Go reader can migrate legacy version 2 state files;
+new consumers must use version 3 and select profiles through the shared reader.
 
 ## Logging In
 
@@ -72,7 +192,7 @@ After seeding, you get 20 staff accounts, 100 students, rooms, groups, and activ
 | View logs | `docker compose logs -f server` |
 | Rebuild backend after Go changes | `docker compose build server && docker compose up -d server` |
 | Reset database | `docker compose run server go run . migrate reset` |
-| Run backend tests | `cd backend && go test ./...` |
+| Run backend tests | `scripts/run-go-toolchain.sh scripts/test-backend.sh` |
 | Run frontend checks | `cd frontend && pnpm run check` |
 
 ## Troubleshooting

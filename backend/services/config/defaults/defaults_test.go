@@ -1,11 +1,9 @@
-package defaults_test
+package defaults
 
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/holidays"
 	"github.com/moto-nrw/project-phoenix/models/config"
-	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,7 +14,7 @@ import (
 func TestAllSettingsRegistered(t *testing.T) {
 	t.Parallel()
 
-	all := config.AllDefinitions()
+	all := config.DefaultRegistry().AllDefinitions()
 
 	expectedKeys := []string{
 		"operations.session_end_enabled",
@@ -31,6 +29,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		// Default active-session inactivity timeout (issue #586, Rule 12).
 		"operations.session_inactivity_timeout_minutes",
 		"operations.operational_overview_scope",
+		// Who may set a class-wide arrival day exception (#2962).
+		"operations.class_arrival_exception_editors",
 		"operations.status_flag_clear_time",
 		"operations.sick_clear_mode",
 		"operations.excused_clear_mode",
@@ -143,8 +143,11 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.parent_guardian_management_enabled",
 		"operations.parent_master_data_edit_enabled",
 		"operations.parent_master_data_request_enabled",
+		"operations.parent_request_group_leader_review_enabled",
 		"operations.parent_news_enabled",
 		"operations.meal_plan_enabled",
+		"operations.meal_registration_enabled",
+		"operations.meal_registration_cutoff_time",
 		// Related-accounts management.
 		"guardians.parent_invite_mode",
 		"guardians.parent_can_remove",
@@ -159,6 +162,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		// the Erinnerungen tab.
 		"calendar.appointment_reminder_enabled",
 		"calendar.appointment_reminder_lead_hours",
+		// Read-only staff CalDAV access (#3051).
+		"calendar.caldav_enabled",
 		// Info-point display feature (issue #1325): opt-in toggle, default off.
 		"display.enabled",
 		// Absence-approval email notifications (issue #1419 4d).
@@ -167,6 +172,16 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"notifications.care_cancelled_enabled",
 		"notifications.care_cancelled_default_on",
 		"notifications.care_cancelled_email",
+		// Tenant reply address for parent-facing mail (#1936).
+		"email.reply_to_address",
+		// SFTP target for the manual export transfer (#3050).
+		"sftp.enabled",
+		"sftp.host",
+		"sftp.port",
+		"sftp.username",
+		"sftp.password",
+		"sftp.remote_directory",
+		"sftp.host_key_fingerprint",
 	}
 
 	for _, key := range expectedKeys {
@@ -180,6 +195,57 @@ func TestAllSettingsRegistered(t *testing.T) {
 	// The `>=` is intentional so later work packages can add more settings
 	// without retrofitting this assertion.
 	assert.GreaterOrEqual(t, len(all), len(expectedKeys), "all expected settings should be registered")
+}
+
+func TestCalendarCalDAVSetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyCalendarCalDAVEnabled)
+	require.NotNil(t, def)
+	assert.Equal(t, "Kalenderzugang mit App-Passwort erlauben", def.Label)
+	assert.Equal(t, "Zweiter Weg neben dem Abo-Link. Mitarbeitende erstellen sich in moto ein App-Passwort. Damit melden sie sich im Kalenderprogramm an. Termine können sie nur ansehen. Kalenderprogramme nennen diesen Zugang CalDAV.", def.Description)
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, false, def.Default)
+	assert.Equal(t, "config:read", def.ReadPermission)
+	assert.Equal(t, "config:update", def.WritePermission)
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "system", def.Tab)
+	assert.Equal(t, "schnittstellen", def.Category)
+}
+
+func TestParentRequestGroupLeaderReviewSetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyParentRequestGroupLeaderReviewEnabled)
+	require.NotNil(t, def)
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, false, def.Default, "group leaders must not receive family-data access by default")
+	assert.Equal(t, "config:manage", def.WritePermission)
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "elternportal", def.Category)
+}
+
+func TestMealRegistrationSettings(t *testing.T) {
+	t.Parallel()
+
+	registration := config.GetDefinition(config.KeyMealRegistrationEnabled)
+	require.NotNil(t, registration)
+	assert.Equal(t, config.FieldBoolean, registration.Type)
+	assert.Equal(t, false, registration.Default)
+	require.NotNil(t, registration.DependsOn)
+	assert.Equal(t, config.KeyMealPlanEnabled, registration.DependsOn.Key)
+	assert.Equal(t, "eq", registration.DependsOn.Condition)
+	assert.Equal(t, true, registration.DependsOn.Value)
+
+	cutoff := config.GetDefinition(config.KeyMealRegistrationCutoffTime)
+	require.NotNil(t, cutoff)
+	assert.Equal(t, config.FieldTime, cutoff.Type)
+	assert.Equal(t, "09:00", cutoff.Default)
+	require.NotNil(t, cutoff.DependsOn)
+	assert.Equal(t, config.KeyMealRegistrationEnabled, cutoff.DependsOn.Key)
+	assert.Equal(t, "eq", cutoff.DependsOn.Condition)
+	assert.Equal(t, true, cutoff.DependsOn.Value)
 }
 
 func TestAbsenceApprovalEmailSetting(t *testing.T) {
@@ -216,7 +282,7 @@ func TestFederalStateSetting(t *testing.T) {
 	def := config.GetDefinition(config.KeyFederalState)
 	require.NotNil(t, def, "operations.federal_state should be registered")
 	assert.Equal(t, config.FieldSelect, def.Type)
-	assert.Equal(t, holidays.DefaultRegion, def.Default, "default must stay DE-NW - existing schools are NRW")
+	assert.Equal(t, "DE-NW", def.Default, "default must stay DE-NW - existing schools are NRW")
 	assert.Equal(t, config.AccessOperatorOnly, def.AccessPolicy, "federal_state is operator-only - changing it shifts the whole Arbeitszeitkonto")
 	assert.Equal(t, "operations", def.Tab)
 
@@ -224,12 +290,16 @@ func TestFederalStateSetting(t *testing.T) {
 	// regions, or a school could pick a state without a holiday calendar.
 	require.NotNil(t, def.Options)
 	require.Len(t, def.Options.Static, 16)
+	values := make([]string, 0, len(def.Options.Static))
 	for _, opt := range def.Options.Static {
 		value, ok := opt.Value.(string)
 		require.True(t, ok, "federal_state option values must be strings")
-		assert.True(t, holidays.ValidRegion(value), "federal_state option must have a holiday calendar")
+		values = append(values, value)
 	}
-	assert.True(t, holidays.ValidRegion(holidays.DefaultRegion))
+	assert.ElementsMatch(t, []string{
+		"DE-BW", "DE-BY", "DE-BE", "DE-BB", "DE-HB", "DE-HH", "DE-HE", "DE-MV",
+		"DE-NI", "DE-NW", "DE-RP", "DE-SL", "DE-SN", "DE-ST", "DE-SH", "DE-TH",
+	}, values)
 }
 
 func TestDisplayEnabledSetting(t *testing.T) {
@@ -348,33 +418,73 @@ func TestAttendanceSetupSettings(t *testing.T) {
 	assert.Equal(t, "config:manage", nfcDef.WritePermission)
 }
 
-// TestOperationalOverviewScopeSetting pins the one setting that decides who
-// may see and operate every running module (#2380). The three option values
-// are a wire contract with the backend gate, so a rename must fail here.
+// TestOperationalOverviewScopeSetting pins the two modes that decide which
+// groups and running modules staff can see (#2801).
 func TestOperationalOverviewScopeSetting(t *testing.T) {
 	t.Parallel()
 
 	def := config.GetDefinition(config.KeyOperationalOverviewScope)
 	require.NotNil(t, def, "operations.operational_overview_scope should be registered")
 	assert.Equal(t, config.FieldSelect, def.Type)
-	assert.Equal(t, config.OverviewScopeOwn, def.Default, "the restrictive scope is the default")
+	assert.Equal(t, config.OverviewScopeAllStaff, def.Default, "new schools start with the whole-team scope")
 	assert.Equal(t, config.AccessShared, def.AccessPolicy)
 	assert.Equal(t, "operations", def.Tab)
 	assert.Equal(t, "aufsicht", def.Category)
 	assert.Equal(t, "config:update", def.WritePermission)
 	require.NotNil(t, def.Options)
-	require.Len(t, def.Options.Static, 3)
-	values := make([]any, 0, 3)
-	for _, opt := range def.Options.Static {
-		values = append(values, opt.Value)
-	}
-	assert.Contains(t, values, config.OverviewScopeOwn)
-	assert.Contains(t, values, config.OverviewScopeAdmins)
-	assert.Contains(t, values, config.OverviewScopeAllStaff)
+	require.Equal(t, []config.SelectOption{
+		{Label: "Ganzes Team", Value: config.OverviewScopeAllStaff},
+		{Label: "Eigene Zuständigkeiten", Value: config.OverviewScopeOwn},
+	}, def.Options.Static)
 
 	// The retired flag must not come back: two settings answering the same
 	// question is exactly what #2380 removed.
 	assert.Nil(t, config.GetDefinition("operations.admin_supervision_overview"))
+}
+
+// TestClassArrivalExceptionEditorsSetting pins who may set a class-wide
+// arrival day exception (#2962): admins only unless a school opens it up.
+func TestClassArrivalExceptionEditorsSetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyClassArrivalExceptionEditors)
+	require.NotNil(t, def, "operations.class_arrival_exception_editors should be registered")
+	assert.Equal(t, config.FieldSelect, def.Type)
+	assert.Equal(t, config.ClassArrivalExceptionEditorsAdmins, def.Default, "new schools start with Koordination only")
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "aufsicht", def.Category)
+	assert.Equal(t, "config:update", def.WritePermission)
+	require.NotNil(t, def.Options)
+	require.Equal(t, []config.SelectOption{
+		{Label: "Nur Koordination und Admins", Value: config.ClassArrivalExceptionEditorsAdmins},
+		{Label: "Alle Mitarbeitenden", Value: config.ClassArrivalExceptionEditorsAllStaff},
+	}, def.Options.Static)
+}
+
+// TestSchoolPortalWriteScopeSetting pins what a Lehrkraft may write through
+// moto schule (#2970): nothing unless the school opens the class arrival
+// exception, right under the OGS-side editors setting.
+func TestSchoolPortalWriteScopeSetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeySchoolPortalWriteScope)
+	require.NotNil(t, def, "operations.school_portal_write_scope should be registered")
+	assert.Equal(t, config.FieldSelect, def.Type)
+	assert.Equal(t, config.SchoolPortalWriteScopeNone, def.Default, "new schools keep moto schule read-only")
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "aufsicht", def.Category)
+	assert.Equal(t, "config:update", def.WritePermission)
+	require.NotNil(t, def.Options)
+	require.Equal(t, []config.SelectOption{
+		{Label: "Nichts. Die Schule sieht nur.", Value: config.SchoolPortalWriteScopeNone},
+		{Label: "Andere Ankunftszeit für eine Klasse an einem Tag", Value: config.SchoolPortalWriteScopeClassArrivalExceptions},
+	}, def.Options.Static)
+
+	editors := config.GetDefinition(config.KeyClassArrivalExceptionEditors)
+	require.NotNil(t, editors)
+	assert.Greater(t, def.SortOrder, editors.SortOrder, "sits directly under the OGS-side editors setting")
 }
 
 func TestOrganizationSetupSettings(t *testing.T) {
@@ -1519,7 +1629,7 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		{"operations.session_cleanup_enabled", false},
 		{"operations.session_cleanup_interval_minutes", 15},
 		{"operations.session_abandoned_threshold_minutes", 60},
-		{"operations.operational_overview_scope", config.OverviewScopeOwn},
+		{"operations.operational_overview_scope", config.OverviewScopeAllStaff},
 		{"operations.status_flag_clear_time", "18:00"},
 		{"gdpr.data_cleanup_enabled", true},
 		{"gdpr.data_cleanup_time", "02:00"},
@@ -1725,4 +1835,124 @@ func TestPayrollSettings(t *testing.T) {
 	require.NotNil(t, mandant.Validation.Pattern)
 	assert.True(t, mandant.Validation.AllowEmpty)
 	assert.Equal(t, `^\d{1,5}$`, *mandant.Validation.Pattern)
+}
+
+// TestParentRequestReasonPolicySetting pins the switch that decides who has to
+// write a reason for a parent request (#2267). The four option values are a
+// wire contract with the enforcement in the request services and with both
+// clients, so a rename must fail here.
+func TestParentRequestReasonPolicySetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyParentRequestReasonPolicy)
+	require.NotNil(t, def, "operations.parent_request_reason_policy should be registered")
+	assert.Equal(t, config.FieldSelect, def.Type)
+	assert.Equal(t, config.ReasonPolicyBoth, def.Default, "both sides explain themselves by default")
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "elternportal", def.Category)
+	assert.Equal(t, "config:read", def.ReadPermission)
+	assert.Equal(t, "config:update", def.WritePermission)
+	require.NotNil(t, def.Options)
+	require.Len(t, def.Options.Static, 4)
+	values := make([]any, 0, 4)
+	for _, opt := range def.Options.Static {
+		values = append(values, opt.Value)
+		assert.NotEmpty(t, opt.Label, "every option needs a German label")
+	}
+	assert.Contains(t, values, config.ReasonPolicyNobody)
+	assert.Contains(t, values, config.ReasonPolicyGuardians)
+	assert.Contains(t, values, config.ReasonPolicyStaff)
+	assert.Contains(t, values, config.ReasonPolicyBoth)
+}
+
+// TestSFTPSettings pins the SFTP target definitions (#3050). The empty
+// defaults are the point: a school without a configured counterpart must have
+// no counterpart at all, and the fingerprint must never carry a value nobody
+// verified.
+func TestSFTPSettings(t *testing.T) {
+	t.Parallel()
+
+	textKeys := []string{
+		config.KeySFTPHost,
+		config.KeySFTPUsername,
+		config.KeySFTPPassword,
+		config.KeySFTPRemoteDirectory,
+		config.KeySFTPHostKeyFingerprint,
+	}
+	for _, key := range textKeys {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "%s should be registered", key)
+		assert.Equal(t, "", def.Default, "%s must default to EMPTY — an invented target is a wrong target", key)
+		assert.Equal(t, "system", def.Tab, key)
+		assert.Equal(t, "schnittstellen", def.Category, key)
+		assert.Equal(t, "config:manage", def.WritePermission, key)
+		assert.Equal(t, config.AccessAdminOnly, def.AccessPolicy, key)
+		require.NotNil(t, def.Validation, key)
+		assert.True(t, def.Validation.AllowEmpty, key)
+	}
+
+	enabled := config.GetDefinition(config.KeySFTPEnabled)
+	require.NotNil(t, enabled)
+	assert.Equal(t, config.FieldBoolean, enabled.Type)
+	assert.Equal(t, false, enabled.Default, "the transfer must be off until a school switches it on")
+
+	// The password is a password field, so the settings service redacts it in
+	// the audit trail and the schema masks it in the UI.
+	password := config.GetDefinition(config.KeySFTPPassword)
+	require.NotNil(t, password)
+	assert.Equal(t, config.FieldPassword, password.Type)
+
+	port := config.GetDefinition(config.KeySFTPPort)
+	require.NotNil(t, port)
+	assert.Equal(t, config.FieldNumber, port.Type)
+	assert.Equal(t, 22, port.Default, "22 is the protocol's standard, not a per-school guess")
+	require.NotNil(t, port.Validation)
+	require.NotNil(t, port.Validation.Min)
+	require.NotNil(t, port.Validation.Max)
+	assert.Equal(t, 1.0, *port.Validation.Min)
+	assert.Equal(t, 65535.0, *port.Validation.Max)
+
+	// The fingerprint pattern must accept exactly what ssh.FingerprintSHA256
+	// produces and reject the shapes people paste by mistake (MD5 fingerprint,
+	// a whole public key, a bare base64 blob).
+	fingerprint := config.GetDefinition(config.KeySFTPHostKeyFingerprint)
+	require.NotNil(t, fingerprint)
+	require.NotNil(t, fingerprint.Validation)
+	require.NotNil(t, fingerprint.Validation.CompiledPattern)
+	pattern := fingerprint.Validation.CompiledPattern
+	assert.True(t, pattern.MatchString("SHA256:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU"))
+	assert.False(t, pattern.MatchString("47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU"))
+	assert.False(t, pattern.MatchString("MD5:1f:aa:bb:cc"))
+	assert.False(t, pattern.MatchString("SHA256:short"))
+
+	// Every field except the on/off switch hangs off sftp.enabled, so the
+	// form does not ask for a password before anyone wants a transfer.
+	for _, key := range append(textKeys, config.KeySFTPPort) {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def.DependsOn, "%s should depend on sftp.enabled", key)
+		assert.Equal(t, config.KeySFTPEnabled, def.DependsOn.Key, key)
+	}
+}
+
+// TestParentCourseRequestsSetting pins the two promises of #3075: no school
+// gets parent course requests unhandled, and the switch is visibly tied to the
+// change-request machinery it runs on.
+func TestParentCourseRequestsSetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyEnrollmentParentCourseRequestsEnabled)
+	require.NotNil(t, def, "enrollment.parent_course_requests_enabled should be registered")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, false, def.Default, "no school gets course requests unasked")
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "enrollment", def.Tab)
+	assert.Equal(t, "betreuungsangebote", def.Category)
+	assert.Equal(t, "config:update", def.WritePermission)
+	require.NotNil(t, def.DependsOn, "a course request is an offering change request")
+	assert.Equal(t, config.KeyEnrollmentOfferingChangesEnabled, def.DependsOn.Key)
+
+	parent := config.GetDefinition(config.KeyEnrollmentOfferingChangesEnabled)
+	require.NotNil(t, parent)
+	assert.Greater(t, def.SortOrder, parent.SortOrder, "sits below the setting it depends on")
 }

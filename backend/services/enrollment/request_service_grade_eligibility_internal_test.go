@@ -4,18 +4,18 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stretchr/testify/require"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/stretchr/testify/require"
 )
 
 // Grade-level eligibility enforcement (#1663). The class gate cannot stand in
 // for this: a school that collects only the grade level has no concrete class
 // to compare against, so a whole-grade phase would otherwise be unenforceable.
 
-func gradeEligibilityPhase(levels ...int) *enrollmentModels.Phase {
-	return &enrollmentModels.Phase{
-		Audience:            enrollmentModels.PhaseAudienceOpen,
+func gradeEligibilityPhase(levels ...int) *capability.Phase {
+	return &capability.Phase{
+		Audience:            capability.PhaseAudienceOpen,
 		EligibleGradeLevels: levels,
 	}
 }
@@ -150,7 +150,7 @@ func TestNarrowOfferedGradesToEligibleClassesForForm(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			phase := &enrollmentModels.Phase{
+			phase := &capability.Phase{
 				AvailableSchoolClasses: tc.available,
 				EligibleSchoolClasses:  tc.eligible,
 				EligibleGradeLevels:    tc.grades,
@@ -168,8 +168,8 @@ func TestNarrowOfferedGradesToEligibleClassesForForm(t *testing.T) {
 func TestNarrowOfferedGradesToEligibleClassesForForm_DerivedGradeStillPassesClassGate(t *testing.T) {
 	t.Parallel()
 
-	phase := &enrollmentModels.Phase{
-		Audience:               enrollmentModels.PhaseAudienceOpen,
+	phase := &capability.Phase{
+		Audience:               capability.PhaseAudienceOpen,
 		AvailableSchoolClasses: []string{"3a", "3b", "4a"},
 		EligibleSchoolClasses:  []string{"3a"},
 	}

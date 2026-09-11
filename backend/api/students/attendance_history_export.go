@@ -12,10 +12,10 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 )
@@ -48,7 +48,7 @@ func (rs *Resource) exportStudentAttendanceHistory(w http.ResponseWriter, r *htt
 	}
 
 	visibleDays := config.ResolveIntOrDefault(r.Context(), rs.SettingsService, configModel.KeyAttendanceVisibleDays, 30, logger)
-	options, err := parseAttendanceExportOptions(r, visibleDays)
+	options, err := parseAttendanceExportOptions(r, visibleDays, rs.todayDate())
 	if err != nil {
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
@@ -92,7 +92,7 @@ func (rs *Resource) checkAttendanceExportAccess(w http.ResponseWriter, r *http.R
 	return true
 }
 
-func parseAttendanceExportOptions(r *http.Request, visibleDays int) (attendanceExportOptions, error) {
+func parseAttendanceExportOptions(r *http.Request, visibleDays int, today timezone.Date) (attendanceExportOptions, error) {
 	options := attendanceExportOptions{Format: listexport.Format(strings.TrimSpace(r.URL.Query().Get("format")))}
 	if options.Format == "" {
 		options.Format = listexport.FormatPDF
@@ -100,7 +100,7 @@ func parseAttendanceExportOptions(r *http.Request, visibleDays int) (attendanceE
 	if options.Format != listexport.FormatPDF && options.Format != listexport.FormatDOCX && options.Format != listexport.FormatXLSX {
 		return options, fmt.Errorf("unsupported export format %q", options.Format)
 	}
-	options.To = timezone.TodayDate()
+	options.To = today
 	options.From = options.To.AddDays(-(visibleDays - 1))
 	var err error
 	if raw := strings.TrimSpace(r.URL.Query().Get("from")); raw != "" {
@@ -115,7 +115,6 @@ func parseAttendanceExportOptions(r *http.Request, visibleDays int) (attendanceE
 			return options, errors.New("invalid to date format, expected YYYY-MM-DD")
 		}
 	}
-	today := timezone.TodayDate()
 	if options.From.After(today) || options.To.After(today) {
 		return options, errors.New("attendance exports cannot include future dates")
 	}
@@ -182,7 +181,7 @@ func attendanceSessionExportColumns() []listexport.Column {
 // attendanceExportRows merges slot rows and unassigned observed sessions into
 // one chronologically sorted list (date, then start clock time) so multi-day
 // exports read in order regardless of which source a row came from.
-func attendanceExportRows(slots []*scheduleModel.ScheduledInstanceRow, attendanceRows []*activeModel.Attendance) []listexport.Row {
+func attendanceExportRows(slots []*scheduleModel.ScheduledInstanceRow, attendanceRows []*studentpresence.Attendance) []listexport.Row {
 	type sortableExportRow struct {
 		date  timezone.Date
 		clock string // HH:MM:SS in Berlin, orders rows within a day
@@ -203,19 +202,20 @@ func attendanceExportRows(slots []*scheduleModel.ScheduledInstanceRow, attendanc
 			coverage.checkInNano = row.Attendance.CheckedInAt.UnixNano()
 			coverage.hasCheckIn = true
 		}
-		coverageByDate[row.Instance.Date] = append(coverageByDate[row.Instance.Date], coverage)
+		instanceDate := timezone.Date(row.Instance.Date)
+		coverageByDate[instanceDate] = append(coverageByDate[instanceDate], coverage)
 		entries = append(entries, sortableExportRow{
-			date:  row.Instance.Date,
+			date:  instanceDate,
 			clock: row.Instance.StartTime.Format("15:04:05"),
 			row:   slotExportRow(row),
 		})
 	}
 	for _, attendance := range attendanceRows {
-		if sessionCoveredBySlots(coverageByDate[attendance.Date], attendance.CheckInTime) {
+		if sessionCoveredBySlots(coverageByDate[timezone.Date(attendance.Date)], attendance.CheckInTime) {
 			continue
 		}
 		entries = append(entries, sortableExportRow{
-			date:  attendance.Date,
+			date:  timezone.Date(attendance.Date),
 			clock: attendance.CheckInTime.In(timezone.Berlin).Format("15:04:05"),
 			row:   unassignedExportRow(attendance),
 		})
@@ -251,9 +251,9 @@ func slotExportRow(row *scheduleModel.ScheduledInstanceRow) listexport.Row {
 // assignment is deliberately neutral: whether a booking existed is unknown
 // here (zero or several candidate slots) — "Ungeplant, ohne Buchung" is
 // reserved for persisted walk-in slot rows (is_unplanned).
-func unassignedExportRow(attendance *activeModel.Attendance) listexport.Row {
+func unassignedExportRow(attendance *studentpresence.Attendance) listexport.Row {
 	return listexport.Row{Values: map[listexport.ColumnID]string{
-		attendanceColumnDate: attendance.Date.Format(attendanceExportDateLayout), attendanceColumnOffering: "Ohne Zuordnung",
+		attendanceColumnDate: timezone.Date(attendance.Date).Format(attendanceExportDateLayout), attendanceColumnOffering: "Ohne Zuordnung",
 		attendanceColumnWindow: exportOptionalTime(&attendance.CheckInTime) + "–" + exportOptionalTime(attendance.CheckOutTime),
 		attendanceColumnStatus: "Anwesend", attendanceColumnCheckIn: exportOptionalTime(&attendance.CheckInTime),
 		attendanceColumnCheckOut: exportOptionalTime(attendance.CheckOutTime), attendanceColumnAssignment: "Nicht zugeordnet",

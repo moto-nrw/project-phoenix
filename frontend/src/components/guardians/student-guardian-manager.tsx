@@ -5,7 +5,10 @@ import { Eye, Loader2, Plus, Search } from "lucide-react";
 import GuardianList from "./guardian-list";
 import GuardianFormModal from "./guardian-form-modal";
 import GuardianPickerPanel from "./guardian-picker-panel";
-import { GuardianDeleteModal } from "./guardian-delete-modal";
+import {
+  GuardianDeleteModal,
+  type GuardianDeleteScope,
+} from "./guardian-delete-modal";
 import type {
   Guardian,
   GuardianWithRelationship,
@@ -16,6 +19,7 @@ import {
   getGuardianFullName,
   GUARDIAN_ROLE_OPTIONS,
 } from "@/lib/guardian-helpers";
+import { FormModal } from "~/components/ui/form-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import type { RelationshipFormData } from "./guardian-form-modal";
 import {
@@ -66,9 +70,11 @@ export default function StudentGuardianManager({
   const [deletingGuardian, setDeletingGuardian] = useState<
     GuardianWithRelationship | undefined
   >();
-  const [deleteStep, setDeleteStep] = useState<
-    "choose" | "confirm-unlink" | "confirm-full"
-  >("choose");
+  // Scope of the deletion (#3110): admins pick it inside the delete dialog,
+  // everyone else has only the per-child unlink.
+  const [deleteScope, setDeleteScope] = useState<GuardianDeleteScope | null>(
+    null,
+  );
   const [fullDeleteWarning, setFullDeleteWarning] = useState<string | null>(
     null,
   );
@@ -399,14 +405,15 @@ export default function StudentGuardianManager({
     }
   };
 
-  // Handle delete guardian - open the modal. Admins get the choice screen;
-  // everyone else goes straight to the per-child unlink confirmation (their
-  // only option), so they never see a single-option "choice".
+  // Handle delete guardian - open the modal. Admins get the scope choice
+  // inside the dialog; everyone else gets the per-child unlink (their only
+  // option), so they never see a single-option "choice".
   const handleDeleteClick = (guardian: GuardianWithRelationship) => {
     deletePreviewRequestIdRef.current += 1;
     setDeletingGuardian(guardian);
-    setDeleteStep(canFullDelete ? "choose" : "confirm-unlink");
+    setDeleteScope(null);
     setFullDeleteWarning(null);
+    setFullDeleteAffectedLinkIds([]);
     setIsWarningLoading(false);
     setShowDeleteModal(true);
   };
@@ -440,12 +447,11 @@ export default function StudentGuardianManager({
     }
   };
 
-  // Choice → full-delete flow. Switch to the confirmation step IMMEDIATELY (so
-  // the modal feels as instant as the unlink path), then fetch the
-  // affected-children warning via the READ-ONLY delete-preview endpoint. This
-  // never deletes anything by itself — the actual force delete happens only on
-  // explicit confirmation in handleConfirmFullDelete. "Endgültig löschen" stays
-  // disabled until the warning loads.
+  // Scope "full" → fetch the affected-children warning via the READ-ONLY
+  // delete-preview endpoint. This never deletes anything by itself — the
+  // actual force delete happens only on explicit confirmation in
+  // handleConfirmFullDelete. "Endgültig löschen" stays disabled until the
+  // warning loads.
   const handleSelectFullDelete = async () => {
     if (!deletingGuardian) return;
 
@@ -455,7 +461,7 @@ export default function StudentGuardianManager({
 
     setFullDeleteWarning(null);
     setFullDeleteAffectedLinkIds([]);
-    setDeleteStep("confirm-full");
+    setDeleteScope("full");
     setIsWarningLoading(true);
     try {
       const preview = await fetchGuardianDeletePreview(guardianId);
@@ -484,9 +490,9 @@ export default function StudentGuardianManager({
             : "Fehler beim Prüfen der betroffenen Kinder",
         );
       }
-      // Preview failed — drop back to the choice rather than letting the user
-      // confirm a delete whose blast radius we never showed.
-      handleBack();
+      // Preview failed — drop the scope rather than letting the user confirm
+      // a delete whose blast radius we never showed.
+      handleScopeChange(null);
     } finally {
       if (deletePreviewRequestIdRef.current === requestId) {
         setIsWarningLoading(false);
@@ -509,7 +515,7 @@ export default function StudentGuardianManager({
       onUpdate?.();
       setShowDeleteModal(false);
       setDeletingGuardian(undefined);
-      setDeleteStep("choose");
+      setDeleteScope(null);
       setFullDeleteWarning(null);
       setFullDeleteAffectedLinkIds([]);
       toastSuccess(`${deletedName} wurde vollständig gelöscht`);
@@ -528,18 +534,19 @@ export default function StudentGuardianManager({
     }
   };
 
-  // Back from a confirmation step. Admins return to the choice screen; everyone
-  // else has no choice screen, so "back" just closes the modal.
-  const handleBack = () => {
-    deletePreviewRequestIdRef.current += 1;
-    if (canFullDelete) {
-      setDeleteStep("choose");
-      setFullDeleteWarning(null);
-      setFullDeleteAffectedLinkIds([]);
-      setIsWarningLoading(false);
-    } else {
-      handleCancelDelete();
+  // Scope change inside the dialog. Leaving "full" (or dropping the scope
+  // after a failed preview) discards the warning so a stale blast radius can
+  // never be confirmed; picking "full" starts the preview.
+  const handleScopeChange = (scope: GuardianDeleteScope | null) => {
+    if (scope === "full") {
+      void handleSelectFullDelete();
+      return;
     }
+    deletePreviewRequestIdRef.current += 1;
+    setDeleteScope(scope);
+    setFullDeleteWarning(null);
+    setFullDeleteAffectedLinkIds([]);
+    setIsWarningLoading(false);
   };
 
   // Cancel delete
@@ -547,7 +554,7 @@ export default function StudentGuardianManager({
     deletePreviewRequestIdRef.current += 1;
     setShowDeleteModal(false);
     setDeletingGuardian(undefined);
-    setDeleteStep("choose");
+    setDeleteScope(null);
     setFullDeleteWarning(null);
     setFullDeleteAffectedLinkIds([]);
     setIsWarningLoading(false);
@@ -590,7 +597,7 @@ export default function StudentGuardianManager({
   }
 
   return (
-    <div className="relative z-10 rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
+    <div className="moto-content-surface relative z-10 rounded-2xl border p-4 shadow-sm sm:p-6">
       <ConceptSectionHeader
         className="mb-4"
         title="Erziehungsberechtigte"
@@ -630,11 +637,18 @@ export default function StudentGuardianManager({
         }
       />
 
-      {/* Existing-guardian picker (sibling case) — inline, not a modal, since a
-          search is a light lookup. "Hinzufügen" opens the heavy form modal. */}
-      {isPickerOpen && (
-        <div className="mb-3">
+      {/* Existing-guardian picker (sibling case): eine Kopf-Aktion mit
+          Dialog, kein Formular über der Liste (#3112). Der Dialog schließt,
+          sobald die Person gewählt ist; die Verknüpfung läuft dahinter. */}
+      <FormModal
+        isOpen={isPickerOpen}
+        onClose={() => setIsPickerOpen(false)}
+        title="Vorhandene Person suchen"
+        size="md"
+      >
+        {isPickerOpen && (
           <GuardianPickerPanel
+            embedded
             onSelect={(guardian, relationship) => {
               setIsPickerOpen(false);
               void handleSelectExistingGuardian(guardian, relationship);
@@ -642,8 +656,8 @@ export default function StudentGuardianManager({
             onCancel={() => setIsPickerOpen(false)}
             excludeProfileIds={guardians.map((g) => g.id)}
           />
-        </div>
-      )}
+        )}
+      </FormModal>
 
       {/* Guardian List */}
       <div className="space-y-3">
@@ -693,15 +707,13 @@ export default function StudentGuardianManager({
           deletingGuardian ? getGuardianFullName(deletingGuardian) : ""
         }
         isLoading={isDeleting}
-        step={deleteStep}
         canFullDelete={canFullDelete}
+        scope={deleteScope}
+        onScopeChange={handleScopeChange}
         fullDeleteWarning={fullDeleteWarning}
         isWarningLoading={isWarningLoading}
-        onSelectUnlink={() => setDeleteStep("confirm-unlink")}
-        onSelectFullDelete={handleSelectFullDelete}
         onConfirmUnlink={handleConfirmUnlink}
         onConfirmFullDelete={handleConfirmFullDelete}
-        onBack={handleBack}
       />
 
       {/* Restricted-contact upgrade confirmation (#2172) */}

@@ -8,6 +8,7 @@ import { ProfileTrigger, ProfileDropdownMenu } from "./profile-dropdown";
 
 // Mock next/link
 vi.mock("next/link", () => ({
+  useLinkStatus: () => ({ pending: false }),
   default: ({
     children,
     href,
@@ -34,11 +35,31 @@ vi.mock("next/image", () => ({
 }));
 
 describe("ProfileTrigger", () => {
+  it("keeps an accessible name when the visible name is hidden on mobile", () => {
+    render(
+      <ProfileTrigger
+        displayName="Administrator Operator"
+        ariaLabel="Profile menu for Administrator Operator"
+        userRole="Operator"
+        isOpen={false}
+        onClick={vi.fn()}
+        menuId="profile-menu"
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", {
+        name: "Profile menu for Administrator Operator",
+      }),
+    ).toHaveAttribute("aria-controls", "profile-menu");
+  });
+
   it("renders user name and role", () => {
     const onClick = vi.fn();
     render(
       <ProfileTrigger
         displayName="Max Mustermann"
+        ariaLabel="Profilmenü von Max Mustermann"
         userRole="Betreuer"
         isOpen={false}
         onClick={onClick}
@@ -54,6 +75,7 @@ describe("ProfileTrigger", () => {
     render(
       <ProfileTrigger
         displayName="Max Mustermann"
+        ariaLabel="Profilmenü von Max Mustermann"
         userRole="Betreuer"
         isOpen={false}
         onClick={onClick}
@@ -69,6 +91,7 @@ describe("ProfileTrigger", () => {
     const { container } = render(
       <ProfileTrigger
         displayName="Max Mustermann"
+        ariaLabel="Profilmenü von Max Mustermann"
         userRole="Betreuer"
         isOpen={false}
         onClick={onClick}
@@ -84,6 +107,7 @@ describe("ProfileTrigger", () => {
     const { container } = render(
       <ProfileTrigger
         displayName="Max Mustermann"
+        ariaLabel="Profilmenü von Max Mustermann"
         userRole="Betreuer"
         isOpen={true}
         onClick={onClick}
@@ -99,6 +123,7 @@ describe("ProfileTrigger", () => {
     render(
       <ProfileTrigger
         displayName="Max Mustermann"
+        ariaLabel="Profilmenü von Max Mustermann"
         displayAvatar="/avatar.jpg"
         userRole="Betreuer"
         isOpen={false}
@@ -115,6 +140,7 @@ describe("ProfileTrigger", () => {
     const { container } = render(
       <ProfileTrigger
         displayName="Max Mustermann"
+        ariaLabel="Profilmenü von Max Mustermann"
         userRole="Betreuer"
         isOpen={false}
         onClick={onClick}
@@ -289,7 +315,7 @@ describe("ProfileDropdownMenu", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("renders backdrop on mobile when open", () => {
+  it("does not render its own full-screen dismissal layer", () => {
     const onClose = vi.fn();
     const onLogout = vi.fn();
     render(
@@ -302,24 +328,6 @@ describe("ProfileDropdownMenu", () => {
       />,
     );
 
-    const backdrop = screen.getByLabelText("Menü schließen");
-    expect(backdrop).toBeInTheDocument();
-  });
-
-  it("closes when backdrop clicked", () => {
-    const onClose = vi.fn();
-    const onLogout = vi.fn();
-    render(
-      <ProfileDropdownMenu
-        isOpen={true}
-        displayName="Max Mustermann"
-        userEmail="max@example.com"
-        onClose={onClose}
-        onLogout={onLogout}
-      />,
-    );
-
-    fireEvent.click(screen.getByLabelText("Menü schließen"));
-    expect(onClose).toHaveBeenCalled();
+    expect(screen.queryByLabelText("Menü schließen")).not.toBeInTheDocument();
   });
 });

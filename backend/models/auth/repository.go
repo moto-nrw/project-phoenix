@@ -29,7 +29,6 @@ type AccountRepository interface {
 	UpdateLastLogin(ctx context.Context, id int64) error
 	UpdatePassword(ctx context.Context, id int64, passwordHash string) error
 	UpdateAvatar(ctx context.Context, id int64, avatar string) error
-	SetActive(ctx context.Context, id int64, active bool) error
 	FindByRole(ctx context.Context, role string) ([]*Account, error)
 	// ListEffectiveAdminAccountIDs returns the IDs of active accounts with
 	// effective admin scope in the current tenant: the literal admin role, or
@@ -42,7 +41,7 @@ type AccountRepository interface {
 	// placeholder and clears the username (GDPR person deletion).
 	AnonymizeForDeletion(ctx context.Context, accountID int64, anonymizedEmail string) error
 	// IncrementMFAAttempts atomically bumps mfa_attempts by one and sets
-	// mfa_locked_until = now() + lockoutDuration when the post-increment
+	// mfa_locked_until to the application-clock deadline when the post-increment
 	// value reaches threshold. The CAS-style UPDATE means N concurrent
 	// failed verifies count as N, not 1, closing the lockout-bypass race
 	// from #1430 review item #6. Returns the post-update counter so the
@@ -54,7 +53,7 @@ type AccountRepository interface {
 	// inadvertently overwrite a concurrent increment.
 	ResetMFAAttempts(ctx context.Context, id int64) error
 	// IncrementPINAttempts atomically bumps pin_attempts by one and sets
-	// pin_locked_until = now() + lockoutDuration when the post-increment
+	// pin_locked_until to the application-clock deadline when the post-increment
 	// value reaches threshold. Mirrors IncrementMFAAttempts: the CAS-style
 	// UPDATE means N concurrent failed PIN entries count as N, not 1,
 	// closing the read-modify-write lockout-bypass race that the previous
@@ -157,10 +156,6 @@ type AccountPermissionRepository interface {
 	RemovePermission(ctx context.Context, accountID, permissionID int64) error
 	DeleteByPermissionID(ctx context.Context, permissionID int64) error
 	DeleteByAccountID(ctx context.Context, accountID int64) (int64, error)
-
-	FindByPermissionID(ctx context.Context, permissionID int64) ([]*AccountPermission, error)
-
-	FindByAccountAndPermission(ctx context.Context, accountID, permissionID int64) (*AccountPermission, error)
 }
 
 // TokenRepository defines operations for managing authentication tokens
@@ -183,10 +178,8 @@ type TokenRepository interface {
 	DeleteByTenantIDReturning(ctx context.Context, tenantID int64) ([]*Token, error)
 
 	DeleteByFamilyIDReturning(ctx context.Context, familyID string) ([]*Token, error)
+	RetireFamily(ctx context.Context, accountID int64, familyID string, expiry time.Time) error
 	GetLatestTokenInFamily(ctx context.Context, familyID string) (*Token, error)
-
-	// Token family tracking methods
-	FindByFamilyID(ctx context.Context, familyID string) ([]*Token, error)
 }
 
 // PasswordResetTokenRepository defines operations for managing password reset tokens
@@ -247,6 +240,7 @@ type MFAEmailChallengeRepository interface {
 	// owned by the account — the lookup the challenge-token verify path uses so a
 	// code is only ever redeemed against the challenge it was minted for.
 	FindActiveByIDForAccount(ctx context.Context, id, accountID int64) (*MFAEmailChallenge, error)
+	MarkActive(ctx context.Context, id int64) error
 	MarkConsumed(ctx context.Context, id int64, consumedAt time.Time) error
 	// CountRecentByAccountID counts challenges issued at or after `since` (used for rate-limit checks).
 	CountRecentByAccountID(ctx context.Context, accountID int64, since time.Time) (int, error)
@@ -332,11 +326,6 @@ type MFAOverrideRepository interface {
 	// surface so a single account's override picture across tenants is
 	// inspectable.
 	ListByAccount(ctx context.Context, accountID int64) ([]*MFAOverride, error)
-
-	// DeleteAllByAccount wipes every override row when the account is
-	// reset or destroyed. Returns the number of rows removed for the
-	// audit log.
-	DeleteAllByAccount(ctx context.Context, accountID int64) (int64, error)
 }
 
 // TenantAccountInfo holds flattened account data for a given tenant, used by operator dashboard.
@@ -384,6 +373,17 @@ type AccountTenantAccessInfo struct {
 	HasStaff         bool       `bun:"has_staff" json:"has_staff"`
 }
 
+// CaregiverChain is the staff and teacher record behind one person at one
+// school. The account listings combine it with the People Directory's
+// person rows to derive the caregiver facts (#2661).
+type CaregiverChain struct {
+	PersonID    int64  `bun:"person_id"`
+	TenantID    int64  `bun:"tenant_id"`
+	StaffID     int64  `bun:"staff_id"`
+	TeacherID   int64  `bun:"teacher_id"`
+	TeacherRole string `bun:"teacher_role"`
+}
+
 // AccountTenantRepository defines operations for querying account-tenant mappings.
 type AccountTenantRepository interface {
 	Create(ctx context.Context, mapping *AccountTenant) error
@@ -401,6 +401,23 @@ type AccountTenantRepository interface {
 	ListAccountsByOrganizationID(ctx context.Context, organizationID int64) ([]OrgAccountInfo, error)
 	ListAllAccounts(ctx context.Context) ([]OrgAccountInfo, error)
 	ListTenantAccessByAccountID(ctx context.Context, accountID int64) ([]AccountTenantAccessInfo, error)
+}
+
+type StaffCalendarFeedOwner struct {
+	AccountID int64 `bun:"account_id"`
+	TenantID  int64 `bun:"tenant_id"`
+}
+
+type StaffCalendarFeedTokenRepository interface {
+	// FindOwnerByTokenHash resolves a cross-tenant capability token; generic
+	// tenant-scoped filters cannot perform this lookup before the tenant is known.
+	FindOwnerByTokenHash(ctx context.Context, tokenHash string) (*StaffCalendarFeedOwner, error)
+	// EnsureToken atomically creates the token once and returns the winning value
+	// when concurrent requests race; a generic update cannot express that contract.
+	EnsureToken(ctx context.Context, accountID, tenantID int64, tokenHash string) (string, error)
+	// RotateToken replaces the active mapping's capability token atomically; this
+	// domain operation is intentionally narrower than a generic per-field update.
+	RotateToken(ctx context.Context, accountID, tenantID int64, tokenHash string) (bool, error)
 }
 
 // GuardianInvitationRepository defines operations for managing guardian invitations.
@@ -426,6 +443,8 @@ type GuardianInvitationRepository interface {
 	// FindPendingApproval retrieves parent-initiated invitations awaiting
 	// staff approval (approval_status = 'pending'), newest first.
 	FindPendingApproval(ctx context.Context) ([]*GuardianInvitation, error)
+	// FindOpenByGuardianProfileIDs retrieves every open invitation for the requested profiles.
+	FindOpenByGuardianProfileIDs(ctx context.Context, guardianProfileIDs []int64) ([]*GuardianInvitation, error)
 
 	// MarkAsAccepted marks an invitation as accepted
 	MarkAsAccepted(ctx context.Context, id int64) error

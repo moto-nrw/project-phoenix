@@ -48,7 +48,7 @@ func (r *StaffMessageThreadRepository) findByParticipantKey(ctx context.Context,
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "find staff message thread by participant key", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find staff message thread by participant key", Err: base.TranslateNotFound(err)}
 	}
 	return thread, nil
 }
@@ -83,7 +83,7 @@ func (r *StaffMessageThreadRepository) GetOrCreateDirect(ctx context.Context, ac
 		ModelTableExpr(r.TableName).
 		On("CONFLICT (tenant_id, participant_key) DO NOTHING").
 		Exec(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "get-or-create staff message thread", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "get-or-create staff message thread", Err: base.TranslateNotFound(err)}
 	}
 
 	existing, err := r.findByParticipantKey(ctx, key)
@@ -121,7 +121,7 @@ func (r *StaffMessageThreadRepository) ensureParticipants(ctx context.Context, t
 		ModelTableExpr("users.staff_message_participants").
 		On("CONFLICT (thread_id, account_id) DO NOTHING").
 		Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "ensure staff message participants", Err: err}
+		return &modelBase.DatabaseError{Op: "ensure staff message participants", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -139,7 +139,7 @@ func (r *StaffMessageThreadRepository) LockForMessageAppend(ctx context.Context,
 	query = base.WithTenantFilter(ctx, query, "staff_message_thread")
 
 	if err := query.Scan(ctx, &id); err != nil {
-		return &modelBase.DatabaseError{Op: "lock staff message thread for append", Err: err}
+		return &modelBase.DatabaseError{Op: "lock staff message thread for append", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -171,7 +171,7 @@ func (r *StaffMessageThreadRepository) TouchLastMessage(ctx context.Context, thr
 	query = base.WithTenantFilter(ctx, query, "staff_message_thread")
 
 	if _, err := query.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "touch staff message thread last message", Err: err}
+		return &modelBase.DatabaseError{Op: "touch staff message thread last message", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -188,7 +188,7 @@ func (r *StaffMessageThreadRepository) ParticipantAccountIDs(ctx context.Context
 	query = base.WithTenantFilter(ctx, query, "participant")
 
 	if err := query.Scan(ctx, &ids); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list staff message thread participants", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list staff message thread participants", Err: base.TranslateNotFound(err)}
 	}
 	return ids, nil
 }
@@ -209,7 +209,7 @@ func (r *StaffMessageThreadRepository) IsParticipant(ctx context.Context, thread
 
 	exists, err := query.Exists(ctx)
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "check staff message thread participation", Err: err}
+		return false, &modelBase.DatabaseError{Op: "check staff message thread participation", Err: base.TranslateNotFound(err)}
 	}
 	return exists, nil
 }
@@ -237,11 +237,11 @@ func (r *StaffMessageThreadRepository) DeleteEmpty(ctx context.Context, createdB
 
 	res, err := query.Exec(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete empty staff message threads", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "delete empty staff message threads", Err: base.TranslateNotFound(err)}
 	}
 	affected, err := res.RowsAffected()
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete empty staff message threads", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "delete empty staff message threads", Err: base.TranslateNotFound(err)}
 	}
 	return affected, nil
 }

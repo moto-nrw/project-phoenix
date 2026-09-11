@@ -54,7 +54,8 @@ type studentExportFilters struct {
 	// Date is the optional planning day (YYYY-MM-DD) the day-planning status,
 	// status days, and planned arrival/pickup times are evaluated for (#1939).
 	// Empty means the school-local today.
-	Date         string `json:"date"`
+	Date string `json:"date"`
+	// PickupTime accepts comma-separated selections as well as legacy single values.
 	PickupTime   string `json:"pickup_time"`
 	ArrivalTime  string `json:"arrival_time"`
 	Sort         string `json:"sort"`
@@ -101,7 +102,11 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	studentIDs, personIDs, groupIDs := collectIDsFromStudents(students)
-	dataSnapshot := common.LoadStudentDataSnapshot(r.Context(), rs.PersonService, rs.EducationService, rs.ActiveService, studentIDs, personIDs, groupIDs)
+	dataSnapshot, err := common.LoadStudentDataSnapshot(r.Context(), rs.PersonService, rs.EducationService, rs.ActiveService, studentIDs, personIDs, groupIDs)
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
 
 	accessCtx := rs.determineStudentAccess(r)
 	responses := rs.buildStudentResponses(r.Context(), students, params, accessCtx, dataSnapshot, false)
@@ -208,10 +213,10 @@ func (rs *Resource) enrichExportCompanions(r *http.Request, responses []StudentR
 func resolveExportPlanningDate(filters studentExportFilters, now time.Time) (timezone.Date, bool, render.Renderer) {
 	planningDate, isToday, dateErr := resolvePlanningDate(filters.Date, now)
 	if dateErr != nil {
-		return timezone.Date{}, false, common.ErrorInvalidRequest(dateErr)
+		return timezone.Date(""), false, common.ErrorInvalidRequest(dateErr)
 	}
 	if err := liveFilterError(activeLiveExportFilters(filters), planningDate, isToday); err != nil {
-		return timezone.Date{}, false, common.ErrorInvalidRequest(err)
+		return timezone.Date(""), false, common.ErrorInvalidRequest(err)
 	}
 	return planningDate, isToday, nil
 }
@@ -395,7 +400,7 @@ func birthdayExportMatch(student StudentResponse, months map[time.Month]bool) bo
 	if err != nil {
 		return false
 	}
-	return len(months) == 0 || months[birthday.Month]
+	return len(months) == 0 || months[birthday.Month()]
 }
 
 // matchesTimeFilter reports whether a child's planned arrival/pickup time
@@ -410,6 +415,23 @@ func matchesTimeFilter(planned *string, isException bool, filter string) bool {
 		return planned == nil && !isException
 	}
 	return planned != nil && *planned == filter
+}
+
+// matchesPickupTimeFilter applies OR within the pickup selection. Redacted
+// times are unknown, not missing, so they cannot match a restricted selection.
+func matchesPickupTimeFilter(student StudentResponse, raw string) bool {
+	times := slices.DeleteFunc(parseMultiValueParam([]string{raw}), func(value string) bool {
+		return value == "all"
+	})
+	if len(times) == 0 {
+		return true
+	}
+	if !student.HasFullAccess {
+		return false
+	}
+	return slices.ContainsFunc(times, func(value string) bool {
+		return matchesTimeFilter(student.PickupTime, student.PickupIsException, value)
+	})
 }
 
 // exportYearFilterValues resolves the school-year ("Stufe") export filter into
@@ -466,7 +488,7 @@ func exportStudentMatchesFilters(student StudentResponse, filters studentExportF
 	if filters.DayStatus != "" && filters.DayStatus != DayPlanningStatusAll && student.DayPlanningStatus != filters.DayStatus {
 		return false
 	}
-	if !matchesTimeFilter(student.PickupTime, student.PickupIsException, filters.PickupTime) {
+	if !matchesPickupTimeFilter(student, filters.PickupTime) {
 		return false
 	}
 	if !matchesTimeFilter(student.ArrivalTime, student.ArrivalIsException, filters.ArrivalTime) {
@@ -514,7 +536,7 @@ func birthdaySortKey(birthday string) string {
 	if err != nil {
 		return "99-99"
 	}
-	return fmt.Sprintf("%02d-%02d", int(date.Month), date.Day)
+	return fmt.Sprintf("%02d-%02d", int(date.Month()), date.Day())
 }
 
 func (rs *Resource) loadWeeklySchedules(r *http.Request, studentIDs []int64, planningDate timezone.Date) (map[int64]weeklySchedule, error) {
@@ -654,8 +676,8 @@ func ageExportCell(birthday string, onDate timezone.Date) string {
 	if err != nil {
 		return ""
 	}
-	years := onDate.Year - date.Year
-	if onDate.Month < date.Month || (onDate.Month == date.Month && onDate.Day < date.Day) {
+	years := onDate.Year() - date.Year()
+	if onDate.Month() < date.Month() || (onDate.Month() == date.Month() && onDate.Day() < date.Day()) {
 		years--
 	}
 	if years < 0 {

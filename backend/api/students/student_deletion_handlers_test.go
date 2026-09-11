@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
@@ -28,8 +27,8 @@ func studentDeletionRowCount(t *testing.T, tc *testContext, table string, id int
 func TestStudentDeletionHandlers_RequirePreviewAndExplicitConfirmation(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
-	repos := repositories.NewFactory(tc.db)
+	tc := setupStudentsRoute(t)
+	repos := newStudentTestRepositories(tc.db)
 	studentService := userService.NewStudentService(
 		repos.Student,
 		repos.PrivacyConsent,
@@ -44,6 +43,7 @@ func TestStudentDeletionHandlers_RequirePreviewAndExplicitConfirmation(t *testin
 		repos.GradeTransition,
 		repos.DataDeletion,
 		repos.StudentDeletionAudit,
+		&testpkg.FeedbackEntryCounterMock{},
 		tc.db,
 	)
 

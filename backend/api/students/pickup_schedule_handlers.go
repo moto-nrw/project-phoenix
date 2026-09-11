@@ -13,11 +13,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -292,6 +294,11 @@ func (rs *Resource) verifyNoteOwnership(w http.ResponseWriter, r *http.Request, 
 	)
 }
 
+var (
+	errPersonNotFoundForAccount = errors.New("person not found for account")
+	errUserNotStaff             = errors.New("user is not a staff member")
+)
+
 // getStaffIDFromJWT extracts the staff ID from JWT claims by looking up the person and staff
 func (rs *Resource) getStaffIDFromJWT(r *http.Request) (int64, error) {
 	claims := jwt.ClaimsFromCtx(r.Context())
@@ -301,14 +308,26 @@ func (rs *Resource) getStaffIDFromJWT(r *http.Request) (int64, error) {
 
 	// Get person from account ID
 	person, err := rs.PersonService.FindByAccountID(r.Context(), int64(claims.ID))
-	if err != nil || person == nil {
-		return 0, errors.New("person not found for account")
+	if err != nil {
+		if errors.Is(err, usersService.ErrPersonNotFound) {
+			return 0, errPersonNotFoundForAccount
+		}
+		return 0, fmt.Errorf("find person by account: %w", err)
+	}
+	if person == nil {
+		return 0, errPersonNotFoundForAccount
 	}
 
 	// Get staff from person ID
 	staff, err := rs.PersonService.GetStaffByPersonID(r.Context(), person.ID)
-	if err != nil || staff == nil {
-		return 0, errors.New("user is not a staff member")
+	if err != nil {
+		if modelBase.IsNoRows(err) {
+			return 0, errUserNotStaff
+		}
+		return 0, fmt.Errorf("find staff by person: %w", err)
+	}
+	if staff == nil {
+		return 0, errUserNotStaff
 	}
 
 	return staff.ID, nil
@@ -373,21 +392,21 @@ func pickupScheduleDateRange(r *http.Request) (timezone.Date, timezone.Date, boo
 	fromRaw := strings.TrimSpace(r.URL.Query().Get("from"))
 	toRaw := strings.TrimSpace(r.URL.Query().Get("to"))
 	if fromRaw == "" && toRaw == "" {
-		return timezone.Date{}, timezone.Date{}, false, nil
+		return timezone.Date(""), timezone.Date(""), false, nil
 	}
 	if fromRaw == "" || toRaw == "" {
-		return timezone.Date{}, timezone.Date{}, false, errors.New("from and to must be provided together")
+		return timezone.Date(""), timezone.Date(""), false, errors.New("from and to must be provided together")
 	}
 	from, err := timezone.ParseDate(fromRaw)
 	if err != nil {
-		return timezone.Date{}, timezone.Date{}, false, fmt.Errorf("invalid from date: %w", err)
+		return timezone.Date(""), timezone.Date(""), false, fmt.Errorf("invalid from date: %w", err)
 	}
 	to, err := timezone.ParseDate(toRaw)
 	if err != nil {
-		return timezone.Date{}, timezone.Date{}, false, fmt.Errorf("invalid to date: %w", err)
+		return timezone.Date(""), timezone.Date(""), false, fmt.Errorf("invalid to date: %w", err)
 	}
 	if to.Before(from) || to.After(from.AddDays(31)) {
-		return timezone.Date{}, timezone.Date{}, false, errors.New("pickup schedule date range must span at most 32 days")
+		return timezone.Date(""), timezone.Date(""), false, errors.New("pickup schedule date range must span at most 32 days")
 	}
 	return from, to, true, nil
 }
@@ -517,7 +536,7 @@ func (rs *Resource) updateStudentPickupSchedules(w http.ResponseWriter, r *http.
 
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		date := timezone.TodayDate()
+		date := rs.todayDate()
 		if req.EffectiveDate != nil {
 			date = *req.EffectiveDate
 		}
@@ -736,7 +755,7 @@ func (rs *Resource) deleteStudentPickupException(w http.ResponseWriter, r *http.
 
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if err := scheduleService.LockCareExceptionDay(ctx, rs.DB, student.ID, existingException.ExceptionDate); err != nil {
+		if err := scheduleService.LockCareExceptionDay(ctx, rs.DB, student.ID, timezone.Date(existingException.ExceptionDate)); err != nil {
 			return err
 		}
 		freshException, err := rs.PickupScheduleService.GetStudentPickupExceptionByID(ctx, exceptionID)
@@ -791,7 +810,7 @@ func (rs *Resource) createStudentPickupNote(w http.ResponseWriter, r *http.Reque
 	noteDate, _ := timezone.ParseDate(req.NoteDate)
 	note := &schedule.StudentPickupNote{
 		StudentID: student.ID,
-		NoteDate:  noteDate,
+		NoteDate:  schedule.Date(noteDate),
 		Content:   req.Content,
 		CreatedBy: staffID,
 	}
@@ -840,7 +859,7 @@ func (rs *Resource) updateStudentPickupNote(w http.ResponseWriter, r *http.Reque
 	noteDate, _ := timezone.ParseDate(req.NoteDate)
 	note := &schedule.StudentPickupNote{
 		StudentID: student.ID,
-		NoteDate:  noteDate,
+		NoteDate:  schedule.Date(noteDate),
 		Content:   req.Content,
 		CreatedBy: existingNote.CreatedBy, // Preserve original creator
 	}

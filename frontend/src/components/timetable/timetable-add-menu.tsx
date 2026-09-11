@@ -31,21 +31,23 @@ export function TimetableAddMenu({
   useClickOutside(containerRef, closeMenu, open);
 
   return (
-    <div className="relative w-full sm:w-auto" ref={containerRef}>
+    // Die Aktionen der Kopfkarte stehen unter sm in einer gemeinsamen Zeile;
+    // ein Knopf, der sich die volle Breite nimmt, drängt die anderen heraus.
+    <div className="relative flex-1 sm:flex-none" ref={containerRef}>
       <Button
         type="button"
         variant="primary"
-        size="compact"
+        size="md"
         onClick={() => setOpen((v) => !v)}
         disabled={disabled}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="w-full rounded-lg sm:w-auto"
+        className="w-full gap-1.5"
       >
-        <Plus className="h-3.5 w-3.5" aria-hidden />
+        <Plus className="h-4 w-4" aria-hidden />
         Neu
         <ChevronDown
-          className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`}
+          className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`}
           aria-hidden
         />
       </Button>

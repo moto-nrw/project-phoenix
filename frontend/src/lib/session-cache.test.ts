@@ -162,3 +162,51 @@ describe("getCachedSession", () => {
     expect(mockGetSession).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("primeSessionCache", () => {
+  beforeEach(() => {
+    mockGetSession.mockReset();
+  });
+
+  it("serves the primed session without calling getSession", async () => {
+    const { getCachedSession, primeSessionCache } = await freshModule();
+    primeSessionCache(session("primed"));
+
+    const result = await getCachedSession();
+
+    expect(result?.user?.token).toBe("primed");
+    expect(mockGetSession).not.toHaveBeenCalled();
+  });
+
+  it("wins over a lookup that was already in flight", async () => {
+    const { getCachedSession, primeSessionCache } = await freshModule();
+    let resolveSession!: (value: unknown) => void;
+    mockGetSession.mockReturnValue(
+      new Promise((resolve) => {
+        resolveSession = resolve;
+      }),
+    );
+
+    const stale = getCachedSession();
+    primeSessionCache(session("primed"));
+    resolveSession(session("stale"));
+    await stale;
+
+    const result = await getCachedSession();
+    expect(result?.user?.token).toBe("primed");
+    expect(mockGetSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("is dropped by clearSessionCache", async () => {
+    const { clearSessionCache, getCachedSession, primeSessionCache } =
+      await freshModule();
+    primeSessionCache(session("primed"));
+    mockGetSession.mockResolvedValue(session("fresh"));
+
+    clearSessionCache();
+    const result = await getCachedSession();
+
+    expect(result?.user?.token).toBe("fresh");
+    expect(mockGetSession).toHaveBeenCalledTimes(1);
+  });
+});

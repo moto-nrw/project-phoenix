@@ -117,6 +117,10 @@ func (f *companionErrCareRequestService) ListPending(context.Context, modelBase.
 	return nil, nil, nil
 }
 
+func (f *companionErrCareRequestService) GetForReview(context.Context, int64) (*scheduleService.CareRequestHistoryItem, error) {
+	return nil, nil
+}
+
 func (f *companionErrCareRequestService) CreatePickupChangeRequest(context.Context, int64, int64, timezone.Date, time.Time, string) (*scheduleModels.CareScheduleChangeRequest, error) {
 	return nil, nil
 }
@@ -169,4 +173,20 @@ func TestDecideCareScheduleChangeRequest_MapsCompanionErrors(t *testing.T) {
 			}
 		})
 	}
+}
+
+// EditRequest is the guardian edit path (#2267); this staff-side double never
+// reaches it.
+func (f *companionErrCareRequestService) EditRequest(
+	context.Context, scheduleService.CareRequestEditInput,
+) (*scheduleModels.CareScheduleChangeRequest, error) {
+	return nil, nil
+}
+
+// CreatePickupChange is the reason-policy-aware create path (#2267); this
+// staff-side double never reaches it.
+func (f *companionErrCareRequestService) CreatePickupChange(
+	context.Context, scheduleService.PickupChangeCreateInput,
+) (*scheduleModels.CareScheduleChangeRequest, error) {
+	return nil, nil
 }

@@ -5,8 +5,17 @@ import { useSWRConfig } from "swr";
 
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { useFormError } from "~/components/ui/form-error";
 import { Input } from "~/components/ui/input";
-import { Modal } from "~/components/ui/modal";
+import {
+  SlideOver,
+  SlideOverBody,
+  SlideOverCloseButton,
+  SlideOverContent,
+  SlideOverFooter,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
 import {
   CardGridSkeleton,
   SkeletonRegion,
@@ -172,7 +181,6 @@ export function ArbeitszeitmodellTab({
   return (
     <div className="space-y-5">
       <SectionCard
-        kicker="Aktuelles Modell"
         title={
           schedule.mode === "template" && schedule.model
             ? schedule.model.name
@@ -200,7 +208,7 @@ export function ArbeitszeitmodellTab({
           {schedule.weeklyTotals.map((total, idx) => (
             <div
               key={WEEK_BADGE_LETTERS[idx] ?? `week-${idx}`}
-              className="rounded-xl border border-gray-200 bg-white p-4"
+              className="moto-content-surface rounded-xl border p-4 shadow-sm"
             >
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
@@ -303,10 +311,10 @@ function FourWeekPreview({
           return (
             <div
               key={toDateKey(week.monday)}
-              className={`flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 ${
+              className={`flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 shadow-sm ${
                 week.isCurrent
                   ? "border-[#F78C10]/40 bg-[#FFF4E6]"
-                  : "border-gray-200 bg-white"
+                  : "moto-content-surface"
               }`}
             >
               <span className="w-16 text-xs font-semibold tracking-wider text-gray-500 uppercase">
@@ -356,6 +364,7 @@ function EditArbeitszeitmodellModal({
 }) {
   const toast = useToast();
 
+  const [saveError, setSaveError] = useFormError();
   const [mode, setMode] = useState<"template" | "custom">(schedule.mode);
   const [selectedModelId, setSelectedModelId] = useState<string>(
     schedule.model?.id ?? "",
@@ -434,16 +443,17 @@ function EditArbeitszeitmodellModal({
 
   const handleSave = async () => {
     setSaving(true);
+    setSaveError(null);
     try {
       if (mode === "template" && !selectedModelId) {
-        toast.error("Bitte eine Vorlage auswählen.");
+        setSaveError("Bitte eine Vorlage auswählen.");
         setSaving(false);
         return;
       }
 
       if (mode === "custom") {
         if (invalidDecimalHourInputs.size > 0) {
-          toast.error("Bitte die ungültigen Dezimalstunden korrigieren.");
+          setSaveError("Bitte die ungültigen Dezimalstunden korrigieren.");
           setSaving(false);
           return;
         }
@@ -457,7 +467,7 @@ function EditArbeitszeitmodellModal({
           0,
         );
         if (totalMinutes === 0) {
-          toast.error(
+          setSaveError(
             "Das Modell hat kein Wochensoll. Bitte mindestens einen Tag eintragen.",
           );
           setSaving(false);
@@ -471,7 +481,7 @@ function EditArbeitszeitmodellModal({
             .filter((e) => e.weekIndex === w)
             .reduce((sum, e) => sum + e.targetMinutes, 0);
           if (weekTotal === 0) {
-            toast.error(
+            setSaveError(
               `Woche ${WEEK_BADGE_LETTERS[w] ?? w + 1} hat kein Wochensoll. Bitte mindestens einen Tag eintragen.`,
             );
             setSaving(false);
@@ -508,7 +518,7 @@ function EditArbeitszeitmodellModal({
         error: error instanceof Error ? error.message : String(error),
         staff_id: staffId,
       });
-      toast.error("Fehler beim Speichern");
+      setSaveError("Fehler beim Speichern");
     } finally {
       setSaving(false);
     }
@@ -604,41 +614,51 @@ function EditArbeitszeitmodellModal({
   );
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Arbeitszeitmodell bearbeiten"
-      widthClass="mx-4 w-[calc(100%-2rem)] max-w-2xl"
-      footer={footer}
+    <SlideOver
+      open={isOpen}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
     >
-      <div className="space-y-5">
-        <ModeRadioGroup mode={mode} onChange={setMode} />
+      <SlideOverContent widthClass="sm:w-[760px]">
+        <SlideOverHeader className="flex-row items-start justify-between gap-3">
+          <div className="min-w-0">
+            <SlideOverTitle>Arbeitszeitmodell bearbeiten</SlideOverTitle>
+          </div>
+          <SlideOverCloseButton />
+        </SlideOverHeader>
+        <SlideOverBody error={saveError} className="space-y-5">
+          <ModeRadioGroup mode={mode} onChange={setMode} />
 
-        {mode === "template" ? (
-          <TemplateSelector
-            templates={templates ?? []}
-            selectedId={selectedModelId}
-            onSelect={setSelectedModelId}
-          />
-        ) : (
-          <CustomEditor
-            rotationLength={rotationLength}
-            onRotationChange={setRotationLength}
-            activeWeekTab={activeWeekTab}
-            onActiveWeekTabChange={setActiveWeekTab}
-            entries={customEntries}
-            decimalHourInputs={decimalHourInputs}
-            invalidDecimalHourInputs={invalidDecimalHourInputs}
-            onDecimalHoursChange={updateDecimalHours}
-            onStartTimeChange={updateEntryStartTime}
-            totalForWeek={totalForWeek}
-            rotationTotal={rotationTotal}
-            saveAsTemplateName={saveAsTemplateName}
-            onSaveAsTemplateNameChange={setSaveAsTemplateName}
-          />
-        )}
-      </div>
-    </Modal>
+          {mode === "template" ? (
+            <TemplateSelector
+              templates={templates ?? []}
+              selectedId={selectedModelId}
+              onSelect={setSelectedModelId}
+            />
+          ) : (
+            <CustomEditor
+              rotationLength={rotationLength}
+              onRotationChange={setRotationLength}
+              activeWeekTab={activeWeekTab}
+              onActiveWeekTabChange={setActiveWeekTab}
+              entries={customEntries}
+              decimalHourInputs={decimalHourInputs}
+              invalidDecimalHourInputs={invalidDecimalHourInputs}
+              onDecimalHoursChange={updateDecimalHours}
+              onStartTimeChange={updateEntryStartTime}
+              totalForWeek={totalForWeek}
+              rotationTotal={rotationTotal}
+              saveAsTemplateName={saveAsTemplateName}
+              onSaveAsTemplateNameChange={setSaveAsTemplateName}
+            />
+          )}
+        </SlideOverBody>
+        <SlideOverFooter className="flex-row justify-end gap-2">
+          {footer}
+        </SlideOverFooter>
+      </SlideOverContent>
+    </SlideOver>
   );
 }
 

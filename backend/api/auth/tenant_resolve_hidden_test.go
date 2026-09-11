@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -23,7 +22,7 @@ import (
 func TestResolveTenant_HiddenSchoolReturnsHiddenFlag(t *testing.T) {
 	t.Parallel()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, authRoute := setupAuthDependenciesRoute(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -33,8 +32,8 @@ func TestResolveTenant_HiddenSchoolReturnsHiddenFlag(t *testing.T) {
 	require.NoError(t, err)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
-	resource.SettingsService = svc.Settings
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), db)
+	resource.SettingsService = authRoute.SettingsService
 
 	router := chi.NewRouter()
 	router.Mount("/auth", resource.Router())

@@ -4,9 +4,10 @@ import (
 	"context"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	"github.com/stretchr/testify/require"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -50,7 +51,7 @@ func TestLockTenantGradeTransitions(t *testing.T) {
 		require.NoError(t, err)
 		defer func() { _ = tx.Rollback() }()
 
-		require.NoError(t, lockTenantGradeTransitions(modelBase.ContextWithTx(tenantCtx, &tx), db))
+		require.NoError(t, lockTenantGradeTransitions(tenant.WithTransactionForTest(tenantCtx, &tx), db))
 	})
 }
 

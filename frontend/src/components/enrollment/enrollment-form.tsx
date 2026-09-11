@@ -45,6 +45,8 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Checkbox } from "~/components/ui/checkbox";
+import { SegmentedControl } from "~/components/ui/segmented-control";
+import { ToggleChip } from "~/components/ui/toggle-chip";
 import { createLogger } from "~/lib/logger";
 import { formatDate } from "~/lib/date-helpers";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -1456,7 +1458,6 @@ export function EnrollmentForm({
         <section className="moto-content-surface space-y-5 rounded-xl border p-4 shadow-sm sm:p-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <SectionHeading
-              kicker={tr("sections.guardianKicker")}
               title={tr("sections.guardianTitle")}
               description={tr("sections.guardianDescription")}
             />
@@ -1519,7 +1520,7 @@ export function EnrollmentForm({
           {additionalGuardians.map((g, i) => (
             <div
               key={getStableObjectKey(g, "additional-guardian")}
-              className="space-y-5 rounded-xl border border-gray-200 bg-white p-3 sm:p-4"
+              className="moto-content-surface space-y-5 rounded-xl border p-3 shadow-sm sm:p-4"
             >
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
@@ -1581,7 +1582,6 @@ export function EnrollmentForm({
         schema?.fields.some((f) => !f.applies_to_child) && (
           <section className="moto-content-surface space-y-4 rounded-xl border p-4 shadow-sm sm:p-5">
             <SectionHeading
-              kicker={tr("sections.extraKicker")}
               title={tr("sections.extraTitle")}
               description={tr("sections.extraDescription")}
             />
@@ -1611,11 +1611,6 @@ export function EnrollmentForm({
       <section className="moto-content-surface space-y-5 rounded-xl border p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <SectionHeading
-            kicker={tr(
-              restrictToOfferings
-                ? "sections.offeringsOnlyKicker"
-                : "sections.childrenKicker",
-            )}
             title={tr(
               restrictToOfferings
                 ? "sections.offeringsOnlyTitle"
@@ -1795,7 +1790,7 @@ export function EnrollmentForm({
           return (
             <div
               key={child.clientId}
-              className="space-y-5 rounded-xl border border-gray-200 bg-white p-3 sm:p-4"
+              className="moto-content-surface space-y-5 rounded-xl border p-3 shadow-sm sm:p-4"
             >
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
@@ -2249,7 +2244,6 @@ export function EnrollmentForm({
       {legalBlocks.length > 0 && !restrictToOfferings && (
         <section className="moto-content-surface space-y-4 rounded-xl border p-4 shadow-sm sm:p-5">
           <SectionHeading
-            kicker={tr("sections.consentKicker")}
             title={tr("sections.consentTitle")}
             description={tr("sections.consentDescription")}
           />
@@ -2325,7 +2319,7 @@ export function EnrollmentForm({
           <Turnstile
             siteKey={captchaConfig.site_key}
             options={{ theme: "light" }}
-            onSuccess={(token) => setCaptchaToken(token)}
+            onSuccess={(token: string) => setCaptchaToken(token)}
             onExpire={() => setCaptchaToken("")}
             onError={() => setCaptchaToken("")}
           />
@@ -2874,25 +2868,17 @@ function OfferingCard({
             const automatic = automaticDays?.has(day) ?? false;
             const selected = picked || automatic;
             return (
-              <button
+              <ToggleChip
                 key={day}
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
+                pressed={selected}
+                disabled={automatic}
+                onPressedChange={() => {
                   if (automatic) return;
                   onToggleDay(day);
                 }}
-                disabled={automatic}
-                className={`rounded-md border px-2 py-0.5 text-xs font-medium transition-colors disabled:cursor-not-allowed ${
-                  selected
-                    ? "border-moto-green bg-moto-green text-gray-950"
-                    : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
-                }`}
-                aria-pressed={selected}
               >
                 {weekdayLabels[day] ?? day}
-              </button>
+              </ToggleChip>
             );
           })}
         </div>
@@ -3122,20 +3108,15 @@ function SchoolClassSelect({
 }
 
 function SectionHeading({
-  kicker,
   title,
   description,
 }: {
-  readonly kicker: string;
   readonly title: string;
   readonly description: string;
 }) {
   return (
     <div>
-      <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-        {kicker}
-      </p>
-      <h2 className="mt-1 text-lg font-semibold text-gray-900">{title}</h2>
+      <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
       <p className="mt-1 text-sm leading-6 text-gray-600">{description}</p>
     </div>
   );
@@ -3669,7 +3650,7 @@ function CustomFieldInput({
           onChange={(e) => onChange(e.target.value)}
           rows={3}
           name={field.key}
-          className={`moto-content-surface mt-1 w-full rounded-lg border px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${error ? "border-moto-red" : ""}`}
+          className={`moto-content-surface mt-1 w-full rounded-lg border px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${error ? "border-moto-red!" : ""}`}
           aria-required={field.required}
           aria-invalid={error ? "true" : undefined}
         />
@@ -3810,7 +3791,7 @@ function CustomFieldInput({
         onChange={(e) => onChange(e.target.value)}
         aria-required={field.required}
         aria-invalid={error ? "true" : undefined}
-        className={`moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${error ? "border-moto-red" : ""}`}
+        className={`moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${error ? "border-moto-red!" : ""}`}
       />
       {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
     </label>
@@ -4483,31 +4464,22 @@ function WeekdayModeInput({
               <span className="w-20 shrink-0 text-xs font-medium text-gray-600">
                 {weekdayLabels[w] ?? w}
               </span>
-              <div className="grid flex-1 grid-cols-2 gap-1">
-                {DEPARTURE_MODE_OPTIONS.map((mode) => {
-                  const active = current === mode;
-                  return (
-                    <button
-                      key={mode}
-                      type="button"
-                      aria-pressed={active}
-                      onClick={() => {
-                        const next = { ...modes };
-                        if (mode === "alone") delete next[w];
-                        else next[w] = mode;
-                        onChange(next);
-                      }}
-                      className={`flex h-9 items-center justify-center rounded-md border px-1 text-xs font-medium transition-colors ${
-                        active
-                          ? "border-gray-900 bg-gray-900 text-white"
-                          : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-                      }`}
-                    >
-                      {departureModeLabels[mode] ?? mode}
-                    </button>
-                  );
-                })}
-              </div>
+              <SegmentedControl
+                className="flex-1"
+                fullWidth
+                ariaLabel={`Heimweg ${weekdayLabels[w] ?? w}`}
+                value={current}
+                onChange={(mode) => {
+                  const next = { ...modes };
+                  if (mode === "alone") delete next[w];
+                  else next[w] = mode;
+                  onChange(next);
+                }}
+                items={DEPARTURE_MODE_OPTIONS.map((mode) => ({
+                  value: mode,
+                  label: departureModeLabels[mode] ?? mode,
+                }))}
+              />
             </div>
           );
         })}
@@ -4864,7 +4836,7 @@ function WeekdayMultiModeInput({
         title={tr("structured.weekdayMultiModeUniformConfirmTitle")}
         confirmText={tr("structured.weekdayMultiModeUniformConfirmCta")}
         cancelText={tr("structured.weekdayMultiModeUniformConfirmCancel")}
-        confirmButtonClass="bg-moto-red hover:bg-moto-red/90"
+        confirmVariant="danger"
       >
         {tr("structured.weekdayMultiModeUniformConfirmBody")}
       </ConfirmationModal>
@@ -4922,7 +4894,7 @@ function ContactListInput({
     );
   return (
     <fieldset
-      className={`rounded-2xl border bg-white p-4 shadow-sm ${error ? "border-moto-red" : "border-gray-200"}`}
+      className={`rounded-2xl border p-4 shadow-sm ${error ? "border-moto-red" : "moto-content-surface"}`}
       aria-invalid={error ? "true" : undefined}
     >
       <legend className="px-1 text-sm font-semibold text-gray-900">

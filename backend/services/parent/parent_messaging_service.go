@@ -10,10 +10,9 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	notificationsSvc "github.com/moto-nrw/project-phoenix/services/notifications"
+	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -41,7 +40,7 @@ type MessageThreadView struct {
 // parentmessaging.DecorateReadReceipts so the receipt rule stays identical to the
 // staff chat (one home for it, not two hand-mirrored copies).
 func (s *service) decorateReadReceipts(ctx context.Context, threadID, guardianAccountID int64, messages []*usersModels.ParentMessage) {
-	parentmessaging.DecorateReadReceipts(ctx, s.MessageReadRepo, s.Logger, threadID, guardianAccountID, messages)
+	s.Conversations.DecorateReadReceipts(ctx, threadID, guardianAccountID, messages)
 }
 
 // ListMessageThreads returns the guardian's conversations across all their
@@ -254,7 +253,7 @@ func (s *service) GetChildConversation(ctx context.Context, accountID, studentID
 		// The mark-to-newest invariant (and the empty-conversation skip) lives in
 		// parentmessaging.MarkReadToNewest, shared with the staff side so the two
 		// portals' unread counts can't drift.
-		advanced, err := parentmessaging.MarkReadToNewest(txCtx, s.MessageReadRepo, thread.TenantID, thread.ID, accountID, false, messages)
+		advanced, err := s.Conversations.MarkReadToNewest(txCtx, thread.TenantID, thread.ID, accountID, false, messages)
 		if err != nil {
 			return err
 		}
@@ -324,14 +323,15 @@ func (s *service) PostChildMessage(ctx context.Context, accountID, studentID int
 		if err != nil {
 			return err
 		}
-		if student.CareEndedOn(timezone.TodayDate()) {
+		if student.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
 		thread, err := s.MessageThreadRepo.GetOrCreate(txCtx, child.tenantID, studentID, accountID)
 		if err != nil {
 			return err
 		}
-		if err := s.appendGuardianMessage(txCtx, thread, accountID, senderName, body); err != nil {
+		message, err := s.appendGuardianMessage(txCtx, thread, accountID, senderName, body)
+		if err != nil {
 			return err
 		}
 		view.ThreadID = thread.ID
@@ -353,21 +353,21 @@ func (s *service) PostChildMessage(ctx context.Context, accountID, studentID int
 		// (never NOW(), never our own just-sent message), so it can't leap the cursor
 		// to ~now and swallow a staff message committing concurrently in a still-open
 		// tx. See parentmessaging.MarkReadToNewest.
-		if _, err := parentmessaging.MarkReadToNewest(txCtx, s.MessageReadRepo, thread.TenantID, thread.ID, accountID, false, messages); err != nil {
+		if _, err := s.Conversations.MarkReadToNewest(txCtx, thread.TenantID, thread.ID, accountID, false, messages); err != nil {
 			return err
 		}
 		captured := child.tenantID
 		capturedThread := view.ThreadID
+		if s.ParentMessageNotifier != nil {
+			if err := s.ParentMessageNotifier.NotifyStaffParentMessage(txCtx, notificationsSvc.StaffParentMessageReport{
+				TenantID: captured, ThreadID: capturedThread, MessageID: message.ID,
+				StudentID: studentID, ActorAccountID: accountID,
+			}); err != nil {
+				return err
+			}
+		}
 		tenant.RegisterAfterCommit(txCtx, func() {
 			s.broadcastParentMessage(captured, accountID, capturedThread, studentID)
-			if s.ParentMessageNotifier != nil {
-				s.ParentMessageNotifier.NotifyStaffParentMessage(context.Background(), notificationsSvc.StaffParentMessageReport{
-					TenantID:       captured,
-					ThreadID:       capturedThread,
-					StudentID:      studentID,
-					ActorAccountID: accountID,
-				})
-			}
 		})
 		return nil
 	})
@@ -387,7 +387,7 @@ func (s *service) PostChildMessage(ctx context.Context, accountID, studentID int
 // the sender's read cursor) is shared with the staff side via
 // parentmessaging.AppendMessage (one home for the "drive off the DB-stamped
 // created_at" rule).
-func (s *service) appendGuardianMessage(ctx context.Context, thread *usersModels.ParentMessageThread, accountID int64, senderName, body string) error {
+func (s *service) appendGuardianMessage(ctx context.Context, thread *usersModels.ParentMessageThread, accountID int64, senderName, body string) (*usersModels.ParentMessage, error) {
 	msg := &usersModels.ParentMessage{
 		ThreadID:        thread.ID,
 		StudentID:       thread.StudentID,
@@ -398,7 +398,10 @@ func (s *service) appendGuardianMessage(ctx context.Context, thread *usersModels
 		Kind:            usersModels.ParentMessageKindMessage,
 	}
 	msg.SetTenantID(thread.TenantID)
-	return parentmessaging.AppendMessage(ctx, s.MessageRepo, s.MessageThreadRepo, msg)
+	if err := s.Conversations.AppendMessage(ctx, msg); err != nil {
+		return nil, err
+	}
+	return msg, nil
 }
 
 // resolveGuardianName returns the guardian's display name for the child's
@@ -444,7 +447,7 @@ func (s *service) resolveGuardianName(ctx context.Context, tenantID, accountID i
 // threadID/studentID let an open chat skip refetching unrelated threads. The
 // fan-out contract is shared with the staff side via parentmessaging.Broadcast.
 func (s *service) broadcastParentMessage(tenantID, guardianAccountID, threadID, studentID int64) {
-	parentmessaging.Broadcast(s.Broadcaster, s.Logger, tenantID, guardianAccountID, threadID, studentID)
+	s.Conversations.Broadcast(tenantID, guardianAccountID, threadID, studentID)
 }
 
 // broadcastReadReceipt wakes the OGS side (and the guardian's own tabs) to refresh
@@ -453,5 +456,5 @@ func (s *service) broadcastParentMessage(tenantID, guardianAccountID, threadID, 
 // callers fire it after commit and ONLY on a real cursor advance, so it can't loop
 // with the receipt refetch it triggers.
 func (s *service) broadcastReadReceipt(tenantID, guardianAccountID, threadID, studentID int64) {
-	parentmessaging.BroadcastRead(s.Broadcaster, s.Logger, tenantID, guardianAccountID, threadID, studentID)
+	s.Conversations.BroadcastRead(tenantID, guardianAccountID, threadID, studentID)
 }

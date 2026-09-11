@@ -1,5 +1,12 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { releaseFakeTimers } from "~/test/clock";
 import { CarePlanEditorModal } from "./care-plan-editor-modal";
 import type { ArrivalDayData } from "~/lib/arrival-schedule-helpers";
 import type { DayData as PickupDayData } from "~/lib/pickup-schedule-helpers";
@@ -15,8 +22,65 @@ vi.mock("~/contexts/ToastContext", () => ({
   }),
 }));
 
-vi.mock("~/components/ui/form-modal", () => ({
-  FormModal: ({
+// Der Editor laeuft als SlideOver (Vaul). Vaul rendert in jsdom nicht, deshalb
+// steht hier dieselbe Struktur ohne Animationsschicht.
+vi.mock("~/components/ui/slide-over", () => ({
+  SlideOver: ({
+    open,
+    onOpenChange,
+    children,
+  }: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    children: React.ReactNode;
+  }) =>
+    open ? (
+      <div>
+        <button type="button" onClick={() => onOpenChange(false)}>
+          Panel schließen
+        </button>
+        {children}
+      </div>
+    ) : null,
+  SlideOverContent: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  SlideOverHeader: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  SlideOverBody: ({
+    error,
+    children,
+  }: {
+    error?: string | { message: string } | null;
+    children: React.ReactNode;
+  }) => (
+    <div>
+      {error ? (
+        <div role="alert">
+          {typeof error === "string" ? error : error.message}
+        </div>
+      ) : null}
+      {children}
+    </div>
+  ),
+  SlideOverFooter: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  SlideOverTitle: ({ children }: { children: React.ReactNode }) => (
+    <h2>{children}</h2>
+  ),
+  SlideOverDescription: ({ children }: { children: React.ReactNode }) => (
+    <p>{children}</p>
+  ),
+  SlideOverCloseButton: (
+    props: React.ButtonHTMLAttributes<HTMLButtonElement>,
+  ) => <button type="button" {...props} />,
+}));
+
+vi.mock("~/components/ui/modal", () => ({
+  // ConfirmDeleteModal (Hinweis löschen, #3109) renders through the kit Modal.
+  Modal: ({
     isOpen,
     title,
     children,
@@ -31,12 +95,9 @@ vi.mock("~/components/ui/form-modal", () => ({
       <div role="dialog" aria-label={title}>
         <h2>{title}</h2>
         {children}
-        <div>{footer}</div>
+        {footer}
       </div>
     ) : null,
-}));
-
-vi.mock("~/components/ui/modal", () => ({
   ConfirmationModal: ({
     isOpen,
     title,
@@ -451,7 +512,7 @@ describe("CarePlanEditorModal", () => {
       }),
     ).toBeDisabled();
     expect(onSubmitWeekly).toHaveBeenCalledTimes(3);
-    vi.useRealTimers();
+    releaseFakeTimers();
   });
 
   it("shows all exact matches and requires confirmation before changing the offering", async () => {
@@ -1049,13 +1110,106 @@ describe("CarePlanEditorModal", () => {
     fireEvent.change(draft, { target: { value: "Bitte klingeln" } });
     fireEvent.click(draft.parentElement!.querySelector("button")!);
 
-    expect(
-      await screen.findByText("Hinweis konnte nicht gespeichert werden"),
-    ).toBeInTheDocument();
-    expect(toastError).toHaveBeenCalledWith(
+    expect(await screen.findByRole("alert")).toHaveTextContent(
       "Hinweis konnte nicht gespeichert werden",
     );
+    expect(toastError).not.toHaveBeenCalled();
     expect(draft).toHaveValue("Bitte klingeln");
+  });
+
+  it("keeps new note drafts scoped to their date", async () => {
+    const onCreateArrivalNote = vi.fn().mockResolvedValue(undefined);
+    const { rerender, renderModal } = renderEditor({ onCreateArrivalNote });
+    const tuesday = new Date("2026-05-26T00:00:00");
+    const tuesdayArrivalDay: ArrivalDayData = {
+      ...baseArrivalDay,
+      date: tuesday,
+      weekday: 2,
+      baseSchedule: {
+        ...baseArrivalDay.baseSchedule!,
+        weekday: 2,
+        weekday_name: "Dienstag",
+      },
+      notes: [],
+    };
+    const tuesdayPickupDay: PickupDayData = {
+      ...basePickupDay,
+      date: tuesday,
+      weekday: 2,
+      baseSchedule: {
+        ...basePickupDay.baseSchedule!,
+        weekday: 2,
+        weekdayName: "Dienstag",
+      },
+      notes: [],
+    };
+
+    fireEvent.change(screen.getByLabelText("Ankunft Hinweis hinzufügen"), {
+      target: { value: "Montagsentwurf" },
+    });
+    rerender(
+      renderModal({
+        date: tuesday,
+        arrivalDay: tuesdayArrivalDay,
+        pickupDay: tuesdayPickupDay,
+      }),
+    );
+
+    const tuesdayDraft = screen.getByLabelText("Ankunft Hinweis hinzufügen");
+    expect(tuesdayDraft).toHaveValue("");
+    fireEvent.change(tuesdayDraft, { target: { value: "Dienstagsentwurf" } });
+    fireEvent.click(screen.getAllByRole("button", { name: "Hinzufügen" })[0]!);
+
+    await waitFor(() => {
+      expect(onCreateArrivalNote).toHaveBeenCalledWith(
+        "2026-05-26",
+        "Dienstagsentwurf",
+      );
+    });
+
+    rerender(renderModal());
+    expect(screen.getByLabelText("Ankunft Hinweis hinzufügen")).toHaveValue(
+      "Montagsentwurf",
+    );
+  });
+
+  it("suspends the editor for a note deletion and restores unsaved drafts", async () => {
+    const onDeleteArrivalNote = vi.fn().mockResolvedValue(undefined);
+    renderEditor({ onDeleteArrivalNote });
+
+    fireEvent.change(screen.getByLabelText("Abholung Hinweis"), {
+      target: { value: "Eigener Entwurf" },
+    });
+    fireEvent.click(screen.getAllByRole("button", { name: "Löschen" })[0]!);
+
+    await screen.findByRole("dialog", {
+      name: "Hinweis löschen?",
+    });
+    expect(onDeleteArrivalNote).not.toHaveBeenCalled();
+    expect(
+      screen.queryByText("Ausnahme für Montag, 25.05."),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+
+    expect(screen.getByLabelText("Abholung Hinweis")).toHaveValue(
+      "Eigener Entwurf",
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Löschen" })[0]!);
+    const reopenedDialog = await screen.findByRole("dialog", {
+      name: "Hinweis löschen?",
+    });
+    fireEvent.click(
+      within(reopenedDialog).getByRole("button", { name: "Ja, löschen" }),
+    );
+    fireEvent.click(
+      within(reopenedDialog).getByRole("button", {
+        name: "Endgültig löschen",
+      }),
+    );
+
+    await waitFor(() => expect(onDeleteArrivalNote).toHaveBeenCalledWith(11));
   });
 
   it("shows an error when resetting to the offering pickup time fails", async () => {
@@ -1074,8 +1228,8 @@ describe("CarePlanEditorModal", () => {
 
     const message =
       "Die Abholung konnte nicht zurückgesetzt werden. Bitte versuchen Sie es noch einmal.";
-    expect(await screen.findByText(message)).toBeInTheDocument();
-    expect(toastError).toHaveBeenCalledWith(message);
+    expect(await screen.findByRole("alert")).toHaveTextContent(message);
+    expect(toastError).not.toHaveBeenCalled();
   });
 
   it("limits day notes to the API-supported length", () => {

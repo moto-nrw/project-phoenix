@@ -7,8 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/services/planexport"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
 // planExportRequest is the shared body of both plan export routes (#2079).
@@ -25,34 +24,26 @@ type planExportRequest struct {
 // Dienstplan week. It reads the same overview projection the screen does, so
 // the permission set matches GET /overview exactly.
 func (rs *Resource) exportPlan(w http.ResponseWriter, r *http.Request) {
-	if rs.PlanExport == nil {
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("plan export service not wired")))
-		return
-	}
-
 	var req planExportRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid JSON body")))
+		rs.invalid(w, r, errors.New("invalid JSON body"))
 		return
 	}
 
-	params, err := planexport.ParseParams(req.From, req.To, req.Template, req.Variant, req.Format)
+	file, err := rs.planning.ExportPlan(r.Context(), workforce.PlanExportRequest{
+		From:          req.From,
+		To:            req.To,
+		Template:      req.Template,
+		Variant:       req.Variant,
+		Format:        req.Format,
+		AllowInternal: rs.runtime.CanExportInternalPlan(r.Context()),
+	})
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return
-	}
-	if params.Variant == planexport.VariantInternal && !common.CanExportInternalPlan(r.Context()) {
-		common.RenderError(w, r, common.ErrorForbidden(errors.New("internal plan exports require schedules:manage")))
-		return
-	}
-
-	file, err := rs.PlanExport.ExportDienstplan(r.Context(), params)
-	if err != nil {
-		if errors.Is(err, planexport.ErrInvalidParams) {
-			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		if kind := classify(err); kind != FailureInternal {
+			rs.runtime.Failure(w, r, kind, err)
 			return
 		}
-		common.RenderError(w, r, common.ErrorInternalServerWrap("render dienstplan export failed", err))
+		rs.runtime.Failure(w, r, FailureInternal, &ClientMessageError{Message: "render dienstplan export failed", Cause: err})
 		return
 	}
 

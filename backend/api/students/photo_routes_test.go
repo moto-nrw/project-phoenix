@@ -52,7 +52,7 @@ import (
 // init seeds JWT viper defaults so jwt.MustNewTokenAuth (called by
 // students.NewResource → Router) succeeds in CI environments without
 // a populated .env. Identical pattern to api/usercontext/usercontext_test.go
-// and required because setupTestContext constructs the resource which
+// and required because setupStudentsRoute constructs the resource which
 // MUST be able to verify and sign JWTs.
 func init() {
 	testutil.SeedTestJWTConfig()
@@ -111,11 +111,11 @@ func enableStudentPhotos(t *testing.T, tc *testContext) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
 	require.NoError(t,
-		tc.services.Settings.SetValue(ctx, configModel.KeyStudentPhotosEnabled, true, nil, nil),
+		tc.resource.SettingsService.SetValue(ctx, configModel.KeyStudentPhotosEnabled, true, nil, nil),
 		"enable student_photos_enabled",
 	)
 	t.Cleanup(func() {
-		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyStudentPhotosEnabled, nil, nil)
+		_ = tc.resource.SettingsService.ResetValue(ctx, configModel.KeyStudentPhotosEnabled, nil, nil)
 	})
 }
 
@@ -271,7 +271,7 @@ func removeUploadedPhotoFile(t *testing.T, body []byte) {
 func TestUploadStudentPhoto_HappyPath_ConsentOnRow(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableStudentPhotos(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoUpload", "Happy", "PU1")
@@ -309,7 +309,7 @@ func TestUploadStudentPhoto_HappyPath_ConsentOnRow(t *testing.T) {
 func TestUploadStudentPhoto_HappyPath_ConsentAcknowledged(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableStudentPhotos(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoUpload", "Ack", "PU2")
@@ -340,7 +340,7 @@ func TestUploadStudentPhoto_HappyPath_ConsentAcknowledged(t *testing.T) {
 func TestUploadStudentPhoto_InvalidStudentID(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableStudentPhotos(t, tc)
 
 	body, contentType := buildMultipart(t, "photo", "test.jpg", jpegBytes(t), nil)
@@ -359,7 +359,7 @@ func TestUploadStudentPhoto_InvalidStudentID(t *testing.T) {
 func TestUploadStudentPhoto_NoFile(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableStudentPhotos(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoUpload", "NoFile", "PU3")
@@ -380,7 +380,7 @@ func TestUploadStudentPhoto_NoFile(t *testing.T) {
 func TestUploadStudentPhoto_InvalidImageBytes(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableStudentPhotos(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoUpload", "BadBytes", "PU4")
@@ -403,7 +403,7 @@ func TestUploadStudentPhoto_InvalidImageBytes(t *testing.T) {
 func TestUploadStudentPhoto_MissingConsent(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableStudentPhotos(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoUpload", "NoConsent", "PU5")
@@ -429,7 +429,7 @@ func TestUploadStudentPhoto_MissingConsent(t *testing.T) {
 func TestUploadStudentPhoto_FeatureDisabled(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	// Deliberately do NOT call enableStudentPhotos.
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoUpload", "FeatureOff", "PU6")
@@ -453,7 +453,7 @@ func TestUploadStudentPhoto_FeatureDisabled(t *testing.T) {
 func TestUploadStudentPhoto_StaffOutsideGroup(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableStudentPhotos(t, tc)
 
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "ForeignGroup")
@@ -485,7 +485,7 @@ func TestUploadStudentPhoto_StaffOutsideGroup(t *testing.T) {
 func TestUploadStudentPhoto_StudentNotFound(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableStudentPhotos(t, tc)
 
 	body, contentType := buildMultipart(t, "photo", "test.jpg", jpegBytes(t), nil)
@@ -500,7 +500,7 @@ func TestUploadStudentPhoto_StudentNotFound(t *testing.T) {
 func TestUploadStudentPhoto_GraduatedStudentNotFound(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableStudentPhotos(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoUpload", "Graduate", "PU7")
@@ -524,7 +524,7 @@ func TestUploadStudentPhoto_GraduatedStudentNotFound(t *testing.T) {
 func TestUploadStudentPhoto_ReplacesExistingPhoto(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableStudentPhotos(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoUpload", "Replace", "PU8")
@@ -556,7 +556,7 @@ func TestUploadStudentPhoto_ReplacesExistingPhoto(t *testing.T) {
 func TestDeleteStudentPhoto_HappyPath(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableStudentPhotos(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoDel", "Happy", "PD1")
@@ -582,7 +582,7 @@ func TestDeleteStudentPhoto_HappyPath(t *testing.T) {
 func TestDeleteStudentPhoto_Idempotent(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableStudentPhotos(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoDel", "NoPhoto", "PD2")
@@ -602,7 +602,7 @@ func TestDeleteStudentPhoto_Idempotent(t *testing.T) {
 func TestDeleteStudentPhoto_FeatureDisabled(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	// Feature DELIBERATELY left disabled.
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoDel", "FeatureOff", "PD3")
@@ -621,7 +621,7 @@ func TestDeleteStudentPhoto_FeatureDisabled(t *testing.T) {
 func TestDeleteStudentPhoto_StaffOutsideGroup(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableStudentPhotos(t, tc)
 
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "ForeignGroupDel")
@@ -647,7 +647,7 @@ func TestDeleteStudentPhoto_StaffOutsideGroup(t *testing.T) {
 func TestDeleteStudentPhoto_StudentNotFound(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableStudentPhotos(t, tc)
 
 	req, _ := http.NewRequest("DELETE", "/9999998/photo", nil)
@@ -660,7 +660,7 @@ func TestDeleteStudentPhoto_StudentNotFound(t *testing.T) {
 func TestDeleteStudentPhoto_GraduatedStudentNotFound(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableStudentPhotos(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoDel", "Graduate", "PD7")
@@ -687,7 +687,7 @@ func TestDeleteStudentPhoto_GraduatedStudentNotFound(t *testing.T) {
 func TestServeStudentPhoto_HappyPath(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableStudentPhotos(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoServe", "Happy", "PS1")
@@ -708,7 +708,7 @@ func TestServeStudentPhoto_HappyPath(t *testing.T) {
 func TestServeStudentPhoto_InvalidStudentID(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableStudentPhotos(t, tc)
 
 	req, _ := http.NewRequest("GET", "/abc/photo/foo.jpg", nil)
@@ -724,7 +724,7 @@ func TestServeStudentPhoto_InvalidStudentID(t *testing.T) {
 func TestServeStudentPhoto_FeatureDisabled(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	// Photos enabled NOT called.
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoServe", "FeatureOff", "PS2")
@@ -747,7 +747,7 @@ func TestServeStudentPhoto_FeatureDisabled(t *testing.T) {
 func TestServeStudentPhoto_NoPhoto(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableStudentPhotos(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoServe", "NoPhoto", "PS3")
@@ -767,7 +767,7 @@ func TestServeStudentPhoto_NoPhoto(t *testing.T) {
 func TestServeStudentPhoto_FilenameMismatch(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableStudentPhotos(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoServe", "Mismatch", "PS4")
@@ -790,7 +790,7 @@ func TestServeStudentPhoto_FilenameMismatch(t *testing.T) {
 func TestServeStudentPhoto_ForbiddenWithoutStaffRecord(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableStudentPhotos(t, tc)
 
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "ForeignServeGroup")
@@ -823,7 +823,7 @@ func TestServeStudentPhoto_ForbiddenWithoutStaffRecord(t *testing.T) {
 func TestServeStudentPhoto_AllowedForStaffOutsideGroup(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableStudentPhotos(t, tc)
 
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "ForeignServeGroupOK")
@@ -857,7 +857,7 @@ func TestServeStudentPhoto_AllowedForStaffOutsideGroup(t *testing.T) {
 func TestServeStudentPhoto_StudentNotFound(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableStudentPhotos(t, tc)
 
 	req, _ := http.NewRequest("GET", "/9999997/photo/anything.jpg", nil)
@@ -870,7 +870,7 @@ func TestServeStudentPhoto_StudentNotFound(t *testing.T) {
 func TestServeStudentPhoto_GraduatedStudentNotFound(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableStudentPhotos(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoServe", "Graduate", "PS7")

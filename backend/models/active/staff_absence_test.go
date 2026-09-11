@@ -69,7 +69,7 @@ func TestStaffAbsence_Validate(t *testing.T) {
 
 	t.Run("missing date_start", func(t *testing.T) {
 		a := validAbsence()
-		a.DateStart = timezone.Date{}
+		a.DateStart = timezone.Date("")
 		err := a.Validate()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "date_start is required")
@@ -77,7 +77,7 @@ func TestStaffAbsence_Validate(t *testing.T) {
 
 	t.Run("missing date_end", func(t *testing.T) {
 		a := validAbsence()
-		a.DateEnd = timezone.Date{}
+		a.DateEnd = timezone.Date("")
 		err := a.Validate()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "date_end is required")

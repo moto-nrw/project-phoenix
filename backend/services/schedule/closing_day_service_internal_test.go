@@ -21,7 +21,7 @@ type mockClosingDayRepo struct {
 	err  error
 }
 
-func (m *mockClosingDayRepo) FindOverlappingRange(_ context.Context, _, _ timezone.Date) ([]*schedule.ClosingDay, error) {
+func (m *mockClosingDayRepo) FindOverlappingRange(_ context.Context, _, _ schedule.Date) ([]*schedule.ClosingDay, error) {
 	return m.days, m.err
 }
 
@@ -49,7 +49,7 @@ func (m *mockClosingDayRepo) FindByID(_ context.Context, _ any) (*schedule.Closi
 }
 
 func closingRange(start, end timezone.Date, reason string) *schedule.ClosingDay {
-	return &schedule.ClosingDay{StartDate: start, EndDate: end, Reason: reason}
+	return &schedule.ClosingDay{StartDate: schedule.Date(start), EndDate: schedule.Date(end), Reason: reason}
 }
 
 func TestClosingDayDatesExpandsRanges(t *testing.T) {
@@ -135,11 +135,11 @@ func TestClosingDayCreateRejectsInvalid(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "reason cannot exceed 255 characters")
 
-	err = svc.Create(context.Background(), &schedule.ClosingDay{EndDate: timezone.NewDate(2026, 8, 7), Reason: "Ohne Start"})
+	err = svc.Create(context.Background(), &schedule.ClosingDay{EndDate: schedule.NewDate(2026, 8, 7), Reason: "Ohne Start"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "start_date is required")
 
-	err = svc.Create(context.Background(), &schedule.ClosingDay{StartDate: timezone.NewDate(2026, 8, 1), Reason: "Ohne Ende"})
+	err = svc.Create(context.Background(), &schedule.ClosingDay{StartDate: schedule.NewDate(2026, 8, 1), Reason: "Ohne Ende"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "end_date is required")
 }

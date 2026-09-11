@@ -14,15 +14,15 @@ import (
 
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 func buildRequestService(t *testing.T) (parentService.Service, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,
 		StudentRepo:         repos.Student,
@@ -46,13 +46,13 @@ func TestSubmitMasterDataChangeRequest_CreatesPending(t *testing.T) {
 
 	rows, err := svc.SubmitMasterDataChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, []parentService.MasterDataFieldChange{
 		{Target: usersModels.DataChangeTargetPerson, FieldKey: "first_name", Value: json.RawMessage(`"Maximilian"`)},
-	})
+	}, nil)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, usersModels.DataChangeStatusPending, rows[0].Status)
 
 	// The live person record is NOT changed by a Track B submission.
-	person, err := repositories.NewFactory(db).Person.FindByID(testpkg.WithPackageTenantRuntime(context.Background()), chain.PersonID)
+	person, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person.FindByID(testpkg.WithPackageTenantRuntime(context.Background()), chain.PersonID)
 	require.NoError(t, err)
 	assert.Equal(t, "Felix", person.FirstName)
 }
@@ -66,7 +66,7 @@ func TestSubmitMasterDataChangeRequest_CareEndedChildIsRejected(t *testing.T) {
 
 	_, err := svc.SubmitMasterDataChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, []parentService.MasterDataFieldChange{
 		{Target: usersModels.DataChangeTargetPerson, FieldKey: "first_name", Value: json.RawMessage(`"Maximilian"`)},
-	})
+	}, nil)
 	require.ErrorIs(t, err, parentService.ErrChildCareEnded)
 }
 
@@ -78,7 +78,7 @@ func TestSubmitMasterDataChangeRequest_SchoolClassRemainsPending(t *testing.T) {
 
 	rows, err := svc.SubmitMasterDataChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, []parentService.MasterDataFieldChange{
 		{Target: usersModels.DataChangeTargetStudent, FieldKey: "school_class", Value: json.RawMessage(`"2b"`)},
-	})
+	}, nil)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, usersModels.DataChangeTargetStudent, rows[0].Target)
@@ -86,7 +86,7 @@ func TestSubmitMasterDataChangeRequest_SchoolClassRemainsPending(t *testing.T) {
 	assert.JSONEq(t, `"1a"`, string(rows[0].OldValue))
 	assert.JSONEq(t, `"2b"`, string(rows[0].NewValue))
 
-	student, err := repositories.NewFactory(db).Student.FindByID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
+	student, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student.FindByID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
 	require.NoError(t, err)
 	assert.Equal(t, "1a", student.SchoolClass)
 }
@@ -103,7 +103,7 @@ func TestSubmitMasterDataChangeRequest_DepartureAndListRequests(t *testing.T) {
 			FieldKey: "allowed_departure_modes",
 			Value:    json.RawMessage(`{"mon":["pickup"],"wed":["bus"]}`),
 		},
-	})
+	}, nil)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, usersModels.DataChangeTargetDeparture, rows[0].Target)
@@ -121,7 +121,7 @@ func TestListMyMasterDataRequests_HidesGuardianContactAuditRows(t *testing.T) {
 
 	svc, db := buildRequestService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	otherAccount := testpkg.CreateTestAccount(t, db, "other-parent")
 
@@ -156,9 +156,7 @@ func TestListMyMasterDataRequests_HidesGuardianContactAuditRows(t *testing.T) {
 
 	rows, err := svc.ListMyMasterDataRequests(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
-	require.Len(t, rows, 1)
-	assert.Equal(t, usersModels.DataChangeTargetPerson, rows[0].Target)
-	assert.JSONEq(t, `"Max"`, string(rows[0].NewValue))
+	assert.Empty(t, rows, "another guardian's requested values stay private")
 }
 
 func TestSubmitMasterDataChangeRequest_DuplicatePending(t *testing.T) {
@@ -170,10 +168,10 @@ func TestSubmitMasterDataChangeRequest_DuplicatePending(t *testing.T) {
 	change := []parentService.MasterDataFieldChange{
 		{Target: usersModels.DataChangeTargetPerson, FieldKey: "first_name", Value: json.RawMessage(`"Maximilian"`)},
 	}
-	_, err := svc.SubmitMasterDataChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, change)
+	_, err := svc.SubmitMasterDataChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, change, nil)
 	require.NoError(t, err)
 
-	_, err = svc.SubmitMasterDataChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, change)
+	_, err = svc.SubmitMasterDataChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, change, nil)
 	assert.ErrorIs(t, err, parentService.ErrMasterDataDuplicatePending)
 }
 
@@ -193,7 +191,7 @@ func TestSubmitMasterDataChangeRequest_ConcurrentDuplicatePending(t *testing.T) 
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			_, errs[idx] = svc.SubmitMasterDataChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, change)
+			_, errs[idx] = svc.SubmitMasterDataChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, change, nil)
 		}(i)
 	}
 	wg.Wait()
@@ -222,7 +220,7 @@ func TestSubmitMasterDataChangeRequest_NoChange(t *testing.T) {
 	// Submitting the current value is a no-op -> ErrMasterDataNoChanges.
 	_, err := svc.SubmitMasterDataChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, []parentService.MasterDataFieldChange{
 		{Target: usersModels.DataChangeTargetPerson, FieldKey: "first_name", Value: json.RawMessage(`"Felix"`)},
-	})
+	}, nil)
 	assert.ErrorIs(t, err, parentService.ErrMasterDataNoChanges)
 }
 
@@ -232,37 +230,37 @@ func TestSubmitMasterDataChangeRequest_InvalidInputs(t *testing.T) {
 	svc, db := buildRequestService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	_, err := svc.SubmitMasterDataChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, nil)
+	_, err := svc.SubmitMasterDataChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, nil, nil)
 	assert.ErrorIs(t, err, parentService.ErrMasterDataNoChanges)
 
 	_, err = svc.SubmitMasterDataChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, []parentService.MasterDataFieldChange{
 		{Target: usersModels.DataChangeTargetStudent, FieldKey: "health_info", Value: json.RawMessage(`"x"`)},
-	})
+	}, nil)
 	assert.ErrorIs(t, err, parentService.ErrMasterDataFieldNotEditable)
 
 	_, err = svc.SubmitMasterDataChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, []parentService.MasterDataFieldChange{
 		{Target: usersModels.DataChangeTargetPerson, FieldKey: "birthday", Value: json.RawMessage(`"not-a-date"`)},
-	})
+	}, nil)
 	assert.ErrorIs(t, err, parentService.ErrMasterDataInvalidValue)
 
 	_, err = svc.SubmitMasterDataChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, []parentService.MasterDataFieldChange{
 		{Target: usersModels.DataChangeTargetDeparture, FieldKey: "allowed_departure_modes", Value: json.RawMessage(`{`)},
-	})
+	}, nil)
 	assert.ErrorIs(t, err, parentService.ErrMasterDataInvalidValue)
 
 	_, err = svc.SubmitMasterDataChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, []parentService.MasterDataFieldChange{
 		{Target: usersModels.DataChangeTargetDeparture, FieldKey: "allowed_departure_modes", Value: json.RawMessage(`{"sat":["pickup"]}`)},
-	})
+	}, nil)
 	assert.ErrorIs(t, err, parentService.ErrMasterDataInvalidValue)
 
 	_, err = svc.SubmitMasterDataChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, []parentService.MasterDataFieldChange{
 		{Target: usersModels.DataChangeTargetDeparture, FieldKey: "allowed_departure_modes", Value: json.RawMessage(`{"mon":["spaceship"]}`)},
-	})
+	}, nil)
 	assert.ErrorIs(t, err, parentService.ErrMasterDataInvalidValue)
 
 	_, err = svc.SubmitMasterDataChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, []parentService.MasterDataFieldChange{
 		{Target: usersModels.DataChangeTargetDeparture, FieldKey: "allowed_departure_modes", Value: json.RawMessage(`{"mon":["accompanied"]}`)},
-	})
+	}, nil)
 	assert.ErrorIs(t, err, parentService.ErrMasterDataInvalidValue)
 }
 
@@ -276,13 +274,12 @@ func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	settings := parentSettingsStub{boolDefault: true}
-	emitter := parentmessaging.NewEmitter(
-		db, repos.ParentMessageThread, repos.ParentMessage,
+	emitter := communicationtest.NewParentEventEmitter(
+		db, testpkg.TenantRuntime(t, db), repos.ParentMessageThread, repos.ParentMessage,
 		settings, nil, slog.Default(),
 	)
-	testpkg.SetTenantRuntime(t, emitter, db)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,
 		StudentRepo:         repos.Student,
@@ -303,7 +300,7 @@ func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 	rows, err := svc.SubmitMasterDataChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, []parentService.MasterDataFieldChange{
 		{Target: usersModels.DataChangeTargetPerson, FieldKey: "first_name", Value: json.RawMessage(`"Maximilian"`)},
 		{Target: usersModels.DataChangeTargetPerson, FieldKey: "last_name", Value: json.RawMessage(`"Neumann"`)},
-	})
+	}, nil)
 	require.NoError(t, err)
 	require.Len(t, rows, 2, "two distinct field changes create two request rows")
 

@@ -45,10 +45,8 @@ func (s captchaSettingsStubWithSecret) ResolveString(context.Context, string) (s
 
 // --- Verify error paths --------------------------------------------------
 
-// Deliberately NOT parallel: process-global state — t.Setenv on
-// ENROLLMENT_* and the captcha secret.
 func TestCaptchaVerify_DisabledReturnsNilUnconditionally(t *testing.T) {
-	t.Setenv("ENROLLMENT_REQUIRE_CAPTCHA", "")
+	t.Parallel()
 	svc := NewCaptchaService(CaptchaServiceConfig{
 		Settings: captchaSettingsStubWithSecret{hasReq: false},
 	})
@@ -56,11 +54,8 @@ func TestCaptchaVerify_DisabledReturnsNilUnconditionally(t *testing.T) {
 	assert.NoError(t, svc.Verify(context.Background(), "", ""))
 }
 
-// Deliberately NOT parallel: process-global state — t.Setenv on
-// ENROLLMENT_* and the captcha secret.
 func TestCaptchaVerify_NoSecretConfiguredErrors(t *testing.T) {
-	t.Setenv("ENROLLMENT_REQUIRE_CAPTCHA", "")
-	t.Setenv("ENROLLMENT_CAPTCHA_SECRET_KEY", "")
+	t.Parallel()
 	svc := NewCaptchaService(CaptchaServiceConfig{
 		Settings: captchaSettingsStubWithSecret{hasReq: true, enabled: true},
 	})
@@ -69,13 +64,11 @@ func TestCaptchaVerify_NoSecretConfiguredErrors(t *testing.T) {
 	assert.Contains(t, err.Error(), "secret key not configured")
 }
 
-// Deliberately NOT parallel: process-global state — t.Setenv on
-// ENROLLMENT_* and the captcha secret.
 func TestCaptchaVerify_EmptyTokenErrors(t *testing.T) {
-	t.Setenv("ENROLLMENT_REQUIRE_CAPTCHA", "")
-	t.Setenv("ENROLLMENT_CAPTCHA_SECRET_KEY", "secret")
+	t.Parallel()
 	svc := NewCaptchaService(CaptchaServiceConfig{
-		Settings: captchaSettingsStubWithSecret{hasReq: true, enabled: true},
+		Settings:  captchaSettingsStubWithSecret{hasReq: true, enabled: true},
+		SecretKey: "secret",
 	})
 	err := svc.Verify(context.Background(), "  ", "")
 	require.Error(t, err)
@@ -84,10 +77,8 @@ func TestCaptchaVerify_EmptyTokenErrors(t *testing.T) {
 
 // --- Verify HTTP paths ---------------------------------------------------
 
-// Deliberately NOT parallel: process-global state — t.Setenv on
-// ENROLLMENT_* and the captcha secret.
 func TestCaptchaVerify_HappyPathPostsSecretAndToken(t *testing.T) {
-	t.Setenv("ENROLLMENT_REQUIRE_CAPTCHA", "")
+	t.Parallel()
 	var seenForm url.Values
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
@@ -110,10 +101,8 @@ func TestCaptchaVerify_HappyPathPostsSecretAndToken(t *testing.T) {
 		"remoteip helps the provider score the request")
 }
 
-// Deliberately NOT parallel: process-global state — t.Setenv on
-// ENROLLMENT_* and the captcha secret.
 func TestCaptchaVerify_OmitsRemoteIPWhenBlank(t *testing.T) {
-	t.Setenv("ENROLLMENT_REQUIRE_CAPTCHA", "")
+	t.Parallel()
 	var seenForm url.Values
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
@@ -132,10 +121,8 @@ func TestCaptchaVerify_OmitsRemoteIPWhenBlank(t *testing.T) {
 		"blank remoteip MUST be omitted (sending an empty IP can cause provider 400)")
 }
 
-// Deliberately NOT parallel: process-global state — t.Setenv on
-// ENROLLMENT_* and the captcha secret.
 func TestCaptchaVerify_ProviderFailureBubblesUp(t *testing.T) {
-	t.Setenv("ENROLLMENT_REQUIRE_CAPTCHA", "")
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"success":false,"error-codes":["invalid-input-response"]}`))
 	}))
@@ -150,10 +137,8 @@ func TestCaptchaVerify_ProviderFailureBubblesUp(t *testing.T) {
 	assert.Contains(t, err.Error(), "captcha verification failed")
 }
 
-// Deliberately NOT parallel: process-global state — t.Setenv on
-// ENROLLMENT_* and the captcha secret.
 func TestCaptchaVerify_BrokenJSONErrors(t *testing.T) {
-	t.Setenv("ENROLLMENT_REQUIRE_CAPTCHA", "")
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`not json`))
 	}))
@@ -168,10 +153,8 @@ func TestCaptchaVerify_BrokenJSONErrors(t *testing.T) {
 	assert.Contains(t, err.Error(), "decode response")
 }
 
-// Deliberately NOT parallel: process-global state — t.Setenv on
-// ENROLLMENT_* and the captcha secret.
 func TestCaptchaVerify_HTTPRoundTripErrorBubbles(t *testing.T) {
-	t.Setenv("ENROLLMENT_REQUIRE_CAPTCHA", "")
+	t.Parallel()
 	// Server returns immediately on first call so subsequent calls
 	// hit a closed connection — easy way to force a transport error.
 	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
@@ -188,11 +171,8 @@ func TestCaptchaVerify_HTTPRoundTripErrorBubbles(t *testing.T) {
 
 // --- resolveSecret env fallback ------------------------------------------
 
-// Deliberately NOT parallel: process-global state — t.Setenv on
-// ENROLLMENT_* and the captcha secret.
 func TestCaptchaVerify_FallsBackToEnvSecret(t *testing.T) {
-	t.Setenv("ENROLLMENT_REQUIRE_CAPTCHA", "")
-	t.Setenv("ENROLLMENT_CAPTCHA_SECRET_KEY", "env-secret")
+	t.Parallel()
 	var seenForm url.Values
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
@@ -204,6 +184,7 @@ func TestCaptchaVerify_FallsBackToEnvSecret(t *testing.T) {
 	svc := NewCaptchaService(CaptchaServiceConfig{
 		// hasSecret=false → tenant override not set, fall through to env.
 		Settings:  captchaSettingsStubWithSecret{hasReq: true, enabled: true, hasSecret: false},
+		SecretKey: "env-secret",
 		VerifyURL: server.URL,
 	})
 	require.NoError(t, svc.Verify(context.Background(), "tok", ""))
@@ -211,11 +192,8 @@ func TestCaptchaVerify_FallsBackToEnvSecret(t *testing.T) {
 		"env secret must be used when no tenant override exists")
 }
 
-// Deliberately NOT parallel: process-global state — t.Setenv on
-// ENROLLMENT_* and the captcha secret.
 func TestCaptchaVerify_TenantSecretPreferredOverEnv(t *testing.T) {
-	t.Setenv("ENROLLMENT_REQUIRE_CAPTCHA", "")
-	t.Setenv("ENROLLMENT_CAPTCHA_SECRET_KEY", "env-secret")
+	t.Parallel()
 	var seenForm url.Values
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
@@ -226,6 +204,7 @@ func TestCaptchaVerify_TenantSecretPreferredOverEnv(t *testing.T) {
 
 	svc := NewCaptchaService(CaptchaServiceConfig{
 		Settings:  captchaSettingsStubWithSecret{hasReq: true, enabled: true, hasSecret: true, secretValue: "tenant-wins"},
+		SecretKey: "env-secret",
 		VerifyURL: server.URL,
 	})
 	require.NoError(t, svc.Verify(context.Background(), "tok", ""))
@@ -235,8 +214,6 @@ func TestCaptchaVerify_TenantSecretPreferredOverEnv(t *testing.T) {
 
 // --- NewCaptchaService defaults -----------------------------------------
 
-// Deliberately NOT parallel: process-global state — t.Setenv on
-// ENROLLMENT_* and the captcha secret.
 func TestNewCaptchaService_NilLoggerFallsBackToDefault(t *testing.T) {
 	t.Parallel()
 
@@ -249,8 +226,6 @@ func TestNewCaptchaService_NilLoggerFallsBackToDefault(t *testing.T) {
 	require.NotNil(t, svc)
 }
 
-// Deliberately NOT parallel: process-global state — t.Setenv on
-// ENROLLMENT_* and the captcha secret.
 func TestNewCaptchaService_NilHTTPClientUses10sTimeout(t *testing.T) {
 	t.Parallel()
 
@@ -277,8 +252,6 @@ func TestNewCaptchaService_NilHTTPClientUses10sTimeout(t *testing.T) {
 		"nil HTTPClient still produces a usable, callable client")
 }
 
-// Deliberately NOT parallel: process-global state — t.Setenv on
-// ENROLLMENT_* and the captcha secret.
 func TestNewCaptchaService_EmptyVerifyURLFallsBackToTurnstile(t *testing.T) {
 	t.Parallel()
 

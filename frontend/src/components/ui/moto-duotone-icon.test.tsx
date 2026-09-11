@@ -72,6 +72,24 @@ describe("MotoDuotoneIcon", () => {
     );
   });
 
+  it("inherits the surrounding foreground color inside filled actions", () => {
+    const { container } = render(
+      <div style={{ color: "#FFFFFF" }}>
+        <MotoDuotoneIcon
+          icon={BuildingsIcon}
+          tone="indigo"
+          colorMode="inherit"
+        />
+      </div>,
+    );
+    const icon = container.querySelector("svg");
+
+    expect(icon).toHaveStyle({ color: "#FFFFFF" });
+    expect(icon?.style.getPropertyValue("--moto-icon-secondary")).toBe(
+      "currentColor",
+    );
+  });
+
   it("exposes an accessible name when the icon carries meaning", () => {
     render(<MotoDuotoneIcon icon={BuildingsIcon} tone="teal" label="Räume" />);
 

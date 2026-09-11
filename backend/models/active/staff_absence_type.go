@@ -10,6 +10,11 @@ import (
 
 const maxAbsenceTypeNameLength = 100
 
+const (
+	AbsenceTypeOverrunWarn  = "warn"
+	AbsenceTypeOverrunBlock = "block"
+)
+
 // StaffAbsenceType is a tenant-defined display name for a staff absence
 // (#2403). Tarif- and Arbeitsvertrag-specific wordings differ per school
 // ("Regenerationstag", "Ferienzeit", "Sonderurlaub"), so the *label* is
@@ -41,6 +46,12 @@ type StaffAbsenceType struct {
 	// become the column default TRUE on INSERT and an entry could never be
 	// deactivated. Mirrors schedule.ShiftType.
 	IsActive bool `bun:"is_active,notnull" json:"is_active"`
+	// AllowanceEnabled gives this school-defined type its own yearly account.
+	// It never changes the standard vacation account.
+	AllowanceEnabled bool `bun:"allowance_enabled,notnull" json:"allowance_enabled"`
+	// OverrunPolicy controls whether a booking above the type's own allowance
+	// is shown as a warning or rejected.
+	OverrunPolicy string `bun:"overrun_policy,notnull" json:"overrun_policy"`
 }
 
 // Validate normalizes and checks the absence type: it trims the name, rejects
@@ -58,6 +69,12 @@ func (t *StaffAbsenceType) Validate() error {
 	}
 	if !slices.Contains(ValidAbsenceTypes, t.BaseType) {
 		return errors.New("ungültiger Grundtyp der Abwesenheit")
+	}
+	if t.OverrunPolicy == "" {
+		t.OverrunPolicy = AbsenceTypeOverrunWarn
+	}
+	if t.OverrunPolicy != AbsenceTypeOverrunWarn && t.OverrunPolicy != AbsenceTypeOverrunBlock {
+		return errors.New("ungültige Regel bei Überschreitung")
 	}
 	return nil
 }

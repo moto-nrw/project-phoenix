@@ -95,6 +95,8 @@ export const MOTO_DUOTONE_TONES: Record<
 export interface MotoDuotoneIconProps {
   readonly icon: PhosphorIcon;
   readonly tone: MotoDuotoneTone;
+  /** Use the surrounding foreground color for both icon layers. */
+  readonly colorMode?: "tone" | "inherit";
   readonly size?: IconProps["size"];
   readonly weight?: IconProps["weight"];
   readonly className?: string;
@@ -104,12 +106,20 @@ export interface MotoDuotoneIconProps {
 export function MotoDuotoneIcon({
   icon: Icon,
   tone,
+  colorMode = "tone",
   size = 32,
   weight = "duotone",
   className,
   label,
 }: MotoDuotoneIconProps) {
   const colors = MOTO_DUOTONE_TONES[tone];
+  const iconStyle: CSSProperties & { "--moto-icon-secondary": string } =
+    colorMode === "inherit"
+      ? { "--moto-icon-secondary": "currentColor" }
+      : {
+          color: colors.primary,
+          "--moto-icon-secondary": colors.secondary,
+        };
 
   return (
     <Icon
@@ -117,12 +127,7 @@ export function MotoDuotoneIcon({
       weight={weight}
       className={cn("moto-duotone-icon shrink-0", className)}
       data-moto-duotone-tone={tone}
-      style={
-        {
-          color: colors.primary,
-          "--moto-icon-secondary": colors.secondary,
-        } as CSSProperties
-      }
+      style={iconStyle}
       aria-hidden={label ? undefined : true}
       aria-label={label}
       role={label ? "img" : undefined}

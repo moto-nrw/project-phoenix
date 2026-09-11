@@ -32,7 +32,7 @@ func newStammdatenScenario(t *testing.T) *stammdatenScenario {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
 		PersonRepo:             repos.Person,
 		RFIDRepo:               repos.RFIDCard,

@@ -13,3 +13,10 @@ func WithAfterCommitHooksForTest(ctx context.Context) (context.Context, func()) 
 	newCtx, h := withAfterCommitHooks(ctx)
 	return newCtx, func() { runAfterCommitHooks(h) }
 }
+
+// WithTransactionHooksForTest exposes both transaction outcomes to tests of
+// components that must compensate an external side effect on rollback.
+func WithTransactionHooksForTest(ctx context.Context) (context.Context, func(), func()) {
+	newCtx, h := withAfterCommitHooks(ctx)
+	return newCtx, func() { runAfterCommitHooks(h) }, func() { runAfterRollbackHooks(h) }
+}

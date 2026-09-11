@@ -1,3 +1,10 @@
+---
+paths:
+  - "backend/**/config/**"
+  - "frontend/src/**/settings/**"
+  - "frontend/src/**/*settings*"
+---
+
 # Tenant-Scoped Settings System
 
 **RULE: When adding, editing, or deleting settings, follow the patterns below.** The settings system is registry-driven — all definitions are declared at init time, validated at startup, and served to the frontend as an auto-generated schema.
@@ -57,6 +64,12 @@ The settings service resolves values in **two tiers**:
 2. Registry default    (Definition.Default)
 ```
 
+This is the complete resolution chain for services and their consumers.
+Environment variables are not a third tier, including for legacy compatibility.
+An explicit tenant value remains authoritative even when it equals the registry
+default or is empty, false, or zero where the definition permits that value.
+Resolution errors must be handled as errors, not converted into defaults.
+
 ### Request-Scoped Resolution Cache (#2065)
 
 Every `Resolve*`/`HasTenantOverride` call funnels through `ResolveMany`, which
@@ -87,7 +100,10 @@ snapshot so downstream single-key reads (including in services) are free.
 Read paths only — prefetched snapshots are immutable and not evicted by
 writes. There is deliberately NO process-wide cache.
 
-The service does **not** check environment variables. `Resolve*()` returns the registry default when no tenant override exists. Consumers that need env var backward compatibility must implement a three-step pattern manually: `HasTenantOverride()` → `Resolve*()` → `os.Getenv()`. See [Step 3](#step-3-add-consuming-code).
+`Resolve*()` returns the registry default when no tenant override exists.
+Consumers use that result directly; they must not append an environment lookup.
+`HasTenantOverride()` reports whether an override exists, not whether an env
+fallback should run. See [Step 3](#step-3-add-consuming-code).
 
 ### SettingsService Interface
 
@@ -157,43 +173,36 @@ config.Register(config.Definition{
 
 ### Step 3: Add Consuming Code
 
-**MANDATORY PATTERN** — Use `HasTenantOverride` to preserve env var fallback:
+Use `Resolve*(ctx, key)` inside tenant middleware, or
+`Resolve*ForTenant(ctx, tenantID, key)` outside it (device auth, scheduler,
+login). Handle the error and use the resolved value directly.
 
-```go
-value := defaultValue
+Require the settings service at composition time. A missing service is a
+configuration error, not a reason to read env vars or invent a local default.
+Do not compare a result with `Definition.Default` to infer whether the tenant
+set it; an explicit override may intentionally equal that default.
 
-if settingsService != nil {
-    if has, err := settingsService.HasTenantOverride(ctx, configModel.KeyMyNewSetting); err != nil {
-        slog.Warn("settings override check failed, falling back",
-            slog.String("key", configModel.KeyMyNewSetting),
-            slog.String("error", err.Error()),
-        )
-    } else if has {
-        if val, err := settingsService.ResolveString(ctx, configModel.KeyMyNewSetting); err == nil && val != "" {
-            value = val
-        }
-    }
-}
-
-// Fall back to env var
-if value == defaultValue {
-    if envVal := os.Getenv("MY_ENV_VAR"); envVal != "" {
-        value = envVal
-    }
-}
-```
-
-**WHY**: `Resolve*()` returns the registry default when no tenant override exists, bypassing env vars. `HasTenantOverride` distinguishes "no override" (fall through to env var) from "override exists" (use DB value).
+Existing consumer env-fallback chains are migration debt, not an exception to
+this policy. When removing one, preserve any intended per-school configuration
+as explicit settings before cutover and test the resulting behavior. This rule
+does not claim that every existing runtime consumer has already been migrated.
 
 ### Step 4: Update Tests
 
-Update the affected tests in `services/config/defaults/defaults_test.go` (registration, types, dependencies, validation, defaults) and add consuming-code tests with a mock returning the setting value.
+Update affected registry tests in `services/config/defaults/defaults_test.go`
+(registration, types, dependencies, validation, defaults). Consumer tests must
+cover explicit overrides, absent overrides using the registry default, and
+resolution failures. Include an override equal to the default and valid
+empty/false/zero values where applicable; conflicting env values must not
+change the result. Follow the backend test-fixture rules.
 
 ### Step 5: Verify
 
 ```bash
-cd backend && go build ./... && go test ./services/config/... -v
+cd backend && ../scripts/run-go-toolchain.sh go test ./services/config/... -v
 ```
+
+Also run tests for affected consumers and the backend architecture checks.
 
 ## Editing a Setting
 
@@ -211,14 +220,16 @@ cd backend && go build ./... && go test ./services/config/... -v
 
 ## Consuming Code Patterns
 
-- **Scheduler** (`services/scheduler/scheduler.go`): `resolveStringSetting` / `resolveBoolSetting` / `resolveIntSetting` helpers wrap the HasTenantOverride chain; `forEachTenantSettings()` iterates all active schools.
-- **IoT Checkin** (`api/iot/checkin/helpers.go`): `getStudentDailyCheckoutTime()` — override → env var → unset (no time configured means daily checkout is always available).
-- **Device PIN** (`api/iot/api.go`): `ResolveStringForTenant(ctx, tenantID, KeyOGSDevicePIN)`.
+- **Tenant requests:** use typed `Resolve*` methods with the tenant context.
+- **Scheduler, device auth, and login:** use typed `Resolve*ForTenant` methods
+  with an explicit tenant ID; preserve isolation across per-tenant loops.
+- **Unset business values:** model them in the registry definition and consume
+  them according to that setting's contract, not through an env lookup.
 
 ## Key Rules
 
-- **NEVER add new env vars for per-tenant runtime config** — existing env vars are backward compatibility only
-- **NEVER call `Resolve*()` alone when env var fallback is needed** — use `HasTenantOverride()` first
+- **Per-tenant runtime config uses tenant overrides and registry defaults only** — no env fallback, including legacy compatibility chains
+- **Handle settings-service errors explicitly** — do not hide them behind env values or local defaults
 - **NEVER hardcode key strings** — use constants from `models/config/keys.go`
 - **`config:manage`** for sensitive settings (GDPR, security); **`config:update`** for operational ones
 - **Password fields are redacted** to `[REDACTED]` in the audit trail; reveal only via the dedicated endpoint

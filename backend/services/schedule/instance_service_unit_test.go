@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -35,7 +35,7 @@ func (s lifecycleSettingsStub) ResolveBool(context.Context, string) (bool, error
 
 func plannedLifecycleInstance() *scheduleModel.ActivityInstance {
 	return &scheduleModel.ActivityInstance{
-		Date:      timezone.NewDate(2026, 8, 13),
+		Date:      scheduleModel.NewDate(2026, 8, 13),
 		StartTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
 	}
@@ -65,6 +65,22 @@ func TestValidateStartTime(t *testing.T) {
 
 	svc.deps.Settings = lifecycleSettingsStub{intErr: errors.New("settings unavailable")}
 	require.ErrorIs(t, svc.validateStartTime(context.Background(), inst, inWindow), ErrLifecycleSettings)
+}
+
+func TestValidateSpontaneousStartWorkday(t *testing.T) {
+	t.Parallel()
+
+	spontaneous := plannedLifecycleInstance()
+	spontaneous.IsSpontaneous = true
+	saturday := time.Date(2026, 8, 15, 0, 0, 0, 0, timezone.Berlin)
+	assert.ErrorIs(t, validateSpontaneousStartWorkday(spontaneous, saturday), ErrInstanceWeekend)
+
+	monday := time.Date(2026, 8, 17, 0, 0, 0, 0, timezone.Berlin)
+	assert.NoError(t, validateSpontaneousStartWorkday(spontaneous, monday))
+
+	planned := *spontaneous
+	planned.IsSpontaneous = false
+	assert.NoError(t, validateSpontaneousStartWorkday(&planned, saturday))
 }
 
 func TestValidateCompleteTime(t *testing.T) {
@@ -206,21 +222,26 @@ func TestBroadcastRestoredVisits_EmitsBulkCheckInAndDashboard(t *testing.T) {
 }
 
 type reopenVisitStub struct {
-	activeModel.VisitRepository
-	byGroup map[int64][]*activeModel.Visit
-	current map[int64]*activeModel.Visit
+	InstancePresence
+	byGroup map[int64][]studentpresence.Visit
+	current map[int64]studentpresence.Visit
 	findErr error
 }
 
-func (r *reopenVisitStub) FindByActiveGroupID(_ context.Context, activeGroupID int64) ([]*activeModel.Visit, error) {
+func (r *reopenVisitStub) ListVisits(_ context.Context, filter studentpresence.VisitFilter) ([]studentpresence.Visit, error) {
 	if r.findErr != nil {
 		return nil, r.findErr
 	}
-	return r.byGroup[activeGroupID], nil
-}
-
-func (r *reopenVisitStub) GetCurrentByStudentID(_ context.Context, studentID int64) (*activeModel.Visit, error) {
-	return r.current[studentID], nil
+	if len(filter.ActiveGroupIDs) > 0 {
+		return r.byGroup[filter.ActiveGroupIDs[0]], nil
+	}
+	var visits []studentpresence.Visit
+	for _, studentID := range filter.StudentIDs {
+		if visit, ok := r.current[studentID]; ok {
+			visits = append(visits, visit)
+		}
+	}
+	return visits, nil
 }
 
 type reopenStudentLockStub struct {
@@ -238,15 +259,15 @@ func (s *reopenStudentLockStub) FindByIDForUpdate(_ context.Context, id int64) (
 func TestLockReopenSnapshotStudents_LocksSortedUniqueStudents(t *testing.T) {
 	t.Parallel()
 
-	visitA := &activeModel.Visit{StudentID: 52}
+	visitA := studentpresence.Visit{StudentID: 52}
 	visitA.ID = 20
-	visitB := &activeModel.Visit{StudentID: 41}
+	visitB := studentpresence.Visit{StudentID: 41}
 	visitB.ID = 21
-	visitDup := &activeModel.Visit{StudentID: 52}
+	visitDup := studentpresence.Visit{StudentID: 52}
 	visitDup.ID = 22
 	students := &reopenStudentLockStub{}
 	svc := &instanceService{deps: InstanceServiceDependencies{
-		VisitRepo: &reopenVisitStub{byGroup: map[int64][]*activeModel.Visit{
+		Presence: &reopenVisitStub{byGroup: map[int64][]studentpresence.Visit{
 			90: {visitA, visitB, visitDup},
 		}},
 		StudentRepo: students,
@@ -264,14 +285,14 @@ func TestLockReopenSnapshotStudents_LocksSortedUniqueStudents(t *testing.T) {
 func TestLockReopenSnapshotStudents_RejectsActiveVisit(t *testing.T) {
 	t.Parallel()
 
-	visit := &activeModel.Visit{StudentID: 52}
+	visit := studentpresence.Visit{StudentID: 52}
 	visit.ID = 20
-	current := &activeModel.Visit{StudentID: 52}
+	current := studentpresence.Visit{StudentID: 52}
 	current.ID = 99
 	svc := &instanceService{deps: InstanceServiceDependencies{
-		VisitRepo: &reopenVisitStub{
-			byGroup: map[int64][]*activeModel.Visit{90: {visit}},
-			current: map[int64]*activeModel.Visit{52: current},
+		Presence: &reopenVisitStub{
+			byGroup: map[int64][]studentpresence.Visit{90: {visit}},
+			current: map[int64]studentpresence.Visit{52: current},
 		},
 		StudentRepo: &reopenStudentLockStub{},
 	}}
@@ -331,7 +352,7 @@ func TestInstanceDelete_PlannedTemplateBackedCreatesCancellationException(t *tes
 	require.Len(t, exceptionRepo.created, 1)
 	created := exceptionRepo.created[0]
 	assert.Equal(t, groupID, created.ActivityGroupID)
-	assert.Equal(t, date, created.ExceptionDate)
+	assert.Equal(t, scheduleModel.Date(date), created.ExceptionDate)
 	assert.Equal(t, scheduleModel.ActivityExceptionCancelled, created.ExceptionType)
 	require.NotNil(t, created.Reason)
 	assert.Equal(t, deletedSlotReason, *created.Reason)
@@ -390,7 +411,7 @@ func TestInstanceDelete_ExistingModifiedExceptionIsConvertedToCancellation(t *te
 	reason := "Raumwechsel"
 	existing := &scheduleModel.ActivityException{
 		ActivityGroupID: groupID,
-		ExceptionDate:   date,
+		ExceptionDate:   scheduleModel.Date(date),
 		ExceptionType:   scheduleModel.ActivityExceptionModified,
 		StartTime:       &start,
 		EndTime:         &end,
@@ -498,7 +519,7 @@ func deleteUnitService(instanceRepo *deleteUnitInstanceRepo, exceptionRepo *dele
 
 func deleteUnitInstance(id int64, groupID *int64, date timezone.Date, status string, spontaneous bool) *scheduleModel.ActivityInstance {
 	inst := &scheduleModel.ActivityInstance{
-		Date:            date,
+		Date:            scheduleModel.Date(date),
 		ActivityGroupID: groupID,
 		Title:           "Delete unit test",
 		StartTime:       time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC),
@@ -531,7 +552,7 @@ func (r *deleteUnitInstanceRepo) FindByID(_ context.Context, _ any) (*scheduleMo
 	return r.instance, nil
 }
 
-func (r *deleteUnitInstanceRepo) FindByActivityGroupAndDate(_ context.Context, _ int64, _ timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (r *deleteUnitInstanceRepo) FindByActivityGroupAndDate(_ context.Context, _ int64, _ scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
 	r.sameDayCalls++
 	if r.sameDayErr != nil {
 		return nil, r.sameDayErr
@@ -560,7 +581,7 @@ type deleteUnitExceptionRepo struct {
 	updated   []*scheduleModel.ActivityException
 }
 
-func (r *deleteUnitExceptionRepo) FindByActivityGroupAndDate(_ context.Context, _ int64, _ timezone.Date) (*scheduleModel.ActivityException, error) {
+func (r *deleteUnitExceptionRepo) FindByActivityGroupAndDate(_ context.Context, _ int64, _ scheduleModel.Date) (*scheduleModel.ActivityException, error) {
 	r.findCalls++
 	if r.findErr != nil {
 		return nil, r.findErr

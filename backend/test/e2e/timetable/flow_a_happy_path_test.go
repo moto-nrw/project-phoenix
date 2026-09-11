@@ -8,12 +8,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -26,8 +28,7 @@ import (
 func TestFlowA_PlanToReport(t *testing.T) {
 	t.Parallel()
 
-	s := newScenario(t)
-	defer s.teardown()
+	s := setupTimetableScenarioModule(t)
 
 	// --- Setup: period, room, staff, students, template --------------------
 	// Pick a Wednesday far enough ahead that the scheduler accepts the window.
@@ -35,16 +36,12 @@ func TestFlowA_PlanToReport(t *testing.T) {
 	s.createActivePeriod(fmt.Sprintf("E2E-Flow-A-%d", time.Now().UnixNano()), target)
 
 	room := testpkg.CreateTestRoom(t, s.db, "FlowA-Room")
-	s.extraCleanup = append(s.extraCleanup, func() {
-	})
 
 	staff1 := testpkg.CreateTestStaff(t, s.db, "Frau", "Schmidt")
 	staff2 := testpkg.CreateTestStaff(t, s.db, "Herr", "Meier")
 	student1 := testpkg.CreateTestStudent(t, s.db, "Anna", "A", "3a")
 	student2 := testpkg.CreateTestStudent(t, s.db, "Ben", "B", "3a")
 	student3 := testpkg.CreateTestStudent(t, s.db, "Cleo", "C", "3a")
-	s.extraCleanup = append(s.extraCleanup, func() {
-	})
 
 	tmpl := s.buildTemplate(templateSpec{
 		name:       "Mathe-AG",
@@ -75,7 +72,6 @@ func TestFlowA_PlanToReport(t *testing.T) {
 
 	// Find the created instance (for later asserts + start/complete).
 	instance := fetchOneInstance(t, s, tmpl.group.ID, target)
-	s.registerCleanup("schedule.activity_instances", instance.ID)
 	require.Equal(t, scheduleModel.InstanceStatusPlanned, instance.Status)
 
 	// --- Step 2: assert DB baseline ---------------------------------------
@@ -239,14 +235,14 @@ func checkInStudent(t *testing.T, s *scenario, studentID, activeGroupID int64, s
 	// the visit to. Matches what the web check-in path does.
 	dev := testpkg.EnsureWebManualDevice(t, s.db)
 
-	ctx := context.WithValue(s.tenantCtx(), device.CtxDevice, dev)
-	ctx = context.WithValue(ctx, device.CtxStaff, staff)
+	ctx := context.WithValue(s.tenantCtx(), device.CtxDevice, testutil.DevicePrincipal(dev))
+	ctx = context.WithValue(ctx, device.CtxStaff, testutil.StaffPrincipal(staff))
 
-	visit := &activeModel.Visit{
+	visit := &studentpresence.Visit{
 		StudentID:     studentID,
 		ActiveGroupID: activeGroupID,
 		EntryTime:     time.Now(),
 	}
-	err := s.factory.Active.CreateVisit(ctx, visit)
+	err := s.createActiveVisit(ctx, visit)
 	require.NoError(t, err, "CreateVisit for student %d", studentID)
 }

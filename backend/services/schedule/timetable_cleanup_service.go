@@ -118,6 +118,7 @@ type timetableCleanupService struct {
 	deviationEventRepo  audit.DeviationEventRepository
 	settings            config.SettingsService
 	logger              *slog.Logger
+	today               func() timezone.Date
 }
 
 // NewTimetableCleanupService constructs the cleanup service. settings may be
@@ -132,6 +133,7 @@ func NewTimetableCleanupService(
 	deviationEventRepo audit.DeviationEventRepository,
 	settings config.SettingsService,
 	logger *slog.Logger,
+	clocks ...func() time.Time,
 ) TimetableCleanupService {
 	if logger == nil {
 		logger = slog.Default()
@@ -144,6 +146,7 @@ func NewTimetableCleanupService(
 		deviationEventRepo:  deviationEventRepo,
 		settings:            settings,
 		logger:              logger,
+		today:               timezone.CalendarDateClock(clocks...),
 	}
 }
 
@@ -158,7 +161,7 @@ func (s *timetableCleanupService) CleanupExpiredTimetableData(ctx context.Contex
 
 	start := time.Now()
 	retentionDays := s.resolveRetentionDays(ctx)
-	cutoff := cutoffFor(retentionDays)
+	cutoff := s.cutoffFor(retentionDays)
 
 	// 1. Collect per-student impact for the audit log.
 	studentCounts, sampleIDs, err := s.collectStudentImpact(ctx, cutoff)
@@ -174,13 +177,13 @@ func (s *timetableCleanupService) CleanupExpiredTimetableData(ctx context.Contex
 	}
 
 	// 3. Delete activity_instances. CASCADE handles instance_staff + instance_students.
-	instancesDeleted, err := s.instanceRepo.DeleteOlderThan(ctx, instanceDateColumn, cutoff)
+	instancesDeleted, err := s.instanceRepo.DeleteOlderThan(ctx, instanceDateColumn, scheduleModel.Date(cutoff))
 	if err != nil {
 		return nil, fmt.Errorf("delete activity_instances: %w", err)
 	}
 
 	// 4. Delete activity_exceptions.
-	exceptionsDeleted, err := s.exceptionRepo.DeleteOlderThan(ctx, exceptionDateColumn, cutoff)
+	exceptionsDeleted, err := s.exceptionRepo.DeleteOlderThan(ctx, exceptionDateColumn, scheduleModel.Date(cutoff))
 	if err != nil {
 		return nil, fmt.Errorf("delete activity_exceptions: %w", err)
 	}
@@ -191,7 +194,7 @@ func (s *timetableCleanupService) CleanupExpiredTimetableData(ctx context.Contex
 	// beyond IDs, so no data_deletions rows.
 	var deviationEventsDeleted int64
 	if s.deviationEventRepo != nil {
-		deviationEventsDeleted, err = s.deviationEventRepo.DeleteOlderThan(ctx, cutoff)
+		deviationEventsDeleted, err = s.deviationEventRepo.DeleteOlderThan(ctx, audit.Date(cutoff))
 		if err != nil {
 			return nil, fmt.Errorf("delete deviation_events: %w", err)
 		}
@@ -230,14 +233,14 @@ func (s *timetableCleanupService) PreviewExpiredTimetableData(ctx context.Contex
 	}
 
 	retentionDays := s.resolveRetentionDays(ctx)
-	cutoff := cutoffFor(retentionDays)
+	cutoff := s.cutoffFor(retentionDays)
 
-	instancesToDelete, err := s.instanceRepo.CountWithOptions(ctx, expiredOptions(instanceDateColumn, cutoff))
+	instancesToDelete, err := legacyCount(ctx, s.instanceRepo, expiredOptions(instanceDateColumn, cutoff))
 	if err != nil {
 		return nil, fmt.Errorf("count activity_instances: %w", err)
 	}
 
-	exceptionsToDelete, err := s.exceptionRepo.CountWithOptions(ctx, expiredOptions(exceptionDateColumn, cutoff))
+	exceptionsToDelete, err := legacyCount(ctx, s.exceptionRepo, expiredOptions(exceptionDateColumn, cutoff))
 	if err != nil {
 		return nil, fmt.Errorf("count activity_exceptions: %w", err)
 	}
@@ -247,11 +250,12 @@ func (s *timetableCleanupService) PreviewExpiredTimetableData(ctx context.Contex
 		return nil, fmt.Errorf("collect student impact: %w", err)
 	}
 
-	oldestInstance, err := s.instanceRepo.OldestBefore(ctx, instanceDateColumn, &cutoff)
+	cutoffDate := scheduleModel.Date(cutoff)
+	oldestInstance, err := s.instanceRepo.OldestBefore(ctx, instanceDateColumn, &cutoffDate)
 	if err != nil {
 		return nil, fmt.Errorf("oldest activity_instance: %w", err)
 	}
-	oldestException, err := s.exceptionRepo.OldestBefore(ctx, exceptionDateColumn, &cutoff)
+	oldestException, err := s.exceptionRepo.OldestBefore(ctx, exceptionDateColumn, &cutoffDate)
 	if err != nil {
 		return nil, fmt.Errorf("oldest activity_exception: %w", err)
 	}
@@ -262,8 +266,8 @@ func (s *timetableCleanupService) PreviewExpiredTimetableData(ctx context.Contex
 		StudentsAffected:   len(studentCounts),
 		RetentionDays:      retentionDays,
 		CutoffDate:         cutoff,
-		OldestInstance:     oldestInstance,
-		OldestException:    oldestException,
+		OldestInstance:     cleanupTimezoneDate(oldestInstance),
+		OldestException:    cleanupTimezoneDate(oldestException),
 	}, nil
 }
 
@@ -277,14 +281,14 @@ func (s *timetableCleanupService) GetStats(ctx context.Context) (*TimetableClean
 	}
 
 	retentionDays := s.resolveRetentionDays(ctx)
-	cutoff := cutoffFor(retentionDays)
+	cutoff := s.cutoffFor(retentionDays)
 
-	totalInstances, err := s.instanceRepo.CountWithOptions(ctx, nil)
+	totalInstances, err := legacyCount(ctx, s.instanceRepo, nil)
 	if err != nil {
 		return nil, fmt.Errorf("count activity_instances: %w", err)
 	}
 
-	totalExceptions, err := s.exceptionRepo.CountWithOptions(ctx, nil)
+	totalExceptions, err := legacyCount(ctx, s.exceptionRepo, nil)
 	if err != nil {
 		return nil, fmt.Errorf("count activity_exceptions: %w", err)
 	}
@@ -301,8 +305,8 @@ func (s *timetableCleanupService) GetStats(ctx context.Context) (*TimetableClean
 	return &TimetableCleanupStats{
 		TotalInstances:  totalInstances,
 		TotalExceptions: totalExceptions,
-		OldestInstance:  oldestInstance,
-		OldestException: oldestException,
+		OldestInstance:  cleanupTimezoneDate(oldestInstance),
+		OldestException: cleanupTimezoneDate(oldestException),
 		RetentionDays:   retentionDays,
 		CutoffDate:      cutoff,
 	}, nil
@@ -336,8 +340,8 @@ func (s *timetableCleanupService) resolveRetentionDays(ctx context.Context) int 
 }
 
 // cutoffFor returns the calendar-day cutoff for the retention window.
-func cutoffFor(retentionDays int) timezone.Date {
-	return timezone.TodayDate().AddDays(-retentionDays)
+func (s *timetableCleanupService) cutoffFor(retentionDays int) timezone.Date {
+	return s.today().AddDays(-retentionDays)
 }
 
 // expiredOptions builds query options selecting rows whose dateColumn is
@@ -353,6 +357,14 @@ func expiredOptions(dateColumn string, cutoff timezone.Date) *modelBase.QueryOpt
 type perStudentCounts map[int64]int
 type perStudentSamples map[int64][]int64
 
+func cleanupTimezoneDate(date *scheduleModel.Date) *timezone.Date {
+	if date == nil {
+		return nil
+	}
+	converted := timezone.Date(*date)
+	return &converted
+}
+
 // collectStudentImpact returns per-student counts of instance_students rows
 // that will be cleaned up (by way of CASCADE from activity_instances), plus
 // a bounded sample of instance IDs per student for forensic lookup.
@@ -360,7 +372,7 @@ func (s *timetableCleanupService) collectStudentImpact(
 	ctx context.Context,
 	cutoff timezone.Date,
 ) (perStudentCounts, perStudentSamples, error) {
-	refs, err := s.instanceStudentRepo.ListStudentInstanceRefsBefore(ctx, cutoff)
+	refs, err := s.instanceStudentRepo.ListStudentInstanceRefsBefore(ctx, scheduleModel.Date(cutoff))
 	if err != nil {
 		return nil, nil, err
 	}

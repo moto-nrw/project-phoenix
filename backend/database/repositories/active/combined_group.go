@@ -3,8 +3,6 @@ package active
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -50,7 +48,7 @@ func (r *CombinedGroupRepository) FindActive(ctx context.Context) ([]*active.Com
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find active",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -71,7 +69,7 @@ func (r *CombinedGroupRepository) FindByTimeRange(ctx context.Context, start, en
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by time range",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -93,7 +91,7 @@ func (r *CombinedGroupRepository) EndCombination(ctx context.Context, id int64) 
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "end combination",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -114,7 +112,7 @@ func (r *CombinedGroupRepository) FindWithGroups(ctx context.Context, id int64) 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find combined group",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -131,32 +129,33 @@ func (r *CombinedGroupRepository) FindWithGroups(ctx context.Context, id int64) 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find group mappings",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
-	// Load ActiveGroup for each mapping separately (multi-schema)
+	groupIDs := make([]int64, 0, len(groupMappings))
 	for _, mapping := range groupMappings {
 		if mapping.ActiveGroupID > 0 {
-			activeGroup := new(active.Group)
-			agQuery := base.GetDB(ctx, r.db).NewSelect().
-				Model(activeGroup).
-				ModelTableExpr(`active.groups AS "group"`).
-				Where("id = ?", mapping.ActiveGroupID)
-
-			agQuery = base.WithTenantFilter(ctx, agQuery, "group")
-
-			agErr := agQuery.Scan(ctx)
-			if agErr == nil {
-				mapping.ActiveGroup = activeGroup
-			} else if !errors.Is(agErr, sql.ErrNoRows) {
-				// Return actual database errors, but allow "not found" to continue
-				return nil, &modelBase.DatabaseError{
-					Op:  "find active group relation",
-					Err: agErr,
-				}
-			}
+			groupIDs = append(groupIDs, mapping.ActiveGroupID)
 		}
+	}
+	activeGroupsByID := make(map[int64]*active.Group, len(groupIDs))
+	if len(groupIDs) > 0 {
+		var groups []*active.Group
+		groupQuery := base.GetDB(ctx, r.db).NewSelect().
+			Model(&groups).
+			ModelTableExpr(`active.groups AS "group"`).
+			Where(`"group".id IN (?)`, bun.List(groupIDs))
+		groupQuery = base.WithTenantFilter(ctx, groupQuery, "group")
+		if err := groupQuery.Scan(ctx); err != nil {
+			return nil, &modelBase.DatabaseError{Op: "find active group relations", Err: base.TranslateNotFound(err)}
+		}
+		for _, group := range groups {
+			activeGroupsByID[group.ID] = group
+		}
+	}
+	for _, mapping := range groupMappings {
+		mapping.ActiveGroup = activeGroupsByID[mapping.ActiveGroupID]
 	}
 
 	// Set mappings
@@ -174,51 +173,18 @@ func (r *CombinedGroupRepository) FindWithGroups(ctx context.Context, id int64) 
 	return combinedGroup, nil
 }
 
-// applyActiveOnlyFilter handles the special active_only filter for combined groups.
-// Returns the modified query with the appropriate WHERE clause applied.
-func (r *CombinedGroupRepository) applyActiveOnlyFilter(query *bun.SelectQuery, filter *modelBase.Filter) *bun.SelectQuery {
-	activeOnly, ok := filter.Get("active_only")
-	if !ok {
-		return query
-	}
-
-	// Remove from filter so ApplyToQuery doesn't try to use it as a column
-	filter.Remove("active_only")
-
-	isActive, isBool := activeOnly.(bool)
-	if !isBool {
-		return query
-	}
-
-	if isActive {
-		// Match FindByTimeRange semantics: active means not yet ended (includes future end_time)
-		return query.Where(`"combined_group".end_time IS NULL OR "combined_group".end_time > NOW()`)
-	}
-	// active=false returns only inactive (ended) combined groups
-	return query.Where(`"combined_group".end_time IS NOT NULL AND "combined_group".end_time <= NOW()`)
-}
-
 // List overrides the base List method to accept the new QueryOptions type
 func (r *CombinedGroupRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.CombinedGroup, error) {
-	var groups []*active.CombinedGroup
-	query := base.GetDB(ctx, r.db).NewSelect().Model(&groups).ModelTableExpr(tableExprCombinedGroupsAsCG)
-
-	query = base.WithTenantFilter(ctx, query, "combined_group")
-
-	if options != nil {
-		if options.Filter != nil {
-			query = r.applyActiveOnlyFilter(query, options.Filter)
-			options.Filter.WithTableAlias("combined_group")
-		}
-		query = options.ApplyToQuery(query)
+	if options != nil && options.Filter != nil {
+		rewriteActiveOnlyFilter(options.Filter, "", "end_time", bun.Safe("NOW()"))
 	}
 
-	err := query.Scan(ctx)
+	groups, err := r.ListWithOptions(ctx, options)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
+		return nil, &modelBase.DatabaseError{Op: "list", Err: base.DatabaseErrorCause(err)}
+	}
+	if len(groups) == 0 {
+		return nil, nil
 	}
 
 	return groups, nil

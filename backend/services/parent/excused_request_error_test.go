@@ -13,7 +13,7 @@ import (
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/uptrace/bun"
@@ -24,30 +24,37 @@ import (
 // mapping (which is otherwise unreachable because the parent path validates
 // input upstream) can be exercised.
 type stubExcused struct {
-	absenceSvc.ExcusedAbsenceRequestService
-	createErr   error
-	withdrawErr error
-	listErr     error
+	careplan.ExcusedAbsenceRequests
+	createErr error
+	editErr   error
+	listErr   error
 }
 
-func (s stubExcused) CreateRequest(_ context.Context, _, _ int64, _ []timezone.Date, _ string) (*activeModels.ExcusedAbsenceRequest, error) {
+func (s stubExcused) CreateRequest(_ context.Context, _, _ int64, _ []careplan.Date, _ string) (*careplan.ExcusedAbsenceRequest, error) {
 	return nil, s.createErr
 }
 
-func (s stubExcused) WithdrawRequest(_ context.Context, _, _, _ int64) (*activeModels.ExcusedAbsenceRequest, error) {
-	return nil, s.withdrawErr
+// Submit is the reason-policy-aware create entry point the parent service now
+// uses (#2267). It returns the same injected error as CreateRequest so the
+// error-mapping cases below are unchanged.
+func (s stubExcused) Submit(_ context.Context, _ careplan.ExcusedRequestCreateInput) (*careplan.ExcusedAbsenceRequest, error) {
+	return nil, s.createErr
 }
 
-func (s stubExcused) ListForStudent(_ context.Context, _ int64, _ time.Time) ([]*activeModels.ExcusedAbsenceRequest, error) {
+func (s stubExcused) EditRequest(_ context.Context, _ careplan.ExcusedRequestEditInput) (*careplan.ExcusedAbsenceRequest, error) {
+	return nil, s.editErr
+}
+
+func (s stubExcused) ListForStudent(_ context.Context, _ int64, _ time.Time) ([]*careplan.ExcusedAbsenceRequest, error) {
 	return nil, s.listErr
 }
 
 // buildParentServiceWithExcused wires a parent service (approval gate on) with a
 // caller-supplied excused-request service (real, stub, or nil).
-func buildParentServiceWithExcused(t *testing.T, excused absenceSvc.ExcusedAbsenceRequestService) (parentService.Service, *bun.DB) {
+func buildParentServiceWithExcused(t *testing.T, excused careplan.ExcusedAbsenceRequests) (parentService.Service, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	bc := testpkg.NewRecordingBroadcaster()
 	return parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:       repos.ParentChild,
@@ -73,11 +80,11 @@ func TestSubmitExcusedRequest_MapsServiceErrors(t *testing.T) {
 		in   error
 		want error
 	}{
-		{"no dates", absenceSvc.ErrExcusedRequestNoDates, parentService.ErrNoDates},
-		{"empty note", absenceSvc.ErrExcusedRequestEmptyNote, parentService.ErrEmptyNote},
-		{"note too long", absenceSvc.ErrExcusedRequestNoteTooLong, parentService.ErrNoteTooLong},
-		{"overlap", absenceSvc.ErrExcusedRequestOverlap, parentService.ErrExcusedRequestOverlap},
-		{"partial absence conflict", absenceSvc.ErrExcusedRequestStatusConflict, parentService.ErrCareExceptionConflict},
+		{"no dates", careplan.ErrExcusedRequestNoDates, parentService.ErrNoDates},
+		{"empty note", careplan.ErrExcusedRequestEmptyNote, parentService.ErrEmptyNote},
+		{"note too long", careplan.ErrExcusedRequestNoteTooLong, parentService.ErrNoteTooLong},
+		{"overlap", careplan.ErrExcusedRequestOverlap, parentService.ErrExcusedRequestOverlap},
+		{"partial absence conflict", careplan.ErrExcusedRequestStatusConflict, parentService.ErrCareExceptionConflict},
 		{"other error is wrapped", errors.New("boom"), nil},
 	}
 	for _, tc := range cases {
@@ -86,7 +93,7 @@ func TestSubmitExcusedRequest_MapsServiceErrors(t *testing.T) {
 			chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 			_, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-				[]timezone.Date{day}, "Familienfeier", activeModels.StudentStatusDayExcused)
+				[]timezone.Date{day}, "Familienfeier", activeModels.StudentStatusDayExcused, nil)
 			require.Error(t, err)
 			if tc.want != nil {
 				assert.ErrorIs(t, err, tc.want)
@@ -94,6 +101,33 @@ func TestSubmitExcusedRequest_MapsServiceErrors(t *testing.T) {
 				// The default branch wraps the raw error rather than mapping it.
 				assert.ErrorContains(t, err, "boom")
 			}
+		})
+	}
+}
+
+func TestEditExcusedRequest_MapsServiceErrors(t *testing.T) {
+	t.Parallel()
+
+	day := timezone.TodayDate().AddDays(3)
+	cases := []struct {
+		name string
+		in   error
+		want error
+	}{
+		{"no dates", careplan.ErrExcusedRequestNoDates, parentService.ErrNoDates},
+		{"empty note", careplan.ErrExcusedRequestEmptyNote, parentService.ErrEmptyNote},
+		{"note too long", careplan.ErrExcusedRequestNoteTooLong, parentService.ErrNoteTooLong},
+		{"overlap", careplan.ErrExcusedRequestOverlap, parentService.ErrExcusedRequestOverlap},
+		{"partial absence conflict", careplan.ErrExcusedRequestStatusConflict, parentService.ErrCareExceptionConflict},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, db := buildParentServiceWithExcused(t, stubExcused{editErr: tc.in})
+			chain := testpkg.CreateTestParentGuardianChain(t, db)
+
+			_, err := svc.EditExcusedRequest(testpkg.WithPackageTenantRuntime(context.Background()),
+				chain.AccountID, chain.StudentID, 1, []timezone.Date{day}, "Familienfeier", "")
+			assert.ErrorIs(t, err, tc.want)
 		})
 	}
 }
@@ -107,7 +141,7 @@ func TestSubmitExcused_NoServiceConfigured(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	_, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{timezone.TodayDate().AddDays(3)}, "Familienfeier", activeModels.StudentStatusDayExcused)
+		[]timezone.Date{timezone.TodayDate().AddDays(3)}, "Familienfeier", activeModels.StudentStatusDayExcused, nil)
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "not configured")
 }
@@ -142,50 +176,4 @@ func TestListExcusedRequests_Errors(t *testing.T) {
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "db down")
 	})
-}
-
-// TestWithdrawExcusedRequest_Errors covers the ownership guard, the nil-service
-// path and the not-found / not-pending / wrapped mappings.
-func TestWithdrawExcusedRequest_Errors(t *testing.T) {
-	t.Parallel()
-
-	t.Run("foreign child rejected", func(t *testing.T) {
-		svc, db := buildParentServiceWithExcused(t, stubExcused{})
-		chain := testpkg.CreateTestParentGuardianChain(t, db)
-
-		_, err := svc.WithdrawExcusedRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID+999999, 1)
-		require.Error(t, err)
-	})
-
-	t.Run("nil service returns not found", func(t *testing.T) {
-		svc, db := buildParentServiceWithExcused(t, nil)
-		chain := testpkg.CreateTestParentGuardianChain(t, db)
-
-		_, err := svc.WithdrawExcusedRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, 1)
-		assert.ErrorIs(t, err, parentService.ErrExcusedRequestNotFound)
-	})
-
-	cases := []struct {
-		name string
-		in   error
-		want error
-	}{
-		{"not found", activeModels.ErrExcusedRequestNotFound, parentService.ErrExcusedRequestNotFound},
-		{"not pending", activeModels.ErrExcusedRequestNotPending, parentService.ErrExcusedRequestNotPending},
-		{"other error wrapped", errors.New("kaboom"), nil},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			svc, db := buildParentServiceWithExcused(t, stubExcused{withdrawErr: tc.in})
-			chain := testpkg.CreateTestParentGuardianChain(t, db)
-
-			_, err := svc.WithdrawExcusedRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, 1)
-			require.Error(t, err)
-			if tc.want != nil {
-				assert.ErrorIs(t, err, tc.want)
-			} else {
-				assert.ErrorContains(t, err, "kaboom")
-			}
-		})
-	}
 }

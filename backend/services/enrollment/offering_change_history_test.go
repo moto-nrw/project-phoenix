@@ -77,7 +77,11 @@ func TestOfferingChangeRequestService_ListHistory(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.NoError(t, svc.Withdraw(ctx, withdrawn.ID, env.creatorID, fx.studentID))
+	// Withdrawal was retired in #2267 (guardians edit instead); the status
+	// stays valid for historic rows, so it is written through the repository.
+	require.NoError(t, env.repos.OfferingChangeRequest.Decide(
+		ctx, withdrawn.ID, enrollmentModels.OfferingChangeStatusWithdrawn, nil, nil, false,
+	))
 
 	items, _, err = svc.ListHistory(ctx, modelBase.RequestQueueFilters{Limit: 25})
 	require.NoError(t, err)

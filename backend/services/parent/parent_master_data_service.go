@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/localization"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -111,7 +112,7 @@ func (s *service) GetChildMasterData(ctx context.Context, accountID, studentID i
 
 	var out *ChildMasterData
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		data, loadErr := s.loadMasterData(txCtx, child.guardianProfileID, studentID)
+		data, loadErr := s.loadMasterData(txCtx, accountID, child.guardianProfileID, studentID)
 		if loadErr != nil {
 			return loadErr
 		}
@@ -177,7 +178,7 @@ func (s *service) UpdateMasterDataField(ctx context.Context, accountID, studentI
 				return recErr
 			}
 		}
-		data, loadErr := s.loadMasterData(txCtx, child.guardianProfileID, studentID)
+		data, loadErr := s.loadMasterData(txCtx, accountID, child.guardianProfileID, studentID)
 		if loadErr != nil {
 			return loadErr
 		}
@@ -336,7 +337,7 @@ func (s *service) applyGuardianProfileEdit(ctx context.Context, guardianProfileI
 		return oldRaw, newRaw, &ref, false, nil
 	}
 	if err := s.GuardianProfileRepo.Update(ctx, profile); err != nil {
-		if isGuardianEmailUniqueViolation(err) && profile.Email != nil {
+		if base.IsUniqueViolationOn(err, guardianEmailUniqueIndex) && profile.Email != nil {
 			return nil, nil, nil, false, ErrGuardianEmailConflict
 		}
 		return nil, nil, nil, false, err
@@ -450,7 +451,7 @@ func (s *service) recordAutoApplied(ctx context.Context, tenantID, studentID, ac
 }
 
 // loadMasterData assembles the Stammdaten DTO inside an existing tenant tx.
-func (s *service) loadMasterData(ctx context.Context, guardianProfileID, studentID int64) (*ChildMasterData, error) {
+func (s *service) loadMasterData(ctx context.Context, accountID, guardianProfileID, studentID int64) (*ChildMasterData, error) {
 	student, err := s.StudentRepo.FindByID(ctx, studentID)
 	if err != nil {
 		return nil, err
@@ -498,7 +499,16 @@ func (s *service) loadMasterData(ctx context.Context, guardianProfileID, student
 	if err != nil {
 		return nil, err
 	}
-	out.PendingChanges = pending
+	visibility, err := s.loadRequestShareVisibility(ctx, studentID)
+	if err != nil {
+		return nil, err
+	}
+	out.PendingChanges = make([]*usersModels.StudentDataChangeRequest, 0, len(pending))
+	for _, row := range pending {
+		if row != nil && visibility.allows(RequestShareMasterData, row.ID, accountID, row.SubmittedBy) {
+			out.PendingChanges = append(out.PendingChanges, row)
+		}
+	}
 
 	return out, nil
 }

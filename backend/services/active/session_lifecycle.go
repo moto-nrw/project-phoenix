@@ -80,14 +80,12 @@ func (s *service) SessionTimeUntilTimeout(ctx context.Context, group *active.Gro
 	return s.ResolveSessionTimeout(ctx, group) - SessionInactivityDuration(group, now)
 }
 
-// IsSupervisorActive decides whether a supervision assignment is still active as
-// of now. A nil EndDate means open-ended (active); otherwise it is active while
-// now is before the recorded end.
+// IsSupervisorActive decides whether a supervision assignment has started and
+// has not ended as of now. A nil EndDate means open-ended after its StartDate.
 func IsSupervisorActive(supervisor *active.GroupSupervisor, now time.Time) bool {
-	if supervisor.EndDate == nil {
-		return true
-	}
-	return timezone.DateFromTime(now).Before(*supervisor.EndDate)
+	today := timezone.DateFromTime(now)
+	return !supervisor.StartDate.After(today) &&
+		(supervisor.EndDate == nil || today.Before(*supervisor.EndDate))
 }
 
 // IsCombinedGroupActive decides whether a combined group is still active as of

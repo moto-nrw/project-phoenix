@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -16,7 +15,7 @@ func AcquireStaffBalanceLock(ctx context.Context, db *bun.DB, staffID int64) err
 	if staffID <= 0 {
 		return errors.New("staff id is required")
 	}
-	tenantID := tenant.FromContext(ctx)
+	tenantID := tenantIDFromContext(ctx)
 	if tenantID <= 0 {
 		return errors.New("tenant id is required")
 	}

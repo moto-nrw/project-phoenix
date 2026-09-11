@@ -1,14 +1,13 @@
 package active
 
 import (
-	"database/sql"
 	"errors"
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,10 +17,10 @@ import (
 func TestIsNotFoundError(t *testing.T) {
 	t.Parallel()
 
-	t.Run("returns true for DatabaseError with sql.ErrNoRows", func(t *testing.T) {
+	t.Run("returns true for DatabaseError with repository not-found", func(t *testing.T) {
 		err := &base.DatabaseError{
 			Op:  "find by id",
-			Err: sql.ErrNoRows,
+			Err: base.ErrNotFound,
 		}
 		assert.True(t, base.IsNoRows(err))
 	})
@@ -43,10 +42,10 @@ func TestIsNotFoundError(t *testing.T) {
 		assert.False(t, base.IsNoRows(nil))
 	})
 
-	t.Run("returns true for wrapped DatabaseError with sql.ErrNoRows", func(t *testing.T) {
+	t.Run("returns true for wrapped DatabaseError with repository not-found", func(t *testing.T) {
 		dbErr := &base.DatabaseError{
 			Op:  "find by id",
-			Err: sql.ErrNoRows,
+			Err: base.ErrNotFound,
 		}
 		// Wrap the error
 		wrappedErr := errors.Join(errors.New("context"), dbErr)
@@ -94,7 +93,8 @@ func TestIsDuplicateActiveVisitViolation(t *testing.T) {
 		db := testpkg.SetupTestDB(t)
 
 		ctx := testpkg.Ctx(t)
-		repo := repositories.NewFactory(db).ActiveVisit
+		presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+		require.NoError(t, err)
 
 		// Hermetic fixtures.
 		student := testpkg.CreateTestStudent(t, db, "DupViol", "Student", "1a")
@@ -105,14 +105,14 @@ func TestIsDuplicateActiveVisitViolation(t *testing.T) {
 		// First insert: succeeds and stays open (exit_time IS NULL).
 		testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now().Add(-1*time.Minute), nil)
 
-		// Second insert: same (tenant_id=1, student_id, exit_time IS NULL)
+		// Second insert: same (tenant_id, student_id, exit_time IS NULL)
 		// — must be rejected by uniq_active_visits_open_per_student.
-		duplicate := &activeModels.Visit{
+		duplicate := studentpresence.Visit{
 			StudentID:     student.ID,
 			ActiveGroupID: activeGroup.ID,
 			EntryTime:     time.Now(),
 		}
-		err := repo.Create(ctx, duplicate)
+		duplicate, err = presence.RecordVisit(ctx, duplicate)
 
 		require.Error(t, err, "partial unique index from migration 1.15.47 must reject the second open visit")
 		assert.Equal(t, int64(0), duplicate.ID, "rejected insert must not assign an ID")

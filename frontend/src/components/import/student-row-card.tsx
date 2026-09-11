@@ -60,7 +60,7 @@ export function StudentRowCard({ student, index }: StudentRowCardProps) {
   const metaChips = student.meta.filter((chip) => chip.length > 0);
 
   return (
-    <div className="rounded-xl border border-gray-100 bg-white p-3">
+    <div className="moto-content-surface rounded-xl border p-3 shadow-sm">
       <div className="flex items-center gap-3">
         <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-600">
           {student.row || index + 1}

@@ -9,13 +9,14 @@ import (
 	"testing"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/uptrace/bun"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -27,8 +28,8 @@ import (
 // on: phase, request, child linked to an enrolled student, plus two offerings
 // the child is booked into.
 type correctionFixture struct {
-	phase    *enrollmentModels.Phase
-	child    *enrollmentModels.RequestChild
+	phase    *capability.Phase
+	child    *capability.RequestChild
 	ganztag  *enrollmentModels.CareOffering
 	mittag   *enrollmentModels.CareOffering
 	tenantID int64
@@ -36,43 +37,40 @@ type correctionFixture struct {
 
 func setupCorrectionFixture(t *testing.T, tc *testContext, studentID, tenantID int64, lastName string) *correctionFixture {
 	t.Helper()
-	ctx := t.Context()
 	phase := testpkg.CreateTestEnrollmentPhase(t, tc.db)
 	ganztag := testpkg.CreateTestCareOffering(t, tc.db, phase.ID, "Ganztag")
 	mittag := testpkg.CreateTestCareOffering(t, tc.db, phase.ID, "Mittagessen")
 
-	request := &enrollmentModels.Request{
+	request := &capability.Request{
 		PhaseID:           phase.ID,
 		GuardianFirstName: "Erzieh",
 		GuardianLastName:  "Ungsberechtigt",
 		GuardianEmail:     fmt.Sprintf("korrektur-%d@example.test", time.Now().UnixNano()),
-		StatusToken:       fmt.Sprintf("tok-%d", time.Now().UnixNano()),
+		StatusToken:       fmt.Sprintf("tok-%d", testpkg.UniqueSuffix()),
 	}
 	request.TenantID = tenantID
-	_, err := tc.db.NewInsert().Model(request).ModelTableExpr(`enrollment.requests AS "request"`).Exec(ctx)
-	require.NoError(t, err)
+	owner := testutil.NewEnrollmentOwner()
+	ownerCtx := testpkg.WithTenantRuntime(t, testpkg.Ctx(t), tc.db)
+	require.NoError(t, owner.InsertRequest(ownerCtx, request))
 
-	child := &enrollmentModels.RequestChild{
+	child := &capability.RequestChild{
 		RequestID:        request.ID,
 		FirstName:        "Zkorrektur",
 		LastName:         lastName,
-		DateOfBirth:      timezone.TodayDate().AddDays(-2500),
+		DateOfBirth:      capability.Date(studentsTestToday.AddDays(-2500)),
 		Status:           enrollmentModels.ChildStatusApproved,
 		CreatedStudentID: &studentID,
 	}
 	child.TenantID = tenantID
-	_, err = tc.db.NewInsert().Model(child).ModelTableExpr(`enrollment.request_children AS "request_child"`).Exec(ctx)
-	require.NoError(t, err)
+	require.NoError(t, owner.InsertChild(ownerCtx, child))
 
 	for _, offering := range []*enrollmentModels.CareOffering{ganztag, mittag} {
-		link := &enrollmentModels.RequestChildOffering{
+		link := &capability.RequestChildOffering{
 			RequestChildID: child.ID,
 			CareOfferingID: offering.ID,
 		}
 		link.TenantID = tenantID
-		_, err = tc.db.NewInsert().Model(link).
-			ModelTableExpr(`enrollment.request_child_offerings AS "request_child_offering"`).Exec(ctx)
-		require.NoError(t, err)
+		require.NoError(t, owner.InsertRequestChildOffering(ownerCtx, link))
 	}
 
 	return &correctionFixture{phase: phase, child: child, ganztag: ganztag, mittag: mittag, tenantID: tenantID}
@@ -85,7 +83,7 @@ func setupCorrectionFixture(t *testing.T, tc *testContext, studentID, tenantID i
 func TestAggregatedChangeRequests_RouterDirectCorrections(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t, fixedCalendarClock)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Agg", "CorrectionReviewer")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "AggCorrectionGroup")
@@ -94,7 +92,7 @@ func TestAggregatedChangeRequests_RouterDirectCorrections(t *testing.T) {
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 
 	fixture := setupCorrectionFixture(t, tc, student.ID, student.TenantID, "Kindlein")
-	claims := testutil.TeacherTestClaims(int(account.ID))
+	claims := testutil.AdminTestClaims(int(account.ID))
 	perms := []string{"users:read", "users:update"}
 
 	fetch := func(t *testing.T, query string) aggListEnvelope {
@@ -110,7 +108,7 @@ func TestAggregatedChangeRequests_RouterDirectCorrections(t *testing.T) {
 	// service the admin route calls: the child stays in Ganztag and is taken
 	// out of Mittagessen. The frozen before/after snapshots must show that.
 	err := testpkg.WithTenantTx(t, t.Context(), tc.db, student.TenantID, func(ctx context.Context, _ bun.Tx) error {
-		_, updateErr := tc.services.EnrollmentDecision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
+		_, updateErr := tc.resource.EnrollmentDecision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
 			RequestID:      fixture.child.RequestID,
 			ChildID:        fixture.child.ID,
 			Offerings:      []enrollmentService.OfferingAdjustmentSelection{{OfferingID: fixture.ganztag.ID}},
@@ -158,7 +156,7 @@ func TestAggregatedChangeRequests_RouterDirectCorrections(t *testing.T) {
 	// Eine Freigabe trägt seit #2484 immer das Datum, das die OGS bestätigt —
 	// hier das der Anfrage.
 	body := strings.NewReader(fmt.Sprintf(
-		`{"approve":true,"reason":"Passt","effective_from":%q}`, pending.EffectiveFrom.String()))
+		`{"approve":true,"reason":"Passt","effective_from":%q}`, string(pending.EffectiveFrom)))
 	rr := authExec(t, tc,
 		testutil.NewRequest("POST", fmt.Sprintf("/offering-change-requests/%d/decide", pending.ID), body),
 		claims, perms)
@@ -190,19 +188,19 @@ func TestAggregatedChangeRequests_RouterDirectCorrections(t *testing.T) {
 	}
 }
 
-// Deliberately NOT parallel: the tenant-wide settings cache is process-global state.
 func TestOfferingWithdrawalApprovalRequiresUpdateButNotDeletePermission(t *testing.T) {
-	tc := setupTestContext(t)
+	t.Parallel()
+	tc := setupStudentsRoute(t, fixedCalendarClock)
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Withdrawal", "Reviewer")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "WithdrawalReviewGroup")
 	student := testpkg.CreateTestStudent(t, tc.db, "Komplett", "Abmeldung", "WA1")
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
-	require.NoError(t, tc.services.Settings.SetValue(
+	require.NoError(t, tc.resource.SettingsService.SetValue(
 		testpkg.Ctx(t), configModel.KeyEnrollmentBookingsAuthoritative, true, nil, nil,
 	))
 	t.Cleanup(func() {
-		require.NoError(t, tc.services.Settings.ResetValue(
+		require.NoError(t, tc.resource.SettingsService.ResetValue(
 			testpkg.Ctx(t), configModel.KeyEnrollmentBookingsAuthoritative, nil, nil,
 		))
 	})
@@ -217,13 +215,14 @@ func TestOfferingWithdrawalApprovalRequiresUpdateButNotDeletePermission(t *testi
 		Where("id = ?", pending.ID).Exec(t.Context())
 	require.NoError(t, err)
 
+	// #2267: reason policy defaults to "both"
 	body := strings.NewReader(fmt.Sprintf(
-		`{"approve":true,"effective_from":%q,"complete_withdrawal_confirmed":true}`,
-		pending.EffectiveFrom.String(),
+		`{"approve":true,"reason":"Passt so","effective_from":%q,"complete_withdrawal_confirmed":true}`,
+		string(pending.EffectiveFrom),
 	))
 	response := authExec(t, tc,
 		testutil.NewRequest("POST", fmt.Sprintf("/offering-change-requests/%d/decide", pending.ID), body),
-		testutil.TeacherTestClaims(int(account.ID)), []string{"users:update"})
+		testutil.AdminTestClaims(int(account.ID)), []string{"users:update"})
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 }
 
@@ -247,12 +246,17 @@ func insertPendingOfferingChangeRequest(
 				map[string]any{"offering_id": fixture.mittag.ID},
 			},
 		},
-		EffectiveFrom: timezone.TodayDate().AddDays(30),
+		EffectiveFrom: enrollmentModels.OfferingChangeDate(studentsTestToday.AddDays(30)),
 		Status:        enrollmentModels.OfferingChangeStatusPending,
 	}
 	row.TenantID = fixture.tenantID
-	_, err := tc.db.NewInsert().Model(row).
-		ModelTableExpr(`enrollment.offering_change_requests AS "offering_change_request"`).Exec(t.Context())
+	payload, err := json.Marshal(row.Payload)
+	require.NoError(t, err)
+	err = tc.db.NewRaw(`INSERT INTO enrollment.offering_change_requests
+		(tenant_id, student_id, request_child_id, submitted_by, payload, effective_from, status)
+		VALUES (?, ?, ?, ?, ?::jsonb, ?, ?) RETURNING id, created_at, updated_at`,
+		row.TenantID, row.StudentID, row.RequestChildID, row.SubmittedBy,
+		string(payload), row.EffectiveFrom, row.Status).Scan(t.Context(), row)
 	require.NoError(t, err)
 	return row
 }

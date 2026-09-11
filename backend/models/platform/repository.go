@@ -38,54 +38,6 @@ type OperatorMFAAttemptResult struct {
 	LockedUntil *time.Time
 }
 
-// OrganizationRepository defines operations for managing organizations.
-type OrganizationRepository interface {
-	Create(ctx context.Context, organization *Organization) error
-	FindByID(ctx context.Context, id int64) (*Organization, error)
-	FindByIDForShare(ctx context.Context, id int64) (*Organization, error)
-	FindByIDForUpdate(ctx context.Context, id int64) (*Organization, error)
-	FindBySlug(ctx context.Context, slug string) (*Organization, error)
-	List(ctx context.Context) ([]*Organization, error)
-	Update(ctx context.Context, organization *Organization) error
-	CountByIDs(ctx context.Context, ids []int64) (int, error)
-	SoftDelete(ctx context.Context, id int64) error
-	Restore(ctx context.Context, id int64) error
-}
-
-// AnnouncementRepository defines operations for managing announcements
-type AnnouncementRepository interface {
-	// Core CRUD operations
-	Create(ctx context.Context, announcement *Announcement) error
-	FindByID(ctx context.Context, id int64) (*Announcement, error)
-	Update(ctx context.Context, announcement *Announcement) error
-	Delete(ctx context.Context, id int64) error
-
-	// Listing operations
-	List(ctx context.Context, includeInactive bool) ([]*Announcement, error)
-	// Publishing
-	Publish(ctx context.Context, id int64) error
-	Unpublish(ctx context.Context, id int64) error
-}
-
-// AnnouncementViewRepository defines operations for tracking announcement views
-type AnnouncementViewRepository interface {
-	// Mark as seen/dismissed
-	MarkSeen(ctx context.Context, userID, announcementID int64) error
-	MarkDismissed(ctx context.Context, userID, announcementID int64) error
-
-	// Query unread announcements for a user scoped to the current session tenant/org
-	GetUnreadForUser(ctx context.Context, userID int64, userRoles []string, tenantID int64, orgID int64) ([]*Announcement, error)
-
-	// Count unread announcements for a user scoped to the current session tenant/org
-	CountUnread(ctx context.Context, userID int64, userRoles []string, tenantID int64, orgID int64) (int, error)
-
-	// Get view statistics for an announcement
-	GetStats(ctx context.Context, announcementID int64) (*AnnouncementStats, error)
-
-	// Get detailed view list for an announcement (who has seen/dismissed)
-	GetViewDetails(ctx context.Context, announcementID int64) ([]*AnnouncementViewDetail, error)
-}
-
 // SchoolRepository defines operations for school (tenant) records.
 type SchoolRepository interface {
 	Create(ctx context.Context, school *School) error
@@ -107,7 +59,6 @@ type SchoolRepository interface {
 	SoftDelete(ctx context.Context, id int64) error
 	Restore(ctx context.Context, id int64) error
 	CountByIDs(ctx context.Context, ids []int64) (int, error)
-	CountNonDeletedByOrganizationID(ctx context.Context, organizationID int64) (int, error)
 }
 
 // OperatorEmailChangeTokenRepository defines operations for email change verification tokens
@@ -175,6 +126,7 @@ type OperatorMFAEmailChallengeRepository interface {
 	Create(ctx context.Context, challenge *OperatorMFAEmailChallenge) error
 	FindByID(ctx context.Context, id interface{}) (*OperatorMFAEmailChallenge, error)
 	FindActiveByOperatorID(ctx context.Context, operatorID int64) (*OperatorMFAEmailChallenge, error)
+	MarkActive(ctx context.Context, id int64) error
 	MarkConsumed(ctx context.Context, id int64, consumedAt time.Time) error
 	CountRecentByOperatorID(ctx context.Context, operatorID int64, since time.Time) (int, error)
 	DeleteExpired(ctx context.Context) (int, error)

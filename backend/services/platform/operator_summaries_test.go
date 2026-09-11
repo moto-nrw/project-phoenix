@@ -161,7 +161,7 @@ func TestOperatorProvisioningService_ListOrganizationSchoolSummaries(t *testing.
 		{ID: 21, OrganizationID: 9, Name: "School", Slug: "school", Subdomain: "school", Active: true},
 	}
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
 				return &platformModels.Organization{Name: "Org", Slug: "org", Active: true}, nil
 			},
@@ -187,7 +187,7 @@ func TestOperatorProvisioningService_ListOrganizationSchoolSummaries_NotFound(t 
 	// empty list that the operator UI would render as "this org has no schools".
 	repoCalled := false
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 				return nil, nil
 			},
@@ -216,7 +216,7 @@ func TestOperatorProvisioningService_ListOrganizationPersons(t *testing.T) {
 		{ID: 101, FirstName: "Anna", LastName: "Schmidt", SchoolID: 11, OrganizationID: 9, OrganizationName: "Org"},
 	}
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 				return &platformModels.Organization{Name: "Org", Slug: "org", Active: true}, nil
 			},
@@ -239,7 +239,7 @@ func TestOperatorProvisioningService_ListOrganizationPersons_NotFound(t *testing
 
 	repoCalled := false
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 				return nil, nil
 			},
@@ -266,7 +266,7 @@ func TestOperatorProvisioningService_ListOrganizationPersons_OrgRepoError(t *tes
 
 	repoErr := errors.New("org lookup failed")
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 				return nil, repoErr
 			},

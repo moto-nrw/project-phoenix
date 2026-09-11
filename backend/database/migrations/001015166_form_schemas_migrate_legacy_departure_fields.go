@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/uptrace/bun"
 )
 
@@ -177,10 +176,9 @@ func formSchemasMigrateLegacyDepartureUp(ctx context.Context, db *bun.DB) error 
 			}
 			continue
 		}
-		if err := validateConvertedDepartureSchema(l.latest, l.latest.Version+1, converted); err != nil {
+		if err := validateConvertedDepartureSchema(l.latest, converted); err != nil {
 			return fmt.Errorf("schema %d (%s v%d): converted schema is invalid: %w", l.latest.ID, l.latest.Name, l.latest.Version, err)
 		}
-
 		// Publish the converted fields as a new version, copying every
 		// other template attribute (core requirements, legal blocks,
 		// active flag, author) from the latest version.
@@ -211,30 +209,6 @@ func formSchemasMigrateLegacyDepartureUp(ctx context.Context, db *bun.DB) error 
 
 	fmt.Printf("Migration 1.15.166: Converted %d form-schema lineage(s).\n", migrated)
 	return tx.Commit()
-}
-
-func validateConvertedDepartureSchema(source departureSchemaRow, version int, fieldsJSON string) error {
-	var fields []enrollmentModels.FormField
-	if err := json.Unmarshal([]byte(fieldsJSON), &fields); err != nil {
-		return fmt.Errorf("failed decoding converted fields: %w", err)
-	}
-	var coreRequirements enrollmentModels.CoreRequirements
-	if err := json.Unmarshal([]byte(source.CoreRequirements), &coreRequirements); err != nil {
-		return fmt.Errorf("failed decoding core requirements: %w", err)
-	}
-	var legalBlocks []enrollmentModels.FormLegalBlock
-	if err := json.Unmarshal([]byte(source.LegalBlocks), &legalBlocks); err != nil {
-		return fmt.Errorf("failed decoding legal blocks: %w", err)
-	}
-	schema := &enrollmentModels.FormSchema{
-		Name:             source.Name,
-		Version:          version,
-		Fields:           fields,
-		CoreRequirements: coreRequirements,
-		LegalBlocks:      legalBlocks,
-		CreatedBy:        source.CreatedBy,
-	}
-	return schema.Validate()
 }
 
 func legacyDepartureVersionIDs(versions []departureSchemaRow) ([]int64, error) {
@@ -388,7 +362,7 @@ func clearLegacyFieldVisibilityDependency(field map[string]any, removedLegacyKey
 		return
 	}
 	source, _ := visibleWhen["source"].(string)
-	if source != enrollmentModels.ConditionSourceField {
+	if source != "field" {
 		return
 	}
 	fieldKey, _ := visibleWhen["field"].(string)

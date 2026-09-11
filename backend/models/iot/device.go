@@ -1,10 +1,11 @@
+// Package iot holds the ORM compatibility row for iot.devices. Runtime
+// device reads and writes go through modules/devicefleet; this row is
+// retained for legacy relations, wire mapping, and test fixtures.
 package iot
 
 import (
 	"errors"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // DeviceStatus represents the status of an IoT device
@@ -26,8 +27,12 @@ const (
 
 // Device represents an IoT device in the system
 type Device struct {
-	base.Model `bun:"schema:iot,table:devices"`
-	base.TenantModel
+	//nolint:unused // BUN consumes this table metadata through reflection.
+	tableName             struct{}     `bun:"table:iot.devices,alias:device"`
+	ID                    int64        `bun:"id,pk,autoincrement" json:"id"`
+	CreatedAt             time.Time    `bun:"created_at,nullzero,notnull,default:current_timestamp" json:"created_at"`
+	UpdatedAt             time.Time    `bun:"updated_at,nullzero,notnull,default:current_timestamp" json:"updated_at"`
+	TenantID              int64        `bun:"tenant_id,notnull" json:"tenant_id"`
 	DeviceID              string       `bun:"device_id,notnull" json:"device_id"`
 	DeviceType            string       `bun:"device_type,notnull" json:"device_type"`
 	Name                  *string      `bun:"name" json:"name,omitempty"`
@@ -39,11 +44,16 @@ type Device struct {
 	ArchivedAt            *time.Time   `bun:"archived_at" json:"-"`
 	TransferredToDeviceID *int64       `bun:"transferred_to_device_id" json:"-"`
 
-	// Relations
-
-	// Transient fields populated by JOINs (ignored by INSERT/UPDATE)
+	// Transient field resolved through the Facilities owner (ignored by
+	// INSERT/UPDATE).
 	RoomName *string `bun:"room_name,scanonly" json:"room_name,omitempty"`
 }
+
+// GetTenantID returns the tenant ID.
+func (d *Device) GetTenantID() int64 { return d.TenantID }
+
+// SetTenantID sets the tenant ID.
+func (d *Device) SetTenantID(id int64) { d.TenantID = id }
 
 // Validate ensures device data is valid
 func (d *Device) Validate() error {

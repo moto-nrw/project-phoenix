@@ -34,7 +34,7 @@ func (s *Scheduler) runBookingConsistencyAuditTask(task *ScheduledTask) {
 	)
 }
 
-func (s *Scheduler) checkAndRunBookingConsistencyAudit(task *ScheduledTask) {
+func (s *Scheduler) checkAndRunBookingConsistencyAudit(ctx context.Context, task *ScheduledTask) {
 	task.mu.Lock()
 	if task.Running {
 		task.mu.Unlock()
@@ -48,10 +48,10 @@ func (s *Scheduler) checkAndRunBookingConsistencyAudit(task *ScheduledTask) {
 		task.mu.Unlock()
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), bookingConsistencyAuditTimeout)
+	ctx, cancel := s.taskContext(ctx, bookingConsistencyAuditTimeout)
 	defer cancel()
 
-	auditDate := timezone.TodayDate()
+	auditDate := auditModel.Date(timezone.TodayDate())
 	if err := s.forEachTenant(ctx, "booking-consistency-audit", func(tenantCtx context.Context) error {
 		report, err := s.bookingConsistency.Audit(tenantCtx, auditDate)
 		if err != nil {

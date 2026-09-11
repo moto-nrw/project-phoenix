@@ -9,9 +9,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	userSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -159,6 +162,25 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 		assert.True(t, calledMove)
 	})
 
+	t.Run("all_staff visibility does not bypass move resource checks", func(t *testing.T) {
+		rs := &Resource{
+			SettingsService: scopeSettings(configModel.OverviewScopeAllStaff),
+			PersonService: moveAuthPersonService{
+				person: &userModel.Person{Model: base.Model{ID: 10}},
+				staff:  &userModel.Staff{Model: base.Model{ID: 20}},
+			},
+		}
+		req := withStaffMoveContext(httptest.NewRequest(http.MethodPost, "/api/active/visits/move-to-group", nil))
+		w := httptest.NewRecorder()
+
+		auth, ok := rs.bulkStudentMoveAuthorization(w, req)
+
+		require.True(t, ok)
+		require.NotNil(t, auth)
+		assert.Equal(t, int64(20), auth.StaffID)
+		assert.False(t, auth.BypassResourceChecks)
+	})
+
 	t.Run("moves students the service authorizes", func(t *testing.T) {
 		calledMove := false
 		targetGroupID := int64(99)
@@ -184,7 +206,7 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 				checkTeacherStudentAccessFunc: func(_ context.Context, _, _ int64) (bool, error) {
 					return false, nil
 				},
-				getStudentCurrentVisitFunc: func(_ context.Context, _ int64) (*activeModel.Visit, error) {
+				getStudentCurrentVisitFunc: func(_ context.Context, _ int64) (*studentpresence.Visit, error) {
 					return nil, &activeSvc.ActiveError{Op: "GetStudentCurrentVisit", Err: activeSvc.ErrVisitNotFound}
 				},
 				moveStudentsToActiveGroupFunc: func(_ context.Context, studentIDs []int64, activeGroupID int64) (*activeSvc.StudentMoveResult, error) {

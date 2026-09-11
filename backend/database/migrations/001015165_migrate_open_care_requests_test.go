@@ -10,19 +10,17 @@ package migrations
 
 import (
 	"context"
-	"database/sql"
 	"testing"
 	"time"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // insertCareRequestThread creates a parent_message_threads row for the chain and
 // returns its id.
-func insertCareRequestThread(t *testing.T, db *bun.DB, tenantID, studentID, accountID int64) int64 {
+func insertCareRequestThread(t *testing.T, db *testpkg.DB, tenantID, studentID, accountID int64) int64 {
 	t.Helper()
 	var id int64
 	err := db.QueryRowContext(context.Background(), `
@@ -36,7 +34,7 @@ func insertCareRequestThread(t *testing.T, db *bun.DB, tenantID, studentID, acco
 }
 
 // insertCareChatMessage inserts a plain guardian chat message and returns its id.
-func insertCareChatMessage(t *testing.T, db *bun.DB, tenantID, threadID, studentID, accountID int64, body string, createdAt time.Time) int64 {
+func insertCareChatMessage(t *testing.T, db *testpkg.DB, tenantID, threadID, studentID, accountID int64, body string, createdAt time.Time) int64 {
 	t.Helper()
 	var id int64
 	err := db.QueryRowContext(context.Background(), `
@@ -51,7 +49,7 @@ func insertCareChatMessage(t *testing.T, db *bun.DB, tenantID, threadID, student
 
 // insertOpenCareRequestMessage inserts a legacy open care_schedule chat request
 // (kind='request') and returns its id.
-func insertOpenCareRequestMessage(t *testing.T, db *bun.DB, tenantID, threadID, studentID, accountID int64, createdAt time.Time) int64 {
+func insertOpenCareRequestMessage(t *testing.T, db *testpkg.DB, tenantID, threadID, studentID, accountID int64, createdAt time.Time) int64 {
 	t.Helper()
 	var id int64
 	err := db.QueryRowContext(context.Background(), `
@@ -70,7 +68,7 @@ func insertOpenCareRequestMessage(t *testing.T, db *bun.DB, tenantID, threadID, 
 // pointThreadPreviewAt sets the denormalized preview columns to a given message,
 // mirroring the pre-cutover state where the open chat request had touched the
 // thread as its latest activity.
-func pointThreadPreviewAt(t *testing.T, db *bun.DB, threadID, messageID int64, at time.Time, body string) {
+func pointThreadPreviewAt(t *testing.T, db *testpkg.DB, threadID, messageID int64, at time.Time, body string) {
 	t.Helper()
 	_, err := db.ExecContext(context.Background(), `
 		UPDATE users.parent_message_threads
@@ -81,13 +79,13 @@ func pointThreadPreviewAt(t *testing.T, db *bun.DB, threadID, messageID int64, a
 }
 
 type threadPreview struct {
-	LastMessageID   sql.NullInt64  `bun:"last_message_id"`
-	LastMessageAt   sql.NullTime   `bun:"last_message_at"`
-	LastSenderKind  sql.NullString `bun:"last_sender_kind"`
-	LastMessageBody string         `bun:"last_message_body"`
+	LastMessageID   testpkg.NullInt64  `bun:"last_message_id"`
+	LastMessageAt   testpkg.NullTime   `bun:"last_message_at"`
+	LastSenderKind  testpkg.NullString `bun:"last_sender_kind"`
+	LastMessageBody string             `bun:"last_message_body"`
 }
 
-func loadThreadPreview(t *testing.T, db *bun.DB, threadID int64) threadPreview {
+func loadThreadPreview(t *testing.T, db *testpkg.DB, threadID int64) threadPreview {
 	t.Helper()
 	var p threadPreview
 	err := db.NewSelect().
@@ -102,7 +100,7 @@ func loadThreadPreview(t *testing.T, db *bun.DB, threadID int64) threadPreview {
 	return p
 }
 
-func assertMessageIsRequestCreatedPill(t *testing.T, db *bun.DB, messageID int64) {
+func assertMessageIsRequestCreatedPill(t *testing.T, db *testpkg.DB, messageID int64) {
 	t.Helper()
 	var kind, eventType string
 	err := db.QueryRowContext(context.Background(),
@@ -117,6 +115,7 @@ func assertMessageIsRequestCreatedPill(t *testing.T, db *bun.DB, messageID int64
 // activity was the open request must fall back to the newest previewable
 // message (the earlier chat message) once the request becomes a hidden pill.
 func TestMigrateOpenCareRequests_RecomputesStalePreview(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
@@ -153,6 +152,7 @@ func TestMigrateOpenCareRequests_RecomputesStalePreview(t *testing.T) {
 // message was the open request has no previewable message left after the
 // cutover, so the preview is cleared to the fresh-thread empty state.
 func TestMigrateOpenCareRequests_ClearsPreviewWhenOnlyMessage(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 

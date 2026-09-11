@@ -54,15 +54,29 @@ func loadTemplateSeriesSegments(
 	if err != nil {
 		return nil, &ScheduleError{Op: "load template series: find lineage", Err: err}
 	}
+	groupIDs := make([]int64, 0, len(groups))
+	for _, group := range groups {
+		if group != nil {
+			groupIDs = append(groupIDs, group.ID)
+		}
+	}
+	if len(groupIDs) == 0 {
+		return []templateSeriesSegment{}, nil
+	}
+	scheduleRows, err := scheduleRepo.FindByGroupIDs(ctx, groupIDs)
+	if err != nil {
+		return nil, &ScheduleError{Op: "load template series: load schedules", Err: err}
+	}
+	schedulesByGroup := make(map[int64][]*activitiesModel.Schedule, len(groups))
+	for _, row := range scheduleRows {
+		schedulesByGroup[row.ActivityGroupID] = append(schedulesByGroup[row.ActivityGroupID], row)
+	}
 	segments := make([]templateSeriesSegment, 0, len(groups))
 	for _, group := range groups {
 		if group == nil {
 			continue
 		}
-		schedules, err := scheduleRepo.FindByGroupID(ctx, group.ID)
-		if err != nil {
-			return nil, &ScheduleError{Op: "load template series: load schedules", Err: err}
-		}
+		schedules := schedulesByGroup[group.ID]
 		if len(schedules) == 0 {
 			// A template without schedule rows has no recurrence to resolve
 			// against; it cannot be the living segment either.

@@ -6,49 +6,35 @@ package sessions_test
 
 import (
 	"bytes"
-	"context"
-	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
 	sessionsAPI "github.com/moto-nrw/project-phoenix/api/iot/sessions"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/device"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // testContext holds shared test dependencies.
 type testContext struct {
-	db       *bun.DB
-	services *services.Factory
+	db       *testpkg.DB
 	resource *sessionsAPI.Resource
 }
 
-// setupTestContext initializes test database, services, and resource.
-func setupTestContext(t *testing.T) *testContext {
+// setupSessionsRoute initializes the sessions route.
+func setupSessionsRoute(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupActiveModule(t)
 
 	// Create sessions resource
-	resource := sessionsAPI.NewResource(
-		svc.IoT,
-		svc.Users,
-		svc.Active,
-		svc.Activities,
-		svc.Facilities,
-		svc.Education,
-	)
+	resource := sessionsAPI.NewResource(svc.SessionLifecycle, svc.SessionEnd, testRuntime())
 
 	return &testContext{
 		db:       db,
-		services: svc,
 		resource: resource,
 	}
 }
@@ -59,7 +45,7 @@ func setupTestContext(t *testing.T) *testContext {
 
 func TestStartSession_NoDevice(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/", ctx.resource.Router())
@@ -73,12 +59,12 @@ func TestStartSession_NoDevice(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for missing device authentication")
+	assert.Equal(t, 401, rr.Code, "Expected 401 for missing device authentication")
 }
 
 func TestStartSession_InvalidJSON(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-1")
 
@@ -88,8 +74,7 @@ func TestStartSession_InvalidJSON(t *testing.T) {
 	// Send invalid JSON body
 	req := httptest.NewRequest("POST", "/start", bytes.NewBufferString("invalid json"))
 	req.Header.Set("Content-Type", "application/json")
-	reqCtx := context.WithValue(req.Context(), device.CtxDevice, testDevice)
-	req = req.WithContext(reqCtx)
+	testutil.WithDeviceContext(testDevice)(req)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -98,7 +83,7 @@ func TestStartSession_InvalidJSON(t *testing.T) {
 
 func TestStartSession_MissingActivityID(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-2")
 
@@ -120,7 +105,7 @@ func TestStartSession_MissingActivityID(t *testing.T) {
 
 func TestStartSession_InvalidActivityID(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-3")
 
@@ -146,7 +131,7 @@ func TestStartSession_InvalidActivityID(t *testing.T) {
 
 func TestEndSession_NoDevice(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/", ctx.resource.Router())
@@ -156,12 +141,12 @@ func TestEndSession_NoDevice(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for missing device authentication")
+	assert.Equal(t, 401, rr.Code, "Expected 401 for missing device authentication")
 }
 
 func TestEndSession_NoActiveSession(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-4")
 
@@ -184,7 +169,7 @@ func TestEndSession_NoActiveSession(t *testing.T) {
 
 func TestGetCurrentSession_NoDevice(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/", ctx.resource.Router())
@@ -194,12 +179,12 @@ func TestGetCurrentSession_NoDevice(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for missing device authentication")
+	assert.Equal(t, 401, rr.Code, "Expected 401 for missing device authentication")
 }
 
 func TestGetCurrentSession_NoActiveSession(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-5")
 
@@ -213,12 +198,12 @@ func TestGetCurrentSession_NoActiveSession(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	// Should return success with is_active=false
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	testutil.AssertSuccessResponse(t, rr, 200)
 }
 
 func TestGetCurrentSession_WithActiveSession(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	// Create real fixtures for a full session
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-current-1")
@@ -245,7 +230,7 @@ func TestGetCurrentSession_WithActiveSession(t *testing.T) {
 	startRR := testutil.ExecuteRequest(router, startReq)
 	t.Logf("Start session response: %d - %s", startRR.Code, startRR.Body.String())
 
-	require.Equal(t, http.StatusOK, startRR.Code, "Session start must succeed; body: %s", startRR.Body.String())
+	require.Equal(t, 200, startRR.Code, "Session start must succeed; body: %s", startRR.Body.String())
 
 	// Now call getCurrentSession — this exercises the supervisor lookup (lines 173-178)
 	currentReq := testutil.NewAuthenticatedRequest(t, "GET", "/current", nil,
@@ -254,7 +239,7 @@ func TestGetCurrentSession_WithActiveSession(t *testing.T) {
 
 	currentRR := testutil.ExecuteRequest(router, currentReq)
 
-	testutil.AssertSuccessResponse(t, currentRR, http.StatusOK)
+	testutil.AssertSuccessResponse(t, currentRR, 200)
 
 	// Verify the response contains session data with supervisors
 	responseBody := testutil.ParseJSONResponse(t, currentRR.Body.Bytes())
@@ -266,6 +251,22 @@ func TestGetCurrentSession_WithActiveSession(t *testing.T) {
 	assert.True(t, data["is_active"].(bool), "Session should be active")
 	assert.NotNil(t, data["active_group_id"], "Should have active_group_id")
 	assert.NotNil(t, data["activity_id"], "Should have activity_id")
+	assert.Equal(t, float64(0), data["active_students"], "an empty session has zero active students")
+	groupID := int64(data["active_group_id"].(float64))
+	closedStudent := testpkg.CreateTestStudent(t, ctx.db, "Exited", "Session", "3a")
+	exitedAt := time.Now().Add(-time.Minute)
+	testpkg.CreateTestVisit(t, ctx.db, closedStudent.ID, groupID, exitedAt.Add(-time.Hour), &exitedAt)
+	for _, openCount := range []int{0, 2} {
+		for range openCount {
+			student := testpkg.CreateTestStudent(t, ctx.db, "Open", "Session", "3a")
+			testpkg.CreateTestVisit(t, ctx.db, student.ID, groupID, time.Now(), nil)
+		}
+		request := testutil.NewAuthenticatedRequest(t, "GET", "/current", nil, testutil.WithDeviceContext(testDevice))
+		response := testutil.ExecuteRequest(router, request)
+		testutil.AssertSuccessResponse(t, response, 200)
+		body := testutil.ParseJSONResponse(t, response.Body.Bytes())
+		assert.Equal(t, float64(openCount), body["data"].(map[string]interface{})["active_students"], "exited visits must not count")
+	}
 
 	// Verify supervisors are included in the response
 	if supervisors, hasSupervisors := data["supervisors"]; hasSupervisors && supervisors != nil {
@@ -281,7 +282,7 @@ func TestGetCurrentSession_WithActiveSession(t *testing.T) {
 
 func TestCheckConflict_NoDevice(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/", ctx.resource.Router())
@@ -295,12 +296,12 @@ func TestCheckConflict_NoDevice(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for missing device authentication")
+	assert.Equal(t, 401, rr.Code, "Expected 401 for missing device authentication")
 }
 
 func TestCheckConflict_InvalidJSON(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-6")
 
@@ -310,8 +311,7 @@ func TestCheckConflict_InvalidJSON(t *testing.T) {
 	// Send invalid JSON body
 	req := httptest.NewRequest("POST", "/check-conflict", bytes.NewBufferString("invalid json"))
 	req.Header.Set("Content-Type", "application/json")
-	reqCtx := context.WithValue(req.Context(), device.CtxDevice, testDevice)
-	req = req.WithContext(reqCtx)
+	testutil.WithDeviceContext(testDevice)(req)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -320,7 +320,7 @@ func TestCheckConflict_InvalidJSON(t *testing.T) {
 
 func TestCheckConflict_MissingActivityID(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-7")
 
@@ -344,7 +344,7 @@ func TestCheckConflict_MissingActivityID(t *testing.T) {
 
 func TestUpdateSupervisors_NoDevice(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/", ctx.resource.Router())
@@ -358,12 +358,12 @@ func TestUpdateSupervisors_NoDevice(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for missing device authentication")
+	assert.Equal(t, 401, rr.Code, "Expected 401 for missing device authentication")
 }
 
 func TestUpdateSupervisors_InvalidSessionID(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-8")
 
@@ -385,7 +385,7 @@ func TestUpdateSupervisors_InvalidSessionID(t *testing.T) {
 
 func TestUpdateSupervisors_EmptySupervisors(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-9")
 
@@ -412,7 +412,7 @@ func TestUpdateSupervisors_EmptySupervisors(t *testing.T) {
 
 func TestUpdateActivity_InvalidActivityType(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-11")
 
@@ -430,7 +430,7 @@ func TestUpdateActivity_InvalidActivityType(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	// Should return error for invalid activity type
-	assert.Contains(t, []int{http.StatusBadRequest, http.StatusUnprocessableEntity, http.StatusInternalServerError}, rr.Code)
+	assert.Contains(t, []int{400, 422, 500}, rr.Code)
 }
 
 // =============================================================================
@@ -440,7 +440,7 @@ func TestUpdateActivity_InvalidActivityType(t *testing.T) {
 
 func TestValidateTimeout_MissingTimeoutMinutes(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-12")
 
@@ -458,12 +458,12 @@ func TestValidateTimeout_MissingTimeoutMinutes(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	// Should return error for missing timeout_minutes (may return 500 if validation fails in service)
-	assert.Contains(t, []int{http.StatusBadRequest, http.StatusUnprocessableEntity, http.StatusInternalServerError}, rr.Code)
+	assert.Contains(t, []int{400, 422, 500}, rr.Code)
 }
 
 func TestValidateTimeout_InvalidTimeoutMinutes(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-13")
 
@@ -482,7 +482,7 @@ func TestValidateTimeout_InvalidTimeoutMinutes(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	// Should return error for invalid timeout_minutes (may return 500 if validation fails in service)
-	assert.Contains(t, []int{http.StatusBadRequest, http.StatusUnprocessableEntity, http.StatusInternalServerError}, rr.Code)
+	assert.Contains(t, []int{400, 422, 500}, rr.Code)
 }
 
 // =============================================================================
@@ -492,7 +492,7 @@ func TestValidateTimeout_InvalidTimeoutMinutes(t *testing.T) {
 
 func TestGetTimeoutInfo_NoActiveSession(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-14")
 
@@ -506,7 +506,7 @@ func TestGetTimeoutInfo_NoActiveSession(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	// Should return error when no active session
-	assert.Contains(t, []int{http.StatusBadRequest, http.StatusNotFound, http.StatusInternalServerError}, rr.Code)
+	assert.Contains(t, []int{400, 404, 500}, rr.Code)
 }
 
 // =============================================================================
@@ -516,7 +516,7 @@ func TestGetTimeoutInfo_NoActiveSession(t *testing.T) {
 
 func TestProcessTimeout_NoActiveSession(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-15")
 
@@ -530,7 +530,7 @@ func TestProcessTimeout_NoActiveSession(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	// Should return error when no active session
-	assert.Contains(t, []int{http.StatusBadRequest, http.StatusNotFound, http.StatusInternalServerError}, rr.Code)
+	assert.Contains(t, []int{400, 404, 500}, rr.Code)
 }
 
 // =============================================================================
@@ -539,7 +539,7 @@ func TestProcessTimeout_NoActiveSession(t *testing.T) {
 
 func TestRouter_ReturnsValidRouter(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	router := ctx.resource.Router()
 	assert.NotNil(t, router, "Router should return a valid chi.Router")
@@ -551,7 +551,7 @@ func TestRouter_ReturnsValidRouter(t *testing.T) {
 
 func TestStartSession_NonExistentActivity(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-16")
 
@@ -569,12 +569,12 @@ func TestStartSession_NonExistentActivity(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	// Should return error for non-existent activity
-	assert.Contains(t, []int{http.StatusBadRequest, http.StatusNotFound, http.StatusInternalServerError}, rr.Code)
+	assert.Contains(t, []int{400, 404, 500}, rr.Code)
 }
 
 func TestStartSession_WithRealActivity(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	// Create real fixtures
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-17")
@@ -604,7 +604,7 @@ func TestStartSession_WithRealActivity(t *testing.T) {
 
 func TestStartSession_WithForceFlag(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-18")
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "Force Session Activity")
@@ -633,7 +633,7 @@ func TestStartSession_WithForceFlag(t *testing.T) {
 
 func TestCheckConflict_NoConflict(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-19")
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "NoConflict Activity")
@@ -661,7 +661,7 @@ func TestCheckConflict_NoConflict(t *testing.T) {
 
 func TestUpdateSupervisors_NonExistentSession(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-20")
 	staff := testpkg.CreateTestStaff(t, ctx.db, "UpdateSup", "Test")
@@ -680,12 +680,12 @@ func TestUpdateSupervisors_NonExistentSession(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	// Should return error for non-existent session
-	assert.Contains(t, []int{http.StatusBadRequest, http.StatusNotFound, http.StatusInternalServerError}, rr.Code)
+	assert.Contains(t, []int{400, 404, 500}, rr.Code)
 }
 
 func TestUpdateSupervisors_InvalidJSON(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-21")
 
@@ -695,8 +695,7 @@ func TestUpdateSupervisors_InvalidJSON(t *testing.T) {
 	// Send invalid JSON body
 	req := httptest.NewRequest("PUT", "/1/supervisors", bytes.NewBufferString("invalid json"))
 	req.Header.Set("Content-Type", "application/json")
-	reqCtx := context.WithValue(req.Context(), device.CtxDevice, testDevice)
-	req = req.WithContext(reqCtx)
+	testutil.WithDeviceContext(testDevice)(req)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -709,7 +708,7 @@ func TestUpdateSupervisors_InvalidJSON(t *testing.T) {
 
 func TestUpdateActivity_ValidTypes(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-22")
 
@@ -739,7 +738,7 @@ func TestUpdateActivity_ValidTypes(t *testing.T) {
 
 func TestUpdateActivity_MissingTimestamp(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-23")
 
@@ -768,7 +767,7 @@ func TestUpdateActivity_MissingTimestamp(t *testing.T) {
 
 func TestValidateTimeout_ValidRequest_NoSession(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-24")
 
@@ -787,12 +786,12 @@ func TestValidateTimeout_ValidRequest_NoSession(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	// Returns 404 when no active session - tests validation path before session check fails
-	assert.Contains(t, []int{http.StatusBadRequest, http.StatusNotFound, http.StatusInternalServerError}, rr.Code)
+	assert.Contains(t, []int{400, 404, 500}, rr.Code)
 }
 
 func TestValidateTimeout_InvalidTimeoutZero(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-25")
 
@@ -812,12 +811,12 @@ func TestValidateTimeout_InvalidTimeoutZero(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	// Should fail validation
-	assert.Contains(t, []int{http.StatusBadRequest, http.StatusUnprocessableEntity, http.StatusInternalServerError}, rr.Code)
+	assert.Contains(t, []int{400, 422, 500}, rr.Code)
 }
 
 func TestValidateTimeout_NegativeTimeout(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-26")
 
@@ -836,12 +835,12 @@ func TestValidateTimeout_NegativeTimeout(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	// Should fail validation
-	assert.Contains(t, []int{http.StatusBadRequest, http.StatusUnprocessableEntity, http.StatusInternalServerError}, rr.Code)
+	assert.Contains(t, []int{400, 422, 500}, rr.Code)
 }
 
 func TestValidateTimeout_ExceedsMaximum(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-27")
 
@@ -860,5 +859,5 @@ func TestValidateTimeout_ExceedsMaximum(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	// Should fail validation
-	assert.Contains(t, []int{http.StatusBadRequest, http.StatusUnprocessableEntity, http.StatusInternalServerError}, rr.Code)
+	assert.Contains(t, []int{400, 422, 500}, rr.Code)
 }

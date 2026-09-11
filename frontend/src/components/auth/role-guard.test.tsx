@@ -53,6 +53,21 @@ describe("RoleGuard", () => {
     expect(screen.getByText("Admin Content")).toBeInTheDocument();
   });
 
+  it("renders children for an effective admin on adminOnly", () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { permissions: ["admin:*"], token: "tok" } },
+      status: "authenticated",
+    });
+
+    render(
+      <RoleGuard variant="adminOnly">
+        <div>Admin Content</div>
+      </RoleGuard>,
+    );
+
+    expect(screen.getByText("Admin Content")).toBeInTheDocument();
+  });
+
   it("shows ForbiddenPage for non-admin on adminOnly", () => {
     mockUseSession.mockReturnValue({
       data: { user: { roles: ["user"], token: "tok" } },
@@ -67,6 +82,26 @@ describe("RoleGuard", () => {
 
     expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
     expect(screen.queryByText("Admin Content")).not.toBeInTheDocument();
+  });
+
+  it("renders the permission state without a second page heading when embedded", () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { roles: ["user"], token: "tok" } },
+      status: "authenticated",
+    });
+
+    render(
+      <RoleGuard variant="adminOnly" embedded>
+        <div>Admin Content</div>
+      </RoleGuard>,
+    );
+
+    expect(
+      screen.queryByRole("heading", { name: "Kein Zugriff" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Ihnen fehlt eine Berechtigung"),
+    ).toBeInTheDocument();
   });
 
   it("renders children for caregiver on staffOnly", () => {
@@ -128,6 +163,81 @@ describe("RoleGuard", () => {
 
     expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
     expect(screen.queryByText("Staff Content")).not.toBeInTheDocument();
+  });
+
+  it("renders children for an admin-only account on staffOrAdmin", () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { roles: ["admin"], token: "tok" } },
+      status: "authenticated",
+    });
+
+    render(
+      <RoleGuard variant="staffOrAdmin">
+        <div>Group Content</div>
+      </RoleGuard>,
+    );
+
+    expect(screen.getByText("Group Content")).toBeInTheDocument();
+  });
+
+  it("renders children for an effective admin on staffOrAdmin", () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { permissions: ["*:*"], token: "tok" } },
+      status: "authenticated",
+    });
+
+    render(
+      <RoleGuard variant="staffOrAdmin">
+        <div>Group Content</div>
+      </RoleGuard>,
+    );
+
+    expect(screen.getByText("Group Content")).toBeInTheDocument();
+  });
+
+  it("opens adminOnly when one of several permissions is held (#2906)", () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          roles: ["user"],
+          permissions: ["staff:stammdaten"],
+          token: "tok",
+        },
+      },
+      status: "authenticated",
+    });
+
+    render(
+      <RoleGuard
+        variant="adminOnly"
+        permission={["staff:manage", "staff:stammdaten"]}
+      >
+        <div>Personal</div>
+      </RoleGuard>,
+    );
+
+    expect(screen.getByText("Personal")).toBeInTheDocument();
+  });
+
+  it("keeps adminOnly closed when none of the listed permissions is held (#2906)", () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: { roles: ["user"], permissions: ["users:read"], token: "tok" },
+      },
+      status: "authenticated",
+    });
+
+    render(
+      <RoleGuard
+        variant="adminOnly"
+        permission={["staff:manage", "staff:stammdaten"]}
+      >
+        <div>Personal</div>
+      </RoleGuard>,
+    );
+
+    expect(screen.queryByText("Personal")).not.toBeInTheDocument();
+    expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
   });
 
   it("shows custom message on ForbiddenPage", () => {

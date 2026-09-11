@@ -18,10 +18,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	mealplanModels "github.com/moto-nrw/project-phoenix/models/mealplan"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -65,6 +65,20 @@ type fakeParentService struct {
 	todayStatusErr  error
 	gotTodayAccount int64
 	gotTodayStudent int64
+
+	mealPlanRows         []parentService.MealPlanEntry
+	mealPlanErr          error
+	mealParticipation    parentService.MealParticipationPlan
+	mealParticipationErr error
+
+	consents           []parentService.ChildConsent
+	consentsErr        error
+	withdrawConsents   []parentService.ChildConsent
+	withdrawConsentErr error
+	grantConsents      []parentService.ChildConsent
+	grantConsentErr    error
+	gotConsentAccount  int64
+	gotConsentStudent  int64
 }
 
 // GetChildTodayStatus haelt das Double am Service-Interface. Ohne gesetzten
@@ -95,6 +109,12 @@ func (f *fakeParentService) UpdatePortalLocale(_ context.Context, _ int64, local
 func (f *fakeParentService) ListChildrenForAccount(context.Context, int64) ([]*parentModels.ChildSummary, error) {
 	return nil, nil
 }
+
+// GuardianAnnouncementTenant is the attachment audience port (#2890). 0 means
+// "not in the audience", which is what these enrollment tests want.
+func (f *fakeParentService) GuardianAnnouncementTenant(context.Context, int64, int64) (int64, error) {
+	return 0, nil
+}
 func (f *fakeParentService) ListEnrollableForAccount(context.Context, int64) ([]*parentModels.EnrollablePhase, error) {
 	return nil, nil
 }
@@ -107,23 +127,65 @@ func (f *fakeParentService) GetEnrollmentSubmitStatus(context.Context, int64, in
 func (f *fakeParentService) ListEnrollmentsForAccount(context.Context, int64) ([]*parentModels.EnrollmentRequestSummary, error) {
 	return nil, nil
 }
-func (f *fakeParentService) SubmitSickNote(context.Context, int64, int64, []timezone.Date, string, string) (*parentService.SickNoteResult, error) {
+func (f *fakeParentService) GetChildConsents(_ context.Context, accountID, studentID int64) ([]parentService.ChildConsent, error) {
+	f.gotConsentAccount = accountID
+	f.gotConsentStudent = studentID
+	return f.consents, f.consentsErr
+}
+func (f *fakeParentService) WithdrawPhotoConsent(_ context.Context, accountID, studentID int64) ([]parentService.ChildConsent, error) {
+	f.gotConsentAccount = accountID
+	f.gotConsentStudent = studentID
+	return f.withdrawConsents, f.withdrawConsentErr
+}
+func (f *fakeParentService) GrantPhotoConsent(_ context.Context, accountID, studentID int64) ([]parentService.ChildConsent, error) {
+	f.gotConsentAccount = accountID
+	f.gotConsentStudent = studentID
+	return f.grantConsents, f.grantConsentErr
+}
+func (f *fakeParentService) SubmitSickNote(context.Context, int64, int64, []timezone.Date, string, string, []int64) (*parentService.SickNoteResult, error) {
 	return &parentService.SickNoteResult{}, nil
 }
 func (f *fakeParentService) ListSickDays(context.Context, int64, int64, timezone.Date, timezone.Date) ([]*activeModels.StudentStatusDay, error) {
 	return nil, nil
 }
-func (f *fakeParentService) ListExcusedRequests(context.Context, int64, int64) ([]*activeModels.ExcusedAbsenceRequest, error) {
+func (f *fakeParentService) ListExcusedRequests(context.Context, int64, int64) ([]*careplan.ExcusedAbsenceRequest, error) {
 	return nil, nil
 }
-func (f *fakeParentService) WithdrawExcusedRequest(context.Context, int64, int64, int64) (*activeModels.ExcusedAbsenceRequest, error) {
+func (f *fakeParentService) EditExcusedRequest(context.Context, int64, int64, int64, []timezone.Date, string, string) (*careplan.ExcusedAbsenceRequest, error) {
+	return nil, nil
+}
+func (f *fakeParentService) EditPickupChangeRequest(context.Context, int64, int64, int64, timezone.Date, time.Time, string, string) (*scheduleModels.CareScheduleChangeRequest, error) {
+	return nil, nil
+}
+func (f *fakeParentService) EditCareScheduleRequest(context.Context, int64, int64, int64, map[string]any, string) (*parentService.ChildCareSchedule, error) {
+	return nil, nil
+}
+func (f *fakeParentService) EditMasterDataRequest(context.Context, int64, int64, int64, json.RawMessage, string) (*userModels.StudentDataChangeRequest, error) {
+	return nil, nil
+}
+func (f *fakeParentService) EditOfferingChangeRequest(context.Context, int64, int64, int64, []enrollmentService.OfferingChangeSelection, timezone.Date, string, bool, string) (*parentService.ChildCareOfferings, error) {
+	return nil, nil
+}
+func (f *fakeParentService) ListRequestEvents(context.Context, int64, int64, string, int64) ([]parentService.ParentRequestEventView, error) {
 	return nil, nil
 }
 func (f *fakeParentService) ChildFeatures(context.Context, int64, int64) (parentService.ChildFeatureFlags, error) {
 	return parentService.ChildFeatureFlags{}, nil
 }
-func (f *fakeParentService) MealPlanWeek(context.Context, int64, int64, timezone.Date) ([]*mealplanModels.MealPlanEntry, error) {
-	return nil, nil
+func (f *fakeParentService) MealPlanWeek(context.Context, int64, int64, timezone.Date) ([]parentService.MealPlanEntry, error) {
+	return f.mealPlanRows, f.mealPlanErr
+}
+func (f *fakeParentService) MealParticipation(context.Context, int64, int64, timezone.Date, timezone.Date) (parentService.MealParticipationPlan, error) {
+	return f.mealParticipation, f.mealParticipationErr
+}
+func (f *fakeParentService) ReplaceMealParticipationSchedule(context.Context, int64, int64, []parentService.MealWeekday) (string, error) {
+	return "2026-09-07", nil
+}
+func (f *fakeParentService) SetMealParticipationDay(context.Context, int64, int64, timezone.Date, bool) error {
+	return nil
+}
+func (f *fakeParentService) ClearMealParticipationDay(context.Context, int64, int64, timezone.Date) error {
+	return nil
 }
 func (f *fakeParentService) ListRelatedAccounts(context.Context, int64, int64) ([]*parentService.RelatedAccount, error) {
 	return nil, nil
@@ -163,13 +225,23 @@ func (f *fakeParentService) CreateCareScheduleRequest(context.Context, int64, in
 	return nil, nil
 }
 
-func (f *fakeParentService) WithdrawCareScheduleRequest(context.Context, int64, int64, int64) (*parentService.ChildCareSchedule, error) {
-	return nil, nil
-}
-
 // Offering change requests (#1665). Zero-value stubs: these handlers have their
 // own tests; the fake only has to satisfy the interface.
 func (f *fakeParentService) GetChildCareOfferings(context.Context, int64, int64) (*parentService.ChildCareOfferings, error) {
+	return nil, nil
+}
+
+// Kurse (#3075). Zero-value stubs for the same reason: the course handlers
+// have their own tests, the fake only has to satisfy the interface.
+func (f *fakeParentService) GetChildCourses(context.Context, int64, int64) (*enrollmentService.CourseCatalog, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) RequestChildCourse(context.Context, int64, int64, int64, string) (*enrollmentService.CourseCatalog, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) WithdrawChildCourseRequest(context.Context, int64, int64, int64) (*enrollmentService.CourseCatalog, error) {
 	return nil, nil
 }
 
@@ -182,12 +254,8 @@ func (f *fakeParentService) GetChildOfferingCatalogAt(context.Context, int64, in
 }
 
 func (f *fakeParentService) CreateOfferingChangeRequest(
-	context.Context, int64, int64, []enrollmentService.OfferingChangeSelection, timezone.Date, string, bool,
+	context.Context, int64, int64, []enrollmentService.OfferingChangeSelection, timezone.Date, string, bool, []int64,
 ) (*parentService.ChildCareOfferings, error) {
-	return nil, nil
-}
-
-func (f *fakeParentService) WithdrawOfferingChangeRequest(context.Context, int64, int64, int64) (*parentService.ChildCareOfferings, error) {
 	return nil, nil
 }
 
@@ -200,7 +268,7 @@ func (f *fakeParentService) SubmitCareExceptionWithReason(_ context.Context, acc
 	return f.careException, f.careExceptionErr
 }
 
-func (f *fakeParentService) SubmitPickupChangeRequest(_ context.Context, accountID, studentID int64, date timezone.Date, pickup time.Time, reason string) (*scheduleModels.CareScheduleChangeRequest, error) {
+func (f *fakeParentService) SubmitPickupChangeRequest(_ context.Context, accountID, studentID int64, date timezone.Date, pickup time.Time, reason string, _ []int64) (*scheduleModels.CareScheduleChangeRequest, error) {
 	f.gotCareAccount = accountID
 	f.gotCareStudent = studentID
 	f.gotCareDate = date
@@ -216,10 +284,6 @@ func (f *fakeParentService) SubmitPickupChangeRequest(_ context.Context, account
 }
 
 func (f *fakeParentService) ListPickupChangeRequests(context.Context, int64, int64) ([]*scheduleModels.CareScheduleChangeRequest, error) {
-	return nil, nil
-}
-
-func (f *fakeParentService) WithdrawPickupChangeRequest(context.Context, int64, int64, int64) (*scheduleModels.CareScheduleChangeRequest, error) {
 	return nil, nil
 }
 
@@ -244,7 +308,7 @@ func (f *fakeParentService) UpdateMasterDataField(_ context.Context, accountID, 
 	return f.updateMasterData, f.updateMasterErr
 }
 
-func (f *fakeParentService) SubmitMasterDataChangeRequest(_ context.Context, accountID, studentID int64, changes []parentService.MasterDataFieldChange) ([]*userModels.StudentDataChangeRequest, error) {
+func (f *fakeParentService) SubmitMasterDataChangeRequest(_ context.Context, accountID, studentID int64, changes []parentService.MasterDataFieldChange, _ []int64) ([]*userModels.StudentDataChangeRequest, error) {
 	f.gotMasterAccount = accountID
 	f.gotMasterStudent = studentID
 	f.gotSubmitChanges = changes
@@ -307,6 +371,71 @@ func careExceptionRequest(body string) *http.Request {
 	route := chi.NewRouteContext()
 	route.URLParams.Add("studentId", "77")
 	return req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, route))
+}
+
+func mealPlanRequest() *http.Request {
+	req := withClaims(httptest.NewRequest(http.MethodGet,
+		"/me/children/77/meal-plan?week_start=2026-08-24", nil), 1234)
+	route := chi.NewRouteContext()
+	route.URLParams.Add("studentId", "77")
+	return req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, route))
+}
+
+func mealParticipationRequest() *http.Request {
+	req := withClaims(httptest.NewRequest(http.MethodGet,
+		"/me/children/77/meal-participation?from=2026-08-24&to=2026-09-04", nil), 1234)
+	route := chi.NewRouteContext()
+	route.URLParams.Add("studentId", "77")
+	return req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, route))
+}
+
+func TestGetChildMealPlan_ResponseContract(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeParentService{mealPlanRows: []parentService.MealPlanEntry{{
+		Date: "2026-08-24", Position: 0, Dish: "Spaghetti",
+	}}}
+	rs := &Resource{ParentService: service}
+	w := httptest.NewRecorder()
+
+	rs.getChildMealPlan(w, mealPlanRequest())
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.JSONEq(t, `{
+		"status":"success",
+		"data":[{"date":"2026-08-24","position":0,"dish":"Spaghetti"}],
+		"message":"Meal plan retrieved"
+	}`, w.Body.String())
+}
+
+func TestGetChildMealPlan_DisabledContract(t *testing.T) {
+	t.Parallel()
+
+	rs := &Resource{ParentService: &fakeParentService{mealPlanErr: parentService.ErrMealPlanDisabled}}
+	w := httptest.NewRecorder()
+
+	rs.getChildMealPlan(w, mealPlanRequest())
+
+	require.Equal(t, http.StatusForbidden, w.Code)
+	assert.JSONEq(t, `{
+		"status":"error",
+		"error":"parent: meal plan disabled for this school",
+		"code":"meal_plan_disabled"
+	}`, w.Body.String())
+}
+
+func TestGetMealParticipation_ResponseContract(t *testing.T) {
+	t.Parallel()
+	rs := &Resource{ParentService: &fakeParentService{mealParticipation: parentService.MealParticipationPlan{
+		Weekdays: []parentService.MealWeekday{1, 3}, EffectiveFrom: "2026-08-24", CutoffTime: "09:00",
+		Days: []parentService.MealParticipationDay{{Date: "2026-08-24", Participating: true, Source: "regular", Changeable: false}},
+	}}}
+	w := httptest.NewRecorder()
+
+	rs.getMealParticipation(w, mealParticipationRequest())
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.JSONEq(t, `{"status":"success","data":{"weekdays":[1,3],"effective_from":"2026-08-24","cutoff_time":"09:00","days":[{"date":"2026-08-24","participating":true,"source":"regular","changeable":false}]},"message":"Meal participation retrieved"}`, w.Body.String())
 }
 
 func TestSubmitCareException_PassesRequiredReasonAndReturnsIt(t *testing.T) {

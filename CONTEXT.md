@@ -1,5 +1,53 @@
 # Domain glossary
 
+## Offener Raum
+
+Ein **offener Raum** ist ein von der OGS-Leitung dauerhaft zur Nutzung
+freigegebener Ort, der keine tägliche Öffnung benötigt. Die Freigabe ist
+unabhängig davon, ob eine Betreuungskraft die Aufsicht in moto übernommen hat.
+
+Offene Räume sind für alle Betreuungskräfte auch ohne Belegung sichtbar;
+die Sichtbarkeit verleiht keine Buchungsrechte. Das Entfernen der Freigabe
+beendet weder bestehende Aufenthalte noch laufende Betreuungen.
+
+Die Raumfreigabe ist unabhängig vom Betreuungskonzept und von der Erlaubnis,
+spontane Aktivitäten zu starten. Die gemeinsame Raumansicht zeigt jedes dort
+erfasste Kind einmal, unabhängig von seiner Teilnahme an einem Angebot.
+
+Ein **Ortswechsel** erfasst, dass ein Kind einen anderen Aufenthaltsort nutzt.
+Bei einem offenen Raum ohne eigenes Gerät gilt die bewusste Zielwahl am
+NFC-Gerät oder durch eine Betreuungskraft am Handy direkt als Ortswechsel,
+nicht als unabhängig bestätigte Ankunft.
+
+Ein Ortswechsel ist keine Teilnahme an einem dort stattfindenden Angebot
+und überträgt keine Aufsicht. Berechtigte Betreuungskräfte können ihn auch
+ohne eigene Aufsicht im Zielraum erfassen.
+
+Ein **angebotsunabhängiger Raumaufenthalt** erfasst ein Kind in einem offenen
+Raum, ohne es einer dort laufenden Betreuung zuzuordnen. Das Beenden einer
+Betreuung setzt deren noch zugeordnete Kinder auf „Unterwegs“, lässt aber
+angebotsunabhängige Raumaufenthalte und die Raumfreigabe bestehen.
+
+Der globale automatische Tagesabschluss beendet auch angebotsunabhängige
+Raumaufenthalte; die Kinder werden „Unterwegs“, nicht von der OGS abgemeldet.
+Die dauerhafte Raumfreigabe bleibt bestehen.
+
+Die Freigabe als offener Raum erlaubt nicht automatisch die Abmeldung nach
+Hause am NFC-Gerät. Für diese gelten eigene Abmelderegeln.
+
+## Demo-Daten
+
+Ein **Demo-Schulprofil** ist ein stabil benanntes, synthetisches Szenario für
+genau eine Schule im lokalen Entwicklungs-Seed. Es legt die schulbezogenen
+Einstellungen, Zugangsdaten, Stammdaten und fachlich erwarteten Zustände fest
+und wird über dieselben HTTP-Schnittstellen aufgebaut, die auch das Produkt
+verwendet.
+
+**Szenarioparität** bedeutet, dass die Demo-Schulprofile die relevanten, in
+echten Schulen vorkommenden Konfigurationen und fachlichen Zustände
+repräsentieren. Sie bedeutet weder eine Kopie von Produktionsdaten noch deren
+Zeilenzahlen oder Verteilungen.
+
 ## Auswahl
 
 Eine **Auswahl** ist eine vorübergehende, manuell zusammengestellte Menge von
@@ -9,8 +57,16 @@ auszuführen, bleibt beim Suchen und Filtern erhalten und wird nicht gespeichert
 ## Gruppe
 
 Eine **Gruppe** ist eine dauerhaft gespeicherte OGS-Zuordnung eines Kindes.
-Gruppen strukturieren Berechtigungen und den Betreuungsalltag. Eine Auswahl
-erstellt oder verändert keine Gruppe.
+Gruppen strukturieren den Betreuungsalltag, aber nicht die Sichtbarkeit von
+Kinderdaten. Eine Auswahl erstellt oder verändert keine Gruppe.
+
+Eine **Gruppenübergabe** ordnet eine Gruppe einer weiteren Betreuungskraft
+zeitlich begrenzt als eigene Zuständigkeit zu. Sie erweitert nicht die
+Sichtbarkeit von Kinderdaten.
+
+Der **Sichtbereich** legt fest, ob Betreuungskräfte alle oder nur ihre eigenen
+und übergebenen Gruppen und laufenden Betreuungen sehen. Admins sehen immer
+alles; der Sichtbereich erteilt keine zusätzlichen Handlungsrechte.
 
 ## Rücknahme
 
@@ -91,6 +147,14 @@ Ersatzperson eingetragen ist.
 
 Eine **Vertretung** ordnet einer abwesenden Person für ausgewählte Termine eine
 Ersatzperson zu. Sie kann alle oder nur einen Teil ihrer Abwesenheit abdecken.
+
+Eine **zusätzliche Aufsicht** ordnet einer bereits laufenden Betreuung eine
+weitere Betreuungskraft zu. Sie ersetzt keine abwesende Person und verändert
+weder Gruppenübergaben noch geplante Termine.
+
+Die **Vertretungsübersicht** ist die gemeinsame Arbeitsfläche für
+Gruppenübergaben, Vertretungen und zusätzliche Aufsichten. Die drei Vorgänge
+bleiben trotz der gemeinsamen Arbeitsfläche fachlich getrennt.
 
 ## Anmeldungsänderung
 
@@ -386,3 +450,22 @@ wird nur bei Serverfehlern und Netzabbrüchen angezeigt, damit eine Schule am
 Telefon auf denselben Vorgang zeigen kann, den der Support in der Auswertung
 sieht. Sie ist keine Fehleridentität: derselbe Fehlercode hat bei jedem
 Auftreten eine andere Vorgangskennung.
+
+## Träger
+
+Ein **Träger** ist die Organisation, die mehrere OGS betreibt und finanziert
+(zum Beispiel eine Stadt, ein Wohlfahrtsverband, eine gGmbH). Im System ist
+jede OGS genau einem Träger zugeordnet. Eine einzelne OGS ohne weitere
+Standorte arbeitet direkt im OGS-Portal; der Träger als Ebene wird erst
+sichtbar, wenn mehrere OGS zu ihm gehören.
+_Vermeiden_: Organisation (nur im Code), Umbrella, Trägerverein, Kommune (das
+ist eine Rolle, die ein Träger haben kann, kein Synonym).
+
+## Träger-Büro
+
+Das **Träger-Büro** sind die Personen beim Träger, die über alle seine OGS
+hinweg planen, steuern und nachweisen (Bereichsleitung, Personal, Verwaltung).
+Sie betreuen keine Kinder und sind keine OGS-Admins; ein OGS-Admin mit Zugang
+zu mehreren OGS wechselt zwischen ihnen, das Träger-Büro sieht sie gemeinsam.
+_Vermeiden_: Träger-Admin, Organisationsadmin, Bereichsleitung (eine Person im
+Träger-Büro, nicht das Büro).

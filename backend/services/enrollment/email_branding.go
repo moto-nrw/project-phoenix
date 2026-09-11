@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
-	"github.com/moto-nrw/project-phoenix/services/emailbranding"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
 )
 
 const schoolLoginImageKey = "loginImageUrl"

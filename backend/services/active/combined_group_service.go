@@ -146,7 +146,7 @@ func (s *service) CreateCombinedGroupWithGroups(ctx context.Context, group *acti
 
 	// The repository calls below join the handler's WithTenantTx transaction
 	// via the context; without it the multi-step create would not be atomic.
-	if _, ok := base.TxFromContext(ctx); !ok {
+	if _, ok := tenant.TransactionFromContext(ctx); !ok {
 		return &ActiveError{Op: "CreateCombinedGroupWithGroups", Err: fmt.Errorf("no transaction in context")}
 	}
 

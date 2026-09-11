@@ -1,87 +1,6 @@
 package authorize
 
-import (
-	"context"
-	"log/slog"
-	"net/http"
-	"strings"
-
-	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
-)
-
-// RequiresPermission middleware restricts access to accounts having the specific permission.
-func RequiresPermission(permission string) func(next http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		hfn := func(w http.ResponseWriter, r *http.Request) {
-			// Get permissions from context
-			permissions := jwt.PermissionsFromCtx(r.Context())
-
-			// Check for required permission
-			if !HasPermission(permission, permissions) {
-				if err := render.Render(w, r, ErrForbidden); err != nil {
-					slog.Error("failed to render forbidden response", slog.String("error", err.Error()))
-				}
-				return
-			}
-
-			next.ServeHTTP(w, r)
-		}
-		return http.HandlerFunc(hfn)
-	}
-}
-
-// RequiresAnyPermission middleware restricts access to accounts having any of the specified permissions.
-func RequiresAnyPermission(permissions ...string) func(next http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		hfn := func(w http.ResponseWriter, r *http.Request) {
-			// Get permissions from context
-			userPermissions := jwt.PermissionsFromCtx(r.Context())
-
-			// Check for any required permission
-			hasAny := false
-			for _, perm := range permissions {
-				if HasPermission(perm, userPermissions) {
-					hasAny = true
-					break
-				}
-			}
-
-			if !hasAny {
-				if err := render.Render(w, r, ErrForbidden); err != nil {
-					slog.Error("failed to render forbidden response", slog.String("error", err.Error()))
-				}
-				return
-			}
-
-			next.ServeHTTP(w, r)
-		}
-		return http.HandlerFunc(hfn)
-	}
-}
-
-// RequiresAllPermissions middleware restricts access to accounts having all of the specified permissions.
-func RequiresAllPermissions(permissions ...string) func(next http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		hfn := func(w http.ResponseWriter, r *http.Request) {
-			// Get permissions from context
-			userPermissions := jwt.PermissionsFromCtx(r.Context())
-
-			// Check for all required permissions
-			for _, perm := range permissions {
-				if !HasPermission(perm, userPermissions) {
-					if err := render.Render(w, r, ErrForbidden); err != nil {
-						slog.Error("failed to render forbidden response", slog.String("error", err.Error()))
-					}
-					return
-				}
-			}
-
-			next.ServeHTTP(w, r)
-		}
-		return http.HandlerFunc(hfn)
-	}
-}
+import "strings"
 
 // HasPermission checks if the specified permission is included in the permissions list.
 // Supports wildcard matching for resource and action components (e.g. "admin:*", "config:*").
@@ -128,13 +47,6 @@ func HasAdminWildcard(permissions []string) bool {
 		}
 	}
 	return false
-}
-
-// HasEffectiveAdminScope reports whether the authenticated caller has the
-// literal admin role or a system-wide admin permission.
-func HasEffectiveAdminScope(ctx context.Context) bool {
-	return jwt.ClaimsFromCtx(ctx).IsAdmin ||
-		HasAdminWildcard(jwt.PermissionsFromCtx(ctx))
 }
 
 // permissionMatches checks if a permission matches the required resource and action

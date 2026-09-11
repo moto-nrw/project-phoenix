@@ -262,7 +262,9 @@ describe("PUT /api/staff/[id]", () => {
 
     expect(response.status).toBe(500);
     const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Permission denied");
+    expect(json.error).toBe(
+      "Sie dürfen Mitarbeiterdaten nicht ändern. Bitte wenden Sie sich an Ihre OGS-Leitung.",
+    );
   });
 
   it("throws error when staff member not found", async () => {

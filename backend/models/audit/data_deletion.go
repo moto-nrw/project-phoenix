@@ -3,8 +3,6 @@ package audit
 import (
 	"errors"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // DataDeletion represents a record of deleted data for GDPR compliance.
@@ -16,7 +14,7 @@ import (
 // 1.15.58 — student_id XOR staff_id must be non-null.
 type DataDeletion struct {
 	ID int64 `bun:"id,pk,autoincrement" json:"id"`
-	base.TenantModel
+	TenantModel
 	// StudentID and StaffID are mutually exclusive. Use NewDataDeletion
 	// (student) or NewStaffDataDeletion (staff) to construct rows — they
 	// guarantee the invariant the DB check expects.
@@ -82,21 +80,6 @@ func (dd *DataDeletion) Validate() error {
 	}
 
 	return nil
-}
-
-// GetID implements the base.Entity interface
-func (dd *DataDeletion) GetID() interface{} {
-	return dd.ID
-}
-
-// GetCreatedAt implements the base.Entity interface
-func (dd *DataDeletion) GetCreatedAt() time.Time {
-	return dd.DeletedAt
-}
-
-// GetUpdatedAt implements the base.Entity interface
-func (dd *DataDeletion) GetUpdatedAt() time.Time {
-	return dd.DeletedAt
 }
 
 // GetMetadata returns the metadata map

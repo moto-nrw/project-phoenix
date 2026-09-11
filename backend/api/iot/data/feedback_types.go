@@ -19,6 +19,6 @@ func (req *IoTFeedbackRequest) Bind(_ *http.Request) error {
 	if req.Value == "" {
 		return errors.New("value is required")
 	}
-	// Value validation is handled by the model's Validate() method
+	// Value validation is handled by the Feedback facade.
 	return nil
 }

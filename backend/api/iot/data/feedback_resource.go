@@ -1,29 +1,46 @@
 package data
 
 import (
+	"context"
+	"log/slog"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
-	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
-	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan"
+	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
 )
+
+type Feedback interface {
+	Available(context.Context) (bool, error)
+	Submit(context.Context, feedbackModule.CreateEntry) (feedbackModule.Entry, error)
+}
+
+type FeedbackStudent = devicescan.FeedbackStudent
+type FeedbackStudentReader = devicescan.FeedbackStudents
 
 // FeedbackResource defines the Feedback API resource
 type FeedbackResource struct {
-	IoTService      iotSvc.Service
-	UsersService    usersSvc.PersonService
-	FeedbackService feedbackSvc.Service
-	SettingsService configSvc.SettingsService
+	runtime         Runtime
+	Students        FeedbackStudentReader
+	FeedbackService Feedback
+	ObserveResponse func(int, string)
+	Logger          *slog.Logger
 }
 
 // NewFeedbackResource creates a new Feedback resource
-func NewFeedbackResource(iotService iotSvc.Service, usersService usersSvc.PersonService, feedbackService feedbackSvc.Service, settingsService configSvc.SettingsService) *FeedbackResource {
+func NewFeedbackResource(students FeedbackStudentReader, feedbackService Feedback, observeResponse func(int, string), runtime Runtime, logger *slog.Logger) *FeedbackResource {
+	if students == nil || feedbackService == nil || observeResponse == nil || !runtime.valid() {
+		panic("IoT feedback: all dependencies are required")
+	}
+	if logger == nil {
+		logger = slog.Default()
+	}
 	return &FeedbackResource{
-		IoTService:      iotService,
-		UsersService:    usersService,
+		runtime:         runtime,
+		Students:        students,
 		FeedbackService: feedbackService,
-		SettingsService: settingsService,
+		ObserveResponse: observeResponse,
+		Logger:          logger,
 	}
 }
 

@@ -3,6 +3,8 @@ import type { OverflowMenuItem } from "~/components/ui/page-header/types";
 interface BuildArgs {
   /** Whether the current group is being supervised via substitution. */
   readonly viaSubstitution: boolean;
+  /** Whether the caller has a fixed responsibility for this group. */
+  readonly canTransfer: boolean;
   /** Number of currently outgoing transfers — surfaced as a badge. */
   readonly activeTransfersCount: number;
   /** Opens the group transfer modal. */
@@ -17,10 +19,11 @@ interface BuildArgs {
  */
 export function buildGroupOverflowItems({
   viaSubstitution,
+  canTransfer,
   activeTransfersCount,
   onOpenTransfer,
 }: BuildArgs): OverflowMenuItem[] {
-  if (viaSubstitution) {
+  if (viaSubstitution || !canTransfer) {
     return [];
   }
 

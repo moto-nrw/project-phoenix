@@ -33,7 +33,7 @@ func TestAccountParentRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).AccountParent
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).AccountParent
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates parent account with valid data", func(t *testing.T) {
@@ -82,7 +82,7 @@ func TestAccountParentRepository_FindByEmail(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).AccountParent
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).AccountParent
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds parent account by email", func(t *testing.T) {
@@ -124,7 +124,7 @@ func TestAccountParentRepository_FindByUsername(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).AccountParent
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).AccountParent
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds parent account by username", func(t *testing.T) {
@@ -149,7 +149,7 @@ func TestAccountParentRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).AccountParent
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).AccountParent
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates parent account email", func(t *testing.T) {
@@ -191,7 +191,7 @@ func TestAccountParentRepository_UpdateLastLogin(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).AccountParent
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).AccountParent
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates last login timestamp", func(t *testing.T) {
@@ -224,7 +224,7 @@ func TestAccountParentRepository_UpdatePassword(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).AccountParent
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).AccountParent
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates password hash", func(t *testing.T) {
@@ -242,6 +242,31 @@ func TestAccountParentRepository_UpdatePassword(t *testing.T) {
 	})
 }
 
+func TestAccountParentRepository_FieldUpdatesRespectOptionalTenantScope(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).AccountParent
+	otherTenantID, _ := testpkg.CreateTestTenant(t, db)
+	account := testpkg.CreateTestParentAccount(t, db, "cross-tenant-field-update")
+
+	err := repo.UpdatePassword(testpkg.TenantContext(otherTenantID), account.ID, "wrong-tenant-hash")
+	require.Error(t, err)
+
+	updatedHash := "background-hash"
+	require.NoError(t, repo.UpdatePassword(context.Background(), account.ID, updatedHash))
+	require.NoError(t, repo.UpdateLastLogin(context.Background(), account.ID))
+
+	var found auth.AccountParent
+	require.NoError(t, db.NewSelect().Model(&found).
+		ModelTableExpr(`auth.accounts_parents AS "account_parent"`).
+		Where(`"account_parent".id = ?`, account.ID).
+		Scan(context.Background()))
+	require.NotNil(t, found.PasswordHash)
+	assert.Equal(t, updatedHash, *found.PasswordHash)
+	assert.NotNil(t, found.LastLogin)
+}
+
 // ============================================================================
 // AccountParentRepository List Tests
 // ============================================================================
@@ -251,7 +276,7 @@ func TestAccountParentRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).AccountParent
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).AccountParent
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all parent accounts", func(t *testing.T) {

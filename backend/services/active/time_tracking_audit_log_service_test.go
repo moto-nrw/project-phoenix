@@ -61,7 +61,7 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 	admin.SetTenantID(tenantID)
 	require.NoError(t, db.NewInsert().Model(admin).ModelTableExpr("users.staff").Scan(context.Background()))
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.TenantContext(tenantID)
 
 	t.Cleanup(func() {

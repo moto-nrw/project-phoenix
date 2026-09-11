@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"testing"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -30,70 +32,65 @@ import (
 // setupDecisionTest's config (which omits the audit repo).
 func newExportDecisionService(env *decisionTestEnv, auditRepo auditModels.DataAccessLogRepository) enrollmentService.DecisionService {
 	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
-		RequestRepo:              env.repos.Request,
-		RequestChildRepo:         env.repos.RequestChild,
-		RequestChildOfferingRepo: env.repos.RequestChildOffering,
-		CareOfferingRepo:         env.repos.CareOffering,
-		PhaseRepo:                env.repos.Phase,
-		FormSchemaRepo:           env.repos.FormSchema,
-		DataAccessLogRepo:        auditRepo,
-		StudentRepo:              env.repos.Student,
-		Logger:                   slog.Default(),
+		Requests:          env.repos.Enrollment(),
+		Children:          env.repos.Enrollment(),
+		ApprovedOfferings: approvedOfferingTestProjection(env.repos),
+		CareOfferingRepo:  env.repos.CareOffering,
+		Phases:            env.repos.Enrollment(),
+		Schemas:           env.repos.Enrollment(),
+		DataAccessLogRepo: auditRepo,
+		StudentRepo:       env.repos.Student,
+		Logger:            slog.Default(),
 	})
 }
 
-// failingSchemaRepo wraps a real FormSchemaRepository but makes FindByID
+// failingSchemaRepo wraps the owner reader but makes Schema
 // fail, simulating a transient read error or a corrupt/orphaned
-// request.schema_id. Every other method delegates to the embedded repo.
+// request.schema_id. Other reads delegate to the embedded owner.
 type failingSchemaRepo struct {
-	enrollmentModels.FormSchemaRepository
+	enrollmentService.SchemaReader
 }
 
-func (failingSchemaRepo) FindByID(_ context.Context, _ int64) (*enrollmentModels.FormSchema, error) {
+func (failingSchemaRepo) Schema(_ context.Context, _ int64) (*capability.FormSchema, error) {
 	return nil, errors.New("schema read failed")
 }
 
-// LockLineages is a no-op so this stub works when constructed with a nil
-// embedded repo (failingSchemaRepo{}); the lineage lock is irrelevant to the
-// FindByID-fault behavior the tests exercise.
-func (failingSchemaRepo) LockLineages(_ context.Context) error { return nil }
-
 type failingPhaseRepo struct {
-	enrollmentModels.PhaseRepository
+	enrollmentService.PhaseBatchReader
 }
 
-func (failingPhaseRepo) FindByID(_ context.Context, _ int64) (*enrollmentModels.Phase, error) {
+func (failingPhaseRepo) Phase(_ context.Context, _ int64) (*capability.Phase, error) {
 	return nil, errors.New("phase read failed")
 }
 
 // newExportDecisionServiceFailingSchema mirrors newExportDecisionService
-// but swaps in a FormSchema repo whose FindByID always errors, so a test
+// but swaps in a schema reader whose Schema always errors, so a test
 // can prove the export fails closed when a pinned schema cannot be loaded.
 func newExportDecisionServiceFailingSchema(env *decisionTestEnv, auditRepo auditModels.DataAccessLogRepository) enrollmentService.DecisionService {
 	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
-		RequestRepo:              env.repos.Request,
-		RequestChildRepo:         env.repos.RequestChild,
-		RequestChildOfferingRepo: env.repos.RequestChildOffering,
-		CareOfferingRepo:         env.repos.CareOffering,
-		PhaseRepo:                env.repos.Phase,
-		FormSchemaRepo:           failingSchemaRepo{env.repos.FormSchema},
-		DataAccessLogRepo:        auditRepo,
-		StudentRepo:              env.repos.Student,
-		Logger:                   slog.Default(),
+		Requests:          env.repos.Enrollment(),
+		Children:          env.repos.Enrollment(),
+		ApprovedOfferings: approvedOfferingTestProjection(env.repos),
+		CareOfferingRepo:  env.repos.CareOffering,
+		Phases:            env.repos.Enrollment(),
+		Schemas:           failingSchemaRepo{env.repos.Enrollment()},
+		DataAccessLogRepo: auditRepo,
+		StudentRepo:       env.repos.Student,
+		Logger:            slog.Default(),
 	})
 }
 
 func newExportDecisionServiceFailingPhase(env *decisionTestEnv, auditRepo auditModels.DataAccessLogRepository) enrollmentService.DecisionService {
 	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
-		RequestRepo:              env.repos.Request,
-		RequestChildRepo:         env.repos.RequestChild,
-		RequestChildOfferingRepo: env.repos.RequestChildOffering,
-		CareOfferingRepo:         env.repos.CareOffering,
-		PhaseRepo:                failingPhaseRepo{env.repos.Phase},
-		FormSchemaRepo:           env.repos.FormSchema,
-		DataAccessLogRepo:        auditRepo,
-		StudentRepo:              env.repos.Student,
-		Logger:                   slog.Default(),
+		Requests:          env.repos.Enrollment(),
+		Children:          env.repos.Enrollment(),
+		ApprovedOfferings: approvedOfferingTestProjection(env.repos),
+		CareOfferingRepo:  env.repos.CareOffering,
+		Phases:            failingPhaseRepo{env.repos.Enrollment()},
+		Schemas:           env.repos.Enrollment(),
+		DataAccessLogRepo: auditRepo,
+		StudentRepo:       env.repos.Student,
+		Logger:            slog.Default(),
 	})
 }
 
@@ -207,7 +204,7 @@ func TestDecisionService_ExportPhase_ChildStatusFilter(t *testing.T) {
 	// phase holds a mixed set.
 	_, approvedChildID := submitOneChild(t, env, "filter-approved@example.com", "Ada", "Approved")
 	submitOneChild(t, env, "filter-open@example.com", "Ben", "Open")
-	require.NoError(t, env.repos.RequestChild.UpdateStatus(
+	require.NoError(t, env.repos.Enrollment().UpdateChildStatus(
 		ctx, approvedChildID, enrollmentModels.ChildStatusApproved, nil, 0))
 
 	auditAll := &stubAccessLogRepo{}

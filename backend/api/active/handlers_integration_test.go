@@ -1042,55 +1042,55 @@ func TestSupervisors_Integration(t *testing.T) {
 // through the real middleware chain at production paths.
 func setupCombinedGroupRouter(t *testing.T) (*testContext, chi.Router) {
 	t.Helper()
-	tc := setupTestContext(t)
+	tc := setupActiveRoute(t)
 	return tc, mountActiveRouter(tc)
 }
 
 func setupMappingsRouter(t *testing.T) (*testContext, chi.Router) {
 	t.Helper()
-	tc := setupTestContext(t)
+	tc := setupActiveRoute(t)
 	return tc, mountActiveRouter(tc)
 }
 
 func setupUnclaimedRouter(t *testing.T) (*testContext, chi.Router) {
 	t.Helper()
-	tc := setupTestContext(t)
+	tc := setupActiveRoute(t)
 	return tc, mountActiveRouter(tc)
 }
 
 func setupSupervisorRouter(t *testing.T) (*testContext, chi.Router) {
 	t.Helper()
-	tc := setupTestContext(t)
+	tc := setupActiveRoute(t)
 	return tc, mountActiveRouter(tc)
 }
 
 func setupVisitsRouter(t *testing.T) (*testContext, chi.Router) {
 	t.Helper()
-	tc := setupTestContext(t)
+	tc := setupActiveRoute(t)
 	return tc, mountActiveRouter(tc)
 }
 
 func setupAnalyticsRouter(t *testing.T) (*testContext, chi.Router) {
 	t.Helper()
-	tc := setupTestContext(t)
+	tc := setupActiveRoute(t)
 	return tc, mountActiveRouter(tc)
 }
 
 func setupActiveGroupsRouter(t *testing.T) (*testContext, chi.Router) {
 	t.Helper()
-	tc := setupTestContext(t)
+	tc := setupActiveRoute(t)
 	return tc, mountActiveRouter(tc)
 }
 
 func setupVisitsCRUDRouter(t *testing.T) (*testContext, chi.Router) {
 	t.Helper()
-	tc := setupTestContext(t)
+	tc := setupActiveRoute(t)
 	return tc, mountActiveRouter(tc)
 }
 
 func setupSupervisorsCRUDRouter(t *testing.T) (*testContext, chi.Router) {
 	t.Helper()
-	tc := setupTestContext(t)
+	tc := setupActiveRoute(t)
 	return tc, mountActiveRouter(tc)
 }
 

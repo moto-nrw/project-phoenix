@@ -35,12 +35,12 @@ enthielt bei den weiterhin gültigen Feldern:
 | `4` | 10 | 0 | 1 |
 | `5` | 0 | 0 | 3 |
 
-Die übrigen erfolgreichen Mandanten meldeten für diese Felder null. Die alten
-`total_findings`-Werte sind kein Ausgangswert, weil sie noch die drei entfernten
-Zähler enthielten. Den Ausgangswert nach dem Backend-Deployment mit dem ersten
-neuen Lauf bestätigen; erst danach Datenabweichungen fachlich bearbeiten. Die
-Alert-Regel codiert den von null abweichenden handlungsfähigen Wert von Mandant
-4 explizit. Für alle anderen Mandanten und Kategorien gilt null.
+Mandant `6` nutzt Buchungen nicht als maßgebliche Datenquelle. Seine
+Projektionswerte bleiben im Dashboard sichtbar, lösen aber keinen Drift-Alarm
+aus. Die Alert-Regel codiert den von null abweichenden handlungsfähigen Wert von
+Mandant `4` explizit. Für die übrigen alarmierten Mandanten und Kategorien gilt
+null. Wenn sich `enrollment.bookings_authoritative` für einen Mandanten ändert,
+muss auch der Drift-Alarm angepasst werden.
 
 ## Technischer Fehler
 

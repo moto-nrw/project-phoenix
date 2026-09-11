@@ -1,8 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { parseISODate, toISODate } from "../src/lib/date-helpers";
 
-// Inkrement 1 des Planung-Redesigns (docs/planung-redesign/docs/03): drei
-// flache Sidebar-Einträge statt des Planung-Akkordeons, /planung und die
+// Flache Sidebar-Einträge statt des Planung-Akkordeons, /planung und die
 // Alt-Stubs als Redirects mit Parameter-Übersetzung in das neue
 // Drei-Parameter-Schema (d, view, block/verlauf).
 
@@ -40,24 +39,31 @@ test.describe("Planung navigation", () => {
     await login(page, TEST_EMAIL, TEST_PASSWORD);
   });
 
-  test("sidebar shows the three flat planning entries and navigates each area", async ({
+  test("sidebar shows the planning pages inside the Planung group and navigates each area", async ({
     page,
   }) => {
     const sidebar = page.locator("aside");
 
-    // Kein Planung-Akkordeon mehr, keine Kalenderzeiträume in der Sidebar.
+    // Die Gruppe Planung (#2826) ist beim ersten Besuch zu; die Gruppenzeile
+    // klappt sie auf, ohne zu navigieren.
+    const planung = sidebar.getByRole("button", { name: "Planung" });
+    await expect(planung).toHaveAttribute("aria-expanded", "false");
+    await planung.click();
+    await expect(planung).toHaveAttribute("aria-expanded", "true");
+
     await expect(sidebar.getByText("Betreuungsplan")).toBeVisible();
     await expect(sidebar.getByText("Dienstplan")).toBeVisible();
     await expect(
-      sidebar.getByText("Vertretung", { exact: true }),
+      sidebar.getByText("Vertretungsplan", { exact: true }),
     ).toBeVisible();
+    await expect(sidebar.getByText("Schuljahr und Ferien")).toBeVisible();
     await expect(sidebar.getByText("Planungsübersicht")).toHaveCount(0);
-    await expect(sidebar.getByText("Kalenderzeiträume")).toHaveCount(0);
-    // Die Alt-Seite heißt jetzt Übergaben.
-    await expect(sidebar.getByText("Übergaben")).toBeVisible();
+    // Der zentrale Einstieg bündelt alle Vertretungsvorgänge; er steht im
+    // Tagesbetrieb, der standardmäßig offen ist.
     await expect(
       sidebar.getByText("Vertretungen", { exact: true }),
-    ).toHaveCount(0);
+    ).toBeVisible();
+    await expect(sidebar.getByText("Übergaben")).toHaveCount(0);
 
     await sidebar.getByText("Betreuungsplan").click();
     await page.waitForURL((url) => url.pathname.endsWith("/betreuungsplan"));
@@ -65,7 +71,7 @@ test.describe("Planung navigation", () => {
     await sidebar.getByText("Dienstplan").click();
     await page.waitForURL((url) => url.pathname.endsWith("/dienstplan"));
 
-    await sidebar.getByText("Vertretung", { exact: true }).click();
+    await sidebar.getByText("Vertretungsplan", { exact: true }).click();
     await page.waitForURL((url) => url.pathname.endsWith("/vertretung"));
   });
 
@@ -121,12 +127,16 @@ test.describe("Planung navigation", () => {
 
   test("/substitutions stays its own page", async ({ page }) => {
     await page.goto("/substitutions");
-    // Kein Redirect: der Pfad bleibt stehen.
     await page.waitForLoadState("networkidle");
     expect(new URL(page.url()).pathname.endsWith("/substitutions")).toBe(true);
+    const main = page.locator("main");
+    await expect(main.getByText("Laufende Betreuungen")).toBeVisible();
+    await expect(main.getByText("Termine", { exact: true })).toBeVisible();
+    await expect(main.getByText("Gruppen", { exact: true })).toBeVisible();
+    await expect(main.getByText("Gruppenzugriff")).toHaveCount(0);
   });
 
-  test("mobile Mehr drawer lists the three planning areas", async ({
+  test("mobile Mehr drawer lists the Planung group and its pages", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
@@ -135,7 +145,10 @@ test.describe("Planung navigation", () => {
 
     await expect(page.getByText("Betreuungsplan")).toBeVisible();
     await expect(page.getByText("Dienstplan")).toBeVisible();
-    await expect(page.getByText("Vertretung", { exact: true })).toBeVisible();
-    await expect(page.getByText("Planung", { exact: true })).toHaveCount(0);
+    await expect(
+      page.getByText("Vertretungsplan", { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText("Vertretungen", { exact: true })).toBeVisible();
+    await expect(page.getByText("Planung", { exact: true })).toBeVisible();
   });
 });

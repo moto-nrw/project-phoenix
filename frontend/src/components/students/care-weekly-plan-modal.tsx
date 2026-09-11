@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useFormError } from "~/components/ui/form-error";
 import { ChevronDown, Loader2, StickyNote } from "lucide-react";
 import { Checkbox } from "~/components/ui/checkbox";
 import { FormModal } from "~/components/ui/form-modal";
@@ -57,7 +58,7 @@ export function CareWeeklyPlanModal({
     () => new Set(),
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useFormError();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -93,7 +94,7 @@ export function CareWeeklyPlanModal({
       ),
     );
     setError(null);
-  }, [isOpen, initialArrivalSchedules, initialPickupSchedules]);
+  }, [isOpen, initialArrivalSchedules, initialPickupSchedules, setError]);
 
   const updateRow = (
     weekday: number,
@@ -193,7 +194,6 @@ export function CareWeeklyPlanModal({
           ? err.message
           : "Wochenplan konnte nicht gespeichert werden";
       setError(message);
-      toast.error(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -229,14 +229,9 @@ export function CareWeeklyPlanModal({
       footer={footer}
       size="xl"
       mobilePosition="bottom"
+      error={error}
     >
       <form id="care-weekly-plan-form" onSubmit={handleSubmit}>
-        {error ? (
-          <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong mb-4 rounded-xl border px-4 py-3 text-sm">
-            {error}
-          </div>
-        ) : null}
-
         <p className="mb-4 text-sm leading-6 text-gray-600">
           {careDaysSource === "bookings" ? (
             <>
@@ -251,7 +246,7 @@ export function CareWeeklyPlanModal({
           )}
         </p>
 
-        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm sm:rounded-2xl">
+        <div className="moto-content-surface overflow-hidden rounded-xl border shadow-sm sm:rounded-2xl">
           <div className="hidden grid-cols-[minmax(100px,0.7fr)_minmax(140px,1fr)_minmax(140px,1fr)] gap-3 border-b border-gray-100 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase sm:grid">
             <span>Betreuungstag</span>
             <span>Ankunft</span>

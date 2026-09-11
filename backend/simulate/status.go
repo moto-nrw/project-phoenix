@@ -4,25 +4,30 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-
-	"github.com/moto-nrw/project-phoenix/internal/strutil"
-	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
 )
 
 // StatusOptions configures the status query.
 type StatusOptions struct {
 	StatePath string
+	Profile   string
 	Verbose   bool
+	Client    ClientFactory
 }
 
 // RunStatus queries the current simulation state and prints a summary.
 func RunStatus(ctx context.Context, opts StatusOptions) error {
-	state, err := seedapi.LoadSeedState(opts.StatePath)
+	if opts.Client == nil {
+		return fmt.Errorf("simulation client factory is required")
+	}
+	state, err := LoadSeedStateProfile(opts.StatePath, opts.Profile)
 	if err != nil {
 		return fmt.Errorf("load seed state: %w", err)
 	}
 
-	client := newClient(state.BaseURL, opts.Verbose)
+	client, err := buildClient(opts.Client, state.BaseURL, opts.Verbose)
+	if err != nil {
+		return err
+	}
 
 	if err := client.CheckHealth(); err != nil {
 		return fmt.Errorf("server health check: %w", err)
@@ -32,29 +37,32 @@ func RunStatus(ctx context.Context, opts StatusOptions) error {
 		return fmt.Errorf("no admin accounts in seed state")
 	}
 	admin := state.Accounts.Admin[0]
-	if err := client.Login(admin.Email, admin.Password); err != nil {
+	if err := client.Login(admin.Email, admin.Password, state.Bootstrap.TenantSlug); err != nil {
 		return fmt.Errorf("admin login: %w", err)
 	}
 
 	fmt.Printf("Server: %s\n", state.BaseURL)
+	fmt.Printf("Profile: %s\n", state.ProfileKey)
 	fmt.Printf("Seed state: %s (created %s)\n\n", opts.StatePath, state.CreatedAt.Format("2006-01-02 15:04"))
 
 	// Query active groups/sessions
 	fmt.Println("=== Active Sessions ===")
 	groupsResp, err := client.Get("/api/active/groups")
 	if err != nil {
-		fmt.Printf("  (could not fetch active groups: %v)\n", err)
-	} else {
-		printActiveGroups(groupsResp)
+		return fmt.Errorf("profile %s: active groups: %w", state.ProfileKey, err)
+	}
+	if err := printActiveGroups(groupsResp); err != nil {
+		return fmt.Errorf("profile %s: decode active groups: %w", state.ProfileKey, err)
 	}
 
 	// Query active visits
 	fmt.Println("\n=== Active Visits ===")
 	visitsResp, err := client.Get("/api/active/visits")
 	if err != nil {
-		fmt.Printf("  (could not fetch active visits: %v)\n", err)
-	} else {
-		printActiveVisits(visitsResp)
+		return fmt.Errorf("profile %s: active visits: %w", state.ProfileKey, err)
+	}
+	if err := printActiveVisits(visitsResp); err != nil {
+		return fmt.Errorf("profile %s: decode active visits: %w", state.ProfileKey, err)
 	}
 
 	// Seed state summary
@@ -69,28 +77,15 @@ func RunStatus(ctx context.Context, opts StatusOptions) error {
 	return nil
 }
 
-func printActiveGroups(respBody []byte) {
-	var envelope struct {
-		Status string          `json:"status"`
-		Data   json.RawMessage `json:"data"`
-	}
-	if err := json.Unmarshal(respBody, &envelope); err != nil {
-		fmt.Printf("  (parse error: %v)\n", err)
-		return
-	}
-
-	var groups []map[string]any
-	if err := json.Unmarshal(envelope.Data, &groups); err != nil {
-		// Might be directly an array
-		if err2 := json.Unmarshal(respBody, &groups); err2 != nil {
-			fmt.Printf("  (parse error: %v)\n", err)
-			return
-		}
+func printActiveGroups(respBody []byte) error {
+	groups, err := decodeStatusRows(respBody)
+	if err != nil {
+		return err
 	}
 
 	if len(groups) == 0 {
 		fmt.Println("  No active sessions")
-		return
+		return nil
 	}
 
 	fmt.Printf("  %-4s %-20s %-20s %s\n", "ID", "Activity", "Room", "Supervisors")
@@ -104,27 +99,23 @@ func printActiveGroups(respBody []byte) {
 		if activity == "" {
 			activity = stringField(g, "name")
 		}
-		fmt.Printf("  %-4s %-20s %-20s %s\n", id, strutil.TruncateBytes(activity, 20, "..."), strutil.TruncateBytes(room, 20, "..."), supervisors)
+		fmt.Printf("  %-4s %-20s %-20s %s\n", id, truncateStatusValue(activity), truncateStatusValue(room), supervisors)
 	}
 	fmt.Printf("  Total: %d active sessions\n", len(groups))
+	return nil
 }
 
-func printActiveVisits(respBody []byte) {
-	var envelope struct {
-		Status string          `json:"status"`
-		Data   json.RawMessage `json:"data"`
+func truncateStatusValue(value string) string {
+	if len(value) <= 20 {
+		return value
 	}
-	if err := json.Unmarshal(respBody, &envelope); err != nil {
-		fmt.Printf("  (parse error: %v)\n", err)
-		return
-	}
+	return value[:20] + "..."
+}
 
-	var visits []map[string]any
-	if err := json.Unmarshal(envelope.Data, &visits); err != nil {
-		if err2 := json.Unmarshal(respBody, &visits); err2 != nil {
-			fmt.Printf("  (parse error: %v)\n", err)
-			return
-		}
+func printActiveVisits(respBody []byte) error {
+	visits, err := decodeStatusRows(respBody)
+	if err != nil {
+		return err
 	}
 
 	fmt.Printf("  Total students with active visits: %d\n", len(visits))
@@ -145,6 +136,7 @@ func printActiveVisits(respBody []byte) {
 			fmt.Printf("    %-25s %d\n", room, count)
 		}
 	}
+	return nil
 }
 
 func stringField(m map[string]any, key string) string {
@@ -157,4 +149,21 @@ func stringField(m map[string]any, key string) string {
 		return s
 	}
 	return fmt.Sprintf("%v", v)
+}
+
+func decodeStatusRows(raw []byte) ([]map[string]any, error) {
+	var envelope struct {
+		Data json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err == nil {
+		raw = envelope.Data
+	}
+	var rows []map[string]any
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		return nil, err
+	}
+	if rows == nil {
+		return nil, fmt.Errorf("expected an array of status rows")
+	}
+	return rows, nil
 }

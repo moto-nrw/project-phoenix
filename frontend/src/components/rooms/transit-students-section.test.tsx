@@ -336,9 +336,7 @@ describe("TransitStudentsSection", () => {
     ).toBeInTheDocument();
   });
 
-  // #2380: the move targets follow the school-wide overview, not the
-  // organisational group mode — the backend authorizes the move the same way.
-  it("keeps all active target rooms visible under the school-wide overview", () => {
+  it("does not turn visible foreign rooms into move targets", () => {
     vi.mocked(useOptionalSupervision).mockReturnValue({
       ...EMPTY_SUPERVISION,
       overviewEnabled: true,
@@ -354,7 +352,7 @@ describe("TransitStudentsSection", () => {
           actualGroup: { id: 203, name: "Gruppe C" },
         },
       ],
-      activeSupervisions: [],
+      activeSupervisions: [mockSupervisions[0]!],
     });
 
     render(<TransitStudentsSection />);
@@ -364,8 +362,8 @@ describe("TransitStudentsSection", () => {
       screen.getByRole("option", { name: "Aula · Gruppe A" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("option", { name: "Werkraum · Gruppe C" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("option", { name: "Werkraum · Gruppe C" }),
+    ).not.toBeInTheDocument();
   });
 
   // The deactivation case: without the school-wide overview a caregiver may

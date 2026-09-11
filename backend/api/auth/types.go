@@ -63,6 +63,9 @@ type TenantResolveResponse struct {
 	// this to hide the sidebar entry / admin page for schools that haven't
 	// turned it on. Defaults to false when the setting is missing/unresolvable.
 	DisplayEnabled bool `json:"display_enabled"`
+	// CalDAVEnabled controls whether staff may connect their personal calendar
+	// to a CalDAV client. It is opt-in and fails closed.
+	CalDAVEnabled bool `json:"caldav_enabled"`
 	// GradeLevelMax is the tenant's enrollment.grade_level_max setting.
 	// Timetable users need it even without config:read, so it belongs to the
 	// same public tenant-shell metadata contract as the feature flags above.
@@ -88,8 +91,21 @@ type TenantResolveResponse struct {
 	// It is a hint, never the gate — the server decides each request.
 	// Falls back to "own", the restrictive default, on any resolution error.
 	OperationalOverviewScope string `json:"operational_overview_scope"`
-	ShowTimetableCounts      bool   `json:"show_timetable_counts"`
-	WaitlistEnabled          bool   `json:"waitlist_enabled"`
+	// ParentRequestReasonPolicy is the tenant's resolved
+	// operations.parent_request_reason_policy setting (#2267). Shell metadata:
+	// the staff client uses it to know whether an approval needs a written
+	// reason before it offers the button, instead of letting the server reject
+	// the click. It is a hint, never the gate. Falls back to "both", the
+	// strictest value, on any resolution error.
+	ParentRequestReasonPolicy string `json:"parent_request_reason_policy"`
+	ShowTimetableCounts       bool   `json:"show_timetable_counts"`
+	// TimetableEnabled is the tenant's resolved timetable.enabled setting.
+	// Shell metadata: the post-login redirect sends Betreuungskräfte (no
+	// config:read, so no settings-schema access) to the Tagesplan only at
+	// schools that actually use the Betreuungsplan (#2383). Defaults to true,
+	// the registry default.
+	TimetableEnabled bool `json:"timetable_enabled"`
+	WaitlistEnabled  bool `json:"waitlist_enabled"`
 	// EmergencyHealthInfoEnabled is the tenant's resolved
 	// operations.emergency_list_health_info setting (#2609). Shell metadata
 	// like the flags above: the Notfall page describes what the printed list
@@ -103,16 +119,19 @@ type TenantResolveResponse struct {
 
 type tenantShellSettings struct {
 	presenceMode           string
+	timetableEnabled       bool
 	studentPhotosEnabled   bool
 	nfcEnabled             bool
 	parentMessagingEnabled bool
 	staffMessagingEnabled  bool
 	displayEnabled         bool
+	calDAVEnabled          bool
 	careOfferingsEnabled   bool
 	attendanceWebEnabled   bool
 	attendanceLogEnabled   bool
 	groupMode              string
 	overviewScope          string
+	reasonPolicy           string
 	showTimetableCounts    bool
 	waitlistEnabled        bool
 	emergencyHealthInfo    bool

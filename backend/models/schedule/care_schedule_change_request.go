@@ -4,13 +4,16 @@ import (
 	"context"
 	"errors"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // ErrCareRequestNotPending means a pending-row transition lost a race or the
 // row was already terminal under the caller's tenant.
 var ErrCareRequestNotPending = errors.New("schedule: care schedule change request is not pending")
+
+// ErrCareRequestNotDecided means a correction was attempted on a row that
+// carries no decision to correct — still pending, or closed some other way
+// (withdrawn, care ended, marked done).
+var ErrCareRequestNotDecided = errors.New("schedule: care schedule change request is not decided")
 
 // ErrCareRequestNotFound means no row with the requested id exists in the
 // caller's tenant.
@@ -24,6 +27,9 @@ const (
 	CareRequestStatusApproved  = "approved"
 	CareRequestStatusRejected  = "rejected"
 	CareRequestStatusWithdrawn = "withdrawn"
+	// CareRequestStatusDone closes a request that only covered days already
+	// gone: nothing to apply, and "abgelehnt" would misstate what happened.
+	CareRequestStatusDone = "done"
 	// CareRequestStatusCareEnded closes an open request whose child left the
 	// OGS before anybody decided it (#2487).
 	CareRequestStatusCareEnded = "care_ended"
@@ -41,8 +47,8 @@ const (
 // decided atomically, and apply merges only the filled aspects onto the live
 // plan. At most one pending request exists per student (partial unique index).
 type CareScheduleChangeRequest struct {
-	base.Model `bun:"schema:schedule,table:care_schedule_change_requests"`
-	base.TenantModel
+	Model `bun:"schema:schedule,table:care_schedule_change_requests"`
+	TenantModel
 
 	StudentID      int64          `bun:"student_id,notnull" json:"student_id"`
 	SubmittedBy    int64          `bun:"submitted_by,notnull" json:"submitted_by"`
@@ -83,7 +89,8 @@ type CareRequestSnapshotEntry struct {
 // accept a staff decision or a guardian withdrawal.
 func (c *CareScheduleChangeRequest) IsTerminal() bool {
 	switch c.Status {
-	case CareRequestStatusApproved, CareRequestStatusRejected, CareRequestStatusWithdrawn, CareRequestStatusCareEnded:
+	case CareRequestStatusApproved, CareRequestStatusRejected, CareRequestStatusWithdrawn,
+		CareRequestStatusCareEnded, CareRequestStatusDone:
 		return true
 	default:
 		return false
@@ -106,16 +113,16 @@ type CareScheduleChangeRequestRepository interface {
 
 	// ListPendingForTenant returns every pending request for the current
 	// tenant, newest-first — the staff review queue.
-	ListPendingForTenant(ctx context.Context, filters base.RequestQueueFilters) ([]*CareScheduleChangeRequest, error)
+	ListPendingForTenant(ctx context.Context, filters RequestQueueFilters) ([]*CareScheduleChangeRequest, error)
 	GetPendingForStudentAndKind(ctx context.Context, studentID int64, requestKind string) (*CareScheduleChangeRequest, error)
-	ListPendingForTenantAndKind(ctx context.Context, requestKind string, filters base.RequestQueueFilters) ([]*CareScheduleChangeRequest, error)
+	ListPendingForTenantAndKind(ctx context.Context, requestKind string, filters RequestQueueFilters) ([]*CareScheduleChangeRequest, error)
 	ListRecentForStudentAndKind(ctx context.Context, studentID int64, requestKind string, since time.Time) ([]*CareScheduleChangeRequest, error)
 
 	// ListDecidedForTenant returns the tenant's decided care-schedule rows
 	// (approved, rejected, withdrawn) newest-decision-first via keyset
 	// pagination on (updated_at, id); a zero beforeUpdatedAt returns the first
 	// page.
-	ListDecidedForTenant(ctx context.Context, filters base.RequestQueueFilters) ([]*CareScheduleChangeRequest, error)
+	ListDecidedForTenant(ctx context.Context, filters RequestQueueFilters) ([]*CareScheduleChangeRequest, error)
 
 	// FindPendingByIDForUpdate locks a request row for decision processing.
 	// It returns ErrCareRequestNotFound when the row is missing in the
@@ -131,10 +138,20 @@ type CareScheduleChangeRequestRepository interface {
 	// row exists before ownership is checked).
 	FindByIDForUpdate(ctx context.Context, id int64) (*CareScheduleChangeRequest, error)
 
+	// UpdatePending rewrites a still-pending row's payload — the guardian edit
+	// path (#2267). It refuses a decided row (ErrCareRequestNotPending) and
+	// bumps updated_at, which is the request's version.
+	UpdatePending(ctx context.Context, id int64, payload map[string]any) error
+
 	// Decide moves a pending row to approved/rejected/withdrawn, stamping
 	// decision_reason, reviewed_by, reviewed_at and (for approvals)
 	// applied_at. Withdrawals carry no reviewer stamp.
 	Decide(ctx context.Context, id int64, newStatus string, reason *string, reviewedBy *int64, applied bool) error
+
+	// Redecide rewrites an ALREADY DECIDED row — the correction path (#2267).
+	// Separate from Decide so a correction can never slip past its
+	// pending-only guard by accident.
+	Redecide(ctx context.Context, id int64, newStatus string, reason *string, reviewedBy int64, applied bool) error
 
 	// UpdateDecisionSnapshot stores the frozen review diff on a decided row
 	// (ADR 0002, #2430). Separate from Decide so the race-guarded transition

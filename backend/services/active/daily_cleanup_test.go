@@ -15,7 +15,6 @@
 //	ARRANGE: Create test fixtures (real database records)
 //	  activityGroup := testpkg.CreateTestActivityGroup(t, db, "Test Activity")
 //	  student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-//	  defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, student.ID)
 //
 //	ACT: Perform the operation under test
 //	  result, err := service.EndDailySessions(ctx)
@@ -31,7 +30,6 @@
 //	testpkg.CreateTestRoom(t, db, "room-name") *facilities.Room
 //	testpkg.CreateTestStaff(t, db, "first", "last") *users.Staff
 //	testpkg.CreateTestStudent(t, db, "first", "last", "class") *users.Student
-//	testpkg.CleanupActivityFixtures(t, db, ids...) - cleans up any combination
 package active_test
 
 import (
@@ -39,7 +37,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -75,15 +73,15 @@ func TestEndDailySessionsVisitLookupFailure(t *testing.T) {
 	require.NotNil(t, session)
 
 	// Create a visit for this group using real student ID
-	repoFactory := repositories.NewFactory(db)
-	visitRepo := repoFactory.ActiveVisit
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	presence := testSchoolPresence(t, db)
 
-	visit := &active.Visit{
+	visit := studentpresence.Visit{
 		StudentID:     student.ID, // Real ID from fixture
 		ActiveGroupID: session.ID,
 		EntryTime:     time.Now(),
 	}
-	err = visitRepo.Create(ctx, visit)
+	visit, err = presence.RecordVisit(ctx, visit)
 	require.NoError(t, err)
 
 	// Verify the group is active before cleanup
@@ -93,9 +91,9 @@ func TestEndDailySessionsVisitLookupFailure(t *testing.T) {
 	assert.True(t, activeBefore.IsActive(), "Group should be active before cleanup")
 
 	// Verify the visit is active before cleanup
-	visitBefore, err := visitRepo.FindByID(ctx, visit.ID)
+	visitBefore, err := presence.FindVisit(ctx, visit.ID)
 	require.NoError(t, err)
-	assert.True(t, visitBefore.IsActive(), "Visit should be active before cleanup")
+	assert.True(t, visitBefore.ExitTime == nil, "Visit should be active before cleanup")
 
 	// ACT: Run a normal cleanup and verify it works correctly
 	result, err := service.EndDailySessions(ctx)
@@ -115,9 +113,9 @@ func TestEndDailySessionsVisitLookupFailure(t *testing.T) {
 	assert.False(t, activeAfter.IsActive(), "Group should be ended after cleanup")
 
 	// Verify the visit is now ended
-	visitAfter, err := visitRepo.FindByID(ctx, visit.ID)
+	visitAfter, err := presence.FindVisit(ctx, visit.ID)
 	require.NoError(t, err)
-	assert.False(t, visitAfter.IsActive(), "Visit should be ended after cleanup")
+	assert.False(t, visitAfter.ExitTime == nil, "Visit should be ended after cleanup")
 }
 
 // TestEndDailySessionsConsistency tests that partial failures don't leave
@@ -159,23 +157,23 @@ func TestEndDailySessionsConsistency(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create visits for both groups using real student IDs
-	repoFactory := repositories.NewFactory(db)
-	visitRepo := repoFactory.ActiveVisit
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	presence := testSchoolPresence(t, db)
 
-	visit1 := &active.Visit{
+	visit1 := studentpresence.Visit{
 		StudentID:     student1.ID, // Real ID from fixture
 		ActiveGroupID: session1.ID,
 		EntryTime:     time.Now(),
 	}
-	err = visitRepo.Create(ctx, visit1)
+	visit1, err = presence.RecordVisit(ctx, visit1)
 	require.NoError(t, err)
 
-	visit2 := &active.Visit{
+	visit2 := studentpresence.Visit{
 		StudentID:     student2.ID, // Real ID from fixture
 		ActiveGroupID: session2.ID,
 		EntryTime:     time.Now(),
 	}
-	err = visitRepo.Create(ctx, visit2)
+	visit2, err = presence.RecordVisit(ctx, visit2)
 	require.NoError(t, err)
 
 	// ACT: Run cleanup
@@ -196,13 +194,13 @@ func TestEndDailySessionsConsistency(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, group2After.IsActive(), "Group 2 should be ended")
 
-	visit1After, err := visitRepo.FindByID(ctx, visit1.ID)
+	visit1After, err := presence.FindVisit(ctx, visit1.ID)
 	require.NoError(t, err)
-	assert.False(t, visit1After.IsActive(), "Visit 1 should be ended")
+	assert.False(t, visit1After.ExitTime == nil, "Visit 1 should be ended")
 
-	visit2After, err := visitRepo.FindByID(ctx, visit2.ID)
+	visit2After, err := presence.FindVisit(ctx, visit2.ID)
 	require.NoError(t, err)
-	assert.False(t, visit2After.IsActive(), "Visit 2 should be ended")
+	assert.False(t, visit2After.ExitTime == nil, "Visit 2 should be ended")
 
 	// Verify counts match expectations (2 sessions: original + forced)
 	assert.GreaterOrEqual(t, result.SessionsEnded, 1, "Should end at least 1 session")

@@ -14,7 +14,7 @@ import { createLogger } from "~/lib/logger";
 const logger = createLogger({ component: "UserContextContext" });
 import { useSupervision } from "./supervision-context";
 import {
-  mapEducationalGroupResponse,
+  mapNavigationEducationalGroupResponse,
   type EducationalGroup,
 } from "./usercontext-helpers";
 
@@ -55,7 +55,9 @@ export function UserContextProvider({ children }: UserContextProviderProps) {
     if (!shouldProvideData) {
       return [];
     }
-    return supervisionGroups.map(mapEducationalGroupResponse);
+    return supervisionGroups
+      .filter((group) => group.is_personal !== false)
+      .map(mapNavigationEducationalGroupResponse);
   }, [shouldProvideData, supervisionGroups]);
 
   const isLoading =

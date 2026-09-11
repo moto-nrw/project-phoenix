@@ -58,7 +58,7 @@ func putStudent(t *testing.T, tc *testContext, studentID int64, body map[string]
 func TestUpdateStudent_CompanionEventOnlyOnEffectiveChange(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "CompanionEvent", "Subject", "CE1")
 	companion := testpkg.CreateTestStudent(t, tc.db, "CompanionEvent", "Partner", "CE1")
@@ -120,7 +120,7 @@ func TestUpdateStudent_CompanionEventOnlyOnEffectiveChange(t *testing.T) {
 func TestDeleteStudent_AnnouncesCompanionChange(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "CompanionDelete", "Subject", "CD1")
 	companion := testpkg.CreateTestStudent(t, tc.db, "CompanionDelete", "Partner", "CD1")

@@ -15,16 +15,17 @@ import (
 
 func setupClassTeacherService(t *testing.T, db *bun.DB) (educationSvc.Service, *repositories.Factory) {
 	t.Helper()
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := educationSvc.NewService(
 		repos.Group,
 		repos.GroupTeacher,
 		repos.ClassTeacher,
-		repos.GroupSubstitution,
 		repos.Room,
 		repos.Teacher,
 		repos.Staff,
 		repos.Student,
+		repos.GroupSubstitution,
+		db,
 	)
 	// Same duck-typed wiring the service factory uses: assignment rewrites
 	// must land in the Stammdaten audit trail.
@@ -186,7 +187,7 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 		ghostID := ghost.ID
 		// Deleting the staff row is the ARRANGE step: both calls must report
 		// ErrStaffNotFound for an ID that no longer exists (#2419).
-		testpkg.CleanupStaffFixtures(t, db, ghostID)
+		require.NoError(t, repos.Staff.Delete(ctx, ghostID))
 
 		err := svc.SetStaffSchoolClasses(ctx, ghostID, []string{"1a"}, actor.ID)
 		require.Error(t, err)

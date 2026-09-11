@@ -26,7 +26,6 @@ func TestMFACredentialRepository_Update_PersistsChanges(t *testing.T) {
 	repo := authRepo.NewMFACredentialRepository(db)
 
 	account := testpkg.CreateTestAccount(t, db, "mfa-cred-update")
-	defer testpkg.CleanupAccount(t, db, account.ID)
 
 	cred := &auth.MFACredential{
 		AccountID: account.ID,
@@ -63,7 +62,6 @@ func TestMFACredentialRepository_List_FilterByAccountID(t *testing.T) {
 	repo := authRepo.NewMFACredentialRepository(db)
 
 	account := testpkg.CreateTestAccount(t, db, "mfa-cred-list")
-	defer testpkg.CleanupAccount(t, db, account.ID)
 
 	require.NoError(t, repo.Create(ctx, &auth.MFACredential{
 		AccountID: account.ID,

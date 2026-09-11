@@ -20,7 +20,7 @@ import {
   DetailSectionSkeleton,
   SkeletonRegion,
 } from "~/components/ui/page-skeletons";
-import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { resolveDayDeviation } from "~/lib/care-plan-helpers";
 import {
@@ -207,7 +207,7 @@ export function CarePlanView({
 
   return (
     <section className="moto-content-surface overflow-hidden rounded-xl border border-gray-200 shadow-sm backdrop-blur-md sm:rounded-2xl">
-      <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
+      <>
         <ConceptSectionHeader
           className="border-b border-gray-100 p-4 sm:p-5"
           title="Betreuungsplan"
@@ -218,10 +218,15 @@ export function CarePlanView({
               : `${shortDate(weekDates[0]!)} – ${shortDate(weekDates[4]!)}`
           }
           actions={
-            <TabsList variant="default">
-              <TabsTrigger value="day">Tag</TabsTrigger>
-              <TabsTrigger value="week">Woche</TabsTrigger>
-            </TabsList>
+            <SegmentedControl
+              ariaLabel="Ansicht"
+              value={viewMode}
+              onChange={(next) => setViewMode(next as ViewMode)}
+              items={[
+                { value: "day", label: "Tag" },
+                { value: "week", label: "Woche" },
+              ]}
+            />
           }
         />
 
@@ -321,7 +326,7 @@ export function CarePlanView({
             />
           )}
         </div>
-      </Tabs>
+      </>
     </section>
   );
 }

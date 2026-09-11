@@ -24,6 +24,12 @@ export interface StaffExcusedRequest {
   readonly reason?: string;
   readonly created_at: string;
   readonly reviewed_at?: string;
+  /**
+   * Was für die beantragten Tage aktuell eingetragen ist (#2267), je Tag
+   * `YYYY-MM-DD` → `present | sick | excused | class_trip`. Damit die
+   * Entscheidung „Aktuell → Gewünscht" zeigen kann, statt nur den Wunsch.
+   */
+  readonly current_status_by_date?: Readonly<Record<string, string>>;
 }
 
 interface Envelope<T> {
@@ -78,13 +84,18 @@ export async function decideExcusedAbsenceRequest(
   requestId: string,
   approve: boolean,
   reason?: string,
+  expectedVersion?: string,
 ): Promise<StaffExcusedRequest> {
   const response = await fetch(
     `/api/students/excused-absence-requests/${encodeURIComponent(requestId)}/decide`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ approve, reason: reason ?? "" }),
+      body: JSON.stringify({
+        approve,
+        reason: reason ?? "",
+        ...(expectedVersion ? { expected_version: expectedVersion } : {}),
+      }),
     },
   );
   if (!response.ok) {

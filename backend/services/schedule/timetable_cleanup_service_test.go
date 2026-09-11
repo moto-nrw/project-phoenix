@@ -8,14 +8,14 @@ import (
 	"testing"
 	"time"
 
-	auditRepoPkg "github.com/moto-nrw/project-phoenix/database/repositories/audit"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	scheduleRepoPkg "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -48,7 +48,7 @@ func (f *instFixture) newInstance(t *testing.T, date timezone.Date, status strin
 	t.Helper()
 	title := fmt.Sprintf("Inst-%s-%s", date, status)
 	inst := &scheduleModels.ActivityInstance{
-		Date:            date,
+		Date:            scheduleModels.Date(date),
 		Title:           title,
 		StartTime:       time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:         time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
@@ -70,7 +70,7 @@ func (f *instFixture) newException(t *testing.T, activityGroupID int64, date tim
 	t.Helper()
 	exc := &scheduleModels.ActivityException{
 		ActivityGroupID: activityGroupID,
-		ExceptionDate:   date,
+		ExceptionDate:   scheduleModels.Date(date),
 		ExceptionType:   exceptionType,
 	}
 	exc.SetTenantID(f.tenantID)
@@ -134,16 +134,29 @@ func setupFixture(t *testing.T) (*instFixture, int64) {
 // literal default). Tests that need to override retention build their own
 // service with a stubSettingsService.
 func newCleanupSvc(db *bun.DB) scheduleSvc.TimetableCleanupService {
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	return scheduleSvc.NewTimetableCleanupService(
 		scheduleRepoPkg.NewActivityInstanceRepository(db),
 		scheduleRepoPkg.NewActivityExceptionRepository(db),
-		scheduleRepoPkg.NewInstanceStudentRepository(db),
-		auditRepoPkg.NewDataDeletionRepository(db),
-		auditRepoPkg.NewDeviationEventRepository(db),
+		testInstanceStudents(db),
+		repos.DataDeletion,
+		repos.DeviationEvent,
 		nil, // no settings — retention falls through to the 365-day default
 		slog.Default(),
 	)
 }
+
+func testInstanceStudents(db *bun.DB) scheduleModels.InstanceStudentRepository {
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	factory.BindTimetable(timetabletest.New(scheduleTestTB{}, db))
+	return factory.InstanceStudent
+}
+
+type scheduleTestTB struct{}
+
+func (scheduleTestTB) Helper() {}
+
+func (scheduleTestTB) Fatalf(format string, args ...any) { panic(fmt.Sprintf(format, args...)) }
 
 // --- Tests ---
 
@@ -273,12 +286,13 @@ func TestCleanup_RetentionOverride_UsesOverriddenDays(t *testing.T) {
 	// = true and ResolveInt = 30 — the same contract the real settings
 	// service provides when a school admin sets the value in the UI.
 	f, roomID := setupFixture(t)
+	repos := repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db))
 	svc := scheduleSvc.NewTimetableCleanupService(
 		scheduleRepoPkg.NewActivityInstanceRepository(f.db),
 		scheduleRepoPkg.NewActivityExceptionRepository(f.db),
-		scheduleRepoPkg.NewInstanceStudentRepository(f.db),
-		auditRepoPkg.NewDataDeletionRepository(f.db),
-		auditRepoPkg.NewDeviationEventRepository(f.db),
+		testInstanceStudents(f.db),
+		repos.DataDeletion,
+		repos.DeviationEvent,
 		newStubSettingsService(true, nil, 30, nil),
 		slog.Default(),
 	)
@@ -455,7 +469,7 @@ func TestCleanup_TenantIsolation_OtherTenantDataUntouched(t *testing.T) {
 	otherRoom := testpkg.CreateTestRoomForTenant(t, f.db, otherTenantID, fmt.Sprintf("Other-Room-%d", time.Now().UnixNano()))
 
 	otherInst := &scheduleModels.ActivityInstance{
-		Date:      old,
+		Date:      scheduleModels.Date(old),
 		Title:     fmt.Sprintf("OtherTenant-%d", time.Now().UnixNano()),
 		StartTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
@@ -529,7 +543,7 @@ func TestCleanup_AuditWriteFailure_BubblesError(t *testing.T) {
 	svc := scheduleSvc.NewTimetableCleanupService(
 		scheduleRepoPkg.NewActivityInstanceRepository(f.db),
 		scheduleRepoPkg.NewActivityExceptionRepository(f.db),
-		scheduleRepoPkg.NewInstanceStudentRepository(f.db),
+		testInstanceStudents(f.db),
 		&failingAuditRepo{err: errors.New("simulated audit failure")},
 		nil,
 		nil,
@@ -573,7 +587,7 @@ func TestCleanup_InsideWithTenantTx_Rollback_UndoesEverything(t *testing.T) {
 	f.attachStudent(t, inst2, stud.ID, nil)
 
 	rollbackErr := errors.New("simulated caller-side failure after cleanup")
-	txCtx := tenant.WithTenantID(context.Background(), f.tenantID)
+	txCtx := testpkg.TenantContext(f.tenantID)
 	err := testpkg.WithTenantTx(t, txCtx, f.db, f.tenantID, func(innerCtx context.Context, _ bun.Tx) error {
 		// Cleanup succeeds inside the tx: audit row is written, both
 		// instances are DELETEd (CASCADE removes the instance_students rows).

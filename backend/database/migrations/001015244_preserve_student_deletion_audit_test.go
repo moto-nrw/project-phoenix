@@ -10,6 +10,7 @@ import (
 )
 
 func TestPreserveStudentDeletionAuditMigration(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	var foreignKeyExists bool

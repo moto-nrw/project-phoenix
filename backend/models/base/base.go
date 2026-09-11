@@ -18,10 +18,20 @@ type StringIDModel struct {
 	UpdatedAt time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp" json:"updated_at"`
 }
 
+// StringIDModelWithoutNullZero is the string-ID shape for tables whose
+// timestamp mappings intentionally write Go zero values instead of converting
+// them to SQL NULL. Keep this separate from StringIDModel: the bun tags have
+// different update behavior.
+type StringIDModelWithoutNullZero struct {
+	ID        string    `bun:"id,pk" json:"id"`
+	CreatedAt time.Time `bun:"created_at,notnull,default:current_timestamp" json:"created_at"`
+	UpdatedAt time.Time `bun:"updated_at,notnull,default:current_timestamp" json:"updated_at"`
+}
+
 // GetID, GetCreatedAt and GetUpdatedAt satisfy the base.Entity interface for
 // every embedder of Model. They live here ONCE (backend-conventions.md Rule 3)
-// so individual entities never redeclare these trivial accessors; an entity
-// that needs different semantics may still shadow them.
+// so individual entities never redeclare these trivial accessors. Models with
+// domain-specific timestamps do not implement this generic contract.
 func (m *Model) GetID() any              { return m.ID }
 func (m *Model) GetCreatedAt() time.Time { return m.CreatedAt }
 func (m *Model) GetUpdatedAt() time.Time { return m.UpdatedAt }
@@ -31,6 +41,12 @@ func (m *Model) GetUpdatedAt() time.Time { return m.UpdatedAt }
 func (m *StringIDModel) GetID() any              { return m.ID }
 func (m *StringIDModel) GetCreatedAt() time.Time { return m.CreatedAt }
 func (m *StringIDModel) GetUpdatedAt() time.Time { return m.UpdatedAt }
+
+// GetID, GetCreatedAt and GetUpdatedAt satisfy base.Entity for embedders that
+// must preserve timestamp zero values in Bun updates.
+func (m *StringIDModelWithoutNullZero) GetID() any              { return m.ID }
+func (m *StringIDModelWithoutNullZero) GetCreatedAt() time.Time { return m.CreatedAt }
+func (m *StringIDModelWithoutNullZero) GetUpdatedAt() time.Time { return m.UpdatedAt }
 
 // Activatable represents models that can be activated or deactivated
 type Activatable struct {

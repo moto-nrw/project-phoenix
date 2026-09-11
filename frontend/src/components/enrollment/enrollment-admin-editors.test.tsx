@@ -10,6 +10,51 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import { StrictMode } from "react";
 
+// Vaul (SlideOver) rendert in jsdom nichts: das Panel, in dem die
+// Anmeldephasen jetzt bearbeitet werden, bliebe im Test leer. Derselbe Ersatz
+// wie in components/ui/slide-over.test.tsx — die Struktur bleibt, nur die
+// Animationsschicht fällt weg.
+vi.mock("vaul", async () => {
+  const React = await import("react");
+
+  return {
+    Drawer: {
+      Root: ({
+        children,
+        open,
+      }: {
+        children: React.ReactNode;
+        open?: boolean;
+      }) => (open === false ? null : <div>{children}</div>),
+      Portal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+      Overlay: React.forwardRef<
+        HTMLDivElement,
+        React.HTMLAttributes<HTMLDivElement>
+      >((props, ref) => <div ref={ref} {...props} />),
+      Content: React.forwardRef<
+        HTMLDivElement,
+        React.HTMLAttributes<HTMLDivElement>
+      >((props, ref) => <div ref={ref} {...props} />),
+      Close: React.forwardRef<
+        HTMLButtonElement,
+        React.ButtonHTMLAttributes<HTMLButtonElement>
+      >((props, ref) => <button ref={ref} {...props} />),
+      Title: React.forwardRef<
+        HTMLHeadingElement,
+        React.HTMLAttributes<HTMLHeadingElement>
+      >(({ children, ...props }, ref) => (
+        <h2 ref={ref} {...props}>
+          {children ?? "Titel"}
+        </h2>
+      )),
+      Description: React.forwardRef<
+        HTMLParagraphElement,
+        React.HTMLAttributes<HTMLParagraphElement>
+      >((props, ref) => <p ref={ref} {...props} />),
+    },
+  };
+});
+
 const mocks = vi.hoisted(() => ({
   createCareOffering: vi.fn(),
   createLateInvite: vi.fn(),
@@ -349,6 +394,20 @@ function deferred<T>() {
     reject = rej;
   });
   return { promise, resolve, reject };
+}
+
+function editStandardLegalBlock(index: number) {
+  const displaySwitch = screen.getAllByRole("switch", {
+    name: /in dieser Vorlage anzeigen/i,
+  })[index]!;
+  const actionMenu = within(displaySwitch.parentElement!).getByRole("button", {
+    name: /^Aktionen für /,
+  });
+
+  fireEvent.click(actionMenu);
+  fireEvent.click(
+    screen.getByRole("menuitem", { name: "Abweichend bearbeiten" }),
+  );
 }
 
 beforeEach(() => {
@@ -818,11 +877,10 @@ describe("CareOfferingsEditor", () => {
     }
     await chooseOption("Regeltermin", /Lernzeit/);
 
-    expect(
-      screen.getByText(
-        /Regeltermin deckt die ausgewählten Angebotstage Di, Mi, Do, Fr nicht ab/,
-      ),
-    ).toHaveAttribute("role", "alert");
+    // Der Hinweis steht als Kit-Alert am Feld (Bauart 2 Regel 5, #3113).
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      /Regeltermin deckt die ausgewählten Angebotstage Di, Mi, Do, Fr nicht ab/,
+    );
     expect(
       screen.getByText(
         "Der Regeltermin enthält Tage, die im Angebot nicht auswählbar sind.",
@@ -1461,15 +1519,15 @@ describe("CareOfferingsEditor", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
-    expect(
-      await screen.findByText(
-        "Betreuungsangebot konnte nicht gespeichert werden",
-      ),
-    ).toBeVisible();
-    expect(screen.queryByText(technicalError)).not.toBeInTheDocument();
-    expect(mocks.toast.error).toHaveBeenCalledWith(
+    const saveError = await screen.findByText(
       "Betreuungsangebot konnte nicht gespeichert werden",
     );
+    expect(saveError).toBeVisible();
+    // Der Speicherfehler steht im Alert oben im Panel, nicht im Toast
+    // (Bauart 2 Regel 5, #3113).
+    expect(saveError.closest('[role="alert"]')).not.toBeNull();
+    expect(screen.queryByText(technicalError)).not.toBeInTheDocument();
+    expect(mocks.toast.error).not.toHaveBeenCalled();
   });
 
   it("clears a linked Regeltermin when the phase change makes it incompatible", async () => {
@@ -1529,10 +1587,12 @@ describe("CareOfferingsEditor", () => {
     fireEvent.click(
       await screen.findByRole("menuitem", { name: "Bearbeiten" }),
     );
-    const form = screen
-      .getByRole("heading", { name: "Betreuungsangebot bearbeiten" })
-      .closest("form");
-    expect(form).not.toBeNull();
+    // Das Bearbeiten-Formular steht im SlideOver neben der Liste; die
+    // Überschrift trägt jetzt der Panelkopf, nicht mehr das Formular.
+    const form = document
+      .querySelector<HTMLInputElement>('input[name="name"]')
+      ?.closest("form");
+    expect(form).toBeTruthy();
     fireEvent.click(within(form!).getByLabelText("Anmeldephase"));
     fireEvent.click(
       await screen.findByRole("option", { name: "Schuljahr 2027/28" }),
@@ -1681,10 +1741,12 @@ describe("CareOfferingsEditor", () => {
     fireEvent.click(
       await screen.findByRole("menuitem", { name: "Bearbeiten" }),
     );
-    const form = screen
-      .getByRole("heading", { name: "Betreuungsangebot bearbeiten" })
-      .closest("form");
-    expect(form).not.toBeNull();
+    // Das Bearbeiten-Formular steht im SlideOver neben der Liste; die
+    // Überschrift trägt jetzt der Panelkopf, nicht mehr das Formular.
+    const form = document
+      .querySelector<HTMLInputElement>('input[name="name"]')
+      ?.closest("form");
+    expect(form).toBeTruthy();
     fireEvent.click(within(form!).getByLabelText("Anmeldephase"));
     fireEvent.click(
       await screen.findByRole("option", { name: "Schuljahr 2027/28" }),
@@ -2017,6 +2079,24 @@ describe("CareOfferingsEditor", () => {
 });
 
 describe("PhasesEditor", () => {
+  it("uses the button foreground color for the create action icon", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+
+    render(<PhasesEditor />);
+
+    const button = await screen.findByRole("button", {
+      name: "Neue Anmeldephase",
+    });
+    const icon = button.querySelector("[data-moto-duotone-tone]");
+
+    expect(icon).toBeInTheDocument();
+    expect(icon).not.toHaveStyle({ color: "#3730A3" });
+    expect(icon?.getAttribute("style")).toContain(
+      "--moto-icon-secondary: currentColor",
+    );
+  });
+
   it("creates a phase, assigns schemas, toggles status, deletes, and completes rollover", async () => {
     mocks.searchParams = new URLSearchParams("assignForm=schema-1");
     mocks.listPhases.mockResolvedValue([phase()]);
@@ -2030,7 +2110,11 @@ describe("PhasesEditor", () => {
     render(<PhasesEditor />);
 
     expect(await screen.findByText("Schuljahr 2026/27")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Neue Anmeldephase" }));
+    // Die Aktion liegt jetzt im Seitenkopf und rendert dort responsiv zweimal
+    // (mobile Kopfzeile und Desktop-Zeile).
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Neue Anmeldephase" })[0]!,
+    );
     fireEvent.change(inputByName("name"), {
       target: { value: "Sommerferien" },
     });
@@ -2115,7 +2199,7 @@ describe("PhasesEditor", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Erste Anmeldephase anlegen" }),
     );
-    fireEvent.change(inputByName("name"), {
+    fireEvent.change(await waitForInputByName("name"), {
       target: { value: "   " },
     });
     fireEvent.click(screen.getByRole("button", { name: "Erstellen" }));
@@ -2123,9 +2207,8 @@ describe("PhasesEditor", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Bitte gib einen Namen für die Anmeldephase ein.",
     );
-    expect(mocks.toast.error).toHaveBeenCalledWith(
-      "Bitte gib einen Namen für die Anmeldephase ein.",
-    );
+    // Kein Toast mehr neben dem Alert (Bauart 2 Regel 5, #3113).
+    expect(mocks.toast.error).not.toHaveBeenCalled();
     expect(mocks.createPhase).not.toHaveBeenCalled();
   });
 
@@ -2145,6 +2228,9 @@ describe("PhasesEditor", () => {
       name: /Anmeldungen ansehen/,
     });
     expect(link).toHaveAttribute("href", "/demo/admin/enrollments/phases/12");
+    expect(
+      screen.getByRole("menuitem", { name: "Formular ansehen" }),
+    ).toHaveAttribute("href", "/demo/anmeldung/12");
   });
 
   it("opens late invite and manual enrollment actions from the phase action menu", async () => {
@@ -2180,8 +2266,10 @@ describe("PhasesEditor", () => {
       await screen.findByRole("menuitem", { name: "Manuelle Anmeldung" }),
     );
 
+    // Die manuelle Anmeldung laeuft seit der Dialog-Diaet als SlideOver; im
+    // Vaul-Mock traegt das Panel keine dialog-Rolle, deshalb der Titel.
     expect(
-      await screen.findByRole("dialog", {
+      await screen.findByRole("heading", {
         name: "Kind manuell über Anmeldung freigeben",
       }),
     ).toBeInTheDocument();
@@ -2204,18 +2292,16 @@ describe("PhasesEditor", () => {
 
     render(<PhasesEditor />);
 
-    // The row-level copy-link button is gone: the plain /enroll/{id} URL is
-    // rejected by the backend without a late-invite token, so copying it would
-    // hand out a 404.
-    await screen.findByRole("button", { name: "Aktionen für Nur Konto" });
-    expect(
-      screen.queryByRole("button", { name: "Elternlink kopieren" }),
-    ).not.toBeInTheDocument();
-
     fireEvent.click(
-      screen.getByRole("button", { name: "Aktionen für Nur Konto" }),
+      await screen.findByRole("button", { name: "Aktionen für Nur Konto" }),
     );
 
+    // The copy-link entry is gone: the plain /anmeldung/{id} URL is rejected
+    // by the backend without a late-invite token, so copying it would hand
+    // out a 404.
+    expect(
+      screen.queryByRole("menuitem", { name: "Elternlink kopieren" }),
+    ).not.toBeInTheDocument();
     // "Formular ansehen" (the untokenized public form) is hidden...
     expect(
       screen.queryByRole("menuitem", { name: "Formular ansehen" }),
@@ -2236,15 +2322,14 @@ describe("PhasesEditor", () => {
 
     render(<PhasesEditor />);
 
-    expect(
-      await screen.findByRole("button", { name: "Elternlink kopieren" }),
-    ).toBeInTheDocument();
-
     fireEvent.click(
-      screen.getByRole("button", { name: "Aktionen für Offene Phase" }),
+      await screen.findByRole("button", { name: "Aktionen für Offene Phase" }),
     );
     expect(
       await screen.findByRole("menuitem", { name: "Formular ansehen" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: "Elternlink kopieren" }),
     ).toBeInTheDocument();
   });
 
@@ -2516,6 +2601,17 @@ const defaultLegalBlocksForSave = [
 ];
 
 describe("EnrollmentFormEditor", () => {
+  it("uses tenant-aware links for public previews", async () => {
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.listPhases.mockResolvedValue([]);
+
+    render(<EnrollmentFormEditor />);
+
+    expect(
+      await screen.findByRole("link", { name: "Vorschau" }),
+    ).toHaveAttribute("href", "/demo/anmeldung/preview?base=1");
+  });
+
   it("creates, previews, updates, and deletes schemas", async () => {
     const initialSchema = schema();
     mocks.listSchemas.mockResolvedValue([initialSchema]);
@@ -2607,7 +2703,9 @@ describe("EnrollmentFormEditor", () => {
       screen.getByRole("button", { name: "Aktionen für Regelformular" }),
     );
     fireEvent.click(await screen.findByRole("menuitem", { name: "Löschen" }));
-    fireEvent.click(screen.getByRole("button", { name: "Löschen" }));
+    // Zweistufige Löschbestätigung (ConfirmDeleteModal, #3110).
+    fireEvent.click(screen.getByRole("button", { name: "Ja, löschen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Endgültig löschen" }));
 
     await waitFor(() => {
       expect(mocks.deleteSchema).toHaveBeenCalledWith("schema-1");
@@ -2640,7 +2738,7 @@ describe("EnrollmentFormEditor", () => {
     );
 
     expect(
-      await screen.findByRole("button", { name: "Speichert..." }),
+      await screen.findByRole("button", { name: "Speichert…" }),
     ).toBeDisabled();
 
     await act(async () => {
@@ -2653,7 +2751,7 @@ describe("EnrollmentFormEditor", () => {
       );
     });
     expect(
-      screen.queryByRole("button", { name: "Speichert..." }),
+      screen.queryByRole("button", { name: "Speichert…" }),
     ).not.toBeInTheDocument();
   });
 
@@ -2715,10 +2813,15 @@ describe("EnrollmentFormEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     expect(
-      await screen.findByText("Es gibt bereits ein Formular mit diesem Namen."),
-    ).toBeInTheDocument();
+      await screen.findAllByText(
+        "Es gibt bereits ein Formular mit diesem Namen.",
+      ),
+    ).toHaveLength(2);
     // Dialog stays open so the admin can correct the name.
-    expect(screen.getByLabelText("Name")).toBeInTheDocument();
+    expect(screen.getByLabelText("Name")).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
   });
 
   it("renames via the builder name field when saving an edited template", async () => {
@@ -2906,9 +3009,7 @@ describe("EnrollmentFormEditor", () => {
         target: { value: "Rechtstextformular" },
       },
     );
-    fireEvent.click(
-      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
-    );
+    editStandardLegalBlock(0);
     const legalTextAreas = await screen.findAllByLabelText(
       "Rechtstext / Erklärung",
     );
@@ -2961,9 +3062,7 @@ describe("EnrollmentFormEditor", () => {
         target: { value: "PDF-Rechtstextformular" },
       },
     );
-    fireEvent.click(
-      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
-    );
+    editStandardLegalBlock(0);
     fireEvent.click(
       screen.getByRole("button", { name: /PDF-Datei hochladen/ }),
     );
@@ -3030,9 +3129,7 @@ describe("EnrollmentFormEditor", () => {
         target: { value: "PDF-Rechtstextformular" },
       },
     );
-    fireEvent.click(
-      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
-    );
+    editStandardLegalBlock(0);
     fireEvent.click(
       screen.getByRole("button", { name: /PDF-Datei hochladen/ }),
     );
@@ -3101,9 +3198,7 @@ describe("EnrollmentFormEditor", () => {
         target: { value: "Text-Rechtstextformular" },
       },
     );
-    fireEvent.click(
-      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
-    );
+    editStandardLegalBlock(0);
     fireEvent.click(
       screen.getByRole("button", { name: /PDF-Datei hochladen/ }),
     );
@@ -3177,9 +3272,7 @@ describe("EnrollmentFormEditor", () => {
         target: { value: "PDF-Rechtstextformular" },
       },
     );
-    fireEvent.click(
-      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
-    );
+    editStandardLegalBlock(0);
     fireEvent.click(
       screen.getByRole("button", { name: /PDF-Datei hochladen/ }),
     );
@@ -3372,9 +3465,7 @@ describe("EnrollmentFormEditor", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Neue Vorlage" }),
     );
-    fireEvent.click(
-      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
-    );
+    editStandardLegalBlock(0);
     fireEvent.click(screen.getByRole("button", { name: /Text eingeben/ }));
 
     expect(screen.getByLabelText("Rechtstext / Erklärung")).toHaveValue("");
@@ -3393,9 +3484,7 @@ describe("EnrollmentFormEditor", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Neue Vorlage" }),
     );
-    fireEvent.click(
-      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
-    );
+    editStandardLegalBlock(0);
     fireEvent.click(
       screen.getByRole("button", { name: /PDF-Datei hochladen/ }),
     );
@@ -3431,9 +3520,7 @@ describe("EnrollmentFormEditor", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Neue Vorlage" }),
     );
-    fireEvent.click(
-      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
-    );
+    editStandardLegalBlock(0);
     fireEvent.click(
       screen.getByRole("button", { name: /PDF-Datei hochladen/ }),
     );
@@ -3483,9 +3570,7 @@ describe("EnrollmentFormEditor", () => {
         target: { value: "Retry-Rechtstextformular" },
       },
     );
-    fireEvent.click(
-      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
-    );
+    editStandardLegalBlock(0);
     fireEvent.click(
       screen.getByRole("button", { name: /PDF-Datei hochladen/ }),
     );
@@ -3542,9 +3627,7 @@ describe("EnrollmentFormEditor", () => {
       screen.queryByLabelText("Rechtstext / Erklärung"),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(
-      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
-    );
+    editStandardLegalBlock(0);
 
     expect(screen.getByLabelText("Rechtstext / Erklärung")).toBeInTheDocument();
     expect(
@@ -3578,11 +3661,7 @@ describe("EnrollmentFormEditor", () => {
       screen.getAllByText("Ist für diese Vorlage ausgeblendet.").length,
     ).toBeGreaterThan(0);
 
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Fotoeinwilligung abweichend bearbeiten",
-      }),
-    );
+    editStandardLegalBlock(2);
 
     expect(screen.getByLabelText("Rechtstext / Erklärung")).toHaveValue(
       "Foto-Rechtstext aus den Einstellungen",
@@ -3607,8 +3686,8 @@ describe("EnrollmentFormEditor", () => {
     const displaySwitches = screen.getAllByRole("switch", {
       name: /in dieser Vorlage anzeigen/i,
     });
-    const editButtons = screen.getAllByRole("button", {
-      name: /abweichend bearbeiten/i,
+    const actionMenus = screen.getAllByRole("button", {
+      name: /^Aktionen für (AGB \/ Teilnahmebedingungen|Datenschutzinformation|Fotoeinwilligung|E-Mail-Kontakt)$/,
     });
 
     expect(displaySwitches[0]?.tagName).toBe("BUTTON");
@@ -3617,8 +3696,8 @@ describe("EnrollmentFormEditor", () => {
     expect(displaySwitches[0]!.querySelector("span")).toHaveClass(
       "translate-x-[18px]",
     );
-    expect(editButtons[0]).toHaveTextContent("");
-    expect(editButtons[0]).not.toHaveClass("border", "bg-white", "shadow-sm");
+    expect(actionMenus[0]).toHaveTextContent("");
+    expect(actionMenus[0]).not.toHaveClass("border", "bg-white", "shadow-sm");
   });
 
   it("restores missing standard legal blocks when editing an older schema", async () => {
@@ -3790,9 +3869,7 @@ describe("EnrollmentFormEditor", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Neue Vorlage" }),
     );
-    fireEvent.click(
-      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
-    );
+    editStandardLegalBlock(0);
 
     const displayToggles = screen.getAllByRole("checkbox", {
       name: "Im Formular anzeigen",
@@ -3807,6 +3884,84 @@ describe("EnrollmentFormEditor", () => {
     expect(requiredToggles[0]).not.toHaveAttribute("type", "checkbox");
   });
 
+  it("saves a required custom checkbox as terms instead of consent", async () => {
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.createSchema.mockResolvedValue(
+      schema({ id: "schema-new", name: "Zustimmungsformular" }),
+    );
+
+    render(<EnrollmentFormEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+    fireEvent.change(
+      screen.getByPlaceholderText("z. B. Ferienbetreuung Sommer 2026"),
+      { target: { value: "Zustimmungsformular" } },
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Eigene Zustimmung hinzufügen" }),
+    );
+
+    // Der neue Custom-Block startet als freiwillige Einwilligung.
+    expect(
+      screen.getByText(
+        "Freiwillige Einwilligung: Eltern können das Formular auch ohne Häkchen abschicken.",
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Muss bestätigt werden" }),
+    );
+
+    // Der Wechsel zur Pflicht-Bestätigung erklärt sich direkt am Schalter.
+    expect(
+      screen.getByText(
+        "Pflicht-Bestätigung: Eltern müssen das Häkchen setzen, sonst können sie das Formular nicht abschicken. Das ist keine freiwillige Einwilligung.",
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Formularvorlage erstellen" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.createSchema).toHaveBeenCalled();
+    });
+    const [, , , legalBlocks] = mocks.createSchema.mock.calls[0] as [
+      string,
+      unknown,
+      unknown,
+      Array<{ kind: string; required: boolean; source: string }>,
+    ];
+    expect(legalBlocks.filter((block) => block.source === "custom")).toEqual([
+      expect.objectContaining({ kind: "terms", required: true }),
+    ]);
+  });
+
+  it("offers no required toggle for the standard photo consent block", async () => {
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+
+    render(<EnrollmentFormEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+    // Blockreihenfolge: AGB, Datenschutz, Foto, E-Mail — Foto aufklappen.
+    editStandardLegalBlock(2);
+
+    expect(
+      screen.getByText(
+        "Freiwillige Einwilligung: Eltern können das Formular auch ohne Häkchen abschicken.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("checkbox", { name: "Muss bestätigt werden" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows a simple checkbox-or-notice mode instead of legal block kind names", async () => {
     mocks.listSchemas.mockResolvedValue([]);
     mocks.listPhases.mockResolvedValue([]);
@@ -3816,9 +3971,7 @@ describe("EnrollmentFormEditor", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Neue Vorlage" }),
     );
-    fireEvent.click(
-      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
-    );
+    editStandardLegalBlock(0);
 
     expect(
       screen.getAllByRole("button", { name: "Mit Checkbox" }).length,

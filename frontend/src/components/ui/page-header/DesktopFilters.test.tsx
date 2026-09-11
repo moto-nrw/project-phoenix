@@ -41,7 +41,9 @@ describe("DesktopFilters", () => {
       render(<DesktopFilters filters={buttonFilters} />);
 
       const activeButton = screen.getByText("Aktiv");
-      expect(activeButton).toHaveClass("bg-gray-900", "text-white");
+      // Das aktive Segment ist hell auf grauer Spur hervorgehoben statt
+      // schwarz gefüllt — dieselbe Aussage, andere Bauart.
+      expect(activeButton).toHaveClass("bg-white", "text-gray-900");
     });
 
     it("calls onChange when button clicked (single select)", () => {
@@ -213,7 +215,7 @@ describe("DesktopFilters", () => {
 
       // Find the button that contains the text "Raum 101"
       const button = screen.getByText("Raum 101").closest("button");
-      expect(button).toHaveClass("ring-2", "ring-blue-500");
+      expect(button).toHaveClass("ring-2", "ring-moto-blue");
     });
   });
 

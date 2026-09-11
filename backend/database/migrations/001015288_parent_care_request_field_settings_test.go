@@ -10,6 +10,7 @@ import (
 )
 
 func TestParentCareRequestFieldSettingsPreserveEffectiveMessagingBehavior(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 

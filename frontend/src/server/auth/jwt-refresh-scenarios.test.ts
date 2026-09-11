@@ -196,8 +196,8 @@ describe("JWT callback — refresh scenarios", () => {
     expect(result?.error).toBe("RefreshTokenExpired");
   });
 
-  // ── Scenario 7: Backend refresh returns 401 (stolen token) ────────
-  it("scenario 7: backend 401 — token unchanged, no error set", async () => {
+  // ── Scenario 7: Backend refresh returns 401 (revoked token, #2952) ──
+  it("scenario 7: pre-expiry backend 401 — session ends immediately", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 401,
@@ -206,7 +206,7 @@ describe("JWT callback — refresh scenarios", () => {
     const token = {
       id: "7",
       token: "old-access",
-      refreshToken: "maybe-stolen-refresh",
+      refreshToken: "revoked-refresh",
       tokenExpiry: Date.now() + 3 * 60 * 1000,
       refreshTokenExpiry: Date.now() + 60 * 60 * 1000,
     };
@@ -215,8 +215,49 @@ describe("JWT callback — refresh scenarios", () => {
 
     expect(mockFetch).toHaveBeenCalledOnce();
     expect(result?.token).toBe("old-access");
-    expect(result?.refreshToken).toBe("maybe-stolen-refresh");
-    expect(result?.error).toBeUndefined();
+    expect(result?.refreshToken).toBe("revoked-refresh");
+    expect(result?.error).toBe("RefreshTokenError");
+    expect(result?.needsRefresh).toBe(true);
+  });
+
+  it("scenario 7b: a rejected refresh token is never retried (#2952)", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+    });
+
+    // Server-component requests cannot persist the terminal error into the
+    // cookie, so the next callback still arrives with the same dead token.
+    const makeToken = () => ({
+      id: "7b",
+      token: "old-access",
+      refreshToken: "revoked-refresh",
+      tokenExpiry: Date.now() + 3 * 60 * 1000,
+      refreshTokenExpiry: Date.now() + 60 * 60 * 1000,
+    });
+
+    const first = await callJwt(makeToken());
+    expect(first?.error).toBe("RefreshTokenError");
+
+    const second = await callJwt(makeToken());
+    expect(mockFetch).toHaveBeenCalledOnce();
+    expect(second?.error).toBe("RefreshTokenError");
+    expect(second?.needsRefresh).toBe(true);
+
+    // A different refresh token (another session) is unaffected.
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        access_token: "new-access",
+        refresh_token: `h.${Buffer.from(
+          JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600 }),
+        ).toString("base64url")}.s`,
+      }),
+    });
+    const other = await callJwt({ ...makeToken(), refreshToken: "other-live" });
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(other?.error).toBeUndefined();
+    expect(other?.token).toBe("new-access");
   });
 
   // ── Scenario 8: Backend refresh network timeout ───────────────────

@@ -30,7 +30,7 @@ func TestStaffDocumentFileCleanupRunsWithoutUITraffic(t *testing.T) {
 
 	task := &ScheduledTask{Name: "staff-document-file-cleanup"}
 
-	s.checkAndRunStaffDocumentFileCleanup(task)
+	s.checkAndRunStaffDocumentFileCleanup(context.Background(), task)
 
 	assert.Equal(t, 1, cleaner.calls)
 	assert.False(t, task.Running)
@@ -64,8 +64,8 @@ func TestStaffDocumentFileCleanupAllowsRetryAfterFailure(t *testing.T) {
 
 	task := &ScheduledTask{Name: "staff-document-file-cleanup"}
 
-	s.checkAndRunStaffDocumentFileCleanup(task)
-	s.checkAndRunStaffDocumentFileCleanup(task)
+	s.checkAndRunStaffDocumentFileCleanup(context.Background(), task)
+	s.checkAndRunStaffDocumentFileCleanup(context.Background(), task)
 
 	assert.Equal(t, 2, cleaner.calls)
 	assert.False(t, task.Running)

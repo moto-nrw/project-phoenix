@@ -32,7 +32,7 @@ func createStudentsAPITestStaffID(t *testing.T, tc *testContext) int64 {
 func TestGetStudentArrivalSchedules(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "ArrivalGet", "Test", "AG1")
 
@@ -77,7 +77,7 @@ func TestGetStudentArrivalSchedules(t *testing.T) {
 		arztterminReason := "Arzttermin"
 		exception := &scheduleModel.StudentArrivalException{
 			StudentID:       studentWithData.ID,
-			ExceptionDate:   exceptionDate,
+			ExceptionDate:   scheduleModel.Date(exceptionDate),
 			ExpectedArrival: &exceptionTime,
 			Reason:          &arztterminReason,
 			CreatedBy:       createStudentsAPITestStaffID(t, tc),
@@ -153,7 +153,7 @@ func TestGetStudentArrivalSchedules(t *testing.T) {
 func TestUpdateStudentArrivalSchedules(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("success_updates_schedules", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrivalSuccess", "Test", "AST1")
@@ -275,7 +275,7 @@ func TestUpdateStudentArrivalSchedules(t *testing.T) {
 
 		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
 
-		stored, err := tc.services.ArrivalSchedule.GetStudentArrivalSchedules(testpkg.Ctx(t), student.ID)
+		stored, err := tc.resource.ArrivalScheduleService.GetStudentArrivalSchedules(testpkg.Ctx(t), student.ID)
 		require.NoError(t, err)
 		require.Len(t, stored, 1)
 		assert.True(t, stored[0].InheritsClassTime(),
@@ -308,7 +308,7 @@ func TestUpdateStudentArrivalSchedules(t *testing.T) {
 func TestCreateStudentArrivalException(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("success_creates_exception", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrExcCreate", "Test", "AEC1")
@@ -398,7 +398,7 @@ func TestCreateStudentArrivalException(t *testing.T) {
 		originalReason := "Parent arrival reason"
 		guardian := &scheduleModel.StudentArrivalException{
 			StudentID:         chain.StudentID,
-			ExceptionDate:     exceptionDate,
+			ExceptionDate:     scheduleModel.Date(exceptionDate),
 			Reason:            &originalReason,
 			Source:            scheduleModel.ExceptionSourceGuardian,
 			CreatedByGuardian: &chain.AccountID,
@@ -457,7 +457,7 @@ func TestCreateStudentArrivalException(t *testing.T) {
 		originalTime := time.Date(2000, 1, 1, 8, 0, 0, 0, time.UTC)
 		staffRow := &scheduleModel.StudentArrivalException{
 			StudentID:       chain.StudentID,
-			ExceptionDate:   exceptionDate,
+			ExceptionDate:   scheduleModel.Date(exceptionDate),
 			ExpectedArrival: &originalTime,
 			Reason:          &originalReason,
 			Source:          scheduleModel.ExceptionSourceStaff,
@@ -582,7 +582,7 @@ func TestCreateStudentArrivalException(t *testing.T) {
 func TestUpdateStudentArrivalException(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("success_updates_exception", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrExcUpdate", "Test", "AEU1")
@@ -594,7 +594,7 @@ func TestUpdateStudentArrivalException(t *testing.T) {
 		originalReason := "Original reason"
 		exception := &scheduleModel.StudentArrivalException{
 			StudentID:       student.ID,
-			ExceptionDate:   exceptionDate,
+			ExceptionDate:   scheduleModel.Date(exceptionDate),
 			ExpectedArrival: &exceptionTime,
 			Reason:          &originalReason,
 			CreatedBy:       createStudentsAPITestStaffID(t, tc),
@@ -634,7 +634,7 @@ func TestUpdateStudentArrivalException(t *testing.T) {
 		originalReason := "Parent arrival reason"
 		exception := &scheduleModel.StudentArrivalException{
 			StudentID:         chain.StudentID,
-			ExceptionDate:     exceptionDate,
+			ExceptionDate:     scheduleModel.Date(exceptionDate),
 			Reason:            &originalReason,
 			Source:            scheduleModel.ExceptionSourceGuardian,
 			CreatedByGuardian: &chain.AccountID,
@@ -730,7 +730,7 @@ func TestUpdateStudentArrivalException(t *testing.T) {
 func TestDeleteStudentArrivalException(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("success_deletes_exception", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrExcDelete", "Test", "AED1")
@@ -739,7 +739,7 @@ func TestDeleteStudentArrivalException(t *testing.T) {
 		deleteReason := "To be deleted"
 		exception := &scheduleModel.StudentArrivalException{
 			StudentID:     student.ID,
-			ExceptionDate: exceptionDate,
+			ExceptionDate: scheduleModel.Date(exceptionDate),
 			Reason:        &deleteReason,
 			CreatedBy:     createStudentsAPITestStaffID(t, tc),
 		}
@@ -768,7 +768,7 @@ func TestDeleteStudentArrivalException(t *testing.T) {
 		originalReason := "Parent arrival delete reason"
 		exception := &scheduleModel.StudentArrivalException{
 			StudentID:         chain.StudentID,
-			ExceptionDate:     exceptionDate,
+			ExceptionDate:     scheduleModel.Date(exceptionDate),
 			ExpectedArrival:   &arrivalTime,
 			Reason:            &originalReason,
 			Source:            scheduleModel.ExceptionSourceGuardian,
@@ -834,7 +834,7 @@ func TestDeleteStudentArrivalException(t *testing.T) {
 func TestCreateStudentArrivalNote(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("success_creates_note", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrNoteCreate", "Test", "ANC1")
@@ -943,7 +943,7 @@ func TestCreateStudentArrivalNote(t *testing.T) {
 func TestUpdateStudentArrivalNote(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("success_updates_note", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrNoteUpdate", "Test", "ANU1")
@@ -953,7 +953,7 @@ func TestUpdateStudentArrivalNote(t *testing.T) {
 		noteDate := timezone.NewDate(2026, 4, 15)
 		note := &scheduleModel.StudentArrivalNote{
 			StudentID: student.ID,
-			NoteDate:  noteDate,
+			NoteDate:  scheduleModel.Date(noteDate),
 			Content:   "Original content",
 			CreatedBy: createStudentsAPITestStaffID(t, tc),
 		}
@@ -1015,7 +1015,7 @@ func TestUpdateStudentArrivalNote(t *testing.T) {
 func TestDeleteStudentArrivalNote(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("success_deletes_note", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrNoteDelete", "Test", "AND1")
@@ -1023,7 +1023,7 @@ func TestDeleteStudentArrivalNote(t *testing.T) {
 		noteDate := timezone.NewDate(2026, 6, 15)
 		note := &scheduleModel.StudentArrivalNote{
 			StudentID: student.ID,
-			NoteDate:  noteDate,
+			NoteDate:  scheduleModel.Date(noteDate),
 			Content:   "To be deleted",
 			CreatedBy: createStudentsAPITestStaffID(t, tc),
 		}
@@ -1067,7 +1067,7 @@ func TestDeleteStudentArrivalNote(t *testing.T) {
 func TestBulkUpsertArrivalSchedules(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("bad_request_missing_filter", func(t *testing.T) {
 		body := map[string]any{
@@ -1206,7 +1206,7 @@ func TestBulkUpsertArrivalSchedules(t *testing.T) {
 func TestGetBulkArrivalTimes(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("bad_request_empty_student_ids", func(t *testing.T) {
 		body := map[string]any{
@@ -1285,7 +1285,7 @@ func TestGetBulkArrivalTimes(t *testing.T) {
 func TestStaffArrivalWrite_BroadcastsArrivalScheduleChanged(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "ArrCast", "Teacher")
 	claims := testutil.AdminTestClaims(int(account.ID))

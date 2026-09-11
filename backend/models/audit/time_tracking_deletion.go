@@ -5,9 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 const (
@@ -21,9 +18,8 @@ const (
 // these are working-time records the employer must retain, so unlike the
 // data-minimal enrollment deletion audit the values stay.
 type TimeTrackingDeletion struct {
-	bun.BaseModel `bun:"schema:audit,table:time_tracking_deletions"`
-	ID            int64 `bun:"id,pk,autoincrement" json:"id"`
-	base.TenantModel
+	ID int64 `bun:"id,pk,autoincrement" json:"id"`
+	TenantModel
 	StaffID    int64           `bun:"staff_id,notnull" json:"staff_id"`
 	Source     string          `bun:"source,notnull" json:"source"`
 	SourceID   int64           `bun:"source_id,notnull" json:"source_id"`

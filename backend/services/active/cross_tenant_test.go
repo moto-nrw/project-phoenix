@@ -10,7 +10,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -18,8 +17,8 @@ import (
 
 func createActiveServiceWithCrossTenant(t *testing.T, db *bun.DB) active.Service {
 	t.Helper()
-	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err)
 	return serviceFactory.Active
 }
@@ -130,7 +129,11 @@ func TestCrossTenantRepository_Direct(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, tenantHost)
 	testpkg.EnsureTestTenant(t, db, tenantVisitor)
 
-	repo := activeRepo.NewCrossTenantRepository(db)
+	// Visitor names come from the People Directory composition (#2661), so
+	// the test drives the composed repository the service graph uses.
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
+	require.NoError(t, err)
+	repo := factory.CrossTenant
 
 	t.Run("returns empty for no visits", func(t *testing.T) {
 		results, err := repo.FindCrossTenantStudents(testpkg.TenantContext(tenantHost), tenantHost)

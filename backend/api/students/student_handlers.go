@@ -13,15 +13,16 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/collation"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
@@ -75,6 +76,22 @@ func (rs *Resource) parseAndGetStudentIncludingAlumni(w http.ResponseWriter, r *
 	return student, true
 }
 
+func (rs *Resource) prefetchListSettings(ctx context.Context) (context.Context, error) {
+	batch, ok := rs.SettingsService.(configService.BatchSettingsService)
+	if !ok {
+		return ctx, nil
+	}
+	snapshot, err := batch.ResolveMany(ctx, []string{
+		configModel.KeyEnrollmentBookingsAuthoritative,
+		configModel.KeyPresenceMode,
+		configModel.KeyStudentPhotosEnabled,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return configService.WithSettingsSnapshot(ctx, snapshot), nil
+}
+
 // listStudents handles listing all students with staff-based filtering
 func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	// Parse query parameters and determine access
@@ -107,21 +124,27 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	params.careStatusOn = planningDate
 	params.careStatusToday = timezone.DateFromTime(now)
 	accessCtx := rs.determineStudentAccess(r)
+	settingsCtx, err := rs.prefetchListSettings(r.Context())
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	r = r.WithContext(settingsCtx)
 
 	// Fetch students based on parameters
 	students, totalCount, err := rs.fetchStudentsForList(r, params)
+	if errors.Is(err, ErrInvalidRequest) {
+		renderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
 	if err != nil {
-		if errors.Is(err, ErrInvalidRequest) {
-			renderError(w, r, common.ErrorInvalidRequest(err))
-			return
-		}
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
 	// Bulk load all related data
 	studentIDs, personIDs, groupIDs := collectIDsFromStudents(students)
-	dataSnapshot := common.LoadStudentDataSnapshot(
+	dataSnapshot, err := common.LoadStudentDataSnapshot(
 		r.Context(),
 		rs.PersonService,
 		rs.EducationService,
@@ -130,6 +153,10 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		personIDs,
 		groupIDs,
 	)
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
 	// Resolve once per request. populatePhotoFields runs per student.
 	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
 
@@ -488,7 +515,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if student.CareEndedOn(timezone.TodayDate()) &&
+	if student.CareEndedOn(rs.todayDate()) &&
 		!authorize.HasPermission(permissions.UsersDelete, jwt.PermissionsFromCtx(r.Context())) {
 		renderError(w, r, common.ErrorNotFound(errors.New("student not found")))
 		return
@@ -507,22 +534,31 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 	feedbackEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyFeedbackEnabled, false, rs.Logger)
 	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
 
+	studentResponse, err := newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
+		Student:       student,
+		Person:        person,
+		Group:         group,
+		HasFullAccess: hasFullAccess,
+		PhotosEnabled: photosEnabled,
+	}, StudentResponseServices{
+		ActiveService: rs.ActiveService,
+		PersonService: rs.PersonService,
+	})
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
 	response := StudentDetailResponse{
-		StudentResponse: newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
-			Student:       student,
-			Person:        person,
-			Group:         group,
-			HasFullAccess: hasFullAccess,
-			PhotosEnabled: photosEnabled,
-		}, StudentResponseServices{
-			ActiveService: rs.ActiveService,
-			PersonService: rs.PersonService,
-		}),
+		StudentResponse:       studentResponse,
 		HasFullAccess:         hasFullAccess,
 		HasWriteAccess:        hasWriteAccess,
 		HasAbsenceWriteAccess: rs.checkStudentAbsenceWriteAccess(r, student),
 		AttendanceLogEnabled:  attendanceLogEnabled,
 		FeedbackEnabled:       feedbackEnabled,
+	}
+	if err := rs.enrichStudentConsents(r.Context(), &response, student, hasFullAccess); err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
 	}
 	now := rs.Now()
 	rs.applyStatusDaysForDateToResponse(r.Context(), &response.StudentResponse, now)
@@ -562,6 +598,34 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Student retrieved successfully")
+}
+
+func (rs *Resource) enrichStudentConsents(
+	ctx context.Context,
+	response *StudentDetailResponse,
+	student *users.Student,
+	hasFullAccess bool,
+) error {
+	if !hasFullAccess {
+		return nil
+	}
+	if rs.StudentConsents == nil {
+		return errors.New("student consent service not wired")
+	}
+
+	consents, err := rs.StudentConsents.CurrentStates(ctx, student, false)
+	if err != nil {
+		return err
+	}
+	response.Consents = make([]StudentConsentResponse, 0, len(consents))
+	for _, consent := range consents {
+		response.Consents = append(response.Consents, StudentConsentResponse{
+			Key:       consent.Key,
+			State:     consent.State,
+			ChangedAt: consent.ChangedAt,
+		})
+	}
+	return nil
 }
 
 // createPersonFromStudentRequest creates a Person object from a StudentRequest
@@ -763,14 +827,14 @@ func (rs *Resource) resolveScheduleStaffID(r *http.Request, req *StudentRequest)
 
 // persistNewStudent writes the person, student, guardians, and weekly schedules
 // atomically. Runs inside the caller's tenant transaction.
-func (rs *Resource) persistNewStudent(ctx context.Context, person *users.Person, student *users.Student, guardians []userService.NewStudentGuardian, req *StudentRequest, staffID int64) error {
+func (rs *Resource) persistNewStudent(ctx context.Context, person *users.Person, student *users.Student, guardians []peopleModule.NewStudentGuardian, req *StudentRequest, staffID int64) error {
 	// Validate guardians BEFORE writing the student. This route runs inside
 	// TenantTxMiddleware, which only rolls back on 5xx; a guardian
 	// ValidationError renders 400, so the middleware would otherwise commit
 	// an already-created student. Validating first means a 400 commits an
 	// empty transaction — no orphaned student/person rows.
 	if len(guardians) > 0 {
-		if err := rs.GuardianService.ValidateNewGuardians(ctx, guardians); err != nil {
+		if err := rs.PeopleDirectory.ValidateNewGuardians(ctx, guardians); err != nil {
 			return err
 		}
 	}
@@ -791,7 +855,7 @@ func (rs *Resource) persistNewStudent(ctx context.Context, person *users.Person,
 	// transaction so the student and its guardians are persisted
 	// atomically — a guardian failure rolls back the whole student.
 	if len(guardians) > 0 {
-		if err := rs.GuardianService.AddGuardiansToStudent(ctx, student.ID, guardians); err != nil {
+		if err := rs.PeopleDirectory.AddGuardiansToStudent(ctx, student.ID, guardians); err != nil {
 			return err
 		}
 	}
@@ -834,7 +898,7 @@ func (rs *Resource) respondCreatedStudent(w http.ResponseWriter, r *http.Request
 	hasFullAccess := authorize.HasAdminWildcard(userPermissions)
 
 	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
-	common.Respond(w, r, http.StatusCreated, newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
+	response, err := newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
 		Student:       student,
 		Person:        person,
 		Group:         group,
@@ -843,7 +907,12 @@ func (rs *Resource) respondCreatedStudent(w http.ResponseWriter, r *http.Request
 	}, StudentResponseServices{
 		ActiveService: rs.ActiveService,
 		PersonService: rs.PersonService,
-	}), "Student created successfully")
+	})
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusCreated, response, "Student created successfully")
 }
 
 // createStudent handles creating a new student with their person record
@@ -864,7 +933,7 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 
 	// Create person and student in tenant transaction
 	student := createStudentFromRequest(req, 0) // personID set after create
-	guardians := guardiansAPI.ToNewStudentGuardians(req.Guardians)
+	guardians := req.Guardians
 
 	staffID, err := rs.resolveScheduleStaffID(r, req)
 	if err != nil {
@@ -878,9 +947,8 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 	}); err != nil {
 		// Bad guardian input (e.g. invalid email) is a client error: the
 		// transaction has already rolled back, so no partial data survives.
-		var validationErr *userService.ValidationError
-		if errors.As(err, &validationErr) {
-			renderError(w, r, common.ErrorInvalidRequest(validationErr))
+		if errors.Is(err, peopleModule.ErrInvalidGuardian) {
+			renderError(w, r, common.ErrorInvalidRequest(err))
 			return
 		}
 		renderError(w, r, common.ErrorInternalServer(err))
@@ -1196,18 +1264,25 @@ func (rs *Resource) wakeChildGuardians(tenantID, studentID int64) {
 	rs.ParentEventEmitter.BroadcastChildUpdateToGuardians(tenantID, studentID)
 }
 
-// scheduleStudentUpdateWakes registers the after-commit SSE fan-out for a
-// student update. It always broadcasts the tenant-wide student_updated staff
+// scheduleStudentUpdateWakes enqueues any durable absence notification and
+// registers the after-commit SSE fan-out for a student update. It always
+// broadcasts the tenant-wide student_updated staff
 // event; it additionally wakes the child's guardians when the request actually
 // touched a status field (sick/excused), because a sick/excused edit writes
 // TODAY's status day — the exact signal the parent pickup tile resolves
 // today_absent from — while student_updated never reaches the parents stream. A
 // plain name/notes edit changes nothing parent-visible, so it wakes no one
-// (#1725). Runs after the OUTER tx commits so a woken client never reads the
-// pre-commit snapshot; tenantID is captured before the hook fires.
-func (rs *Resource) scheduleStudentUpdateWakes(ctx context.Context, tenantID, studentID int64, req *UpdateStudentRequest, companionsChanged bool, reportedStatus string, reportDate timezone.Date) {
+// (#1725). Only the ephemeral broadcasts run after the OUTER tx commits, so a
+// woken client never reads the pre-commit snapshot; tenantID is captured before
+// the hook fires.
+func (rs *Resource) scheduleStudentUpdateWakes(ctx context.Context, tenantID, studentID int64, req *UpdateStudentRequest, companionsChanged bool, reportedStatus string, reportDate timezone.Date) error {
 	statusChanged := req.Sick != nil || req.Excused != nil
 	actorAccountID := int64(jwt.ClaimsFromCtx(ctx).ID)
+	if reportedStatus != "" {
+		if err := rs.notifyAbsenceReported(ctx, tenantID, []int64{studentID}, reportedStatus, []timezone.Date{reportDate}, false, actorAccountID); err != nil {
+			return err
+		}
+	}
 	tenant.RegisterAfterCommit(ctx, func() {
 		rs.broadcastStudentUpdated(tenantID, studentID)
 		// Only when the write actually changed the links (or a linked child's
@@ -1221,10 +1296,8 @@ func (rs *Resource) scheduleStudentUpdateWakes(ctx context.Context, tenantID, st
 		if statusChanged {
 			rs.wakeChildGuardians(tenantID, studentID)
 		}
-		if reportedStatus != "" {
-			rs.notifyAbsenceReported(tenantID, []int64{studentID}, reportedStatus, []timezone.Date{reportDate}, false, actorAccountID)
-		}
 	})
+	return nil
 }
 
 // In-tx sentinel: a concurrent partial update committed between the pre-tx
@@ -1337,7 +1410,7 @@ func (rs *Resource) resyncSourcedTemplatesOnClassChange(ctx context.Context, cla
 	if !classChangeRequested || previousSchoolClass == currentSchoolClass {
 		return nil
 	}
-	return rs.OfferingSourceResyncer.ResyncOfferingSourcedTemplates(ctx, timezone.TodayDate())
+	return rs.OfferingSourceResyncer.ResyncOfferingSourcedTemplates(ctx, rs.todayDate())
 }
 
 // applyStudentUpdate performs the locked-row student patch inside the caller's
@@ -1423,6 +1496,9 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 	if err := rs.StudentService.Update(ctx, fresh); err != nil {
 		return false, err
 	}
+	if err := rs.recordConsentTransition(ctx, effectiveConsent, &before, fresh, statusHistoryNow); err != nil {
+		return false, err
+	}
 
 	if err := rs.resyncSourcedTemplatesOnClassChange(ctx, classChangeRequested, previousSchoolClass, fresh.SchoolClass); err != nil {
 		return false, err
@@ -1445,8 +1521,24 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 
 	// Broadcast after the OUTER tx commits. Broadcasting now would race
 	// subscribers into refetching the still-pre-commit row.
-	rs.scheduleStudentUpdateWakes(ctx, tenantID, student.ID, req, companionsChanged, reportedStatus, timezone.DateFromTime(statusHistoryNow))
+	if err := rs.scheduleStudentUpdateWakes(ctx, tenantID, student.ID, req, companionsChanged, reportedStatus, timezone.DateFromTime(statusHistoryNow)); err != nil {
+		return false, err
+	}
 	return companionsChanged, nil
+}
+
+func (rs *Resource) recordConsentTransition(ctx context.Context, effectiveConsent *bool, before, after *users.Student, changedAt time.Time) error {
+	if effectiveConsent == nil || rs.StudentConsents == nil {
+		return nil
+	}
+	return rs.StudentConsents.RecordTransitions(
+		ctx,
+		before,
+		after,
+		auditModels.StudentConsentSourceTenantPortal,
+		jwt.ActorAccountIDFromCtx(ctx),
+		changedAt,
+	)
 }
 
 // companionConflictRenderer returns the 409 payload when the transaction failed
@@ -1531,7 +1623,7 @@ func (rs *Resource) respondUpdatedStudent(w http.ResponseWriter, r *http.Request
 	group := rs.getStudentGroup(r.Context(), updatedStudent)
 
 	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
-	response := newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
+	response, err := newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
 		Student:       updatedStudent,
 		Person:        person,
 		Group:         group,
@@ -1541,6 +1633,10 @@ func (rs *Resource) respondUpdatedStudent(w http.ResponseWriter, r *http.Request
 		ActiveService: rs.ActiveService,
 		PersonService: rs.PersonService,
 	})
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
 	response.CompanionsChanged = &companionsChanged
 	common.Respond(w, r, http.StatusOK, response, "Student updated successfully")
 }

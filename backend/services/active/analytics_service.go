@@ -2,7 +2,6 @@ package active
 
 import (
 	"context"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
@@ -11,10 +10,10 @@ import (
 
 func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytics, error) {
 	analytics := &DashboardAnalytics{
-		LastUpdated: time.Now(),
+		LastUpdated: s.now(),
 	}
 
-	today := timezone.TodayDate()
+	today := s.todayDate()
 
 	// Phase 1: Fetch all base data
 	baseData, err := s.fetchDashboardBaseData(ctx, today)

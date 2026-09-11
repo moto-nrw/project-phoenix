@@ -13,6 +13,7 @@ import {
 } from "~/lib/swr";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { DatabaseSelect } from "~/components/ui/database/database-select";
 import { useToast } from "~/contexts/ToastContext";
 import { activeService } from "~/lib/active-service";
@@ -24,10 +25,9 @@ import type { Staff } from "~/lib/usercontext-helpers";
 import { CompactStudentCard } from "~/components/students/compact-student-card";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
-import { useOptionalSupervision } from "~/lib/supervision-context";
 
 const DETAIL_CARD_CLASS =
-  "rounded-3xl moto-content-surface border p-5 shadow-sm sm:p-6";
+  "moto-content-surface rounded-2xl border p-5 shadow-sm sm:p-6";
 const EMPTY_STUDENTS: Student[] = [];
 
 function buildSessionLabel(group: ActiveGroup): string {
@@ -60,13 +60,9 @@ export function TransitStudentsSection({
   const router = useTenantRouter();
   const { data: session } = useSession();
   const attendanceWebEnabled = useAttendanceWebEnabled();
-  // Mirrors the backend's move authorization exactly (#2380): callers the
-  // school-wide overview covers may move children into any running module,
-  // everyone else only into a module they supervise themselves. Gating on
-  // the organisational group mode here would offer targets the server then
-  // rejects with 403.
-  const { overviewEnabled } = useOptionalSupervision();
-  const showAllTargets = canUseAllMoveTargets(session) || overviewEnabled;
+  // Visibility never grants move rights: only administrators may target any
+  // running module; staff remain limited to modules they supervise.
+  const showAllTargets = canUseAllMoveTargets(session);
   const sectionSearchParams = useSearchParams();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [collapsibleExpanded, setCollapsibleExpanded] = useState(false);
@@ -298,7 +294,7 @@ export function TransitStudentsSection({
         <>
           {attendanceWebEnabled ? (
             <div
-              className={`mt-4 mb-4 rounded-2xl border p-3 transition-shadow ${
+              className={`mt-4 mb-4 rounded-xl border p-3 transition-shadow ${
                 selectedVisibleCount > 0
                   ? "sticky bottom-3 z-20 border-gray-200 bg-white/95 shadow-sm backdrop-blur"
                   : "border-transparent bg-gray-50/80 shadow-none"
@@ -382,7 +378,7 @@ export function TransitStudentsSection({
                 Kinder werden geladen...
               </div>
             ) : students.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-gray-200 bg-white px-4 py-6 text-center text-sm text-gray-500">
+              <div className="moto-content-surface rounded-xl border border-dashed px-4 py-6 text-center text-sm text-gray-500 shadow-sm">
                 Aktuell keine Kinder unterwegs.
               </div>
             ) : (
@@ -393,13 +389,11 @@ export function TransitStudentsSection({
                   `${student.first_name ?? ""} ${student.second_name ?? ""}`.trim() ||
                   "Kind";
                 return (
-                  <div
+                  <ChoiceTile
+                    as="div"
                     key={student.id}
-                    className={`flex items-center gap-2 rounded-2xl border px-3 py-2.5 transition-colors ${
-                      checked
-                        ? "border-gray-300 bg-gray-50"
-                        : "border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50"
-                    }`}
+                    selected={checked}
+                    className="gap-2"
                   >
                     {attendanceWebEnabled ? (
                       <button
@@ -408,7 +402,7 @@ export function TransitStudentsSection({
                         aria-checked={checked}
                         aria-label={`${fullName} auswählen`}
                         onClick={() => toggleSelected(studentId)}
-                        className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
+                        className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
                       >
                         <span
                           className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border shadow-sm transition-all ${
@@ -468,7 +462,7 @@ export function TransitStudentsSection({
                         aria-hidden="true"
                       />
                     </Button>
-                  </div>
+                  </ChoiceTile>
                 );
               })
             )}

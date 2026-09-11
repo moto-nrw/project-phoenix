@@ -25,7 +25,7 @@ import (
 func TestGetStudentCompanions_NamesVisibleAcrossGroups(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "CompanionScope", "Supervisor")
 	myGroup := testpkg.CreateTestEducationGroup(t, tc.db, "CompanionScopeMine")

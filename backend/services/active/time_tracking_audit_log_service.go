@@ -114,8 +114,8 @@ func (s *timeTrackingAuditLogService) ListAuditLog(ctx context.Context, req Audi
 	}
 
 	filter := auditModels.TimeTrackingAuditLogFilter{
-		From:         req.From,
-		To:           req.To,
+		From:         auditDate(req.From),
+		To:           auditDate(req.To),
 		StaffID:      req.StaffID,
 		ActorStaffID: req.ActorStaffID,
 		Sources:      req.Sources,
@@ -150,6 +150,18 @@ func (s *timeTrackingAuditLogService) ListAuditLog(ctx context.Context, req Audi
 		page.NextCursor = encodeAuditLogCursor(last)
 	}
 	return page, nil
+}
+
+func auditDate(date *timezone.Date) *auditModels.Date {
+	if date == nil {
+		return nil
+	}
+	if date.IsZero() {
+		value := auditModels.Date("")
+		return &value
+	}
+	value := auditModels.NewDate(date.Year(), date.Month(), date.Day())
+	return &value
 }
 
 // decorate resolves staff and actor names in one batch query — never N+1.

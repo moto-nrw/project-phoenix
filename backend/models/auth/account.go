@@ -42,6 +42,22 @@ type Account struct {
 	Permissions []*Permission `bun:"-" json:"permissions,omitempty"`
 }
 
+// AuthorizationRoleNames returns the names of loaded roles. It exposes data,
+// not an authorization decision, so policy packages need not import ORM
+// models.
+func (a *Account) AuthorizationRoleNames() []string {
+	if a == nil {
+		return nil
+	}
+	names := make([]string, 0, len(a.Roles))
+	for _, role := range a.Roles {
+		if role != nil {
+			names = append(names, role.Name)
+		}
+	}
+	return names
+}
+
 // Validate ensures account data is valid
 func (a *Account) Validate() error {
 	return validateAccountEmail(&a.Email)

@@ -57,13 +57,18 @@ export async function decideMasterDataChangeRequest(
   requestId: string,
   approve: boolean,
   reason?: string,
+  expectedVersion?: string,
 ): Promise<StaffMasterDataChange> {
   const response = await fetch(
     `/api/students/master-data-change-requests/${encodeURIComponent(requestId)}/decide`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ approve, reason: reason ?? "" }),
+      body: JSON.stringify({
+        approve,
+        reason: reason ?? "",
+        ...(expectedVersion ? { expected_version: expectedVersion } : {}),
+      }),
     },
   );
   if (!response.ok) {

@@ -3,12 +3,8 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -175,7 +171,7 @@ func TestJoinStrings_Multiple(t *testing.T) {
 // newTestClient builds a Client the way the seeder does (NewClientWithAdapter
 // over a fresh adapter); the direct constructor was deleted as dead code.
 func newTestClient(baseURL string, verbose bool) *Client {
-	return NewClientWithAdapter(phoenixapi.New(baseURL, verbose), verbose)
+	return NewClientWithAdapter(newSeedTestAdapter(baseURL), verbose)
 }
 
 func TestNewClient(t *testing.T) {
@@ -184,16 +180,15 @@ func TestNewClient(t *testing.T) {
 	c := newTestClient("http://localhost:8080", true)
 	assert.Equal(t, "http://localhost:8080", c.baseURL)
 	assert.True(t, c.verbose)
-	assert.NotNil(t, c.httpClient)
 }
 
 func TestClient_CheckHealth_Success(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		assert.Equal(t, "/health", r.URL.Path)
-		w.WriteHeader(http.StatusOK)
-	}))
+		w.WriteHeader(seedHTTPStatusOK)
+	})
 	defer srv.Close()
 
 	c := newTestClient(srv.URL, false)
@@ -213,9 +208,9 @@ func TestClient_CheckHealth_ServerDown(t *testing.T) {
 func TestClient_CheckHealth_NonOK(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusServiceUnavailable)
-	}))
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, _ *seedHTTPRequest) {
+		w.WriteHeader(seedHTTPStatusServiceUnavailable)
+	})
 	defer srv.Close()
 
 	c := newTestClient(srv.URL, false)
@@ -227,18 +222,18 @@ func TestClient_CheckHealth_NonOK(t *testing.T) {
 func TestClient_Login_Success(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		assert.Equal(t, "/auth/login", r.URL.Path)
 		assert.Equal(t, "POST", r.Method)
 		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(seedHTTPStatusOK)
 		resp := map[string]string{
 			"access_token":  "test-token-123",
 			"refresh_token": "refresh-456",
 		}
 		_ = json.NewEncoder(w).Encode(resp)
-	}))
+	})
 	defer srv.Close()
 
 	c := newTestClient(srv.URL, false)
@@ -250,10 +245,10 @@ func TestClient_Login_Success(t *testing.T) {
 func TestClient_Login_NoToken(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, _ *seedHTTPRequest) {
+		w.WriteHeader(seedHTTPStatusOK)
 		_, _ = fmt.Fprint(w, `{"access_token":""}`)
-	}))
+	})
 	defer srv.Close()
 
 	c := newTestClient(srv.URL, false)
@@ -265,10 +260,10 @@ func TestClient_Login_NoToken(t *testing.T) {
 func TestClient_Login_ServerError(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusUnauthorized)
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, _ *seedHTTPRequest) {
+		w.WriteHeader(seedHTTPStatusUnauthorized)
 		_, _ = fmt.Fprint(w, `{"error":"invalid credentials"}`)
-	}))
+	})
 	defer srv.Close()
 
 	c := newTestClient(srv.URL, false)
@@ -280,14 +275,14 @@ func TestClient_Login_ServerError(t *testing.T) {
 func TestClient_Post_Success(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		assert.Equal(t, "POST", r.Method)
 		assert.Equal(t, "/api/rooms", r.URL.Path)
 		assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
 
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(seedHTTPStatusOK)
 		_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":1}}`)
-	}))
+	})
 	defer srv.Close()
 
 	c := newTestClient(srv.URL, false)
@@ -301,14 +296,14 @@ func TestClient_Post_Success(t *testing.T) {
 func TestClient_Get_Success(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		assert.Equal(t, "GET", r.Method)
 		assert.Equal(t, "/api/active/visits", r.URL.Path)
 		assert.Equal(t, "Bearer my-token", r.Header.Get("Authorization"))
 
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(seedHTTPStatusOK)
 		_, _ = fmt.Fprint(w, `{"status":"success","data":[]}`)
-	}))
+	})
 	defer srv.Close()
 
 	c := newTestClient(srv.URL, false)
@@ -322,13 +317,13 @@ func TestClient_Get_Success(t *testing.T) {
 func TestClient_Put_Success(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		assert.Equal(t, "PUT", r.Method)
 		assert.Equal(t, "/api/students/1", r.URL.Path)
 
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(seedHTTPStatusOK)
 		_, _ = fmt.Fprint(w, `{"status":"success"}`)
-	}))
+	})
 	defer srv.Close()
 
 	c := newTestClient(srv.URL, false)
@@ -342,10 +337,10 @@ func TestClient_Put_Success(t *testing.T) {
 func TestClient_Post_ServerError(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, _ *seedHTTPRequest) {
+		w.WriteHeader(seedHTTPStatusInternalServerError)
 		_, _ = fmt.Fprint(w, `{"error":"internal"}`)
-	}))
+	})
 	defer srv.Close()
 
 	c := newTestClient(srv.URL, false)
@@ -359,12 +354,12 @@ func TestClient_Post_ServerError(t *testing.T) {
 func TestClient_Post_NoAuth(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		// When no token is set and auth=true, Authorization header should be empty
 		assert.Empty(t, r.Header.Get("Authorization"))
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(seedHTTPStatusOK)
 		_, _ = fmt.Fprint(w, `{}`)
-	}))
+	})
 	defer srv.Close()
 
 	c := newTestClient(srv.URL, false)
@@ -376,13 +371,13 @@ func TestClient_Post_NoAuth(t *testing.T) {
 func TestClient_Get_NilBody(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		assert.Equal(t, "GET", r.Method)
 		// GET requests should have no Content-Type
 		assert.Empty(t, r.Header.Get("Content-Type"))
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(seedHTTPStatusOK)
 		_, _ = fmt.Fprint(w, `{"ok":true}`)
-	}))
+	})
 	defer srv.Close()
 
 	c := newTestClient(srv.URL, false)
@@ -395,15 +390,15 @@ func TestClient_Get_NilBody(t *testing.T) {
 func TestClient_DeviceGet_Success(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		assert.Equal(t, "GET", r.Method)
 		assert.Equal(t, "/api/iot/session/current", r.URL.Path)
 		assert.Equal(t, "Bearer device-key-123", r.Header.Get("Authorization"))
 		assert.Equal(t, "1234", r.Header.Get("X-Staff-PIN"))
 
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(seedHTTPStatusOK)
 		_, _ = fmt.Fprint(w, `{"status":"success","data":{"is_active":true}}`)
-	}))
+	})
 	defer srv.Close()
 
 	c := newTestClient(srv.URL, false)
@@ -416,15 +411,15 @@ func TestClient_DeviceGet_Success(t *testing.T) {
 func TestClient_DevicePut_Success(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		assert.Equal(t, "PUT", r.Method)
 		assert.Equal(t, "/api/iot/session/5/supervisors", r.URL.Path)
 		assert.Equal(t, "Bearer device-key-123", r.Header.Get("Authorization"))
 		assert.Equal(t, "1234", r.Header.Get("X-Staff-PIN"))
 
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(seedHTTPStatusOK)
 		_, _ = fmt.Fprint(w, `{"status":"success","data":{"active_group_id":5}}`)
-	}))
+	})
 	defer srv.Close()
 
 	c := newTestClient(srv.URL, false)
@@ -438,10 +433,10 @@ func TestClient_DevicePut_Success(t *testing.T) {
 func TestClient_Verbose_Logging(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, _ *seedHTTPRequest) {
+		w.WriteHeader(seedHTTPStatusOK)
 		_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":1}}`)
-	}))
+	})
 	defer srv.Close()
 
 	c := newTestClient(srv.URL, true) // verbose=true
@@ -455,10 +450,10 @@ func TestClient_Verbose_Logging(t *testing.T) {
 func TestClient_Login_InvalidJSON(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, _ *seedHTTPRequest) {
+		w.WriteHeader(seedHTTPStatusOK)
 		_, _ = fmt.Fprint(w, `not json`)
-	}))
+	})
 	defer srv.Close()
 
 	c := newTestClient(srv.URL, false)

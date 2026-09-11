@@ -5,72 +5,44 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/constants"
-	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
-	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
+	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 )
 
-// FindCanonicalSchulhofRoom resolves the reserved Schulhof room without
-// accepting a case-insensitive legacy collision or an unprotected normal room.
-// FindRoomByName is intentionally case-insensitive, so every Schulhof bootstrap
-// path must pass through this validation before adopting its result.
-func FindCanonicalSchulhofRoom(ctx context.Context, facilityService Service) (*facilityModels.Room, error) {
-	if facilityService == nil {
+func FindCanonicalSchulhofRoom(ctx context.Context, rooms Service) (*facilitiesModule.Room, error) {
+	if rooms == nil {
 		return nil, errors.New("cannot find Schulhof room: facility service is nil")
 	}
-
-	room, err := facilityService.FindRoomByName(ctx, constants.SchulhofRoomName)
+	room, err := rooms.FindRoomByName(ctx, facilitiesModule.SchulhofRoomName)
 	if err != nil {
 		return nil, err
 	}
 	if room == nil {
-		return nil, errors.New("cannot find Schulhof room: repository returned nil room")
+		return nil, errors.New("cannot find Schulhof room: owner returned nil room")
 	}
-	if room.Name != constants.SchulhofRoomName {
-		return nil, fmt.Errorf(
-			"non-canonical room name %q conflicts with reserved name %q",
-			room.Name,
-			constants.SchulhofRoomName,
-		)
+	if room.Name != facilitiesModule.SchulhofRoomName {
+		return nil, fmt.Errorf("non-canonical room name %q conflicts with reserved name %q", room.Name, facilitiesModule.SchulhofRoomName)
 	}
 	if !room.IsSystem {
-		return nil, fmt.Errorf(
-			"reserved room %q is not marked as a system room",
-			constants.SchulhofRoomName,
-		)
+		return nil, fmt.Errorf("reserved room %q is not marked as a system room", facilitiesModule.SchulhofRoomName)
 	}
 	return room, nil
 }
 
-// ValidateSchulhofActivityRoom verifies that the reserved activity is the
-// system activity attached to the canonical Schulhof room.
-func ValidateSchulhofActivityRoom(activityGroup *activityModels.Group, room *facilityModels.Room) error {
-	if activityGroup == nil {
+func ValidateSchulhofActivityRoom(activity *SystemActivity, room *facilitiesModule.Room) error {
+	if activity == nil {
 		return errors.New("schulhof activity is nil")
 	}
 	if room == nil {
 		return errors.New("schulhof room is nil")
 	}
-	if activityGroup.Name != constants.SchulhofActivityName {
-		return fmt.Errorf(
-			"activity name %q does not match reserved name %q",
-			activityGroup.Name,
-			constants.SchulhofActivityName,
-		)
+	if activity.Name != facilitiesModule.SchulhofActivityName {
+		return fmt.Errorf("activity name %q does not match reserved name %q", activity.Name, facilitiesModule.SchulhofActivityName)
 	}
-	if !activityGroup.IsSystem {
-		return fmt.Errorf(
-			"reserved activity %q is not marked as a system activity",
-			constants.SchulhofActivityName,
-		)
+	if !activity.IsSystem {
+		return fmt.Errorf("reserved activity %q is not marked as a system activity", facilitiesModule.SchulhofActivityName)
 	}
-	if activityGroup.PlannedRoomID == nil || *activityGroup.PlannedRoomID != room.ID {
-		return fmt.Errorf(
-			"reserved activity %q is not assigned to canonical Schulhof room %d",
-			constants.SchulhofActivityName,
-			room.ID,
-		)
+	if activity.PlannedRoomID == nil || *activity.PlannedRoomID != room.ID {
+		return fmt.Errorf("reserved activity %q is not assigned to canonical Schulhof room %d", facilitiesModule.SchulhofActivityName, room.ID)
 	}
-
 	return nil
 }

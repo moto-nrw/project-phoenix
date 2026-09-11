@@ -34,7 +34,7 @@ func (e *ErrResponse) Render(_ http.ResponseWriter, r *http.Request) error {
 }
 
 // ErrDeviceUnauthorized renders status 401 Unauthorized with custom error message.
-func ErrDeviceUnauthorized(err error) render.Renderer {
+func ErrDeviceUnauthorized(err error) *ErrResponse {
 	return &ErrResponse{
 		Err:            err,
 		HTTPStatusCode: http.StatusUnauthorized,
@@ -44,7 +44,7 @@ func ErrDeviceUnauthorized(err error) render.Renderer {
 }
 
 // ErrDeviceForbidden renders status 403 Forbidden with custom error message.
-func ErrDeviceForbidden(err error) render.Renderer {
+func ErrDeviceForbidden(err error) *ErrResponse {
 	return &ErrResponse{
 		Err:            err,
 		HTTPStatusCode: http.StatusForbidden,

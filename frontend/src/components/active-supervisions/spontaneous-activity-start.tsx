@@ -40,6 +40,7 @@ interface SpontaneousActivityStartProps {
   readonly currentStaffId?: string;
   readonly defaultRoomId?: string;
   readonly disabled?: boolean;
+  readonly disabledReason?: string;
   readonly isStarting?: boolean;
   readonly occupiedRoomIds?: readonly string[];
   readonly onStart: (payload: SpontaneousActivityStartPayload) => void;
@@ -92,6 +93,7 @@ export function SpontaneousActivityStart({
   currentStaffId,
   defaultRoomId,
   disabled = false,
+  disabledReason,
   isStarting = false,
   occupiedRoomIds = EMPTY_OCCUPIED_ROOM_IDS,
   onStart,
@@ -310,8 +312,9 @@ export function SpontaneousActivityStart({
             <span className="block text-sm font-semibold text-gray-900">
               Spontane Aktivität starten
             </span>
-            <span className="block truncate text-sm text-gray-600">
-              Aktivität wählen, Raum belegen, Kinder danach hinzufügen
+            <span className="block text-sm text-gray-600">
+              {disabledReason ??
+                "Aktivität wählen, Raum belegen, Kinder danach hinzufügen"}
             </span>
           </span>
         </button>
@@ -452,7 +455,7 @@ export function SpontaneousActivityStart({
                 <ul
                   id="spontaneous-activity-listbox"
                   role="listbox"
-                  className="absolute top-full left-0 z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-xl border border-gray-200 bg-white py-1 shadow-lg"
+                  className="moto-popover-surface absolute top-full left-0 z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-xl border py-1"
                 >
                   {filteredActivities.map((activity, index) => (
                     <li key={activity.id} role="presentation">

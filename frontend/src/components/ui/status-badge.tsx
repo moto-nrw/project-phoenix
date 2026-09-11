@@ -1,41 +1,36 @@
-// Tinted status pill with dot, the enrollment-page badge recipe (#1629).
-// Tones map to the brand hexes from LOCATION_COLORS with matching tinted
-// backgrounds and darkened label colors. Use this whenever a status is one of
-// a fixed set of semantic outcomes; for data-driven colors (a raw hex from
-// LOCATION_COLORS) use StatusDotBadge instead.
+// Tinted status pill, the enrollment-page badge recipe (#1629). Tones map to
+// the brand hexes from LOCATION_COLORS with matching tinted backgrounds and
+// darkened label colors. Use this whenever a status is one of a fixed set of
+// semantic outcomes; for data-driven colors (a raw hex from LOCATION_COLORS)
+// use StatusColorBadge instead.
+//
+// No leading dot: it only repeated what tint and label already say and made
+// rows of pills busier without adding meaning (#2476).
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 
 export type StatusBadgeTone = "blue" | "green" | "orange" | "red" | "gray";
 
-const TONES: Record<
-  StatusBadgeTone,
-  { bg: string; dot: string; text: string }
-> = {
+const TONES: Record<StatusBadgeTone, { bg: string; text: string }> = {
   blue: {
     bg: MOTO_COLOR_PALETTE.blue.soft,
-    dot: MOTO_COLOR_PALETTE.blue.base,
     text: MOTO_COLOR_PALETTE.blue.strong,
   },
   green: {
     bg: MOTO_COLOR_PALETTE.green.soft,
-    dot: MOTO_COLOR_PALETTE.green.base,
     text: MOTO_COLOR_PALETTE.green.strong,
   },
   orange: {
     bg: MOTO_COLOR_PALETTE.orange.soft,
-    dot: MOTO_COLOR_PALETTE.orange.base,
     text: MOTO_COLOR_PALETTE.orange.strong,
   },
   red: {
     bg: MOTO_COLOR_PALETTE.red.soft,
-    dot: MOTO_COLOR_PALETTE.red.base,
     text: MOTO_COLOR_PALETTE.red.strong,
   },
   // Muss mit LOCATION_BADGE_TONES[neutral.base] uebereinstimmen, sonst
-  // driften der graue StatusBadge und der graue StatusDotBadge auseinander.
+  // driften der graue StatusBadge und der graue StatusColorBadge auseinander.
   gray: {
     bg: MOTO_COLOR_PALETTE.neutral.soft,
-    dot: MOTO_COLOR_PALETTE.neutral.light,
     text: "#4B5563",
   },
 };
@@ -44,7 +39,6 @@ export function StatusBadge({
   label,
   tone,
   title,
-  showDot = true,
 }: {
   readonly label: string;
   readonly tone: StatusBadgeTone;
@@ -55,22 +49,14 @@ export function StatusBadge({
    * carries the text.
    */
   readonly title?: string;
-  readonly showDot?: boolean;
 }) {
   const styles = TONES[tone];
   return (
     <span
       title={title}
-      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap"
+      className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap"
       style={{ backgroundColor: styles.bg, color: styles.text }}
     >
-      {showDot && (
-        <span
-          className="h-1.5 w-1.5 rounded-full"
-          style={{ backgroundColor: styles.dot }}
-          aria-hidden="true"
-        />
-      )}
       {label}
     </span>
   );

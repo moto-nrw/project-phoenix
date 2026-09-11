@@ -10,7 +10,6 @@ import {
   type ActiveSupervisionRoom,
   type SchulhofStatusResponse,
 } from "~/components/active-supervisions/view-model";
-import { spontaneousActivityWindow } from "~/components/active-supervisions/spontaneous-window";
 
 const logger = createLogger({ component: "ActiveSupervisionsPage" });
 
@@ -18,6 +17,7 @@ interface SchulhofActionsOptions {
   readonly schulhofStatus: SchulhofStatusResponse | null;
   readonly currentStaffId: string | undefined;
   readonly currentRoom: ActiveSupervisionRoom | null;
+  readonly spontaneousStartBlockedReason?: string;
   readonly refresh: () => void;
   readonly setError: (message: string | null) => void;
 }
@@ -39,8 +39,14 @@ export interface SchulhofActions {
 export function useSchulhofActions(
   options: SchulhofActionsOptions,
 ): SchulhofActions {
-  const { schulhofStatus, currentStaffId, currentRoom, refresh, setError } =
-    options;
+  const {
+    schulhofStatus,
+    currentStaffId,
+    currentRoom,
+    spontaneousStartBlockedReason,
+    refresh,
+    setError,
+  } = options;
 
   const [showReleaseModal, setShowReleaseModal] = useState(false);
   const [isReleasingSupervision, setIsReleasingSupervision] = useState(false);
@@ -97,19 +103,14 @@ export function useSchulhofActions(
     if (!currentStaffId) {
       throw new Error("no staff profile for spontaneous Schulhof start");
     }
-    const window = spontaneousActivityWindow(new Date());
     try {
       await timetableOperationsApi.createAndStartSpontaneous({
-        date: window.date,
-        start_time: window.startTime,
-        end_time: window.endTime,
         title: SCHULHOF_ROOM_NAME,
         room_id: Number(schulhofState.roomId),
         activity_group_id: schulhofState.activityGroupId
           ? Number(schulhofState.activityGroupId)
           : undefined,
         staff_ids: [Number(currentStaffId)],
-        student_ids: [],
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -134,6 +135,11 @@ export function useSchulhofActions(
       } else if (schulhofStatus.activeGroupId) {
         await activeService.claimActiveGroup(schulhofStatus.activeGroupId);
       } else {
+        if (spontaneousStartBlockedReason) {
+          setError(spontaneousStartBlockedReason);
+          setIsTogglingSchulhof(false);
+          return;
+        }
         await startSchulhofSpontaneously();
       }
 
@@ -153,7 +159,13 @@ export function useSchulhofActions(
       // Only reset loading state on error - success case handled by useEffect
       setIsTogglingSchulhof(false);
     }
-  }, [refresh, schulhofStatus, setError, startSchulhofSpontaneously]);
+  }, [
+    refresh,
+    schulhofStatus,
+    setError,
+    spontaneousStartBlockedReason,
+    startSchulhofSpontaneously,
+  ]);
 
   // Reset toggling state when schulhofStatus updates (prevents flicker after successful toggle)
   // Also includes a timeout fallback to prevent stuck loading state if SWR refresh fails

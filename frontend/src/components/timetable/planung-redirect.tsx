@@ -5,8 +5,7 @@
  *
  * Die frühere Tab-Seite /planung (#1886) und die Alt-Stubs /timetables,
  * /vertretungsplan und /staff/dienstplan leiten auf die drei eigenständigen
- * Bereiche /betreuungsplan, /dienstplan und /vertretung weiter
- * (Planung-Redesign, docs/planung-redesign/docs/03 Abschnitt 3). Alt-Params
+ * Bereiche /betreuungsplan, /dienstplan und /vertretung weiter. Alt-Params
  * werden in das neue Drei-Parameter-Schema (d, view, block/verlauf)
  * übersetzt; der History-Eintrag wird ersetzt, damit "Zurück" nicht in einer
  * Redirect-Schleife endet.

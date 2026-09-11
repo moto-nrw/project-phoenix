@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -73,18 +74,19 @@ func (e *StudentStatusDayConflictError) SampleConflicts() []*activeModels.Studen
 // orchestration needs but the StudentStatusDayService is not constructed with,
 // keeping the repo-only constructor stable. The authorize callback keeps the
 // JWT-permission decision at the HTTP boundary while the transaction
-// composition lives in the service; after-commit runs the SSE fan-out.
+// composition lives in the service. Durable notifications run inside the
+// transaction; after-commit runs only the ephemeral SSE fan-out.
 type StatusDayWriteContext struct {
 	DB             *bun.DB
 	TenantID       int64
 	StudentService users.StudentService
 	Authorize      func(ctx context.Context, student *userModels.Student) bool
 	AfterCommit    func(studentID int64)
-	// AfterCreateCommit receives the students whose current-day status newly
-	// became a reportable absence, once after commit. It is separate from
+	// AfterCreate receives the students whose current-day status newly became a
+	// reportable absence inside the write transaction. It is separate from
 	// AfterCommit so bulk writes can emit one aggregate absence notification
 	// while retaining the per-student SSE fan-out.
-	AfterCreateCommit func(studentIDs []int64)
+	AfterCreate func(context.Context, []int64) error
 }
 
 // CreateForDates records the reported status for one student across the given
@@ -96,8 +98,8 @@ func (s *StudentStatusDayService) CreateForDates(ctx context.Context, wc StatusD
 	if len(dates) == 0 {
 		return errors.New("student status day dates are required")
 	}
-	now := time.Now()
-	today := timezone.TodayDate()
+	now := s.now()
+	today := timezone.DateFromTime(now)
 	notePtr := strutil.TrimPtrToNil(&reason)
 	return tenant.WithTenantTx(ctx, wc.DB, wc.TenantID, func(ctx context.Context, _ bun.Tx) error {
 		fresh, err := wc.StudentService.GetByIDForUpdate(ctx, studentID)
@@ -127,8 +129,10 @@ func (s *StudentStatusDayService) CreateForDates(ctx context.Context, wc StatusD
 			return err
 		}
 		tenant.RegisterAfterCommit(ctx, func() { wc.AfterCommit(studentID) })
-		if notifyAbsence && wc.AfterCreateCommit != nil {
-			tenant.RegisterAfterCommit(ctx, func() { wc.AfterCreateCommit([]int64{studentID}) })
+		if notifyAbsence && wc.AfterCreate != nil {
+			if err := wc.AfterCreate(ctx, []int64{studentID}); err != nil {
+				return err
+			}
 		}
 		return nil
 	})
@@ -143,8 +147,8 @@ func (s *StudentStatusDayService) BulkCreateForDates(ctx context.Context, wc Sta
 		return errors.New("student status day dates are required")
 	}
 	studentIDs = dedupeStudentIDs(studentIDs)
-	now := time.Now()
-	today := timezone.TodayDate()
+	now := s.now()
+	today := timezone.DateFromTime(now)
 	notePtr := strutil.TrimPtrToNil(&reason)
 	return tenant.WithTenantTx(ctx, wc.DB, wc.TenantID, func(ctx context.Context, _ bun.Tx) error {
 		// Phase 1: lock and authorize every student before writing any row.
@@ -212,8 +216,10 @@ func (s *StudentStatusDayService) BulkCreateForDates(ctx context.Context, wc Sta
 			studentID := studentID
 			tenant.RegisterAfterCommit(ctx, func() { wc.AfterCommit(studentID) })
 		}
-		if len(absenceStudentIDs) > 0 && wc.AfterCreateCommit != nil {
-			tenant.RegisterAfterCommit(ctx, func() { wc.AfterCreateCommit(absenceStudentIDs) })
+		if len(absenceStudentIDs) > 0 && wc.AfterCreate != nil {
+			if err := wc.AfterCreate(ctx, absenceStudentIDs); err != nil {
+				return err
+			}
 		}
 		return nil
 	})
@@ -223,7 +229,7 @@ func lockStudentStatusDates(ctx context.Context, db *bun.DB, studentID int64, da
 	sortedDates := append([]timezone.Date(nil), dates...)
 	slices.SortFunc(sortedDates, timezone.Date.Compare)
 	for _, date := range sortedDates {
-		if err := careplanning.LockExceptionDay(ctx, db, studentID, date); err != nil {
+		if err := careplanning.LockExceptionDay(ctx, db, studentID, date.String()); err != nil {
 			return err
 		}
 	}
@@ -236,15 +242,15 @@ func (s *StudentStatusDayService) ensureNoPartialAbsenceConflicts(
 	if s.pickupExceptions == nil || len(dates) == 0 {
 		return nil
 	}
-	requested := make(map[timezone.Date]struct{}, len(dates))
+	requested := make(map[scheduleModels.Date]struct{}, len(dates))
 	for _, date := range dates {
-		requested[date] = struct{}{}
+		requested[scheduleModels.Date(date)] = struct{}{}
 	}
 	rows, err := s.pickupExceptions.FindByStudentIDAndDateRange(
 		ctx,
 		studentID,
-		slices.MinFunc(dates, timezone.Date.Compare),
-		slices.MaxFunc(dates, timezone.Date.Compare),
+		scheduleModels.Date(slices.MinFunc(dates, timezone.Date.Compare)),
+		scheduleModels.Date(slices.MaxFunc(dates, timezone.Date.Compare)),
 	)
 	if err != nil {
 		return err
@@ -308,8 +314,8 @@ func dedupeStudentIDs(studentIDs []int64) []int64 {
 // DeleteByID clears a single status-day row after ownership and locked-row
 // re-authorization checks, resetting today's live flags when the row is today.
 func (s *StudentStatusDayService) DeleteByID(ctx context.Context, wc StatusDayWriteContext, statusDayID, studentID int64) error {
-	now := time.Now()
-	today := timezone.TodayDate()
+	now := s.now()
+	today := timezone.DateFromTime(now)
 	return tenant.WithTenantTx(ctx, wc.DB, wc.TenantID, func(ctx context.Context, _ bun.Tx) error {
 		row, err := s.repo.FindActiveByID(ctx, statusDayID)
 		if err != nil {

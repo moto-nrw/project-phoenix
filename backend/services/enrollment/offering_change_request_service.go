@@ -23,6 +23,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -48,9 +50,8 @@ const offeringChangeMaxNoteLen = 2000
 // German pill texts. The staff portal renders these directly; the parents
 // portal localizes from the structured event fields.
 const (
-	offeringChangeCreatedBody   = "Anfrage: Betreuungsangebote ändern"
-	offeringChangeRejectedBody  = "Anfrage abgelehnt"
-	offeringChangeWithdrawnBody = "Anfrage zurückgezogen"
+	offeringChangeCreatedBody  = "Anfrage: Betreuungsangebote ändern"
+	offeringChangeRejectedBody = "Anfrage abgelehnt"
 )
 
 // offeringChangeApprovedBody names the date the office confirmed, so the pill
@@ -123,6 +124,9 @@ type OfferingChangeCatalogItem struct {
 	// but keeps an already-selected offering selectable.
 	Capacity  *int
 	FreeSlots *int
+	// ActivityGroupID is set when the offering is bound to an AG — the shape a
+	// Kurs has (#3075). Nil for plain care offerings.
+	ActivityGroupID *int64
 }
 
 // OfferingChangeCatalog is everything the parent modal needs.
@@ -137,7 +141,14 @@ type OfferingChangeCatalog struct {
 	// choose a later approved period, but not a day after their enrollment.
 	EarliestEffectiveFrom timezone.Date
 	LatestEffectiveFrom   timezone.Date
-	Items                 []OfferingChangeCatalogItem
+	// TargetGradeLevel and TargetSchoolClass stay internal to the catalog. A
+	// sourced course may narrow its offering to a grade or a concrete class.
+	TargetGradeLevel  *int16
+	TargetSchoolClass string
+	// courseCapacityUntil is the exclusive end of the phase window used for
+	// course capacity. Course requests have no date picker, so it stays internal.
+	courseCapacityUntil timezone.Date
+	Items               []OfferingChangeCatalogItem
 }
 
 // OfferingChangeDiffEntry is one "current → requested" line, shared by the
@@ -166,6 +177,10 @@ type OfferingChangeDiffEntry struct {
 	// ones staff may override per request (#2370).
 	AutoTriggerIDs   []int64
 	AutoTriggerNames []string
+	// IsCourse marks a line about a Kurs — a care offering bound to an AG
+	// (#3075). The staff review card labels those so a course request reads as
+	// one instead of as an ordinary care change.
+	IsCourse bool
 }
 
 // OfferingChangeHistoryItem is one decided request for the staff history. The
@@ -219,7 +234,11 @@ type OfferingChangeView struct {
 // carries no diff: after an approval was applied the "current → requested"
 // comparison is empty, which would read as "nothing changed".
 type OfferingChangeDecision struct {
-	ID                 int64
+	ID int64
+	// SubmittedBy is used by the parent-facing service to keep request details
+	// private to the guardian who submitted them. HTTP responses do not expose it.
+	SubmittedBy        int64
+	SubmittedBySelf    bool
 	Status             string
 	CompleteWithdrawal bool
 	// DecidedAt is when staff decided it.
@@ -311,7 +330,7 @@ type DirectOfferingAdjustmentCoordinator interface {
 
 type DirectOfferingAdjustmentApplier interface {
 	LockOfferingDerivedWrites(ctx context.Context) error
-	UpdateChildOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error)
+	UpdateChildOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*RequestChild, error)
 }
 
 // offeringDecisionRecencyDays bounds how long a decided request keeps being
@@ -349,11 +368,22 @@ type DecideOfferingChangeInput struct {
 	// CompleteWithdrawalConfirmed is the reviewer's explicit confirmation of
 	// the current fully materialized target state.
 	CompleteWithdrawalConfirmed bool
+	// ExpectedVersion pins the request row the caller decided on. Empty skips
+	// the check (internal callers); a mismatch is ErrParentRequestStale.
+	ExpectedVersion string
+	// ReasonRequired says the school's reason policy asks the deciding staff
+	// member for a reason on an APPROVAL; a rejection always needs one (#2267).
+	ReasonRequired bool
 }
 
 // OfferingChangeRequestService is the lifecycle contract. Every method runs
 // inside a tenant transaction opened by its caller.
 type OfferingChangeRequestService interface {
+	// CourseRequestService is the parents-portal Kurse surface (#3075). It is
+	// part of this contract rather than a second one because a course request
+	// IS an offering change request; see course_request_service.go.
+	CourseRequestService
+
 	// Catalog returns the offerings a guardian may choose from for this child.
 	Catalog(ctx context.Context, studentID int64) (*OfferingChangeCatalog, error)
 	// CatalogAt returns the offerings and booking state at a chosen effective
@@ -367,9 +397,6 @@ type OfferingChangeRequestService interface {
 	// Create stores a pending request after validating it exactly as an
 	// approval would, so a request that cannot be applied is never accepted.
 	Create(ctx context.Context, input CreateOfferingChangeInput) (*enrollmentModels.OfferingChangeRequest, error)
-
-	// Withdraw flips the submitting guardian's own pending request to withdrawn.
-	Withdraw(ctx context.Context, requestID, accountID, studentID int64) error
 
 	// ListPending backs the working list, newest submission first. The filters
 	// narrow and page the query in SQL; their zero value returns the whole
@@ -398,6 +425,10 @@ type OfferingChangeRequestService interface {
 	// Decide approves (and applies) or rejects a pending request.
 	Decide(ctx context.Context, input DecideOfferingChangeInput) error
 
+	// Edit lets the submitting guardian correct their own still-pending
+	// request instead of withdrawing and refiling it (#2267).
+	Edit(ctx context.Context, requestID int64, input CreateOfferingChangeInput, expectedVersion string) (*enrollmentModels.OfferingChangeRequest, error)
+
 	// EarliestEffectiveFrom is the first date a switch may take effect under
 	// the school's configured lead time.
 	EarliestEffectiveFrom(ctx context.Context) (timezone.Date, error)
@@ -405,16 +436,15 @@ type OfferingChangeRequestService interface {
 
 // OfferingChangeRequestServiceConfig wires the service.
 type OfferingChangeRequestServiceConfig struct {
-	ChangeRepo               enrollmentModels.OfferingChangeRequestRepository
-	RequestChildRepo         enrollmentModels.RequestChildRepository
-	RequestRepo              enrollmentModels.RequestRepository
-	PhaseRepo                enrollmentModels.PhaseRepository
-	CareOfferingRepo         enrollmentModels.CareOfferingRepository
-	ImpactRepo               enrollmentModels.OfferingChangeImpactRepository
-	RequestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
-	StudentRepo              usersModels.StudentRepository
-	PersonRepo               usersModels.PersonRepository
-	CareWithdrawalRepo       usersModels.CareWithdrawalCompletionRepository
+	ChangeRepo         enrollmentModels.OfferingChangeRequestRepository
+	Children           OfferingChildrenReader
+	Requests           OfferingRequestReader
+	Phases             PhaseBatchReader
+	CareOfferingRepo   enrollmentModels.CareOfferingRepository
+	ImpactRepo         ManualPlanningReader
+	StudentRepo        usersModels.StudentRepository
+	PersonRepo         usersModels.PersonRepository
+	CareWithdrawalRepo usersModels.CareWithdrawalCompletionRepository
 	// OfferingAdjustmentRepo backs the direct-correction feed of the central
 	// history (#2436); the same append-only log the decision service writes.
 	OfferingAdjustmentRepo auditModels.EnrollmentOfferingAdjustmentRepository
@@ -426,11 +456,34 @@ type OfferingChangeRequestServiceConfig struct {
 	DirectApplier DirectOfferingAdjustmentApplier
 	Settings      DecisionSettingsResolver
 	Emitter       *parentmessaging.Emitter
-	Logger        *slog.Logger
+	// shareVisibility answers who the parent explicitly shared a request
+	// with; nil means nobody was, so every co-guardian gets the neutral line.
+	shareVisibility parentmessaging.ShareVisibilityResolver
+	Logger          *slog.Logger
+	ReviewPolicy    RequestReviewPolicy
+	// Today returns the current calendar day; tests inject a fixed date so
+	// lead-day and care-end boundaries stay deterministic (mirrors the
+	// decision service). Nil falls back to timezone.TodayDate.
+	Today func() timezone.Date
+	// EventRecorder appends to the parent-request ledger inside the ambient
+	// transaction. Nil skips recording (tests, older wiring).
+	EventRecorder usersService.ParentRequestEventRecorder
+}
+
+type RequestReviewPolicy interface {
+	StudentFilter(context.Context, []string) (func(*usersModels.Student) bool, error)
+	Allows(context.Context, []string, *usersModels.Student) (bool, error)
 }
 
 type offeringChangeRequestService struct {
 	OfferingChangeRequestServiceConfig
+}
+
+func (s *offeringChangeRequestService) todayDate() timezone.Date {
+	if s.Today != nil {
+		return s.Today()
+	}
+	return timezone.TodayDate()
 }
 
 // NewOfferingChangeRequestService wires a fresh service.
@@ -439,6 +492,19 @@ func NewOfferingChangeRequestService(cfg OfferingChangeRequestServiceConfig) Off
 		cfg.Logger = slog.Default()
 	}
 	return &offeringChangeRequestService{OfferingChangeRequestServiceConfig: cfg}
+}
+
+// NewOfferingChangeRequestServiceWithPolicy requires the production review
+// policy at construction, so missing wiring cannot widen reviewer access.
+func NewOfferingChangeRequestServiceWithPolicy(
+	cfg OfferingChangeRequestServiceConfig,
+	policy RequestReviewPolicy,
+) OfferingChangeRequestService {
+	if policy == nil {
+		panic("offering change request review policy is required")
+	}
+	cfg.ReviewPolicy = policy
+	return NewOfferingChangeRequestService(cfg)
 }
 
 // OfferingChangeLeadDaysDefault mirrors the registry default so a caller
@@ -461,11 +527,11 @@ func (s *offeringChangeRequestService) EarliestEffectiveFrom(ctx context.Context
 	if s.Settings != nil {
 		resolved, err := s.resolveLeadDays(ctx)
 		if err != nil {
-			return timezone.Date{}, err
+			return timezone.Date(""), err
 		}
 		leadDays = resolved
 	}
-	return EarliestOfferingChangeDate(timezone.TodayDate(), leadDays), nil
+	return EarliestOfferingChangeDate(s.todayDate(), leadDays), nil
 }
 
 // resolveLeadDays reads the configured notice period. DecisionSettingsResolver
@@ -523,14 +589,14 @@ func (s *offeringChangeRequestService) carePeriodAt(
 	ctx context.Context,
 	studentID int64,
 	onDate timezone.Date,
-) (*enrollmentModels.StudentCarePeriod, *enrollmentModels.Phase, error) {
-	periods, err := s.RequestChildRepo.ListCarePeriodsByStudentID(ctx, studentID)
+) (*StudentCarePeriod, *enrollmentOwner.Phase, error) {
+	periods, err := ReadStudentCarePeriods(ctx, s.Children, studentID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("offering change: list care periods: %w", err)
 	}
 	for _, candidate := range periods {
 		if !candidate.ServiceStartDate.After(onDate) && !candidate.ServiceEndDate.Before(onDate) {
-			phase, phaseErr := s.PhaseRepo.FindByID(ctx, candidate.PhaseID)
+			phase, phaseErr := s.Phases.Phase(ctx, candidate.PhaseID)
 			if phaseErr != nil || phase == nil {
 				return nil, nil, fmt.Errorf("offering change: load phase: %w", phaseErr)
 			}
@@ -547,19 +613,19 @@ func (s *offeringChangeRequestService) carePeriodAtOrNext(
 	ctx context.Context,
 	studentID int64,
 	onDate timezone.Date,
-) (*enrollmentModels.StudentCarePeriod, *enrollmentModels.Phase, error) {
-	periods, err := s.RequestChildRepo.ListCarePeriodsByStudentID(ctx, studentID)
+) (*StudentCarePeriod, *enrollmentOwner.Phase, []*StudentCarePeriod, error) {
+	periods, err := ReadStudentCarePeriods(ctx, s.Children, studentID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("offering change: list care periods: %w", err)
+		return nil, nil, nil, fmt.Errorf("offering change: list care periods: %w", err)
 	}
-	var next *enrollmentModels.StudentCarePeriod
+	var next *StudentCarePeriod
 	for _, candidate := range periods {
 		if !candidate.ServiceStartDate.After(onDate) && !candidate.ServiceEndDate.Before(onDate) {
-			phase, phaseErr := s.PhaseRepo.FindByID(ctx, candidate.PhaseID)
+			phase, phaseErr := s.Phases.Phase(ctx, candidate.PhaseID)
 			if phaseErr != nil || phase == nil {
-				return nil, nil, fmt.Errorf("offering change: load phase: %w", phaseErr)
+				return nil, nil, nil, fmt.Errorf("offering change: load phase: %w", phaseErr)
 			}
-			return candidate, phase, nil
+			return candidate, phase, periods, nil
 		}
 		if candidate.ServiceStartDate.After(onDate) &&
 			(next == nil || candidate.ServiceStartDate.Before(next.ServiceStartDate)) {
@@ -567,31 +633,31 @@ func (s *offeringChangeRequestService) carePeriodAtOrNext(
 		}
 	}
 	if next == nil {
-		return nil, nil, ErrOfferingChangeNoEnrollment
+		return nil, nil, nil, ErrOfferingChangeNoEnrollment
 	}
-	phase, err := s.PhaseRepo.FindByID(ctx, next.PhaseID)
+	phase, err := s.Phases.Phase(ctx, next.PhaseID)
 	if err != nil || phase == nil {
-		return nil, nil, fmt.Errorf("offering change: load phase: %w", err)
+		return nil, nil, nil, fmt.Errorf("offering change: load phase: %w", err)
 	}
-	return next, phase, nil
+	return next, phase, periods, nil
 }
 
 func (s *offeringChangeRequestService) carePeriodForEarliestEffectiveDate(
 	ctx context.Context,
 	studentID int64,
-) (*enrollmentModels.StudentCarePeriod, *enrollmentModels.Phase, timezone.Date, error) {
+) (*StudentCarePeriod, *enrollmentOwner.Phase, timezone.Date, []*StudentCarePeriod, error) {
 	earliest, err := s.EarliestEffectiveFrom(ctx)
 	if err != nil {
-		return nil, nil, timezone.Date{}, err
+		return nil, nil, timezone.Date(""), nil, err
 	}
-	period, phase, err := s.carePeriodAtOrNext(ctx, studentID, earliest)
+	period, phase, periods, err := s.carePeriodAtOrNext(ctx, studentID, earliest)
 	if err != nil {
-		return nil, nil, timezone.Date{}, err
+		return nil, nil, timezone.Date(""), nil, err
 	}
-	if earliest.Before(phase.ServiceStartDate) {
-		earliest = phase.ServiceStartDate
+	if earliest.Before(timezone.Date(phase.ServiceStartDate)) {
+		earliest = timezone.Date(phase.ServiceStartDate)
 	}
-	return period, phase, earliest, nil
+	return period, phase, earliest, periods, nil
 }
 
 // latestContiguousApprovedCarePeriodEnd returns the end of the uninterrupted
@@ -600,21 +666,21 @@ func (s *offeringChangeRequestService) carePeriodForEarliestEffectiveDate(
 func (s *offeringChangeRequestService) latestContiguousApprovedCarePeriodEnd(
 	ctx context.Context,
 	studentID int64,
-	initial *enrollmentModels.StudentCarePeriod,
+	initial *StudentCarePeriod,
 ) (timezone.Date, error) {
-	periods, err := s.RequestChildRepo.ListCarePeriodsByStudentID(ctx, studentID)
+	periods, err := ReadStudentCarePeriods(ctx, s.Children, studentID)
 	if err != nil {
-		return timezone.Date{}, fmt.Errorf("offering change: list care periods: %w", err)
+		return timezone.Date(""), fmt.Errorf("offering change: list care periods: %w", err)
 	}
 	if initial == nil {
-		return timezone.Date{}, ErrOfferingChangeNoEnrollment
+		return timezone.Date(""), ErrOfferingChangeNoEnrollment
 	}
 	return contiguousCarePeriodEnd(periods, initial), nil
 }
 
 func contiguousCarePeriodEnd(
-	periods []*enrollmentModels.StudentCarePeriod,
-	initial *enrollmentModels.StudentCarePeriod,
+	periods []*StudentCarePeriod,
+	initial *StudentCarePeriod,
 ) timezone.Date {
 	latest := initial.ServiceEndDate
 	// Periods are returned newest first. Repeat the scan because an earlier
@@ -640,14 +706,11 @@ func (s *offeringChangeRequestService) Catalog(
 	if err := s.changesEnabled(ctx); err != nil {
 		return nil, err
 	}
-	period, phase, earliest, err := s.carePeriodForEarliestEffectiveDate(ctx, studentID)
+	period, phase, earliest, periods, err := s.carePeriodForEarliestEffectiveDate(ctx, studentID)
 	if err != nil {
 		return nil, err
 	}
-	latest, err := s.latestContiguousApprovedCarePeriodEnd(ctx, studentID, period)
-	if err != nil {
-		return nil, err
-	}
+	latest := contiguousCarePeriodEnd(periods, period)
 	return s.catalogAt(ctx, studentID, period, phase, earliest, latest, earliest)
 }
 
@@ -673,8 +736,8 @@ func (s *offeringChangeRequestService) CatalogAt(
 	if err != nil {
 		return nil, err
 	}
-	if earliest.Before(phase.ServiceStartDate) {
-		earliest = phase.ServiceStartDate
+	if earliest.Before(timezone.Date(phase.ServiceStartDate)) {
+		earliest = timezone.Date(phase.ServiceStartDate)
 	}
 	latest, err := s.latestContiguousApprovedCarePeriodEnd(ctx, studentID, period)
 	if err != nil {
@@ -686,35 +749,43 @@ func (s *offeringChangeRequestService) CatalogAt(
 func (s *offeringChangeRequestService) catalogAt(
 	ctx context.Context,
 	studentID int64,
-	period *enrollmentModels.StudentCarePeriod,
-	phase *enrollmentModels.Phase,
+	period *StudentCarePeriod,
+	phase *enrollmentOwner.Phase,
 	earliest, latest, onDate timezone.Date,
 ) (*OfferingChangeCatalog, error) {
 	active, err := s.CareOfferingRepo.ListActiveByPhase(ctx, phase.ID)
 	if err != nil {
 		return nil, fmt.Errorf("offering change: list active offerings: %w", err)
 	}
-	current, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, period.RequestChildID, onDate)
+	current, err := readOwnerOfferingSelections(ctx, s.Children, period.RequestChildID, onDate)
 	if err != nil {
 		return nil, fmt.Errorf("offering change: list current offerings: %w", err)
 	}
-	currentByID := make(map[int64]*enrollmentModels.RequestChildOffering, len(current))
+	currentByID := make(map[int64]*RequestChildOffering, len(current))
 	for _, link := range current {
 		if link != nil {
 			currentByID[link.CareOfferingID] = link
 		}
 	}
-	child, err := s.RequestChildRepo.FindByID(ctx, period.RequestChildID)
-	if err != nil || child == nil {
-		return nil, fmt.Errorf("offering change: load request child: %w", err)
-	}
 	activeByID := offeringsByID(active)
-	allowed, err := availableCareOfferingsForGrade(activeByID, child.TargetGradeLevel)
+	allowed, err := availableCareOfferingsForGrade(activeByID, period.TargetGradeLevel)
 	if err != nil {
 		return nil, fmt.Errorf("offering change: filter eligible offerings: %w", err)
 	}
-	if _, err := s.addHeldOfferingsAtDate(ctx, period.RequestChildID, onDate, allowed); err != nil {
-		return nil, err
+	heldIDs := make([]int64, 0, len(current))
+	for _, link := range current {
+		if link != nil && allowed[link.CareOfferingID] == nil {
+			heldIDs = append(heldIDs, link.CareOfferingID)
+		}
+	}
+	if len(heldIDs) > 0 {
+		held, heldErr := s.CareOfferingRepo.ListByIDs(ctx, heldIDs)
+		if heldErr != nil {
+			return nil, fmt.Errorf("offering change: list held offerings: %w", heldErr)
+		}
+		for id, offering := range offeringsByID(held) {
+			allowed[id] = offering
+		}
 	}
 	catalog := &OfferingChangeCatalog{
 		PhaseID:               phase.ID,
@@ -722,13 +793,18 @@ func (s *offeringChangeRequestService) catalogAt(
 		SelectionMode:         phase.CareOfferingSelectionMode,
 		EarliestEffectiveFrom: earliest,
 		LatestEffectiveFrom:   latest,
+		courseCapacityUntil:   timezone.Date(phase.ServiceEndDate).AddDays(1),
+		TargetGradeLevel:      period.TargetGradeLevel,
 		Items:                 make([]OfferingChangeCatalogItem, 0, len(allowed)),
+	}
+	if period.TargetSchoolClass != nil {
+		catalog.TargetSchoolClass = *period.TargetSchoolClass
 	}
 	for _, offering := range allowed {
 		if offering == nil {
 			continue
 		}
-		item, itemErr := s.catalogItem(ctx, offering, currentByID[offering.ID], onDate, phase.ServiceEndDate.AddDays(1))
+		item, itemErr := s.catalogItem(ctx, offering, currentByID[offering.ID], onDate, timezone.Date(phase.ServiceEndDate).AddDays(1))
 		if itemErr != nil {
 			return nil, itemErr
 		}
@@ -744,7 +820,7 @@ func (s *offeringChangeRequestService) catalogAt(
 func (s *offeringChangeRequestService) catalogItem(
 	ctx context.Context,
 	offering *enrollmentModels.CareOffering,
-	current *enrollmentModels.RequestChildOffering,
+	current *RequestChildOffering,
 	onDate, phaseEndExclusive timezone.Date,
 ) (OfferingChangeCatalogItem, error) {
 	item := OfferingChangeCatalogItem{
@@ -760,6 +836,7 @@ func (s *offeringChangeRequestService) catalogItem(
 		IncludesHoliday: offering.IncludesHolidayCare,
 		CountsAsCare:    offering.CountsAsCare,
 		PickupTimes:     maps.Clone(offering.PickupTimes),
+		ActivityGroupID: offering.ActivityGroupID,
 	}
 	if offering.Description != nil {
 		item.Description = *offering.Description
@@ -774,7 +851,7 @@ func (s *offeringChangeRequestService) catalogItem(
 	}
 	capacity := *offering.Capacity
 	item.Capacity = &capacity
-	taken, err := s.RequestChildOfferingRepo.CountMaxActiveByCareOfferingInRange(ctx, offering.ID, onDate, phaseEndExclusive)
+	taken, err := s.Children.OfferingCapacityPeak(ctx, offering.ID, nil, enrollmentOwner.Date(onDate), enrollmentOwner.Date(phaseEndExclusive))
 	if err != nil {
 		return OfferingChangeCatalogItem{}, fmt.Errorf("offering change: count offering occupancy: %w", err)
 	}
@@ -828,7 +905,7 @@ func (s *offeringChangeRequestService) lastDecisionForStudent(
 		return nil, fmt.Errorf("offering change: list requests: %w", err)
 	}
 	cutoff := time.Now().AddDate(0, 0, -offeringDecisionRecencyDays)
-	today := timezone.TodayDate()
+	today := s.todayDate()
 	for _, row := range rows {
 		if row == nil || row.ReviewedAt == nil {
 			continue
@@ -837,7 +914,7 @@ func (s *offeringChangeRequestService) lastDecisionForStudent(
 			row.Status != enrollmentModels.OfferingChangeStatusRejected {
 			continue
 		}
-		isFutureApproval := row.Status == enrollmentModels.OfferingChangeStatusApproved && today.Before(row.EffectiveFrom)
+		isFutureApproval := row.Status == enrollmentModels.OfferingChangeStatusApproved && today.Before(timezone.Date(row.EffectiveFrom))
 		keepWithdrawalStatus := false
 		if row.Status == enrollmentModels.OfferingChangeStatusApproved && row.ApprovedCompleteWithdrawal {
 			keepWithdrawalStatus, err = s.keepCompleteWithdrawalStatus(ctx, studentID)
@@ -851,10 +928,11 @@ func (s *offeringChangeRequestService) lastDecisionForStudent(
 		}
 		decision := &OfferingChangeDecision{
 			ID:                 row.ID,
+			SubmittedBy:        row.SubmittedBy,
 			Status:             row.Status,
 			CompleteWithdrawal: row.ApprovedCompleteWithdrawal,
 			DecidedAt:          *row.ReviewedAt,
-			EffectiveFrom:      row.EffectiveFrom,
+			EffectiveFrom:      timezone.Date(row.EffectiveFrom),
 		}
 		if row.DecisionReason != nil {
 			decision.Reason = *row.DecisionReason
@@ -884,7 +962,7 @@ func (s *offeringChangeRequestService) keepCompleteWithdrawalStatus(ctx context.
 	if err != nil {
 		return false, fmt.Errorf("offering change: load student withdrawal state: %w", err)
 	}
-	if student.CareEndedOn(timezone.TodayDate()) {
+	if student.CareEndedOn(s.todayDate()) {
 		return true, nil
 	}
 	if s.CareWithdrawalRepo == nil {
@@ -956,6 +1034,34 @@ func (s *offeringChangeRequestService) Create(
 	ctx context.Context,
 	input CreateOfferingChangeInput,
 ) (*enrollmentModels.OfferingChangeRequest, error) {
+	proposal, err := s.validateOfferingChangeProposal(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	existing, err := s.ChangeRepo.GetPendingForStudent(ctx, input.StudentID)
+	if err != nil {
+		return nil, fmt.Errorf("offering change: check pending: %w", err)
+	}
+	if existing != nil {
+		return nil, enrollmentModels.ErrOfferingChangeAlreadyPending
+	}
+	return s.createOfferingChangeRow(ctx, input, proposal)
+}
+
+// offeringChangeProposal is the validated result of a guardian's proposal —
+// shared by the create and the guardian edit path so an edit can never store
+// something the create path would have refused.
+type offeringChangeProposal struct {
+	note               string
+	requestChildID     int64
+	selections         []OfferingChangeSelection
+	completeWithdrawal bool
+}
+
+func (s *offeringChangeRequestService) validateOfferingChangeProposal(
+	ctx context.Context,
+	input CreateOfferingChangeInput,
+) (*offeringChangeProposal, error) {
 	if err := s.changesEnabled(ctx); err != nil {
 		return nil, err
 	}
@@ -977,13 +1083,13 @@ func (s *offeringChangeRequestService) Create(
 	if err != nil {
 		return nil, err
 	}
-	if input.EffectiveFrom.Before(phase.ServiceStartDate) {
+	if input.EffectiveFrom.Before(timezone.Date(phase.ServiceStartDate)) {
 		return nil, fmt.Errorf("%w: effective date is before the care period starts", ErrOfferingChangeInvalid)
 	}
-	if input.EffectiveFrom.After(phase.ServiceEndDate) {
+	if input.EffectiveFrom.After(timezone.Date(phase.ServiceEndDate)) {
 		return nil, fmt.Errorf("%w: effective date is after the care period ends", ErrOfferingChangeInvalid)
 	}
-	current, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, period.RequestChildID, input.EffectiveFrom)
+	current, err := readOwnerOfferingSelections(ctx, s.Children, period.RequestChildID, input.EffectiveFrom)
 	if err != nil {
 		return nil, fmt.Errorf("offering change: list current offerings: %w", err)
 	}
@@ -1012,28 +1118,35 @@ func (s *offeringChangeRequestService) Create(
 	if completeWithdrawal && !input.CompleteWithdrawalConfirmed {
 		return nil, ErrCompleteWithdrawalConfirmationRequired
 	}
-	existing, err := s.ChangeRepo.GetPendingForStudent(ctx, input.StudentID)
-	if err != nil {
-		return nil, fmt.Errorf("offering change: check pending: %w", err)
-	}
-	if existing != nil {
-		return nil, enrollmentModels.ErrOfferingChangeAlreadyPending
-	}
+	return &offeringChangeProposal{
+		note:               note,
+		requestChildID:     period.RequestChildID,
+		selections:         selections,
+		completeWithdrawal: completeWithdrawal,
+	}, nil
+}
+
+func (s *offeringChangeRequestService) createOfferingChangeRow(
+	ctx context.Context,
+	input CreateOfferingChangeInput,
+	proposal *offeringChangeProposal,
+) (*enrollmentModels.OfferingChangeRequest, error) {
 	row := &enrollmentModels.OfferingChangeRequest{
 		StudentID:                   input.StudentID,
-		RequestChildID:              period.RequestChildID,
+		RequestChildID:              proposal.requestChildID,
 		SubmittedBy:                 input.AccountID,
-		Payload:                     payloadFromSelections(selections),
-		EffectiveFrom:               input.EffectiveFrom,
+		Payload:                     payloadFromSelections(proposal.selections),
+		EffectiveFrom:               enrollmentModels.OfferingChangeDate(input.EffectiveFrom),
 		Status:                      enrollmentModels.OfferingChangeStatusPending,
-		CompleteWithdrawalConfirmed: completeWithdrawal,
+		CompleteWithdrawalConfirmed: proposal.completeWithdrawal,
 	}
-	if completeWithdrawal {
+	if proposal.completeWithdrawal {
 		now := time.Now()
 		row.WithdrawalConfirmedBy = &input.AccountID
 		row.WithdrawalConfirmedAt = &now
 	}
-	if note != "" {
+	if proposal.note != "" {
+		note := proposal.note
 		row.ParentNote = &note
 	}
 	if err := s.ChangeRepo.Create(ctx, row); err != nil {
@@ -1042,52 +1155,85 @@ func (s *offeringChangeRequestService) Create(
 		}
 		return nil, fmt.Errorf("offering change: create: %w", err)
 	}
-	s.emitPillAfterCommit(ctx, row, parentmessaging.ChildEvent{
+	if err := s.recordOfferingRequestEvent(
+		ctx, row, usersModels.ParentRequestEventSubmitted, input.AccountID,
+		map[string]any{"effective_from": timezone.Date(row.EffectiveFrom).String()},
+	); err != nil {
+		return nil, err
+	}
+	if err := s.emitPillAfterCommit(ctx, row, parentmessaging.ChildEvent{
 		EventType:      usersModels.ParentMessageEventRequestCreated,
 		ActorKind:      usersModels.ParentMessageSenderGuardian,
 		ActorAccountID: input.AccountID,
 		Body:           offeringChangeCreatedBody,
 		RequestType:    OfferingChangeRequestType,
 		RequestStatus:  usersModels.ParentMessageRequestStatusOpen,
-	})
+	}); err != nil {
+		return nil, err
+	}
 	s.Logger.Info("offering change request created",
 		slog.Int64("student_id", input.StudentID),
-		slog.Int64("request_child_id", period.RequestChildID),
+		slog.Int64("request_child_id", proposal.requestChildID),
 		slog.String("effective_from", input.EffectiveFrom.String()),
-		slog.Int("offering_count", len(selections)),
+		slog.Int("offering_count", len(proposal.selections)),
 	)
 	return row, nil
 }
 
-func (s *offeringChangeRequestService) Withdraw(ctx context.Context, requestID, accountID, studentID int64) error {
+// Edit rewrites the submitter's own still-pending offering change (#2267,
+// story 37). It replaces the withdraw flow, so the request keeps its id, its
+// share and its history; the proposal runs through the same validators the
+// create path uses. A request that is not the caller's own is reported as
+// missing, never as forbidden.
+func (s *offeringChangeRequestService) Edit(
+	ctx context.Context,
+	requestID int64,
+	input CreateOfferingChangeInput,
+	expectedVersion string,
+) (*enrollmentModels.OfferingChangeRequest, error) {
 	row, err := s.ChangeRepo.FindByIDForUpdate(ctx, requestID)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	// Ownership first, so a foreign request's id cannot be probed for status.
-	if row.StudentID != studentID || row.SubmittedBy != accountID {
-		return ErrOfferingChangeForbidden
+	if row.StudentID != input.StudentID || row.SubmittedBy != input.AccountID {
+		return nil, enrollmentModels.ErrOfferingChangeNotFound
 	}
 	if row.IsTerminal() {
-		return enrollmentModels.ErrOfferingChangeNotPending
+		return nil, enrollmentModels.ErrOfferingChangeNotPending
 	}
-	if err := s.ChangeRepo.Decide(ctx, requestID, enrollmentModels.OfferingChangeStatusWithdrawn, nil, nil, false); err != nil {
-		return err
+	if expectedVersion != "" && usersService.ParentRequestVersion(row.UpdatedAt) != expectedVersion {
+		return nil, usersService.ErrParentRequestStale
 	}
-	s.emitPillAfterCommit(ctx, row, parentmessaging.ChildEvent{
-		EventType:      usersModels.ParentMessageEventRequestStatus,
-		ActorKind:      usersModels.ParentMessageSenderGuardian,
-		ActorAccountID: accountID,
-		Body:           offeringChangeWithdrawnBody,
-		RequestType:    OfferingChangeRequestType,
-		RequestStatus:  usersModels.ParentMessageRequestStatusWithdrawn,
-	})
-	return nil
+	proposal, err := s.validateOfferingChangeProposal(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	var note *string
+	if proposal.note != "" {
+		text := proposal.note
+		note = &text
+	}
+	if err := s.ChangeRepo.UpdatePending(
+		ctx, row.ID, payloadFromSelections(proposal.selections), enrollmentModels.OfferingChangeDate(input.EffectiveFrom), note,
+	); err != nil {
+		return nil, err
+	}
+	edited, err := s.ChangeRepo.FindByID(ctx, row.ID)
+	if err != nil {
+		return nil, fmt.Errorf("offering change: reload edited request: %w", err)
+	}
+	if err := s.recordOfferingRequestEvent(
+		ctx, edited, usersModels.ParentRequestEventGuardianEdit, input.AccountID,
+		map[string]any{"effective_from": timezone.Date(edited.EffectiveFrom).String()},
+	); err != nil {
+		return nil, err
+	}
+	return edited, nil
 }
 
 func (s *offeringChangeRequestService) ListPending(ctx context.Context, filters modelBase.RequestQueueFilters) ([]*OfferingChangeView, *usersService.HistoryCursor, error) {
 	// limit+1 probes for an older page without a second count query.
-	rows, err := s.ChangeRepo.ListPendingForTenant(ctx, probeLimit(filters))
+	rows, err := s.ChangeRepo.ListPendingForTenant(ctx, enrollmentModels.OfferingChangeQueueFilters(probeLimit(filters)))
 	if err != nil {
 		return nil, nil, fmt.Errorf("offering change: list pending: %w", err)
 	}
@@ -1104,7 +1250,10 @@ func (s *offeringChangeRequestService) ListPending(ctx context.Context, filters 
 	if err != nil {
 		return nil, nil, fmt.Errorf("offering change: load students: %w", err)
 	}
-	writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.UserContext)
+	writable, err := s.reviewableFilter(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
 	visibleRows := make([]*enrollmentModels.OfferingChangeRequest, 0, len(rows))
 	personIDs := make([]int64, 0, len(rows))
 	for _, row := range rows {
@@ -1116,7 +1265,7 @@ func (s *offeringChangeRequestService) ListPending(ctx context.Context, filters 
 		// effect-day pass closes their open requests, and until it runs the
 		// queue must not offer a decision on a departed child (#2487).
 		if student == nil || !writable(student) || student.IsAlumnus() ||
-			student.CareEndedOn(timezone.TodayDate()) {
+			student.CareEndedOn(s.todayDate()) {
 			continue
 		}
 		visibleRows = append(visibleRows, row)
@@ -1140,12 +1289,12 @@ func (s *offeringChangeRequestService) ListPending(ctx context.Context, filters 
 		// date is clamped to the care period's start as well as to today, which
 		// diverges once a phase's service start moves after the request was
 		// filed.
-		reviewRow.EffectiveFrom = appliedOfferingChangeDate(row.EffectiveFrom)
+		reviewRow.EffectiveFrom = enrollmentModels.OfferingChangeDate(appliedOfferingChangeDate(timezone.Date(row.EffectiveFrom), s.todayDate()))
 		review := reviews[row.ID]
 		if review != nil {
-			reviewRow.EffectiveFrom = review.AppliedDate
+			reviewRow.EffectiveFrom = enrollmentModels.OfferingChangeDate(review.AppliedDate)
 		}
-		view := &OfferingChangeView{Request: &reviewRow, RequestedEffectiveFrom: row.EffectiveFrom}
+		view := &OfferingChangeView{Request: &reviewRow, RequestedEffectiveFrom: timezone.Date(row.EffectiveFrom)}
 		if review != nil {
 			view.EarliestEffectiveFrom = review.EarliestDate
 			view.LatestEffectiveFrom = review.LatestDate
@@ -1175,7 +1324,7 @@ func probeLimit(filters modelBase.RequestQueueFilters) modelBase.RequestQueueFil
 
 func (s *offeringChangeRequestService) ListHistory(ctx context.Context, filters modelBase.RequestQueueFilters) ([]*OfferingChangeHistoryItem, *usersService.HistoryCursor, error) {
 	// limit+1 probes for an older page without a second count query.
-	rows, err := s.ChangeRepo.ListDecidedForTenant(ctx, probeLimit(filters))
+	rows, err := s.ChangeRepo.ListDecidedForTenant(ctx, enrollmentModels.OfferingChangeQueueFilters(probeLimit(filters)))
 	if err != nil {
 		return nil, nil, fmt.Errorf("offering change: list decided: %w", err)
 	}
@@ -1219,7 +1368,10 @@ func (s *offeringChangeRequestService) ListHistory(ctx context.Context, filters 
 	}
 
 	// Same per-child scope as ListPending: write gate + alumnus skip.
-	writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.UserContext)
+	writable, err := s.reviewableFilter(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	items := make([]*OfferingChangeHistoryItem, 0, len(rows))
 	for _, row := range rows {
@@ -1253,7 +1405,7 @@ func (s *offeringChangeRequestService) ListHistory(ctx context.Context, filters 
 }
 
 func (s *offeringChangeRequestService) PendingCount(ctx context.Context) (int, error) {
-	rows, err := s.ChangeRepo.ListPendingForTenant(ctx, modelBase.RequestQueueFilters{})
+	rows, err := s.ChangeRepo.ListPendingForTenant(ctx, enrollmentModels.OfferingChangeQueueFilters{})
 	if err != nil {
 		return 0, fmt.Errorf("offering change: list pending for count: %w", err)
 	}
@@ -1267,7 +1419,10 @@ func (s *offeringChangeRequestService) PendingCount(ctx context.Context) (int, e
 	if err != nil {
 		return 0, fmt.Errorf("offering change: load students for count: %w", err)
 	}
-	writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.UserContext)
+	writable, err := s.reviewableFilter(ctx)
+	if err != nil {
+		return 0, err
+	}
 	count := 0
 	for _, row := range rows {
 		if row == nil {
@@ -1275,7 +1430,7 @@ func (s *offeringChangeRequestService) PendingCount(ctx context.Context) (int, e
 		}
 		student := students[row.StudentID]
 		if student != nil && writable(student) && !student.IsAlumnus() &&
-			!student.CareEndedOn(timezone.TodayDate()) {
+			!student.CareEndedOn(s.todayDate()) {
 			count++
 		}
 	}
@@ -1310,11 +1465,11 @@ func (s *offeringChangeRequestService) pendingReviews(
 		}
 		childIDs = append(childIDs, row.RequestChildID)
 	}
-	children, err := s.RequestChildRepo.ListByIDs(ctx, childIDs)
+	children, err := offeringChildrenByID(ctx, s.Children, childIDs)
 	if err != nil {
 		return nil, fmt.Errorf("load request children: %w", err)
 	}
-	childrenByID := make(map[int64]*enrollmentModels.RequestChild, len(children))
+	childrenByID := make(map[int64]*RequestChild, len(children))
 	requestIDs := make([]int64, 0, len(children))
 	for _, child := range children {
 		if child == nil {
@@ -1323,7 +1478,7 @@ func (s *offeringChangeRequestService) pendingReviews(
 		childrenByID[child.ID] = child
 		requestIDs = append(requestIDs, child.RequestID)
 	}
-	requests, err := s.RequestRepo.ListByIDs(ctx, requestIDs)
+	requests, err := intakeRequestsByID(ctx, s.Requests, requestIDs)
 	if err != nil {
 		return nil, fmt.Errorf("load enrollment requests: %w", err)
 	}
@@ -1336,11 +1491,11 @@ func (s *offeringChangeRequestService) pendingReviews(
 		requestsByID[request.ID] = request
 		phaseIDs = append(phaseIDs, request.PhaseID)
 	}
-	phases, err := s.PhaseRepo.ListByIDs(ctx, phaseIDs)
+	phases, err := s.Phases.PhasesByID(ctx, phaseIDs)
 	if err != nil {
 		return nil, fmt.Errorf("load phases: %w", err)
 	}
-	phasesByID := make(map[int64]*enrollmentModels.Phase, len(phases))
+	phasesByID := make(map[int64]*enrollmentOwner.Phase, len(phases))
 	for _, phase := range phases {
 		if phase != nil {
 			phasesByID[phase.ID] = phase
@@ -1350,23 +1505,24 @@ func (s *offeringChangeRequestService) pendingReviews(
 	// clamp included, or the diff describes a booking outside the care period.
 	dates := make(map[int64]timezone.Date, len(rows))
 	reviews := make(map[int64]*pendingReview, len(rows))
+	today := s.todayDate()
 	for _, row := range rows {
 		if row == nil || row.RequestChildID <= 0 {
 			continue
 		}
 		child := childrenByID[row.RequestChildID]
-		var phase *enrollmentModels.Phase
+		var phase *enrollmentOwner.Phase
 		if child != nil {
 			if request := requestsByID[child.RequestID]; request != nil {
 				phase = phasesByID[request.PhaseID]
 			}
 		}
-		date := appliedOfferingChangeDateForPhase(row.EffectiveFrom, phase)
+		date := appliedOfferingChangeDateForPhase(timezone.Date(row.EffectiveFrom), today, phase)
 		dates[row.RequestChildID] = date
 		review := &pendingReview{AppliedDate: date}
 		if phase != nil {
-			review.EarliestDate = appliedOfferingChangeDateForPhase(timezone.TodayDate(), phase)
-			review.LatestDate = phase.ServiceEndDate
+			review.EarliestDate = appliedOfferingChangeDateForPhase(today, today, phase)
+			review.LatestDate = timezone.Date(phase.ServiceEndDate)
 		}
 		reviews[row.ID] = review
 	}
@@ -1386,11 +1542,16 @@ func (s *offeringChangeRequestService) pendingReviews(
 		activeByPhase[offering.PhaseID][offering.ID] = offering
 		allOfferingIDs = append(allOfferingIDs, offering.ID)
 	}
-	current, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDates(ctx, dates)
+	ownerDates := make(map[int64]enrollmentOwner.Date, len(dates))
+	for childID, date := range dates {
+		ownerDates[childID] = enrollmentOwner.Date(date)
+	}
+	values, err := s.Children.RequestChildOfferingsAtDates(ctx, ownerDates)
+	current := legacyOfferingSelections(values)
 	if err != nil {
 		return nil, fmt.Errorf("load current offerings: %w", err)
 	}
-	currentByChild := make(map[int64][]*enrollmentModels.RequestChildOffering)
+	currentByChild := make(map[int64][]*RequestChildOffering)
 	for _, link := range current {
 		if link != nil {
 			currentByChild[link.RequestChildID] = append(currentByChild[link.RequestChildID], link)
@@ -1427,6 +1588,14 @@ func (s *offeringChangeRequestService) pendingReviews(
 		}
 	}
 
+	type pendingCourseDiff struct {
+		review      *pendingReview
+		entries     []OfferingChangeDiffEntry
+		catalog     *OfferingChangeCatalog
+		requested   []OfferingChangeSelection
+		changedByID map[int64]bool
+	}
+	pendingCourseDiffs := make([]pendingCourseDiff, 0, len(rows))
 	for _, row := range rows {
 		if row == nil {
 			continue
@@ -1485,11 +1654,35 @@ func (s *offeringChangeRequestService) pendingReviews(
 		}
 		review.FullWithdrawal = leavesNoCareOfferings(entries, offeringsByID)
 		review.Unchanged = unchangedBookings(entries, changedByOfferingID)
-		entries = slices.DeleteFunc(entries, func(entry OfferingChangeDiffEntry) bool {
-			return !changedByOfferingID[entry.OfferingID] && len(entry.NewRuleDays) == 0
+		pendingCourseDiffs = append(pendingCourseDiffs, pendingCourseDiff{
+			review: review, entries: entries, catalog: courseTargetCatalog(child),
+			requested: requested, changedByID: changedByOfferingID,
 		})
-		sort.SliceStable(entries, func(i, j int) bool { return entries[i].Label < entries[j].Label })
-		review.Diff = entries
+	}
+	refs := make([]enrollmentModels.CourseOfferingReference, 0, len(pendingCourseDiffs))
+	for _, diff := range pendingCourseDiffs {
+		batch, _ := courseDiffReferences(diff.entries, offeringsByID, diff.requested)
+		refs = append(refs, batch...)
+	}
+	groups := map[int64][]enrollmentModels.CourseGroup{}
+	if len(refs) > 0 {
+		projection, projectionErr := s.courseProjection()
+		if projectionErr != nil {
+			return nil, projectionErr
+		}
+		groups, projectionErr = projection.CourseGroupsForOfferings(ctx, refs, timezone.TodayDate())
+		if projectionErr != nil {
+			return nil, fmt.Errorf("offering change: mark course diff lines: %w", projectionErr)
+		}
+	}
+	for _, diff := range pendingCourseDiffs {
+		_, requestedIDs := courseDiffReferences(diff.entries, offeringsByID, diff.requested)
+		markCourseDiffEntriesForGroups(diff.entries, groups, diff.catalog, requestedIDs)
+		diff.entries = slices.DeleteFunc(diff.entries, func(entry OfferingChangeDiffEntry) bool {
+			return !diff.changedByID[entry.OfferingID] && len(entry.NewRuleDays) == 0
+		})
+		sort.SliceStable(diff.entries, func(i, j int) bool { return diff.entries[i].Label < diff.entries[j].Label })
+		diff.review.Diff = diff.entries
 	}
 	return reviews, nil
 }
@@ -1548,12 +1741,22 @@ func (s *offeringChangeRequestService) Decide(ctx context.Context, input DecideO
 		// whole feature exists to avoid.
 		return fmt.Errorf("%w: a rejection needs a reason", ErrOfferingChangeInvalid)
 	}
+	// An approval needs a reason only while the school's policy asks staff for
+	// one (#2267, story 28).
+	if input.Approve && input.ReasonRequired && reason == "" {
+		return usersService.ErrParentRequestReasonRequired
+	}
 	row, err := s.ChangeRepo.FindByIDForUpdate(ctx, input.RequestID)
 	if err != nil {
 		return err
 	}
 	if row.IsTerminal() {
 		return enrollmentModels.ErrOfferingChangeNotPending
+	}
+	// Staleness is decided under the row lock and before any authorization or
+	// apply work, so a decision taken on an outdated view never lands (#2267).
+	if input.ExpectedVersion != "" && usersService.ParentRequestVersion(row.UpdatedAt) != input.ExpectedVersion {
+		return usersService.ErrParentRequestStale
 	}
 	student, err := s.StudentRepo.FindByIDForUpdate(ctx, row.StudentID)
 	if err != nil {
@@ -1564,10 +1767,14 @@ func (s *offeringChangeRequestService) Decide(ctx context.Context, input DecideO
 	}
 	// The child left the OGS after filing this request; approving it would
 	// book offerings for days they are no longer in care (#2487).
-	if student.CareEndedOn(timezone.TodayDate()) {
+	if student.CareEndedOn(s.todayDate()) {
 		return enrollmentModels.ErrOfferingChangeNotFound
 	}
-	if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.UserContext); !ok {
+	allowed, authErr := s.canReviewStudent(ctx, student)
+	if authErr != nil {
+		return authErr
+	}
+	if !allowed {
 		return ErrOfferingChangeForbidden
 	}
 	if !input.Approve {
@@ -1589,9 +1796,22 @@ func (s *offeringChangeRequestService) Decide(ctx context.Context, input DecideO
 		if err := s.storeDecisionSnapshot(ctx, row.ID, diff); err != nil {
 			return err
 		}
-		s.emitDecisionPill(ctx, row, input.ReviewedBy, offeringChangeRejectedBody,
-			usersModels.ParentMessageRequestStatusRejected, reason, nil)
+		if err := s.recordOfferingDecision(ctx, row.ID, input.ReviewedBy, false, reason); err != nil {
+			return err
+		}
+		if err := s.emitDecisionPill(ctx, row, input.ReviewedBy, offeringChangeRejectedBody,
+			usersModels.ParentMessageRequestStatusRejected, reason, nil); err != nil {
+			return err
+		}
 		return nil
+	}
+	// Approving a switch whose effective date has passed would book offerings
+	// into a settled past. Staff either reject it or mark it done (#2267,
+	// story 14). Rejecting stays allowed, and so does moving the date forward
+	// with an explicit EffectiveFrom.
+	if input.EffectiveFrom == nil &&
+		usersService.ParentRequestIsPast(timezone.Date(row.EffectiveFrom), s.todayDate()) {
+		return usersService.ErrParentRequestPast
 	}
 	applied, err := s.applyApproved(ctx, row, input)
 	if err != nil {
@@ -1611,15 +1831,59 @@ func (s *offeringChangeRequestService) Decide(ctx context.Context, input DecideO
 	if err := s.storeDecisionSnapshot(ctx, row.ID, diff); err != nil {
 		return err
 	}
-	s.emitDecisionPill(ctx, row, input.ReviewedBy, offeringChangeApprovedBody(row.EffectiveFrom),
+	if err := s.recordOfferingDecision(ctx, row.ID, input.ReviewedBy, true, reason); err != nil {
+		return err
+	}
+	if err := s.emitDecisionPill(ctx, row, input.ReviewedBy, offeringChangeApprovedBody(timezone.Date(row.EffectiveFrom)),
 		usersModels.ParentMessageRequestStatusDone, reason,
-		map[string]any{"effective_from": row.EffectiveFrom.String()})
+		map[string]any{"effective_from": timezone.Date(row.EffectiveFrom).String()}); err != nil {
+		return err
+	}
 	s.Logger.Info("offering change request approved",
 		slog.Int64("request_id", row.ID),
 		slog.Int64("student_id", row.StudentID),
-		slog.String("effective_from", row.EffectiveFrom.String()),
+		slog.String("effective_from", timezone.Date(row.EffectiveFrom).String()),
 	)
 	return nil
+}
+
+// recordOfferingRequestEvent appends one ledger entry inside the ambient
+// transaction of the change it describes.
+func (s *offeringChangeRequestService) recordOfferingRequestEvent(
+	ctx context.Context,
+	row *enrollmentModels.OfferingChangeRequest,
+	eventType string,
+	actorAccountID int64,
+	payload map[string]any,
+) error {
+	if err := usersService.RecordParentRequestEvent(ctx, s.EventRecorder, usersService.ParentRequestEventInput{
+		StudentID:      row.StudentID,
+		RequestType:    usersModels.ParentRequestTypeOffering,
+		RequestID:      row.ID,
+		EventType:      eventType,
+		ActorAccountID: actorAccountID,
+		UpdatedAt:      row.UpdatedAt,
+		Payload:        payload,
+	}); err != nil {
+		return fmt.Errorf("offering change: record request event: %w", err)
+	}
+	return nil
+}
+
+// recordOfferingDecision reloads the decided row so the ledger carries the
+// version the decision produced, then appends the "decided" entry.
+func (s *offeringChangeRequestService) recordOfferingDecision(
+	ctx context.Context, requestID, reviewedBy int64, approve bool, reason string,
+) error {
+	if s.EventRecorder == nil {
+		return nil
+	}
+	row, err := s.ChangeRepo.FindByID(ctx, requestID)
+	if err != nil {
+		return fmt.Errorf("offering change: reload decided request: %w", err)
+	}
+	return s.recordOfferingRequestEvent(ctx, row, usersModels.ParentRequestEventDecided, reviewedBy,
+		map[string]any{"approve": approve, "reason": reason})
 }
 
 func (s *offeringChangeRequestService) PreviewDecision(
@@ -1642,10 +1906,14 @@ func (s *offeringChangeRequestService) PreviewDecision(
 	if err != nil {
 		return nil, fmt.Errorf("offering change: load student for preview: %w", err)
 	}
-	if student == nil || student.IsAlumnus() || student.CareEndedOn(timezone.TodayDate()) {
+	if student == nil || student.IsAlumnus() || student.CareEndedOn(s.todayDate()) {
 		return nil, enrollmentModels.ErrOfferingChangeNotFound
 	}
-	if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.UserContext); !ok {
+	allowed, authErr := s.canReviewStudent(ctx, student)
+	if authErr != nil {
+		return nil, authErr
+	}
+	if !allowed {
 		return nil, ErrOfferingChangeForbidden
 	}
 	diff, err := s.decisionDiff(ctx, row, excludedIDs, effectiveFrom)
@@ -1659,7 +1927,7 @@ func (s *offeringChangeRequestService) PreviewDecision(
 	// The preview is what the office decides from, so it has to fail on
 	// everything the approval would fail on — at the same date (#2484).
 	if err := s.assertApplicableAt(
-		ctx, diff.phase, row.RequestChildID, diff.effectiveFrom, diff.requested, offeringIDSet(excludedIDs), allowCompleteWithdrawal,
+		ctx, row, diff.phase, row.StudentID, row.RequestChildID, diff.effectiveFrom, diff.requested, offeringIDSet(excludedIDs), allowCompleteWithdrawal,
 	); err != nil {
 		return nil, err
 	}
@@ -1701,6 +1969,30 @@ func (s *offeringChangeRequestService) PreviewDecision(
 	}, nil
 }
 
+func (s *offeringChangeRequestService) reviewableFilter(ctx context.Context) (func(*usersModels.Student) bool, error) {
+	if s.ReviewPolicy == nil {
+		writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.UserContext)
+		return func(student *usersModels.Student) bool { return writable(student) }, nil
+	}
+	filter, err := s.ReviewPolicy.StudentFilter(ctx, jwt.PermissionsFromCtx(ctx))
+	if err != nil {
+		return nil, fmt.Errorf("offering change: resolve request reviewer scope: %w", err)
+	}
+	return filter, nil
+}
+
+func (s *offeringChangeRequestService) canReviewStudent(ctx context.Context, student *usersModels.Student) (bool, error) {
+	if s.ReviewPolicy == nil {
+		ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.UserContext)
+		return ok, nil
+	}
+	ok, err := s.ReviewPolicy.Allows(ctx, jwt.PermissionsFromCtx(ctx), student)
+	if err != nil {
+		return false, fmt.Errorf("offering change: resolve request reviewer scope: %w", err)
+	}
+	return ok, nil
+}
+
 func (s *offeringChangeRequestService) manualPlanningConflicts(
 	ctx context.Context,
 	studentID int64,
@@ -1710,7 +2002,7 @@ func (s *offeringChangeRequestService) manualPlanningConflicts(
 		return nil, fmt.Errorf("offering change: impact repository is required for preview")
 	}
 	occurrences, err := s.ImpactRepo.ListManualPlanningOccurrences(
-		ctx, studentID, diff.effectiveFrom, diff.phase.ServiceEndDate,
+		ctx, studentID, diff.effectiveFrom.String(), string(diff.phase.ServiceEndDate),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("offering change: list manual planning conflicts: %w", err)
@@ -1718,7 +2010,7 @@ func (s *offeringChangeRequestService) manualPlanningConflicts(
 	return aggregateManualPlanningConflicts(occurrences, diff), nil
 }
 
-func proposedCareCoversOccurrence(diff *offeringDecisionDiff, occurrence enrollmentModels.ManualPlanningOccurrence) bool {
+func proposedCareCoversOccurrence(diff *offeringDecisionDiff, occurrence ManualPlanningOccurrence) bool {
 	for _, selection := range diff.selected {
 		if proposedSelectionCoversOccurrence(diff, selection, occurrence) {
 			return true
@@ -1730,9 +2022,9 @@ func proposedCareCoversOccurrence(diff *offeringDecisionDiff, occurrence enrollm
 func proposedSelectionCoversOccurrence(
 	diff *offeringDecisionDiff,
 	selection materializedOfferingSelection,
-	occurrence enrollmentModels.ManualPlanningOccurrence,
+	occurrence ManualPlanningOccurrence,
 ) bool {
-	if diff == nil || diff.phase == nil || occurrence.Date.Before(diff.effectiveFrom) || occurrence.Date.After(diff.phase.ServiceEndDate) {
+	if diff == nil || diff.phase == nil || timezone.Date(occurrence.Date).Before(diff.effectiveFrom) || timezone.Date(occurrence.Date).After(timezone.Date(diff.phase.ServiceEndDate)) {
 		return false
 	}
 	offering := diff.offeringByID[selection.OfferingID]
@@ -1743,10 +2035,10 @@ func proposedSelectionCoversOccurrence(
 	if offering.DaysOfWeekMode == enrollmentModels.DaysOfWeekModeFixed {
 		days = offering.AvailableDays
 	}
-	return slices.Contains(days, canonicalDayForWeekday(occurrence.Date.Weekday()))
+	return slices.Contains(days, canonicalDayForWeekday(timezone.Date(occurrence.Date).Weekday()))
 }
 
-func proposedLegacyPlanningCoversOccurrence(diff *offeringDecisionDiff, occurrence enrollmentModels.ManualPlanningOccurrence) bool {
+func proposedLegacyPlanningCoversOccurrence(diff *offeringDecisionDiff, occurrence ManualPlanningOccurrence) bool {
 	if diff == nil {
 		return false
 	}
@@ -1763,14 +2055,14 @@ func proposedLegacyPlanningCoversOccurrence(diff *offeringDecisionDiff, occurren
 }
 
 func aggregateManualPlanningConflicts(
-	occurrences []enrollmentModels.ManualPlanningOccurrence,
+	occurrences []ManualPlanningOccurrence,
 	diff *offeringDecisionDiff,
 ) []ManualPlanningConflict {
 	conflicts := make([]ManualPlanningConflict, 0)
 	groupIndexes := make(map[int64]int)
 	seenDays := make(map[int64]map[string]bool)
 	for _, occurrence := range occurrences {
-		day := canonicalDayForWeekday(occurrence.Date.Weekday())
+		day := canonicalDayForWeekday(timezone.Date(occurrence.Date).Weekday())
 		if proposedLegacyPlanningCoversOccurrence(diff, occurrence) || proposedCareCoversOccurrence(diff, occurrence) {
 			continue
 		}
@@ -1779,7 +2071,7 @@ func aggregateManualPlanningConflicts(
 			conflicts = append(conflicts, ManualPlanningConflict{
 				ActivityGroupID:   occurrence.ActivityGroupID,
 				ActivityGroupName: occurrence.ActivityGroupName,
-				FirstDate:         occurrence.Date,
+				FirstDate:         timezone.Date(occurrence.Date),
 			})
 			groupIndex = len(conflicts) - 1
 			groupIndexes[occurrence.ActivityGroupID] = groupIndex
@@ -1787,8 +2079,8 @@ func aggregateManualPlanningConflicts(
 		}
 		conflict := &conflicts[groupIndex]
 		conflict.OccurrenceCount++
-		if occurrence.Date.Before(conflict.FirstDate) {
-			conflict.FirstDate = occurrence.Date
+		if timezone.Date(occurrence.Date).Before(conflict.FirstDate) {
+			conflict.FirstDate = timezone.Date(occurrence.Date)
 		}
 		if !seenDays[occurrence.ActivityGroupID][day] {
 			seenDays[occurrence.ActivityGroupID][day] = true
@@ -1832,8 +2124,8 @@ func (s *offeringChangeRequestService) payloadDecisionDiff(
 	if err != nil {
 		return nil, err
 	}
-	current, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(
-		ctx, row.RequestChildID, appliedOfferingChangeDate(row.EffectiveFrom),
+	current, err := readOwnerOfferingSelections(
+		ctx, s.Children, row.RequestChildID, appliedOfferingChangeDate(timezone.Date(row.EffectiveFrom), s.todayDate()),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list current offerings: %w", err)
@@ -1850,9 +2142,9 @@ func (s *offeringChangeRequestService) payloadDecisionDiff(
 }
 
 func explicitOfferingLinks(
-	links []*enrollmentModels.RequestChildOffering,
-) []*enrollmentModels.RequestChildOffering {
-	explicit := make([]*enrollmentModels.RequestChildOffering, 0, len(links))
+	links []*RequestChildOffering,
+) []*RequestChildOffering {
+	explicit := make([]*RequestChildOffering, 0, len(links))
 	for _, link := range links {
 		if link == nil || (len(link.ManualSelectedDays) == 0 && len(link.AutomaticSelectedDays) > 0) {
 			continue
@@ -1890,6 +2182,7 @@ func (s *offeringChangeRequestService) storeDecisionSnapshot(
 			NewAutomaticDays: entry.NewAutomaticDays,
 			NewRuleDays:      entry.NewRuleDays,
 			AutoTriggerNames: entry.AutoTriggerNames,
+			IsCourse:         entry.IsCourse,
 		})
 	}
 	if err := s.ChangeRepo.UpdateDecisionSnapshot(ctx, requestID, snapshot); err != nil {
@@ -1913,6 +2206,7 @@ func diffEntriesFromSnapshot(entries []enrollmentModels.OfferingChangeSnapshotEn
 			NewAutomaticDays: entry.NewAutomaticDays,
 			NewRuleDays:      entry.NewRuleDays,
 			AutoTriggerNames: entry.AutoTriggerNames,
+			IsCourse:         entry.IsCourse,
 		})
 	}
 	return out
@@ -1938,15 +2232,15 @@ func (s *offeringChangeRequestService) applyApproved(
 	if !careOfferingsEnabled {
 		return nil, ErrCareOfferingsDisabled
 	}
-	child, err := s.RequestChildRepo.FindByID(ctx, row.RequestChildID)
+	child, err := offeringChildByID(ctx, s.Children, row.RequestChildID)
 	if err != nil || child == nil {
 		return nil, fmt.Errorf("offering change: load request child: %w", err)
 	}
-	request, err := s.RequestRepo.FindByID(ctx, child.RequestID)
+	request, err := intakeRequestByID(ctx, s.Requests, child.RequestID, false)
 	if err != nil || request == nil {
 		return nil, fmt.Errorf("offering change: load request: %w", err)
 	}
-	phase, err := s.PhaseRepo.FindByID(ctx, request.PhaseID)
+	phase, err := s.Phases.Phase(ctx, request.PhaseID)
 	if err != nil || phase == nil {
 		return nil, fmt.Errorf("offering change: load phase: %w", err)
 	}
@@ -1959,11 +2253,11 @@ func (s *offeringChangeRequestService) applyApproved(
 	// office agreed, and a date in the past would be rejected by the adjustment
 	// validator. A date the office confirmed itself is never moved — see
 	// confirmedEffectiveFrom.
-	effectiveFrom, err := confirmedEffectiveFrom(input.EffectiveFrom, row.EffectiveFrom, phase)
+	effectiveFrom, err := confirmedEffectiveFrom(input.EffectiveFrom, timezone.Date(row.EffectiveFrom), s.todayDate(), phase)
 	if err != nil {
 		return nil, err
 	}
-	if effectiveFrom.After(phase.ServiceEndDate) {
+	if effectiveFrom.After(timezone.Date(phase.ServiceEndDate)) {
 		return nil, fmt.Errorf("%w: the care period ended before this request was decided", ErrOfferingChangeInvalid)
 	}
 	student, err := s.StudentRepo.FindByIDForUpdate(ctx, row.StudentID)
@@ -1978,7 +2272,7 @@ func (s *offeringChangeRequestService) applyApproved(
 	if err != nil {
 		return nil, err
 	}
-	if err := s.assertApplicableAt(ctx, phase, row.RequestChildID, effectiveFrom, selections, excluded, allowCompleteWithdrawal); err != nil {
+	if err := s.assertApplicableAt(ctx, row, phase, row.StudentID, row.RequestChildID, effectiveFrom, selections, excluded, allowCompleteWithdrawal); err != nil {
 		return nil, err
 	}
 	completeWithdrawal, err := s.completeWithdrawalAt(
@@ -1992,8 +2286,8 @@ func (s *offeringChangeRequestService) applyApproved(
 	}
 	// Keep the actual date in memory for the adjustment audit. Persist it only
 	// after the switch succeeds, so a client error leaves the pending row intact.
-	requestedFrom := row.EffectiveFrom
-	row.EffectiveFrom = effectiveFrom
+	requestedFrom := timezone.Date(row.EffectiveFrom)
+	row.EffectiveFrom = enrollmentModels.OfferingChangeDate(effectiveFrom)
 	reason := offeringChangeAdjustmentReason(row, requestedFrom, input.Reason)
 	adjustment := UpdateChildOfferingsInput{
 		RequestID:                request.ID,
@@ -2012,7 +2306,7 @@ func (s *offeringChangeRequestService) applyApproved(
 	if err != nil {
 		return nil, fmt.Errorf("offering change: apply: %w", err)
 	}
-	if err := s.ChangeRepo.UpdateEffectiveFrom(ctx, row.ID, effectiveFrom); err != nil {
+	if err := s.ChangeRepo.UpdateEffectiveFrom(ctx, row.ID, enrollmentModels.OfferingChangeDate(effectiveFrom)); err != nil {
 		return nil, fmt.Errorf("offering change: update applied effective date: %w", err)
 	}
 	return applied, nil
@@ -2031,14 +2325,14 @@ func (s *offeringChangeRequestService) approvalAllowsCompleteWithdrawal(ctx cont
 
 func (s *offeringChangeRequestService) completeWithdrawalAt(
 	ctx context.Context,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentOwner.Phase,
 	requestChildID int64,
 	effectiveFrom timezone.Date,
 	selections []OfferingChangeSelection,
 	excluded map[int64]bool,
 	allowCompleteWithdrawal bool,
 ) (bool, error) {
-	current, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, requestChildID, effectiveFrom)
+	current, err := readOwnerOfferingSelections(ctx, s.Children, requestChildID, effectiveFrom)
 	if err != nil {
 		return false, fmt.Errorf("offering change: list current offerings for withdrawal check: %w", err)
 	}
@@ -2070,20 +2364,20 @@ func (s *offeringChangeRequestService) completeWithdrawalAt(
 // it just confirmed (#2484).
 func confirmedEffectiveFrom(
 	confirmed *timezone.Date,
-	requested timezone.Date,
-	phase *enrollmentModels.Phase,
+	requested, today timezone.Date,
+	phase *enrollmentOwner.Phase,
 ) (timezone.Date, error) {
 	if confirmed == nil {
-		return appliedOfferingChangeDateForPhase(requested, phase), nil
+		return appliedOfferingChangeDateForPhase(requested, today, phase), nil
 	}
-	earliest := appliedOfferingChangeDateForPhase(timezone.TodayDate(), phase)
+	earliest := appliedOfferingChangeDateForPhase(today, today, phase)
 	if confirmed.Before(earliest) {
-		return timezone.Date{}, fmt.Errorf("%w: %s is before %s",
+		return timezone.Date(""), fmt.Errorf("%w: %s is before %s",
 			ErrOfferingChangeDateOutOfRange, confirmed, earliest)
 	}
-	if phase != nil && confirmed.After(phase.ServiceEndDate) {
-		return timezone.Date{}, fmt.Errorf("%w: %s is after the care period ends on %s",
-			ErrOfferingChangeDateOutOfRange, confirmed, phase.ServiceEndDate)
+	if phase != nil && confirmed.After(timezone.Date(phase.ServiceEndDate)) {
+		return timezone.Date(""), fmt.Errorf("%w: %s is after the care period ends on %s",
+			ErrOfferingChangeDateOutOfRange, confirmed, timezone.Date(phase.ServiceEndDate))
 	}
 	return *confirmed, nil
 }
@@ -2094,7 +2388,9 @@ func confirmedEffectiveFrom(
 // preview that shows a switch is a switch the approval can actually make.
 func (s *offeringChangeRequestService) assertApplicableAt(
 	ctx context.Context,
-	phase *enrollmentModels.Phase,
+	pending *enrollmentModels.OfferingChangeRequest,
+	phase *enrollmentOwner.Phase,
+	studentID int64,
 	requestChildID int64,
 	effectiveFrom timezone.Date,
 	selections []OfferingChangeSelection,
@@ -2104,20 +2400,20 @@ func (s *offeringChangeRequestService) assertApplicableAt(
 	if _, err := s.validateSelections(ctx, phase, requestChildID, effectiveFrom, selections, allowCompleteWithdrawal); err != nil {
 		return err
 	}
-	return s.assertCapacityAvailable(ctx, phase, requestChildID, effectiveFrom, selections, excluded, allowCompleteWithdrawal)
+	return s.assertCapacityAvailable(ctx, phase, studentID, requestChildID, effectiveFrom, selections, excluded, allowCompleteWithdrawal, pending)
 }
 
-func appliedOfferingChangeDate(effectiveFrom timezone.Date) timezone.Date {
-	if today := timezone.TodayDate(); effectiveFrom.Before(today) {
+func appliedOfferingChangeDate(effectiveFrom, today timezone.Date) timezone.Date {
+	if effectiveFrom.Before(today) {
 		return today
 	}
 	return effectiveFrom
 }
 
-func appliedOfferingChangeDateForPhase(effectiveFrom timezone.Date, phase *enrollmentModels.Phase) timezone.Date {
-	effectiveFrom = appliedOfferingChangeDate(effectiveFrom)
-	if phase != nil && effectiveFrom.Before(phase.ServiceStartDate) {
-		return phase.ServiceStartDate
+func appliedOfferingChangeDateForPhase(effectiveFrom, today timezone.Date, phase *enrollmentOwner.Phase) timezone.Date {
+	effectiveFrom = appliedOfferingChangeDate(effectiveFrom, today)
+	if phase != nil && effectiveFrom.Before(timezone.Date(phase.ServiceStartDate)) {
+		return timezone.Date(phase.ServiceStartDate)
 	}
 	return effectiveFrom
 }
@@ -2127,14 +2423,16 @@ func appliedOfferingChangeDateForPhase(effectiveFrom timezone.Date, phase *enrol
 // then reserves one replacement interval through the end of the care period.
 func (s *offeringChangeRequestService) assertCapacityAvailable(
 	ctx context.Context,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentOwner.Phase,
+	studentID int64,
 	requestChildID int64,
 	effectiveFrom timezone.Date,
 	selections []OfferingChangeSelection,
 	excluded map[int64]bool,
 	allowCompleteWithdrawal bool,
+	pending *enrollmentModels.OfferingChangeRequest,
 ) error {
-	current, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, requestChildID, effectiveFrom)
+	current, err := readOwnerOfferingSelections(ctx, s.Children, requestChildID, effectiveFrom)
 	if err != nil {
 		return fmt.Errorf("offering change: list current offerings: %w", err)
 	}
@@ -2161,7 +2459,8 @@ func (s *offeringChangeRequestService) assertCapacityAvailable(
 		return fmt.Errorf("offering change: lock offering capacity: %w", err)
 	}
 	lockedByID := offeringsByID(locked)
-	phaseEndExclusive := phase.ServiceEndDate.AddDays(1)
+	phaseEndExclusive := timezone.Date(phase.ServiceEndDate).AddDays(1)
+	courseOfferings := make([]*enrollmentModels.CareOffering, 0, len(replacementOfferingIDs))
 	for _, offeringID := range replacementOfferingIDs {
 		offering := lockedByID[offeringID]
 		if offering == nil || (!held[offeringID] && !offering.IsActive) {
@@ -2170,11 +2469,28 @@ func (s *offeringChangeRequestService) assertCapacityAvailable(
 		if heldOfferingCoversRange(current, offeringID, phaseEndExclusive) {
 			continue
 		}
+		courseOfferings = append(courseOfferings, offering)
+	}
+	// Resolve every course group before acquiring any course lock. Each batch is
+	// ordered by group id, so approvals touching overlapping offerings cannot
+	// deadlock while each waits for the other's later group lock.
+	if err := s.assertCourseCapacitiesAvailable(ctx, studentID, requestChildID, courseOfferings, effectiveFrom, phaseEndExclusive, pending); err != nil {
+		return err
+	}
+	for _, offeringID := range replacementOfferingIDs {
+		offering := lockedByID[offeringID]
+		if heldOfferingCoversRange(current, offeringID, phaseEndExclusive) {
+			continue
+		}
+		// A Kurs carries a second limit: the AG's Teilnehmergrenze, measured
+		// against its actual roster (#3075). Both limits are maintained by the
+		// school, so the stricter one decides; an approval must not silently
+		// overbook the AG because only the offering had room.
 		if offering.Capacity == nil {
 			continue
 		}
-		taken, countErr := s.RequestChildOfferingRepo.CountMaxActiveByCareOfferingInRangeExcludingRequestChild(
-			ctx, offering.ID, requestChildID, effectiveFrom, phaseEndExclusive,
+		taken, countErr := s.Children.OfferingCapacityPeak(
+			ctx, offering.ID, []int64{requestChildID}, enrollmentOwner.Date(effectiveFrom), enrollmentOwner.Date(phaseEndExclusive),
 		)
 		if countErr != nil {
 			return fmt.Errorf("offering change: count offering occupancy: %w", countErr)
@@ -2187,13 +2503,13 @@ func (s *offeringChangeRequestService) assertCapacityAvailable(
 }
 
 func heldOfferingCoversRange(
-	links []*enrollmentModels.RequestChildOffering,
+	links []*RequestChildOffering,
 	offeringID int64,
 	until timezone.Date,
 ) bool {
 	for _, link := range links {
 		if link != nil && link.CareOfferingID == offeringID &&
-			(link.ValidUntil == nil || !link.ValidUntil.Before(until)) {
+			(link.ValidUntil == nil || !timezone.Date(*link.ValidUntil).Before(until)) {
 			return true
 		}
 	}
@@ -2204,7 +2520,7 @@ func heldOfferingCoversRange(
 // are not present in a guardian's raw selection but consume capacity too.
 func (s *offeringChangeRequestService) materializedOfferingIDs(
 	ctx context.Context,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentOwner.Phase,
 	requestChildID int64,
 	effectiveFrom timezone.Date,
 	selections []OfferingChangeSelection,
@@ -2224,7 +2540,7 @@ func (s *offeringChangeRequestService) materializedOfferingIDs(
 	return ids, nil
 }
 
-func heldOfferingIDs(links []*enrollmentModels.RequestChildOffering) map[int64]bool {
+func heldOfferingIDs(links []*RequestChildOffering) map[int64]bool {
 	held := make(map[int64]bool, len(links))
 	for _, link := range links {
 		if link != nil {
@@ -2237,8 +2553,8 @@ func heldOfferingIDs(links []*enrollmentModels.RequestChildOffering) map[int64]b
 // withoutAutomaticSelections ignores guardian input for offerings that are
 // currently derived from another selection. Automatic offerings are visible in
 // the form but cannot be independently changed or turned into manual bookings.
-func withoutAutomaticSelections(current []*enrollmentModels.RequestChildOffering, selections []OfferingChangeSelection) []OfferingChangeSelection {
-	automatic := make(map[int64]*enrollmentModels.RequestChildOffering, len(current))
+func withoutAutomaticSelections(current []*RequestChildOffering, selections []OfferingChangeSelection) []OfferingChangeSelection {
+	automatic := make(map[int64]*RequestChildOffering, len(current))
 	for _, link := range current {
 		if link != nil && len(link.ManualSelectedDays) == 0 && len(link.AutomaticSelectedDays) > 0 {
 			automatic[link.CareOfferingID] = link
@@ -2254,11 +2570,11 @@ func withoutAutomaticSelections(current []*enrollmentModels.RequestChildOffering
 	return manual
 }
 
-func sameMaterializedOfferingSelections(current []*enrollmentModels.RequestChildOffering, selections []materializedOfferingSelection) bool {
+func sameMaterializedOfferingSelections(current []*RequestChildOffering, selections []materializedOfferingSelection) bool {
 	if len(current) != len(selections) {
 		return false
 	}
-	byID := make(map[int64]*enrollmentModels.RequestChildOffering, len(current))
+	byID := make(map[int64]*RequestChildOffering, len(current))
 	for _, link := range current {
 		if link == nil {
 			return false
@@ -2276,7 +2592,7 @@ func sameMaterializedOfferingSelections(current []*enrollmentModels.RequestChild
 
 func (s *offeringChangeRequestService) materializedSelections(
 	ctx context.Context,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentOwner.Phase,
 	requestChildID int64,
 	effectiveFrom timezone.Date,
 	selections []OfferingChangeSelection,
@@ -2290,7 +2606,7 @@ func (s *offeringChangeRequestService) materializedSelections(
 // keep their manual days but gain no rule-derived ones.
 func (s *offeringChangeRequestService) materializedSelectionsExcluding(
 	ctx context.Context,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentOwner.Phase,
 	requestChildID int64,
 	effectiveFrom timezone.Date,
 	selections []OfferingChangeSelection,
@@ -2311,7 +2627,7 @@ func (s *offeringChangeRequestService) materializedSelectionsExcluding(
 	if err != nil {
 		return nil, err
 	}
-	child, err := s.RequestChildRepo.FindByID(ctx, requestChildID)
+	child, err := offeringChildByID(ctx, s.Children, requestChildID)
 	if err != nil || child == nil {
 		return nil, fmt.Errorf("offering change: load request child: %w", err)
 	}
@@ -2333,7 +2649,7 @@ func (s *offeringChangeRequestService) materializedSelectionsExcluding(
 // would then refuse.
 func (s *offeringChangeRequestService) validateSelections(
 	ctx context.Context,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentOwner.Phase,
 	requestChildID int64,
 	effectiveFrom timezone.Date,
 	selections []OfferingChangeSelection,
@@ -2356,7 +2672,7 @@ func (s *offeringChangeRequestService) validateSelections(
 	if err != nil {
 		return nil, err
 	}
-	child, err := s.RequestChildRepo.FindByID(ctx, requestChildID)
+	child, err := offeringChildByID(ctx, s.Children, requestChildID)
 	if err != nil || child == nil {
 		return nil, fmt.Errorf("offering change: load request child: %w", err)
 	}
@@ -2392,11 +2708,11 @@ func (s *offeringChangeRequestService) addHeldOfferingsAtDate(
 	requestChildID int64,
 	onDate timezone.Date,
 	allowed map[int64]*enrollmentModels.CareOffering,
-) ([]*enrollmentModels.RequestChildOffering, error) {
+) ([]*RequestChildOffering, error) {
 	if requestChildID <= 0 {
 		return nil, nil
 	}
-	current, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, requestChildID, onDate)
+	current, err := readOwnerOfferingSelections(ctx, s.Children, requestChildID, onDate)
 	if err != nil {
 		return nil, fmt.Errorf("offering change: list current offerings: %w", err)
 	}
@@ -2483,23 +2799,24 @@ func (s *offeringChangeRequestService) diffForRequest(
 type offeringDecisionDiff struct {
 	entries      []OfferingChangeDiffEntry
 	overridden   []enrollmentModels.OfferingChangeSnapshotOffering
-	current      []*enrollmentModels.RequestChildOffering
+	current      []*RequestChildOffering
 	base         []materializedOfferingSelection
 	selected     []materializedOfferingSelection
 	offeringByID map[int64]*enrollmentModels.CareOffering
 	// phase, requested and effectiveFrom are the context the materialization
 	// ran against, so a caller can re-check applicability without resolving the
 	// same aggregate twice.
-	phase         *enrollmentModels.Phase
+	phase         *enrollmentOwner.Phase
 	requested     []OfferingChangeSelection
 	effectiveFrom timezone.Date
 }
 
 type offeringDecisionMaterialization struct {
 	row       *enrollmentModels.OfferingChangeRequest
+	child     *RequestChild
 	base      []materializedOfferingSelection
 	selected  []materializedOfferingSelection
-	phase     *enrollmentModels.Phase
+	phase     *enrollmentOwner.Phase
 	requested []OfferingChangeSelection
 }
 
@@ -2518,8 +2835,8 @@ func (s *offeringChangeRequestService) decisionDiff(
 	if err != nil {
 		return nil, err
 	}
-	current, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(
-		ctx, materialization.row.RequestChildID, materialization.row.EffectiveFrom,
+	current, err := readOwnerOfferingSelections(
+		ctx, s.Children, materialization.row.RequestChildID, timezone.Date(materialization.row.EffectiveFrom),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("offering change: list current offerings: %w", err)
@@ -2527,13 +2844,14 @@ func (s *offeringChangeRequestService) decisionDiff(
 	ids, currentByID, requestedByID := offeringChangeSides(current, offeringChangeSelections(materialization.selected))
 	diff, err := s.buildDecisionDiff(
 		ctx, excludedIDs, current, materialization.base, materialization.selected, ids, currentByID, requestedByID,
+		courseTargetCatalog(materialization.child), materialization.requested,
 	)
 	if err != nil {
 		return nil, err
 	}
 	diff.phase = materialization.phase
 	diff.requested = materialization.requested
-	diff.effectiveFrom = materialization.row.EffectiveFrom
+	diff.effectiveFrom = timezone.Date(materialization.row.EffectiveFrom)
 	return diff, nil
 }
 
@@ -2544,11 +2862,12 @@ func (s *offeringChangeRequestService) materializeDecisionSelections(
 	effectiveFrom *timezone.Date,
 ) (*offeringDecisionMaterialization, error) {
 	rowCopy := *row
-	requested, phase, err := s.decisionRequestContext(ctx, &rowCopy)
+	requested, child, phase, err := s.decisionRequestContext(ctx, &rowCopy)
 	if err != nil {
 		return nil, err
 	}
-	rowCopy.EffectiveFrom, err = confirmedEffectiveFrom(effectiveFrom, rowCopy.EffectiveFrom, phase)
+	confirmedDate, err := confirmedEffectiveFrom(effectiveFrom, timezone.Date(rowCopy.EffectiveFrom), s.todayDate(), phase)
+	rowCopy.EffectiveFrom = enrollmentModels.OfferingChangeDate(confirmedDate)
 	if err != nil {
 		return nil, err
 	}
@@ -2556,19 +2875,19 @@ func (s *offeringChangeRequestService) materializeDecisionSelections(
 	if err != nil {
 		return nil, err
 	}
-	base, err := s.materializedSelections(ctx, phase, rowCopy.RequestChildID, rowCopy.EffectiveFrom, requested, allowCompleteWithdrawal)
+	base, err := s.materializedSelections(ctx, phase, rowCopy.RequestChildID, timezone.Date(rowCopy.EffectiveFrom), requested, allowCompleteWithdrawal)
 	if err != nil {
 		return nil, err
 	}
 	result := &offeringDecisionMaterialization{
-		row: &rowCopy, base: base, selected: base, phase: phase, requested: requested,
+		row: &rowCopy, child: child, base: base, selected: base, phase: phase, requested: requested,
 	}
 	excluded := offeringIDSet(excludedIDs)
 	if len(excluded) == 0 {
 		return result, nil
 	}
 	result.selected, err = s.materializedSelectionsExcluding(
-		ctx, phase, rowCopy.RequestChildID, rowCopy.EffectiveFrom, requested, excluded, allowCompleteWithdrawal,
+		ctx, phase, rowCopy.RequestChildID, timezone.Date(rowCopy.EffectiveFrom), requested, excluded, allowCompleteWithdrawal,
 	)
 	if err != nil {
 		return nil, err
@@ -2579,24 +2898,24 @@ func (s *offeringChangeRequestService) materializeDecisionSelections(
 func (s *offeringChangeRequestService) decisionRequestContext(
 	ctx context.Context,
 	row *enrollmentModels.OfferingChangeRequest,
-) ([]OfferingChangeSelection, *enrollmentModels.Phase, error) {
+) ([]OfferingChangeSelection, *RequestChild, *enrollmentOwner.Phase, error) {
 	requested, err := selectionsFromPayload(row.Payload)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	child, err := s.RequestChildRepo.FindByID(ctx, row.RequestChildID)
+	child, err := offeringChildByID(ctx, s.Children, row.RequestChildID)
 	if err != nil || child == nil {
-		return nil, nil, fmt.Errorf("offering change: load request child for diff: %w", err)
+		return nil, nil, nil, fmt.Errorf("offering change: load request child for diff: %w", err)
 	}
-	request, err := s.RequestRepo.FindByID(ctx, child.RequestID)
+	request, err := intakeRequestByID(ctx, s.Requests, child.RequestID, false)
 	if err != nil || request == nil {
-		return nil, nil, fmt.Errorf("offering change: load request for diff: %w", err)
+		return nil, nil, nil, fmt.Errorf("offering change: load request for diff: %w", err)
 	}
-	phase, err := s.PhaseRepo.FindByID(ctx, request.PhaseID)
+	phase, err := s.Phases.Phase(ctx, request.PhaseID)
 	if err != nil || phase == nil {
-		return nil, nil, fmt.Errorf("offering change: load phase for diff: %w", err)
+		return nil, nil, nil, fmt.Errorf("offering change: load phase for diff: %w", err)
 	}
-	return requested, phase, nil
+	return requested, child, phase, nil
 }
 
 func offeringIDSet(ids []int64) map[int64]bool {
@@ -2622,11 +2941,13 @@ func appendMissingOfferingIDs(ids []int64, selections []materializedOfferingSele
 func (s *offeringChangeRequestService) buildDecisionDiff(
 	ctx context.Context,
 	excludedIDs []int64,
-	current []*enrollmentModels.RequestChildOffering,
+	current []*RequestChildOffering,
 	base, materialized []materializedOfferingSelection,
 	ids []int64,
-	currentByID map[int64]*enrollmentModels.RequestChildOffering,
+	currentByID map[int64]*RequestChildOffering,
 	requestedByID map[int64]OfferingChangeSelection,
+	courseCatalog *OfferingChangeCatalog,
+	requested []OfferingChangeSelection,
 ) (*offeringDecisionDiff, error) {
 	offeringIDs := appendMissingOfferingIDs(ids, base)
 	offerings, err := s.CareOfferingRepo.ListByIDs(ctx, offeringIDs)
@@ -2638,13 +2959,17 @@ func (s *offeringChangeRequestService) buildDecisionDiff(
 	if err != nil {
 		return nil, err
 	}
-	return materializedDecisionDiffFromSides(
+	diff := materializedDecisionDiffFromSides(
 		currentByID, requestedByID, ids, current, base, materialized, offeringByID, overridden,
-	), nil
+	)
+	if err := s.markCourseDiffEntries(ctx, diff.entries, offeringByID, courseCatalog, requested); err != nil {
+		return nil, err
+	}
+	return diff, nil
 }
 
 func materializedDecisionDiff(
-	current []*enrollmentModels.RequestChildOffering,
+	current []*RequestChildOffering,
 	materialized, base []materializedOfferingSelection,
 	offeringByID map[int64]*enrollmentModels.CareOffering,
 	overridden []enrollmentModels.OfferingChangeSnapshotOffering,
@@ -2656,10 +2981,10 @@ func materializedDecisionDiff(
 }
 
 func materializedDecisionDiffFromSides(
-	currentByID map[int64]*enrollmentModels.RequestChildOffering,
+	currentByID map[int64]*RequestChildOffering,
 	requestedByID map[int64]OfferingChangeSelection,
 	ids []int64,
-	current []*enrollmentModels.RequestChildOffering,
+	current []*RequestChildOffering,
 	base, materialized []materializedOfferingSelection,
 	offeringByID map[int64]*enrollmentModels.CareOffering,
 	overridden []enrollmentModels.OfferingChangeSnapshotOffering,
@@ -2676,7 +3001,7 @@ func materializedDecisionDiffFromSides(
 func offeringDiffEntries(
 	ids []int64,
 	offeringByID map[int64]*enrollmentModels.CareOffering,
-	currentByID map[int64]*enrollmentModels.RequestChildOffering,
+	currentByID map[int64]*RequestChildOffering,
 	requestedByID map[int64]OfferingChangeSelection,
 ) []OfferingChangeDiffEntry {
 	entries := make([]OfferingChangeDiffEntry, 0, len(ids))
@@ -2741,11 +3066,11 @@ func offeringChangeSelections(materialized []materializedOfferingSelection) []Of
 }
 
 func offeringChangeSides(
-	current []*enrollmentModels.RequestChildOffering,
+	current []*RequestChildOffering,
 	requested []OfferingChangeSelection,
 ) (
 	[]int64,
-	map[int64]*enrollmentModels.RequestChildOffering,
+	map[int64]*RequestChildOffering,
 	map[int64]OfferingChangeSelection,
 ) {
 	ids := make([]int64, 0, len(current)+len(requested))
@@ -2756,7 +3081,7 @@ func offeringChangeSides(
 			ids = append(ids, id)
 		}
 	}
-	currentByID := make(map[int64]*enrollmentModels.RequestChildOffering, len(current))
+	currentByID := make(map[int64]*RequestChildOffering, len(current))
 	for _, link := range current {
 		if link != nil {
 			currentByID[link.CareOfferingID] = link
@@ -2875,7 +3200,7 @@ func daysOverlap(left, right []string) bool {
 func offeringDiffEntry(
 	id int64,
 	name string,
-	current *enrollmentModels.RequestChildOffering,
+	current *RequestChildOffering,
 	requestedByID map[int64]OfferingChangeSelection,
 ) (OfferingChangeDiffEntry, bool) {
 	if name == "" {
@@ -2901,6 +3226,7 @@ func offeringDiffEntry(
 		OldDays:    oldDays,
 		NewState:   newState,
 		NewDays:    newDays,
+		IsCourse:   false,
 	}, changed
 }
 
@@ -2910,8 +3236,8 @@ func (s *offeringChangeRequestService) emitDecisionPill(
 	reviewedBy int64,
 	body, status, reason string,
 	payload map[string]any,
-) {
-	s.emitPillAfterCommit(ctx, row, parentmessaging.ChildEvent{
+) error {
+	ev := parentmessaging.ChildEvent{
 		EventType:      usersModels.ParentMessageEventRequestStatus,
 		ActorKind:      usersModels.ParentMessageSenderStaff,
 		ActorAccountID: reviewedBy,
@@ -2920,19 +3246,25 @@ func (s *offeringChangeRequestService) emitDecisionPill(
 		RequestStatus:  status,
 		DecisionReason: reason,
 		Payload:        payload,
-	})
+	}
+	if err := s.emitPillAfterCommit(ctx, row, ev); err != nil {
+		return err
+	}
+	// Every other guardian of this child hears about the decision: the full
+	// pill for explicit share recipients, a neutral line for the rest.
+	s.notifyOtherGuardiansAfterCommit(ctx, row, ev)
+	return nil
 }
 
-// emitPillAfterCommit posts the notification pill into the child's parent-OGS
-// thread once the surrounding transaction committed. Best-effort: a lost pill
-// costs a notification, never the decision.
+// emitPillAfterCommit writes the durable decision intent in the surrounding
+// transaction, then posts the best-effort parent-OGS pill after commit.
 func (s *offeringChangeRequestService) emitPillAfterCommit(
 	ctx context.Context,
 	row *enrollmentModels.OfferingChangeRequest,
 	ev parentmessaging.ChildEvent,
-) {
+) error {
 	if s.Emitter == nil {
-		return
+		return nil
 	}
 	tenantID := row.TenantID
 	if tenantID <= 0 {
@@ -2943,10 +3275,14 @@ func (s *offeringChangeRequestService) emitPillAfterCommit(
 	ev.RefID = &refID
 	studentID := row.StudentID
 	guardianAccountID := row.SubmittedBy
+	if err := s.Emitter.EnqueueRequestDecision(ctx, tenantID, studentID, guardianAccountID, ev); err != nil {
+		return fmt.Errorf("offering change: enqueue request decision: %w", err)
+	}
 	tenant.RegisterAfterCommit(ctx, func() {
 		s.Emitter.EmitChildEvent(tenantID, studentID, guardianAccountID, ev)
 		s.Emitter.BroadcastChildUpdateToGuardians(tenantID, studentID)
 	})
+	return nil
 }
 
 // offeringChangeAdjustmentReason writes the line the Änderungsprotokoll shows
@@ -2961,11 +3297,11 @@ func offeringChangeAdjustmentReason(
 	staffReason string,
 ) string {
 	reason := fmt.Sprintf("Elternanfrage #%d freigegeben (gültig ab %s)",
-		row.ID, row.EffectiveFrom.Format("02.01.2006"))
+		row.ID, timezone.Date(row.EffectiveFrom).Format("02.01.2006"))
 	if trimmed := strings.TrimSpace(staffReason); trimmed != "" {
 		reason += ": " + trimmed
 	}
-	if requested != row.EffectiveFrom {
+	if requested != timezone.Date(row.EffectiveFrom) {
 		reason += " · Wunschdatum der Eltern war " + requested.Format("02.01.2006")
 	}
 	return reason
@@ -3122,3 +3458,142 @@ func cmpOr(value, fallback string) string {
 func isPendingOfferingChangeConflict(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "uq_offering_change_requests_pending")
 }
+
+// parentRequestDoneBody is the neutral close for a request whose effective
+// date has passed: nothing was applied and nothing was refused.
+const parentRequestDoneBody = "Anfrage abgeschlossen"
+
+// MarkDone closes an offering-change request whose effective date has passed.
+// See the excused twin for why this is its own terminal state; it applies
+// nothing.
+func (s *offeringChangeRequestService) MarkDone(
+	ctx context.Context,
+	requestID int64,
+	expectedVersion, reason string,
+	reviewedBy int64,
+) error {
+	if requestID <= 0 || reviewedBy <= 0 {
+		return fmt.Errorf("%w: request and reviewer are required", ErrOfferingChangeInvalid)
+	}
+	trimmed := strings.TrimSpace(reason)
+	if utf8.RuneCountInString(trimmed) > offeringChangeMaxNoteLen {
+		return fmt.Errorf("%w: reason is too long", ErrOfferingChangeInvalid)
+	}
+	row, err := s.ChangeRepo.FindByIDForUpdate(ctx, requestID)
+	if err != nil {
+		return err
+	}
+	if row.IsTerminal() {
+		return enrollmentModels.ErrOfferingChangeNotPending
+	}
+	if expectedVersion != "" && usersService.ParentRequestVersion(row.UpdatedAt) != expectedVersion {
+		return usersService.ErrParentRequestStale
+	}
+	student, err := s.StudentRepo.FindByIDForUpdate(ctx, row.StudentID)
+	if err != nil {
+		return fmt.Errorf("offering change: load student for completion: %w", err)
+	}
+	allowed, authErr := s.canReviewStudent(ctx, student)
+	if authErr != nil {
+		return authErr
+	}
+	if !allowed {
+		return ErrOfferingChangeForbidden
+	}
+	if !usersService.ParentRequestIsPast(timezone.Date(row.EffectiveFrom), s.todayDate()) {
+		return usersService.ErrParentRequestNotPast
+	}
+	if err := s.ChangeRepo.Decide(
+		ctx, row.ID, enrollmentModels.OfferingChangeStatusDone, optionalString(trimmed), &reviewedBy, false,
+	); err != nil {
+		return err
+	}
+	if err := s.recordOfferingRequestEvent(ctx, row, usersModels.ParentRequestEventMarkedDone,
+		reviewedBy, map[string]any{"reason": trimmed}); err != nil {
+		return err
+	}
+	if err := s.emitDecisionPill(ctx, row, reviewedBy, parentRequestDoneBody,
+		usersModels.ParentMessageRequestStatusDone, trimmed, nil); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Co-guardian notices (#2267, story 47). A staff decision on one parent's
+// request changes the child's bookings for the whole family. See the excused
+// twin for the full rationale; the split is identical.
+
+// SetRequestShareVisibility wires the sharing resolver after construction.
+func (s *offeringChangeRequestService) SetRequestShareVisibility(resolver parentmessaging.ShareVisibilityResolver) {
+	if s != nil {
+		s.shareVisibility = resolver
+	}
+}
+
+// sharedRecipients resolves the explicit recipients, tolerating an unwired
+// resolver. On error everyone falls back to the neutral line — seeing less
+// than you were entitled to is a nuisance, seeing more is a leak.
+func (s *offeringChangeRequestService) sharedRecipients(
+	ctx context.Context, row *enrollmentModels.OfferingChangeRequest,
+) []int64 {
+	if s.shareVisibility == nil {
+		return nil
+	}
+	accountIDs, err := s.shareVisibility.SharedRecipientAccountIDs(
+		ctx, row.StudentID, usersModels.ParentRequestTypeOffering, row.ID,
+	)
+	if err != nil {
+		s.Logger.Warn("resolving explicit request recipients failed, falling back to neutral notices",
+			slog.Int64("request_id", row.ID),
+			slog.Int64("student_id", row.StudentID),
+			slog.String("error", err.Error()),
+		)
+		return nil
+	}
+	return accountIDs
+}
+
+// notifyOtherGuardiansAfterCommit posts the decision to the child's other
+// guardians. The audience is resolved inside the transaction; the pills go out
+// after commit.
+func (s *offeringChangeRequestService) notifyOtherGuardiansAfterCommit(
+	ctx context.Context,
+	row *enrollmentModels.OfferingChangeRequest,
+	ev parentmessaging.ChildEvent,
+) {
+	if s.Emitter == nil {
+		return
+	}
+	audience, err := s.Emitter.ResolveDecisionAudience(
+		ctx, row.StudentID, row.SubmittedBy, s.sharedRecipients(ctx, row),
+	)
+	if err != nil {
+		s.Logger.Warn("co-guardian notice: resolving guardians failed",
+			slog.Int64("request_id", row.ID),
+			slog.Int64("student_id", row.StudentID),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+	if len(audience.Full) == 0 && len(audience.Neutral) == 0 {
+		return
+	}
+	tenantID := row.TenantID
+	if tenantID <= 0 {
+		tenantID = tenant.FromContext(ctx)
+	}
+	neutral := ev
+	neutral.Body = "Betreuungsstand geändert: Angebote ab " + timezone.Date(row.EffectiveFrom).Format("02.01.2006")
+	studentID := row.StudentID
+	tenant.RegisterAfterCommit(ctx, func() {
+		s.Emitter.EmitDecisionAudience(tenantID, studentID, audience, ev, neutral)
+	})
+}
+
+// The factory wires the co-guardian resolver by type assertion, so a service
+// that silently stopped satisfying this setter would leave its domain's
+// co-guardians hearing nothing, with nothing failing. This makes that a
+// compile error instead (#2267, story 47).
+var _ interface {
+	SetRequestShareVisibility(parentmessaging.ShareVisibilityResolver)
+} = (*offeringChangeRequestService)(nil)

@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 // StudentWeekPreload holds the range-wide batch-query results used to assemble
@@ -15,7 +15,7 @@ import (
 type StudentWeekPreload struct {
 	EnrolledByDate      map[string][]*scheduleModel.ScheduledInstanceRow
 	InstancesByDate     map[string][]*scheduleModel.ActivityInstance
-	VisitsByActiveGroup map[int64][]*activeModel.Visit
+	VisitsByActiveGroup map[int64][]studentpresence.Visit
 	// ArrivalSchedByDate is keyed by date, not by weekday, because the
 	// applicable arrival row can differ from one date to the next: with the
 	// booking mode on, a weekday stops being a care day the moment the
@@ -37,23 +37,23 @@ func (s *TimetableDataService) PreloadStudentWeek(ctx context.Context, studentID
 	out := &StudentWeekPreload{
 		EnrolledByDate:      map[string][]*scheduleModel.ScheduledInstanceRow{},
 		InstancesByDate:     map[string][]*scheduleModel.ActivityInstance{},
-		VisitsByActiveGroup: map[int64][]*activeModel.Visit{},
+		VisitsByActiveGroup: map[int64][]studentpresence.Visit{},
 		ArrivalSchedByDate:  map[string]*scheduleModel.StudentArrivalSchedule{},
 		ArrivalExcByDate:    map[string]*scheduleModel.StudentArrivalException{},
 		PickupSchedByDate:   map[string]*scheduleModel.StudentPickupSchedule{},
 		PickupExcByDate:     map[string]*scheduleModel.StudentPickupException{},
 	}
 
-	enrolledRows, err := s.deps.InstanceStudentRepo.FindInstancesWithAttendanceByStudentAndDateRange(ctx, studentID, from, to)
+	enrolledRows, err := s.deps.InstanceStudentRepo.FindInstancesWithAttendanceByStudentAndDateRange(ctx, studentID, scheduleModel.Date(from), scheduleModel.Date(to))
 	if err != nil {
 		return nil, fmt.Errorf("load enrolled instances: %w", err)
 	}
 	for _, row := range enrolledRows {
-		k := timetableDateKey(row.Instance.Date)
+		k := timetableDateKey(timezone.Date(row.Instance.Date))
 		out.EnrolledByDate[k] = append(out.EnrolledByDate[k], row)
 	}
 
-	allInstances, err := s.deps.ActivityInstanceRepo.FindByTenantAndDateRange(ctx, from, to)
+	allInstances, err := s.deps.ActivityInstanceRepo.FindByTenantAndDateRange(ctx, scheduleModel.Date(from), scheduleModel.Date(to))
 	if err != nil {
 		return nil, fmt.Errorf("load all tenant instances: %w", err)
 	}
@@ -64,7 +64,7 @@ func (s *TimetableDataService) PreloadStudentWeek(ctx context.Context, studentID
 	activeGroupIDs := make([]int64, 0, len(allInstances))
 	seenAGID := make(map[int64]bool, len(allInstances))
 	for _, inst := range allInstances {
-		k := timetableDateKey(inst.Date)
+		k := timetableDateKey(timezone.Date(inst.Date))
 		out.InstancesByDate[k] = append(out.InstancesByDate[k], inst)
 		if inst.ActiveGroupID == nil {
 			continue
@@ -80,14 +80,11 @@ func (s *TimetableDataService) PreloadStudentWeek(ctx context.Context, studentID
 	}
 
 	if len(activeGroupIDs) > 0 {
-		visits, err := s.deps.VisitRepo.FindByStudentAndActiveGroupIDs(ctx, studentID, activeGroupIDs)
+		visits, err := s.deps.Presence.ListVisits(ctx, studentpresence.VisitFilter{StudentIDs: []int64{studentID}, ActiveGroupIDs: activeGroupIDs})
 		if err != nil {
 			return nil, fmt.Errorf("load student visits: %w", err)
 		}
 		for _, v := range visits {
-			if v == nil {
-				continue
-			}
 			out.VisitsByActiveGroup[v.ActiveGroupID] = append(out.VisitsByActiveGroup[v.ActiveGroupID], v)
 		}
 	}
@@ -111,19 +108,19 @@ func (s *TimetableDataService) PreloadStudentWeek(ctx context.Context, studentID
 	}
 
 	// Arrival/pickup exceptions: range-scoped (avoid unbounded history).
-	arrivalExcs, err := s.deps.ArrivalExceptionRepo.FindByStudentIDAndDateRange(ctx, studentID, from, to)
+	arrivalExcs, err := s.deps.ArrivalExceptionRepo.FindByStudentIDAndDateRange(ctx, studentID, scheduleModel.Date(from), scheduleModel.Date(to))
 	if err != nil {
 		return nil, fmt.Errorf("load arrival exceptions: %w", err)
 	}
 	for _, e := range arrivalExcs {
-		out.ArrivalExcByDate[timetableDateKey(e.ExceptionDate)] = e
+		out.ArrivalExcByDate[timetableDateKey(timezone.Date(e.ExceptionDate))] = e
 	}
-	pickupExcs, err := s.deps.PickupExceptionRepo.FindByStudentIDAndDateRange(ctx, studentID, from, to)
+	pickupExcs, err := s.deps.PickupExceptionRepo.FindByStudentIDAndDateRange(ctx, studentID, scheduleModel.Date(from), scheduleModel.Date(to))
 	if err != nil {
 		return nil, fmt.Errorf("load pickup exceptions: %w", err)
 	}
 	for _, e := range pickupExcs {
-		out.PickupExcByDate[timetableDateKey(e.ExceptionDate)] = e
+		out.PickupExcByDate[timetableDateKey(timezone.Date(e.ExceptionDate))] = e
 	}
 
 	return out, nil

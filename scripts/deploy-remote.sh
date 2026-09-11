@@ -149,7 +149,7 @@ fi
 
 # ── Run migration ──
 DEPLOY_FAILED=false
-if ! docker compose run --rm server ./main migrate; then
+if ! docker compose run --rm migrate; then
   echo "Migration FAILED"
   DEPLOY_FAILED=true
 fi

@@ -19,6 +19,7 @@ var errorRules = []common.ErrorRule{
 	{Target: education.ErrTeacherNotFound, Render: common.ErrorInvalidRequest},
 	{Target: education.ErrGroupTeacherNotFound, Render: common.ErrorNotFound},
 	{Target: education.ErrGroupHasStudents, Render: common.ErrorConflict},
+	{Target: education.ErrGroupHasHandover, Render: common.ErrorConflict},
 }
 
 // ErrorRenderer renders an error to an HTTP response.

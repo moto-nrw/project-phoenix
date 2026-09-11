@@ -2,11 +2,55 @@ package cmd
 
 import (
 	"context"
-	"log"
+	"fmt"
+	"io"
 
 	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
+	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/spf13/cobra"
 )
+
+type seedRoot struct {
+	newAdapter func(string, bool) seedapi.Adapter
+	random     io.Reader
+	seed       func(context.Context, seedapi.Adapter, io.Reader, bool, seedapi.SeedOptions, string, string, string) error
+}
+
+type seedAdapter = seedapi.Adapter
+type seedOptions = seedapi.SeedOptions
+
+func runSeed(ctx context.Context, adapter seedapi.Adapter, random io.Reader, verbose bool, options seedapi.SeedOptions, email, password, pin string) error {
+	_, err := seedapi.NewSeeder(adapter, random, verbose, options).Seed(ctx, email, password, pin)
+	return err
+}
+
+func (root seedRoot) run(ctx context.Context, baseURL string, verbose bool, options seedapi.SeedOptions, email, password, pin string) error {
+	if err := root.validate(); err != nil {
+		return err
+	}
+	adapter := root.newAdapter(baseURL, verbose)
+	if adapter == nil {
+		return fmt.Errorf("seed API adapter factory returned nil")
+	}
+	return root.seed(ctx, adapter, root.random, verbose, options, email, password, pin)
+}
+
+func (root seedRoot) validate() error {
+	if root.newAdapter == nil {
+		return fmt.Errorf("seed API adapter factory is required")
+	}
+	if root.random == nil {
+		return fmt.Errorf("seed random source is required")
+	}
+	if root.seed == nil {
+		return fmt.Errorf("seed runner is required")
+	}
+	return nil
+}
+
+var defaultSeedRoot = seedRoot{newAdapter: func(baseURL string, verbose bool) seedapi.Adapter {
+	return newSeedCommandAdapter(baseURL, verbose)
+}, random: authService.SecureRandomSource(), seed: runSeed}
 
 // seedCmd represents the seed command
 var seedCmd = &cobra.Command{
@@ -30,20 +74,22 @@ DEMO DATA:
 OUTPUT FILES:
 - .seed-state.json — all created IDs, credentials, and API keys
 
-OPTIONAL FLAGS (deterministic mode):
-By default, the seeder generates random suffixes and passwords for each run.
-Use optional flags to get deterministic, memorable credentials:
+PROFILES:
+The default profile is vollbetrieb. It has stable identities and credentials,
+so a repeated run fails with a clear conflict until the database is reset.
+The same run creates anmeldung-wochenplan in a second organization: twelve
+children, online enrollment, parent accounts, and weekly-plan-driven care
+without physical terminals. The first developer admin can switch to it.
 
-  --tenant-slug demo-school    Fixed tenant slug (requires 'migrate reset' before re-seeding)
+  --tenant-slug vollbetrieb    Override the profile's tenant slug
   --staff-password 'Test1234%' Shared password for all 20 staff accounts
-  --admin-email admin@test.com Fixed email for the bootstrap school admin
+  --admin-email admin@test.com Override the bootstrap school admin email
+  --randomize                  Create a unique ad-hoc school instead
 
 Usage:
-  go run main.go seed --email op@example.com --password 'Test1234%' --pin 1234
-  go run main.go seed --email op@example.com --password 'Test1234%' --pin 1234 --tenant-slug demo-school --staff-password 'Test1234%' --admin-email school-admin@example.com`,
-	Run: func(cmd *cobra.Command, args []string) {
-		ctx := context.Background()
-
+  docker compose run server go run . seed --email op@example.com --password 'Test1234%' --pin 1234 --url http://server:8080
+  docker compose run server go run . seed --email op@example.com --password 'Test1234%' --pin 1234 --url http://server:8080 --tenant-slug vollbetrieb --staff-password 'Test1234%' --admin-email vollbetrieb-admin@example.test`,
+	RunE: func(cmd *cobra.Command, args []string) error {
 		email, _ := cmd.Flags().GetString("email")
 		password, _ := cmd.Flags().GetString("password")
 		pin, _ := cmd.Flags().GetString("pin")
@@ -51,30 +97,26 @@ Usage:
 		verbose, _ := cmd.Flags().GetBool("verbose")
 
 		if email == "" || password == "" || pin == "" {
-			log.Fatal("--email, --password, and --pin are required")
+			return fmt.Errorf("--email, --password, and --pin are required")
 		}
 
 		if err := assertNonProductionURL(url); err != nil {
-			log.Fatal(err)
+			return err
 		}
 
 		tenantSlug, _ := cmd.Flags().GetString("tenant-slug")
 		staffPassword, _ := cmd.Flags().GetString("staff-password")
 		adminEmail, _ := cmd.Flags().GetString("admin-email")
+		randomize, _ := cmd.Flags().GetBool("randomize")
 
 		options := seedapi.SeedOptions{
 			TenantSlug:    tenantSlug,
 			StaffPassword: staffPassword,
 			AdminEmail:    adminEmail,
+			Randomize:     randomize,
 		}
 
-		seeder := seedapi.NewSeeder(url, verbose, options)
-		result, err := seeder.Seed(ctx, email, password, pin)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		_ = result
+		return defaultSeedRoot.run(cmd.Context(), url, verbose, options, email, password, pin)
 	},
 }
 
@@ -85,7 +127,8 @@ func init() {
 	seedCmd.Flags().String("pin", "", "Staff PIN for IoT authentication (required)")
 	seedCmd.Flags().String("url", "http://localhost:8080", "Backend API URL")
 	seedCmd.Flags().Bool("verbose", false, "Enable verbose logging")
-	seedCmd.Flags().String("tenant-slug", "", "Fixed tenant slug (deterministic mode, requires migrate reset before re-seeding)")
-	seedCmd.Flags().String("staff-password", "", "Shared password for all 20 staff accounts (deterministic mode)")
-	seedCmd.Flags().String("admin-email", "", "Fixed email for bootstrap school admin (deterministic mode)")
+	seedCmd.Flags().String("tenant-slug", "", "Override the default profile tenant slug")
+	seedCmd.Flags().String("staff-password", "", "Shared password for all 20 staff accounts")
+	seedCmd.Flags().String("admin-email", "", "Override the bootstrap school admin email")
+	seedCmd.Flags().Bool("randomize", false, "Create a unique ad-hoc school with generated admin credentials")
 }

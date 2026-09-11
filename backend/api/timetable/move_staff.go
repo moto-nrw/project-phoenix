@@ -120,7 +120,7 @@ func moveStaffResponseOf(rs *Resource, ctx context.Context, result *scheduleSvc.
 		return resp, nil
 	}
 	coverage, err := rs.TimetableData.DetectShiftCoverageWarnings(ctx, scheduleSvc.ShiftCoverageQuery{
-		Dates:     []timezone.Date{result.Target.Date},
+		Dates:     []timezone.Date{timezone.Date(result.Target.Date)},
 		StartTime: result.Target.StartTime,
 		EndTime:   result.Target.EndTime,
 		StaffIDs:  []int64{staffID},

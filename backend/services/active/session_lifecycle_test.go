@@ -33,12 +33,14 @@ func TestIsSupervisorActive(t *testing.T) {
 
 	now := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 
-	assert.True(t, IsSupervisorActive(&activeModels.GroupSupervisor{EndDate: nil}, now),
+	assert.True(t, IsSupervisorActive(&activeModels.GroupSupervisor{StartDate: timezone.DateFromTime(now), EndDate: nil}, now),
 		"nil end date is open-ended and active")
-	assert.True(t, IsSupervisorActive(&activeModels.GroupSupervisor{EndDate: ptrDate(timezone.DateFromTime(now).AddDays(1))}, now),
+	assert.True(t, IsSupervisorActive(&activeModels.GroupSupervisor{StartDate: timezone.DateFromTime(now), EndDate: ptrDate(timezone.DateFromTime(now).AddDays(1))}, now),
 		"future end date is still active")
-	assert.False(t, IsSupervisorActive(&activeModels.GroupSupervisor{EndDate: ptrDate(timezone.DateFromTime(now).AddDays(-1))}, now),
+	assert.False(t, IsSupervisorActive(&activeModels.GroupSupervisor{StartDate: timezone.DateFromTime(now).AddDays(-2), EndDate: ptrDate(timezone.DateFromTime(now).AddDays(-1))}, now),
 		"past end date is not active")
+	assert.False(t, IsSupervisorActive(&activeModels.GroupSupervisor{StartDate: timezone.DateFromTime(now).AddDays(1)}, now),
+		"future start date is not active")
 }
 
 func TestIsCombinedGroupActive(t *testing.T) {

@@ -12,7 +12,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
@@ -125,60 +125,62 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.Authenticator)
+		r.Use(common.ReadOnlyPreviewMiddleware)
 		r.Use(jwt.TenantMiddleware)
+		r.Use(common.SecurityPrincipalMiddleware)
 
 		r.Route("/schema", func(r chi.Router) {
-			r.With(authorize.RequiresPermission("config:read")).Get("/", rs.getActiveSchema)
-			r.With(authorize.RequiresPermission("config:read")).Get("/versions", rs.listSchemaVersions)
-			r.With(authorize.RequiresPermission("config:read")).Get("/preview", rs.getSchemaPreviewBootstrap)
-			r.With(authorize.RequiresPermission("config:read")).Get("/{id}", rs.getSchemaByID)
-			r.With(authorize.RequiresPermission("config:manage")).Post("/", rs.publishSchema)
-			r.With(authorize.RequiresPermission("config:manage")).Put("/{id}", rs.updateSchema)
-			r.With(authorize.RequiresPermission("config:manage")).Patch("/{id}", rs.renameSchema)
-			r.With(authorize.RequiresPermission("config:manage")).Delete("/{id}", rs.deleteSchema)
+			r.With(common.RequiresPermission("config:read")).Get("/", rs.getActiveSchema)
+			r.With(common.RequiresPermission("config:read")).Get("/versions", rs.listSchemaVersions)
+			r.With(common.RequiresPermission("config:read")).Get("/preview", rs.getSchemaPreviewBootstrap)
+			r.With(common.RequiresPermission("config:read")).Get("/{id}", rs.getSchemaByID)
+			r.With(common.RequiresPermission("config:manage")).Post("/", rs.publishSchema)
+			r.With(common.RequiresPermission("config:manage")).Put("/{id}", rs.updateSchema)
+			r.With(common.RequiresPermission("config:manage")).Patch("/{id}", rs.renameSchema)
+			r.With(common.RequiresPermission("config:manage")).Delete("/{id}", rs.deleteSchema)
 		})
-		r.With(authorize.RequiresPermission("config:manage")).Post("/legal-documents", rs.uploadLegalDocument)
-		r.With(authorize.RequiresPermission("config:manage")).Delete("/legal-documents/{filename}", rs.deleteLegalDocument)
+		r.With(common.RequiresPermission("config:manage")).Post("/legal-documents", rs.uploadLegalDocument)
+		r.With(common.RequiresPermission("config:manage")).Delete("/legal-documents/{filename}", rs.deleteLegalDocument)
 
 		r.Route("/care-offerings", func(r chi.Router) {
-			r.With(authorize.RequiresPermission("config:read")).Get("/", rs.listCareOfferings)
+			r.With(common.RequiresPermission("config:read")).Get("/", rs.listCareOfferings)
 			// Static segment, registered before the {id} sub-router so chi
 			// matches it as a literal path rather than an offering id.
-			r.With(authorize.RequiresPermission("config:read")).Get("/booking-stats", rs.listCareOfferingBookingStats)
-			r.With(authorize.RequiresPermission("config:manage")).Post("/", rs.createCareOffering)
+			r.With(common.RequiresPermission("config:read")).Get("/booking-stats", rs.listCareOfferingBookingStats)
+			r.With(common.RequiresPermission("config:manage")).Post("/", rs.createCareOffering)
 			r.Route("/{id}", func(r chi.Router) {
-				r.With(authorize.RequiresPermission("config:read")).Get("/", rs.getCareOffering)
-				r.With(authorize.RequiresPermission("config:manage")).Put("/", rs.updateCareOffering)
-				r.With(authorize.RequiresPermission("config:manage")).Delete("/", rs.deleteCareOffering)
-				r.With(authorize.RequiresPermission("config:manage")).Post("/clone", rs.cloneCareOffering)
+				r.With(common.RequiresPermission("config:read")).Get("/", rs.getCareOffering)
+				r.With(common.RequiresPermission("config:manage")).Put("/", rs.updateCareOffering)
+				r.With(common.RequiresPermission("config:manage")).Delete("/", rs.deleteCareOffering)
+				r.With(common.RequiresPermission("config:manage")).Post("/clone", rs.cloneCareOffering)
 			})
 		})
 
 		r.Route("/phases", func(r chi.Router) {
-			r.With(authorize.RequiresPermission("config:read")).Get("/", rs.listPhases)
-			r.With(authorize.RequiresPermission("admin:*")).Get("/expiry-warnings", rs.listPhaseExpiryWarnings)
-			r.With(authorize.RequiresPermission("config:manage")).Post("/", rs.createPhase)
+			r.With(common.RequiresPermission("config:read")).Get("/", rs.listPhases)
+			r.With(common.RequiresPermission("admin:*")).Get("/expiry-warnings", rs.listPhaseExpiryWarnings)
+			r.With(common.RequiresPermission("config:manage")).Post("/", rs.createPhase)
 			r.Route("/{id}", func(r chi.Router) {
-				r.With(authorize.RequiresPermission("config:read")).Get("/", rs.getPhase)
-				r.With(authorize.RequiresPermission("config:manage")).Put("/", rs.updatePhase)
+				r.With(common.RequiresPermission("config:read")).Get("/", rs.getPhase)
+				r.With(common.RequiresPermission("config:manage")).Put("/", rs.updatePhase)
 				// delete-impact previews the blast radius for the
 				// confirmation modal; same permission as the delete it
 				// precedes.
-				r.With(authorize.RequiresPermission("config:manage")).Get("/delete-impact", rs.getPhaseDeleteImpact)
-				r.With(authorize.RequiresPermission("config:manage")).Delete("/", rs.deletePhase)
+				r.With(common.RequiresPermission("config:manage")).Get("/delete-impact", rs.getPhaseDeleteImpact)
+				r.With(common.RequiresPermission("config:manage")).Delete("/", rs.deletePhase)
 				// Rollover (phase renewal). createRollover carries
 				// approved enrollments from this phase forward into a
 				// new phase; listRolloverReview surfaces children that
 				// landed in pending_admin_review on a phase created
 				// FROM this phase. Both require config:manage.
-				r.With(authorize.RequiresPermission("config:manage")).Post("/rollover", rs.createRollover)
+				r.With(common.RequiresPermission("config:manage")).Post("/rollover", rs.createRollover)
 				// Read-only dry run for the rollover form (#2251); same
 				// permission as the create it precedes.
-				r.With(authorize.RequiresPermission("config:manage")).Get("/rollover-preview", rs.previewRollover)
-				r.With(authorize.RequiresPermission("config:read")).Get("/review", rs.listRolloverReview)
-				r.With(authorize.RequiresPermission("config:manage")).Get("/manual-bootstrap", rs.getManualEnrollmentBootstrap)
-				r.With(authorize.RequiresPermission("config:manage")).Post("/late-invites", rs.createLateInvite)
-				r.With(authorize.RequiresPermission("config:manage")).Post("/manual-approved-enrollments", rs.createManualApprovedEnrollment)
+				r.With(common.RequiresPermission("config:manage")).Get("/rollover-preview", rs.previewRollover)
+				r.With(common.RequiresPermission("config:read")).Get("/review", rs.listRolloverReview)
+				r.With(common.RequiresPermission("config:manage")).Get("/manual-bootstrap", rs.getManualEnrollmentBootstrap)
+				r.With(common.RequiresPermission("config:manage")).Post("/late-invites", rs.createLateInvite)
+				r.With(common.RequiresPermission("config:manage")).Post("/manual-approved-enrollments", rs.createManualApprovedEnrollment)
 				// Compact export of every registration in the phase
 				// (PDF for print, XLSX for data). Gated config:manage
 				// (not config:read like the review list): one call
@@ -186,7 +188,7 @@ func (rs *Resource) Router() chi.Router {
 				// that leaves the RLS-protected system, so it sits at
 				// the GDPR/admin tier alongside rollover. Admins hold
 				// config:manage via the admin:* wildcard.
-				r.With(authorize.RequiresPermission("config:manage")).Post("/export", rs.exportPhaseRegistrations)
+				r.With(common.RequiresPermission("config:manage")).Post("/export", rs.exportPhaseRegistrations)
 			})
 		})
 
@@ -194,7 +196,7 @@ func (rs *Resource) Router() chi.Router {
 		// surface so reviewers don't have to keep switching contexts.
 		r.Route("/admin/request-children", func(r chi.Router) {
 			r.Route("/{id}", func(r chi.Router) {
-				r.With(authorize.RequiresPermission("config:manage")).Post("/rollover-review", rs.decideRolloverReview)
+				r.With(common.RequiresPermission("config:manage")).Post("/rollover-review", rs.decideRolloverReview)
 			})
 		})
 
@@ -210,41 +212,41 @@ func (rs *Resource) Router() chi.Router {
 		// expose or mutate full enrollment PII. Decision writes audit
 		// reviewed_by/reviewed_at on each child row.
 		r.Route("/admin/requests", func(r chi.Router) {
-			r.With(authorize.RequiresPermission("config:read")).Get("/", rs.listAdminRequests)
+			r.With(common.RequiresPermission("config:read")).Get("/", rs.listAdminRequests)
 			r.Route("/{id}", func(r chi.Router) {
-				r.With(authorize.RequiresPermission("config:manage")).Get("/", rs.getAdminRequest)
-				r.With(authorize.RequiresPermission("config:manage")).Get("/delete-impact", rs.getAdminRequestDeleteImpact)
-				r.With(authorize.RequiresPermission("config:manage")).Delete("/", rs.deleteAdminRequest)
-				r.With(authorize.RequiresPermission("config:manage")).Post("/restore", rs.restoreAdminRequest)
-				r.With(authorize.RequiresPermission("config:manage")).Get("/children/{childId}/delete-impact", rs.getAdminChildDeleteImpact)
-				r.With(authorize.RequiresPermission("config:manage")).Delete("/children/{childId}", rs.deleteAdminChild)
-				r.With(authorize.RequiresPermission("config:manage")).Post("/children/{childId}/decide", rs.decideAdminChild)
-				r.With(authorize.RequiresPermission("config:manage")).Put("/children/{childId}/data-correction", rs.correctAdminChildData)
-				r.With(authorize.RequiresPermission("config:manage")).Put("/children/{childId}/offerings", rs.updateAdminChildOfferings)
-				r.With(authorize.RequiresPermission("config:manage")).Get("/children/{childId}/offering-adjustments", rs.listAdminChildOfferingAdjustments)
+				r.With(common.RequiresPermission("config:manage")).Get("/", rs.getAdminRequest)
+				r.With(common.RequiresPermission("config:manage")).Get("/delete-impact", rs.getAdminRequestDeleteImpact)
+				r.With(common.RequiresPermission("config:manage")).Delete("/", rs.deleteAdminRequest)
+				r.With(common.RequiresPermission("config:manage")).Post("/restore", rs.restoreAdminRequest)
+				r.With(common.RequiresPermission("config:manage")).Get("/children/{childId}/delete-impact", rs.getAdminChildDeleteImpact)
+				r.With(common.RequiresPermission("config:manage")).Delete("/children/{childId}", rs.deleteAdminChild)
+				r.With(common.RequiresPermission("config:manage")).Post("/children/{childId}/decide", rs.decideAdminChild)
+				r.With(common.RequiresPermission("config:manage")).Put("/children/{childId}/data-correction", rs.correctAdminChildData)
+				r.With(common.RequiresPermission("config:manage")).Put("/children/{childId}/offerings", rs.updateAdminChildOfferings)
+				r.With(common.RequiresPermission("config:manage")).Get("/children/{childId}/offering-adjustments", rs.listAdminChildOfferingAdjustments)
 			})
 		})
 		r.Route("/admin/change-requests", func(r chi.Router) {
-			r.With(authorize.RequiresPermission("config:manage")).Get("/", rs.listAdminChangeRequests)
+			r.With(common.RequiresPermission("config:manage")).Get("/", rs.listAdminChangeRequests)
 			// Anmeldungsänderungen in the shared display format of the request
 			// module, open or history, keyset-paginated (#2435).
-			r.With(authorize.RequiresPermission("config:manage")).Get("/list", rs.listChangeRequestReviewEntries)
-			r.With(authorize.RequiresPermission("config:manage")).Get("/pending-count", rs.pendingChangeRequestReviewCount)
+			r.With(common.RequiresPermission("config:manage")).Get("/list", rs.listChangeRequestReviewEntries)
+			r.With(common.RequiresPermission("config:manage")).Get("/pending-count", rs.pendingChangeRequestReviewCount)
 			r.Route("/{id}", func(r chi.Router) {
-				r.With(authorize.RequiresPermission("config:manage")).Get("/", rs.getAdminChangeRequest)
-				r.With(authorize.RequiresPermission("config:manage")).Post("/question", rs.askChangeRequestQuestion)
-				r.With(authorize.RequiresPermission("config:manage")).Post("/approve", rs.approveChangeRequest)
-				r.With(authorize.RequiresPermission("config:manage")).Post("/reject", rs.rejectChangeRequest)
+				r.With(common.RequiresPermission("config:manage")).Get("/", rs.getAdminChangeRequest)
+				r.With(common.RequiresPermission("config:manage")).Post("/question", rs.askChangeRequestQuestion)
+				r.With(common.RequiresPermission("config:manage")).Post("/approve", rs.approveChangeRequest)
+				r.With(common.RequiresPermission("config:manage")).Post("/reject", rs.rejectChangeRequest)
 			})
 		})
 		r.Route("/admin/reports", func(r chi.Router) {
-			r.With(authorize.RequiresPermission("config:read")).Get("/care-usage", rs.getCareUsageReport)
-			r.With(authorize.RequiresPermission("config:manage")).Post("/care-usage/export", rs.exportCareUsageReport)
-			r.With(authorize.RequiresAllPermissions(permissions.ConfigManage, permissions.UsersRead)).Post("/class-roster/export", rs.exportClassRosterReport)
+			r.With(common.RequiresPermission("config:read")).Get("/care-usage", rs.getCareUsageReport)
+			r.With(common.RequiresPermission("config:manage")).Post("/care-usage/export", rs.exportCareUsageReport)
+			r.With(common.RequiresAllPermissions(permissions.ConfigManage, permissions.UsersRead)).Post("/class-roster/export", rs.exportClassRosterReport)
 		})
 		r.Route("/admin/students/{studentId}/requests", func(r chi.Router) {
-			r.With(authorize.RequiresPermission("config:manage")).Get("/", rs.listAdminRequestsByStudent)
-			r.With(authorize.RequiresPermission("config:manage")).Post("/export", rs.exportStudentEnrollmentRequests)
+			r.With(common.RequiresPermission("config:manage")).Get("/", rs.listAdminRequestsByStudent)
+			r.With(common.RequiresPermission("config:manage")).Post("/export", rs.exportStudentEnrollmentRequests)
 		})
 	})
 

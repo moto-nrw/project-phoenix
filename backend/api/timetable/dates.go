@@ -49,18 +49,18 @@ func inclusiveDayCount(from, to timezone.Date) int {
 // start pinned to today-or-future on the Berlin calendar. Renders the 400 and
 // returns ok=false on any violation. Error strings are a cross-repo contract —
 // keep them byte-identical.
-func parseTodayFutureDateRange(w http.ResponseWriter, r *http.Request) (from, to timezone.Date, ok bool) {
+func (rs *Resource) parseTodayFutureDateRange(w http.ResponseWriter, r *http.Request) (from, to timezone.Date, ok bool) {
 	q := r.URL.Query()
 
 	dateStr := q.Get("date")
 	if dateStr == "" {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("date is required")))
-		return timezone.Date{}, timezone.Date{}, false
+		return timezone.Date(""), timezone.Date(""), false
 	}
 	parsedFrom, err := berlinDate(dateStr)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid date format, expected YYYY-MM-DD")))
-		return timezone.Date{}, timezone.Date{}, false
+		return timezone.Date(""), timezone.Date(""), false
 	}
 
 	parsedTo := parsedFrom
@@ -68,22 +68,22 @@ func parseTodayFutureDateRange(w http.ResponseWriter, r *http.Request) (from, to
 		parsedTo, err = berlinDate(toStr)
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid date_to format, expected YYYY-MM-DD")))
-			return timezone.Date{}, timezone.Date{}, false
+			return timezone.Date(""), timezone.Date(""), false
 		}
 	}
 
 	if parsedFrom.After(parsedTo) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("'date' must be before or equal to 'date_to'")))
-		return timezone.Date{}, timezone.Date{}, false
+		return timezone.Date(""), timezone.Date(""), false
 	}
 	if inclusiveDayCount(parsedFrom, parsedTo) > scheduleModel.MaxTimetableReadRangeDays {
 		common.RenderError(w, r, common.ErrorInvalidRequest(
 			fmt.Errorf("date range exceeds maximum of %d days", scheduleModel.MaxTimetableReadRangeDays)))
-		return timezone.Date{}, timezone.Date{}, false
+		return timezone.Date(""), timezone.Date(""), false
 	}
-	if parsedFrom.Before(timezone.TodayDate()) {
+	if parsedFrom.Before(rs.todayDate()) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("'date' must be today or a future date")))
-		return timezone.Date{}, timezone.Date{}, false
+		return timezone.Date(""), timezone.Date(""), false
 	}
 
 	return parsedFrom, parsedTo, true

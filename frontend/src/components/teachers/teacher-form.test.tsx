@@ -635,6 +635,92 @@ describe("TeacherForm", () => {
     expect(screen.queryByLabelText(/Position/)).not.toBeInTheDocument();
   });
 
+  describe("ohne users:update (#2906)", () => {
+    const staffManageOnly = {
+      id: "1",
+      person_id: "10",
+      first_name: "Anna",
+      last_name: "Müller",
+      tag_id: "RFID-42",
+      role: "OGS-Büro",
+      is_teacher: true,
+    };
+
+    it("zeigt Name und NFC-Karte nur an, statt sie zum Ändern anzubieten", () => {
+      render(
+        <TeacherForm
+          {...defaultProps}
+          initialData={staffManageOnly}
+          canEditPersonFields={false}
+        />,
+      );
+
+      expect(screen.queryByLabelText(/Vorname/)).not.toBeInTheDocument();
+      expect(screen.queryByLabelText(/Nachname/)).not.toBeInTheDocument();
+      expect(screen.getByText("Anna")).toBeInTheDocument();
+      expect(screen.getByText("Müller")).toBeInTheDocument();
+      expect(
+        screen.getByText("Name und NFC-Karte ändert die OGS-Leitung."),
+      ).toBeInTheDocument();
+    });
+
+    it("schickt keine Personen-Felder mit, damit der Datensatz speicherbar bleibt", async () => {
+      const onSubmitAction = vi.fn().mockResolvedValue(undefined);
+      render(
+        <TeacherForm
+          {...defaultProps}
+          initialData={staffManageOnly}
+          onSubmitAction={onSubmitAction}
+          canEditPersonFields={false}
+        />,
+      );
+
+      fireEvent.change(screen.getByLabelText(/Position/), {
+        target: { value: "Pädagogische Fachkraft" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
+
+      await waitFor(() => {
+        expect(onSubmitAction).toHaveBeenCalledTimes(1);
+      });
+      const payload = onSubmitAction.mock.calls[0]![0] as Record<
+        string,
+        unknown
+      >;
+      expect(payload).not.toHaveProperty("first_name");
+      expect(payload).not.toHaveProperty("last_name");
+      expect(payload).not.toHaveProperty("tag_id");
+      expect(payload.role).toBe("Pädagogische Fachkraft");
+      expect(payload.id).toBe("1");
+    });
+
+    it("bietet kein Speichern an, wenn kein Feld übrig bleibt", () => {
+      // Lehrkraft ohne Betreuungsprofil: Position entfällt ohnehin, Name
+      // und NFC-Karte sind nur Anzeige — es gäbe nichts zu speichern.
+      render(
+        <TeacherForm
+          {...defaultProps}
+          initialData={{ ...staffManageOnly, is_teacher: false }}
+          canEditPersonFields={false}
+        />,
+      );
+
+      expect(
+        screen.queryByRole("button", { name: /Speichern/ }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /Schließen/ }),
+      ).toBeInTheDocument();
+    });
+
+    it("lässt die Felder mit users:update unverändert bearbeitbar", () => {
+      render(<TeacherForm {...defaultProps} initialData={staffManageOnly} />);
+
+      expect(screen.getByLabelText(/Vorname/)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Nachname/)).toBeInTheDocument();
+    });
+  });
+
   it("resets the form when editing switches to another teacher", async () => {
     const { rerender } = render(
       <TeacherForm

@@ -17,7 +17,8 @@ import (
 func TestTemplateEndInputValidation(t *testing.T) {
 	t.Parallel()
 
-	future := timezone.TodayDate().AddDays(1)
+	today := timezone.NewDate(2026, 8, 24)
+	future := today.AddDays(1)
 
 	tests := []struct {
 		name string
@@ -33,19 +34,19 @@ func TestTemplateEndInputValidation(t *testing.T) {
 		},
 		{
 			name: "past effective date",
-			in:   TemplateEndInput{TemplateID: 10, EffectiveDate: timezone.TodayDate().AddDays(-1)},
+			in:   TemplateEndInput{TemplateID: 10, EffectiveDate: today.AddDays(-1)},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateTemplateEndInput(tt.in)
+			err := validateTemplateEndInput(tt.in, today)
 
 			require.ErrorIs(t, err, ErrSplitInvalidInput)
 		})
 	}
 
-	require.NoError(t, validateTemplateEndInput(TemplateEndInput{TemplateID: 10, EffectiveDate: future}))
+	require.NoError(t, validateTemplateEndInput(TemplateEndInput{TemplateID: 10, EffectiveDate: future}, today))
 }
 
 func TestValidateProtectedEnrollmentRebaseRejectsActiveScopedCollision(t *testing.T) {
@@ -69,7 +70,7 @@ func TestValidateProtectedEnrollmentRebaseRejectsActiveScopedCollision(t *testin
 	)
 	require.ErrorIs(t, err, ErrTemplateRosterRebaseConflict)
 
-	boundedUntil := timezone.TodayDate().AddDays(30)
+	boundedUntil := activitiesModel.Date(timezone.TodayDate().AddDays(30))
 	activeB.ValidUntil = &boundedUntil
 	require.NoError(t, validateProtectedEnrollmentRebase(
 		[]*activitiesModel.StudentEnrollment{activeA, activeB},
@@ -111,7 +112,7 @@ func TestTemplateEndFromDate_ReturnsSummaryAndDeletesOpenEndedWindow(t *testing.
 	t.Parallel()
 
 	ctx := tenant.WithTenantID(context.Background(), 7401)
-	future := timezone.TodayDate().AddDays(1)
+	future := timezone.NewDate(2030, 8, 26).AddDays(1)
 	group := templateEndUnitGroup(202)
 	scheduleRepo := &templateEndUnitScheduleRepo{capped: 2}
 	enrollmentRepo := &templateEndUnitEnrollmentRepo{capped: 3}
@@ -141,7 +142,7 @@ func TestTemplateEndFromDate_ReturnsSummaryAndDeletesOpenEndedWindow(t *testing.
 	assert.Equal(t, group.ID, supervisorRepo.groupID)
 	require.NotNil(t, instanceRepo.activityGroupID)
 	assert.Equal(t, group.ID, *instanceRepo.activityGroupID)
-	assert.Equal(t, future, instanceRepo.from)
+	assert.Equal(t, scheduleModel.Date(future), instanceRepo.from)
 	assert.Nil(t, instanceRepo.to)
 	// #1840: ending a series is destructive — it must hard-delete deviated
 	// rows too, so preservation is OFF.
@@ -245,6 +246,7 @@ func templateEndUnitService(
 			EnrollmentRepo: enrollmentRepo,
 			SupervisorRepo: supervisorRepo,
 			InstanceRepo:   instanceRepo,
+			Today:          func() timezone.Date { return timezone.NewDate(2026, 8, 24) },
 			Logger:         slog.New(slog.DiscardHandler),
 		},
 		lockTenantRecurrence: func(context.Context) error { return nil },
@@ -302,9 +304,16 @@ func (r *templateEndUnitScheduleRepo) FindByGroupID(_ context.Context, _ int64) 
 	return r.schedules, nil
 }
 
-func (r *templateEndUnitScheduleRepo) CapValidUntil(_ context.Context, groupID int64, validUntil timezone.Date) (int64, error) {
+func (r *templateEndUnitScheduleRepo) FindByGroupIDs(_ context.Context, _ []int64) ([]*activitiesModel.Schedule, error) {
+	if r.findErr != nil {
+		return nil, r.findErr
+	}
+	return r.schedules, nil
+}
+
+func (r *templateEndUnitScheduleRepo) CapValidUntil(_ context.Context, groupID int64, validUntil string) (int64, error) {
 	r.groupID = groupID
-	r.validUntil = validUntil
+	r.validUntil = timezone.Date(validUntil)
 	if r.err != nil {
 		return 0, r.err
 	}
@@ -322,7 +331,7 @@ func (r *templateEndUnitEnrollmentRepo) FindByGroupID(_ context.Context, _ int64
 	return nil, nil
 }
 
-func (r *templateEndUnitEnrollmentRepo) CapActiveByGroup(_ context.Context, groupID int64, _ timezone.Date) (int64, error) {
+func (r *templateEndUnitEnrollmentRepo) CapActiveByGroup(_ context.Context, groupID int64, _ activitiesModel.Date) (int64, error) {
 	r.groupID = groupID
 	if r.err != nil {
 		return 0, r.err
@@ -341,7 +350,7 @@ func (r *templateEndUnitSupervisorRepo) FindByGroupID(_ context.Context, _ int64
 	return nil, nil
 }
 
-func (r *templateEndUnitSupervisorRepo) CapActiveByGroup(_ context.Context, groupID int64, _ timezone.Date) (int64, error) {
+func (r *templateEndUnitSupervisorRepo) CapActiveByGroup(_ context.Context, groupID int64, _ activitiesModel.Date) (int64, error) {
 	r.groupID = groupID
 	if r.err != nil {
 		return 0, r.err
@@ -353,13 +362,13 @@ type templateEndUnitInstanceRepo struct {
 	scheduleModel.ActivityInstanceRepository
 	deleted            int64
 	err                error
-	from               timezone.Date
-	to                 *timezone.Date
+	from               scheduleModel.Date
+	to                 *scheduleModel.Date
 	activityGroupID    *int64
 	preserveDeviations bool
 }
 
-func (r *templateEndUnitInstanceRepo) DeletePlannedNonSpontaneousInWindow(_ context.Context, from timezone.Date, to *timezone.Date, activityGroupID *int64, preserveDeviations bool) (int64, error) {
+func (r *templateEndUnitInstanceRepo) DeletePlannedNonSpontaneousInWindow(_ context.Context, from scheduleModel.Date, to *scheduleModel.Date, activityGroupID *int64, preserveDeviations bool) (int64, error) {
 	r.from = from
 	r.to = to
 	r.activityGroupID = activityGroupID
@@ -370,6 +379,6 @@ func (r *templateEndUnitInstanceRepo) DeletePlannedNonSpontaneousInWindow(_ cont
 	return r.deleted, nil
 }
 
-func (r *templateEndUnitInstanceRepo) PropagateListKindToFutureInstances(context.Context, int64, *string, *string, timezone.Date) (int64, error) {
+func (r *templateEndUnitInstanceRepo) PropagateListKindToFutureInstances(context.Context, int64, *string, *string, scheduleModel.Date) (int64, error) {
 	return 0, nil
 }

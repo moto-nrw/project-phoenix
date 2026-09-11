@@ -39,10 +39,12 @@ services:
       EMAIL_SMTP_PORT: ${EMAIL_SMTP_PORT}
       EMAIL_SMTP_USER: ${EMAIL_SMTP_USER}
       EMAIL_SMTP_PASSWORD: ${EMAIL_SMTP_PASSWORD}
+      MAILPIT_URL: ${MAILPIT_URL}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
       VAPID_SUBSCRIBER: ${VAPID_SUBSCRIBER}
       FRONTEND_URL: ${FRONTEND_URL}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
       PARENTS_URL: ${PARENTS_URL}
       SCHOOL_URL: ${SCHOOL_URL}
       TENANT_DOMAIN: ${TENANT_DOMAIN}
@@ -188,7 +190,9 @@ services:
   postgres-test:
     image: postgres:17-alpine
     profiles: ["test"]
-    restart: unless-stopped
+    restart: "no"
+    labels:
+      de.moto.testdb.lifecycle: "1"
     ports:
       - "${TEST_DB_PORT}:5432"
     volumes:
@@ -227,6 +231,10 @@ services:
 volumes:
   postgres:
   postgres_test:
+  # Go caches carry a fixed name so every compose project (worktrees started
+  # with their own -p / COMPOSE_PROJECT_NAME) shares one concurrent-safe copy.
   go_mod_cache:
+    name: phoenix_go_mod_cache
   go_build_cache:
+    name: phoenix_go_build_cache
   next_cache:

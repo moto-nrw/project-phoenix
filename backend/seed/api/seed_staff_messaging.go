@@ -23,8 +23,7 @@ func (seedStaffMessagingStep) Run(_ context.Context, rt *Runtime) error {
 	// workflow, so the credentials have to come from the fixed seeder - same
 	// source seedTimeTrackingHistoryStep uses.
 	if rt.FixedSeeder == nil {
-		fmt.Println("  WARNING: no fixed seeder, skipping staff messages")
-		return nil
+		return fmt.Errorf("fixed seeder not available")
 	}
 	staff, _ := buildStaffOrder(rt.FixedSeeder)
 	// Drei Konten, weil die zweite Unterhaltung ein ANDERES Paar braucht:
@@ -32,19 +31,18 @@ func (seedStaffMessagingStep) Run(_ context.Context, rt *Runtime) error {
 	// bloss umgedrehtes from/to landet also im selben Thread - dann saet dieser
 	// Schritt nur eine Unterhaltung statt zweier.
 	if len(staff) < 3 {
-		fmt.Println("  WARNING: fewer than three staff accounts, skipping staff messages")
-		return nil
+		return fmt.Errorf("staff messages require at least three staff accounts, got %d", len(staff))
 	}
 
 	// The Team-Chat is opt-in (operations.staff_messaging_enabled, default off).
 	// Turn it on with admin auth before writing anything.
 	rt.Client.BindAuth(rt.TenantAuth)
+	defer rt.Client.BindAuth(rt.TenantAuth)
 	if _, err := rt.Client.Put(
 		"/api/settings/values/operations.staff_messaging_enabled",
 		map[string]any{"value": true},
 	); err != nil {
-		fmt.Printf("  WARNING: could not enable the Team-Chat, skipping staff messages: %v\n", err)
-		return nil
+		return fmt.Errorf("enable Team-Chat: %w", err)
 	}
 
 	// Two conversations, each opened by a different person, so the demo data
@@ -83,14 +81,12 @@ func (seedStaffMessagingStep) Run(_ context.Context, rt *Runtime) error {
 
 	sent := 0
 	for _, c := range conversations {
-		recipientID := staffAccountID(rt, c.to)
-		if recipientID == 0 {
-			fmt.Printf("  WARNING: no account id for %s, skipping conversation\n", c.to.Email)
-			continue
+		recipientID, err := staffAccountID(rt, c.to)
+		if err != nil {
+			return err
 		}
 		if err := rt.Client.Login(c.from.Email, c.from.Password); err != nil {
-			fmt.Printf("  WARNING: login as %s failed: %v\n", c.from.Email, err)
-			continue
+			return fmt.Errorf("login as staff message sender %s: %w", c.from.Email, err)
 		}
 
 		raw, err := rt.Client.Post(
@@ -98,13 +94,11 @@ func (seedStaffMessagingStep) Run(_ context.Context, rt *Runtime) error {
 			map[string]any{"account_id": fmt.Sprintf("%d", recipientID)},
 		)
 		if err != nil {
-			fmt.Printf("  WARNING: could not open a staff conversation: %v\n", err)
-			continue
+			return fmt.Errorf("open staff conversation: %w", err)
 		}
-		threadID := threadIDFromResponse(raw)
-		if threadID == "" {
-			fmt.Println("  WARNING: staff conversation response carried no thread id")
-			continue
+		threadID, err := threadIDFromResponse(raw)
+		if err != nil {
+			return fmt.Errorf("decode POST /api/staff-messages/threads/open response: %w", err)
 		}
 
 		for _, body := range c.messages {
@@ -112,8 +106,7 @@ func (seedStaffMessagingStep) Run(_ context.Context, rt *Runtime) error {
 				"/api/staff-messages/threads/"+threadID,
 				map[string]any{"body": body},
 			); err != nil {
-				fmt.Printf("  WARNING: could not send a staff message: %v\n", err)
-				continue
+				return fmt.Errorf("send staff message to thread %s: %w", threadID, err)
 			}
 			sent++
 		}
@@ -127,18 +120,14 @@ func (seedStaffMessagingStep) Run(_ context.Context, rt *Runtime) error {
 	read := 0
 	for _, o := range opened {
 		if err := rt.Client.Login(o.reader.Email, o.reader.Password); err != nil {
-			fmt.Printf("  WARNING: login as %s failed: %v\n", o.reader.Email, err)
-			continue
+			return fmt.Errorf("login as staff message reader %s: %w", o.reader.Email, err)
 		}
 		if _, err := rt.Client.Get("/api/staff-messages/threads/" + o.id); err != nil {
-			fmt.Printf("  WARNING: could not open staff conversation %s: %v\n", o.id, err)
-			continue
+			return fmt.Errorf("read staff conversation %s: %w", o.id, err)
 		}
 		read++
 	}
 
-	// Restore the tenant auth the surrounding workflow expects.
-	rt.Client.BindAuth(rt.TenantAuth)
 	fmt.Printf("  %d staff messages created, %d conversations read\n", sent, read)
 	return nil
 }
@@ -146,10 +135,10 @@ func (seedStaffMessagingStep) Run(_ context.Context, rt *Runtime) error {
 // staffAccountID resolves the recipient's account id from the Team-Chat's own
 // recipient endpoint, matched on the display name the seeder knows. The seed
 // state carries staff ids, not account ids, and the chat addresses accounts.
-func staffAccountID(rt *Runtime, cred StaffCredentials) int64 {
+func staffAccountID(rt *Runtime, cred StaffCredentials) (int64, error) {
 	body, err := rt.Client.Get("/api/staff-messages/recipients")
 	if err != nil {
-		return 0
+		return 0, fmt.Errorf("list staff message recipients: %w", err)
 	}
 	var envelope struct {
 		Data []struct {
@@ -158,7 +147,7 @@ func staffAccountID(rt *Runtime, cred StaffCredentials) int64 {
 		} `json:"data"`
 	}
 	if err := parseJSON(body, &envelope); err != nil {
-		return 0
+		return 0, fmt.Errorf("decode GET /api/staff-messages/recipients response: %w", err)
 	}
 	for _, row := range envelope.Data {
 		if row.Name != cred.Name {
@@ -166,22 +155,25 @@ func staffAccountID(rt *Runtime, cred StaffCredentials) int64 {
 		}
 		var id int64
 		if _, err := fmt.Sscanf(row.AccountID, "%d", &id); err != nil {
-			return 0
+			return 0, fmt.Errorf("decode account id for staff message recipient %s: %w", cred.Email, err)
 		}
-		return id
+		return id, nil
 	}
-	return 0
+	return 0, fmt.Errorf("staff message recipient account not found for %s", cred.Email)
 }
 
 // threadIDFromResponse pulls thread_id out of the {status,data,message} envelope.
-func threadIDFromResponse(body []byte) string {
+func threadIDFromResponse(body []byte) (string, error) {
 	var envelope struct {
 		Data struct {
 			ThreadID string `json:"thread_id"`
 		} `json:"data"`
 	}
 	if err := parseJSON(body, &envelope); err != nil {
-		return ""
+		return "", err
 	}
-	return envelope.Data.ThreadID
+	if envelope.Data.ThreadID == "" {
+		return "", fmt.Errorf("thread_id missing")
+	}
+	return envelope.Data.ThreadID, nil
 }

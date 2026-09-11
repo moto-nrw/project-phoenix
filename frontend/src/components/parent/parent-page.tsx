@@ -148,7 +148,7 @@ export function ParentSectionSkeleton({
   return (
     <div
       data-testid="parent-page-section-skeleton"
-      className={`overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm ${className}`}
+      className={`moto-content-surface overflow-hidden rounded-2xl border shadow-sm ${className}`}
       aria-hidden="true"
     >
       {showHeader ? (

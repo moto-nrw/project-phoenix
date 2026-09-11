@@ -215,8 +215,8 @@ func celebrationDates(today timezone.Date) []timezone.Date {
 // follows the BGB convention (the day after the last day of February), not the
 // "28 February" reading some calendars use.
 func monthDaysFor(date timezone.Date) []userModels.MonthDay {
-	days := []userModels.MonthDay{{Month: date.Month, Day: date.Day}}
-	if date.Month == time.March && date.Day == 1 && !isLeapYear(date.Year) {
+	days := []userModels.MonthDay{{Month: date.Month(), Day: date.Day()}}
+	if date.Month() == time.March && date.Day() == 1 && !isLeapYear(date.Year()) {
 		days = append(days, userModels.MonthDay{Month: time.February, Day: 29})
 	}
 	return days
@@ -246,7 +246,7 @@ func buildCelebrations(entries []userModels.BirthdayEntry, byMonthDay map[userMo
 			IsToday:     shownOn == today,
 		}
 		if entry.Kind == userModels.BirthdayKindStudent {
-			celebration.Age = shownOn.Year - entry.Birthday.Year
+			celebration.Age = shownOn.Year() - entry.Birthday.Year()
 		}
 		celebrations = append(celebrations, celebration)
 	}
@@ -324,7 +324,7 @@ func (s *birthdayService) ListStaffBirthdays(ctx context.Context, months map[tim
 
 	filtered := entries[:0]
 	for _, entry := range entries {
-		if len(months) > 0 && !months[entry.Birthday.Month] {
+		if len(months) > 0 && !months[entry.Birthday.Month()] {
 			continue
 		}
 		filtered = append(filtered, entry)
@@ -332,11 +332,11 @@ func (s *birthdayService) ListStaffBirthdays(ctx context.Context, months map[tim
 
 	sort.SliceStable(filtered, func(i, j int) bool {
 		a, b := filtered[i], filtered[j]
-		if a.Birthday.Month != b.Birthday.Month {
-			return a.Birthday.Month < b.Birthday.Month
+		if a.Birthday.Month() != b.Birthday.Month() {
+			return a.Birthday.Month() < b.Birthday.Month()
 		}
-		if a.Birthday.Day != b.Birthday.Day {
-			return a.Birthday.Day < b.Birthday.Day
+		if a.Birthday.Day() != b.Birthday.Day() {
+			return a.Birthday.Day() < b.Birthday.Day()
 		}
 		return a.FullName() < b.FullName()
 	})

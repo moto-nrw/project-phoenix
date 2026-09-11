@@ -88,15 +88,15 @@ type StaffScheduleOverview struct {
 // the production repositories continue to implement the wider domain
 // interfaces used by mutation services.
 type StaffShiftRangeReader interface {
-	FindByDateRange(ctx context.Context, start, end timezone.Date) ([]*scheduleModel.StaffShift, error)
+	FindByDateRange(ctx context.Context, start, end scheduleModel.Date) ([]*scheduleModel.StaffShift, error)
 }
 
 type StaffShiftWeekUsageReader interface {
-	FindUsedCalendarWeeks(ctx context.Context, start, end timezone.Date) ([]timezone.Date, error)
+	FindUsedCalendarWeeks(ctx context.Context, start, end scheduleModel.Date) ([]scheduleModel.Date, error)
 }
 
 type ActivityInstanceRangeReader interface {
-	FindByTenantAndDateRange(ctx context.Context, from, to timezone.Date) ([]*scheduleModel.ActivityInstance, error)
+	FindByTenantAndDateRange(ctx context.Context, from, to scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error)
 }
 
 type InstanceStaffBatchReader interface {
@@ -113,7 +113,7 @@ type StaffOverviewReader interface {
 }
 
 type StaffWorkScheduleBatchReader interface {
-	FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) ([]*configModel.StaffWorkSchedule, error)
+	FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to configModel.CalendarDate) ([]*configModel.StaffWorkSchedule, error)
 }
 
 type WorkTimeModelBatchReader interface {
@@ -221,16 +221,20 @@ func (s *staffScheduleOverviewService) loadOverviewData(ctx context.Context, fro
 	// Load the full summarized weeks in one query; the viewport subset for the
 	// grid is filtered locally so weekly summaries never undercount shifts
 	// outside a partial requested range.
-	weekShifts, err := s.deps.Shifts.FindByDateRange(ctx, firstWeekFrom, lastWeekTo)
+	weekShifts, err := s.deps.Shifts.FindByDateRange(ctx, scheduleModel.Date(firstWeekFrom), scheduleModel.Date(lastWeekTo))
 	if err != nil {
 		return nil, fmt.Errorf("load staff shifts: %w", err)
 	}
 	shifts := shiftsWithinRange(weekShifts, from, to)
-	usedWeeks, err := s.deps.ShiftWeeks.FindUsedCalendarWeeks(ctx, firstWeekFrom, lastWeekTo)
+	usedScheduleWeeks, err := s.deps.ShiftWeeks.FindUsedCalendarWeeks(ctx, scheduleModel.Date(firstWeekFrom), scheduleModel.Date(lastWeekTo))
 	if err != nil {
 		return nil, fmt.Errorf("load used staff-shift weeks: %w", err)
 	}
-	instances, err := s.deps.Instances.FindByTenantAndDateRange(ctx, from, to)
+	usedWeeks := make([]timezone.Date, len(usedScheduleWeeks))
+	for index, week := range usedScheduleWeeks {
+		usedWeeks[index] = timezone.Date(week)
+	}
+	instances, err := s.deps.Instances.FindByTenantAndDateRange(ctx, scheduleModel.Date(from), scheduleModel.Date(to))
 	if err != nil {
 		return nil, fmt.Errorf("load activity instances: %w", err)
 	}
@@ -259,7 +263,7 @@ func (s *staffScheduleOverviewService) loadOverviewData(ctx context.Context, fro
 				staffIDs = append(staffIDs, member.ID)
 			}
 		}
-		workSchedules, err = s.deps.WorkSchedules.FindByStaffIDsValidInRange(ctx, staffIDs, firstWeekFrom, lastWeekTo)
+		workSchedules, err = s.deps.WorkSchedules.FindByStaffIDsValidInRange(ctx, staffIDs, workforceDate(firstWeekFrom), workforceDate(lastWeekTo))
 		if err != nil {
 			return nil, fmt.Errorf("load staff work schedules: %w", err)
 		}
@@ -332,8 +336,9 @@ func buildStaffScheduleAssignments(
 	for _, instance := range visibleInstances {
 		for _, row := range rowsByInstance[instance.ID] {
 			assignment := newStaffScheduleAssignment(instance, row, roomNames)
-			weekFrom, _ := containingCalendarWeek(instance.Date)
-			applyCoverage(&assignment, usedWeeks[weekFrom], shiftIndex[staffDateKey{row.StaffID, instance.Date}])
+			instanceDate := timezone.Date(instance.Date)
+			weekFrom, _ := containingCalendarWeek(instanceDate)
+			applyCoverage(&assignment, usedWeeks[weekFrom], shiftIndex[staffDateKey{row.StaffID, instanceDate}])
 			assignments = append(assignments, assignment)
 		}
 	}
@@ -362,7 +367,7 @@ func newStaffScheduleAssignment(
 	return StaffScheduleAssignment{
 		InstanceID:         instance.ID,
 		StaffID:            row.StaffID,
-		Date:               instance.Date,
+		Date:               timezone.Date(instance.Date),
 		StartTime:          timezone.NormalizeWallClock(instance.StartTime),
 		EndTime:            timezone.NormalizeWallClock(instance.EndTime),
 		ActivityTitle:      instance.Title,
@@ -435,7 +440,7 @@ func indexShifts(shifts []*scheduleModel.StaffShift) map[staffDateKey][]*schedul
 	index := make(map[staffDateKey][]*scheduleModel.StaffShift)
 	for _, shift := range shifts {
 		if shift != nil {
-			key := staffDateKey{shift.StaffID, shift.Date}
+			key := staffDateKey{shift.StaffID, timezone.Date(shift.Date)}
 			index[key] = append(index[key], shift)
 		}
 	}
@@ -625,11 +630,11 @@ func (s *staffScheduleOverviewService) resolveWeeklyTargets(
 		found := false
 		if entries := entriesByStaff[member.ID]; len(entries) > 0 {
 			for _, weekStart := range weekStarts {
-				if target, ok := configModel.WeeklyTargetFromSchedule(entries, member.RotationAnchorDate, weekStart); ok {
+				if target, ok := configModel.WeeklyTargetFromSchedule(entries, workforceDatePointer(member.RotationAnchorDate), workforceDate(weekStart)); ok {
 					for offset := 0; offset < 7; offset++ {
 						day := weekStart.AddDays(offset)
 						if holidaySet[day] {
-							dayTarget, _ := configModel.DailyTargetFromSchedule(entries, member.RotationAnchorDate, day)
+							dayTarget, _ := configModel.DailyTargetFromSchedule(entries, workforceDatePointer(member.RotationAnchorDate), workforceDate(day))
 							target -= dayTarget
 						}
 					}
@@ -668,17 +673,17 @@ func (s *staffScheduleOverviewService) resolveWeeklyTargets(
 		}
 		anchor := model.RotationAnchorDate
 		if member.RotationAnchorDate != nil {
-			anchor = *member.RotationAnchorDate
+			anchor = workforceDate(*member.RotationAnchorDate)
 		}
-		for weekStart, target := range configModel.WeeklyTargetsFromModel(model, anchor, weekStarts) {
+		for weekStart, target := range configModel.WeeklyTargetsFromModel(model, anchor, workforceDates(weekStarts)) {
 			for offset := 0; offset < 7; offset++ {
-				day := weekStart.AddDays(offset)
+				day := calendarDate(weekStart.AddDays(offset))
 				if holidaySet[day] {
-					dayTarget, _ := configModel.DailyTargetFromModel(model, anchor, day)
+					dayTarget, _ := configModel.DailyTargetFromModel(model, anchor, workforceDate(day))
 					target -= dayTarget
 				}
 			}
-			targets[staffDateKey{member.ID, weekStart}] = target
+			targets[staffDateKey{member.ID, calendarDate(weekStart)}] = target
 		}
 	}
 	return targets, nil
@@ -716,7 +721,7 @@ func plannedShiftMinutes(shifts []*scheduleModel.StaffShift) map[staffDateKey]in
 			// replacement's minutes land on the covering person instead.
 			continue
 		}
-		weekFrom, _ := containingCalendarWeek(shift.Date)
+		weekFrom, _ := containingCalendarWeek(timezone.Date(shift.Date))
 		planned[staffDateKey{shift.StaffID, weekFrom}] += staffShiftNetMinutes(shift)
 	}
 	return planned

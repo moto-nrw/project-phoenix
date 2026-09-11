@@ -25,6 +25,8 @@ import {
   CoverageIndicator,
   type CoverageState,
 } from "~/components/ui/coverage-indicator";
+import { Alert } from "~/components/ui/alert";
+import { EmptyState } from "~/components/ui/empty-state";
 import {
   classifyInstances,
   VertretungRowList,
@@ -170,21 +172,32 @@ export function VertretungWeekList({
               </button>
 
               {dayInstances.length === 0 ? (
-                <p className="px-3 py-2 text-xs text-gray-500">
-                  Keine Termine an diesem Tag.
-                </p>
+                <div className="px-3 py-1">
+                  <EmptyState
+                    variant="compact"
+                    title="Keine Termine an diesem Tag"
+                  />
+                </div>
               ) : visibleRows.length === 0 ? (
-                <p className="px-3 py-2 text-xs text-gray-500">
-                  {gapsAvailable
-                    ? "Keine Störungen an diesem Tag."
-                    : "Störungslage konnte nicht geprüft werden."}
-                </p>
+                <div className="px-3 py-1">
+                  <EmptyState
+                    variant="compact"
+                    title={
+                      gapsAvailable
+                        ? "Keine Störungen an diesem Tag"
+                        : "Störungslage konnte nicht geprüft werden"
+                    }
+                  />
+                </div>
               ) : (
                 <>
                   {!gapsAvailable && (
-                    <p className="px-3 pt-2 text-[11px] font-medium text-gray-500">
-                      Störungslage konnte nicht vollständig geprüft werden
-                    </p>
+                    <div className="px-3 pt-2">
+                      <Alert
+                        type="warning"
+                        message="Störungslage konnte nicht vollständig geprüft werden"
+                      />
+                    </div>
                   )}
                   <VertretungRowList
                     rows={visibleRows}

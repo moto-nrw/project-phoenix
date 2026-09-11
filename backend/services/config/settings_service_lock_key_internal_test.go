@@ -1,10 +1,8 @@
 package config
 
 import (
-	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -19,7 +17,7 @@ func TestClassCollectionLockKey_IsPerTenant(t *testing.T) {
 	t.Parallel()
 
 	keyFor := func(tenantID int64) string {
-		return classCollectionLockKey(tenant.WithTenantID(context.Background(), tenantID))
+		return classCollectionLockKey(tenantID)
 	}
 
 	assert.Equal(t, "enrollment-class-collection:1", keyFor(1))

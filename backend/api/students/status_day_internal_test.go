@@ -22,8 +22,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
-	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -36,8 +36,9 @@ type recordingAbsenceNotifier struct {
 	reports []notificationsService.AbsenceReport
 }
 
-func (n *recordingAbsenceNotifier) NotifyAbsenceReported(_ context.Context, report notificationsService.AbsenceReport) {
+func (n *recordingAbsenceNotifier) NotifyAbsenceReported(_ context.Context, report notificationsService.AbsenceReport) error {
 	n.reports = append(n.reports, report)
+	return nil
 }
 
 func TestStaffAbsenceNotificationCallbacks(t *testing.T) {
@@ -45,7 +46,7 @@ func TestStaffAbsenceNotificationCallbacks(t *testing.T) {
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	const actorID = 23
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 
 	t.Run("planned status write keeps the whole submission together", func(t *testing.T) {
 		notifier := &recordingAbsenceNotifier{}
@@ -60,7 +61,7 @@ func TestStaffAbsenceNotificationCallbacks(t *testing.T) {
 			active.StudentStatusDaySick,
 			[]timezone.Date{today},
 		)
-		writeContext.AfterCreateCommit([]int64{41, 42})
+		require.NoError(t, writeContext.AfterCreate(ctx, []int64{41, 42}))
 
 		require.Len(t, notifier.reports, 1)
 		report := notifier.reports[0]
@@ -72,7 +73,7 @@ func TestStaffAbsenceNotificationCallbacks(t *testing.T) {
 		assert.Equal(t, int64(actorID), report.ActorAccountID)
 	})
 
-	t.Run("manual status change notifies only after commit", func(t *testing.T) {
+	t.Run("manual status change enqueues before commit", func(t *testing.T) {
 		notifier := &recordingAbsenceNotifier{}
 		resource := &Resource{ResourceConfig: ResourceConfig{AbsenceNotifier: notifier}}
 		baseCtx := tenant.WithTenantID(context.Background(), tenantID)
@@ -80,7 +81,7 @@ func TestStaffAbsenceNotificationCallbacks(t *testing.T) {
 		ctx, commit := tenant.WithAfterCommitHooksForTest(baseCtx)
 		excused := true
 
-		resource.scheduleStudentUpdateWakes(
+		require.NoError(t, resource.scheduleStudentUpdateWakes(
 			ctx,
 			tenantID,
 			41,
@@ -88,8 +89,8 @@ func TestStaffAbsenceNotificationCallbacks(t *testing.T) {
 			false,
 			active.StudentStatusDayExcused,
 			today,
-		)
-		assert.Empty(t, notifier.reports)
+		))
+		require.Len(t, notifier.reports, 1)
 		commit()
 
 		require.Len(t, notifier.reports, 1)
@@ -378,12 +379,14 @@ func TestStudentStatusDayHandlers_TodayUpdatesLiveStatusAndClearsOpposite(t *tes
 
 	db := testpkg.SetupTestDB(t)
 
-	resource := newStatusDayTestResource(db)
+	resource := newStatusDayTestResource(db, func() time.Time {
+		return timezone.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour)
+	})
 	notifier := &recordingAbsenceNotifier{}
 	resource.AbsenceNotifier = notifier
 	student := testpkg.CreateTestStudent(t, db, "StatusToday", "Student", "ST1")
 	router := statusDayTestRouter(resource)
-	today := timezone.TodayDate().Format(dateFormatYYYYMMDD)
+	today := timezone.NewDate(2026, 8, 24).Format(dateFormatYYYYMMDD)
 
 	sickReq := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/status-days", student.ID), map[string]any{
 		"status": active.StudentStatusDaySick,
@@ -419,7 +422,7 @@ func TestStudentStatusDayHandlers_TodayUpdatesLiveStatusAndClearsOpposite(t *tes
 	require.Equal(t, http.StatusConflict, excusedRR.Code)
 	require.Len(t, notifier.reports, 1, "a conflict must not notify or overwrite")
 
-	rows, err := resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, timezone.TodayDate(), timezone.TodayDate())
+	rows, err := resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, timezone.NewDate(2026, 8, 24), timezone.NewDate(2026, 8, 24))
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, active.StudentStatusDaySick, rows[0].Status)
@@ -451,7 +454,7 @@ func TestStudentStatusDayHandlers_TodayUpdatesLiveStatusAndClearsOpposite(t *tes
 	classTripRR := executeStatusDayHandler(t, router, classTripReq, testutil.AdminTestClaims(42), []string{"admin:*"})
 	require.Equal(t, http.StatusConflict, classTripRR.Code)
 
-	rows, err = resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, timezone.TodayDate(), timezone.TodayDate())
+	rows, err = resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, timezone.NewDate(2026, 8, 24), timezone.NewDate(2026, 8, 24))
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, active.StudentStatusDayExcused, rows[0].Status)
@@ -467,7 +470,7 @@ func TestStudentStatusDayHandlers_TodayUpdatesLiveStatusAndClearsOpposite(t *tes
 	classTripAfterDeleteRR := executeStatusDayHandler(t, router, classTripAfterDeleteReq, testutil.AdminTestClaims(42), []string{"admin:*"})
 	require.Equal(t, http.StatusCreated, classTripAfterDeleteRR.Code)
 
-	rows, err = resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, timezone.TodayDate(), timezone.TodayDate())
+	rows, err = resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, timezone.NewDate(2026, 8, 24), timezone.NewDate(2026, 8, 24))
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, active.StudentStatusDayClassTrip, rows[0].Status)
@@ -682,13 +685,26 @@ func TestStudentStatusDayHandlers_RepositoryErrors(t *testing.T) {
 	})
 }
 
-func newStatusDayTestResource(db *bun.DB) *Resource {
-	repoFactory := repositories.NewFactory(db)
+func newStudentTestRepositories(db *bun.DB) repositories.StudentTestRepositories {
+	repos, err := repositories.NewStudentTestRepositories(db, repositories.NewTestAuditStore(db))
+	if err != nil {
+		panic(err)
+	}
+	return repos
+}
+
+func newStatusDayTestResource(db *bun.DB, clocks ...func() time.Time) *Resource {
+	repoFactory := newStudentTestRepositories(db)
+	var clock func() time.Time
+	if len(clocks) > 0 {
+		clock = clocks[0]
+	}
 	return NewResource(ResourceConfig{
 		PersonService:           usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{StudentRepo: repoFactory.Student}),
 		StudentService:          usersSvc.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion, nil),
-		StudentStatusDayService: activeService.NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil),
+		StudentStatusDayService: activeService.NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil, clock),
 		Logger:                  slog.Default(),
+		Now:                     clock,
 		DB:                      db,
 	})
 }
