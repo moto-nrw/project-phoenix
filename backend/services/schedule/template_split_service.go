@@ -310,7 +310,8 @@ func (s *TemplateSplitService) getLogger() *slog.Logger {
 // same contract applyOfferingSourcePresence pins on the template PUT. The
 // merged state then passes the same service validation as create/update
 // (ErrOfferingSourceInvalid → 400), so a source next to explicit student_ids
-// or weekday_assignments is rejected rather than half-applied.
+// or per-weekday child lists is rejected rather than half-applied; per-weekday
+// staff is carried onto the successor (#3165).
 func resolveSuccessorOfferingSource(in *TemplateSplitInput, old *activitiesModel.Group) error {
 	if in.TargetGroupType != activitiesModel.TargetGroupTypeAngebot {
 		// The DB CHECK ties the source to 'angebot': a split away from the
