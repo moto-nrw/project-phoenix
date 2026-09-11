@@ -459,6 +459,46 @@ to the emergency HTTP adapter (`modules/emergencysnapshot/http`,
 and the Bun database the shared tenant middleware takes) and its
 `inbound-emergency.adapter-test.*` permission.
 
+The shared request-review projection (`modules/requestreview`,
+`request-review-view`/`public`, #2705) is the one staff-facing list of every
+parent request awaiting or carrying a decision (Stammdaten, Betreuungszeiten,
+Angebote, Abwesenheiten and the office's own booking corrections): origin,
+type, child, requested change and decision. It owns the merged newest-first
+order with its deterministic tie-break, the one keyset cursor across the
+queues, the urgent-before-normal phases, the permission narrowing of a caller
+without `users:update` to the excused queue, the past-request bulk
+consequences, the whole-queue conflict grouping and the badge count; it
+persists nothing and never writes. The per-type wire shapes live in its
+public package because the decide, preview and detail routes answer with the
+same shapes. Every foreign fact enters through consumer-owned ports: the four
+queues, the correction log, the caller's rights, the group names and the
+Familienschutz flag. Its compatibility adapter (`modules/requestreview/legacy`,
+`request-review-view`/`adapter`) binds those ports to the retained
+`services/users`, `services/schedule`, `services/enrollment` review queues,
+the Care Plan excused-request contract, the retained review policy, people,
+education and Familienschutz services, and derives the per-row facts
+(urgency, past scope, version, conflict keys) with the owners' own rules.
+`api/students` serves `GET /students/change-requests` and
+`/change-requests/pending-count` through the public capability; the old
+four-service fan-out in that package is deleted. The `inbound-students` import
+of the adapter exists only because the per-type decide routes still render
+the same wire shapes from the retained service items; it goes when those
+routes move to their owners. Every `request-review-view.adapter.*`,
+`request-review-view.adapter-test.*` and
+`inbound-students.adapter-test.request-review-adapter` rule is a compatibility
+permission that exists only because PR mode cannot record debt for a package
+the candidate creates: convert them to exact debt with the rule above once the
+package exists at a base SHA, rebind each port to its owner's public
+capability as it appears, and delete the adapter with the last legacy source.
+The projection reads no table directly, so it needs no `read_projections`
+grant; the owner queues keep their per-child scope and tenant isolation. Its
+`Today` port resolves the review day once per call, so the queues' urgency
+phase and the rows' urgency and past flags cannot straddle midnight or
+disagree under a test clock. The staff RSS feed
+(`/students/change-requests/rss-feed`) still reads the request tables through
+its own registered `parent-request-feed-read-model` grant; moving it onto this
+owner is open under #2705.
+
 The Device Fleet authentication composition (`modules/devicefleet/deviceauth`)
 is classified as `device-fleet`/`http`. Its `device-fleet.device-auth.*`
 permissions for the retained `models/platform` school row, the

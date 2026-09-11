@@ -1,0 +1,45 @@
+{
+  "schema_version": 2,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#2681",
+    "#2688",
+    "#2695",
+    "#2696",
+    "#2699",
+    "#3093"
+  ],
+  "owner_and_capability": "Request Review read projection (request-review-view): the shared staff list of parent requests with origin, type, child, requested change and decision, plus the pending-count badge, over consumer-owned queue ports",
+  "affected_packages": [
+    "modules/requestreview",
+    "modules/requestreview/legacy",
+    "api/students",
+    "api/base.go",
+    "test/query_budgets.go"
+  ],
+  "affected_tables": [
+    "enrollment.offering_change_requests",
+    "active.excused_absence_requests",
+    "schedule.care_schedule_change_requests",
+    "users.student_data_change_requests",
+    "audit.enrollment_offering_adjustments"
+  ],
+  "exact_ratchet_keys": [],
+  "atomic_cutover": "The staff review list serves the parent offering switches (enrollment.offering_change_requests), not the public enrollment change requests (enrollment.change_requests) the ticket template names; those keep their separately gated enrollment admin list (#2435); whether that matches the ticket's intent stays to be confirmed on #2705. The staff RSS feed (/students/change-requests/rss-feed) keeps its own registered read projection (parent-request-feed-read-model) in this change; switching it is open under #2705. One read-only projection serves GET /students/change-requests (open and history) and /students/change-requests/pending-count. api/base.go composes it over the retained review queues; api/students switches both routes in the same deploy and the four-service fan-out handler, its history mappers and the conflict scan are deleted from the HTTP package. The per-type wire shapes move into the projection's public package so the decide, preview and detail routes keep answering with the same shapes. No table changes owner; the projection persists nothing.",
+  "tests": [
+    "Parity rests on the retained expectations, not on new golden files: no api/students test expectation was edited, so the unchanged in-package and router assertions are the old-versus-new comparison for ordering, filtering, empty and error cases, authorization and JSON output. Retained api/students handler tests (in-package fakes) and router tests over real keyset SQL run unchanged against the projection and pin JSON output, cursor contract, filters, permission narrowing and the badge; pure projection tests cover ordering, tie-break, paging, urgency phases, filters, empty pages, cursor progress over filtered rows, past consequences, conflict grouping, decorations and error passthrough; adapter tests pin the owner-rule facts per row, the filter/cursor translation, the badge counts and one owner-queue failure surfacing through the existing error contract; a two-tenant RLS proof over all four request tables runs the real retained queues under the least-privilege role with a query budget."
+  ],
+  "runtime_evidence": {
+    "source": "docs/runtime-checkpoints/request-review-2705.md with the baseline and candidate logs beside it; harness backend/api/students/change_request_review_runtime_test.go",
+    "workload": "Local PostgreSQL 17.11, Go 1.27.0, package test database; baseline fixed at 939126a901 in a detached worktree; open list, history and pending-count over 0, 8 and 32 children with one pending request per queue and three decided requests each; five warmups and 30 samples per request, concurrency 1, both runs alone on the machine.",
+    "thresholds": "No new SLO. Statement and returned-row parity with the pre-cutover reader per scenario; local same-workload comparison, not staging/production parity. New budget modules.requestreview.open_page (max 101) for the fixture-sized open page. The candidate runs a few percent above the baseline at p50 (worst case 32 children/open, 254.59 vs 214.52 ms) with byte-identical statement and row counts; that is Go-side merge overhead plus laptop variation between two binaries, not extra database work, and opens no regression issue.",
+    "query_count": "Identical on both sides: open 14/320/728, history 10/19/19, pending-count 8/156/564 statements for 0/8/32 children; driver-reported rows 3/590/1550, 2/92/322 and 1/209/833. Growth with the child count is the retained owner queues' per-request hydration, unchanged by the cutover; three of the four OpenCount ports still list and count hydrated rows exactly as the retained badge did.",
+    "errors": "Zero unexpected errors, zero write rows, zero pool waits, zero deadlocks and no sampled lock waiters in either run; all 540 measured requests per reader answered 200. No projection cache. Both stored logs retain the full per-sample arrays (duration, queries, rows affected, write rows, pool wait count and duration).",
+    "failure": "One owner-queue failure surfaces unchanged (errors.Is and 500 text) through the shared parent-request error rules; a missing queue or access port fails composition with ErrIncompleteSources; malformed queries answer 400 with the unchanged invalid-query error.",
+    "rollback": "Projection persists nothing; every measured write_rows_affected was zero. Revert api/base.go and the api/students wiring to restore the retained fan-out handler without data migration.",
+    "smoke": "Production students router with signed JWT, permission gates and tenant transaction serves all three routes for the admin reviewer; the absence-only reviewer keeps seeing only the excused queue (router test)."
+  },
+  "rollback_and_cleanup": "Revert the consumer wiring (api/base.go composition, api/students handlers) as a whole while the retained queues remain intact; the read-only projection owns no authoritative state. The adapter's compatibility permissions convert to exact debt once the packages exist at a base SHA; the inbound-students adapter import goes when the decide routes move to their owners. No deployment or staging/production requests.",
+  "exit_criterion": "Partial delivery; #2705 stays open. The aggregated staff list and the badge read the one projection with output parity, tenant safety and no direct cross-owner reads in api/students. Still open under #2705: the staff RSS feed (/students/change-requests/rss-feed) reads the request tables through its own parent-request-feed-read-model projection, golden fixtures and a slow-query plan are not captured, and the enrollment.change_requests versus enrollment.offering_change_requests scope is unconfirmed. No ratchet key added or removed (1647 legacy violations before and after), composition surface 796 unchanged, ownership and policy epoch 5 preserved."
+}

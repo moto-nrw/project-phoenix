@@ -4,47 +4,19 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strconv"
-	"time"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/requestreview"
+	requestreviewlegacy "github.com/moto-nrw/project-phoenix/modules/requestreview/legacy"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // MasterDataChangeRequestResponse is the staff-facing projection of one parent
-// Stammdaten change request in the review queue.
-type MasterDataChangeRequestResponse struct {
-	ID         string          `json:"id"`
-	StudentID  string          `json:"student_id"`
-	FirstName  string          `json:"first_name"`
-	LastName   string          `json:"last_name"`
-	Target     string          `json:"target"`
-	FieldKey   string          `json:"field_key"`
-	OldValue   json.RawMessage `json:"old_value,omitempty"`
-	NewValue   json.RawMessage `json:"new_value"`
-	Status     string          `json:"status"`
-	CreatedAt  time.Time       `json:"created_at"`
-	ReviewedAt *time.Time      `json:"reviewed_at,omitempty"`
-}
-
-func toMasterDataChangeRequestResponse(item *userService.MasterDataReviewItem) MasterDataChangeRequestResponse {
-	r := item.Request
-	return MasterDataChangeRequestResponse{
-		ID:         strconv.FormatInt(r.ID, 10),
-		StudentID:  strconv.FormatInt(r.StudentID, 10),
-		FirstName:  item.FirstName,
-		LastName:   item.LastName,
-		Target:     r.Target,
-		FieldKey:   r.FieldKey,
-		OldValue:   r.OldValue,
-		NewValue:   r.NewValue,
-		Status:     r.Status,
-		CreatedAt:  r.CreatedAt,
-		ReviewedAt: r.ReviewedAt,
-	}
-}
+// Stammdaten change request; the shared request-review projection (#2705)
+// owns the shape and the decide route answers with the same one.
+type MasterDataChangeRequestResponse = requestreview.MasterDataChangeRequestResponse
 
 // DecideMasterDataChangeRequestBody is the body of POST
 // .../master-data-change-requests/{requestId}/decide.
@@ -110,5 +82,5 @@ func (rs *Resource) decideMasterDataChangeRequest(w http.ResponseWriter, r *http
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, toMasterDataChangeRequestResponse(item), "Decision applied")
+	common.Respond(w, r, http.StatusOK, requestreviewlegacy.ToMasterDataChangeRequestResponse(item), "Decision applied")
 }
