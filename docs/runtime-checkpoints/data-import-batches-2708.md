@@ -46,6 +46,8 @@ Current authorization and tenant reference access are checked on every run.
 An unsuccessful actual import remains HTTP 500. A nonnil partial result is
 retained in `details.result`, with code `import_batch_failed`, including
 committed counts and row errors. It is not reported as a successful upload.
+The four import screens read that payload and show the saved counts plus the
+blocking row. The failed write is not checkpointed as a skip.
 Permission-denied staff modes remain 403; opening actor-resolution failures
 remain distinct from transaction infrastructure errors.
 
@@ -60,6 +62,7 @@ remain distinct from transaction infrastructure errors.
 | Invalid final row in a 205-row file | Preview writes only its audit; actual import accepts 204; replay preserves serialized row errors and timestamps |
 | 101 student rows sharing a guardian | One guardian and 101 links across two batches; completed replay writes nothing |
 | Create-mode student row whose name+class matches more than one existing child | The clash is a `duplicate_check_failed` row error; later valid rows in the same 100-row unit of work still commit; identical replay restores that receipt |
+| Create/Update failure after a committed batch | HTTP 500 `import_batch_failed` keeps `details.result`; the four import screens show saved counts and the blocking row instead of a generic total failure |
 | Absent versus explicit false guardian flags | Absent cells preserve flags; explicit false revokes them; the otherwise identical JSON inputs do not share a checkpoint |
 | Student owner insert failures | Person, student, consent, guardian, phone, link, arrival, pickup and consent-history failures each roll back owner writes; replay succeeds after failure removal |
 | Staff owner insert failures | Person, staff, caregiver, master data, qualifications and invitation failures each roll back; replay creates each once |

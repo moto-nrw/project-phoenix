@@ -755,6 +755,86 @@ describe("StudentImportPage", () => {
     });
   });
 
+  it("shows saved rows and the blocking row on import_batch_failed", async () => {
+    const mockPreviewResponse = {
+      data: {
+        TotalRows: 205,
+        CreatedCount: 205,
+        UpdatedCount: 0,
+        ErrorCount: 0,
+        Errors: [],
+      },
+    };
+
+    (global.fetch as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockPreviewResponse),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        json: () =>
+          Promise.resolve({
+            status: "error",
+            error: "Import fehlgeschlagen",
+            code: "import_batch_failed",
+            details: {
+              result: {
+                TotalRows: 205,
+                CreatedCount: 100,
+                UpdatedCount: 0,
+                ErrorCount: 1,
+                Errors: [
+                  {
+                    RowNumber: 152,
+                    Data: {
+                      first_name: "Refused",
+                      last_name: "Batch",
+                      school_class: "1a",
+                      group_name: "",
+                      birthday: "",
+                      guardians: [],
+                    },
+                    Errors: [
+                      {
+                        field: "create",
+                        message: "Anlegen fehlgeschlagen",
+                        code: "creation_failed",
+                        severity: "error",
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          }),
+      });
+
+    render(<StudentImportPage />);
+    fireEvent.click(screen.getByTestId("file-select-trigger"));
+
+    await waitFor(() => {
+      expect(screen.getByText("205 Kinder importieren")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("205 Kinder importieren"));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/100 Zeilen sind gespeichert/),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.getByText(/Zeile 152 hat den Rest angehalten/),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("stat-new")).toHaveTextContent("100");
+    expect(screen.getByTestId("stat-errors")).toHaveTextContent("1");
+    expect(screen.getByText("Refused Batch")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Erneut versuchen" }),
+    ).toBeEnabled();
+    expect(screen.queryByText("Fehler beim Import")).not.toBeInTheDocument();
+  });
+
   it("disables import button when there are errors", async () => {
     const mockPreviewResponse = {
       data: {

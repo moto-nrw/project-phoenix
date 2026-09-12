@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
+  AlertTriangle,
   CalendarDays,
   CheckCircle2,
   Download,
@@ -30,6 +31,12 @@ import { StatusBadge } from "~/components/ui/status-badge";
 import { UploadSection } from "~/components/import/upload-section";
 import { useToast } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
+import {
+  importBatchFailureAlertType,
+  importBatchFailureMessage,
+  importBatchSavedCount,
+  readImportBatchFailure,
+} from "~/lib/import-batch-result";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { createLogger } from "~/lib/logger";
@@ -108,7 +115,7 @@ function cellValue(raw: string | undefined): string {
 }
 
 function toDisplayRow(row: ImportRowResult): DisplayRow {
-  const data = row.Data;
+  const data = row.Data ?? {};
   const name = `${data.first_name ?? ""} ${data.last_name ?? ""}`.trim();
   return {
     key: `row-${row.RowNumber}`,
@@ -185,7 +192,7 @@ function PreviewRowCard({ row }: { readonly row: DisplayRow }) {
             <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
               {row.values.map((value) => (
                 <div key={value.label}>
-                  <dt className="text-[11px] font-medium tracking-wide text-gray-500 uppercase">
+                  <dt className="text-xs font-medium tracking-wide text-gray-500 uppercase">
                     {value.label}
                   </dt>
                   <dd className="text-sm text-gray-900 tabular-nums">
@@ -222,7 +229,7 @@ function StatTile({
 }) {
   return (
     <div className="rounded-xl bg-gray-50 px-3 py-2.5">
-      <p className="text-[11px] font-medium tracking-wide text-gray-500 uppercase">
+      <p className="text-xs font-medium tracking-wide text-gray-500 uppercase">
         {label}
       </p>
       <p className="mt-0.5 text-xl font-semibold text-gray-900 tabular-nums">
@@ -250,6 +257,7 @@ export default function OpeningBalanceImportPage() {
   const [previewResult, setPreviewResult] = useState<ImportResult | null>(null);
   const [previewStale, setPreviewStale] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [importInterrupted, setImportInterrupted] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -270,6 +278,7 @@ export default function OpeningBalanceImportPage() {
     setPreviewRows([]);
     setPreviewResult(null);
     setImportResult(null);
+    setImportInterrupted(false);
     setPreviewStale(false);
   }, []);
 
@@ -414,6 +423,20 @@ export default function OpeningBalanceImportPage() {
       });
       const payload = (await response.json()) as Record<string, unknown>;
       if (!response.ok) {
+        const interrupted = readImportBatchFailure<ImportRowResult>(payload);
+        if (interrupted) {
+          setImportResult(interrupted as ImportResult);
+          setImportInterrupted(true);
+          setPreviewResult(null);
+          setPreviewRows((interrupted.Errors ?? []).map(toDisplayRow));
+          setError(importBatchFailureMessage(interrupted));
+          logger.error("opening_balance_import_batch_failed", {
+            created: interrupted.CreatedCount,
+            updated: interrupted.UpdatedCount,
+            errors: interrupted.ErrorCount,
+          });
+          return;
+        }
         throw new Error(
           (payload.error as string | undefined) ??
             (payload.message as string | undefined) ??
@@ -423,6 +446,7 @@ export default function OpeningBalanceImportPage() {
 
       const result = payload.data as ImportResult;
       setImportResult(result);
+      setImportInterrupted(false);
       setPreviewResult(null);
       setPreviewRows((result.Errors ?? []).map(toDisplayRow));
 
@@ -467,9 +491,12 @@ export default function OpeningBalanceImportPage() {
     ? [
         uploadedFile.name,
         importResult
-          ? "Übernahme abgeschlossen"
+          ? importInterrupted
+            ? `${importBatchSavedCount(importResult)} gespeichert`
+            : "Übernahme abgeschlossen"
           : `${balanceResult?.TotalRows ?? 0} ${(balanceResult?.TotalRows ?? 0) === 1 ? "Zeile" : "Zeilen"}`,
-        !importResult && (balanceResult?.ErrorCount ?? 0) > 0
+        (!importResult || importInterrupted) &&
+        (balanceResult?.ErrorCount ?? 0) > 0
           ? `${balanceResult?.ErrorCount} Fehler`
           : null,
         effectiveDate ? `Stichtag ${formatDate(effectiveDate)}` : null,
@@ -516,7 +543,14 @@ export default function OpeningBalanceImportPage() {
 
       {error && (
         <div className="relative">
-          <Alert type="error" message={error} />
+          <Alert
+            type={
+              importInterrupted && importResult
+                ? importBatchFailureAlertType(importResult)
+                : "error"
+            }
+            message={error}
+          />
           <Button
             type="button"
             variant="ghost"
@@ -675,8 +709,12 @@ export default function OpeningBalanceImportPage() {
       {/* Ergebnis */}
       {importResult && (
         <SectionCard
-          title="Import abgeschlossen"
-          icon={CheckCircle2}
+          title={
+            importInterrupted
+              ? "Import nicht vollständig"
+              : "Import abgeschlossen"
+          }
+          icon={importInterrupted ? AlertTriangle : CheckCircle2}
           actions={
             <Button
               type="button"
@@ -691,13 +729,15 @@ export default function OpeningBalanceImportPage() {
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
             <StatTile label="Zeilen" value={importResult.TotalRows} />
             <StatTile label="Übernommen" value={importResult.CreatedCount} />
-            <StatTile label="Hinweise" value={importResult.WarningCount} />
+            <StatTile label="Hinweise" value={importResult.WarningCount ?? 0} />
             <StatTile label="Fehler" value={importResult.ErrorCount} />
           </div>
           {previewRows.length > 0 && (
             <>
               <p className="mt-3 text-sm text-gray-600">
-                Diese Zeilen wurden übersprungen oder tragen Hinweise:
+                {importInterrupted
+                  ? "Diese Zeile hat den Rest angehalten:"
+                  : "Diese Zeilen wurden übersprungen oder tragen Hinweise:"}
               </p>
               <div className="mt-2 space-y-2">
                 {previewRows.map((row) => (
@@ -705,6 +745,19 @@ export default function OpeningBalanceImportPage() {
                 ))}
               </div>
             </>
+          )}
+          {importInterrupted && (
+            <div className="mt-4">
+              <Button
+                type="button"
+                variant="success"
+                size="md"
+                disabled={isImporting}
+                onClick={() => void handleImport()}
+              >
+                {isImporting ? "Wird übernommen…" : "Erneut versuchen"}
+              </Button>
+            </div>
           )}
         </SectionCard>
       )}

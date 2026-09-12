@@ -630,6 +630,83 @@ describe("StaffImportPage", () => {
     });
   });
 
+  it("shows saved rows and the blocking row on import_batch_failed", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              TotalRows: 205,
+              CreatedCount: 205,
+              UpdatedCount: 0,
+              ErrorCount: 0,
+              Errors: [],
+            },
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        json: () =>
+          Promise.resolve({
+            status: "error",
+            error: "Import fehlgeschlagen",
+            code: "import_batch_failed",
+            details: {
+              result: {
+                TotalRows: 205,
+                CreatedCount: 100,
+                UpdatedCount: 0,
+                ErrorCount: 1,
+                Errors: [
+                  {
+                    RowNumber: 152,
+                    Data: {
+                      first_name: "Refused",
+                      last_name: "Batch",
+                      email: "",
+                      role_name: "Betreuung",
+                    },
+                    Errors: [
+                      {
+                        field: "create",
+                        message: "Anlegen fehlgeschlagen",
+                        code: "creation_failed",
+                        severity: "error",
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          }),
+      });
+
+    render(<StaffImportPage />);
+    fireEvent.click(screen.getByTestId("file-select-trigger"));
+
+    await waitFor(() => {
+      expect(screen.getByText("205 Mitarbeiter anlegen")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("205 Mitarbeiter anlegen"));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/100 Zeilen sind gespeichert/),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.getByText(/Zeile 152 hat den Rest angehalten/),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("stat-new")).toHaveTextContent("100");
+    expect(screen.getByTestId("stat-errors")).toHaveTextContent("1");
+    expect(screen.getByText("Refused Batch")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Erneut versuchen" }),
+    ).toBeEnabled();
+    expect(screen.queryByText("Fehler beim Import")).not.toBeInTheDocument();
+  });
+
   it("toggles isDragging on dragEnter/dragLeave", () => {
     render(<StaffImportPage />);
 
