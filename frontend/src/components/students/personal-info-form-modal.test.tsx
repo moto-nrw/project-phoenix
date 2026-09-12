@@ -5,6 +5,25 @@ import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
 import type { StudentCompanion } from "~/lib/student-companion-api";
 import { CompanionPlanConflictError } from "~/lib/api";
 
+function resolvedPrivacyConsent(): Promise<{
+  accepted: boolean;
+  dataRetentionDays: number;
+}> {
+  // The ordinary form tests are not about this independent request. Resolve it
+  // during the effect so their save actions still model a form that is ready.
+  return {
+    then: (
+      onFulfilled: (value: {
+        accepted: boolean;
+        dataRetentionDays: number;
+      }) => unknown,
+    ) => {
+      onFulfilled({ accepted: true, dataRetentionDays: 30 });
+      return { catch: () => undefined };
+    },
+  } as unknown as Promise<{ accepted: boolean; dataRetentionDays: number }>;
+}
+
 // The birthday field moved from a native input to the kit picker; this stub
 // keeps it readable/settable as an input. Imported inside the factory because
 // vi.mock is hoisted above the imports.
@@ -26,9 +45,7 @@ const {
   // Datenschutzeinwilligung und Foto (#3115): beide leben neben dem Kind und
   // werden vom Bearbeiten-Zustand nachgeladen bzw. nach dem Speichern
   // geschrieben.
-  fetchStudentPrivacyConsentMock: vi.fn(() =>
-    Promise.resolve({ accepted: true, dataRetentionDays: 30 }),
-  ),
+  fetchStudentPrivacyConsentMock: vi.fn(resolvedPrivacyConsent),
   uploadStudentPhotoMock: vi.fn(() => Promise.resolve()),
   deleteStudentPhotoMock: vi.fn(() => Promise.resolve()),
   photosEnabledState: { enabled: false },
@@ -204,9 +221,7 @@ describe("PersonalInfoFormModal", () => {
     fetchStudentCompanionsMock.mockImplementation(
       () => new Promise(() => undefined),
     );
-    fetchStudentPrivacyConsentMock.mockImplementation(() =>
-      Promise.resolve({ accepted: true, dataRetentionDays: 30 }),
-    );
+    fetchStudentPrivacyConsentMock.mockImplementation(resolvedPrivacyConsent);
   });
 
   describe("Modal open/close behavior", () => {
@@ -358,6 +373,29 @@ describe("PersonalInfoFormModal", () => {
   });
 
   describe("Save functionality", () => {
+    it("keeps saving disabled until the privacy consent has loaded", () => {
+      fetchStudentPrivacyConsentMock.mockImplementation(
+        () => new Promise(() => undefined),
+      );
+
+      render(
+        <PersonalInfoFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          student={createMockStudent({
+            privacy_consent_accepted: false,
+            data_retention_days: 7,
+          })}
+          onSave={mockOnSave}
+        />,
+      );
+
+      const saveButton = screen.getByRole("button", { name: "Speichern" });
+      expect(saveButton).toBeDisabled();
+      fireEvent.click(saveButton);
+      expect(mockOnSave).not.toHaveBeenCalled();
+    });
+
     it("calls onSave with updated student data", async () => {
       mockOnSave.mockResolvedValue(undefined);
 
@@ -853,13 +891,7 @@ describe("PersonalInfoFormModal", () => {
       await screen.findByText(
         /Datenschutzeinstellungen konnten nicht geladen werden/,
       );
-      fireEvent.click(screen.getByText("Speichern"));
-
-      await waitFor(() => {
-        expect(
-          screen.getByText(/Bitte neu laden, bevor Sie speichern/),
-        ).toBeInTheDocument();
-      });
+      expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
       expect(mockOnSave).not.toHaveBeenCalled();
     });
 

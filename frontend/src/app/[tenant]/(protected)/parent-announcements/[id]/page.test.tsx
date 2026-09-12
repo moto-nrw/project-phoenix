@@ -157,6 +157,19 @@ describe("AnnouncementDetailPage", () => {
     expect(pushMock).toHaveBeenCalledWith("/parent-announcements?art=umfragen");
   });
 
+  it("falls back to the collection for an external referrer", () => {
+    searchParams.set("from", "//attacker.example");
+    render(<AnnouncementDetailPage />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Zurück zu den Mitteilungen" }),
+    );
+
+    expect(pushMock).toHaveBeenCalledWith(
+      "/parent-announcements?art=mitteilungen",
+    );
+  });
+
   it("sends Bearbeiten to the list with the wizard request", () => {
     render(<AnnouncementDetailPage />);
 

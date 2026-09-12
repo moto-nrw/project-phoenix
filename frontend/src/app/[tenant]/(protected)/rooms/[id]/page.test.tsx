@@ -232,6 +232,25 @@ describe("RoomDetailPage", () => {
     expect(screen.queryByText("Belegt")).not.toBeInTheDocument();
   });
 
+  it("shows read-only room information in binary presence mode", () => {
+    presenceModeState.mode = "binary";
+    render(<RoomDetailPage />);
+
+    expect(screen.getByTestId("room-overview")).toBeInTheDocument();
+    expect(screen.queryByTestId("room-stammdaten")).not.toBeInTheDocument();
+  });
+
+  it("falls back to the room list for an external referrer", () => {
+    searchParams.set("from", "//attacker.example");
+    render(<RoomDetailPage />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Zurück zu den Räumen" }),
+    );
+
+    expect(pushMock).toHaveBeenCalledWith("/rooms");
+  });
+
   it("renders the loading page with the referrer's back label", () => {
     useRoomDetailMock.mockReturnValue({
       room: null,

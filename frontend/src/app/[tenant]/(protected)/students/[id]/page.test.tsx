@@ -1175,13 +1175,13 @@ describe("StudentDetailPage", () => {
       expect(backButton).toHaveAttribute("data-referrer", "/students/search");
     });
 
-    it("uses custom referrer from URL params", () => {
-      mockSearchParams.set("from", "/my-room");
+    it("falls back for an external referrer from URL params", () => {
+      mockSearchParams.set("from", "//attacker.example");
 
       render(<StudentDetailPage />);
 
       const backButton = screen.getByTestId("back-button");
-      expect(backButton).toHaveAttribute("data-referrer", "/my-room");
+      expect(backButton).toHaveAttribute("data-referrer", "/students/search");
     });
   });
 

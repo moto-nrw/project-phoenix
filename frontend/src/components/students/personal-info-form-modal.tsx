@@ -398,7 +398,7 @@ export function PersonalInfoFormModal({
   const handleSave = async () => {
     // Ohne die gespeicherte Einwilligung würde der Vorgabewert des Formulars
     // die echte überschreiben (Bauart 2: ein Speichern, das nichts verliert).
-    if (privacyConsentStatus === "error") {
+    if (privacyConsentStatus !== "ready") {
       setSaveError(
         "Die Datenschutzeinstellungen konnten nicht geladen werden. Bitte neu laden, bevor Sie speichern.",
       );
@@ -616,7 +616,7 @@ export function PersonalInfoFormModal({
         variant="primary"
         size="md"
         onClick={() => void handleSave()}
-        disabled={isSaving}
+        disabled={isSaving || privacyConsentStatus !== "ready"}
       >
         {isSaving ? "Wird gespeichert…" : "Speichern"}
       </Button>

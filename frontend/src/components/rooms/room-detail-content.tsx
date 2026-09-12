@@ -261,6 +261,8 @@ interface RoomDetailContentProps {
   // empty-state placeholder from accidentally surfacing the section on a
   // tenant that has opted out.
   readonly historyDisabled?: boolean;
+  /** Binärer Präsenzmodus kennt keine Raumbelegung. */
+  readonly showOccupancy?: boolean;
 }
 
 export function RoomDetailContent({
@@ -268,6 +270,7 @@ export function RoomDetailContent({
   history,
   onSelectionActiveChange,
   historyDisabled = false,
+  showOccupancy = true,
 }: RoomDetailContentProps) {
   const groupedSessions = groupByDate(history);
   const hasHistory = !historyDisabled && groupedSessions.length > 0;
@@ -316,13 +319,16 @@ export function RoomDetailContent({
               {room.category}
             </DataField>
           )}
-          <DataField label="Status">
-            {room.isOccupied ? "Belegt" : "Frei"}
-          </DataField>
-          {room.isOccupied && room.groupName && (
+          {showOccupancy ? (
+            <DataField label="Status">
+              {room.isOccupied ? "Belegt" : "Frei"}
+            </DataField>
+          ) : null}
+          {showOccupancy && room.isOccupied && room.groupName && (
             <DataField label="Aktuelle Aktivität">{room.groupName}</DataField>
           )}
-          {room.isOccupied &&
+          {showOccupancy &&
+            room.isOccupied &&
             room.studentCount !== undefined &&
             room.studentCount > 0 && (
               <DataField label="Aktuell anwesend">
@@ -331,7 +337,7 @@ export function RoomDetailContent({
                 }`}
               </DataField>
             )}
-          {room.isOccupied && room.supervisorName && (
+          {showOccupancy && room.isOccupied && room.supervisorName && (
             <DataField label="Aktuelle Aufsicht">
               {room.supervisorName}
             </DataField>
@@ -339,13 +345,15 @@ export function RoomDetailContent({
         </DataGrid>
       </SectionCard>
 
-      <StudentsInRoomSection
-        roomId={room.id}
-        roomName={room.name}
-        onSelectionActiveChange={onSelectionActiveChange}
-      />
+      {showOccupancy ? (
+        <StudentsInRoomSection
+          roomId={room.id}
+          roomName={room.name}
+          onSelectionActiveChange={onSelectionActiveChange}
+        />
+      ) : null}
 
-      {hasHistory ? (
+      {showOccupancy && hasHistory ? (
         <SectionCard title="Belegungshistorie">
           <div className="space-y-6">
             {groupedSessions.map((dateGroup) => (

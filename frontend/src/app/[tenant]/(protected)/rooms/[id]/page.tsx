@@ -31,6 +31,7 @@ import {
   ROOM_LIST_CACHE_KEYS,
 } from "~/lib/swr/room-derived-caches";
 import { usePresenceMode } from "~/lib/tenant-context";
+import { resolveDetailReferrer } from "~/lib/tenant-path";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { getDbOperationMessage } from "~/lib/use-notification";
 import { RoomDetailLoadingPage } from "./page-skeleton";
@@ -71,7 +72,10 @@ function RoomDetailPageContent() {
   const searchParams = useSearchParams();
   const router = useTenantRouter();
   const roomId = params.id as string;
-  const referrer = searchParams.get("from") ?? "/rooms";
+  const referrer = resolveDetailReferrer(searchParams.get("from"), "/rooms", [
+    "/rooms",
+    "/database/rooms",
+  ]);
   const backLabel = backLabelFor(referrer);
   const { data: session } = useSession();
   const presenceMode = usePresenceMode();
@@ -267,6 +271,14 @@ function RoomDetailPageContent() {
         />
       }
     >
+      {!hasOccupancy && !canUpdate ? (
+        <RoomDetailContent
+          room={room}
+          history={history}
+          historyDisabled={historyDisabled}
+          showOccupancy={false}
+        />
+      ) : null}
       {activeTab === "uebersicht" && hasOccupancy ? (
         loading ? (
           <RoomDetailSkeleton />

@@ -466,4 +466,26 @@ describe("StaffDetailContent permissions", () => {
     expect(replaceMock).toHaveBeenCalledWith("/database/personal");
     searchParams.delete("from");
   });
+
+  it("does not redirect a role without permission to an external referrer", () => {
+    searchParams.set("from", "//attacker.example");
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "7",
+          token: "test-token",
+          roles: ["teacher"],
+          permissions: ["schedules:read"],
+        },
+        expires: "2099-01-01T00:00:00.000Z",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<StaffDetailContent />);
+
+    expect(replaceMock).toHaveBeenCalledWith("/staff");
+    searchParams.delete("from");
+  });
 });

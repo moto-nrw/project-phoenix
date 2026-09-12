@@ -259,6 +259,14 @@ describe("TransitStudentsSection", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("reports the loaded transit count to its page header", () => {
+    const onTotalCountChange = vi.fn();
+
+    render(<TransitStudentsSection onTotalCountChange={onTotalCountChange} />);
+
+    expect(onTotalCountChange).toHaveBeenLastCalledWith(2);
+  });
+
   it("filters active target rooms to the current staff member's supervisions", () => {
     mockTransitData({
       activeGroups: [

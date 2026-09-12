@@ -19,8 +19,18 @@ vi.mock("~/lib/tenant-context", () => ({
 }));
 
 vi.mock("~/components/rooms/transit-students-section", () => ({
-  TransitStudentsSection: ({ fromReferrer }: { fromReferrer?: string }) => (
-    <div data-testid="transit-section" data-from={fromReferrer} />
+  TransitStudentsSection: ({
+    fromReferrer,
+    onTotalCountChange,
+  }: {
+    fromReferrer?: string;
+    onTotalCountChange?: (count: number | null) => void;
+  }) => (
+    <div
+      data-testid="transit-section"
+      data-from={fromReferrer}
+      data-count-handler={onTotalCountChange ? "yes" : "no"}
+    />
   ),
 }));
 
@@ -32,10 +42,13 @@ describe("TransitPage", () => {
     expect(
       screen.getByRole("heading", { name: "Unterwegs" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Kinder ohne Raumzuweisung")).toBeInTheDocument();
     expect(screen.getByTestId("transit-section")).toHaveAttribute(
       "data-from",
       "/rooms/unterwegs",
+    );
+    expect(screen.getByTestId("transit-section")).toHaveAttribute(
+      "data-count-handler",
+      "yes",
     );
   });
 

@@ -32,6 +32,7 @@ import { fetchAnnouncement } from "~/lib/parent-announcements-api";
 import type { Announcement } from "~/lib/parent-announcements-api";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { resolveDetailReferrer } from "~/lib/tenant-path";
 import { AnnouncementDetailLoadingPage } from "./page-skeleton";
 
 /** SWR-Schlüssel der Liste, die nach jeder Lebenszyklus-Aktion neu lädt. */
@@ -86,7 +87,11 @@ function AnnouncementDetailPageContent() {
   // Ohne `from` (Link von außen) führt er auf den Reiter, zu dem die
   // Mitteilung gehört.
   const kind = announcement ? kindOf(announcement) : "announcement";
-  const referrer = searchParams.get("from") ?? announcementCollectionPath(kind);
+  const referrer = resolveDetailReferrer(
+    searchParams.get("from"),
+    announcementCollectionPath(kind),
+    ["/parent-announcements"],
+  );
   const backLabel = BACK_LABEL[kind];
 
   useSetBreadcrumb({

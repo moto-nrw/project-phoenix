@@ -48,12 +48,15 @@ function canUseAllMoveTargets(session: Session | null): boolean {
 
 interface TransitStudentsSectionProps {
   readonly onSelectionActiveChange?: (active: boolean) => void;
+  /** Meldet die geladene Zahl für die Statuszeile der eigenständigen Seite. */
+  readonly onTotalCountChange?: (totalCount: number | null) => void;
   readonly fromReferrer?: string;
   readonly collapsible?: boolean;
 }
 
 export function TransitStudentsSection({
   onSelectionActiveChange,
+  onTotalCountChange,
   fromReferrer: fromReferrerOverride,
   collapsible = false,
 }: TransitStudentsSectionProps) {
@@ -169,6 +172,10 @@ export function TransitStudentsSection({
   useEffect(() => {
     onSelectionActiveChange?.(selectedVisibleCount > 0);
   }, [onSelectionActiveChange, selectedVisibleCount]);
+
+  useEffect(() => {
+    onTotalCountChange?.(studentsData ? totalCount : null);
+  }, [onTotalCountChange, studentsData, totalCount]);
 
   useEffect(() => {
     if (

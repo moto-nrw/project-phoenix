@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -16,18 +16,28 @@ const TRANSIT_PATH = "/rooms/unterwegs";
  * geteilter Link und ein Neuladen dort landen, wo man war.
  */
 export default function TransitPage() {
+  const [totalCount, setTotalCount] = useState<number | null>(null);
+
   return (
     <BinaryModeGuard title="Unterwegs">
       <Suspense fallback={<RoomsGridSkeleton />}>
         <TenantPage
           title="Unterwegs"
-          stats="Kinder ohne Raumzuweisung"
+          stats={
+            totalCount === null
+              ? undefined
+              : `${totalCount} ${totalCount === 1 ? "Kind" : "Kinder"}`
+          }
+          statsLoading={totalCount === null}
           back
           backHref="/rooms"
           backLabel="Zurück zu den Räumen"
           leading={<MotoConceptIcon concept="transit" size={40} />}
         >
-          <TransitStudentsSection fromReferrer={TRANSIT_PATH} />
+          <TransitStudentsSection
+            fromReferrer={TRANSIT_PATH}
+            onTotalCountChange={setTotalCount}
+          />
         </TenantPage>
       </Suspense>
     </BinaryModeGuard>

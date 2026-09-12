@@ -5,6 +5,7 @@ import { useParams, redirect, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Pencil, Trash2 } from "lucide-react";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { resolveDetailReferrer } from "~/lib/tenant-path";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { staffService } from "~/lib/staff-api";
 import type { Staff } from "~/lib/staff-api";
@@ -66,7 +67,10 @@ export default function StaffDetailContent() {
   const staffId = params.id as string;
   // Rückweg: die Sammlung, aus der man kam. Die Datenverwaltung verlinkt seit
   // #3115 hierher statt in ein eigenes Pane; sonst die Mitarbeiterliste.
-  const referrer = searchParams.get("from") ?? "/staff";
+  const referrer = resolveDetailReferrer(searchParams.get("from"), "/staff", [
+    "/staff",
+    "/database/personal",
+  ]);
   const backLabel = referrer.startsWith("/database/personal")
     ? "Zurück zum Personal"
     : "Zurück zu den Mitarbeitenden";

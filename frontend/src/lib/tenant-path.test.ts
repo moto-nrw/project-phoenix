@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeTenantPathname, tenantAwarePath } from "./tenant-path";
+import {
+  normalizeTenantPathname,
+  resolveDetailReferrer,
+  tenantAwarePath,
+} from "./tenant-path";
 
 describe("tenantAwarePath", () => {
   it("prefixes the tenant slug in path mode", () => {
@@ -41,4 +45,34 @@ describe("normalizeTenantPathname", () => {
       "/dashboard",
     );
   });
+});
+
+describe("resolveDetailReferrer", () => {
+  const fallback = "/students/search";
+  const allowed = ["/students/search", "/database/students", "/rooms"];
+
+  it("keeps an allowed collection path including its filters", () => {
+    expect(
+      resolveDetailReferrer(
+        "/database/students?groupBy=group",
+        fallback,
+        allowed,
+      ),
+    ).toBe("/database/students?groupBy=group");
+  });
+
+  it("keeps an allowed detail path", () => {
+    expect(resolveDetailReferrer("/rooms/7", fallback, allowed)).toBe(
+      "/rooms/7",
+    );
+  });
+
+  it.each(["//attacker.example", "/\\attacker.example", "/my-room"])(
+    "falls back for an unapproved or external path %s",
+    (candidate) => {
+      expect(resolveDetailReferrer(candidate, fallback, allowed)).toBe(
+        fallback,
+      );
+    },
+  );
 });

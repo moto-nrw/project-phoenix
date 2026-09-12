@@ -16,6 +16,7 @@ import { Button } from "~/components/ui/button";
 import { useToast } from "~/contexts/ToastContext";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { resolveDetailReferrer } from "~/lib/tenant-path";
 import { groupService, studentService } from "~/lib/api";
 import { schoolCheckinStudent } from "~/lib/student-api";
 import {
@@ -360,7 +361,17 @@ function StudentDetailPageContent() {
   const navRouter = useRouter();
   const tenantRouter = useTenantRouter();
   const studentId = params.id as string;
-  const referrer = searchParams.get("from") ?? "/students/search";
+  const referrer = resolveDetailReferrer(
+    searchParams.get("from"),
+    "/students/search",
+    [
+      "/students/search",
+      "/database/students",
+      "/rooms",
+      "/active-supervisions",
+      "/day-log",
+    ],
+  );
   // Der Rückweg heißt wie die Sammlung, aus der man kam: die Kinderdaten der
   // Datenverwaltung verlinken seit #3115 hierher, statt ein eigenes Pane zu
   // tragen.
