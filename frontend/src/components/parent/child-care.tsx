@@ -116,13 +116,10 @@ function formatLocaleDate(iso: string, locale: string): string {
 
 // --- data hook ---
 
-// Sick notes and team messages default ON so a transient features-fetch
-// failure doesn't lock a parent out of an action their school allows. The
-// pickup-time change is ON by default at the school level too, but here we fall
-// back to OFF on a features-fetch failure — hiding a button on a transient
-// error beats showing one the backend might reject with 403.
+// An unavailable capability response must not offer parent mutations.
 const DEFAULT_FEATURES: ChildFeatures = {
-  sick_note_enabled: true,
+  sick_note_enabled: false,
+  excused_note_enabled: false,
   // Default false on fetch failure (least privilege), consistent with the other
   // consequential flags below: the features fetch .catch returns DEFAULT_FEATURES,
   // and a school with messaging turned OFF would otherwise show an enabled
@@ -673,6 +670,8 @@ export function SickNoteModal({
   onSubmit,
   sickRequiresApproval,
   excusedRequiresApproval,
+  sickEnabled = true,
+  excusedEnabled = true,
   reasonRequired = true,
 }: Readonly<{
   studentId?: string;
@@ -683,6 +682,8 @@ export function SickNoteModal({
     status: StudentStatusKind,
     recipientGuardianProfileIds?: string[],
   ) => Promise<AbsenceSubmissionOutcome | void>;
+  sickEnabled?: boolean;
+  excusedEnabled?: boolean;
   sickRequiresApproval?: boolean;
   excusedRequiresApproval?: boolean;
   /** Ob die OGS einen Grund verlangt (requiresGuardianReason). */
@@ -693,7 +694,13 @@ export function SickNoteModal({
   const initial = todayISO();
   const [from, setFrom] = useState(initial);
   const [to, setTo] = useState(initial);
-  const [status, setStatus] = useState<StudentStatusKind>("sick");
+  const [selectedStatus, setStatus] = useState<StudentStatusKind>("sick");
+  const status =
+    selectedStatus === "sick" && !sickEnabled
+      ? "excused"
+      : selectedStatus === "excused" && !excusedEnabled
+        ? "sick"
+        : selectedStatus;
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -721,6 +728,7 @@ export function SickNoteModal({
         : t("sick.daysCount", { count: dates.length });
 
   const handleSubmit = async () => {
+    if (!sickEnabled && !excusedEnabled) return;
     if (dates.length === 0) {
       setError(t("sick.invalidDate"));
       return;
@@ -774,7 +782,7 @@ export function SickNoteModal({
               size="md"
               className="w-full gap-2 sm:w-auto"
               onClick={() => void handleSubmit()}
-              disabled={submitting}
+              disabled={submitting || (!sickEnabled && !excusedEnabled)}
             >
               {submitting && (
                 <Loader2 className="size-4 animate-spin" aria-hidden="true" />
@@ -806,8 +814,12 @@ export function SickNoteModal({
                 setError(null);
               }}
               options={[
-                { value: "sick", label: t("sick.kindSick") },
-                { value: "excused", label: t("sick.kindExcused") },
+                ...(sickEnabled
+                  ? [{ value: "sick", label: t("sick.kindSick") }]
+                  : []),
+                ...(excusedEnabled
+                  ? [{ value: "excused", label: t("sick.kindExcused") }]
+                  : []),
               ]}
             />
           </label>
@@ -1617,7 +1629,9 @@ export function getOgsActions(features: ChildFeatures): OgsAction[] {
     {
       key: "sick",
       concept: "sick",
-      enabled: features.sick_note_enabled,
+      enabled:
+        features.sick_note_enabled ||
+        (features.excused_note_enabled ?? features.sick_note_enabled),
     },
     {
       key: "pickup",

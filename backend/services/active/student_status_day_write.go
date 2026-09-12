@@ -80,7 +80,7 @@ type StatusDayWriteContext struct {
 	DB             *bun.DB
 	TenantID       int64
 	StudentService users.StudentService
-	Authorize      func(ctx context.Context, student *userModels.Student) bool
+	Authorize      func(ctx context.Context, student *userModels.Student, status string) bool
 	AfterCommit    func(studentID int64)
 	// AfterCreate receives the students whose current-day status newly became a
 	// reportable absence inside the write transaction. It is separate from
@@ -106,7 +106,7 @@ func (s *StudentStatusDayService) CreateForDates(ctx context.Context, wc StatusD
 		if err != nil {
 			return err
 		}
-		if !wc.Authorize(ctx, fresh) {
+		if !wc.Authorize(ctx, fresh, status) {
 			return ErrStudentStatusDayReassigned
 		}
 		if err := lockStudentStatusDates(ctx, wc.DB, studentID, dates); err != nil {
@@ -161,7 +161,7 @@ func (s *StudentStatusDayService) BulkCreateForDates(ctx context.Context, wc Sta
 			if err != nil {
 				return err
 			}
-			if !wc.Authorize(ctx, fresh) {
+			if !wc.Authorize(ctx, fresh, status) {
 				return ErrStudentStatusDayReassigned
 			}
 			lockedStudents[studentID] = fresh
@@ -329,7 +329,7 @@ func (s *StudentStatusDayService) DeleteByID(ctx context.Context, wc StatusDayWr
 		if err != nil {
 			return err
 		}
-		if !wc.Authorize(ctx, fresh) {
+		if !wc.Authorize(ctx, fresh, row.Status) {
 			return ErrStudentStatusDayReassigned
 		}
 

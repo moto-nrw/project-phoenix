@@ -124,6 +124,8 @@ const (
 	KeySessionAbandonedThresholdMin          = "operations.session_abandoned_threshold_minutes"
 	KeySessionInactivityTimeoutMin           = "operations.session_inactivity_timeout_minutes"
 	KeyOperationalOverviewScope              = "operations.operational_overview_scope"
+	KeyAttendanceEditScope                   = "operations.attendance_edit_scope"
+	KeyStudentAbsenceEditScope               = "operations.student_absence_edit_scope"
 	KeyClassArrivalExceptionEditors          = "operations.class_arrival_exception_editors"
 	KeySchoolPortalWriteScope                = "operations.school_portal_write_scope"
 	KeyParentRequestReasonPolicy             = "operations.parent_request_reason_policy"
@@ -145,6 +147,8 @@ const (
 	KeyCareConcept                           = "operations.care_concept"
 	KeyRequirePickupOfferingReview           = "operations.require_pickup_offering_review"
 	KeyParentSickNoteEnabled                 = "operations.parent_sick_note_enabled"
+	KeyParentSickReportsEnabled              = "operations.parent_sick_reports_enabled"
+	KeyParentExcusedReportsEnabled           = "operations.parent_excused_reports_enabled"
 	KeyParentSickRequiresApproval            = "operations.parent_sick_requires_approval"
 	KeyParentExcusedRequiresApproval         = "operations.parent_excused_requires_approval"
 	KeyParentNotesEnabled                    = "operations.parent_notes_enabled"
@@ -157,6 +161,7 @@ const (
 	KeyParentMasterDataEditEnabled           = "operations.parent_master_data_edit_enabled"
 	KeyParentMasterDataRequestEnabled        = "operations.parent_master_data_request_enabled"
 	KeyParentRequestGroupLeaderReviewEnabled = "operations.parent_request_group_leader_review_enabled"
+	KeyParentAbsenceReviewScope              = "operations.parent_absence_review_scope"
 	KeyParentNewsEnabled                     = "operations.parent_news_enabled"
 	// Whether colleagues at this school can write to each other inside moto
 	// (OGS-internal 1:1 chat, issue #2598). Defaults OFF: a school switches an
@@ -206,6 +211,15 @@ const (
 	KeyNotificationsCareCancelledEmail = "notifications.care_cancelled_email"
 )
 
+// Inherit preserves the old cross-kind group-leader policy until a school
+// explicitly chooses an absence-only scope. Reset restores that policy.
+const (
+	ParentAbsenceReviewScopeInherit      = "inherit"
+	ParentAbsenceReviewScopeAdmins       = "admins"
+	ParentAbsenceReviewScopeGroupLeaders = "group_leaders"
+	ParentAbsenceReviewScopeAllStaff     = "all_staff"
+)
+
 // PresenceMode option values for KeyPresenceMode.
 const (
 	PresenceModeDetailed = "detailed"
@@ -231,6 +245,18 @@ const (
 	// OverviewScopeAllStaff opens every educational group and running module to
 	// administrators and every verified staff member of the tenant.
 	OverviewScopeAllStaff = "all_staff"
+)
+
+// AttendanceEditScope extends attendance actions, not supervision or planning.
+const (
+	AttendanceEditScopeOwn      = "own"
+	AttendanceEditScopeAllStaff = "all_staff"
+)
+
+// StudentAbsenceEditScope controls direct sick and excused reports, not parent review.
+const (
+	StudentAbsenceEditScopeAdmins   = "admins"
+	StudentAbsenceEditScopeAllStaff = "all_staff"
 )
 
 // ClassArrivalExceptionEditors option values for KeyClassArrivalExceptionEditors

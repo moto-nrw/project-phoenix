@@ -514,6 +514,45 @@ describe("PickupTimeModal — Änderung zurücknehmen", () => {
 // with a Krank/Entschuldigt choice. These pin that the chosen kind reaches the
 // submit handler as the status argument, which is the heart of the feature.
 describe("SickNoteModal — Abmeldegrund", () => {
+  it("offers only excused reports when sick reports are disabled", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <SickNoteModal
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        sickEnabled={false}
+        excusedEnabled
+        reasonRequired={false}
+      />,
+    );
+    fireEvent.click(screen.getByRole("combobox"));
+    expect(screen.getByRole("option")).toHaveTextContent("Entschuldigen");
+    expect(screen.getAllByRole("option")).toHaveLength(1);
+    fireEvent.keyDown(screen.getByRole("combobox"), { key: "Escape" });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Entschuldigung an die OGS senden",
+      }),
+    );
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0]?.[2]).toBe("excused");
+  });
+
+  it("removes a selected report kind when its permission changes", () => {
+    const props = { onClose: vi.fn(), onSubmit: vi.fn() };
+    const { rerender } = render(
+      <SickNoteModal {...props} sickEnabled excusedEnabled />,
+    );
+    rerender(<SickNoteModal {...props} sickEnabled={false} excusedEnabled />);
+    expect(screen.getByRole("combobox")).toHaveTextContent("Entschuldigen");
+    rerender(
+      <SickNoteModal {...props} sickEnabled={false} excusedEnabled={false} />,
+    );
+    expect(
+      screen.getByRole("button", { name: /an die OGS senden/ }),
+    ).toBeDisabled();
+  });
+
   it("uses the compact shared modal button size", () => {
     render(<SickNoteModal onClose={vi.fn()} onSubmit={vi.fn()} />);
 
@@ -1137,6 +1176,8 @@ describe("useChildCare reportSick", () => {
         changed: false,
       }),
     );
+    expect(result.current.features.sick_note_enabled).toBe(false);
+    expect(result.current.features.excused_note_enabled).toBe(false);
 
     await act(async () => {
       await result.current.reportSick([today], "", "sick");

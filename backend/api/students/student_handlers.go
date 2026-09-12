@@ -549,12 +549,13 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response := StudentDetailResponse{
-		StudentResponse:       studentResponse,
-		HasFullAccess:         hasFullAccess,
-		HasWriteAccess:        hasWriteAccess,
-		HasAbsenceWriteAccess: rs.checkStudentAbsenceWriteAccess(r, student),
-		AttendanceLogEnabled:  attendanceLogEnabled,
-		FeedbackEnabled:       feedbackEnabled,
+		StudentResponse:           studentResponse,
+		HasFullAccess:             hasFullAccess,
+		HasWriteAccess:            hasWriteAccess,
+		HasAbsenceWriteAccess:     rs.checkStudentAbsenceWriteAccess(r, student),
+		HasSickExcusedWriteAccess: rs.checkStudentSickExcusedWriteAccess(r, student),
+		AttendanceLogEnabled:      attendanceLogEnabled,
+		FeedbackEnabled:           feedbackEnabled,
 	}
 	if err := rs.enrichStudentConsents(r.Context(), &response, student, hasFullAccess); err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
@@ -1747,6 +1748,11 @@ func (rs *Resource) authorizeStudentUpdate(
 	student *users.Student,
 	req *UpdateStudentRequest,
 ) (hasFullWriteAccess, authorized bool, authErr error) {
+	if req.Sick != nil || req.Excused != nil || req.SickReason != nil {
+		if ok, err := rs.canManageStudentStatus(ctx, userPermissions, student, "sick"); !ok {
+			return false, false, err
+		}
+	}
 	if !authorize.HasPermission(permissions.UsersUpdate, userPermissions) {
 		if !req.isAbsenceOnly() {
 			return false, false, errStudentUpdatePermissionRequired

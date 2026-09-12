@@ -141,6 +141,9 @@ describe("GET /api/students/[id]", () => {
         guardian_name: "Jane Smith",
         guardian_contact: "jane@example.com",
         has_full_access: true,
+        has_write_access: true,
+        has_absence_write_access: true,
+        has_sick_excused_write_access: false,
         group_supervisors: [],
       },
     };
@@ -156,10 +159,14 @@ describe("GET /api/students/[id]", () => {
       data: {
         id: string;
         has_full_access: boolean;
+        has_absence_write_access: boolean;
+        has_sick_excused_write_access: boolean;
       };
     }>(response);
     expect(json.data.id).toBe("123");
     expect(json.data.has_full_access).toBe(true);
+    expect(json.data.has_absence_write_access).toBe(true);
+    expect(json.data.has_sick_excused_write_access).toBe(false);
   });
 
   it("throws error when student ID is missing", async () => {

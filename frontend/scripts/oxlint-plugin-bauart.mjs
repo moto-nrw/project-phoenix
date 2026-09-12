@@ -1199,7 +1199,7 @@ const MANAGE_ACTION_LABEL_RE =
 const OWN_OBJECT_ENTRY_EXCEPTIONS = new Map(
   Object.entries({
     // Teilentschuldigungen genau dieses Kindes an genau diesen Tagen.
-    "src/components/students/planned-status-days-modal.tsx": ["Bearbeiten@1139"],
+    "src/components/students/planned-status-days-modal.tsx": ["Bearbeiten@1142"],
   }),
 );
 

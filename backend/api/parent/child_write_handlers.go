@@ -287,6 +287,7 @@ type ChildFeaturesResponse struct {
 	// every write flag below is false (#2487).
 	CareEnded                    bool `json:"care_ended"`
 	SickNoteEnabled              bool `json:"sick_note_enabled"`
+	ExcusedNoteEnabled           bool `json:"excused_note_enabled"`
 	SickRequiresApproval         bool `json:"sick_requires_approval"`
 	ExcusedRequiresApproval      bool `json:"excused_requires_approval"`
 	NotesEnabled                 bool `json:"notes_enabled"`
@@ -332,6 +333,7 @@ func (rs *Resource) getChildFeatures(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, ChildFeaturesResponse{
 		CareEnded:                    flags.CareEnded,
 		SickNoteEnabled:              flags.SickNoteEnabled,
+		ExcusedNoteEnabled:           flags.ExcusedNoteEnabled,
 		SickRequiresApproval:         flags.SickRequiresApproval,
 		ExcusedRequiresApproval:      flags.ExcusedRequiresApproval,
 		NotesEnabled:                 flags.NotesEnabled,

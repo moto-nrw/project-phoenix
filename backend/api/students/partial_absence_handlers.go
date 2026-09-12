@@ -9,8 +9,10 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -103,7 +105,7 @@ func (rs *Resource) getStudentPartialAbsences(w http.ResponseWriter, r *http.Req
 }
 
 func (rs *Resource) createStudentPartialAbsence(w http.ResponseWriter, r *http.Request) {
-	student := rs.requirePickupWriteAccess(w, r, "create partial absences")
+	student := rs.requirePartialAbsenceWriteAccess(w, r, "create partial absences")
 	if student == nil {
 		return
 	}
@@ -121,7 +123,7 @@ func (rs *Resource) createStudentPartialAbsence(w http.ResponseWriter, r *http.R
 }
 
 func (rs *Resource) updateStudentPartialAbsence(w http.ResponseWriter, r *http.Request) {
-	student := rs.requirePickupWriteAccess(w, r, "update partial absences")
+	student := rs.requirePartialAbsenceWriteAccess(w, r, "update partial absences")
 	if student == nil {
 		return
 	}
@@ -143,7 +145,7 @@ func (rs *Resource) updateStudentPartialAbsence(w http.ResponseWriter, r *http.R
 }
 
 func (rs *Resource) deleteStudentPartialAbsence(w http.ResponseWriter, r *http.Request) {
-	student := rs.requirePickupWriteAccess(w, r, "delete partial absences")
+	student := rs.requirePartialAbsenceWriteAccess(w, r, "delete partial absences")
 	if student == nil {
 		return
 	}
@@ -161,6 +163,18 @@ func (rs *Resource) deleteStudentPartialAbsence(w http.ResponseWriter, r *http.R
 	}
 	rs.registerPartialAbsenceBroadcasts(r, student.ID)
 	common.Respond(w, r, http.StatusOK, map[string]bool{"deleted": true}, "Partial absence deleted successfully")
+}
+
+func (rs *Resource) requirePartialAbsenceWriteAccess(w http.ResponseWriter, r *http.Request, action string) *users.Student {
+	student := rs.requirePickupWriteAccess(w, r, action)
+	if student == nil {
+		return nil
+	}
+	if ok, err := rs.canManageStudentStatus(r.Context(), jwt.PermissionsFromCtx(r.Context()), student, "excused"); !ok {
+		renderError(w, r, common.ErrorForbidden(err))
+		return nil
+	}
+	return student
 }
 
 func (rs *Resource) bindPartialAbsenceInput(w http.ResponseWriter, r *http.Request, studentID int64) (scheduleService.PartialAbsenceInput, bool) {

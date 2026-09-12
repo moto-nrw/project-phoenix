@@ -1,13 +1,17 @@
 package active_test
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,6 +22,162 @@ import (
 // *Authorized variants with BypassResourceChecks behave identically to the
 // deleted thin wrappers.
 var activeSvcBypassAuth = activeSvc.StudentMoveAuthorization{BypassResourceChecks: true}
+
+func TestActiveService_AssignTransitAttendanceScope(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name       string
+		scope      string
+		supervised bool
+		allowed    bool
+	}{
+		{name: "own without supervision", scope: "own"},
+		{name: "own with supervision", scope: "own", supervised: true, allowed: true},
+		{name: "school-wide without supervision", scope: "all_staff", allowed: true},
+		{name: "unknown setting", scope: "unknown"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testpkg.OwnCtx(t)
+			db := testpkg.SetupTestDB(t)
+			service := setupActiveService(t, db)
+			service.SetSettingsService(&configtest.Mock{ResolveStringFn: func(_ context.Context, key string) (string, error) {
+				switch key {
+				case configModel.KeyAttendanceEditScope:
+					return tc.scope, nil
+				case configModel.KeyOperationalOverviewScope:
+					return "all_staff", nil
+				case configModel.KeyPresenceMode:
+					return "detailed", nil
+				default:
+					return "", nil
+				}
+			}})
+			staff := testpkg.CreateTestStaff(t, db, "TransitScope", "Staff")
+			device := testpkg.CreateTestDevice(t, db, "transit-scope-device")
+			target := testpkg.CreateTestActiveGroup(t, db,
+				testpkg.CreateTestActivityGroup(t, db, "transit-scope-target").ID,
+				testpkg.CreateTestRoom(t, db, "TransitScope Target").ID)
+			student := testpkg.CreateTestStudent(t, db, "TransitScope", "Student", "TS1")
+			testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, time.Now().Add(-time.Minute), nil)
+			alreadyPlaced := testpkg.CreateTestStudent(t, db, "TransitScope", "AlreadyPlaced", "TS2")
+			source := testpkg.CreateTestActiveGroup(t, db,
+				testpkg.CreateTestActivityGroup(t, db, "transit-scope-source").ID,
+				testpkg.CreateTestRoom(t, db, "TransitScope Source").ID)
+			testpkg.CreateTestAttendance(t, db, alreadyPlaced.ID, staff.ID, device.ID, time.Now().Add(-time.Minute), nil)
+			testpkg.CreateTestVisit(t, db, alreadyPlaced.ID, source.ID, time.Now().Add(-time.Minute), nil)
+			if tc.supervised {
+				testpkg.CreateTestGroupSupervisor(t, db, staff.ID, target.ID, "supervisor")
+			}
+			result, err := service.AssignTransitStudentsToActiveGroupAuthorized(ctx, []int64{student.ID, alreadyPlaced.ID}, target.ID, activeSvc.StudentMoveAuthorization{StaffID: staff.ID, SchoolWideAttendanceEligible: true})
+			if tc.allowed {
+				require.NoError(t, err)
+				require.Equal(t, []int64{student.ID}, result.Assigned)
+				require.Equal(t, []activeSvc.TransitAssignSkipped{{StudentID: alreadyPlaced.ID, Reason: "not_in_transit"}}, result.Skipped)
+				visit, err := service.GetStudentCurrentVisit(ctx, student.ID)
+				require.NoError(t, err)
+				require.Equal(t, target.ID, visit.ActiveGroupID)
+			} else {
+				require.ErrorIs(t, err, activeSvc.ErrStudentMoveForbidden)
+				ids, err := service.ListStudentsInTransit(ctx)
+				require.NoError(t, err)
+				require.Contains(t, ids, student.ID)
+			}
+			visit, err := service.GetStudentCurrentVisit(ctx, alreadyPlaced.ID)
+			require.NoError(t, err)
+			require.Equal(t, source.ID, visit.ActiveGroupID, "transit assignment must not move an already placed child")
+		})
+	}
+}
+
+func TestActiveService_SchoolWideAttendanceMove(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name             string
+		scope            string
+		visibility       string
+		eligible         bool
+		settingsErr      error
+		allowed          bool
+		targetSupervised bool
+		foreignStaff     bool
+	}{
+		{name: "school-wide staff", scope: "all_staff", visibility: "all_staff", eligible: true, allowed: true},
+		{name: "own without supervision", scope: "own", visibility: "all_staff", eligible: true},
+		{name: "own preserves target supervision", scope: "own", visibility: "all_staff", eligible: true, targetSupervised: true, allowed: true},
+		{name: "actor not eligible", scope: "all_staff", visibility: "all_staff"},
+		{name: "foreign staff", scope: "all_staff", visibility: "all_staff", eligible: true, foreignStaff: true},
+		{name: "personal visibility", scope: "all_staff", visibility: "own", eligible: true},
+		{name: "unknown setting", scope: "unknown", visibility: "all_staff", eligible: true},
+		{name: "settings unavailable", eligible: true, settingsErr: errors.New("settings unavailable")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testpkg.OwnCtx(t)
+			db := testpkg.SetupTestDB(t)
+			service := setupActiveService(t, db)
+			service.SetSettingsService(&configtest.Mock{ResolveStringFn: func(_ context.Context, key string) (string, error) {
+				switch key {
+				case configModel.KeyAttendanceEditScope:
+					return tc.scope, tc.settingsErr
+				case configModel.KeyOperationalOverviewScope:
+					return tc.visibility, tc.settingsErr
+				case configModel.KeyPresenceMode:
+					return configModel.PresenceModeDetailed, nil
+				default:
+					return "", nil
+				}
+			}})
+			staff := testpkg.CreateTestStaff(t, db, "MoveScope", "Staff")
+			device := testpkg.CreateTestDevice(t, db, "move-scope-device")
+			source := testpkg.CreateTestActiveGroup(t, db,
+				testpkg.CreateTestActivityGroup(t, db, "move-scope-source").ID,
+				testpkg.CreateTestRoom(t, db, "MoveScope Source").ID)
+			target := testpkg.CreateTestActiveGroup(t, db,
+				testpkg.CreateTestActivityGroup(t, db, "move-scope-target").ID,
+				testpkg.CreateTestRoom(t, db, "MoveScope Target").ID)
+			student := testpkg.CreateTestStudent(t, db, "MoveScope", "Student", "MS1")
+			if tc.targetSupervised {
+				testpkg.CreateTestGroupSupervisor(t, db, staff.ID, target.ID, "supervisor")
+			}
+			now := time.Now()
+			testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, now.Add(-time.Minute), nil)
+			testpkg.CreateTestVisit(t, db, student.ID, source.ID, now.Add(-time.Minute), nil)
+			actorID := staff.ID
+			if tc.foreignStaff {
+				otherTenant := testpkg.UniqueTestTenantID(t)
+				testpkg.EnsureTestTenant(t, db, otherTenant)
+				actorID = testpkg.CreateTestStaffForTenant(t, db, otherTenant, "MoveScope", "Foreign").ID
+			}
+			result, err := service.MoveStudentsToActiveGroupAuthorized(ctx, []int64{student.ID}, target.ID, activeSvc.StudentMoveAuthorization{
+				StaffID: actorID, SchoolWideAttendanceEligible: tc.eligible,
+			})
+			if tc.allowed {
+				require.NoError(t, err)
+				require.Equal(t, []int64{student.ID}, result.Moved)
+				visit, err := service.GetStudentCurrentVisit(ctx, student.ID)
+				require.NoError(t, err)
+				require.Equal(t, target.ID, visit.ActiveGroupID)
+			} else {
+				require.Error(t, err)
+				if tc.settingsErr == nil {
+					require.ErrorIs(t, err, activeSvc.ErrStudentMoveForbidden)
+				}
+				visit, err := service.GetStudentCurrentVisit(ctx, student.ID)
+				require.NoError(t, err)
+				require.Equal(t, source.ID, visit.ActiveGroupID)
+			}
+			supervisions, err := service.GetStaffActiveSupervisions(ctx, staff.ID)
+			require.NoError(t, err)
+			if tc.targetSupervised {
+				require.Len(t, supervisions, 1)
+				require.Equal(t, target.ID, supervisions[0].GroupID)
+			} else {
+				require.Empty(t, supervisions, "a move must not grant supervision")
+			}
+		})
+	}
+}
 
 func TestActiveService_ListStudentsInTransit(t *testing.T) {
 	t.Parallel()

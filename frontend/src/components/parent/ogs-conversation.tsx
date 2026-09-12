@@ -402,17 +402,25 @@ export function OgsConversation({
       {/* Structured actions use their own status and request flows, so they do
           not create cards in the conversation. The child-care hook updates its
           own local state, so no conversation refetch is needed. */}
-      {activeModal === "sick" && (
-        <SickNoteModal
-          studentId={studentId}
-          onClose={() => setActiveModal(null)}
-          onSubmit={async (dates, reason, status, recipientIds) => {
-            return care.reportSick(dates, reason, status, recipientIds);
-          }}
-          sickRequiresApproval={care.features.sick_requires_approval}
-          excusedRequiresApproval={care.features.excused_requires_approval}
-        />
-      )}
+      {activeModal === "sick" &&
+        (care.features.sick_note_enabled ||
+          (care.features.excused_note_enabled ??
+            care.features.sick_note_enabled)) && (
+          <SickNoteModal
+            studentId={studentId}
+            onClose={() => setActiveModal(null)}
+            onSubmit={async (dates, reason, status, recipientIds) => {
+              return care.reportSick(dates, reason, status, recipientIds);
+            }}
+            sickEnabled={care.features.sick_note_enabled}
+            excusedEnabled={
+              care.features.excused_note_enabled ??
+              care.features.sick_note_enabled
+            }
+            sickRequiresApproval={care.features.sick_requires_approval}
+            excusedRequiresApproval={care.features.excused_requires_approval}
+          />
+        )}
       {activeModal === "pickup" && (
         <PickupTimeModal
           studentId={studentId}

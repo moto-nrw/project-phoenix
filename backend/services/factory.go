@@ -2407,6 +2407,7 @@ func newFactory(
 		settingsService,
 		userContextService,
 		configModels.KeyParentRequestGroupLeaderReviewEnabled,
+		configModels.KeyParentAbsenceReviewScope,
 	)
 
 	// One append-only ledger for every parent request, shared by all four
