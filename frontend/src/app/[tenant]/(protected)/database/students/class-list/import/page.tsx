@@ -21,6 +21,7 @@ import { StudentRowCard } from "~/components/import/student-row-card";
 import { useToast } from "~/contexts/ToastContext";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 import {
+  countAlreadyExistsRows,
   importBatchFailureAlertType,
   importBatchFailureMessage,
   importBatchSavedCount,
@@ -79,14 +80,6 @@ function rowStatusFor(errors: ImportError[]): RowStatus {
   if (errors.some((e) => e.severity === "error")) return "error";
   if (errors.some((e) => e.severity === "warning")) return "warning";
   return "new";
-}
-
-// The generic import engine records rows that are already on the class list
-// as already_exists row errors and never fills SkippedCount — the skipped
-// share has to be derived from the row results.
-function countAlreadyExists(rows: ImportRowResult[]): number {
-  return rows.filter((r) => r.Errors.some((e) => e.code === "already_exists"))
-    .length;
 }
 
 function toDisplayEntry(row: ImportRowResult): DisplayEntry {
@@ -304,7 +297,7 @@ export default function ClassListImportPage() {
         // Partial success: keep preview visible so the user sees which rows
         // were skipped (already on the class list) or failed.
         setPreviewData(importData.Errors.map(toDisplayEntry));
-        const skipped = countAlreadyExists(importData.Errors);
+        const skipped = countAlreadyExistsRows(importData.Errors);
         const failed = importData.ErrorCount - skipped;
         toast.warning(
           `${importData.CreatedCount} angelegt, ${skipped} übersprungen` +
@@ -365,7 +358,7 @@ export default function ClassListImportPage() {
     }
   };
 
-  const existingCount = countAlreadyExists(importResult?.Errors ?? []);
+  const existingCount = countAlreadyExistsRows(importResult?.Errors);
   const stats = {
     total: importResult?.TotalRows ?? 0,
     new: importResult?.CreatedCount ?? 0,

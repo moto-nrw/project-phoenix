@@ -20,6 +20,7 @@ import {
   type ImportMode,
 } from "~/lib/import-mode";
 import {
+  countAlreadyExistsRows,
   importBatchFailureAlertType,
   importBatchFailureMessage,
   importBatchSavedCount,
@@ -418,19 +419,24 @@ export default function StaffImportPage() {
     }
   };
 
+  const alreadyExists = countAlreadyExistsRows(importResult?.Errors);
   const stats = {
     total: importResult?.TotalRows ?? 0,
     new: importResult?.CreatedCount ?? 0,
-    existing: importResult?.UpdatedCount ?? 0,
-    errors: importResult?.ErrorCount ?? 0,
+    existing: (importResult?.UpdatedCount ?? 0) + alreadyExists,
+    errors: (importResult?.ErrorCount ?? 0) - alreadyExists,
   };
+  const importable =
+    mode === "update"
+      ? (importResult?.UpdatedCount ?? 0)
+      : stats.new + (mode === "upsert" ? (importResult?.UpdatedCount ?? 0) : 0);
   const importLabel = importInterrupted
     ? "Erneut versuchen"
     : mode === "create"
       ? `${stats.new} Mitarbeiter anlegen`
       : mode === "update"
-        ? `${stats.existing} Mitarbeiter aktualisieren`
-        : `${stats.new + stats.existing} Mitarbeiter übernehmen`;
+        ? `${importable} Mitarbeiter aktualisieren`
+        : `${importable} Mitarbeiter übernehmen`;
   const savedCount = importResult ? importBatchSavedCount(importResult) : 0;
 
   // Statuszeile des Seitenkopfs: der Stand des Imports, nicht ein Erklärsatz.
@@ -664,9 +670,9 @@ export default function StaffImportPage() {
               size="md"
               className="flex-1"
               disabled={
-                (!importInterrupted && stats.errors > 0) ||
                 isImporting ||
-                isLoading
+                isLoading ||
+                (!importInterrupted && (stats.errors > 0 || importable === 0))
               }
               onClick={() => void handleImport()}
             >

@@ -66,6 +66,18 @@ export function importBatchSavedCount(result: {
   return result.CreatedCount + result.UpdatedCount;
 }
 
+/** Create-mode preview records already-written rows as already_exists, not as remaining work. */
+export function countAlreadyExistsRows(
+  rows:
+    | ReadonlyArray<{ Errors: ReadonlyArray<{ code: string }> }>
+    | null
+    | undefined,
+): number {
+  return (rows ?? []).filter((row) =>
+    row.Errors.some((error) => error.code === "already_exists"),
+  ).length;
+}
+
 function importBatchBlockingRow(result: ImportBatchResult): number | undefined {
   for (let index = result.Errors.length - 1; index >= 0; index -= 1) {
     const row = result.Errors[index];

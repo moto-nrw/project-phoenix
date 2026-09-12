@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  countAlreadyExistsRows,
   importBatchFailureAlertType,
   importBatchFailureMessage,
   readImportBatchFailure,
@@ -121,5 +122,19 @@ describe("importBatchFailureMessage", () => {
       "Zeile 5 hat nicht geklappt. Bitte korrigieren Sie diese Zeile. Laden Sie die Datei danach erneut hoch.",
     );
     expect(importBatchFailureAlertType(firstBatch)).toBe("error");
+  });
+});
+
+describe("countAlreadyExistsRows", () => {
+  it("counts already_exists rows and ignores other codes", () => {
+    expect(
+      countAlreadyExistsRows([
+        { Errors: [{ code: "already_exists" }] },
+        { Errors: [{ code: "already_exists" }, { code: "will_update" }] },
+        { Errors: [{ code: "creation_failed" }] },
+        { Errors: [] },
+      ]),
+    ).toBe(2);
+    expect(countAlreadyExistsRows(null)).toBe(0);
   });
 });

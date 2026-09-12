@@ -20,6 +20,7 @@ import {
   type ImportMode,
 } from "~/lib/import-mode";
 import {
+  countAlreadyExistsRows,
   importBatchFailureAlertType,
   importBatchFailureMessage,
   importBatchSavedCount,
@@ -469,20 +470,26 @@ export default function StudentImportPage() {
     }
   };
 
-  // Stats - use backend counts directly
+  // already_exists is a skip, not a blocking preview error. Create-mode
+  // recovery re-uploads count committed rows that way; they must not disable Import.
+  const alreadyExists = countAlreadyExistsRows(importResult?.Errors);
   const stats = {
     total: importResult?.TotalRows ?? 0,
     new: importResult?.CreatedCount ?? 0,
-    existing: importResult?.UpdatedCount ?? 0,
-    errors: importResult?.ErrorCount ?? 0,
+    existing: (importResult?.UpdatedCount ?? 0) + alreadyExists,
+    errors: (importResult?.ErrorCount ?? 0) - alreadyExists,
   };
+  const importable =
+    mode === "update"
+      ? (importResult?.UpdatedCount ?? 0)
+      : stats.new + (mode === "upsert" ? (importResult?.UpdatedCount ?? 0) : 0);
   const importLabel = importInterrupted
     ? "Erneut versuchen"
     : mode === "create"
       ? `${childCountLabel(stats.new)} importieren`
       : mode === "update"
-        ? `${childCountLabel(stats.existing)} aktualisieren`
-        : `${childCountLabel(stats.new + stats.existing)} übernehmen`;
+        ? `${childCountLabel(importable)} aktualisieren`
+        : `${childCountLabel(importable)} übernehmen`;
   const savedCount = importResult ? importBatchSavedCount(importResult) : 0;
 
   // Statuszeile des Seitenkopfs: der Stand des Imports, nicht ein Erklärsatz.
@@ -699,9 +706,9 @@ export default function StudentImportPage() {
               size="md"
               className="flex-1"
               disabled={
-                (!importInterrupted && stats.errors > 0) ||
                 isImporting ||
-                isLoading
+                isLoading ||
+                (!importInterrupted && (stats.errors > 0 || importable === 0))
               }
               onClick={() => void handleImport()}
             >
