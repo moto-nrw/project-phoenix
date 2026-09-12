@@ -584,6 +584,22 @@ func (c staffAbsenceCapability) UpsertVacationQuota(ctx context.Context, staffID
 	return mapTimeTrackingFailure(c.absences.UpsertVacationQuota(ctx, staffID, year, entitled, carryover))
 }
 
+// VacationTakeoverCapability binds the import to the public Workforce contract.
+func VacationTakeoverCapability(absences active.StaffAbsenceService) workforce.VacationTakeovers {
+	if absences == nil {
+		return nil
+	}
+	return staffAbsenceCapability{absences: absences}
+}
+
+func (c staffAbsenceCapability) ValidateVacationOpeningAbsencesBefore(ctx context.Context, staffID int64, effectiveDate string) error {
+	effective, err := parseCapabilityDate(effectiveDate, "effective_date")
+	if err != nil {
+		return err
+	}
+	return mapTimeTrackingFailure(c.absences.ValidateVacationOpeningAbsencesBefore(ctx, staffID, effective))
+}
+
 func (c staffAbsenceCapability) SetVacationOpening(ctx context.Context, staffID, decidedBy int64, request workforce.SetVacationOpeningRequest) (*workforce.StaffVacationOpening, error) {
 	effective, err := parseCapabilityDate(request.EffectiveDate, "effective_date")
 	if err != nil {
@@ -770,6 +786,23 @@ func (c balanceAdjustmentCapability) CreateOpeningBalance(ctx context.Context, s
 		return nil, err
 	}
 	return c.adjustment(c.ledger.CreateOpeningBalance(ctx, staffID, decidedBy, effective, balanceMinutes, note))
+}
+
+// OpeningBalanceBookingCapability exposes preview and booking through one
+// Workforce boundary without widening the general ledger administration port.
+func OpeningBalanceBookingCapability(ledger active.StaffBalanceAdjustmentService) workforce.OpeningBalanceBookings {
+	if ledger == nil {
+		return nil
+	}
+	return balanceAdjustmentCapability{ledger: ledger}
+}
+
+func (c balanceAdjustmentCapability) ValidateOpeningBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate string, balanceMinutes int, note string) error {
+	effective, err := parseCapabilityDate(effectiveDate, "effective_date")
+	if err != nil {
+		return err
+	}
+	return mapTimeTrackingFailure(c.ledger.ValidateOpeningBalance(ctx, staffID, decidedBy, effective, balanceMinutes, note))
 }
 
 // --- month close ------------------------------------------------------------

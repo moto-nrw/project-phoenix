@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -28,7 +27,6 @@ import (
 func TestDataImportRuntimeEvidence(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
-	tenantID := testpkg.Tenant(t)
 	module, err := services.NewImportTestModule(db, testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	observations := module.Observations
@@ -71,17 +69,9 @@ func TestDataImportRuntimeEvidence(t *testing.T) {
 		counter.Reset()
 		beforeStats := db.Stats()
 		started := time.Now()
-		var result *importModels.ImportResult[importModels.StudentImportRow]
-		err := testpkg.WithTenantTx(t, baseCtx, db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-			var txErr error
-			result, txErr = module.Import.Import(ctx, importModels.ImportRequest[importModels.StudentImportRow]{
-				Rows: rows, Mode: importModels.ImportModeCreate, DryRun: dryRun, UserID: actor.staffID, SkipInvalidRows: true,
-			})
-			if txErr != nil {
-				return txErr
-			}
-			return module.Import.RecordAuditInTransaction(ctx, "student", "runtime.csv", result, actor.accountID, dryRun, tenantID)
-		})
+		result, err := module.Import.ImportBatches(baseCtx, importModels.ImportRequest[importModels.StudentImportRow]{
+			Rows: rows, Mode: importModels.ImportModeCreate, DryRun: dryRun, UserID: actor.staffID, SkipInvalidRows: true,
+		}, importService.BatchAudit{EntityType: "student", Filename: "runtime.csv", AccountID: actor.accountID})
 		elapsed := time.Since(started)
 		afterStats := db.Stats()
 		require.NoError(t, err)
@@ -90,6 +80,13 @@ func TestDataImportRuntimeEvidence(t *testing.T) {
 			return // warmups
 		}
 		writes := counter.WriteRows()
+		if dryRun {
+			require.Equal(t, 16, counter.Total())
+			require.EqualValues(t, 1, writes)
+		} else {
+			require.LessOrEqual(t, counter.Total(), 250)
+			require.EqualValues(t, 81, writes)
+		}
 		affected, statements := counter.Rows()
 		samples[operation] = append(samples[operation], testpkg.RuntimeCheckpointSample{
 			DurationMS: float64(elapsed) / float64(time.Millisecond), Queries: counter.Total(),

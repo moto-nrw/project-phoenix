@@ -170,6 +170,20 @@ func WithUnitOfWorkObserver(ctx context.Context, observer func(UnitOfWorkEvent))
 	return context.WithValue(ctx, runtimeObserverKey{}, observer)
 }
 
+// WithAdditionalUnitOfWorkObserver attributes runtime evidence to a workflow
+// without replacing the root's transaction metrics observer.
+func WithAdditionalUnitOfWorkObserver(ctx context.Context, observer func(UnitOfWorkEvent)) context.Context {
+	previous, _ := ctx.Value(runtimeObserverKey{}).(func(UnitOfWorkEvent))
+	return WithUnitOfWorkObserver(ctx, func(event UnitOfWorkEvent) {
+		if previous != nil {
+			previous(event)
+		}
+		if observer != nil {
+			observer(event)
+		}
+	})
+}
+
 func WithRuntimeObserver(ctx context.Context, observer func(RuntimeEvent)) context.Context {
 	return WithUnitOfWorkObserver(ctx, observer)
 }

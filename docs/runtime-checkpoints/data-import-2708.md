@@ -1,5 +1,8 @@
 # Data Import cutover evidence
 
+Historical partial-delivery evidence. The bounded-batch completion and current
+replay contract are recorded in [the follow-up report](data-import-batches-2708.md).
+
 Issue: [#2708](https://github.com/moto-nrw/project-phoenix/issues/2708).
 Implementation baseline: `939126a901186f7bbaeb984fee5ba7b10771a329`.
 Measured locally on 2026-09-10, macOS arm64, PostgreSQL 17.11.

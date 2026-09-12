@@ -27245,22 +27245,22 @@
         },
         {
           "file": "api/base.go",
-          "line": 464,
+          "line": 475,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 627,
+          "line": 638,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 865,
+          "line": 876,
           "declaration": "initializeAPIResourcesWithRequestFeed"
         },
         {
           "file": "api/base.go",
-          "line": 1269,
+          "line": 1280,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -27285,7 +27285,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 624,
+          "line": 635,
           "declaration": "type API"
         },
         {
@@ -27395,12 +27395,12 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 447,
+          "line": 448,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 487,
+          "line": 488,
           "declaration": "newFactory"
         },
         {

@@ -117,7 +117,7 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		typeAware.SetAbsenceTypeService(staffAbsenceTypeService)
 	}
 
-	staffAbsenceService := active.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession, repos.StaffVacationQuota, repos.StaffAbsenceAudit, settingsService, workTimeMonthService)
+	staffAbsenceService := active.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession, repos.StaffVacationQuota, repos.StaffAbsenceAudit, settingsService, workTimeMonthService, timezone.CalendarDateClock(optionalClock(clocks)))
 	if typeAware, ok := staffAbsenceService.(interface {
 		SetAbsenceTypeService(active.StaffAbsenceTypeService)
 	}); ok {
@@ -134,7 +134,7 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		loggerAware.SetLogger(activeLogger)
 	}
 
-	staffBalanceAdjustService := active.NewStaffBalanceAdjustmentService(repos.StaffBalanceAdjust, workTimeMonthService, settingsService, activeLogger)
+	staffBalanceAdjustService := active.NewStaffBalanceAdjustmentService(repos.StaffBalanceAdjust, workTimeMonthService, settingsService, activeLogger, timezone.CalendarDateClock(optionalClock(clocks)))
 	if broadcastAware, ok := staffBalanceAdjustService.(interface {
 		SetBroadcaster(realtime.Broadcaster)
 	}); ok {

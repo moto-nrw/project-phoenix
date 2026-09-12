@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	authsvc "github.com/moto-nrw/project-phoenix/services/auth"
@@ -30,8 +31,8 @@ type importWiring struct {
 	Reads             importService.LegacyReads
 	InvitationService authsvc.InvitationService
 
-	// Opening balances (#2132) still book through the retained Workforce
-	// services; that row type's owner cutover is not part of #2708.
+	// Opening balances use Workforce's preview and booking capabilities;
+	// their preload repositories are read-only.
 	OpeningBalance importService.OpeningBalanceImportDeps
 
 	ConsentHistory users.StudentConsentChangeRecorder
@@ -56,10 +57,9 @@ type imports struct {
 // newImports composes the Data Import over its owner ports. Student, staff
 // and class-list rows are committed through the public commands of People
 // Directory, School Membership, Workforce, Care Plan, Student Presence and
-// the Audit platform; opening balances still book through the retained
-// Workforce services.
+// the Audit platform, including Workforce's opening-balance commands.
 func newImports(wiring importWiring) imports {
-	runtime := importService.ImportRuntime{Audit: wiring.Audit, Observe: wiring.Observe}
+	runtime := importService.ImportRuntime{Audit: wiring.Audit, Observe: wiring.Observe, Fingerprint: securityruntime.Fingerprint}
 	resolver := importService.NewRelationshipResolver(wiring.Reads.Groups, wiring.Reads.Rooms)
 	guardians := importService.GuardianPort(wiring.Persons)
 	if wiring.GuardianOverride != nil {

@@ -437,6 +437,26 @@ var (
 		prometheus.HistogramOpts{Name: "phoenix_data_import_duration_seconds", Help: "Data Import run duration by entity and mode.", Buckets: []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30}},
 		[]string{"entity", "mode"},
 	)
+	dataImportBatches = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_data_import_batches_total", Help: "Data Import batches committed or retried and deadlocks observed."},
+		[]string{"entity", "outcome"},
+	)
+	dataImportCheckpointLag = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_data_import_checkpoint_lag_rows", Help: "Rows remaining after the last durable checkpoint when an import request finishes.", Buckets: []float64{0, 1, 10, 100, 1000, 10000, 100000}},
+		[]string{"entity"},
+	)
+	dataImportWait = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_data_import_wait_seconds", Help: "Cumulative UnitOfWork pool and lock waits per import request.", Buckets: []float64{0.0001, 0.001, 0.01, 0.1, 1, 5, 30}},
+		[]string{"entity", "kind"},
+	)
+	dataImportCommands = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_data_import_owner_commands_total", Help: "Owner command attempts made by Data Import, including rolled-back attempts."},
+		[]string{"entity", "owner", "operation", "outcome"},
+	)
+	dataImportCommandDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_data_import_owner_command_duration_seconds", Help: "Owner command latency during Data Import.", Buckets: []float64{0.0001, 0.001, 0.01, 0.1, 1, 5, 30}},
+		[]string{"entity", "owner", "operation"},
+	)
 	appointmentsOperations = prometheus.NewCounterVec(
 		prometheus.CounterOpts{Name: "phoenix_appointments_operations_total", Help: "Appointments operations by operation, outcome, and stable error code."},
 		[]string{"operation", "outcome", "code"},
@@ -804,6 +824,11 @@ func init() {
 		dataImportRuns,
 		dataImportRows,
 		dataImportDuration,
+		dataImportBatches,
+		dataImportCheckpointLag,
+		dataImportWait,
+		dataImportCommands,
+		dataImportCommandDuration,
 		appointmentsOperations,
 		appointmentsDuration,
 		appointmentsQueries,
@@ -1210,6 +1235,29 @@ func ObserveDataImport(entity string, dryRun bool, rows, accepted, rejected, cre
 		}
 	}
 	dataImportDuration.WithLabelValues(entity, mode).Observe(duration.Seconds())
+}
+
+// ObserveDataImportRuntime contains no upload, tenant, account or row labels.
+func ObserveDataImportRuntime(entity string, committed, retried, lag, deadlocks int, poolWait, lockWait time.Duration) {
+	entity = sanitizeLabel(entity)
+	for outcome, count := range map[string]int{"committed": committed, "retried": retried, "deadlock": deadlocks} {
+		if count > 0 {
+			dataImportBatches.WithLabelValues(entity, outcome).Add(float64(count))
+		}
+	}
+	dataImportCheckpointLag.WithLabelValues(entity).Observe(float64(lag))
+	dataImportWait.WithLabelValues(entity, "pool").Observe(poolWait.Seconds())
+	dataImportWait.WithLabelValues(entity, "lock").Observe(lockWait.Seconds())
+}
+
+func ObserveDataImportCommand(entity, owner, operation string, duration time.Duration, failed bool) {
+	entity, owner, operation = sanitizeLabel(entity), sanitizeLabel(owner), sanitizeLabel(operation)
+	outcome := "success"
+	if failed {
+		outcome = "error"
+	}
+	dataImportCommands.WithLabelValues(entity, owner, operation, outcome).Inc()
+	dataImportCommandDuration.WithLabelValues(entity, owner, operation).Observe(duration.Seconds())
 }
 
 func ObserveAppointmentsOperation(operation string, duration time.Duration, queries, rows, duplicatePreventionConflicts int64, statementDuration time.Duration, code string, err error) {

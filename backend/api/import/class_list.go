@@ -1,20 +1,17 @@
 package importapi
 
 import (
-	"context"
 	"encoding/csv"
 	"fmt"
 	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/render"
-	"github.com/uptrace/bun"
 	"github.com/xuri/excelize/v2"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Class-list entry import (#2382): the bulk form of the minimal
@@ -161,9 +158,8 @@ func (rs *Resource) ImportClassList(w http.ResponseWriter, r *http.Request) {
 	rs.runClassListImport(w, r, false)
 }
 
-// runClassListImport shares the preview/import flow: both own their tenant
-// transaction so the GDPR audit row is committed before the success response
-// (same contract as the staff import).
+// runClassListImport delegates transaction ownership to the workflow. Audit
+// records commit with the preview or each bounded batch before the response.
 func (rs *Resource) runClassListImport(w http.ResponseWriter, r *http.Request, dryRun bool) {
 	uploadResult, ok := rs.validateAndParseClassListFile(w, r)
 	if !ok {
@@ -176,27 +172,11 @@ func (rs *Resource) runClassListImport(w http.ResponseWriter, r *http.Request, d
 		return
 	}
 
-	tenantID := tenant.FromContext(r.Context())
-	var result *importModels.ImportResult[importModels.ClassListEntryImportRow]
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		request := importModels.ImportRequest[importModels.ClassListEntryImportRow]{
-			Rows:            uploadResult.Rows,
-			Mode:            importModels.ImportModeCreate,
-			DryRun:          dryRun,
-			StopOnError:     false,
-			UserID:          accountID,
-			SkipInvalidRows: !dryRun,
-		}
-
-		var txErr error
-		result, txErr = rs.classListImportService.Import(ctx, request)
-		if txErr != nil {
-			return txErr
-		}
-		// GDPR Compliance: audit log for preview and import (Article 30).
-		return rs.classListImportService.RecordAuditInTransaction(ctx, "class_list_entries", uploadResult.Filename, result, accountID, dryRun, tenantID)
-	}); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("Import fehlgeschlagen", err))
+	result, err := rs.classListImportService.ImportBatches(r.Context(), importModels.ImportRequest[importModels.ClassListEntryImportRow]{
+		Rows: uploadResult.Rows, Mode: importModels.ImportModeCreate, DryRun: dryRun, UserID: accountID, SkipInvalidRows: !dryRun,
+	}, importService.BatchAudit{EntityType: "class_list_entries", Filename: uploadResult.Filename, AccountID: accountID})
+	if err != nil {
+		renderBatchImportError(w, r, result, err)
 		return
 	}
 

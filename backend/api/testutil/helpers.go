@@ -317,9 +317,14 @@ func SetupStudentModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, serv
 	return db, module
 }
 
-func SetupImportModule(t *testing.T) (*bun.DB, services.ImportTestModule) {
+func SetupImportModule(t *testing.T, databases ...*bun.DB) (*bun.DB, services.ImportTestModule) {
 	t.Helper()
-	db := testpkg.SetupTestDB(t)
+	var db *bun.DB
+	if len(databases) > 0 {
+		db = databases[0]
+	} else {
+		db = testpkg.SetupTestDB(t)
+	}
 	module, err := services.NewImportTestModule(db, testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	return db, module
