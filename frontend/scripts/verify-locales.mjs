@@ -25,7 +25,9 @@ if (actual !== expected) {
   console.error(
     "frontend/src/i18n/locales.generated.ts is out of sync with backend/localization/locales.json",
   );
-  console.error("Update the generated frontend locale mirror before running checks.");
+  console.error(
+    "Update the generated frontend locale mirror before running checks.",
+  );
   process.exit(1);
 }
 
@@ -62,7 +64,9 @@ for (const { code } of backendLocales) {
   const extra = [...keys].filter((key) => !fallbackKeys.has(key));
   if (missing.length || extra.length) {
     parityFailed = true;
-    console.error(`src/i18n/messages/${code}.json is out of sync with ${fallback}.json`);
+    console.error(
+      `src/i18n/messages/${code}.json is out of sync with ${fallback}.json`,
+    );
     if (missing.length) console.error(`  missing keys: ${missing.join(", ")}`);
     if (extra.length) console.error(`  unexpected keys: ${extra.join(", ")}`);
   }

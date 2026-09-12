@@ -278,9 +278,7 @@ const ROW_ACTION_BASELINE = new Map(
       "Eintrag nachtragen Block nachtragen Eintrag bearbeiten@850",
       "Block bearbeiten@960",
     ],
-    "src/components/staff/stundenkonto-panel.tsx": [
-      "Buchung vom löschen@188",
-    ],
+    "src/components/staff/stundenkonto-panel.tsx": ["Buchung vom löschen@188"],
     "src/components/students/class-arrival-exception-panel.tsx": [
       "Entfernen@529",
     ],
@@ -297,8 +295,8 @@ const ROW_ACTION_BASELINE = new Map(
       "Gericht entfernen@738",
     ],
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
-      "Antwort entfernen@1429",
-      "Entfernen@1701",
+      "Antwort entfernen@1167",
+      "Entfernen@1439",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
       "Bedingung löschen@1974",
@@ -568,10 +566,14 @@ function isDelegatedHandlerCall(call) {
 function isFiredAsyncCall(expression) {
   if (!expression) return false;
   if (expression.type === "UnaryExpression" && expression.operator === "void") {
-    return isCall(expression.argument) && !opensConfirmation(expression.argument);
+    return (
+      isCall(expression.argument) && !opensConfirmation(expression.argument)
+    );
   }
   if (expression.type === "AwaitExpression") {
-    return isCall(expression.argument) && !opensConfirmation(expression.argument);
+    return (
+      isCall(expression.argument) && !opensConfirmation(expression.argument)
+    );
   }
   if (
     isCall(expression) &&
@@ -852,9 +854,7 @@ function inlineHandlerBody(attribute) {
 function isWriteCall(call, reactStateSetters) {
   const name = calledFunctionName(call);
   return (
-    name !== null &&
-    !reactStateSetters.has(name) &&
-    WRITE_VERB_RE.test(name)
+    name !== null && !reactStateSetters.has(name) && WRITE_VERB_RE.test(name)
   );
 }
 
@@ -955,11 +955,13 @@ const noAutosave = {
         const onBlur = jsxAttribute(opening, "onBlur");
         const blurBody = inlineHandlerBody(onBlur);
         if (blurBody) {
-          const call = findFiredCall(blurBody, (fired, direct) =>
-            isWriteCall(fired, reactStateSetters) &&
-            (!direct ||
-              asyncFunctions.has(calledFunctionName(fired)) ||
-              importedFunctions.has(calledFunctionName(fired))),
+          const call = findFiredCall(
+            blurBody,
+            (fired, direct) =>
+              isWriteCall(fired, reactStateSetters) &&
+              (!direct ||
+                asyncFunctions.has(calledFunctionName(fired)) ||
+                importedFunctions.has(calledFunctionName(fired))),
           );
           if (call) {
             context.report({
@@ -975,11 +977,13 @@ const noAutosave = {
           const attribute = jsxAttribute(opening, attributeName);
           const body = inlineHandlerBody(attribute);
           if (!body) continue;
-          const call = findFiredCall(body, (fired, direct) =>
-            isWriteCall(fired, reactStateSetters) &&
-            (!direct ||
-              asyncFunctions.has(calledFunctionName(fired)) ||
-              importedFunctions.has(calledFunctionName(fired))),
+          const call = findFiredCall(
+            body,
+            (fired, direct) =>
+              isWriteCall(fired, reactStateSetters) &&
+              (!direct ||
+                asyncFunctions.has(calledFunctionName(fired)) ||
+                importedFunctions.has(calledFunctionName(fired))),
           );
           if (!call) continue;
           context.report({
@@ -1199,7 +1203,9 @@ const MANAGE_ACTION_LABEL_RE =
 const OWN_OBJECT_ENTRY_EXCEPTIONS = new Map(
   Object.entries({
     // Teilentschuldigungen genau dieses Kindes an genau diesen Tagen.
-    "src/components/students/planned-status-days-modal.tsx": ["Bearbeiten@1139"],
+    "src/components/students/planned-status-days-modal.tsx": [
+      "Bearbeiten@1139",
+    ],
   }),
 );
 
@@ -1397,6 +1403,128 @@ const noManageSurfaceInOverlay = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// bauart/one-detail-per-type — pro Objekttyp genau eine Objektansicht
+// (Bauart 2, Bauart 1 Regel 2, #3115). Drei Erscheinungsformen eines zweiten
+// Detailbaums werden erkannt:
+//
+//   1. `MasterDetailLayout` außerhalb der Typen, deren Pane die einzige
+//      Objektansicht im Portal ist. Die Liste ist fest: ein neuer Typ mit
+//      Pane braucht eine Entscheidung, ob er eine Route bekommt.
+//   2. Die Pane-Bauteile (`DetailPanel`, `DatabaseDetailHeader`) in einem
+//      Overlay.
+//   3. Die Feldgruppen der Objektansicht (`InfoSection`, `DataGrid`) in
+//      einem `SlideOver` oder `Drawer`: ein Slide-over ist nie eine
+//      Detailansicht. Zentrierte Modale bleiben außen vor, weil ein
+//      `FormModal` ein Feld zur Einordnung zeigen darf.
+// ---------------------------------------------------------------------------
+const MASTER_DETAIL_LAYOUT_SOURCE_RE = /(?:^|\/)master-detail-layout$/;
+// Typen, deren Pane die einzige Objektansicht ist: Gruppe, Gerät, Rolle,
+// Aktivität, Berechtigung und die Kataloge der Datenverwaltung (#3114).
+const MASTER_DETAIL_ALLOWED_FILES = new Set([
+  "src/components/database/master-detail-layout.tsx",
+  "src/components/database/master-detail-skeleton.tsx",
+  "src/components/database/catalog/catalog-page.tsx",
+  "src/components/activities/activities-master-detail.tsx",
+  "src/components/devices/devices-master-detail.tsx",
+  "src/components/groups/groups-master-detail.tsx",
+  "src/components/permissions/permissions-master-detail.tsx",
+  "src/components/roles/roles-master-detail.tsx",
+]);
+const PANE_ELEMENTS = new Set(["DetailPanel", "DatabaseDetailHeader"]);
+const DETAIL_VIEW_ELEMENTS = new Set(["InfoSection", "DataGrid"]);
+const SLIDE_SHELLS = new Set([
+  "SlideOver",
+  "SlideOverContent",
+  "SlideOverBody",
+  "Drawer",
+  "DrawerContent",
+]);
+// Ein Formular im Slide-over darf Felder zur Einordnung zeigen (welche
+// Gruppe, wie groß), so wie ein `FormModal`. Ortsgebunden, damit die
+// Ausnahme nicht auf eine echte Detailansicht wandert.
+const FORM_CONTEXT_EXCEPTIONS = new Map(
+  Object.entries({
+    // Übergabe einer Gruppe: Erklärung und die Gruppe, um die es geht.
+    "src/components/groups/group-transfer-modal.tsx": [
+      "InfoSection@232",
+      "DataGrid@246",
+    ],
+  }),
+);
+
+/** Der nächste JSX-Vorfahre, dessen Name in `names` steht. */
+function enclosingElement(node, names) {
+  let current = node.parent;
+  while (current) {
+    if (
+      current.type === "JSXElement" &&
+      names.has(jsxName(current.openingElement.name))
+    ) {
+      return jsxName(current.openingElement.name);
+    }
+    current = current.parent;
+  }
+  return null;
+}
+
+const oneDetailPerType = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Each object type has exactly one object view (its route or, for types without a route, the pane next to the list). No pane, slide-over or modal as a second detail tree.",
+    },
+    messages: {
+      secondPane:
+        "Zweiter Detailbaum: `MasterDetailLayout` ist nur für die Typen erlaubt, deren Pane die einzige Objektansicht ist (feste Liste in scripts/oxlint-plugin-bauart.mjs). Hat der Typ eine Route, verlinkt die Zeile dorthin (`DatabaseListItem href`, `?from=` trägt den Rückweg); sonst gehört der Typ in die Liste (BAUARTEN-SPEC Bauart 1 Regel 2, #3115).",
+      paneInOverlay:
+        "Zweiter Detailbaum: `{{element}}` liegt in einem Overlay. Die Objektansicht eines Typs ist eine Route oder das Pane neben der Liste, nie ein Slide-over oder Modal (BAUARTEN-SPEC Bauart 2, #3115).",
+      detailInSlideOver:
+        "Detailansicht im Slide-over: `{{element}}` liegt in `{{shell}}`. Ein Slide-over ist nie eine Objektansicht; die Felder gehören auf die Route des Typs (BAUARTEN-SPEC Bauart 1 Regel 2, #3115).",
+    },
+    schema: [],
+  },
+  create(context) {
+    if (isExempt(context)) return {};
+    if (OTHER_PORTAL_RE.test(fileKey(context))) return {};
+    const file = fileKey(context);
+    const formContext = new Set(FORM_CONTEXT_EXCEPTIONS.get(file) ?? []);
+
+    return {
+      ImportDeclaration(node) {
+        const source = String(node.source?.value ?? "");
+        if (!MASTER_DETAIL_LAYOUT_SOURCE_RE.test(source)) return;
+        if (MASTER_DETAIL_ALLOWED_FILES.has(file)) return;
+        context.report({ node, messageId: "secondPane" });
+      },
+      JSXOpeningElement(node) {
+        const name = jsxName(node.name);
+        if (PANE_ELEMENTS.has(name)) {
+          if (locate(node).overlay) {
+            context.report({
+              node,
+              messageId: "paneInOverlay",
+              data: { element: name },
+            });
+          }
+          return;
+        }
+        if (!DETAIL_VIEW_ELEMENTS.has(name)) return;
+        if (formContext.delete(`${name}@${node.loc.start.line}`)) return;
+        const shell = enclosingElement(node, SLIDE_SHELLS);
+        if (shell) {
+          context.report({
+            node,
+            messageId: "detailInSlideOver",
+            data: { element: name, shell },
+          });
+        }
+      },
+    };
+  },
+};
+
 export default {
   meta: { name: "bauart" },
   rules: {
@@ -1406,5 +1534,6 @@ export default {
     "no-autosave": noAutosave,
     "no-toast-form-error": noToastFormError,
     "no-manage-surface-in-overlay": noManageSurfaceInOverlay,
+    "one-detail-per-type": oneDetailPerType,
   },
 };

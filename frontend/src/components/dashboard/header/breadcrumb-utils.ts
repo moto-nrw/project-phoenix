@@ -23,6 +23,8 @@ import {
  */
 const exactPageTitles: Record<string, string> = {
   [STAFF_FLAT_PAGES.studentSearch.href]: STAFF_FLAT_PAGES.studentSearch.label,
+  // Kinder ohne Raumzuweisung (#3115); liegt unter /rooms/, ist aber kein Raum.
+  "/rooms/unterwegs": "Unterwegs",
 };
 
 const detailRouteTitles: Array<{
@@ -34,6 +36,19 @@ const detailRouteTitles: Array<{
     basePath: "/staff/",
     rootPath: "/staff",
     title: "Mitarbeiter Details",
+  },
+  // Die Raumseite (#3115); den Namen setzt die Seite selbst über den
+  // Breadcrumb-Kontext.
+  {
+    basePath: "/rooms/",
+    rootPath: "/rooms",
+    title: "Raum",
+  },
+  // Die Mitteilungsseite (#3115); den Titel setzt die Seite selbst.
+  {
+    basePath: "/parent-announcements/",
+    rootPath: "/parent-announcements",
+    title: "Mitteilung",
   },
 ];
 
@@ -242,12 +257,14 @@ export function getSubPageLabel(pathname: string): string {
 export function getBreadcrumbLabel(referrer: string): string {
   if (referrer.startsWith("/ogs-groups")) return "Meine Gruppe";
   if (referrer.startsWith("/active-supervisions")) return "Aktuelle Aufsicht";
-  // Drill-in from a room detail (legacy /rooms/{id} subpage OR the new
-  // /rooms?room={id} modal flow, see #1374). The breadcrumb has to
-  // point back to the entry path in both cases so the header label and
-  // the active sidebar entry agree with how the user actually got here.
+  // Drill-in from a room: the room page /rooms/{id} (#3115) or an old
+  // /rooms?room={id} link. The breadcrumb has to point back to the entry
+  // path in both cases so the header label and the active sidebar entry
+  // agree with how the user actually got here.
   if (referrer.startsWith("/rooms/") || referrer.startsWith("/rooms?"))
     return "Räume";
+  // Die Kinderdaten der Datenverwaltung verlinken auf die Kindakte (#3115).
+  if (referrer.startsWith("/database/students")) return "Kinderdaten";
   return "Alle Kinder";
 }
 
@@ -268,6 +285,8 @@ export interface PageTypeInfo {
   isStudentDetailPage: boolean;
   isStudentHistoryPage: boolean;
   isStaffDetailPage: boolean;
+  isRoomDetailPage: boolean;
+  isAnnouncementDetailPage: boolean;
   isEnrollmentPage: boolean;
 }
 
@@ -292,12 +311,25 @@ export function getPageTypeInfo(pathname: string): PageTypeInfo {
     pathname !== "/staff" &&
     pathname !== "/staff/dienstplan";
 
+  // Die Raumseite /rooms/[id] (#3115). „Unterwegs" liegt darunter, ist aber
+  // eine eigene Seite mit festem Titel.
+  const isRoomDetailPage =
+    pathname.startsWith("/rooms/") &&
+    pathname !== "/rooms" &&
+    pathname !== "/rooms/unterwegs";
+
+  const isAnnouncementDetailPage =
+    pathname.startsWith("/parent-announcements/") &&
+    pathname !== "/parent-announcements";
+
   const isEnrollmentPage = getActiveEnrollmentSubPage(pathname) !== null;
 
   return {
     isStudentDetailPage,
     isStudentHistoryPage,
     isStaffDetailPage,
+    isRoomDetailPage,
+    isAnnouncementDetailPage,
     isEnrollmentPage,
   };
 }
