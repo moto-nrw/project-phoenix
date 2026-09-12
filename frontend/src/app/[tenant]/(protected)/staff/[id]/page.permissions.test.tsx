@@ -20,15 +20,45 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("~/lib/tenant-router", () => ({
-  useTenantRouter: () => ({ replace: replaceMock }),
+  useTenantRouter: () => ({ replace: replaceMock, push: vi.fn() }),
 }));
 
 vi.mock("~/lib/breadcrumb-context", () => ({
   useSetBreadcrumb: vi.fn(),
 }));
 
+vi.mock("~/contexts/ToastContext", () => ({
+  useToast: () => ({ success: vi.fn(), error: vi.fn() }),
+}));
+
+// Der Personal-Datensatz für den Reiter „Konto" (#3115).
+const staffRecord = {
+  id: "42",
+  name: "Mila Muster",
+  first_name: "Mila",
+  last_name: "Muster",
+  account_role: "teacher",
+  role: "Betreuung",
+  email: "mila@example.test",
+  tag_id: "ABC123",
+  account_id: 7,
+};
+
+vi.mock("~/lib/database/service-factory", () => ({
+  createCrudService: () => ({
+    getList: vi.fn(),
+    getOne: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+  }),
+}));
+
 vi.mock("~/lib/swr", () => ({
+  useTenantMutate: () => vi.fn(),
   useSWRAuth: (key: string | null, fetcher?: () => Promise<unknown>) => {
+    if (key?.startsWith("staff-record-")) {
+      return { data: staffRecord, isLoading: false, error: null };
+    }
     if (key?.startsWith("staff-detail-")) {
       void fetcher?.();
       return {
@@ -350,7 +380,10 @@ describe("StaffDetailContent permissions", () => {
   // users:read is the list tier; the Stammdaten sections carry HR-file data
   // (birthday, private address, contract terms) and stay closed to it —
   // mirrors the backend route gate.
-  it("redirects a role with only users:read away from the detail page", () => {
+  // Seit #3115 ist die Personalakte die einzige Objektansicht: wer nur
+  // users:read hat, sah vorher das Pane der Datenverwaltung und sieht jetzt
+  // hier den Reiter „Konto" — ohne Personalakte, ohne Zeiterfassung.
+  it("shows only the account tab to a role with users:read", () => {
     vi.mocked(useSession).mockReturnValue({
       data: {
         user: {
@@ -367,9 +400,70 @@ describe("StaffDetailContent permissions", () => {
 
     render(<StaffDetailContent />);
 
-    expect(replaceMock).toHaveBeenCalledWith("/staff");
+    expect(replaceMock).not.toHaveBeenCalled();
+    expect(screen.getByRole("tab", { name: "Konto" })).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Stammdaten" }),
+      screen.queryByRole("tab", { name: "Stammdaten" }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("tab", { name: "Zeiterfassung" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Systemrolle")).toBeInTheDocument();
+    // Ohne staff:manage kein Bearbeiten, ohne users:delete kein Löschen: das
+    // Kebab fehlt ganz statt leer zu bleiben.
+    expect(
+      screen.queryByRole("button", { name: "Weitere Aktionen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers editing and deleting the record to the account managers", () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "7",
+          token: "test-token",
+          roles: ["teacher"],
+          permissions: ["staff:manage", "users:delete", "users:manage"],
+        },
+        expires: "2099-01-01T00:00:00.000Z",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<StaffDetailContent />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    expect(
+      screen.getByRole("menuitem", { name: "Bearbeiten" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: "Löschen" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Rolle verwalten" }),
+    ).toBeInTheDocument();
+  });
+
+  it("redirects a role without any staff permission back to the referrer", () => {
+    searchParams.set("from", "/database/personal");
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "7",
+          token: "test-token",
+          roles: ["teacher"],
+          permissions: ["schedules:read"],
+        },
+        expires: "2099-01-01T00:00:00.000Z",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<StaffDetailContent />);
+
+    expect(replaceMock).toHaveBeenCalledWith("/database/personal");
+    searchParams.delete("from");
   });
 });
