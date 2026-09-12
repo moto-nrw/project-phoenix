@@ -89,6 +89,9 @@ type ReleasedTag struct {
 }
 
 type Query interface {
+	FamilyProtectionQuery
+	StudentDepartureQuery
+	StudentFieldReviewQuery
 	StudentQuery
 	GuardianQuery
 	// FindPerson returns one non-deleted person of the current tenant.
@@ -140,6 +143,8 @@ type Capability interface {
 }
 
 type engine interface {
+	FamilyProtectionQuery
+	StudentDepartureQuery
 	studentEngine
 	guardianEngine
 	Create(context.Context, CreatePerson) (Person, error)

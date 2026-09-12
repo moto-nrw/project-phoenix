@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
-	requestreviewlegacy "github.com/moto-nrw/project-phoenix/modules/requestreview/legacy"
+	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -81,5 +81,5 @@ func (rs *Resource) decideExcusedAbsenceRequest(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, requestreviewlegacy.ToStaffExcusedRequestResponse(item), "Decision applied")
+	common.Respond(w, r, http.StatusOK, requestreviewcompose.ToStaffExcusedRequestResponse(item), "Decision applied")
 }

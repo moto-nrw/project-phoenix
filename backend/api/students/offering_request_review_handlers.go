@@ -13,7 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
-	requestreviewlegacy "github.com/moto-nrw/project-phoenix/modules/requestreview/legacy"
+	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
@@ -139,7 +139,7 @@ func (rs *Resource) previewOfferingChangeRequest(w http.ResponseWriter, r *http.
 	for _, selection := range preview.Selections {
 		selections = append(selections, OfferingRequestPreviewSelectionResponse{
 			OfferingID: strconv.FormatInt(selection.OfferingID, 10),
-			New:        requestreviewlegacy.GermanOfferingDiffLabel(selection.State, selection.Days),
+			New:        requestreviewcompose.GermanOfferingDiffLabel(selection.State, selection.Days),
 			Removed:    selection.State == "removed",
 		})
 	}

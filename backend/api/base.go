@@ -35,7 +35,7 @@ import (
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	classdayHTTP "github.com/moto-nrw/project-phoenix/modules/classday/http"
 	emergencyAPI "github.com/moto-nrw/project-phoenix/modules/emergencysnapshot/http"
-	requestreviewlegacy "github.com/moto-nrw/project-phoenix/modules/requestreview/legacy"
+	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 	calendarAPI "github.com/moto-nrw/project-phoenix/modules/staffcalendar/http"
 
 	importAPI "github.com/moto-nrw/project-phoenix/api/import"
@@ -87,6 +87,7 @@ import (
 	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
 	feedbackCompose "github.com/moto-nrw/project-phoenix/modules/feedback/compose"
 	feedbackAPI "github.com/moto-nrw/project-phoenix/modules/feedback/http"
+	reviewidentity "github.com/moto-nrw/project-phoenix/modules/identityaccess/requestreview"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
 	mealplanAPI "github.com/moto-nrw/project-phoenix/modules/mealplan/http"
@@ -103,6 +104,7 @@ import (
 	classListHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http/classlistentries"
 	schoolStructureModule "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+	reviewsettings "github.com/moto-nrw/project-phoenix/modules/settings/review"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetableHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
@@ -1148,6 +1150,118 @@ func parsePositiveInt(valueStr string, defaultValue int) int {
 // initializeAPIResources initializes all API resource instances
 // initializeAPIResources composes the HTTP resources; workforce is the
 // Workforce module the staff administration reads schedules from.
+
+func (api *API) requestReviewGroupIDs(ctx context.Context) ([]int64, error) {
+	groups, err := api.Services.UserContext.GetMyGroups(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]int64, 0, len(groups))
+	for _, group := range groups {
+		if group != nil {
+			ids = append(ids, group.ID)
+		}
+	}
+	return ids, nil
+}
+
+// requestReviewDependencies binds native owner capabilities for the staff projection.
+func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (requestreviewcompose.ProjectionDependencies, error) {
+	reviewStudents, err := requestreviewcompose.NewStudentDirectory(db, modules.persons, func(observation requestreviewcompose.DirectoryObservation) {
+		observability.ObserveSchoolStructureOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, schoolStructureModule.ErrorCode(observation.Err), observation.Err)
+	})
+	if err != nil {
+		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("request review student directory: %w", err)
+	}
+	reviewPolicy, err := reviewidentity.New(reviewidentity.Dependencies{
+		Principal: studentsAPI.RequestReviewPrincipal,
+		GroupLeaderEnabled: func(ctx context.Context) (bool, error) {
+			return api.Services.Settings.ResolveBool(ctx, reviewsettings.GroupLeaderEnabled)
+		},
+		GroupIDs: api.requestReviewGroupIDs,
+	})
+	if err != nil {
+		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("request review policy: %w", err)
+	}
+	reviewAccess, err := requestreviewcompose.NewAccess(studentsAPI.RequestReviewPrincipal, reviewPolicy)
+	if err != nil {
+		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("request review access: %w", err)
+	}
+	masterDataReviews, err := requestreviewcompose.NewMasterDataReviews(db, modules.persons,
+		func(ctx context.Context) (carePlanCompose.ReviewScope, error) {
+			scope, err := reviewPolicy.Scope(ctx)
+			return carePlanCompose.ReviewScope{SchoolWide: scope.SchoolWide, GroupIDs: scope.GroupIDs}, err
+		}, carePlanLegacy.TodayDate, func(observation requestreviewcompose.CareObservation) {
+			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
+		})
+	if err != nil {
+		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("master data review queue: %w", err)
+	}
+	careReviews, err := requestreviewcompose.NewScheduleReviews(db, requestreviewcompose.ScheduleReviewDependencies{
+		People: modules.persons,
+		Scope: func(ctx context.Context) (carePlanCompose.ReviewScope, error) {
+			scope, err := reviewPolicy.Scope(ctx)
+			return carePlanCompose.ReviewScope{SchoolWide: scope.SchoolWide, GroupIDs: scope.GroupIDs}, err
+		},
+		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
+			return api.Services.Settings.ResolveBool(ctx, reviewsettings.BookingsAuthoritative)
+		},
+		Today: carePlanLegacy.TodayDate,
+		ObserveCare: func(observation requestreviewcompose.CareObservation) {
+			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
+		},
+		ObserveTimetable: func(observation requestreviewcompose.TimetableObservation) {
+			observability.ObserveTimetableActivitiesOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.DuplicatePreventionConflicts, observation.Stats.StatementDuration, timetableModule.ErrorCode(observation.Err), observation.Err)
+		},
+	})
+	if err != nil {
+		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("care schedule reviews: %w", err)
+	}
+	careQueue, err := requestreviewcompose.NewCareScheduleQueue(careReviews, carePlanLegacy.TodayDate)
+	if err != nil {
+		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("care schedule review queue: %w", err)
+	}
+	offeringReviews, err := requestreviewcompose.NewOfferingReviews(db, requestreviewcompose.OfferingReviewDependencies{
+		People: modules.persons,
+		Scope: func(ctx context.Context) (carePlanCompose.ReviewScope, error) {
+			scope, err := reviewPolicy.Scope(ctx)
+			return carePlanCompose.ReviewScope{SchoolWide: scope.SchoolWide, GroupIDs: scope.GroupIDs}, err
+		},
+		Today: carePlanLegacy.TodayDate,
+		ObserveCare: func(observation requestreviewcompose.CareObservation) {
+			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
+		},
+		ObserveTimetable: func(observation requestreviewcompose.TimetableObservation) {
+			observability.ObserveTimetableActivitiesOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.DuplicatePreventionConflicts, observation.Stats.StatementDuration, timetableModule.ErrorCode(observation.Err), observation.Err)
+		},
+	})
+	if err != nil {
+		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("offering reviews: %w", err)
+	}
+	offeringQueue, err := requestreviewcompose.NewOfferingQueue(offeringReviews, carePlanLegacy.TodayDate)
+	if err != nil {
+		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("offering review queue: %w", err)
+	}
+	corrections, err := requestreviewcompose.NewCorrectionLog(db, modules.persons, func(ctx context.Context) bool {
+		return studentsAPI.RequestReviewCorrectionAccess(ctx, api.Services.UserContext.HasCurrentStaff)
+	}, func(requestreviewcompose.AuditObservation) {})
+	if err != nil {
+		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("direct correction history: %w", err)
+	}
+	masterQueue, err := requestreviewcompose.NewMasterDataQueue(masterDataReviews)
+	if err != nil {
+		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("master data review queue: %w", err)
+	}
+	excusedQueue, err := requestreviewcompose.NewExcusedQueue(api.Services.ExcusedRequests, carePlanLegacy.TodayDate)
+	if err != nil {
+		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("excused review queue: %w", err)
+	}
+	return requestreviewcompose.ProjectionDependencies{
+		Queues:   requestreviewcompose.Queues{DirectCorrections: corrections, MasterData: masterQueue, CareSchedule: careQueue, Offering: offeringQueue, Excused: excusedQueue},
+		Students: reviewStudents, FamilyProtection: requestreviewcompose.NewFamilyProtection(api.Services.PeopleDirectory), Access: reviewAccess,
+	}, nil
+}
+
 func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules moduleServices, db *bun.DB, logger *slog.Logger) error {
 	workforce := modules.workforce
 	// One device authentication composition serves every kiosk route group,
@@ -1182,20 +1296,11 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	// factory already fails startup when the decision service stops
 	// implementing the resync, so the assertion cannot silently miss here.
 	studentClassResyncer, _ := api.Services.EnrollmentDecision.(educationSvc.OfferingSourceResyncer)
-	// The shared request-review projection (#2705) merges the four retained
-	// parent-request queues for the aggregated list and the badge; its
-	// compatibility adapter binds the retained review policy, people,
-	// education and Familienschutz services.
-	requestReview, err := requestreviewlegacy.New(requestreviewlegacy.Sources{
-		MasterData:       api.Services.MasterDataReview,
-		CareSchedule:     api.Services.CareRequests,
-		Offering:         api.Services.OfferingChanges,
-		Excused:          api.Services.ExcusedRequests,
-		People:           api.Services.Users,
-		Education:        api.Services.Education,
-		FamilyProtection: api.Services.FamilyProtection,
-		ReviewPolicy:     api.Services.RequestReviewPolicy,
-	})
+	reviewDependencies, err := requestReviewDependencies(api, modules, db)
+	if err != nil {
+		return err
+	}
+	requestReview, err := requestreviewcompose.NewProjection(reviewDependencies)
 	if err != nil {
 		return fmt.Errorf("request review projection: %w", err)
 	}

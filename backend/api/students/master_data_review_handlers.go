@@ -8,8 +8,9 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
-	requestreviewlegacy "github.com/moto-nrw/project-phoenix/modules/requestreview/legacy"
+	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -82,5 +83,14 @@ func (rs *Resource) decideMasterDataChangeRequest(w http.ResponseWriter, r *http
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, requestreviewlegacy.ToMasterDataChangeRequestResponse(item), "Decision applied")
+	request := item.Request
+	response := requestreviewcompose.ToMasterDataChangeRequestResponse(&masterdatarequests.ReviewItem{
+		Request: &masterdatarequests.Request{
+			ID: request.ID, StudentID: request.StudentID, Target: request.Target, FieldKey: request.FieldKey,
+			OldValue: request.OldValue, NewValue: request.NewValue, Status: request.Status,
+			CreatedAt: request.CreatedAt, ReviewedAt: request.ReviewedAt,
+		},
+		FirstName: item.FirstName, LastName: item.LastName,
+	})
+	common.Respond(w, r, http.StatusOK, response, "Decision applied")
 }
