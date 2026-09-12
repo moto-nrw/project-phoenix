@@ -36,6 +36,8 @@ import {
   StudentHistoryBreadcrumb,
   StudentDetailBreadcrumb,
   StaffDetailBreadcrumb,
+  RoomDetailBreadcrumb,
+  AnnouncementDetailBreadcrumb,
   ParentChildBreadcrumb,
   PageTitleDisplay,
 } from "./header/breadcrumb-components";
@@ -104,6 +106,8 @@ export function Header() {
   const {
     studentName,
     staffName,
+    roomName,
+    announcementTitle,
     referrerPage,
     activeSupervisionName,
     ogsGroupName,
@@ -342,6 +346,8 @@ export function Header() {
               isScrolled={isScrolled}
               studentName={studentName}
               staffName={staffName}
+              roomName={roomName}
+              announcementTitle={announcementTitle}
               referrer={referrer}
               breadcrumbLabel={breadcrumbLabel}
               historyType={historyType}
@@ -464,6 +470,8 @@ interface HeaderBreadcrumbProps {
   readonly isScrolled: boolean;
   readonly studentName?: string;
   readonly staffName?: string;
+  readonly roomName?: string;
+  readonly announcementTitle?: string;
   readonly referrer: string;
   readonly breadcrumbLabel: string;
   readonly historyType: string;
@@ -479,6 +487,8 @@ function HeaderBreadcrumb({
   isScrolled,
   studentName,
   staffName,
+  roomName,
+  announcementTitle,
   referrer,
   breadcrumbLabel,
   historyType,
@@ -543,11 +553,46 @@ function HeaderBreadcrumb({
     );
   }
 
+  // Raumseite (#3115): Räume / Name, bzw. aus der Datenverwaltung heraus
+  // Datenverwaltung / Räume / Name.
+  if (pageTypeInfo.isRoomDetailPage) {
+    return (
+      <RoomDetailBreadcrumb
+        roomName={roomName ?? "…"}
+        referrer={
+          referrer.startsWith("/rooms") ||
+          referrer.startsWith("/database/rooms")
+            ? referrer
+            : "/rooms"
+        }
+        isScrolled={isScrolled}
+      />
+    );
+  }
+
+  // Mitteilungsseite (#3115): Mitteilungen / Titel.
+  if (pageTypeInfo.isAnnouncementDetailPage) {
+    return (
+      <AnnouncementDetailBreadcrumb
+        title={announcementTitle ?? "…"}
+        referrer={
+          referrer.startsWith("/parent-announcements")
+            ? referrer
+            : "/parent-announcements"
+        }
+        isScrolled={isScrolled}
+      />
+    );
+  }
+
   // Staff detail page (2 levels: Mitarbeiter / Name)
   if (pageTypeInfo.isStaffDetailPage) {
     return (
       <StaffDetailBreadcrumb
         staffName={staffName ?? "…"}
+        referrer={
+          referrer.startsWith("/database/personal") ? referrer : "/staff"
+        }
         isScrolled={isScrolled}
       />
     );

@@ -150,7 +150,7 @@ function mapStudentResponse(
     // browser can render <img src> with the same-origin session cookie.
     // Forgetting this field on the detail-page hook was the bug where the
     // big xl avatar in StudentDetailHeader stayed empty even though all
-    // other surfaces (master-detail header, search cards, OGS-room cards)
+    // other surfaces (register rows, search cards, OGS-room cards)
     // showed the photo correctly.
     photo_url: mappedStudent.photo_url ?? undefined,
     photo_consent_given: mappedStudent.photo_consent_given ?? undefined,

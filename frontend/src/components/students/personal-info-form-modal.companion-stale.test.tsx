@@ -37,9 +37,19 @@ vi.mock("~/contexts/ToastContext", () => ({
   }),
 }));
 
+// Die Datenschutzeinwilligung wird beim Öffnen nachgeladen (#3115); hier ist
+// sie nicht Gegenstand und antwortet sofort.
+vi.mock("~/lib/student-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/student-api")>()),
+  fetchStudentPrivacyConsent: vi.fn(() =>
+    Promise.resolve({ accepted: true, dataRetentionDays: 30 }),
+  ),
+}));
+
 // The departure section owns the picker; the tests drive the companion list
 // through this stand-in instead of the real weekday/child UI.
 vi.mock("./student-form-fields", () => ({
+  PrivacyConsentSection: () => null,
   DepartureSection: ({
     companions,
     onCompanionsChange,

@@ -21,12 +21,6 @@ const mockReplace = vi.fn((url: string) => {
   const query = url.includes("?") ? (url.split("?")[1] ?? "") : "";
   currentSearch = new URLSearchParams(query);
 });
-const setSelectedRoom = (id: string | null) => {
-  currentSearch = new URLSearchParams();
-  if (id) {
-    currentSearch.set("room", id);
-  }
-};
 
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
@@ -230,71 +224,35 @@ vi.mock("~/components/ui/database/database-form-modal", () => ({
   },
 }));
 
-vi.mock("@/components/rooms/rooms-master-detail", () => ({
-  RoomsMasterDetail: ({
+// Test double for the collection list (#3115): one link per room, the
+// object route the page computes via `objectHref`.
+vi.mock("@/components/rooms/rooms-list", () => ({
+  RoomsList: ({
     groupDefinitions,
-    selectedId,
-    selectedRoom,
-    onSelect,
-    onSaveRoom,
-    onDeleteClick,
+    objectHref,
   }: {
     groupDefinitions: Array<{
       id: string;
       title: string;
       items: Array<{ id: string; name: string }>;
     }>;
-    selectedId: string | null;
-    selectedRoom?: { name: string } | null;
-    onSelect: (id: string | null) => void;
-    onSaveRoom: (data: { name: string }) => Promise<void>;
-    onDeleteClick: () => void;
+    objectHref: (room: { id: string }) => string;
   }) => (
-    <div data-testid="rooms-master-detail">
+    <div data-testid="rooms-list">
       {groupDefinitions.map((group) => (
         <div key={group.id} data-testid={`group-${group.id}`}>
           <span data-testid={`group-title-${group.id}`}>{group.title}</span>
           {group.items.map((room) => (
-            <button
-              type="button"
+            <a
               key={room.id}
               data-testid={`room-row-${room.id}`}
-              onClick={() => onSelect(room.id)}
+              href={objectHref(room)}
             >
               {room.name}
-            </button>
+            </a>
           ))}
         </div>
       ))}
-      {selectedId ? (
-        <div data-testid="room-detail-panel">
-          <span data-testid="detail-selected-id">{selectedId}</span>
-          <span data-testid="detail-room-name">
-            {selectedRoom?.name ?? "unbekannt"}
-          </span>
-          <button
-            type="button"
-            data-testid="trigger-update"
-            onClick={() => void onSaveRoom({ name: "Updated Room" })}
-          >
-            Save
-          </button>
-          <button
-            type="button"
-            data-testid="trigger-deselect"
-            onClick={() => onSelect(null)}
-          >
-            Close
-          </button>
-          <button
-            type="button"
-            data-testid="trigger-delete"
-            onClick={onDeleteClick}
-          >
-            Delete
-          </button>
-        </div>
-      ) : null}
     </div>
   ),
 }));
@@ -515,125 +473,24 @@ describe("RoomsPage", () => {
     consoleError.mockRestore();
   });
 
-  it("syncs room selection into the URL when a row is clicked", async () => {
-    render(<RoomsPage />);
-
-    fireEvent.click(screen.getByTestId("room-row-1"));
-
-    await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalledWith(
-        "/tenant/database/rooms?room=1",
-        { scroll: false },
-      );
-    });
-  });
-
-  it("hydrates the detail panel from the room URL param", async () => {
-    setSelectedRoom("1");
+  it("links every row to the room page with the register as referrer", async () => {
+    currentSearch = new URLSearchParams({ groupBy: "floor" });
 
     render(<RoomsPage />);
 
-    await waitFor(() => {
-      expect(screen.getByTestId("room-detail-panel")).toBeInTheDocument();
-      expect(screen.getByTestId("detail-selected-id")).toHaveTextContent("1");
+    fireEvent.change(screen.getByTestId("search-input"), {
+      target: { value: "Raum" },
     });
-  });
-
-  it("removes the room URL param when the detail panel is closed", async () => {
-    setSelectedRoom("1");
-
-    render(<RoomsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("room-detail-panel")).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId("filter-category"), {
+      target: { value: "Normaler Raum" },
     });
 
-    fireEvent.click(screen.getByTestId("trigger-deselect"));
-
     await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalledWith("/tenant/database/rooms", {
-        scroll: false,
-      });
-    });
-  });
-
-  it("calls update service when saving from the inline detail panel", async () => {
-    setSelectedRoom("1");
-    mockUpdate.mockResolvedValueOnce(undefined);
-
-    render(<RoomsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("room-detail-panel")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("trigger-update"));
-
-    await waitFor(() => {
-      expect(mockUpdate).toHaveBeenCalledWith(
-        "1",
-        expect.objectContaining({ name: "Updated Room" }),
-      );
-    });
-    await waitFor(() => {
-      for (const key of ROOM_LIST_CACHE_KEYS) {
-        expect(mockTenantMutate).toHaveBeenCalledWith(key);
-      }
-      expect(mockRefreshRoomConsumers).toHaveBeenCalled();
-    });
-  });
-
-  it("calls delete service after confirming deletion from the detail panel", async () => {
-    setSelectedRoom("1");
-    mockDelete.mockResolvedValueOnce(null);
-
-    render(<RoomsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("room-detail-panel")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("trigger-delete"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("confirm-delete"));
-
-    await waitFor(() => {
-      expect(mockDelete).toHaveBeenCalledWith("1");
-      expect(mockReplace).toHaveBeenCalledWith("/tenant/database/rooms", {
-        scroll: false,
-      });
-    });
-    await waitFor(() => {
-      for (const key of ROOM_LIST_CACHE_KEYS) {
-        expect(mockTenantMutate).toHaveBeenCalledWith(key);
-      }
-    });
-  });
-
-  it("shows an error toast when delete returns an error", async () => {
-    setSelectedRoom("1");
-    mockDelete.mockResolvedValueOnce("Raum kann nicht gelöscht werden");
-
-    render(<RoomsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("room-detail-panel")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("trigger-delete"));
-    await waitFor(() => {
-      expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("confirm-delete"));
-
-    await waitFor(() => {
-      expect(mockToastError).toHaveBeenCalledWith(
-        "Raum kann nicht gelöscht werden",
+      // Path routing in the test tenant context: the link carries the slug,
+      // the `from` referrer stays slug-free (the room page prefixes it itself).
+      expect(screen.getByTestId("room-row-1")).toHaveAttribute(
+        "href",
+        `/test-tenant/rooms/1?tab=stammdaten&from=${encodeURIComponent("/database/rooms?groupBy=floor&search=Raum&category=Normaler+Raum")}`,
       );
     });
   });

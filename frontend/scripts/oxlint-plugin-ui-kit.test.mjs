@@ -28,9 +28,7 @@ describe("ui-kit/no-generic-brand-colors", () => {
   });
 
   it("rejects directional generic border colors", () => {
-    expect(lintLiteral("border-t-green-600 border-s-blue-500")).toHaveLength(
-      2,
-    );
+    expect(lintLiteral("border-t-green-600 border-s-blue-500")).toHaveLength(2);
   });
 
   it("accepts semantic moto color tokens", () => {

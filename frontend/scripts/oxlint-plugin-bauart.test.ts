@@ -799,3 +799,103 @@ describe("bauart/no-manage-surface-in-overlay", () => {
     }
   });
 });
+
+describe("bauart/one-detail-per-type", () => {
+  const paneSource = `import { MasterDetailLayout } from "~/components/database/master-detail-layout";
+    export function Probe() {
+      return <MasterDetailLayout list={<div />} detail={<div />} />;
+    }`;
+
+  it("rejects MasterDetailLayout outside the types whose pane is the only object view", () => {
+    const { status, output } = lintSource(
+      paneSource,
+      "src/components/students/students-master-detail.tsx",
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain("bauart(one-detail-per-type)");
+    expect(output).toContain("Zweiter Detailbaum");
+  });
+
+  it("allows the pane for the listed types", () => {
+    for (const path of [
+      "src/components/groups/groups-master-detail.tsx",
+      "src/components/database/catalog/catalog-page.tsx",
+    ]) {
+      const { output } = lintSource(paneSource, path);
+      expect(output).not.toContain("bauart(one-detail-per-type)");
+    }
+  });
+
+  it("rejects the object-view field groups inside a SlideOver", () => {
+    const { status, output } = lintSource(
+      `import { SlideOver, SlideOverContent, SlideOverBody } from "~/components/ui/slide-over";
+      import { InfoSection, DataGrid, DataField } from "~/components/ui/detail-modal-components";
+      export function Probe({ room }: { room: { name: string } }) {
+        return (
+          <SlideOver open onOpenChange={() => {}}>
+            <SlideOverContent>
+              <SlideOverBody>
+                <InfoSection title="Raum" icon={null}>
+                  <DataGrid>
+                    <DataField label="Name">{room.name}</DataField>
+                  </DataGrid>
+                </InfoSection>
+              </SlideOverBody>
+            </SlideOverContent>
+          </SlideOver>
+        );
+      }`,
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain("bauart(one-detail-per-type)");
+    expect(output).toContain("Detailansicht im Slide-over");
+  });
+
+  it("rejects the pane components inside a modal", () => {
+    const { status, output } = lintSource(
+      `import { Modal } from "~/components/ui/modal";
+      import { DetailPanel } from "~/components/database/detail-panel";
+      export function Probe() {
+        return (
+          <Modal isOpen onClose={() => {}} title="Raum">
+            <DetailPanel header={<div />}>
+              <div />
+            </DetailPanel>
+          </Modal>
+        );
+      }`,
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain("bauart(one-detail-per-type)");
+    expect(output).toContain("DetailPanel");
+  });
+
+  it("allows field groups on a page and in a FormModal", () => {
+    const { output } = lintSource(
+      `import { FormModal } from "~/components/ui/modal";
+      import { InfoSection, DataGrid, DataField } from "~/components/ui/detail-modal-components";
+      export function Probe({ room }: { room: { name: string } }) {
+        return (
+          <>
+            <InfoSection title="Raum" icon={null}>
+              <DataGrid>
+                <DataField label="Name">{room.name}</DataField>
+              </DataGrid>
+            </InfoSection>
+            <FormModal isOpen onClose={() => {}} title="Kind nachtragen" onSubmit={() => {}}>
+              <DataGrid>
+                <DataField label="Raum">{room.name}</DataField>
+              </DataGrid>
+            </FormModal>
+          </>
+        );
+      }`,
+      "src/app/[tenant]/(protected)/rooms/[id]/page.tsx",
+    );
+
+    expect(output).not.toContain("bauart(one-detail-per-type)");
+  });
+});

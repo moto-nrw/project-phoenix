@@ -22,13 +22,14 @@ const LOADING_TABS = [
  */
 export function StudentDetailLoadingPage({
   referrer,
-}: Readonly<{ referrer?: string }>) {
+  backLabel = "Zurück zur Kinderübersicht",
+}: Readonly<{ referrer?: string; backLabel?: string }>) {
   return (
     <TenantPage
       title="Kindakte"
       back
       backHref={referrer}
-      backLabel="Zurück zur Kinderübersicht"
+      backLabel={backLabel}
       leading={<Skeleton className="h-12 w-12 shrink-0 rounded-xl" />}
       statsLoading
       tabs={{

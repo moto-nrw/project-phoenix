@@ -1,33 +1,27 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
-  BarChart3,
-  BellRing,
   Check,
-  ExternalLink,
   ListChecks,
   Megaphone,
-  Pencil,
   Plus,
   Paperclip,
   Send,
   Trash2,
-  Undo2,
 } from "lucide-react";
 
 import { TenantPage } from "~/components/ui/tenant-page";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import type {
   FilterConfig,
   ActiveFilter,
 } from "~/components/ui/page-header/types";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import type { OverflowMenuItem } from "~/components/ui/page-header/OverflowMenu";
 import { DataTable } from "~/components/ui/data-table";
 import { StatusBadge } from "~/components/ui/status-badge";
 import type { DataTableColumn } from "~/components/ui/data-table";
-import { ConfirmationModal } from "~/components/ui/modal";
+import { Button } from "~/components/ui/button";
 import {
   SlideOver,
   SlideOverBody,
@@ -37,28 +31,34 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
-import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
-import {
-  DataField,
-  DataGrid,
-  InfoSection,
-} from "~/components/ui/detail-modal-components";
-import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
 import { useFormError } from "~/components/ui/form-error";
 import { Input } from "~/components/ui/input";
 import { Checkbox } from "~/components/ui/checkbox";
 import { DatePicker } from "~/components/ui/date-picker";
-import { SkeletonRegion, ListSkeleton } from "~/components/ui/page-skeletons";
-import { LetterStatusPanel } from "~/components/announcements/letter-status-panel";
+import {
+  AnnouncementStatusBadge,
+  KIND_PARAM,
+  kindFromParam,
+  kindOf,
+  STATUS_LABEL,
+  summarizeTargets,
+} from "~/components/announcements/announcement-meta";
+import type { AnnouncementKind } from "~/components/announcements/announcement-meta";
+import {
+  buildAnnouncementMenuItems,
+  DeleteAnnouncementDialog,
+  PublishAnnouncementDialog,
+  UnpublishAnnouncementDialog,
+} from "~/components/announcements/announcement-lifecycle-dialogs";
+import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
+import { useTenantRouter } from "~/lib/tenant-router";
 import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
 import { WizardStepper } from "~/components/ui/wizard-stepper";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import type { SegmentedControlItem } from "~/components/ui/segmented-control";
-import { LinkifiedText } from "~/components/ui/linkified-text";
 import { AttachmentList } from "~/components/ui/attachment-list";
 import { formatBytes } from "~/lib/files-api";
-import { LOCATION_COLORS } from "~/lib/location-helper";
 import {
   berlinDayFromISO,
   endOfBerlinDayISO,
@@ -73,17 +73,8 @@ import { fetchActivities } from "~/lib/activity-api";
 import type { Activity } from "~/lib/activity-helpers";
 import {
   createAnnouncement,
-  deleteAnnouncement,
   fetchAnnouncements,
-  fetchAnnouncementRecipients,
-  fetchAnnouncementStats,
-  fetchPollChildren,
-  fetchPollResults,
-  isLetter,
-  isPoll,
   publishAnnouncement,
-  remindUnanswered,
-  unpublishAnnouncement,
   updateAnnouncement,
   announcementAttachmentDownloadUrl,
   deleteAnnouncementAttachment,
@@ -96,14 +87,8 @@ import type {
   AnnouncementEmailAudience,
   AnnouncementInput,
   AnnouncementPriority,
-  AnnouncementRecipient,
-  AnnouncementResponseType,
-  AnnouncementStats,
   AnnouncementStatus,
   AnnouncementTarget,
-  AnnouncementTargetType,
-  PollChild,
-  PollResults,
 } from "~/lib/parent-announcements-api";
 
 const logger = createLogger({ component: "ParentAnnouncementsPage" });
@@ -116,28 +101,19 @@ const PRIORITY_OPTIONS: ReadonlyArray<{
   { value: "important", label: "Wichtig" },
 ];
 
-const STATUS_META: Record<
-  AnnouncementStatus,
-  { label: string; color: string }
-> = {
-  draft: { label: "Entwurf", color: LOCATION_COLORS.UNKNOWN },
-  published: { label: "Veröffentlicht", color: LOCATION_COLORS.GROUP_ROOM },
-  expired: { label: "Abgelaufen", color: LOCATION_COLORS.SCHOOLYARD },
-};
-
-/**
- * The two things this page manages. Both are the same entity in the backend
- * (an Umfrage is an announcement with answer options, #1371) — the split is a
- * UI one, because writing an information and asking a question are different
- * jobs with different follow-up work (Statistik vs Auswertung).
- */
-type AnnouncementKind = "announcement" | "letter" | "poll";
-
 const KIND_ITEMS: ReadonlyArray<SegmentedControlItem<AnnouncementKind>> = [
   { value: "announcement", label: "Mitteilungen" },
   { value: "letter", label: "Elternbriefe" },
   { value: "poll", label: "Umfragen" },
 ];
+
+function announcementStatusFilterFromParam(
+  value: string | null,
+): "all" | AnnouncementStatus {
+  return value === "draft" || value === "published" || value === "expired"
+    ? value
+    : "all";
+}
 
 /**
  * Who receives the e-mail. Deliberately a value choice, not a content panel, so
@@ -185,61 +161,9 @@ const KIND_COPY: Record<
   },
 };
 
-/**
- * Which tab an announcement belongs to. The three kinds are mutually exclusive
- * in the backend too — a letter can never be a poll (a DB constraint says so),
- * so this ordering can never hide a row from every tab.
- */
-function kindOf(announcement: Announcement): AnnouncementKind {
-  if (isPoll(announcement)) return "poll";
-  if (isLetter(announcement)) return "letter";
-  return "announcement";
-}
-
-const RESPONSE_TYPE_LABEL: Record<AnnouncementResponseType, string> = {
-  none: "Keine Rückmeldung",
-  single_choice: "Eine Antwort",
-  multi_choice: "Mehrere Antworten",
-};
-
-const TARGET_TYPE_PLURAL: Record<AnnouncementTargetType, string> = {
-  school_all: "Ganze Schule",
-  pending_enrollment: "Offene Anmeldungen",
-  class: "Klassen",
-  group: "Gruppen",
-  activity_group: "AGs",
-  student: "Kinder",
-};
-
 /** Stable identity for a target so duplicates are rejected and React keys are unique. */
 function targetKey(target: AnnouncementTarget): string {
   return `${target.target_type}:${target.ref_id ?? target.ref_text ?? ""}`;
-}
-
-/** Compact, name-free summary for the list table (e.g. "2 Gruppen, 1 Klasse"). */
-function summarizeTargets(targets: AnnouncementTarget[]): string {
-  if (targets.length === 0) return "–";
-  if (targets.some((t) => t.target_type === "school_all")) {
-    // Whole-school subsumes the class/group/student targets, but pending
-    // enrollments are separate applicants the backend still notifies — so
-    // surface that combination instead of collapsing it to "Ganze Schule".
-    return targets.some((t) => t.target_type === "pending_enrollment")
-      ? "Ganze Schule, Offene Anmeldungen"
-      : "Ganze Schule";
-  }
-
-  const counts = new Map<AnnouncementTargetType, number>();
-  for (const t of targets) {
-    counts.set(t.target_type, (counts.get(t.target_type) ?? 0) + 1);
-  }
-  return [...counts.entries()]
-    .map(([type, count]) => {
-      if (type === "school_all" || type === "pending_enrollment") {
-        return TARGET_TYPE_PLURAL[type];
-      }
-      return `${count} ${TARGET_TYPE_PLURAL[type]}`;
-    })
-    .join(", ");
 }
 
 /** Returns a German validation error for a non-empty link, or null when ok. */
@@ -257,47 +181,38 @@ function linkError(raw: string): string | null {
   }
 }
 
-function StatusPill({ status }: { status: AnnouncementStatus }) {
-  const meta = STATUS_META[status];
+export default function ParentAnnouncementsPage() {
+  // useSearchParams (Reiter und `?bearbeiten=`) braucht die Suspense-Grenze.
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-50 px-3 py-1 text-xs font-medium">
-      <span
-        aria-hidden
-        className="inline-block h-1.5 w-1.5 rounded-full"
-        style={{ backgroundColor: meta.color }}
-      />
-      <span style={{ color: meta.color }}>{meta.label}</span>
-    </span>
+    <Suspense fallback={null}>
+      <ParentAnnouncementsContent />
+    </Suspense>
   );
 }
 
-export default function ParentAnnouncementsPage() {
-  return <ParentAnnouncementsContent />;
-}
-
 function ParentAnnouncementsContent() {
-  const [kind, setKind] = useState<AnnouncementKind>("announcement");
-  const [searchTerm, setSearchTerm] = useState("");
+  const searchParams = useSearchParams();
+  const updateUrlParams = useUpdateUrlParams();
+  const router = useTenantRouter();
+  // Der Reiter steht in der Adresse (`?art=`), damit die Objektseite den
+  // Rückweg auf denselben Reiter setzen kann (#3115).
+  const kind = kindFromParam(searchParams.get("art"));
+  const setKind = (next: AnnouncementKind) =>
+    updateUrlParams({ art: next === "announcement" ? null : KIND_PARAM[next] });
+  const [searchTerm, setSearchTerm] = useState(
+    () => searchParams.get("search") ?? "",
+  );
   const [statusFilter, setStatusFilter] = useState<"all" | AnnouncementStatus>(
-    "all",
+    () => announcementStatusFilterFromParam(searchParams.get("status")),
   );
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editing, setEditing] = useState<Announcement | null>(null);
-  const [detailFor, setDetailFor] = useState<Announcement | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Announcement | null>(null);
-  const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState("");
   const [publishTarget, setPublishTarget] = useState<Announcement | null>(null);
-  const [publishError, setPublishError] = useState("");
   const [unpublishTarget, setUnpublishTarget] = useState<Announcement | null>(
     null,
   );
-  const [unpublishError, setUnpublishError] = useState("");
-  const [pendingActionId, setPendingActionId] = useState<string | null>(null);
-  // Confirmation for the poll reminder, shown above the list because the detail
-  // modal closes right after sending.
-  const [reminderNotice, setReminderNotice] = useState("");
 
   const {
     data: announcements,
@@ -310,16 +225,14 @@ function ParentAnnouncementsContent() {
     { keepPreviousData: true, revalidateOnFocus: false },
   );
 
-  // Targeting data sources — fetched while the form is open (pickers) or a
-  // detail view is open (to label target chips with real names).
-  const needsLookups = isFormOpen || detailFor !== null;
+  // Targeting data sources — fetched while the form is open (pickers).
   const { data: groups } = useSWRAuth<Group[]>(
-    needsLookups ? "parent-announcements-groups" : null,
+    isFormOpen ? "parent-announcements-groups" : null,
     () => groupService.getGroups(),
     { revalidateOnFocus: false },
   );
   const { data: activities } = useSWRAuth<Activity[]>(
-    needsLookups ? "parent-announcements-activities" : null,
+    isFormOpen ? "parent-announcements-activities" : null,
     () => fetchActivities(),
     { revalidateOnFocus: false },
   );
@@ -330,6 +243,39 @@ function ParentAnnouncementsContent() {
   );
 
   const list = useMemo(() => announcements ?? [], [announcements]);
+
+  // Die Objektseite (#3115) schickt „Bearbeiten" mit `?bearbeiten=<id>`
+  // hierher, weil der Assistent auf der Liste wohnt. Der Parameter wird nach
+  // dem Öffnen entfernt, damit Neuladen den Assistenten nicht erneut öffnet.
+  const editRequestId = searchParams.get("bearbeiten");
+  useEffect(() => {
+    if (!editRequestId || announcements === undefined) return;
+    const requested = announcements.find((a) => a.id === editRequestId);
+    if (requested && requested.status === "draft" && !requested.system_kind) {
+      setEditing(requested);
+      setIsFormOpen(true);
+    }
+    updateUrlParams({ bearbeiten: null });
+  }, [announcements, editRequestId, updateUrlParams]);
+
+  // Die Objektseite einer Mitteilung, mit dem aktuellen Reiter, der Suche und
+  // dem Statusfilter als Rückweg.
+  const collectionReferrer = useMemo(() => {
+    const query = new URLSearchParams(searchParams);
+    query.set("art", KIND_PARAM[kind]);
+    if (searchTerm) query.set("search", searchTerm);
+    else query.delete("search");
+    if (statusFilter !== "all") query.set("status", statusFilter);
+    else query.delete("status");
+    const serialized = query.toString();
+    return serialized
+      ? `/parent-announcements?${serialized}`
+      : "/parent-announcements";
+  }, [kind, searchParams, searchTerm, statusFilter]);
+  const objectPath = (announcement: Announcement) =>
+    `/parent-announcements/${encodeURIComponent(announcement.id)}?from=${encodeURIComponent(
+      collectionReferrer,
+    )}`;
 
   const filtered = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -367,9 +313,13 @@ function ParentAnnouncementsContent() {
         ? ofKind.length === 1
           ? "Umfrage"
           : "Umfragen"
-        : ofKind.length === 1
-          ? "Mitteilung"
-          : "Mitteilungen";
+        : kind === "letter"
+          ? ofKind.length === 1
+            ? "Elternbrief"
+            : "Elternbriefe"
+          : ofKind.length === 1
+            ? "Mitteilung"
+            : "Mitteilungen";
     return `${ofKind.length} ${noun} · ${published} veröffentlicht`;
   })();
 
@@ -417,7 +367,7 @@ function ParentAnnouncementsContent() {
     if (statusFilter !== "all") {
       result.push({
         id: "status",
-        label: STATUS_META[statusFilter].label,
+        label: STATUS_LABEL[statusFilter],
         onRemove: () => setStatusFilter("all"),
       });
     }
@@ -437,66 +387,6 @@ function ParentAnnouncementsContent() {
   const closeForm = () => {
     setIsFormOpen(false);
     setEditing(null);
-  };
-
-  const confirmPublish = async () => {
-    if (!publishTarget) return;
-    setPendingActionId(publishTarget.id);
-    setPublishError("");
-    try {
-      await publishAnnouncement(publishTarget.id);
-      await mutate();
-      setPublishTarget(null);
-    } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Elternmitteilung konnte nicht veröffentlicht werden";
-      setPublishError(message);
-      logger.error("announcement_publish_failed", { error: message });
-    } finally {
-      setPendingActionId(null);
-    }
-  };
-
-  const confirmUnpublish = async () => {
-    if (!unpublishTarget) return;
-    setPendingActionId(unpublishTarget.id);
-    setUnpublishError("");
-    try {
-      await unpublishAnnouncement(unpublishTarget.id);
-      await mutate();
-      setUnpublishTarget(null);
-    } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Elternmitteilung konnte nicht zurückgezogen werden";
-      setUnpublishError(message);
-      logger.error("announcement_unpublish_failed", { error: message });
-    } finally {
-      setPendingActionId(null);
-    }
-  };
-
-  const confirmDelete = async () => {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    setDeleteError("");
-    try {
-      await deleteAnnouncement(deleteTarget.id);
-      await mutate();
-      setDeleteTarget(null);
-    } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Elternmitteilung konnte nicht gelöscht werden";
-      setDeleteError(message);
-      logger.error("announcement_delete_failed", { error: message });
-    } finally {
-      setDeleting(false);
-    }
   };
 
   const columns: DataTableColumn<Announcement>[] = [
@@ -532,7 +422,7 @@ function ParentAnnouncementsContent() {
       key: "status",
       header: "Status",
       sortValue: (row) => row.status,
-      render: (row) => <StatusPill status={row.status} />,
+      render: (row) => <AnnouncementStatusBadge status={row.status} />,
     },
     {
       key: "targets",
@@ -576,67 +466,19 @@ function ParentAnnouncementsContent() {
           role="presentation"
         >
           <OverflowMenu
-            items={buildMenuItems(row)}
+            items={buildAnnouncementMenuItems(row, {
+              onPublish: () => setPublishTarget(row),
+              onView: () => router.push(objectPath(row)),
+              onEdit: () => openEdit(row),
+              onUnpublish: () => setUnpublishTarget(row),
+              onDelete: () => setDeleteTarget(row),
+            })}
             ariaLabel={`Aktionen für ${row.title}`}
           />
         </div>
       ),
     },
   ];
-
-  // Every row action lives in the kebab (BAUARTEN-SPEC Bauart 1 Regel 4,
-  // #3111): publishing a draft is its first entry. Details open via row/card
-  // click. Editing is draft-only — published announcements are immutable
-  // (Zurückziehen first, then edit the draft).
-  function buildMenuItems(row: Announcement): OverflowMenuItem[] {
-    const menuItems: OverflowMenuItem[] = [];
-    if (row.status === "draft") {
-      menuItems.push({
-        label: "Veröffentlichen",
-        icon: <Send className="size-4" aria-hidden />,
-        disabled: pendingActionId === row.id,
-        onClick: () => {
-          setPublishError("");
-          setPublishTarget(row);
-        },
-      });
-    }
-    menuItems.push({
-      label: "Anzeigen",
-      icon: <MotoConceptIcon concept="reports" size={16} />,
-      onClick: () => setDetailFor(row),
-    });
-    if (!row.system_kind && row.status === "draft") {
-      menuItems.push({
-        label: "Bearbeiten",
-        icon: <Pencil className="size-4" aria-hidden />,
-        onClick: () => openEdit(row),
-      });
-    }
-    if (!row.system_kind && row.status === "published") {
-      menuItems.push({
-        label: "Zurückziehen",
-        icon: <Undo2 className="size-4" aria-hidden />,
-        onClick: () => {
-          setUnpublishError("");
-          setUnpublishTarget(row);
-        },
-        disabled: pendingActionId === row.id,
-      });
-    }
-    if (!row.system_kind) {
-      menuItems.push({
-        label: "Löschen",
-        icon: <Trash2 className="size-4" aria-hidden />,
-        destructive: true,
-        onClick: () => {
-          setDeleteError("");
-          setDeleteTarget(row);
-        },
-      });
-    }
-    return menuItems;
-  }
 
   return (
     <TenantPage
@@ -740,127 +582,49 @@ function ParentAnnouncementsContent() {
             />
           )}
 
-          {detailFor && (
-            <DetailModal
-              announcement={detailFor}
-              groups={groups ?? []}
-              activities={activities ?? []}
-              onClose={() => setDetailFor(null)}
-              onReminded={(count) => {
-                setReminderNotice(
-                  count === 0
-                    ? "Alle erreichten Kinder haben bereits geantwortet, es wurde niemand erinnert."
-                    : `${count} ${count === 1 ? "Elternteil wurde" : "Eltern wurden"} an die offene Umfrage erinnert.`,
-                );
-                setDetailFor(null);
+          {publishTarget && (
+            <PublishAnnouncementDialog
+              announcement={publishTarget}
+              onClose={() => setPublishTarget(null)}
+              onDone={async () => {
+                await mutate();
               }}
             />
           )}
 
-          {publishTarget && (
-            <ConfirmationModal
-              isOpen={Boolean(publishTarget)}
-              onClose={() => {
-                setPublishTarget(null);
-                setPublishError("");
-              }}
-              onConfirm={() => void confirmPublish()}
-              title="Elternmitteilung veröffentlichen"
-              confirmText="Jetzt veröffentlichen"
-              cancelText="Abbrechen"
-              isConfirmLoading={pendingActionId === publishTarget.id}
-            >
-              <div className="space-y-2 text-sm text-gray-700">
-                <p>
-                  „{publishTarget.title}“ wird für{" "}
-                  <span className="font-medium">
-                    {summarizeTargets(publishTarget.targets)}
-                  </span>{" "}
-                  sichtbar.
-                </p>
-                {publishTarget.send_email && (
-                  <p>
-                    Die erreichten Eltern werden zusätzlich per E-Mail
-                    benachrichtigt.
-                  </p>
-                )}
-                <p className="text-xs text-gray-500">
-                  Nach dem Veröffentlichen kann die Mitteilung nicht mehr
-                  bearbeitet werden.
-                </p>
-                {publishError && <Alert type="error" message={publishError} />}
-              </div>
-            </ConfirmationModal>
-          )}
-
           {unpublishTarget && (
-            <ConfirmationModal
-              isOpen={Boolean(unpublishTarget)}
-              onClose={() => {
-                setUnpublishTarget(null);
-                setUnpublishError("");
+            <UnpublishAnnouncementDialog
+              announcement={unpublishTarget}
+              onClose={() => setUnpublishTarget(null)}
+              onDone={async () => {
+                await mutate();
               }}
-              onConfirm={() => void confirmUnpublish()}
-              title="Elternmitteilung zurückziehen"
-              confirmText="Zurückziehen"
-              cancelText="Abbrechen"
-              isConfirmLoading={pendingActionId === unpublishTarget.id}
-            >
-              <div className="space-y-2 text-sm text-gray-700">
-                <p>
-                  „{unpublishTarget.title}“ wird für die Eltern nicht mehr
-                  sichtbar und kehrt in den Entwurfsstatus zurück.
-                </p>
-                <p className="text-xs text-gray-500">
-                  Noch nicht versendete E-Mail-Benachrichtigungen werden
-                  abgebrochen.
-                </p>
-                {unpublishError && (
-                  <Alert type="error" message={unpublishError} />
-                )}
-              </div>
-            </ConfirmationModal>
+            />
           )}
 
           {deleteTarget && (
-            <ConfirmDeleteModal
-              isOpen={Boolean(deleteTarget)}
-              title="Elternmitteilung löschen"
-              description={
-                <>
-                  Möchten Sie die Elternmitteilung
-                  <span className="font-medium text-gray-900">
-                    {" "}
-                    „{deleteTarget.title}“{" "}
-                  </span>
-                  wirklich löschen? Dies kann nicht rückgängig gemacht werden.
-                </>
-              }
-              gate={{ mode: "twoStep" }}
-              onConfirm={confirmDelete}
-              onClose={() => {
-                setDeleteTarget(null);
-                setDeleteError("");
+            <DeleteAnnouncementDialog
+              announcement={deleteTarget}
+              onClose={() => setDeleteTarget(null)}
+              onDone={async () => {
+                await mutate();
               }}
-              loading={deleting}
-              error={deleteError}
             />
           )}
         </>
       }
     >
-      {reminderNotice && <Alert type="success" message={reminderNotice} />}
-
       <DataTable
         stackedOnMobile
         columns={columns}
         rows={filtered}
         getRowKey={(row) => row.id}
         defaultSortKey="title"
-        onRowClick={(row) => setDetailFor(row)}
-        // "Anzeigen" im Aktionsmenü öffnet dieselben Details per Tastatur.
-        // Deshalb darf die Zeile mit ihren eigenen Aktionen nicht zusätzlich
-        // als Schaltfläche angekündigt werden.
+        // Die Zeile öffnet die Objektseite (BAUARTEN-SPEC Bauart 1 Regel 2);
+        // „Anzeigen" im Aktionsmenü tut dasselbe per Tastatur. Deshalb darf
+        // die Zeile mit ihren eigenen Aktionen nicht zusätzlich als
+        // Schaltfläche angekündigt werden.
+        onRowClick={(row) => router.push(objectPath(row))}
         rowHasInteractiveControls
       />
     </TenantPage>
@@ -2081,643 +1845,3 @@ function TargetingStep({
 }
 
 /** Chips describing the audience, with real names where the lookups know them. */
-function targetChips(
-  targets: AnnouncementTarget[],
-  groups: Group[],
-  activities: Activity[],
-): string[] {
-  if (targets.some((t) => t.target_type === "school_all")) {
-    // Whole-school subsumes class/group/student targets; pending enrollments
-    // are additional recipients the backend still reaches, so keep that chip.
-    const schoolChips = ["Ganze Schule"];
-    if (targets.some((t) => t.target_type === "pending_enrollment"))
-      schoolChips.push("Offene Anmeldungen");
-    return schoolChips;
-  }
-  const groupNames = new Map(groups.map((g) => [g.id, g.name]));
-  const activityNames = new Map(activities.map((a) => [a.id, a.name]));
-  const chips: string[] = [];
-  let studentCount = 0;
-  for (const t of targets) {
-    switch (t.target_type) {
-      case "pending_enrollment":
-        chips.push("Offene Anmeldungen");
-        break;
-      case "class":
-        chips.push(`Klasse ${t.ref_text ?? "?"}`);
-        break;
-      case "group":
-        chips.push(groupNames.get(t.ref_id ?? "") ?? "Gruppe");
-        break;
-      case "activity_group":
-        chips.push(activityNames.get(t.ref_id ?? "") ?? "AG");
-        break;
-      case "student":
-        studentCount++;
-        break;
-      case "school_all":
-        break;
-    }
-  }
-  if (studentCount > 0) {
-    chips.push(
-      studentCount === 1
-        ? "1 einzelnes Kind"
-        : `${studentCount} einzelne Kinder`,
-    );
-  }
-  return chips;
-}
-
-const RECIPIENT_STATUS_META: Record<
-  AnnouncementRecipient["status"],
-  { label: string; color: string }
-> = {
-  acknowledged: { label: "Bestätigt", color: LOCATION_COLORS.GROUP_ROOM },
-  read: { label: "Gelesen", color: LOCATION_COLORS.OTHER_ROOM },
-  pending: { label: "Ausstehend", color: LOCATION_COLORS.UNKNOWN },
-};
-
-const RECIPIENT_SORT: Record<AnnouncementRecipient["status"], number> = {
-  pending: 0,
-  read: 1,
-  acknowledged: 2,
-};
-
-interface RecipientListProps {
-  readonly recipients: AnnouncementRecipient[];
-  readonly showStatus: boolean;
-  readonly statusFilter: "all" | AnnouncementRecipient["status"];
-  readonly onStatusFilter: (
-    value: "all" | AnnouncementRecipient["status"],
-  ) => void;
-  readonly nameFilter: string;
-  readonly onNameFilter: (value: string) => void;
-}
-
-/**
- * The per-guardian read/ack list, built to stay usable at big-school scale:
- * status chips with counts (the "Ausstehend" chip is the chase list), a name
- * search, and a capped, scrolling list.
- */
-function RecipientList({
-  recipients,
-  showStatus,
-  statusFilter,
-  onStatusFilter,
-  nameFilter,
-  onNameFilter,
-}: RecipientListProps) {
-  const counts = {
-    all: recipients.length,
-    pending: 0,
-    read: 0,
-    acknowledged: 0,
-  };
-  for (const rcpt of recipients) counts[rcpt.status]++;
-
-  const term = nameFilter.trim().toLowerCase();
-  const filtered = recipients.filter((rcpt) => {
-    if (showStatus && statusFilter !== "all" && rcpt.status !== statusFilter)
-      return false;
-    if (
-      term &&
-      !`${rcpt.first_name} ${rcpt.last_name}`.toLowerCase().includes(term)
-    )
-      return false;
-    return true;
-  });
-
-  const chips: ReadonlyArray<{
-    value: "all" | AnnouncementRecipient["status"];
-    label: string;
-  }> = [
-    { value: "all", label: `Alle (${counts.all})` },
-    { value: "pending", label: `Ausstehend (${counts.pending})` },
-    { value: "read", label: `Gelesen (${counts.read})` },
-    { value: "acknowledged", label: `Bestätigt (${counts.acknowledged})` },
-  ];
-
-  return (
-    <div className="mt-2 space-y-2">
-      {showStatus && (
-        <div className="flex flex-wrap gap-1.5">
-          {chips.map((chip) => (
-            <button
-              key={chip.value}
-              type="button"
-              onClick={() => onStatusFilter(chip.value)}
-              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                statusFilter === chip.value
-                  ? "bg-gray-900 text-white"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}
-            >
-              {chip.label}
-            </button>
-          ))}
-        </div>
-      )}
-      {recipients.length > 8 && (
-        <Input
-          name="recipient-search"
-          controlSize="compact"
-          value={nameFilter}
-          onChange={(e) => onNameFilter(e.target.value)}
-          placeholder="Name suchen…"
-        />
-      )}
-      {filtered.length === 0 ? (
-        <p className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500">
-          Keine Treffer.
-        </p>
-      ) : (
-        <ul className="max-h-56 divide-y divide-gray-100 overflow-y-auto rounded-lg border border-gray-200">
-          {filtered.map((rcpt) => (
-            <li
-              key={rcpt.account_id}
-              className="flex items-center justify-between gap-2 px-3 py-2"
-            >
-              <span className="min-w-0 truncate text-sm text-gray-800">
-                {`${rcpt.first_name} ${rcpt.last_name}`.trim() || "Ohne Namen"}
-              </span>
-              {showStatus && (
-                <span
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-gray-50 px-2.5 py-0.5 text-xs font-medium"
-                  style={{ color: RECIPIENT_STATUS_META[rcpt.status].color }}
-                >
-                  <span
-                    aria-hidden
-                    className="inline-block h-1.5 w-1.5 rounded-full"
-                    style={{
-                      backgroundColor: RECIPIENT_STATUS_META[rcpt.status].color,
-                    }}
-                  />
-                  {RECIPIENT_STATUS_META[rcpt.status].label}
-                </span>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-interface DetailModalProps {
-  readonly announcement: Announcement;
-  readonly groups: Group[];
-  readonly activities: Activity[];
-  readonly onClose: () => void;
-  /** Called with the number of guardians reached by a poll reminder. */
-  readonly onReminded: (count: number) => void;
-}
-
-/**
- * Poll evaluation: one bar per option over the children with an eligible
- * respondent, plus the full per-child list so staff can distinguish open
- * answers from children who currently cannot answer. Counts are children, not
- * parents — that is the number the school plans with.
- */
-function PollResultsPanel({
-  announcement,
-  onReminded,
-}: {
-  readonly announcement: Announcement;
-  readonly onReminded: (count: number) => void;
-}) {
-  const [results, setResults] = useState<PollResults | null>(null);
-  const [children, setChildren] = useState<PollChild[] | null>(null);
-  const [error, setError] = useState("");
-  const [onlyOpen, setOnlyOpen] = useState(false);
-  const [reminding, setReminding] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    setError("");
-    Promise.all([
-      fetchPollResults(announcement.id),
-      fetchPollChildren(announcement.id),
-    ])
-      .then(([resultsData, childrenData]) => {
-        if (cancelled) return;
-        setResults(resultsData);
-        setChildren(childrenData);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        const message =
-          err instanceof Error
-            ? err.message
-            : "Umfrageergebnis konnte nicht geladen werden";
-        setError(message);
-        logger.error("announcement_poll_results_failed", { error: message });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [announcement.id]);
-
-  const deadlinePassed =
-    announcement.response_deadline !== undefined &&
-    new Date(announcement.response_deadline) <= new Date();
-  const canRemind =
-    announcement.status === "published" &&
-    !deadlinePassed &&
-    (results?.answered_count ?? 0) < (results?.child_count ?? 0);
-
-  const handleRemind = async () => {
-    setReminding(true);
-    setError("");
-    try {
-      const count = await remindUnanswered(announcement.id);
-      onReminded(count);
-    } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Erinnerung konnte nicht gesendet werden";
-      setError(message);
-      logger.error("announcement_poll_reminder_failed", { error: message });
-    } finally {
-      setReminding(false);
-    }
-  };
-
-  const visibleChildren = (children ?? []).filter(
-    (child) =>
-      !onlyOpen || (child.can_answer && child.answer_labels.length === 0),
-  );
-
-  return (
-    <div>
-      <h4 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-gray-900">
-        <ListChecks className="h-4 w-4 text-gray-500" aria-hidden />
-        Auswertung
-      </h4>
-
-      {error && <p className="text-moto-red-strong mb-2 text-sm">{error}</p>}
-
-      {results === null || children === null ? (
-        error ? null : (
-          <SkeletonRegion label="Umfrageergebnisse werden geladen…">
-            <ListSkeleton rows={4} avatar={false} />
-          </SkeletonRegion>
-        )
-      ) : (
-        <>
-          <p className="text-sm text-gray-700">
-            {results.answered_count} von {results.child_count}{" "}
-            {results.child_count === 1 ? "Kind" : "Kindern"} beantwortet
-          </p>
-          {results.target_child_count > results.child_count && (
-            <p className="mt-1 text-xs text-gray-500">
-              {results.target_child_count - results.child_count}{" "}
-              {results.target_child_count - results.child_count === 1
-                ? "weiteres Zielkind hat"
-                : "weitere Zielkinder haben"}{" "}
-              derzeit keine antwortberechtigte Person.
-            </p>
-          )}
-
-          <ul className="mt-3 space-y-2">
-            {results.options.map((option) => {
-              const share =
-                results.child_count > 0
-                  ? Math.round((option.count / results.child_count) * 100)
-                  : 0;
-              return (
-                <li key={option.option_id}>
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span className="truncate text-sm text-gray-800">
-                      {option.label}
-                    </span>
-                    <span className="shrink-0 text-sm font-semibold text-gray-900">
-                      {option.count}
-                    </span>
-                  </div>
-                  <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-gray-100">
-                    <div
-                      className="h-full rounded-full"
-                      style={{
-                        width: `${share}%`,
-                        backgroundColor: LOCATION_COLORS.GROUP_ROOM,
-                      }}
-                    />
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-
-          {children.length > 0 && (
-            <div className="mt-4">
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <span className="text-xs font-medium text-gray-700">
-                  Antworten pro Kind
-                </span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="compact"
-                  onClick={() => setOnlyOpen((prev) => !prev)}
-                >
-                  {onlyOpen ? "Alle anzeigen" : "Nur offene"}
-                </Button>
-              </div>
-              <ul className="max-h-56 divide-y divide-gray-100 overflow-y-auto rounded-lg border border-gray-200">
-                {visibleChildren.map((child) => (
-                  <li
-                    key={child.student_id}
-                    className="flex items-center justify-between gap-3 px-3 py-2"
-                  >
-                    <span className="min-w-0 truncate text-sm text-gray-800">
-                      {child.first_name} {child.last_name}
-                      {child.school_class && (
-                        <span className="text-gray-500">
-                          {" "}
-                          · {child.school_class}
-                        </span>
-                      )}
-                    </span>
-                    {child.answer_labels.length > 0 ? (
-                      <span className="text-moto-green-strong shrink-0 text-xs font-medium">
-                        {child.answer_labels.join(", ")}
-                      </span>
-                    ) : child.can_answer ? (
-                      <span className="shrink-0 text-xs text-gray-500">
-                        Offen
-                      </span>
-                    ) : (
-                      <span className="shrink-0 text-xs text-gray-500">
-                        Nicht beantwortbar
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {canRemind && (
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={() => void handleRemind()}
-              isLoading={reminding}
-              loadingText="Wird gesendet…"
-              className="mt-4 gap-1.5"
-            >
-              <BellRing className="size-4" aria-hidden />
-              Eltern ohne Antwort erinnern
-            </Button>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
-/**
- * Read-only detail view: since published announcements are immutable, this is
- * the only place staff can re-read the full text. Includes reach stats and the
- * per-guardian read/ack list (pending first — the people to chase).
- */
-function DetailModal({
-  announcement,
-  groups,
-  activities,
-  onClose,
-  onReminded,
-}: DetailModalProps) {
-  const [stats, setStats] = useState<AnnouncementStats | null>(null);
-  const [recipients, setRecipients] = useState<AnnouncementRecipient[] | null>(
-    null,
-  );
-  const [error, setError] = useState("");
-  const [statusFilter, setStatusFilter] = useState<
-    "all" | AnnouncementRecipient["status"]
-  >("all");
-  const [nameFilter, setNameFilter] = useState("");
-
-  // A published poll renders its Auswertung instead of the read/ack statistics
-  // (see below), so it must not pay for the two requests behind them either.
-  const showReadStats = !(
-    (isPoll(announcement) || isLetter(announcement)) &&
-    announcement.status !== "draft"
-  );
-
-  useEffect(() => {
-    if (!showReadStats) return;
-    let cancelled = false;
-    setError("");
-    Promise.all([
-      fetchAnnouncementStats(announcement.id),
-      fetchAnnouncementRecipients(announcement.id),
-    ])
-      .then(([statsResult, recipientsResult]) => {
-        if (cancelled) return;
-        setStats(statsResult);
-        setRecipients(
-          [...recipientsResult].sort(
-            (a, b) =>
-              RECIPIENT_SORT[a.status] - RECIPIENT_SORT[b.status] ||
-              a.last_name.localeCompare(b.last_name) ||
-              a.first_name.localeCompare(b.first_name),
-          ),
-        );
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        const message =
-          err instanceof Error
-            ? err.message
-            : "Statistik konnte nicht geladen werden";
-        setError(message);
-        logger.error("announcement_detail_failed", { error: message });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [announcement.id, showReadStats]);
-
-  const isPublished = announcement.status !== "draft";
-  const poll = isPoll(announcement);
-  const letter = isLetter(announcement);
-  const chips = targetChips(announcement.targets, groups, activities);
-
-  return (
-    <SlideOver
-      open
-      onOpenChange={(open) => {
-        if (!open) onClose();
-      }}
-    >
-      <SlideOverContent widthClass="sm:w-[680px]">
-        <SlideOverHeader className="flex-row items-start justify-between gap-3">
-          <div className="min-w-0">
-            <SlideOverTitle>{announcement.title}</SlideOverTitle>
-          </div>
-          <SlideOverCloseButton />
-        </SlideOverHeader>
-        <SlideOverBody className="space-y-5">
-          {/* Identitätskopf: Titel trägt der Modalkopf, hier stehen Status und
-            Zeitpunkte des Objekts. */}
-          <div className="flex flex-wrap items-center gap-2">
-            <StatusPill status={announcement.status} />
-            {announcement.priority === "important" && (
-              <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
-                Wichtig
-              </span>
-            )}
-            <span className="text-xs text-gray-500">
-              {announcement.published_at
-                ? `Veröffentlicht ${formatDate(announcement.published_at)}`
-                : "Noch nicht veröffentlicht"}
-              {announcement.expires_at &&
-                ` · Läuft ab ${formatBerlinDate(announcement.expires_at)}`}
-            </span>
-          </div>
-
-          <InfoSection
-            title={poll ? "Umfrage" : "Mitteilung"}
-            icon={
-              poll ? (
-                <ListChecks className="h-4 w-4 text-gray-500" aria-hidden />
-              ) : (
-                <Megaphone className="h-4 w-4 text-gray-500" aria-hidden />
-              )
-            }
-          >
-            <p className="text-sm leading-6 whitespace-pre-line text-gray-800">
-              <LinkifiedText text={announcement.body} />
-            </p>
-
-            {announcement.link_url && (
-              <a
-                href={announcement.link_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-moto-blue hover:text-moto-blue-hover mt-3 inline-flex max-w-full items-center gap-1.5 text-sm font-medium underline underline-offset-2"
-              >
-                <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
-                <span className="truncate">{announcement.link_url}</span>
-              </a>
-            )}
-          </InfoSection>
-
-          <InfoSection
-            title="Zielgruppen und Zustellung"
-            icon={<Send className="h-4 w-4 text-gray-500" aria-hidden />}
-          >
-            <DataGrid>
-              <DataField label="Zielgruppen" fullWidth>
-                <span className="flex flex-wrap gap-1.5">
-                  {chips.map((chip) => (
-                    <span
-                      key={chip}
-                      className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700"
-                    >
-                      {chip}
-                    </span>
-                  ))}
-                </span>
-              </DataField>
-              <DataField label={poll ? "Antwortart" : "Lesebestätigung"}>
-                {poll
-                  ? RESPONSE_TYPE_LABEL[announcement.response_type]
-                  : letter
-                    ? "Erforderlich (Elternbrief)"
-                    : announcement.requires_acknowledgement
-                      ? "Erforderlich"
-                      : "Nicht erforderlich"}
-              </DataField>
-              <DataField label="E-Mail an die Eltern">
-                {letter
-                  ? announcement.email_audience === "all_contacts"
-                    ? "An alle Bezugspersonen"
-                    : "An Bezugspersonen mit Portalzugang"
-                  : announcement.send_email
-                    ? "Wird versendet"
-                    : "Wird nicht versendet"}
-              </DataField>
-              {poll && announcement.response_deadline && (
-                <DataField label="Antwort bis">
-                  {formatBerlinDate(announcement.response_deadline)}
-                </DataField>
-              )}
-            </DataGrid>
-          </InfoSection>
-
-          {poll && (
-            <PollResultsPanel
-              announcement={announcement}
-              onReminded={onReminded}
-            />
-          )}
-
-          {/* A published Elternbrief shows the recipient matrix instead of the
-            generic read/ack statistics: it counts CHILDREN and reports both
-            channels separately, while the generic panel counts guardian
-            accounts. Two different denominators in one modal is a support
-            ticket waiting to happen. */}
-          {letter && isPublished && (
-            <LetterStatusPanel
-              announcementId={announcement.id}
-              canAct={announcement.status === "published"}
-              emailAudience={announcement.email_audience}
-            />
-          )}
-
-          {/* A published poll shows its Auswertung instead of the read/ack
-            statistics: the two count different things (children vs guardian
-            accounts), and two different denominators in one modal is a support
-            ticket waiting to happen. A DRAFT poll still shows the reach, which
-            is the number staff check before publishing. */}
-          {showReadStats && (
-            <InfoSection
-              title={isPublished ? "Statistik" : "Aktuelle Reichweite"}
-              icon={<BarChart3 className="h-4 w-4 text-gray-500" aria-hidden />}
-            >
-              {error ? (
-                <p className="text-moto-red-strong text-sm">{error}</p>
-              ) : stats === null || recipients === null ? (
-                <SkeletonRegion label="Statistik wird geladen…">
-                  <ListSkeleton rows={4} avatar={false} />
-                </SkeletonRegion>
-              ) : (
-                <>
-                  <p className="text-sm text-gray-700">
-                    {isPublished ? (
-                      <>
-                        {stats.read_count} von {stats.target_count} gelesen
-                        {announcement.requires_acknowledgement &&
-                          ` · ${stats.acknowledged_count} von ${stats.target_count} bestätigt`}
-                      </>
-                    ) : (
-                      <>
-                        Erreicht aktuell {stats.target_count}{" "}
-                        {stats.target_count === 1 ? "Elternteil" : "Eltern"}.
-                      </>
-                    )}
-                  </p>
-                  {recipients.length > 0 && (
-                    <RecipientList
-                      recipients={recipients}
-                      showStatus={isPublished}
-                      statusFilter={statusFilter}
-                      onStatusFilter={setStatusFilter}
-                      nameFilter={nameFilter}
-                      onNameFilter={setNameFilter}
-                    />
-                  )}
-                </>
-              )}
-            </InfoSection>
-          )}
-        </SlideOverBody>
-      </SlideOverContent>
-    </SlideOver>
-  );
-}

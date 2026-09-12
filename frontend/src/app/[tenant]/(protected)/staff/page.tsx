@@ -912,17 +912,17 @@ function StaffPageContent() {
 
                     // Die Karte führt nur dann weiter, wenn dort auch etwas
                     // freigeschaltet ist: das Profil mit Unterlagen oder
-                    // Stammdaten, sonst der Personal-Datensatz in der
-                    // Datenverwaltung (staff:manage, #2906).
+                    // Stammdaten, oder der Personal-Datensatz (Reiter
+                    // „Konto", staff:manage, #2906). Seit #3115 ist die
+                    // Personalakte die einzige Objektansicht; das Pane der
+                    // Datenverwaltung gibt es nicht mehr.
                     const profileTabAvailable =
                       userIsAdmin || canAccessDocuments || canEditStammdaten;
                     const canNavigateToStaff =
                       profileTabAvailable || canManageStaffRecords;
                     const navigateToStaff = () => {
                       if (!profileTabAvailable) {
-                        router.push(
-                          `/database/personal?staff=${staffMember.id}`,
-                        );
+                        router.push(`/staff/${staffMember.id}?tab=konto`);
                         return;
                       }
                       router.push(

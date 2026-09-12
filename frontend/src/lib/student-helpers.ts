@@ -172,9 +172,7 @@ const DEPARTURE_MODE_ORDER: readonly DepartureMode[] = [
   "accompanied",
 ];
 
-export function normalizeDepartureDays(
-  value?: DepartureDays | null,
-): DepartureDays {
+function normalizeDepartureDays(value?: DepartureDays | null): DepartureDays {
   const out: DepartureDays = {};
   for (const day of DEPARTURE_WEEKDAYS) {
     const mode = value?.[day.key];

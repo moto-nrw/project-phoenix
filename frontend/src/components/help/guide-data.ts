@@ -324,7 +324,7 @@ export const setupChapters: readonly GuideChapter[] = [
           "`E-Mail` eintragen. Diese Adresse wird für die Anmeldung genutzt.",
           "Passende `System-Rolle` wählen. Admin-Rechte nur für Personen, die Stammdaten oder Einstellungen ändern sollen.",
           "Speichern und die Person zum Login auffordern.",
-          "Um die Rolle einer bereits angelegten Person nachträglich zu ändern (z. B. jemanden zur Administratorin zu machen), die Person in der Personal-Liste auswählen und in der Detailansicht `Rolle verwalten` nutzen.",
+          "Um die Rolle einer bereits angelegten Person nachträglich zu ändern (z. B. jemanden zur Administratorin zu machen), die Person in der Personal-Liste antippen. Das öffnet die Personalakte; im Reiter `Konto` stehen `Rolle verwalten`, die Notizen der Leitung sowie im Menü mit den drei Punkten oben rechts `Bearbeiten` und `Löschen`.",
           "Für ein ganzes Team unter `Personal` den `Import` nutzen: Vorlage herunterladen, ausfüllen und hochladen. Jede Zeile wird sofort mit Stammdaten (Personalnummer, Adresse, Vertragsdaten, Qualifikationen) angelegt. Steht eine E-Mail in der Zeile, geht zusätzlich eine Einladung heraus. Mit `Nur bestehende aktualisieren` ziehen Sie später Änderungen aus einer Liste nach; leere Zellen ändern nichts. Diese Auswahl sehen nur Personen, die Personalstammdaten pflegen und Mitarbeitende verwalten dürfen.",
         ],
         screenshot: "Personalformular mit Vorname, Nachname, E-Mail und Rolle.",
@@ -351,6 +351,7 @@ export const setupChapters: readonly GuideChapter[] = [
           "`Offener Raum` einschalten, wenn Kinder diesen Raum jederzeit als Ziel wählen dürfen. Der Raum bleibt dann dauerhaft verfügbar. Sie müssen ihn nicht jeden Morgen öffnen.",
           "Kurze, eindeutige Namen nutzen, zum Beispiel `Mensa`, `Turnhalle`, `Gruppenraum Blau`.",
           "Speichern.",
+          "Ein Tipp auf einen Raum in der Liste öffnet die Raumseite. Im Reiter `Stammdaten` ändern Sie Name, Gebäude, Farbe und Belegung; `Löschen` steht im Menü mit den drei Punkten oben rechts. `Zurück` führt in die Liste.",
         ],
         callout: {
           title: "Systemräume: Schulhof und WC",
@@ -1170,11 +1171,11 @@ export const appChapters: readonly GuideChapter[] = [
         steps: [
           "`Räume` öffnen.",
           "Bei Bedarf `Raum suchen...` nutzen oder nach `Gebäude` und `Status` filtern.",
-          "Eine Raumkarte öffnen, um die Kinderliste zu sehen.",
+          "Eine Raumkarte öffnen. Das öffnet die Raumseite mit der Kinderliste und der Historie; wer Räume bearbeiten darf, sieht dort zusätzlich den Reiter `Stammdaten`.",
           "In der Kinderliste Kinder auswählen, einen `Zielraum` wählen und mit `In Raum setzen` verschieben. Das Kind steht sofort im neuen Raum; die Aufsicht dort muss nichts bestätigen.",
           "Sie beaufsichtigen den Ausgangsraum? Dann wählen Sie einen Zielraum mit genau einem laufenden Angebot und Aufsicht.",
           "Sie beaufsichtigen nur den Zielraum? Dann können Sie Kinder in Ihr eigenes Angebot holen. In diesem Raum dürfen auch mehrere Angebote laufen. Leitungen können in alle Räume verschieben.",
-          "Bereich `Unterwegs` prüfen und ein Kind ohne Raum über `Zuweisen` zuordnen.",
+          "Die Karte `Unterwegs` öffnen. Sie führt auf eine eigene Seite mit den Kindern ohne Raum; dort ein Kind über `Zuweisen` zuordnen.",
         ],
         callout: {
           title: "Bereich nicht sichtbar?",
@@ -1811,7 +1812,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Den gewünschten Bereich wählen: `Kinderdaten`, `Personal`, `Räume`, `Gruppen`, `Rollen`, `Berechtigungen` oder `Jahrgangswechsel`.",
           "Wenn NFC oder Tablets genutzt werden, zusätzlich `Aktivitäten` und `Geräte` öffnen.",
           "Die kurzen Listen, aus denen andere Seiten auswählen, liegen ebenfalls hier: `Terminkategorien` (ordnen Termine und Aktivitäten ein), `Planungsspuren` (bündeln Regeltermine farblich), `Schichtarten` (benennen die Aufgabe einer Schicht) und `Abwesenheitsarten` (eigene Namen für Abwesenheiten).",
-          "Einträge anlegen, bearbeiten oder prüfen. `Berechtigungen` können Sie nur ansehen.",
+          "Einträge anlegen, bearbeiten oder prüfen. Bei `Kinderdaten`, `Personal` und `Räume` öffnet ein Tipp auf einen Eintrag die Seite des Kindes, der Person oder des Raums; `Zurück` führt in die Liste. Bei `Gruppen`, `Rollen`, `Aktivitäten` und `Geräten` steht der Eintrag rechts neben der Liste. `Berechtigungen` können Sie nur ansehen.",
           "Unter `Exporte` liegen alle Listen der Schule gebündelt, siehe nächster Abschnitt.",
         ],
         screenshot: "Datenverwaltung mit allen Bereichen und Eintragszahlen.",
@@ -2247,7 +2248,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Schritt `Empfänger`: Zielgruppe wählen: ganze Schule, einzelne Klassen, Gruppen, AGs/Betreuungsangebote, einzelne Kinder oder Eltern mit offener Anmeldung. Mehrere Zielgruppen lassen sich kombinieren; ein Elternteil erhält die Mitteilung höchstens einmal.",
           "Mit `Als Entwurf speichern` für später sichern oder mit `Veröffentlichen` direkt an die Eltern geben. Veröffentlichte Mitteilungen erscheinen sofort im Elternportal der erreichten Eltern.",
           "Entwürfe lassen sich aus der Liste bearbeiten und über `Veröffentlichen` freigeben. Nach dem Veröffentlichen ist keine Bearbeitung mehr möglich – auch Anhänge lassen sich dann weder hinzufügen noch entfernen; über `Zurückziehen` wird eine Mitteilung wieder zum Entwurf und aus dem Elternportal entfernt. Achtung: Wer nach dem Zurückziehen einen Anhang ändert, setzt damit die Lesebestätigungen zurück – die Eltern bestätigen dann erneut.",
-          "Ein Tipp auf eine Mitteilung öffnet die Detailansicht mit dem vollständigen Text und der Statistik: wie viele der erreichten Eltern sie gelesen und (falls verlangt) bestätigt haben, inklusive Liste, welche Bezugsperson noch aussteht.",
+          "Ein Tipp auf eine Mitteilung öffnet ihre eigene Seite mit dem vollständigen Text und der Statistik: wie viele der erreichten Eltern sie gelesen und (falls verlangt) bestätigt haben, inklusive Liste, welche Bezugsperson noch aussteht. `Veröffentlichen`, `Bearbeiten`, `Zurückziehen` und `Löschen` stehen dort im Menü mit den drei Punkten oben rechts; `Zurück` führt in die Liste.",
         ],
         callout: {
           title: "Voraussetzung",
@@ -2269,7 +2270,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Unter `Wer erhält die E-Mail?` wählen: `Nur mit Portalzugang` (Standard) schickt die E-Mail ausschließlich an Bezugspersonen mit Elternportal-Zugang. `Alle Bezugspersonen` schickt sie zusätzlich an hinterlegte Bezugspersonen ohne Portalzugang – praktisch für allgemeine Informationen, aber ungeeignet für sensible Angaben.",
           "Dateien anhängen geht wie bei einer Mitteilung, im Schritt `Inhalt` unter `Dateien anhängen`. Auch beim Elternbrief bleibt die Datei im Elternportal: Der Brieftext geht per E-Mail mit, die Datei nicht. Das gilt besonders bei `Alle Bezugspersonen` – Personen ohne Portalzugang können die Datei nicht öffnen.",
           "Schritt `Empfänger`: Zielgruppe wählen wie bei einer Mitteilung. Eltern mit offener Anmeldung stehen hier nicht zur Verfügung, weil für sie noch kein Kind verknüpft ist.",
-          "Nach `Veröffentlichen` öffnet ein Tipp auf den Brief die Statusansicht: oben `x von y Kindern bestätigt`, darunter die Liste der Kinder und die Liste der Empfänger.",
+          "Nach `Veröffentlichen` öffnet ein Tipp auf den Brief seine Seite mit dem Status: oben `x von y Kindern bestätigt`, darunter die Liste der Kinder und die Liste der Empfänger.",
           "In der Empfängerliste stehen E-Mail-Status und moto-Status getrennt nebeneinander. `Versendet` heißt: die E-Mail wurde an den Mailserver übergeben. Ob sie im Postfach angekommen ist, kann moto derzeit nicht bestätigen.",
           "Mit `Offene erinnern` werden genau die Familien benachrichtigt, für deren Kind noch niemand bestätigt hat. Mit `Fehlgeschlagene erneut senden` gehen ausschließlich die E-Mails erneut raus, die nicht zugestellt werden konnten.",
         ],
@@ -2284,7 +2285,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "orange",
         },
         screenshot:
-          "Statusansicht eines Elternbriefs: oben die Zahl der bestätigten Kinder, darunter die Kinderliste mit „Bestätigt“ und „Offen“ sowie die Empfängerliste mit getrenntem E-Mail- und moto-Status.",
+          "Seite eines Elternbriefs: oben die Zahl der bestätigten Kinder, darunter die Kinderliste mit „Bestätigt“ und „Offen“ sowie die Empfängerliste mit getrenntem E-Mail- und moto-Status.",
         // gallery statt image: der Renderer zeigt entweder das eine Bild ODER die
         // Galerie (guide-components.tsx:681), und der Ablauf braucht drei
         // Stationen — Liste, Assistent, Status.
@@ -2302,7 +2303,7 @@ export const appChapters: readonly GuideChapter[] = [
           {
             image: "/help/screens/elternbrief-status.webp",
             caption:
-              "Statusansicht: bestätigte Kinder, erreichte Kinder ohne Portalzugang und die Aktionen `Offene erinnern` sowie `Fehlgeschlagene erneut senden`.",
+              "Seite des Elternbriefs: bestätigte Kinder, erreichte Kinder ohne Portalzugang und die Aktionen `Offene erinnern` sowie `Fehlgeschlagene erneut senden`.",
           },
         ],
       },
@@ -2318,7 +2319,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Sollen Eltern mehrere Antworten gleichzeitig auswählen dürfen (z. B. mehrere mögliche Termine), `Mehrfachauswahl erlauben` aktivieren.",
           "Optional eine `Antwortfrist` setzen. Nach Ablauf nimmt die Umfrage keine Antworten mehr an, bleibt für die Eltern aber lesbar.",
           "Schritt `Empfänger`: wie bei einer Mitteilung die Zielgruppe wählen (ganze Schule, Klassen, Gruppen, AGs oder einzelne Kinder), dann `Veröffentlichen`.",
-          "Ein Tipp auf die Umfrage öffnet die `Auswertung`: pro Antwortmöglichkeit ein Balken mit der Anzahl Kinder, darunter die Liste aller erreichten Kinder mit ihrer Antwort. Über `Nur offene` sehen Sie, wer noch fehlt.",
+          "Ein Tipp auf die Umfrage öffnet ihre Seite mit der `Auswertung`: pro Antwortmöglichkeit ein Balken mit der Anzahl Kinder, darunter die Liste aller erreichten Kinder mit ihrer Antwort. Über `Nur offene` sehen Sie, wer noch fehlt.",
           "Mit `Eltern ohne Antwort erinnern` erhalten genau die Bezugspersonen eine Erinnerung, deren Kind noch keine Antwort hat – niemand sonst wird benachrichtigt.",
         ],
         callout: {
