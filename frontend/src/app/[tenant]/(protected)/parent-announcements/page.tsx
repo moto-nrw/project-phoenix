@@ -38,7 +38,6 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { DatePicker } from "~/components/ui/date-picker";
 import {
   AnnouncementStatusBadge,
-  announcementCollectionPath,
   KIND_PARAM,
   kindFromParam,
   kindOf,
@@ -107,6 +106,14 @@ const KIND_ITEMS: ReadonlyArray<SegmentedControlItem<AnnouncementKind>> = [
   { value: "letter", label: "Elternbriefe" },
   { value: "poll", label: "Umfragen" },
 ];
+
+function announcementStatusFilterFromParam(
+  value: string | null,
+): "all" | AnnouncementStatus {
+  return value === "draft" || value === "published" || value === "expired"
+    ? value
+    : "all";
+}
 
 /**
  * Who receives the e-mail. Deliberately a value choice, not a content panel, so
@@ -192,9 +199,11 @@ function ParentAnnouncementsContent() {
   const kind = kindFromParam(searchParams.get("art"));
   const setKind = (next: AnnouncementKind) =>
     updateUrlParams({ art: next === "announcement" ? null : KIND_PARAM[next] });
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState(
+    () => searchParams.get("search") ?? "",
+  );
   const [statusFilter, setStatusFilter] = useState<"all" | AnnouncementStatus>(
-    "all",
+    () => announcementStatusFilterFromParam(searchParams.get("status")),
   );
 
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -249,10 +258,23 @@ function ParentAnnouncementsContent() {
     updateUrlParams({ bearbeiten: null });
   }, [announcements, editRequestId, updateUrlParams]);
 
-  // Die Objektseite einer Mitteilung, mit dem Rückweg auf diesen Reiter.
+  // Die Objektseite einer Mitteilung, mit dem aktuellen Reiter, der Suche und
+  // dem Statusfilter als Rückweg.
+  const collectionReferrer = useMemo(() => {
+    const query = new URLSearchParams(searchParams);
+    query.set("art", KIND_PARAM[kind]);
+    if (searchTerm) query.set("search", searchTerm);
+    else query.delete("search");
+    if (statusFilter !== "all") query.set("status", statusFilter);
+    else query.delete("status");
+    const serialized = query.toString();
+    return serialized
+      ? `/parent-announcements?${serialized}`
+      : "/parent-announcements";
+  }, [kind, searchParams, searchTerm, statusFilter]);
   const objectPath = (announcement: Announcement) =>
     `/parent-announcements/${encodeURIComponent(announcement.id)}?from=${encodeURIComponent(
-      announcementCollectionPath(kind),
+      collectionReferrer,
     )}`;
 
   const filtered = useMemo(() => {

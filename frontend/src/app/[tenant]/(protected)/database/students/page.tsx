@@ -98,21 +98,12 @@ function StudentsPageContent() {
     [updateUrlParams],
   );
 
-  // Der Rückweg trägt die Gruppierung mit, damit „Zurück" aus der Kindakte
-  // dieselbe Liste zeigt, die man verlassen hat.
-  const objectHref = useCallback(
-    (student: Student) => {
-      const query = searchParams.toString();
-      const from = query ? `${COLLECTION_PATH}?${query}` : COLLECTION_PATH;
-      return tenantPath(
-        `/students/${student.id}?from=${encodeURIComponent(from)}`,
-      );
-    },
-    [searchParams, tenantPath],
+  const [searchTerm, setSearchTerm] = useState(
+    () => searchParams.get("search") ?? "",
   );
-
-  const [searchTerm, setSearchTerm] = useState("");
-  const [groupFilter, setGroupFilter] = useState("all");
+  const [groupFilter, setGroupFilter] = useState(
+    () => searchParams.get("group") ?? "all",
+  );
   const [showCreateModal, setShowCreateModal] = useState(false);
   // "Betreuung beenden" (#2487) für die Mehrfachauswahl; das einzelne Kind
   // beendet seine Betreuung in der Kindakte.
@@ -123,6 +114,26 @@ function StudentsPageContent() {
     () => new Set(),
   );
   const isMobile = useIsMobile();
+
+  // Der Rückweg trägt den tatsächlichen Such- und Filterzustand mit. Die
+  // Suche lebt während der Arbeit lokal; beim Zurückkehren liest die Seite
+  // die Werte wieder aus der Adresse.
+  const collectionReferrer = useMemo(() => {
+    const query = new URLSearchParams(searchParams);
+    if (searchTerm) query.set("search", searchTerm);
+    else query.delete("search");
+    if (groupFilter !== "all") query.set("group", groupFilter);
+    else query.delete("group");
+    const serialized = query.toString();
+    return serialized ? `${COLLECTION_PATH}?${serialized}` : COLLECTION_PATH;
+  }, [groupFilter, searchParams, searchTerm]);
+  const objectHref = useCallback(
+    (student: Student) =>
+      tenantPath(
+        `/students/${student.id}?from=${encodeURIComponent(collectionReferrer)}`,
+      ),
+    [collectionReferrer, tenantPath],
+  );
 
   const { success: toastSuccess, error: toastError } = useToast();
 

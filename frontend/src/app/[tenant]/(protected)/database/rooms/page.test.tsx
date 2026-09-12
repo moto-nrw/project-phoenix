@@ -478,12 +478,19 @@ describe("RoomsPage", () => {
 
     render(<RoomsPage />);
 
+    fireEvent.change(screen.getByTestId("search-input"), {
+      target: { value: "Raum" },
+    });
+    fireEvent.change(screen.getByTestId("filter-category"), {
+      target: { value: "Normaler Raum" },
+    });
+
     await waitFor(() => {
       // Path routing in the test tenant context: the link carries the slug,
       // the `from` referrer stays slug-free (the room page prefixes it itself).
       expect(screen.getByTestId("room-row-1")).toHaveAttribute(
         "href",
-        `/test-tenant/rooms/1?tab=stammdaten&from=${encodeURIComponent("/database/rooms?groupBy=floor")}`,
+        `/test-tenant/rooms/1?tab=stammdaten&from=${encodeURIComponent("/database/rooms?groupBy=floor&search=Raum&category=Normaler+Raum")}`,
       );
     });
   });

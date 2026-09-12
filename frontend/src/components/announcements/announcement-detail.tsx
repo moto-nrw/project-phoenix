@@ -15,7 +15,14 @@ import { LinkifiedText } from "~/components/ui/linkified-text";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
-import { StatusBadge } from "~/components/ui/status-badge";
+import {
+  StatusBadge,
+  type StatusBadgeTone,
+} from "~/components/ui/status-badge";
+import {
+  SegmentedControl,
+  type SegmentedControlItem,
+} from "~/components/ui/segmented-control";
 import { LetterStatusPanel } from "~/components/announcements/letter-status-panel";
 import type { Group } from "~/lib/api";
 import type { Activity } from "~/lib/activity-helpers";
@@ -44,11 +51,11 @@ const logger = createLogger({ component: "AnnouncementDetail" });
 
 const RECIPIENT_STATUS_META: Record<
   AnnouncementRecipient["status"],
-  { label: string; color: string }
+  { label: string; tone: StatusBadgeTone }
 > = {
-  acknowledged: { label: "Bestätigt", color: LOCATION_COLORS.GROUP_ROOM },
-  read: { label: "Gelesen", color: LOCATION_COLORS.OTHER_ROOM },
-  pending: { label: "Ausstehend", color: LOCATION_COLORS.UNKNOWN },
+  acknowledged: { label: "Bestätigt", tone: "green" },
+  read: { label: "Gelesen", tone: "blue" },
+  pending: { label: "Ausstehend", tone: "gray" },
 };
 
 const RECIPIENT_SORT: Record<AnnouncementRecipient["status"], number> = {
@@ -101,10 +108,9 @@ export function RecipientList({
     return true;
   });
 
-  const chips: ReadonlyArray<{
-    value: "all" | AnnouncementRecipient["status"];
-    label: string;
-  }> = [
+  const statusItems: ReadonlyArray<
+    SegmentedControlItem<"all" | AnnouncementRecipient["status"]>
+  > = [
     { value: "all", label: `Alle (${counts.all})` },
     { value: "pending", label: `Ausstehend (${counts.pending})` },
     { value: "read", label: `Gelesen (${counts.read})` },
@@ -114,23 +120,14 @@ export function RecipientList({
   return (
     <div className="mt-2 space-y-2">
       {showStatus && (
-        <div className="flex flex-wrap gap-1.5">
-          {chips.map((chip) => (
-            <button
-              key={chip.value}
-              type="button"
-              aria-pressed={statusFilter === chip.value}
-              onClick={() => onStatusFilter(chip.value)}
-              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                statusFilter === chip.value
-                  ? "bg-gray-900 text-white"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}
-            >
-              {chip.label}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          items={statusItems}
+          value={statusFilter}
+          onChange={onStatusFilter}
+          variant="pills"
+          ariaLabel="Status der Empfänger"
+          className="max-w-full overflow-x-auto"
+        />
       )}
       {recipients.length > 8 && (
         <Input
@@ -156,19 +153,10 @@ export function RecipientList({
                 {`${rcpt.first_name} ${rcpt.last_name}`.trim() || "Ohne Namen"}
               </span>
               {showStatus && (
-                <span
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-gray-50 px-2.5 py-0.5 text-xs font-medium"
-                  style={{ color: RECIPIENT_STATUS_META[rcpt.status].color }}
-                >
-                  <span
-                    aria-hidden
-                    className="inline-block h-1.5 w-1.5 rounded-full"
-                    style={{
-                      backgroundColor: RECIPIENT_STATUS_META[rcpt.status].color,
-                    }}
-                  />
-                  {RECIPIENT_STATUS_META[rcpt.status].label}
-                </span>
+                <StatusBadge
+                  label={RECIPIENT_STATUS_META[rcpt.status].label}
+                  tone={RECIPIENT_STATUS_META[rcpt.status].tone}
+                />
               )}
             </li>
           ))}

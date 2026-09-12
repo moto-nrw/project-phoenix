@@ -89,7 +89,9 @@ function TeachersPageContent() {
   const updateUrlParams = useUpdateUrlParams();
 
   const grouping = parseStaffGrouping(searchParams.get("groupBy"));
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState(
+    () => searchParams.get("search") ?? "",
+  );
   const isMobile = useIsMobile();
 
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -186,17 +188,22 @@ function TeachersPageContent() {
     return filters;
   }, [searchTerm]);
 
-  // Der Rückweg trägt die Gruppierung mit, damit „Zurück" aus der
-  // Personalakte dieselbe Liste zeigt, die man verlassen hat.
+  // Der Rückweg trägt den tatsächlichen Suchzustand mit, damit „Zurück" die
+  // gefilterte Personalübersicht wiederherstellt.
+  const collectionReferrer = useMemo(() => {
+    const query = new URLSearchParams(searchParams);
+    if (searchTerm) query.set("search", searchTerm);
+    else query.delete("search");
+    const serialized = query.toString();
+    return serialized ? `${COLLECTION_PATH}?${serialized}` : COLLECTION_PATH;
+  }, [searchParams, searchTerm]);
   const objectHref = useCallback(
     (teacher: Teacher) => {
-      const query = searchParams.toString();
-      const from = query ? `${COLLECTION_PATH}?${query}` : COLLECTION_PATH;
       return tenantPath(
-        `/staff/${teacher.id}?tab=konto&from=${encodeURIComponent(from)}`,
+        `/staff/${teacher.id}?tab=konto&from=${encodeURIComponent(collectionReferrer)}`,
       );
     },
-    [searchParams, tenantPath],
+    [collectionReferrer, tenantPath],
   );
 
   const handleGroupingChange = useCallback(

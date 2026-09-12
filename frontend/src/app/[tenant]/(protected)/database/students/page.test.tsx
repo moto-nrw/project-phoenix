@@ -402,12 +402,16 @@ describe("StudentsPage", () => {
 
     render(<StudentsPage />);
 
+    fireEvent.change(screen.getByTestId("search-input"), {
+      target: { value: "Max" },
+    });
+
     await waitFor(() => {
       // Path routing in the test tenant context: the link carries the slug,
       // the `from` referrer stays slug-free (the record prefixes it itself).
       expect(screen.getByTestId("student-row-1")).toHaveAttribute(
         "href",
-        `/test-tenant/students/1?from=${encodeURIComponent("/database/students?groupBy=group")}`,
+        `/test-tenant/students/1?from=${encodeURIComponent("/database/students?groupBy=group&search=Max")}`,
       );
     });
   });

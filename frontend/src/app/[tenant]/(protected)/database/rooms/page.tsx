@@ -76,8 +76,12 @@ function RoomsPageContent() {
   const updateUrlParams = useUpdateUrlParams();
 
   const grouping = parseRoomsGrouping(searchParams.get("groupBy"));
-  const [searchTerm, setSearchTerm] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [searchTerm, setSearchTerm] = useState(
+    () => searchParams.get("search") ?? "",
+  );
+  const [categoryFilter, setCategoryFilter] = useState<string>(
+    () => searchParams.get("category") ?? "all",
+  );
   const isMobile = useIsMobile();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -182,17 +186,25 @@ function RoomsPageContent() {
     return arr;
   }, [roomsData, searchTerm, categoryFilter]);
 
-  // Der Rückweg trägt die Gruppierung mit, damit „Zurück" aus der Raumseite
-  // dieselbe Liste zeigt, die man verlassen hat.
+  // Der Rückweg trägt den tatsächlichen Such- und Filterzustand mit. Die
+  // Werte stehen beim Zurückkehren wieder in der Adresse und werden oben als
+  // Anfangszustand gelesen.
+  const collectionReferrer = useMemo(() => {
+    const query = new URLSearchParams(searchParams);
+    if (searchTerm) query.set("search", searchTerm);
+    else query.delete("search");
+    if (categoryFilter !== "all") query.set("category", categoryFilter);
+    else query.delete("category");
+    const serialized = query.toString();
+    return serialized ? `${COLLECTION_PATH}?${serialized}` : COLLECTION_PATH;
+  }, [categoryFilter, searchParams, searchTerm]);
   const objectHref = useCallback(
     (room: Room) => {
-      const query = searchParams.toString();
-      const from = query ? `${COLLECTION_PATH}?${query}` : COLLECTION_PATH;
       return tenantPath(
-        `/rooms/${room.id}?tab=stammdaten&from=${encodeURIComponent(from)}`,
+        `/rooms/${room.id}?tab=stammdaten&from=${encodeURIComponent(collectionReferrer)}`,
       );
     },
-    [searchParams, tenantPath],
+    [collectionReferrer, tenantPath],
   );
 
   const handleGroupingChange = useCallback(

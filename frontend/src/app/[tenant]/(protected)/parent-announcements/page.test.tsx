@@ -106,6 +106,8 @@ describe("ParentAnnouncementsPage (#3115)", () => {
     vi.clearAllMocks();
     searchParams.delete("art");
     searchParams.delete("bearbeiten");
+    searchParams.delete("search");
+    searchParams.delete("status");
     listState.data = [base, poll];
     listState.isLoading = false;
     listState.error = null;
@@ -114,11 +116,15 @@ describe("ParentAnnouncementsPage (#3115)", () => {
   it("opens the object page from the row and from „Anzeigen“", async () => {
     render(<ParentAnnouncementsPage />);
 
+    fireEvent.change(screen.getAllByPlaceholderText("Titel suchen…")[0]!, {
+      target: { value: "Sommer" },
+    });
+
     // Die Tabelle rendert jede Zeile für Desktop und Telefon; die erste
     // Ausprägung reicht für den Klick.
     fireEvent.click((await screen.findAllByText("Sommerfest"))[0]!);
     expect(pushMock).toHaveBeenCalledWith(
-      `/parent-announcements/1?from=${encodeURIComponent("/parent-announcements?art=mitteilungen")}`,
+      `/parent-announcements/1?from=${encodeURIComponent("/parent-announcements?art=mitteilungen&search=Sommer")}`,
     );
 
     fireEvent.click(
