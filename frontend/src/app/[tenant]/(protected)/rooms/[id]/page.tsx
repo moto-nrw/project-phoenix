@@ -1,7 +1,12 @@
 "use client";
 
 import { Suspense, useCallback, useMemo, useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import {
+  useParams,
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Trash2 } from "lucide-react";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -69,6 +74,8 @@ export default function RoomDetailPage() {
  */
 function RoomDetailPageContent() {
   const params = useParams();
+  const pathname = usePathname();
+  const navRouter = useRouter();
   const searchParams = useSearchParams();
   const router = useTenantRouter();
   const roomId = params.id as string;
@@ -86,7 +93,7 @@ function RoomDetailPageContent() {
   );
   const service = useMemo(() => createCrudService(roomsConfig), []);
 
-  const { room, history, loading, error, historyDisabled } =
+  const { room, history, loading, error, historyDisabled, historyError } =
     useRoomDetail(roomId);
 
   // Spiegel der Backend-Gates auf PUT/DELETE /api/rooms/{id}.
@@ -112,6 +119,23 @@ function RoomDetailPageContent() {
     selectedTab && tabItems.some((tab) => tab.value === selectedTab)
       ? selectedTab
       : defaultTab;
+
+  const handleTabChange = useCallback(
+    (nextTab: string) => {
+      setSelectedTab(nextTab);
+      const query = new URLSearchParams(searchParams.toString());
+      if (nextTab === "uebersicht") {
+        query.delete("tab");
+      } else {
+        query.set("tab", nextTab);
+      }
+      const queryString = query.toString();
+      navRouter.replace(queryString ? `${pathname}?${queryString}` : pathname, {
+        scroll: false,
+      });
+    },
+    [navRouter, pathname, searchParams],
+  );
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -246,7 +270,7 @@ function RoomDetailPageContent() {
         tabItems.length > 1
           ? {
               value: activeTab,
-              onChange: setSelectedTab,
+              onChange: handleTabChange,
               items: tabItems,
               label: "Bereiche des Raums",
             }
@@ -276,6 +300,7 @@ function RoomDetailPageContent() {
           room={room}
           history={history}
           historyDisabled={historyDisabled}
+          historyError={historyError}
           showOccupancy={false}
         />
       ) : null}
@@ -287,6 +312,7 @@ function RoomDetailPageContent() {
             room={room}
             history={history}
             historyDisabled={historyDisabled}
+            historyError={historyError}
           />
         )
       ) : null}

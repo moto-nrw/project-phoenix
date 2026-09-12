@@ -44,7 +44,10 @@ import {
   PersonalInfoReadOnly,
   StudentHistorySection,
 } from "~/components/students/student-detail-components";
-import { PersonalInfoEditPanel } from "~/components/students/personal-info-form-modal";
+import {
+  PersonalInfoEditPanel,
+  type PersonalInfoSaveDraft,
+} from "~/components/students/personal-info-form-modal";
 import { StudentRecordActions } from "~/components/students/student-record-actions";
 import { ParentMessagesCard } from "~/components/students/parent-messages-card";
 import { StudentEnrollmentsTab } from "~/components/students/student-enrollments-tab";
@@ -370,6 +373,9 @@ function StudentDetailPageContent() {
       "/rooms",
       "/active-supervisions",
       "/day-log",
+      "/messages",
+      "/absences",
+      "/ogs-groups",
     ],
   );
   // Der Rückweg heißt wie die Sammlung, aus der man kam: die Kinderdaten der
@@ -796,7 +802,10 @@ function StudentDetailPageContent() {
   // EVENT HANDLERS
   // =============================================================================
 
-  const handleSavePersonal = async (editedStudent: ExtendedStudent) => {
+  const handleSavePersonal = async ({
+    privacyConsentChanged,
+    ...editedStudent
+  }: PersonalInfoSaveDraft) => {
     const allowedDepartureModes = normalizeAllowedDepartureModes(
       editedStudent.allowed_departure_modes ??
         allowedDepartureModesFromDeparture(
@@ -814,8 +823,14 @@ function StudentDetailPageContent() {
       // Gruppe, Datenschutz und Foto-Einwilligung (#3115): vorher nur im Pane
       // der Kinderdaten zu bearbeiten, jetzt an der einen Objektansicht.
       group_id: editedStudent.group_id,
-      privacy_consent_accepted: editedStudent.privacy_consent_accepted,
-      data_retention_days: editedStudent.data_retention_days,
+      // Die Einwilligung liegt getrennt vom Kind. Ein unveränderter Entwurf
+      // darf eine zwischenzeitlich geänderte Einwilligung nicht überschreiben.
+      ...(privacyConsentChanged
+        ? {
+            privacy_consent_accepted: editedStudent.privacy_consent_accepted,
+            data_retention_days: editedStudent.data_retention_days,
+          }
+        : {}),
       // Nur mitschicken, wenn der Entwurf den Wert kennt: `undefined` lässt
       // das Backend die Einwilligung unangetastet, `false` nimmt sie zurück.
       ...(editedStudent.photo_consent_given === undefined
@@ -1698,7 +1713,7 @@ interface FullAccessViewProps {
   showPersonalInfoEdit: boolean;
   onOpenPersonalInfoEdit: () => void;
   onClosePersonalInfoEdit: () => void;
-  onSavePersonal: (student: ExtendedStudent) => Promise<void>;
+  onSavePersonal: (student: PersonalInfoSaveDraft) => Promise<void>;
   onRefreshData: () => void;
   groupOptions: ReadonlyArray<{ value: string; label: string }>;
 }

@@ -10,7 +10,7 @@ import {
 // tut dasselbe in kleinstem Umfang, damit die Hook-Zweige (Antwortformen der
 // Historie, Fehler, Laden) hier prüfbar bleiben.
 function RoomDetailHarness({ roomId }: { readonly roomId: string }) {
-  const { room, history, loading, error, historyDisabled } =
+  const { room, history, loading, error, historyDisabled, historyError } =
     useRoomDetail(roomId);
   if (loading) return <RoomDetailSkeleton />;
   if (error || !room) return <div>{error ?? "Raum nicht gefunden"}</div>;
@@ -21,6 +21,7 @@ function RoomDetailHarness({ roomId }: { readonly roomId: string }) {
         room={room}
         history={history}
         historyDisabled={historyDisabled}
+        historyError={historyError}
       />
     </>
   );
@@ -341,7 +342,7 @@ describe("useRoomDetail (via harness)", () => {
     expect(screen.queryByText("Belegungshistorie")).not.toBeInTheDocument();
   });
 
-  it("treats a non-OK history response as empty (does not throw)", async () => {
+  it("shows an error when the history request fails", async () => {
     mockFetch
       .mockResolvedValueOnce(
         okJson({ id: 4004, name: "Sporthalle", is_occupied: false }),
@@ -358,6 +359,11 @@ describe("useRoomDetail (via harness)", () => {
       expect(screen.getAllByText("Sporthalle")[0]).toBeInTheDocument(),
     );
     expect(screen.queryByText("Belegungshistorie")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Die Belegungshistorie konnte nicht geladen werden. Bitte laden Sie die Seite neu.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("renders the error placeholder when the room fetch fails", async () => {

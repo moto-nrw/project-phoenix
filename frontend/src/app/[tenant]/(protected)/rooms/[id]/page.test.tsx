@@ -7,6 +7,7 @@ import RoomDetailPage from "./page";
 const {
   searchParams,
   pushMock,
+  replaceMock,
   useRoomDetailMock,
   presenceModeState,
   serviceUpdateMock,
@@ -16,6 +17,7 @@ const {
 } = vi.hoisted(() => ({
   searchParams: new URLSearchParams(),
   pushMock: vi.fn(),
+  replaceMock: vi.fn(),
   useRoomDetailMock: vi.fn(),
   presenceModeState: { mode: "detailed" as string },
   serviceUpdateMock: vi.fn(() => Promise.resolve({})),
@@ -28,6 +30,8 @@ vi.mock("next-auth/react", () => ({ useSession: vi.fn() }));
 
 vi.mock("next/navigation", () => ({
   useParams: () => ({ id: "7" }),
+  usePathname: () => "/rooms/7",
+  useRouter: () => ({ replace: replaceMock }),
   useSearchParams: () => searchParams,
 }));
 
@@ -169,6 +173,9 @@ describe("RoomDetailPage", () => {
     render(<RoomDetailPage />);
 
     fireEvent.click(screen.getByRole("tab", { name: "Stammdaten" }));
+    expect(replaceMock).toHaveBeenCalledWith("/rooms/7?tab=stammdaten", {
+      scroll: false,
+    });
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     await waitFor(() => {
@@ -178,6 +185,19 @@ describe("RoomDetailPage", () => {
       );
     });
     expect(toastSuccessMock).toHaveBeenCalled();
+  });
+
+  it("keeps the referrer when switching room tabs", () => {
+    mockSession(["rooms:update"]);
+    searchParams.set("from", "/database/rooms?groupBy=floor");
+    render(<RoomDetailPage />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Stammdaten" }));
+
+    expect(replaceMock).toHaveBeenCalledWith(
+      "/rooms/7?from=%2Fdatabase%2Frooms%3FgroupBy%3Dfloor&tab=stammdaten",
+      { scroll: false },
+    );
   });
 
   it("opens Stammdaten directly from a deep link", () => {

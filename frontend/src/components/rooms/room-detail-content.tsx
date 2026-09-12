@@ -14,6 +14,7 @@
 import { useSession } from "next-auth/react";
 import { BuildingsIcon, StackSimpleIcon, TagIcon } from "@phosphor-icons/react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { Alert } from "~/components/ui/alert";
 import { SectionCard } from "~/components/ui/section-card";
 import {
   DataField,
@@ -129,6 +130,8 @@ export interface UseRoomDetailResult {
   // "Belegungshistorie" section deliberately (issue #1425) rather than
   // letting it collapse incidentally on an empty history array.
   historyDisabled: boolean;
+  /** Fehler beim separaten Laden der Belegungshistorie. */
+  historyError: string | null;
 }
 
 /** SWR-Schlüssel der Raumseite; das globale SSE lädt darüber nach. */
@@ -154,6 +157,7 @@ export function useRoomDetail(roomId: string): UseRoomDetailResult {
     room: Room;
     history: RoomHistoryEntry[];
     historyDisabled: boolean;
+    historyError: string | null;
   }>(roomDetailKey(roomId), async () => {
     const authHeaders = token
       ? { Authorization: `Bearer ${token}` }
@@ -180,6 +184,7 @@ export function useRoomDetail(roomId: string): UseRoomDetailResult {
 
     let history: RoomHistoryEntry[] = [];
     let historyDisabled = false;
+    let historyError: string | null = null;
     if (!historyResponse.ok) {
       // A non-OK response is NOT the same as "no history". The proxy
       // maps the GDPR feature-disabled path to 200 + status:"feature_disabled"
@@ -192,6 +197,8 @@ export function useRoomDetail(roomId: string): UseRoomDetailResult {
         room_id: roomId,
         status: historyResponse.status,
       });
+      historyError =
+        "Die Belegungshistorie konnte nicht geladen werden. Bitte laden Sie die Seite neu.";
     } else {
       const historyResponseData = (await historyResponse.json()) as
         | BackendRoomHistoryEntry[]
@@ -232,7 +239,7 @@ export function useRoomDetail(roomId: string): UseRoomDetailResult {
       history = backendHistoryEntries.map(mapBackendToFrontendHistoryEntry);
     }
 
-    return { room, history, historyDisabled };
+    return { room, history, historyDisabled, historyError };
   });
 
   if (error) {
@@ -247,6 +254,7 @@ export function useRoomDetail(roomId: string): UseRoomDetailResult {
     loading: isLoading,
     error: error ? "Fehler beim Laden der Raumdaten." : null,
     historyDisabled: data?.historyDisabled ?? false,
+    historyError: data?.historyError ?? null,
   };
 }
 
@@ -261,6 +269,8 @@ interface RoomDetailContentProps {
   // empty-state placeholder from accidentally surfacing the section on a
   // tenant that has opted out.
   readonly historyDisabled?: boolean;
+  /** Sichtbare Fehlermeldung statt einer irreführend leeren Historie. */
+  readonly historyError?: string | null;
   /** Binärer Präsenzmodus kennt keine Raumbelegung. */
   readonly showOccupancy?: boolean;
 }
@@ -270,6 +280,7 @@ export function RoomDetailContent({
   history,
   onSelectionActiveChange,
   historyDisabled = false,
+  historyError = null,
   showOccupancy = true,
 }: RoomDetailContentProps) {
   const groupedSessions = groupByDate(history);
@@ -351,6 +362,10 @@ export function RoomDetailContent({
           roomName={room.name}
           onSelectionActiveChange={onSelectionActiveChange}
         />
+      ) : null}
+
+      {showOccupancy && historyError ? (
+        <Alert type="error" message={historyError} />
       ) : null}
 
       {showOccupancy && hasHistory ? (

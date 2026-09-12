@@ -871,6 +871,43 @@ describe("PersonalInfoFormModal", () => {
           expect.objectContaining({
             privacy_consent_accepted: true,
             data_retention_days: 14,
+            privacyConsentChanged: true,
+          }),
+        );
+      });
+    });
+
+    it("does not mark loaded privacy consent as changed for an unrelated save", async () => {
+      mockOnSave.mockResolvedValue(undefined);
+      fetchStudentPrivacyConsentMock.mockResolvedValue({
+        accepted: true,
+        dataRetentionDays: 21,
+      });
+
+      render(
+        <PersonalInfoFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          student={createMockStudent()}
+          onSave={mockOnSave}
+        />,
+      );
+
+      await screen.findByRole("checkbox", {
+        name: "Einwilligung zur Datenverarbeitung erteilt",
+      });
+      fireEvent.change(screen.getByLabelText<HTMLInputElement>("Vorname"), {
+        target: { value: "Maja" },
+      });
+      fireEvent.click(screen.getByText("Speichern"));
+
+      await waitFor(() => {
+        expect(mockOnSave).toHaveBeenCalledWith(
+          expect.objectContaining({
+            first_name: "Maja",
+            privacy_consent_accepted: true,
+            data_retention_days: 21,
+            privacyConsentChanged: false,
           }),
         );
       });

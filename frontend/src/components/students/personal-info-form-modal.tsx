@@ -68,6 +68,11 @@ const logger = createLogger({ component: "PersonalInfoFormModal" });
 
 const EMPTY_GROUP_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [];
 
+export type PersonalInfoSaveDraft = ExtendedStudent & {
+  /** Datenschutzwerte werden nur bei einer bewussten Änderung gespeichert. */
+  privacyConsentChanged: boolean;
+};
+
 // The departure plan of a student in the one shape everything here compares
 // and submits. Derived identically for the stored copy and the edited one, so
 // a comparison between them sees plan changes and not shape noise.
@@ -90,7 +95,7 @@ interface PersonalInfoFormModalProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
   readonly student: ExtendedStudent;
-  readonly onSave: (student: ExtendedStudent) => Promise<void>;
+  readonly onSave: (student: PersonalInfoSaveDraft) => Promise<void>;
   /**
    * Lädt die Akte neu, nachdem ein Foto hochgeladen oder entfernt wurde. Die
    * Foto-Mutation läuft NACH `onSave` (ein fehlgeschlagener PUT darf keinen
@@ -124,7 +129,7 @@ export function PersonalInfoEditPanel({
   groups,
 }: Readonly<{
   student: ExtendedStudent;
-  onSave: (student: ExtendedStudent) => Promise<void>;
+  onSave: (student: PersonalInfoSaveDraft) => Promise<void>;
   onCancel: () => void;
   onStudentRefresh?: () => void | Promise<void>;
   groups?: ReadonlyArray<{ value: string; label: string }>;
@@ -166,6 +171,7 @@ export function PersonalInfoFormModal({
   const [privacyConsentStatus, setPrivacyConsentStatus] = useState<
     "loading" | "ready" | "error"
   >("loading");
+  const [privacyConsentChanged, setPrivacyConsentChanged] = useState(false);
   // Ein Speicherfehler darf nicht nur als Kurzmeldung vorbeiziehen: er steht
   // oben im Bearbeiten-Bereich, und wo er zu einem Feld gehört, zusätzlich
   // direkt an diesem Feld.
@@ -225,6 +231,7 @@ export function PersonalInfoFormModal({
       setPendingExtensions([]);
       setSaveError(null);
       setDepartureError(null);
+      setPrivacyConsentChanged(false);
     }
   }, [isOpen, student, setSaveError]);
 
@@ -240,6 +247,7 @@ export function PersonalInfoFormModal({
     if (!isOpen || !student.id) return;
     let cancelled = false;
     setPrivacyConsentStatus("loading");
+    setPrivacyConsentChanged(false);
     fetchStudentPrivacyConsent(student.id)
       .then((consent) => {
         if (cancelled) return;
@@ -351,6 +359,12 @@ export function PersonalInfoFormModal({
     field: K,
     value: ExtendedStudent[K],
   ) => {
+    if (
+      field === "privacy_consent_accepted" ||
+      field === "data_retention_days"
+    ) {
+      setPrivacyConsentChanged(true);
+    }
     setEditedStudent((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -489,6 +503,7 @@ export function PersonalInfoFormModal({
         () =>
           onSave({
             ...editedStudent,
+            privacyConsentChanged,
             // The submitted list REPLACES the stored one, so it must only travel
             // when the user actually edited it. A pending or failed load stays
             // undefined, which the page turns into "no companions key" — the
