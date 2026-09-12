@@ -317,7 +317,11 @@ function RoomDetailPageContent() {
         )
       ) : null}
       {activeTab === "stammdaten" && canUpdate ? (
-        <RoomStammdatenTab room={room} onSave={handleSaveRoom} />
+        <RoomStammdatenTab
+          room={room}
+          showOccupancy={hasOccupancy}
+          onSave={handleSaveRoom}
+        />
       ) : null}
     </TenantPage>
   );

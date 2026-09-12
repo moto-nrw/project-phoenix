@@ -313,9 +313,13 @@ function ParentAnnouncementsContent() {
         ? ofKind.length === 1
           ? "Umfrage"
           : "Umfragen"
-        : ofKind.length === 1
-          ? "Mitteilung"
-          : "Mitteilungen";
+        : kind === "letter"
+          ? ofKind.length === 1
+            ? "Elternbrief"
+            : "Elternbriefe"
+          : ofKind.length === 1
+            ? "Mitteilung"
+            : "Mitteilungen";
     return `${ofKind.length} ${noun} · ${published} veröffentlicht`;
   })();
 

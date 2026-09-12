@@ -101,6 +101,14 @@ const poll: Announcement = {
   ],
 };
 
+const letter: Announcement = {
+  ...base,
+  id: "3",
+  title: "Elternbrief zum Sommerfest",
+  status: "published",
+  delivery_mode: "letter",
+};
+
 describe("ParentAnnouncementsPage (#3115)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -150,6 +158,16 @@ describe("ParentAnnouncementsPage (#3115)", () => {
     expect(pushMock).toHaveBeenCalledWith(
       `/parent-announcements/2?from=${encodeURIComponent("/parent-announcements?art=umfragen")}`,
     );
+  });
+
+  it("labels the summary on the Elternbriefe tab correctly", async () => {
+    searchParams.set("art", "elternbriefe");
+    listState.data = [letter];
+    render(<ParentAnnouncementsPage />);
+
+    expect(
+      await screen.findByText("1 Elternbrief · 1 veröffentlicht"),
+    ).toBeInTheDocument();
   });
 
   it("opens the wizard for a draft requested via ?bearbeiten= and clears the parameter", async () => {

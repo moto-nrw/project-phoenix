@@ -50,6 +50,25 @@ const BACK_LABEL: Record<AnnouncementKind, string> = {
 
 type LifecycleAction = "publish" | "unpublish" | "delete" | null;
 
+function editPath(
+  referrer: string,
+  kind: AnnouncementKind,
+  announcementId: string,
+): string {
+  const referrerParams = new URL(referrer, "https://moto.invalid").searchParams;
+  const query = new URLSearchParams({ art: KIND_PARAM[kind] });
+  const search = referrerParams.get("search");
+  const status = referrerParams.get("status");
+
+  if (search) query.set("search", search);
+  if (status === "draft" || status === "published" || status === "expired") {
+    query.set("status", status);
+  }
+  query.set("bearbeiten", announcementId);
+
+  return `/parent-announcements?${query}`;
+}
+
 export default function AnnouncementDetailPage() {
   return (
     <Suspense fallback={<AnnouncementDetailLoadingPage />}>
@@ -146,10 +165,7 @@ function AnnouncementDetailPageContent() {
 
   const menuItems = buildAnnouncementMenuItems(announcement, {
     onPublish: () => setAction("publish"),
-    onEdit: () =>
-      router.push(
-        `/parent-announcements?art=${KIND_PARAM[kind]}&bearbeiten=${encodeURIComponent(announcement.id)}`,
-      ),
+    onEdit: () => router.push(editPath(referrer, kind, announcement.id)),
     onUnpublish: () => setAction("unpublish"),
     onDelete: () => setAction("delete"),
   });

@@ -181,6 +181,21 @@ describe("AnnouncementDetailPage", () => {
     );
   });
 
+  it("keeps the collection search and status filter when editing", () => {
+    searchParams.set(
+      "from",
+      "/parent-announcements?art=mitteilungen&search=Sommer&status=draft",
+    );
+    render(<AnnouncementDetailPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Bearbeiten" }));
+
+    expect(pushMock).toHaveBeenCalledWith(
+      "/parent-announcements?art=mitteilungen&search=Sommer&status=draft&bearbeiten=7",
+    );
+  });
+
   it("deletes after confirmation and returns to the referrer", async () => {
     searchParams.set("from", "/parent-announcements?art=mitteilungen");
     render(<AnnouncementDetailPage />);

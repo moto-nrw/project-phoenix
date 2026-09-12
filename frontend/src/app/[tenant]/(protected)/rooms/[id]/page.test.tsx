@@ -78,10 +78,15 @@ vi.mock("~/components/rooms/room-detail-content", () => ({
 vi.mock("~/components/rooms/room-stammdaten-tab", () => ({
   RoomStammdatenTab: ({
     onSave,
+    showOccupancy,
   }: {
     onSave: (data: { name: string }) => Promise<void>;
+    showOccupancy: boolean;
   }) => (
-    <div data-testid="room-stammdaten">
+    <div
+      data-testid="room-stammdaten"
+      data-show-occupancy={String(showOccupancy)}
+    >
       <button type="button" onClick={() => void onSave({ name: "Neu" })}>
         Speichern
       </button>
@@ -206,6 +211,10 @@ describe("RoomDetailPage", () => {
     render(<RoomDetailPage />);
 
     expect(screen.getByTestId("room-stammdaten")).toBeInTheDocument();
+    expect(screen.getByTestId("room-stammdaten")).toHaveAttribute(
+      "data-show-occupancy",
+      "true",
+    );
     expect(screen.queryByTestId("room-overview")).not.toBeInTheDocument();
   });
 
@@ -248,6 +257,10 @@ describe("RoomDetailPage", () => {
     render(<RoomDetailPage />);
 
     expect(screen.getByTestId("room-stammdaten")).toBeInTheDocument();
+    expect(screen.getByTestId("room-stammdaten")).toHaveAttribute(
+      "data-show-occupancy",
+      "false",
+    );
     expect(screen.queryByTestId("room-overview")).not.toBeInTheDocument();
     expect(screen.queryByText("Belegt")).not.toBeInTheDocument();
   });

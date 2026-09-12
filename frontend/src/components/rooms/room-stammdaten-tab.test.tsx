@@ -72,6 +72,7 @@ describe("RoomStammdatenTab", () => {
           activityName: "Fußball AG",
           groupName: "Füchse",
         }}
+        showOccupancy
         onSave={vi.fn()}
       />,
     );
@@ -88,6 +89,7 @@ describe("RoomStammdatenTab", () => {
     render(
       <RoomStammdatenTab
         room={{ ...room, name: "Schulhof" }}
+        showOccupancy
         onSave={vi.fn()}
       />,
     );
@@ -96,7 +98,7 @@ describe("RoomStammdatenTab", () => {
 
   it("remounts the form after a successful save so stale field state is dropped", async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
-    render(<RoomStammdatenTab room={room} onSave={onSave} />);
+    render(<RoomStammdatenTab room={room} showOccupancy onSave={onSave} />);
 
     const before = getCurrentNonce();
     expect(before).not.toBeNull();
@@ -112,7 +114,7 @@ describe("RoomStammdatenTab", () => {
   });
 
   it("remounts the form when the user cancels (so unsaved field edits are discarded)", () => {
-    render(<RoomStammdatenTab room={room} onSave={vi.fn()} />);
+    render(<RoomStammdatenTab room={room} showOccupancy onSave={vi.fn()} />);
 
     const before = getCurrentNonce();
     fireEvent.click(screen.getByText("Cancel"));
@@ -122,18 +124,39 @@ describe("RoomStammdatenTab", () => {
 
   it("remounts the form when the room changes (so prior values do not leak)", () => {
     const { rerender } = render(
-      <RoomStammdatenTab room={room} onSave={vi.fn()} />,
+      <RoomStammdatenTab room={room} showOccupancy onSave={vi.fn()} />,
     );
 
     const before = getCurrentNonce();
     rerender(
       <RoomStammdatenTab
         room={{ ...room, id: "2", name: "Raum 202" }}
+        showOccupancy
         onSave={vi.fn()}
       />,
     );
 
     expect(getCurrentNonce()).not.toBe(before);
     expect(screen.getByTestId("form-name")).toHaveTextContent("Raum 202");
+  });
+
+  it("hides occupancy data when the tenant does not track room occupancy", () => {
+    render(
+      <RoomStammdatenTab
+        room={{
+          ...room,
+          isOccupied: true,
+          activityName: "Fußball AG",
+          groupName: "Füchse",
+        }}
+        showOccupancy={false}
+        onSave={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByText("Belegung")).not.toBeInTheDocument();
+    expect(screen.queryByText("Belegt")).not.toBeInTheDocument();
+    expect(screen.queryByText("Fußball AG")).not.toBeInTheDocument();
+    expect(screen.getByTestId("form-name")).toHaveTextContent("Raum 101");
   });
 });
