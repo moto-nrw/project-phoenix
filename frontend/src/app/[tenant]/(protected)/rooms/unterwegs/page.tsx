@@ -18,6 +18,16 @@ const TRANSIT_PATH = "/rooms/unterwegs";
  * geteilter Link und ein Neuladen dort landen, wo man war.
  */
 export default function TransitPage() {
+  return (
+    <BinaryModeGuard title="Unterwegs">
+      <Suspense fallback={<RoomsGridSkeleton />}>
+        <TransitPageContent />
+      </Suspense>
+    </BinaryModeGuard>
+  );
+}
+
+function TransitPageContent() {
   const [totalCount, setTotalCount] = useState<number | null>(null);
   const searchParams = useSearchParams();
   const referrer = resolveDetailReferrer(searchParams.get("from"), "/rooms", [
@@ -26,27 +36,23 @@ export default function TransitPage() {
   const transitReferrer = `${TRANSIT_PATH}?from=${encodeURIComponent(referrer)}`;
 
   return (
-    <BinaryModeGuard title="Unterwegs">
-      <Suspense fallback={<RoomsGridSkeleton />}>
-        <TenantPage
-          title="Unterwegs"
-          stats={
-            totalCount === null
-              ? undefined
-              : `${totalCount} ${totalCount === 1 ? "Kind" : "Kinder"}`
-          }
-          statsLoading={totalCount === null}
-          back
-          backHref={referrer}
-          backLabel="Zurück zu den Räumen"
-          leading={<MotoConceptIcon concept="transit" size={40} />}
-        >
-          <TransitStudentsSection
-            fromReferrer={transitReferrer}
-            onTotalCountChange={setTotalCount}
-          />
-        </TenantPage>
-      </Suspense>
-    </BinaryModeGuard>
+    <TenantPage
+      title="Unterwegs"
+      stats={
+        totalCount === null
+          ? undefined
+          : `${totalCount} ${totalCount === 1 ? "Kind" : "Kinder"}`
+      }
+      statsLoading={totalCount === null}
+      back
+      backHref={referrer}
+      backLabel="Zurück zu den Räumen"
+      leading={<MotoConceptIcon concept="transit" size={40} />}
+    >
+      <TransitStudentsSection
+        fromReferrer={transitReferrer}
+        onTotalCountChange={setTotalCount}
+      />
+    </TenantPage>
   );
 }
