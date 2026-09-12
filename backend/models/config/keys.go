@@ -1,5 +1,7 @@
 package config
 
+import reviewsettings "github.com/moto-nrw/project-phoenix/modules/settings/review"
+
 // Settings key constants. Use these instead of string literals to ensure
 // compile-time safety when referencing settings keys across the codebase.
 
@@ -160,7 +162,7 @@ const (
 	KeyParentGuardianManagementEnabled       = "operations.parent_guardian_management_enabled"
 	KeyParentMasterDataEditEnabled           = "operations.parent_master_data_edit_enabled"
 	KeyParentMasterDataRequestEnabled        = "operations.parent_master_data_request_enabled"
-	KeyParentRequestGroupLeaderReviewEnabled = "operations.parent_request_group_leader_review_enabled"
+	KeyParentRequestGroupLeaderReviewEnabled = reviewsettings.GroupLeaderEnabled
 	KeyParentAbsenceReviewScope              = "operations.parent_absence_review_scope"
 	KeyParentNewsEnabled                     = "operations.parent_news_enabled"
 	// Whether colleagues at this school can write to each other inside moto
@@ -350,7 +352,7 @@ const (
 	KeyEnrollmentOfferingChangesLeadDays                = "enrollment.offering_changes_lead_days"
 	KeyEnrollmentParentCourseRequestsEnabled            = "enrollment.parent_course_requests_enabled"
 	KeyEnrollmentDuplicateHandling                      = "enrollment.duplicate_handling"
-	KeyEnrollmentBookingsAuthoritative                  = "enrollment.bookings_authoritative"
+	KeyEnrollmentBookingsAuthoritative                  = reviewsettings.BookingsAuthoritative
 	KeyEnrollmentAllowSubmissionEdit                    = "enrollment.allow_submission_edit"
 	KeyEnrollmentRequireCaptcha                         = "enrollment.require_captcha"
 	KeyEnrollmentRejectedRetentionDays                  = "enrollment.rejected_retention_days"

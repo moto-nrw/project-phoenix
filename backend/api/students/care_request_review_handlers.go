@@ -9,8 +9,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
-	requestreviewlegacy "github.com/moto-nrw/project-phoenix/modules/requestreview/legacy"
+	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
@@ -56,7 +57,29 @@ func (rs *Resource) decideCareScheduleChangeRequest(w http.ResponseWriter, r *ht
 		renderError(w, r, careRequestDecisionErrorRenderer(err))
 		return
 	}
-	common.Respond(w, r, http.StatusOK, requestreviewlegacy.ToCareRequestResponse(item), "Decision applied")
+	common.Respond(w, r, http.StatusOK, careDecisionResponse(item), "Decision applied")
+}
+
+func nativeCareDiffs(entries []scheduleService.RequestDiffEntry) []carerequests.DiffEntry {
+	result := make([]carerequests.DiffEntry, 0, len(entries))
+	for _, entry := range entries {
+		result = append(result, carerequests.DiffEntry{Label: entry.Label, Old: entry.Old, New: entry.New, Weekday: entry.Weekday, CareKind: entry.CareKind, OldModes: entry.OldModes, NewMode: entry.NewMode})
+	}
+	return result
+}
+
+func careDecisionResponse(item *scheduleService.CareRequestReviewItem) requestreview.CareRequestResponse {
+	r := item.Request
+	blocks := make([]carerequests.Block, 0, len(item.AffectedBlocks))
+	for _, block := range item.AffectedBlocks {
+		blocks = append(blocks, carerequests.Block{ID: block.ID, Title: block.Title, StartTime: block.StartTime, EndTime: block.EndTime})
+	}
+	response := requestreviewcompose.ToCareRequestResponse(&carerequests.ReviewItem{
+		Request:   &carerequests.Request{ID: r.ID, StudentID: r.StudentID, Status: r.Status, RequestKind: r.RequestKind, DecisionReason: r.DecisionReason, CreatedAt: r.CreatedAt, ReviewedAt: r.ReviewedAt},
+		FirstName: item.FirstName, LastName: item.LastName, Diff: nativeCareDiffs(item.Diff), Reason: item.Reason, AffectedBlocks: blocks, ImpactAvailable: item.ImpactAvailable,
+	})
+	response.ImpactToken = item.ImpactToken
+	return response
 }
 
 func decodeCareRequestDecision(w http.ResponseWriter, r *http.Request) (scheduleService.CareRequestDecideInput, bool) {

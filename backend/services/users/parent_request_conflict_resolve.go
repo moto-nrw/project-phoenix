@@ -91,8 +91,8 @@ type ParentRequestStaffValueWrite struct {
 	// days — so the staff value carries only the value itself and can never be
 	// typed against a different scope than the wishes it replaces.
 	RequestIDs []int64
-	// ConflictKey is the group's key exactly as the list emitted it (see
-	// ParentRequestConflictKeys). One request can occupy several keys — a
+	// ConflictKey is the group's owner-derived key exactly as the list emitted it.
+	// One request can occupy several keys — a
 	// weekly plan touching three weekdays — so where the request alone does
 	// not pin the scope, the key is what says WHICH part of it the group is
 	// about. Empty where the domain does not need it.

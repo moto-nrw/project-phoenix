@@ -442,6 +442,41 @@
   ],
   "packages": [
     {
+      "path": "modules/enrollment/selection",
+      "owner": "enrollment",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/offeringrequests",
+      "owner": "care-plan",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/auditlog",
+      "owner": "audit-platform",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/auditlog/compose",
+      "owner": "audit-platform",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/auditlog/internal/adapters/postgres",
+      "owner": "audit-platform",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/peopledirectory/enrollment",
       "owner": "people-directory",
       "role": "contract",
@@ -1674,10 +1709,38 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/requestreview/legacy",
+      "path": "modules/careplan/carerequests",
+      "owner": "care-plan",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/masterdatarequests",
+      "owner": "care-plan",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/settings/review",
+      "owner": "settings-platform",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/identityaccess/requestreview",
+      "owner": "identity-access",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/requestreview/compose",
       "owner": "request-review-view",
-      "role": "adapter",
-      "internal_test_role": "adapter-test",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
       "external_test_role": "module-behavior-test"
     },
     {
@@ -4464,6 +4527,164 @@
     }
   ],
   "rules": [
+    {
+      "id": "request-review-view.integration.care-plan-public",
+      "description": "Native queue contract and tenant-isolation tests use Care Plan review facts (#3179).",
+      "scopes": ["internal_test"],
+      "source_owner": "request-review-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "request-review-view.integration.care-plan-contract",
+      "description": "Native queue serialization tests assert the owner's plain request records (#3179).",
+      "scopes": ["internal_test"],
+      "source_owner": "request-review-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "request-review-view.integration.orm",
+      "description": "The two-tenant integration proof inspects RLS inside least-privilege transactions (#3179).",
+      "scopes": ["internal_test"],
+      "source_owner": "request-review-view",
+      "source_role": "workflow-integration-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "care-plan.application.native-enrollment-selection",
+      "description": "Offering review consumes Enrollment's native selection calculation without retained service models (#3179).",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "application",
+      "target_owner": "enrollment",
+      "target_role": "contract"
+    },
+    {
+      "id": "enrollment.application.native-selection-contract",
+      "description": "Share the native selection calculation with the retained adjustment entry point (#3179).",
+      "scopes": ["production"],
+      "source_owner": "enrollment",
+      "source_role": "application",
+      "target_owner": "enrollment",
+      "target_role": "contract"
+    },
+    {
+      "id": "request-review-view.integration.own-public",
+      "description": "Exercise native history adapters through request-review's public contract (#3179).",
+      "scopes": ["internal_test"],
+      "source_owner": "request-review-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "request-review-view",
+      "target_role": "public"
+    },
+    {
+      "id": "request-review-view.compose.audit-corrections.public",
+      "description": "Render the native Audit correction history without retained audit models (#3179).",
+      "scopes": ["production"],
+      "source_owner": "request-review-view",
+      "source_role": "compose",
+      "target_owner": "audit-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "request-review-view.compose.audit-corrections.compose",
+      "description": "Bind the native tenant-scoped Audit correction reader (#3179).",
+      "scopes": ["production"],
+      "source_owner": "request-review-view",
+      "source_role": "compose",
+      "target_owner": "audit-platform",
+      "target_role": "compose"
+    },
+    {
+      "id": "audit-platform.native-corrections.compose.public",
+      "description": "Compose and verify the native tenant-scoped Audit correction reader (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "compose",
+      "target_owner": "audit-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "audit-platform.native-corrections.compose.postgres",
+      "description": "Compose and verify the native tenant-scoped Audit correction reader (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "compose",
+      "target_owner": "audit-platform",
+      "target_role": "postgres"
+    },
+    {
+      "id": "audit-platform.native-corrections.compose.tenant",
+      "description": "Compose and verify the native tenant-scoped Audit correction reader (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "audit-platform.native-corrections.postgres.public",
+      "description": "Compose and verify the native tenant-scoped Audit correction reader (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "postgres",
+      "target_owner": "audit-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "audit-platform.native-corrections.integration.public",
+      "description": "Compose and verify the native tenant-scoped Audit correction reader (#3179).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "workflow-integration-test",
+      "target_owner": "audit-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "audit-platform.native-corrections.integration.tenant",
+      "description": "Compose and verify the native tenant-scoped Audit correction reader (#3179).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "workflow-integration-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "audit-platform.native-corrections.integration.fixtures",
+      "description": "Compose and verify the native tenant-scoped Audit correction reader (#3179).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "audit-platform.native-corrections.compose.orm",
+      "description": "Bind the native Audit correction query to the caller's database transaction (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
     {
       "id": "enrollment.application.student-enrollment",
       "description": "Enrollment decisions consume only the new student enrollment command contract (#2699).",
@@ -18738,26 +18959,250 @@
       "target_role": "public"
     },
     {
-      "id": "request-review-view.adapter.public",
-      "description": "The request-review compatibility adapters implement the projection's consumer-owned ports and return its public capability (#2705).",
+      "id": "inbound-students.http.native-request-review-mappers",
+      "description": "Render decision and detail responses through the new native request-review boundary (#3179).",
+      "scopes": ["production"],
+      "source_owner": "inbound-students",
+      "source_role": "http",
+      "target_owner": "request-review-view",
+      "target_role": "compose"
+    },
+    {
+      "id": "request-review-view.compose.impact-token",
+      "description": "Render the existing SHA-256 pickup-impact wire token from native facts (#3179).",
+      "scopes": ["production"],
+      "source_owner": "request-review-view",
+      "source_role": "compose",
+      "target_class": "crypto"
+    },
+    {
+      "id": "request-review-view.compose.enrollment.public",
+      "description": "Bind native approved booking facts for care schedule reviews (#3179).",
+      "scopes": ["production"],
+      "source_owner": "request-review-view",
+      "source_role": "compose",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "request-review-view.compose.enrollment.compose",
+      "description": "Compose the native approved booking reader for care schedule reviews (#3179).",
+      "scopes": ["production"],
+      "source_owner": "request-review-view",
+      "source_role": "compose",
+      "target_owner": "enrollment",
+      "target_role": "compose"
+    },
+    {
+      "id": "request-review-view.compose.timetable.public",
+      "description": "Bind native class dismissal and pickup impact facts (#3179).",
+      "scopes": ["production"],
+      "source_owner": "request-review-view",
+      "source_role": "compose",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "request-review-view.compose.timetable.compose",
+      "description": "Compose bounded native timetable reads for care schedule reviews (#3179).",
+      "scopes": ["production"],
+      "source_owner": "request-review-view",
+      "source_role": "compose",
+      "target_owner": "timetable-activities",
+      "target_role": "compose"
+    },
+    {
+      "id": "request-review-view.compose.care-plan.public",
+      "description": "Request review binds native Care Plan queue facts and workflow ports (#3179).",
       "scopes": [
         "production"
       ],
       "source_owner": "request-review-view",
-      "source_role": "adapter",
+      "source_role": "compose",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "request-review-view.compose.care-plan.compose",
+      "description": "Request review binds native Care Plan queue facts and workflow ports (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "compose",
+      "target_owner": "care-plan",
+      "target_role": "compose"
+    },
+    {
+      "id": "request-review-view.compose.care-plan.contract",
+      "description": "Request review binds native Care Plan queue facts and workflow ports (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "compose",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "request-review-view.compose.production.identity-access.review-contract",
+      "description": "Bind native request-review identity and tenant-setting contracts without retained model dependencies (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "contract"
+    },
+    {
+      "id": "root-composition.compose.production.identity-access.review-contract",
+      "description": "Bind native request-review identity and tenant-setting contracts without retained model dependencies (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "contract"
+    },
+    {
+      "id": "inbound-students.http.production.identity-access.review-contract",
+      "description": "Bind native request-review identity and tenant-setting contracts without retained model dependencies (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "contract"
+    },
+    {
+      "id": "root-composition.compose.production.settings-platform.review-contract",
+      "description": "Bind native request-review identity and tenant-setting contracts without retained model dependencies (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "settings-platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "settings-platform.domain.production.settings-platform.review-contract",
+      "description": "Bind native request-review identity and tenant-setting contracts without retained model dependencies (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "domain",
+      "target_owner": "settings-platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "inbound-students.adapter-test.internal.native-request-review-compose",
+      "description": "Exercise the native access binding at the HTTP identity boundary (#3179).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "adapter-test",
+      "target_owner": "request-review-view",
+      "target_role": "compose"
+    },
+    {
+      "id": "request-review-view.compose.people-directory.public",
+      "description": "Request review binds native owner capabilities through typed composition (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "compose",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "request-review-view.compose.school-structure.public",
+      "description": "Request review binds native owner capabilities through typed composition (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "compose",
+      "target_owner": "school-structure",
+      "target_role": "public"
+    },
+    {
+      "id": "request-review-view.compose.school-structure.compose",
+      "description": "Request review binds native owner capabilities through typed composition (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "compose",
+      "target_owner": "school-structure",
+      "target_role": "compose"
+    },
+    {
+      "id": "request-review-view.compose.request-review-view.public",
+      "description": "Request review binds native owner capabilities through typed composition (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "compose",
       "target_owner": "request-review-view",
       "target_role": "public"
     },
     {
-      "id": "request-review-view.adapter.care-plan-contract",
-      "description": "The request-review adapter lists the Care Plan excused-absence queue through its public contract (#2705).",
+      "id": "request-review-view.compose.orm",
+      "description": "Native School Structure composition receives the ambient database; the projection performs no SQL (#3179).",
       "scopes": [
         "production"
       ],
       "source_owner": "request-review-view",
-      "source_role": "adapter",
-      "target_owner": "care-plan",
-      "target_role": "contract"
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "request-review-view.integration.people-compose",
+      "description": "Native directory integration tests exercise the public People Directory with PostgreSQL (#3179).",
+      "scopes": ["internal_test"],
+      "source_owner": "request-review-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "people-directory",
+      "target_role": "compose"
+    },
+    {
+      "id": "request-review-view.integration.test-support",
+      "description": "Native request-review integration tests use isolated tenant fixtures (#3179).",
+      "scopes": ["internal_test"],
+      "source_owner": "request-review-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "root-composition.compose.native-request-review-compose",
+      "description": "Request review binds native owner capabilities through typed composition (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "request-review-view",
+      "target_role": "compose"
+    },
+    {
+      "id": "inbound-students.adapter-test.native-request-review-compose",
+      "description": "Request review binds native owner capabilities through typed composition (#3179).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "adapter-test",
+      "target_owner": "request-review-view",
+      "target_role": "compose"
     }
   ]
 }
