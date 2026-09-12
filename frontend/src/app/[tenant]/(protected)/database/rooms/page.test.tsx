@@ -483,7 +483,7 @@ describe("RoomsPage", () => {
       // the `from` referrer stays slug-free (the room page prefixes it itself).
       expect(screen.getByTestId("room-row-1")).toHaveAttribute(
         "href",
-        `/test-tenant/rooms/1?from=${encodeURIComponent("/database/rooms?groupBy=floor")}`,
+        `/test-tenant/rooms/1?tab=stammdaten&from=${encodeURIComponent("/database/rooms?groupBy=floor")}`,
       );
     });
   });

@@ -489,7 +489,9 @@ function RoomsPageContent() {
           {showTransitAssignment ? (
             <TransitAssignmentCard
               count={transitCount}
-              href={tenantPath(TRANSIT_PATH)}
+              href={tenantPath(
+                `${TRANSIT_PATH}?from=${encodeURIComponent(fromReferrer)}`,
+              )}
             />
           ) : null}
 

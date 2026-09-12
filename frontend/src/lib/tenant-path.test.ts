@@ -75,4 +75,13 @@ describe("resolveDetailReferrer", () => {
       );
     },
   );
+
+  it.each(["/rooms/../settings", "/rooms/%2e%2e/settings"])(
+    "rejects a dot-segment escape from an allowed prefix: %s",
+    (candidate) => {
+      expect(resolveDetailReferrer(candidate, fallback, allowed)).toBe(
+        fallback,
+      );
+    },
+  );
 });

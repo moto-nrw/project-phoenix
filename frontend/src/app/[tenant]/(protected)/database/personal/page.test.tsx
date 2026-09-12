@@ -498,7 +498,7 @@ describe("TeachersPage", () => {
       // the `from` referrer stays slug-free (the record prefixes it itself).
       expect(screen.getByTestId("staff-row-1")).toHaveAttribute(
         "href",
-        `/test-tenant/staff/1?from=${encodeURIComponent("/database/personal?groupBy=none")}`,
+        `/test-tenant/staff/1?tab=konto&from=${encodeURIComponent("/database/personal?groupBy=none")}`,
       );
     });
   });

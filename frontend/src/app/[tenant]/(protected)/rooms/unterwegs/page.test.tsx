@@ -1,10 +1,15 @@
 import "@testing-library/jest-dom/vitest";
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import TransitPage from "./page";
 
-const { presenceModeState } = vi.hoisted(() => ({
+const { presenceModeState, searchParams } = vi.hoisted(() => ({
   presenceModeState: { mode: "detailed" as string },
+  searchParams: new URLSearchParams(),
+}));
+
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => searchParams,
 }));
 
 vi.mock("~/lib/tenant-router", () => ({
@@ -34,7 +39,18 @@ vi.mock("~/components/rooms/transit-students-section", () => ({
   ),
 }));
 
+vi.mock("~/components/ui/mobile-back-button", () => ({
+  MobileBackButton: ({ href }: { href?: string }) => (
+    <div data-testid="back-button" data-href={href} />
+  ),
+}));
+
 describe("TransitPage", () => {
+  beforeEach(() => {
+    presenceModeState.mode = "detailed";
+    searchParams.delete("from");
+  });
+
   it("renders the transit list as its own page with the way back to the rooms", () => {
     presenceModeState.mode = "detailed";
     render(<TransitPage />);
@@ -44,11 +60,25 @@ describe("TransitPage", () => {
     ).toBeInTheDocument();
     expect(screen.getByTestId("transit-section")).toHaveAttribute(
       "data-from",
-      "/rooms/unterwegs",
+      `/rooms/unterwegs?from=${encodeURIComponent("/rooms")}`,
     );
     expect(screen.getByTestId("transit-section")).toHaveAttribute(
       "data-count-handler",
       "yes",
+    );
+  });
+
+  it("returns to the filtered room collection", () => {
+    searchParams.set("from", "/rooms?building=Nord&status=occupied");
+    render(<TransitPage />);
+
+    expect(screen.getByTestId("back-button")).toHaveAttribute(
+      "data-href",
+      "/rooms?building=Nord&status=occupied",
+    );
+    expect(screen.getByTestId("transit-section")).toHaveAttribute(
+      "data-from",
+      `/rooms/unterwegs?from=${encodeURIComponent("/rooms?building=Nord&status=occupied")}`,
     );
   });
 

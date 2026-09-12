@@ -73,7 +73,7 @@ interface RecipientListProps {
  * status chips with counts (the "Ausstehend" chip is the chase list), a name
  * search, and a capped, scrolling list.
  */
-function RecipientList({
+export function RecipientList({
   recipients,
   showStatus,
   statusFilter,
@@ -119,6 +119,7 @@ function RecipientList({
             <button
               key={chip.value}
               type="button"
+              aria-pressed={statusFilter === chip.value}
               onClick={() => onStatusFilter(chip.value)}
               className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                 statusFilter === chip.value

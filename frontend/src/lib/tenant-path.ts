@@ -36,25 +36,25 @@ export function resolveDetailReferrer(
   try {
     // Browsers treat a backslash like a slash in a URL. Checking the resolved
     // origin prevents `/\\example.test` from becoming a protocol-relative URL.
-    if (
-      new URL(candidate, "https://moto.invalid").origin !==
-      "https://moto.invalid"
-    ) {
+    const url = new URL(candidate, "https://moto.invalid");
+    if (url.origin !== "https://moto.invalid") {
       return fallback;
     }
+    // Validate the URL-normalized path, not the raw spelling. Otherwise an
+    // allowed prefix such as `/rooms` would also accept `/rooms/../settings`.
+    const normalized = `${url.pathname}${url.search}${url.hash}`;
+    return allowedPrefixes.some(
+      (prefix) =>
+        normalized === prefix ||
+        normalized.startsWith(`${prefix}/`) ||
+        normalized.startsWith(`${prefix}?`) ||
+        normalized.startsWith(`${prefix}#`),
+    )
+      ? normalized
+      : fallback;
   } catch {
     return fallback;
   }
-
-  return allowedPrefixes.some(
-    (prefix) =>
-      candidate === prefix ||
-      candidate.startsWith(`${prefix}/`) ||
-      candidate.startsWith(`${prefix}?`) ||
-      candidate.startsWith(`${prefix}#`),
-  )
-    ? candidate
-    : fallback;
 }
 
 /**

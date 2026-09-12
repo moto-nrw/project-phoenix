@@ -193,7 +193,7 @@ function TeachersPageContent() {
       const query = searchParams.toString();
       const from = query ? `${COLLECTION_PATH}?${query}` : COLLECTION_PATH;
       return tenantPath(
-        `/staff/${teacher.id}?from=${encodeURIComponent(from)}`,
+        `/staff/${teacher.id}?tab=konto&from=${encodeURIComponent(from)}`,
       );
     },
     [searchParams, tenantPath],

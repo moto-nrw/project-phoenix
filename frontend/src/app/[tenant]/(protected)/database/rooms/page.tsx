@@ -188,7 +188,9 @@ function RoomsPageContent() {
     (room: Room) => {
       const query = searchParams.toString();
       const from = query ? `${COLLECTION_PATH}?${query}` : COLLECTION_PATH;
-      return tenantPath(`/rooms/${room.id}?from=${encodeURIComponent(from)}`);
+      return tenantPath(
+        `/rooms/${room.id}?tab=stammdaten&from=${encodeURIComponent(from)}`,
+      );
     },
     [searchParams, tenantPath],
   );

@@ -370,7 +370,7 @@ describe("RoomsPage", () => {
     expect(screen.getByText("Keine Räume gefunden")).toBeInTheDocument();
   });
 
-  it("links the transit work list to its own page", () => {
+  it("links the transit work list to its own page with the active filters", async () => {
     vi.mocked(useSWRAuth).mockImplementation((key: unknown) => {
       if (key === "dashboard-analytics") {
         return {
@@ -391,8 +391,17 @@ describe("RoomsPage", () => {
 
     expect(screen.getByRole("link", { name: /Unterwegs/i })).toHaveAttribute(
       "href",
-      "/test-tenant/rooms/unterwegs",
+      `/test-tenant/rooms/unterwegs?from=${encodeURIComponent("/rooms")}`,
     );
+
+    fireEvent.click(screen.getByTestId("filter-building"));
+
+    await waitFor(() => {
+      expect(screen.getByRole("link", { name: /Unterwegs/i })).toHaveAttribute(
+        "href",
+        `/test-tenant/rooms/unterwegs?from=${encodeURIComponent("/rooms?building=Main")}`,
+      );
+    });
   });
 
   it("displays occupied room with group name", () => {
