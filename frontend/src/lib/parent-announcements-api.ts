@@ -251,6 +251,21 @@ export async function fetchAnnouncements(
   return data ?? [];
 }
 
+/**
+ * One announcement with its targets, for the object page
+ * /parent-announcements/[id] (#3115). Resolves to undefined when the backend
+ * answers without a body; the page treats that as "nicht gefunden".
+ */
+export async function fetchAnnouncement(
+  id: string,
+): Promise<Announcement | undefined> {
+  return request<Announcement>(
+    `${BASE}/${encodeURIComponent(id)}`,
+    undefined,
+    "Elternmitteilung konnte nicht geladen werden",
+  );
+}
+
 function jsonBody(body: AnnouncementInput): RequestInit {
   return {
     method: "POST",
