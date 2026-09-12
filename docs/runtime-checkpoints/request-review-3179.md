@@ -92,13 +92,19 @@ warmups and 30 measured requests per scenario. Fixtures cover 0, 8 and 32
 children, four pending queue types and three history rows per child.
 There is no projection cache.
 
-Artifacts preserve all 270 samples and all explained statement shapes
-per run, not only averages:
+The [downloadable evidence archive](https://github.com/moto-nrw/project-phoenix/releases/download/pr-3182-request-review-evidence/request-review-3179-evidence.zip)
+preserves all 270 samples and all explained statement shapes per run,
+not only averages. It contains these unchanged files:
 
-- [Baseline samples](request-review-3179.baseline.jsonl)
-- [Candidate samples](request-review-3179.candidate.jsonl)
-- [Baseline plans](request-review-3179.baseline-plans.json)
-- [Candidate plans](request-review-3179.candidate-plans.json)
+- `request-review-3179.baseline.jsonl`
+- `request-review-3179.candidate.jsonl`
+- `request-review-3179.baseline-plans.json`
+- `request-review-3179.candidate-plans.json`
+
+The archive is hosted as a non-latest prerelease asset, not a software
+release. Its [artifact page](https://github.com/moto-nrw/project-phoenix/releases/tag/pr-3182-request-review-evidence)
+records provenance. SHA-256:
+`2bdf9bb9bf2271910b3d451f3b1498def04b69b25be97ce8adb293c5a4aebbc6`.
 
 Each measured request returned HTTP 200 with zero writes, unexpected
 errors, pool waits, deadlocks or sampled lock waits. The runtime harness
