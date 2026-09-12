@@ -8,9 +8,6 @@ import {
   ClipboardList,
   GraduationCap,
   ListChecks,
-  LogOut,
-  Trash2,
-  Undo2,
   UserMinus,
 } from "lucide-react";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
@@ -33,17 +30,10 @@ import {
   type CreateStudentSchedules,
 } from "@/components/students/student-create-modal";
 import {
-  StudentsMasterDetail,
+  StudentsList,
   type GroupingMode,
-} from "@/components/students/students-master-detail";
-import { StudentDeletionModal } from "~/components/students/student-deletion-modal";
+} from "@/components/students/students-list";
 import { CareExitModal } from "~/components/students/care-exit-modal";
-import { CareResumeModal } from "~/components/students/care-resume-modal";
-import {
-  canResumeCare,
-  cancelCareExit,
-  hasPlannedCareExit,
-} from "~/lib/care-exit-api";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { studentsConfig } from "@/components/database/configs/students.config";
@@ -54,8 +44,6 @@ import { createLogger } from "~/lib/logger";
 import { hasPermission } from "~/lib/auth-utils";
 import { createClassListEntry } from "~/lib/class-list-entries-api";
 import { Button } from "~/components/ui/button";
-import { ConfirmationModal } from "~/components/ui/modal";
-import { formatDate } from "~/lib/date-helpers";
 import { cn } from "~/lib/utils";
 import { MasterDetailSkeleton } from "~/components/database/master-detail-skeleton";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
@@ -71,6 +59,9 @@ const STUDENTS_GROUPING_OPTIONS: { value: GroupingMode; label: string }[] = [
   { value: "none", label: "Keine" },
 ];
 
+/** Die Sammlung dieser Seite, für den Rückweg aus der Kindakte (`?from=`). */
+const COLLECTION_PATH = "/database/students";
+
 function parseGrouping(value: string | null): GroupingMode {
   if (value === "group" || value === "none") return value;
   return STUDENTS_GROUPING_DEFAULT;
@@ -84,20 +75,19 @@ export default function StudentsPage() {
   );
 }
 
+/**
+ * Kinderdaten (BAUARTEN-SPEC Bauart 1): die Sammlung mit Anlegen, Import,
+ * Gruppierung, Suche und Mehrfachauswahl. Jede Zeile führt auf die Kindakte
+ * `/students/[id]`, die einzige Objektansicht des Kindes (#3115). Was das
+ * einzelne Kind betrifft — Stammdaten, Betreuung beenden, Löschen — liegt
+ * dort; hier bleiben nur die Aktionen der Liste.
+ */
 function StudentsPageContent() {
   const tenantPath = useTenantAwarePath();
   const searchParams = useSearchParams();
   const updateUrlParams = useUpdateUrlParams();
 
-  const selectedId = searchParams.get("student");
   const grouping = parseGrouping(searchParams.get("groupBy"));
-
-  const handleSelect = useCallback(
-    (id: string | null) => {
-      updateUrlParams({ student: id });
-    },
-    [updateUrlParams],
-  );
 
   const handleGroupingChange = useCallback(
     (next: GroupingMode) => {
@@ -108,26 +98,25 @@ function StudentsPageContent() {
     [updateUrlParams],
   );
 
+  // Der Rückweg trägt die Gruppierung mit, damit „Zurück" aus der Kindakte
+  // dieselbe Liste zeigt, die man verlassen hat.
+  const objectHref = useCallback(
+    (student: Student) => {
+      const query = searchParams.toString();
+      const from = query ? `${COLLECTION_PATH}?${query}` : COLLECTION_PATH;
+      return tenantPath(
+        `/students/${student.id}?from=${encodeURIComponent(from)}`,
+      );
+    },
+    [searchParams, tenantPath],
+  );
+
   const [searchTerm, setSearchTerm] = useState("");
   const [groupFilter, setGroupFilter] = useState("all");
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
-  // "Betreuung beenden" (#2487): entweder für das ausgewählte Kind im Detail
-  // oder für die Mehrfachauswahl. Beide Wege führen durch dieselbe Vorschau.
+  // "Betreuung beenden" (#2487) für die Mehrfachauswahl; das einzelne Kind
+  // beendet seine Betreuung in der Kindakte.
   const [careExitIds, setCareExitIds] = useState<string[] | null>(null);
-  // Der bereits eingetragene letzte Betreuungstag, wenn ein geplantes Ende
-  // korrigiert wird (#2487). Nur der Einzelweg aus der Detailansicht setzt ihn;
-  // eine Sammelaktion vergibt einen gemeinsamen neuen Tag.
-  const [careExitPlannedDay, setCareExitPlannedDay] = useState<string | null>(
-    null,
-  );
-  const [resumeTarget, setResumeTarget] = useState<Student | null>(null);
-  const [cancellingExit, setCancellingExit] = useState(false);
-  // Stornieren läuft nicht aus dem Klick, sondern erst nach der Rückfrage
-  // (BAUARTEN-SPEC Bauart 2 Regel 6, #3109).
-  const [cancelExitTarget, setCancelExitTarget] = useState<Student | null>(
-    null,
-  );
   const [arrivalRevision, setArrivalRevision] = useState(0);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(
@@ -198,38 +187,6 @@ function StudentsPageContent() {
     setSelectionMode(false);
     setSelectedStudentIds(new Set());
   }, []);
-
-  // Storniert ein noch nicht wirksames Betreuungsende (#2487). Ein bereits
-  // wirksamer Austritt kann nur über "Wieder aufnehmen" zurückgenommen werden,
-  // mit neuem Beginn und ausdrücklicher Prüfung.
-  const cancelPlannedExit = useCallback(
-    async (student: Student) => {
-      setCancellingExit(true);
-      try {
-        await cancelCareExit([String(student.id)]);
-        // Sagt beides: das Ende ist weg UND der Plan ist zurück. Ohne den
-        // zweiten Halbsatz bliebe offen, ob die Termine neu eingetragen werden
-        // müssen (#2487).
-        toastSuccess(
-          `Das geplante Betreuungsende von ${studentsConfig.list.item.title(student)} wurde storniert. Termine und Angebote gelten wieder.`,
-        );
-        await tenantMutate("database-students-list");
-      } catch (cancelError) {
-        const message =
-          cancelError instanceof Error
-            ? cancelError.message
-            : "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.";
-        logger.error("care_exit_cancel_failed", {
-          student_id: String(student.id),
-          error: message,
-        });
-        toastError(message);
-      } finally {
-        setCancellingExit(false);
-      }
-    },
-    [tenantMutate, toastError, toastSuccess],
-  );
 
   // "Alle angezeigten auswählen" (#2487): Suche und Filter bestimmen, was
   // angezeigt wird, und die Auswahl folgt genau dem, nicht der ganzen Kartei.
@@ -337,14 +294,6 @@ function StudentsPageContent() {
     return filtered;
   }, [studentsData, searchTerm, groupFilter]);
 
-  const selectedStudent = useMemo(
-    () =>
-      selectedId
-        ? (filteredStudents.find((s) => String(s.id) === selectedId) ?? null)
-        : null,
-    [selectedId, filteredStudents],
-  );
-
   const filters: FilterConfig[] = useMemo(
     () => [
       {
@@ -448,48 +397,6 @@ function StudentsPageContent() {
     [service, tenantMutate, toastSuccess],
   );
 
-  const handleUpdateStudent = useCallback(
-    async (studentId: string, studentData: Partial<Student>) => {
-      try {
-        if (studentsConfig.form.transformBeforeSubmit) {
-          studentData = studentsConfig.form.transformBeforeSubmit(studentData);
-        }
-        await service.update(studentId, studentData);
-        toastSuccess(
-          getDbOperationMessage(
-            "update",
-            studentsConfig.name.singular,
-            studentData.first_name && studentData.second_name
-              ? `${studentData.first_name} ${studentData.second_name}`
-              : studentsConfig.name.singular,
-          ),
-        );
-        await tenantMutate("database-students-list");
-      } catch (err) {
-        logger.error("failed to update student", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        throw err;
-      }
-    },
-    [service, tenantMutate, toastSuccess],
-  );
-
-  const handleStudentDeleted = useCallback(async () => {
-    if (!deleteTarget) return;
-    const displayName = studentsConfig.list.item.title(deleteTarget);
-    toastSuccess(
-      getDbOperationMessage(
-        "delete",
-        studentsConfig.name.singular,
-        displayName,
-      ),
-    );
-    setDeleteTarget(null);
-    handleSelect(null);
-    await tenantMutate("database-students-list");
-  }, [deleteTarget, tenantMutate, toastSuccess, handleSelect]);
-
   const handleArrivalChanged = useCallback(() => {
     setArrivalRevision((prev) => prev + 1);
     void tenantMutate("database-students-list");
@@ -516,77 +423,10 @@ function StudentsPageContent() {
     return map;
   }, [filteredStudents]);
 
-  const canShowDetail = !loading && filteredStudents.length > 0;
-  const canViewEnrollments = hasPermission(session, "config:manage");
+  const canShowList = !loading && filteredStudents.length > 0;
   const canCreateStudents = hasPermission(session, "users:create");
   const canDeleteStudents = hasPermission(session, "users:delete");
   const canUpdateStudents = hasPermission(session, "users:update");
-
-  // Kopfzeilen-Aktionen des Detailbereichs. "Betreuung beenden" steht neben
-  // "Löschen", weil beides dieselbe Berechtigung braucht, aber ein regulärer
-  // Austritt löscht nichts, deshalb ist er kein roter Knopf (#2487).
-  const detailActions =
-    selectedStudent && canDeleteStudents ? (
-      <div className="flex flex-wrap items-center gap-1.5">
-        {selectedStudent.care_ended ? (
-          // Wieder aufnehmen kann nur, wer einen hinterlegten Austritt
-          // zurücknimmt. Lief die Betreuung mit der Anmeldephase aus, weist
-          // der Server die Wiederaufnahme ab; dann steht der Knopf gar nicht
-          // erst da, wie in der Ansicht "Beendete Betreuungen" auch (#2487).
-          canResumeCare(selectedStudent) && (
-            <Button
-              type="button"
-              variant="outline"
-              size="compact"
-              onClick={() => setResumeTarget(selectedStudent)}
-            >
-              <Undo2 className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-              Wieder aufnehmen
-            </Button>
-          )
-        ) : (
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              size="compact"
-              onClick={() => {
-                setCareExitPlannedDay(
-                  hasPlannedCareExit(selectedStudent)
-                    ? (selectedStudent.care_ends_on ?? null)
-                    : null,
-                );
-                setCareExitIds([String(selectedStudent.id)]);
-              }}
-            >
-              <LogOut className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-              {hasPlannedCareExit(selectedStudent)
-                ? "Ende ändern"
-                : "Betreuung beenden"}
-            </Button>
-            {hasPlannedCareExit(selectedStudent) ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="compact"
-                disabled={cancellingExit}
-                onClick={() => setCancelExitTarget(selectedStudent)}
-              >
-                Ende stornieren
-              </Button>
-            ) : null}
-          </>
-        )}
-        <button
-          type="button"
-          onClick={() => setDeleteTarget(selectedStudent)}
-          className="border-moto-red/20 bg-moto-red-soft text-moto-red-strong hover:bg-moto-red/10 flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium"
-        >
-          <Trash2 className="h-3.5 w-3.5" aria-hidden />
-          Löschen
-        </button>
-      </div>
-    ) : null;
 
   return (
     <DatabasePageLayout
@@ -647,69 +487,12 @@ function StudentsPageContent() {
             <CareExitModal
               isOpen
               studentIds={careExitIds}
-              plannedLastCareDay={careExitPlannedDay ?? undefined}
-              onClose={() => {
-                setCareExitIds(null);
-                setCareExitPlannedDay(null);
-              }}
+              onClose={() => setCareExitIds(null)}
               onFinished={async () => {
                 setCareExitIds(null);
-                setCareExitPlannedDay(null);
                 finishSelection();
-                handleSelect(null);
                 await tenantMutate("database-students-list");
               }}
-            />
-          ) : null}
-
-          <ConfirmationModal
-            isOpen={cancelExitTarget !== null}
-            title="Betreuungsende stornieren?"
-            confirmText="Ende stornieren"
-            cancelText="Abbrechen"
-            isConfirmLoading={cancellingExit}
-            isDismissDisabled={cancellingExit}
-            onConfirm={async () => {
-              if (!cancelExitTarget) return;
-              await cancelPlannedExit(cancelExitTarget);
-              setCancelExitTarget(null);
-            }}
-            onClose={() => setCancelExitTarget(null)}
-          >
-            <p className="text-sm text-gray-700">
-              Das geplante Betreuungsende von{" "}
-              <strong>
-                {cancelExitTarget
-                  ? studentsConfig.list.item.title(cancelExitTarget)
-                  : ""}
-              </strong>
-              {cancelExitTarget?.care_ends_on
-                ? ` am ${formatDate(cancelExitTarget.care_ends_on)}`
-                : ""}{" "}
-              wird storniert. Termine und Angebote gelten wieder.
-            </p>
-          </ConfirmationModal>
-
-          {resumeTarget ? (
-            <CareResumeModal
-              isOpen
-              studentId={String(resumeTarget.id)}
-              displayName={studentsConfig.list.item.title(resumeTarget)}
-              onClose={() => setResumeTarget(null)}
-              onResumed={async () => {
-                setResumeTarget(null);
-                await tenantMutate("database-students-list");
-              }}
-            />
-          ) : null}
-
-          {deleteTarget ? (
-            <StudentDeletionModal
-              isOpen
-              studentId={String(deleteTarget.id)}
-              displayName={studentsConfig.list.item.title(deleteTarget)}
-              onClose={() => setDeleteTarget(null)}
-              onDeleted={handleStudentDeleted}
             />
           ) : null}
         </>
@@ -750,7 +533,6 @@ function StudentsPageContent() {
                     finishSelection();
                     return;
                   }
-                  handleSelect(null);
                   setSelectionMode(true);
                 }}
               >
@@ -827,21 +609,16 @@ function StudentsPageContent() {
         />
       }
     >
-      {canShowDetail ? (
+      {canShowList ? (
         <div className="min-h-0 flex-1 pb-4">
-          <StudentsMasterDetail
+          <StudentsList
             students={filteredStudents}
             bulkStudents={studentsData ?? []}
-            selectedId={selectedId}
-            onSelect={handleSelect}
             grouping={grouping}
             studentsWithArrival={studentsWithArrival}
             arrivalSummaryById={arrivalSummaryById}
             onArrivalDataChanged={handleArrivalChanged}
-            groups={allGroups}
-            onUpdateStudent={handleUpdateStudent}
-            canViewEnrollments={canViewEnrollments}
-            detailActions={detailActions}
+            objectHref={objectHref}
             selectionMode={selectionMode}
             selectedStudentIds={selectedStudentIds}
             onToggleStudentSelection={toggleStudentSelection}
@@ -850,10 +627,7 @@ function StudentsPageContent() {
             onSelectAllVisible={selectAllVisible}
             onEndCare={
               canDeleteStudents
-                ? () => {
-                    setCareExitPlannedDay(null);
-                    setCareExitIds([...selectedStudentIds]);
-                  }
+                ? () => setCareExitIds([...selectedStudentIds])
                 : undefined
             }
           />

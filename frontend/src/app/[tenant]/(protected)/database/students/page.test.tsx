@@ -12,10 +12,8 @@ vi.mock("next-auth/react", () => ({
   })),
 }));
 
-// Stateful URL search params mock. Tests mutate `currentSearch` via
-// `setSelectedStudent(id)` before `render()` for scenarios that need
-// the detail panel to show, and assert on `mockReplace` for click-driven
-// navigations (which in the real page flow would update the URL).
+// Stateful URL search params mock: the page reads the grouping from the URL
+// and writes it back through `mockReplace`.
 let currentSearch: URLSearchParams = new URLSearchParams();
 let suspendSearchParams = false;
 const pendingSearchParams = new Promise<never>(() => undefined);
@@ -23,10 +21,6 @@ const mockReplace = vi.fn((url: string) => {
   const q = url.includes("?") ? (url.split("?")[1] ?? "") : "";
   currentSearch = new URLSearchParams(q);
 });
-const setSelectedStudent = (id: string | null) => {
-  currentSearch = new URLSearchParams();
-  if (id) currentSearch.set("student", id);
-};
 
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
@@ -180,20 +174,15 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   ),
 }));
 
-// Test double for the master-detail layout. Exposes:
-// - a clickable row per student (fires `onSelect(id)`)
-// - guardian/group chips visible in the DOM for filter/display assertions
-// - a "detail-panel" that renders when `selectedId` is set, with the
-//   page-supplied `detailActions` plugged in AND a synthetic "trigger-update"
-//   button that invokes the inline save path (formerly the edit modal).
-vi.mock("@/components/students/students-master-detail", () => ({
-  StudentsMasterDetail: ({
+// Test double for the collection list (#3115). Exposes one link per child
+// (the object route the page computes via `objectHref`), the guardian/group
+// chips for filter and display assertions, and the bulk "Betreuung beenden"
+// hook so the permission gate stays observable.
+vi.mock("@/components/students/students-list", () => ({
+  StudentsList: ({
     students,
-    selectedId,
-    onSelect,
-    onUpdateStudent,
-    detailActions,
-    canViewEnrollments,
+    objectHref,
+    onEndCare,
   }: {
     students: Array<{
       id: string;
@@ -202,28 +191,15 @@ vi.mock("@/components/students/students-master-detail", () => ({
       name_lg?: string | null;
       group_name?: string | null;
     }>;
-    selectedId: string | null;
-    onSelect: (id: string | null) => void;
-    onUpdateStudent: (
-      id: string,
-      data: { first_name: string; second_name: string },
-    ) => Promise<void>;
-    detailActions?: ReactNode;
-    canViewEnrollments?: boolean;
+    objectHref: (student: { id: string }) => string;
+    onEndCare?: () => void;
   }) => (
-    <div
-      data-testid="students-master-detail"
-      data-can-view-enrollments={String(Boolean(canViewEnrollments))}
-    >
+    <div data-testid="students-list">
       {students.map((s) => (
         <div key={s.id} data-testid={`student-entry-${s.id}`}>
-          <button
-            type="button"
-            data-testid={`student-row-${s.id}`}
-            onClick={() => onSelect(String(s.id))}
-          >
+          <a data-testid={`student-row-${s.id}`} href={objectHref(s)}>
             {s.first_name} {s.second_name}
-          </button>
+          </a>
           {s.name_lg ? (
             <span data-testid={`guardian-${s.id}`}>{s.name_lg}</span>
           ) : null}
@@ -232,30 +208,10 @@ vi.mock("@/components/students/students-master-detail", () => ({
           ) : null}
         </div>
       ))}
-      {selectedId ? (
-        <div data-testid="student-detail-panel">
-          <span data-testid="detail-selected-id">{selectedId}</span>
-          <button
-            type="button"
-            data-testid="trigger-update"
-            onClick={() =>
-              void onUpdateStudent(selectedId, {
-                first_name: "Updated",
-                second_name: "Student",
-              })
-            }
-          >
-            Save
-          </button>
-          <button
-            type="button"
-            data-testid="trigger-deselect"
-            onClick={() => onSelect(null)}
-          >
-            Close
-          </button>
-          <div data-testid="detail-actions">{detailActions}</div>
-        </div>
+      {onEndCare ? (
+        <button type="button" data-testid="bulk-end-care" onClick={onEndCare}>
+          Betreuung beenden
+        </button>
       ) : null}
     </div>
   ),
@@ -314,31 +270,27 @@ vi.mock("@/components/students/student-create-modal", () => ({
     ) : null,
 }));
 
-vi.mock("~/components/students/student-deletion-modal", () => ({
-  StudentDeletionModal: ({
+vi.mock("~/components/students/care-exit-modal", () => ({
+  CareExitModal: ({
     isOpen,
-    studentId,
-    displayName,
-    onDeleted,
-    onClose,
+    studentIds,
+    onFinished,
   }: {
     isOpen: boolean;
-    studentId: string;
-    displayName: string;
-    onDeleted?: () => void;
-    onClose?: () => void;
+    studentIds: readonly string[];
+    onFinished?: () => void;
   }) =>
     isOpen ? (
       <div
-        data-testid="student-deletion-modal"
-        data-student-id={studentId}
-        data-display-name={displayName}
+        data-testid="care-exit-modal"
+        data-student-ids={studentIds.join(",")}
       >
-        <button type="button" data-testid="finish-delete" onClick={onDeleted}>
+        <button
+          type="button"
+          data-testid="finish-care-exit"
+          onClick={onFinished}
+        >
           Confirm
-        </button>
-        <button type="button" data-testid="cancel-delete" onClick={onClose}>
-          Cancel
         </button>
       </div>
     ) : null,
@@ -395,7 +347,7 @@ describe("StudentsPage", () => {
   beforeEach(() => {
     suspendSearchParams = false;
     vi.clearAllMocks();
-    setSelectedStudent(null);
+    currentSearch = new URLSearchParams();
     mockSessionWithPermissions(["config:manage", "users:delete"]);
 
     // Default SWR mock - returns students data
@@ -445,44 +397,37 @@ describe("StudentsPage", () => {
     });
   });
 
-  it("does not expose enrollment tab access for config read-only users", async () => {
-    mockSessionWithPermissions(["config:read"]);
+  it("links every row to the child's record with the register as referrer", async () => {
+    currentSearch = new URLSearchParams({ groupBy: "group" });
 
     render(<StudentsPage />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("students-master-detail")).toHaveAttribute(
-        "data-can-view-enrollments",
-        "false",
+      // Path routing in the test tenant context: the link carries the slug,
+      // the `from` referrer stays slug-free (the record prefixes it itself).
+      expect(screen.getByTestId("student-row-1")).toHaveAttribute(
+        "href",
+        `/test-tenant/students/1?from=${encodeURIComponent("/database/students?groupBy=group")}`,
       );
     });
   });
 
-  it("exposes enrollment tab access for config manage users", async () => {
+  it("offers the bulk care exit only with the delete permission", async () => {
     mockSessionWithPermissions(["config:manage"]);
-
-    render(<StudentsPage />);
-
+    const { unmount } = render(<StudentsPage />);
     await waitFor(() => {
-      expect(screen.getByTestId("students-master-detail")).toHaveAttribute(
-        "data-can-view-enrollments",
-        "true",
-      );
+      expect(screen.getByTestId("students-list")).toBeInTheDocument();
     });
-  });
+    expect(screen.queryByTestId("bulk-end-care")).not.toBeInTheDocument();
+    unmount();
 
-  it("does not expose the deletion workflow without users delete permission", async () => {
-    mockSessionWithPermissions(["config:manage"]);
-    setSelectedStudent("1");
-
+    mockSessionWithPermissions(["config:manage", "users:delete"]);
     render(<StudentsPage />);
-
     await waitFor(() => {
-      expect(screen.getByTestId("student-detail-panel")).toBeInTheDocument();
+      expect(screen.getByTestId("bulk-end-care")).toBeInTheDocument();
     });
-    expect(
-      screen.queryByRole("button", { name: /Löschen/i }),
-    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("bulk-end-care"));
+    expect(screen.getByTestId("care-exit-modal")).toBeInTheDocument();
   });
 
   it("shows loading state when data is loading", () => {
@@ -704,49 +649,6 @@ describe("StudentsPage", () => {
     });
   });
 
-  it("navigates to the selected student when a row is clicked", async () => {
-    render(<StudentsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("student-row-1"));
-
-    await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalled();
-    });
-    const lastCallArg = mockReplace.mock.calls.at(-1)?.[0] ?? "";
-    expect(lastCallArg).toContain("student=1");
-  });
-
-  it("clears the selection when the detail close action is triggered", async () => {
-    setSelectedStudent("1");
-    render(<StudentsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("student-detail-panel")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("trigger-deselect"));
-
-    await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalled();
-    });
-    const lastCallArg = mockReplace.mock.calls.at(-1)?.[0] ?? "";
-    expect(lastCallArg).not.toContain("student=");
-  });
-
-  it("renders the detail panel when a student is selected via URL", async () => {
-    setSelectedStudent("1");
-    render(<StudentsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("student-detail-panel")).toBeInTheDocument();
-      expect(screen.getByTestId("detail-selected-id")).toHaveTextContent("1");
-    });
-  });
-
   it("calls create service when submitting create form", async () => {
     mockCreate.mockResolvedValueOnce({
       id: "3",
@@ -799,68 +701,6 @@ describe("StudentsPage", () => {
     expect(payload.guardians).toEqual([
       { first_name: "Erika", relationship_type: "parent" },
     ]);
-  });
-
-  it("calls update service when the detail panel saves Stammdaten", async () => {
-    mockUpdate.mockResolvedValueOnce({
-      id: "1",
-      first_name: "Updated",
-      second_name: "Student",
-    });
-
-    setSelectedStudent("1");
-    render(<StudentsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("student-detail-panel")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("trigger-update"));
-
-    await waitFor(() => {
-      expect(mockUpdate).toHaveBeenCalled();
-    });
-    expect(mockUpdate.mock.calls[0]?.[0]).toBe("1");
-  });
-
-  it("opens the guarded deletion workflow for the selected student", async () => {
-    setSelectedStudent("1");
-    render(<StudentsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("student-detail-panel")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: /Löschen/i }));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("student-deletion-modal")).toHaveAttribute(
-        "data-student-id",
-        "1",
-      );
-    });
-    expect(screen.getByTestId("student-deletion-modal")).toHaveAttribute(
-      "data-display-name",
-      "Max Mustermann",
-    );
-  });
-
-  it("clears the selected child after the guarded workflow succeeds", async () => {
-    setSelectedStudent("1");
-    render(<StudentsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("student-detail-panel")).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByRole("button", { name: /Löschen/i }));
-    fireEvent.click(await screen.findByTestId("finish-delete"));
-
-    await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalled();
-    });
-    expect(
-      screen.queryByTestId("student-deletion-modal"),
-    ).not.toBeInTheDocument();
   });
 
   it("shows not found message when search has no matches", async () => {

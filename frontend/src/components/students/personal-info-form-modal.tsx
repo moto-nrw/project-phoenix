@@ -5,6 +5,7 @@ import { useFormError } from "~/components/ui/form-error";
 import { Alert } from "~/components/ui/alert";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Button } from "~/components/ui/button";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import {
   SlideOver,
@@ -18,7 +19,14 @@ import {
 import { SectionCard } from "~/components/ui/section-card";
 import { todayISO } from "~/lib/date-helpers";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
-import { DepartureSection } from "./student-form-fields";
+import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
+import {
+  deleteStudentPhoto,
+  fetchStudentPrivacyConsent,
+  uploadStudentPhoto,
+} from "~/lib/student-api";
+import { DepartureSection, PrivacyConsentSection } from "./student-form-fields";
+import { StudentPhotoSection } from "./student-photo-section";
 import {
   busDaysHaveAny,
   pickupDaysHaveAny,
@@ -46,6 +54,7 @@ import {
   companionsChangedMessage,
   isCompanionDepartureRefusal,
   isCompanionsChanged,
+  withPrivacyConsentSavedNotice,
 } from "~/lib/api";
 import type { AllowedDepartureModes } from "~/lib/student-helpers";
 import {
@@ -56,6 +65,8 @@ import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "PersonalInfoFormModal" });
+
+const EMPTY_GROUP_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [];
 
 // The departure plan of a student in the one shape everything here compares
 // and submits. Derived identically for the stored copy and the edited one, so
@@ -81,6 +92,19 @@ interface PersonalInfoFormModalProps {
   readonly student: ExtendedStudent;
   readonly onSave: (student: ExtendedStudent) => Promise<void>;
   /**
+   * Lädt die Akte neu, nachdem ein Foto hochgeladen oder entfernt wurde. Die
+   * Foto-Mutation läuft NACH `onSave` (ein fehlgeschlagener PUT darf keinen
+   * halb gespeicherten Stand hinterlassen), also nach dem Refresh, den
+   * `onSave` selbst auslöst — ohne diesen zweiten Refresh stünde das alte
+   * Foto in der Kopfkarte, bis jemand die Seite neu lädt.
+   */
+  readonly onStudentRefresh?: () => void | Promise<void>;
+  /**
+   * Die Gruppen der Schule für das Auswahlfeld „Gruppe". Die Seite lädt sie
+   * (sie kennt die Sitzung); ohne Liste bleibt nur „Keine Gruppe".
+   */
+  readonly groups?: ReadonlyArray<{ value: string; label: string }>;
+  /**
    * „inline" bearbeitet am Objekt: dieselben Felder, dieselbe Prüfung,
    * derselbe Speicheraufruf, nur ohne Dialogschicht. Die Kindakte nutzt
    * ausschließlich diese Form (siehe `PersonalInfoEditPanel`).
@@ -96,10 +120,14 @@ export function PersonalInfoEditPanel({
   student,
   onSave,
   onCancel,
+  onStudentRefresh,
+  groups,
 }: Readonly<{
   student: ExtendedStudent;
   onSave: (student: ExtendedStudent) => Promise<void>;
   onCancel: () => void;
+  onStudentRefresh?: () => void | Promise<void>;
+  groups?: ReadonlyArray<{ value: string; label: string }>;
 }>) {
   return (
     <PersonalInfoFormModal
@@ -108,6 +136,8 @@ export function PersonalInfoEditPanel({
       onClose={onCancel}
       student={student}
       onSave={onSave}
+      onStudentRefresh={onStudentRefresh}
+      groups={groups}
     />
   );
 }
@@ -117,10 +147,25 @@ export function PersonalInfoFormModal({
   onClose,
   student,
   onSave,
+  onStudentRefresh,
+  groups = EMPTY_GROUP_OPTIONS,
   variant = "modal",
 }: PersonalInfoFormModalProps) {
   const [editedStudent, setEditedStudent] = useState<ExtendedStudent>(student);
   const [isSaving, setIsSaving] = useState(false);
+  // Foto (#3115): bis zum Speichern nur im Browser. Eine Datei zu wählen oder
+  // „Foto entfernen" zu klicken ist wie jedes andere Feld ein Entwurf; erst
+  // „Speichern" schreibt. Beide Zustände schließen sich aus.
+  const { enabled: photosEnabled } = useStudentPhotosEnabled();
+  const [pendingPhotoBlob, setPendingPhotoBlob] = useState<Blob | null>(null);
+  const [pendingPhotoRemoved, setPendingPhotoRemoved] = useState(false);
+  // Datenschutzeinwilligung und Aufbewahrungsfrist liegen in einer eigenen
+  // Tabelle, nicht am Kind: erst nach dem Laden darf das Formular sie
+  // anzeigen, sonst würde ein Speichern die echte Einwilligung mit dem
+  // leeren Vorgabewert überschreiben.
+  const [privacyConsentStatus, setPrivacyConsentStatus] = useState<
+    "loading" | "ready" | "error"
+  >("loading");
   // Ein Speicherfehler darf nicht nur als Kurzmeldung vorbeiziehen: er steht
   // oben im Bearbeiten-Bereich, und wo er zu einem Feld gehört, zusätzlich
   // direkt an diesem Feld.
@@ -182,6 +227,42 @@ export function PersonalInfoFormModal({
       setDepartureError(null);
     }
   }, [isOpen, student, setSaveError]);
+
+  // Ein nicht gespeicherter Foto-Entwurf gehört zu genau dieser Sitzung des
+  // Formulars und zu genau diesem Kind.
+  useEffect(() => {
+    setPendingPhotoBlob(null);
+    setPendingPhotoRemoved(false);
+  }, [isOpen, student.id]);
+
+  // Einwilligung und Frist des Kindes in den Entwurf holen (siehe oben).
+  useEffect(() => {
+    if (!isOpen || !student.id) return;
+    let cancelled = false;
+    setPrivacyConsentStatus("loading");
+    fetchStudentPrivacyConsent(student.id)
+      .then((consent) => {
+        if (cancelled) return;
+        setEditedStudent((prev) => ({
+          ...prev,
+          privacy_consent_accepted:
+            consent?.accepted ?? prev.privacy_consent_accepted ?? false,
+          data_retention_days:
+            consent?.dataRetentionDays ?? prev.data_retention_days ?? 30,
+        }));
+        setPrivacyConsentStatus("ready");
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        logger.error("failed to load privacy consent", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        setPrivacyConsentStatus("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, student.id]);
 
   // The Laufgemeinschaft lives in its own table, so it is fetched when the
   // modal opens and submitted together with the departure plan it belongs to.
@@ -273,7 +354,56 @@ export function PersonalInfoFormModal({
     setEditedStudent((prev) => ({ ...prev, [field]: value }));
   };
 
+  // Ein Foto ohne Einwilligung gibt es nicht: nimmt jemand die Einwilligung
+  // zurück, fällt ein gewählter, noch nicht gespeicherter Entwurf weg.
+  const handlePhotoConsentChange = useCallback((value: boolean) => {
+    setEditedStudent((prev) => ({ ...prev, photo_consent_given: value }));
+    if (!value) setPendingPhotoBlob(null);
+  }, []);
+  const handlePickPhoto = useCallback((blob: Blob | null) => {
+    setPendingPhotoBlob(blob);
+    setPendingPhotoRemoved(false);
+  }, []);
+  const handleMarkPhotoRemoved = useCallback(() => {
+    setPendingPhotoBlob(null);
+    setPendingPhotoRemoved(true);
+  }, []);
+  const handleCancelPhotoRemove = useCallback(() => {
+    setPendingPhotoRemoved(false);
+  }, []);
+
+  /**
+   * Foto erst NACH dem gelungenen PUT schreiben: liefe es vorher, stünde bei
+   * einem fehlgeschlagenen PUT schon ein neues Foto am Kind, während die
+   * Fläche „nicht gespeichert" meldet. Scheitert nur das Foto, bleibt der
+   * Entwurf stehen, damit ein zweites „Speichern" ihn erneut versucht.
+   */
+  const persistPendingPhoto = async () => {
+    const consentNowOn = Boolean(editedStudent.photo_consent_given);
+    let mutated = false;
+    if (pendingPhotoBlob && consentNowOn) {
+      await uploadStudentPhoto(student.id, pendingPhotoBlob, {
+        consentAcknowledged: true,
+      });
+      mutated = true;
+    } else if (pendingPhotoRemoved && consentNowOn) {
+      await deleteStudentPhoto(student.id);
+      mutated = true;
+    }
+    setPendingPhotoBlob(null);
+    setPendingPhotoRemoved(false);
+    if (mutated && onStudentRefresh) await onStudentRefresh();
+  };
+
   const handleSave = async () => {
+    // Ohne die gespeicherte Einwilligung würde der Vorgabewert des Formulars
+    // die echte überschreiben (Bauart 2: ein Speichern, das nichts verliert).
+    if (privacyConsentStatus === "error") {
+      setSaveError(
+        "Die Datenschutzeinstellungen konnten nicht geladen werden. Bitte neu laden, bevor Sie speichern.",
+      );
+      return;
+    }
     // The edited list would replace links this modal never loaded. Refusing
     // here (instead of saving and hoping the backend's stranding check happens
     // to object) is the only reading that cannot lose someone else's work.
@@ -405,6 +535,20 @@ export function PersonalInfoFormModal({
       // with a later save and re-widen a companion's plan unasked.
       setConfirmedExtensions([]);
       setPendingExtensions([]);
+      try {
+        await persistPendingPhoto();
+      } catch (photoError) {
+        logger.error("error saving student photo", {
+          error:
+            photoError instanceof Error
+              ? photoError.message
+              : String(photoError),
+        });
+        setSaveError(
+          "Daten gespeichert, aber das Foto konnte nicht aktualisiert werden. Bitte versuchen Sie es erneut.",
+        );
+        return;
+      }
       onClose();
     } catch (err) {
       if (err instanceof CompanionPlanConflictError) {
@@ -436,7 +580,14 @@ export function PersonalInfoFormModal({
         setSaveError(companionsChangedMessage(err));
         return;
       }
-      setSaveError("Fehler beim Speichern der persönlichen Informationen");
+      // Die Einwilligung wird im selben Aufruf, aber vor dem Kind geschrieben:
+      // ist sie schon durch, sagt die Meldung das, statt „nichts gespeichert".
+      setSaveError(
+        withPrivacyConsentSavedNotice(
+          err,
+          "Fehler beim Speichern der persönlichen Informationen",
+        ),
+      );
     } finally {
       setIsSaving(false);
     }
@@ -592,6 +743,13 @@ export function PersonalInfoFormModal({
         onChange={(value) => updateField("school_class", value)}
         parentVisibleHint={PARENT_VISIBLE_HINTS.schoolClass}
       />
+      <SelectInput
+        id="modal-student-group"
+        label="Gruppe"
+        value={editedStudent.group_id ?? ""}
+        onChange={(value) => updateField("group_id", value)}
+        options={[{ value: "", label: "Keine Gruppe" }, ...groups]}
+      />
       <DateInput
         id="modal-student-birthday"
         label="Geburtsdatum"
@@ -617,6 +775,18 @@ export function PersonalInfoFormModal({
         value={editedStudent.address_city ?? ""}
         onChange={(value) => updateField("address_city", value)}
       />
+      {photosEnabled ? (
+        <StudentPhotoSection
+          student={editedStudent}
+          consentGiven={Boolean(editedStudent.photo_consent_given)}
+          onConsentChange={handlePhotoConsentChange}
+          pendingPhotoBlob={pendingPhotoBlob}
+          pendingPhotoRemoved={pendingPhotoRemoved}
+          onPickPhoto={handlePickPhoto}
+          onMarkRemoved={handleMarkPhotoRemoved}
+          onCancelRemove={handleCancelPhotoRemove}
+        />
+      ) : null}
       {departureError && <Alert type="error" message={departureError} />}
       <DepartureSection
         companions={editedStudent.companions}
@@ -694,6 +864,23 @@ export function PersonalInfoFormModal({
         placeholder="Notizen der Eltern"
         rows={2}
       />
+      {privacyConsentStatus === "error" ? (
+        <Alert
+          type="error"
+          message="Die Datenschutzeinstellungen konnten nicht geladen werden. Speichern ist gesperrt, damit die hinterlegte Einwilligung nicht überschrieben wird."
+        />
+      ) : privacyConsentStatus === "ready" ? (
+        <PrivacyConsentSection
+          formData={editedStudent}
+          onChange={(field, value) =>
+            updateField(
+              field as keyof ExtendedStudent,
+              value as ExtendedStudent[keyof ExtendedStudent],
+            )
+          }
+          errors={{}}
+        />
+      ) : null}
     </div>
   );
 
@@ -768,6 +955,36 @@ function TextInput({
         onChange={(e) => onChange(e.target.value)}
         className="focus:ring-moto-blue w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:outline-none"
         maxLength={255}
+      />
+    </div>
+  );
+}
+
+interface SelectInputProps {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: ReadonlyArray<{ value: string; label: string }>;
+}
+
+function SelectInput({
+  id,
+  label,
+  value,
+  onChange,
+  options,
+}: Readonly<SelectInputProps>) {
+  return (
+    <div>
+      <label htmlFor={id} className="mb-1 block text-xs text-gray-500">
+        {label}
+      </label>
+      <CustomSelect
+        id={id}
+        value={value}
+        onChange={onChange}
+        options={options}
       />
     </div>
   );

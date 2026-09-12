@@ -13,10 +13,75 @@ vi.mock("~/components/ui/date-picker", async (importOriginal) => {
   return { ...(await importOriginal<object>()), ...isoDatePickerMock() };
 });
 
-const { fetchStudentCompanionsMock } = vi.hoisted(() => ({
+const {
+  fetchStudentCompanionsMock,
+  fetchStudentPrivacyConsentMock,
+  uploadStudentPhotoMock,
+  deleteStudentPhotoMock,
+  photosEnabledState,
+} = vi.hoisted(() => ({
   fetchStudentCompanionsMock: vi.fn<
     (studentId: string) => Promise<StudentCompanion[]>
   >(() => new Promise(() => undefined)),
+  // Datenschutzeinwilligung und Foto (#3115): beide leben neben dem Kind und
+  // werden vom Bearbeiten-Zustand nachgeladen bzw. nach dem Speichern
+  // geschrieben.
+  fetchStudentPrivacyConsentMock: vi.fn(() =>
+    Promise.resolve({ accepted: true, dataRetentionDays: 30 }),
+  ),
+  uploadStudentPhotoMock: vi.fn(() => Promise.resolve()),
+  deleteStudentPhotoMock: vi.fn(() => Promise.resolve()),
+  photosEnabledState: { enabled: false },
+}));
+
+vi.mock("~/lib/student-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/student-api")>()),
+  fetchStudentPrivacyConsent: fetchStudentPrivacyConsentMock,
+  uploadStudentPhoto: uploadStudentPhotoMock,
+  deleteStudentPhoto: deleteStudentPhotoMock,
+}));
+
+vi.mock("~/lib/hooks/use-student-photos-enabled", () => ({
+  useStudentPhotosEnabled: () => ({
+    enabled: photosEnabledState.enabled,
+    isLoading: false,
+  }),
+}));
+
+// Der Foto-Abschnitt hat eigene Tests; hier zählt nur, was er dem Formular
+// meldet und was das Formular daraus beim Speichern macht.
+vi.mock("./student-photo-section", () => ({
+  StudentPhotoSection: ({
+    consentGiven,
+    onConsentChange,
+    onPickPhoto,
+    pendingPhotoBlob,
+  }: {
+    consentGiven: boolean;
+    onConsentChange: (value: boolean) => void;
+    onPickPhoto: (blob: Blob | null) => void;
+    pendingPhotoBlob: Blob | null;
+  }) => (
+    <div
+      data-testid="photo-section"
+      data-pending={pendingPhotoBlob ? "1" : "0"}
+    >
+      <button
+        type="button"
+        onClick={() => onConsentChange(!consentGiven)}
+        data-testid="toggle-photo-consent"
+      >
+        {consentGiven ? "Einwilligung liegt vor" : "Einwilligung fehlt"}
+      </button>
+      <button
+        type="button"
+        onClick={() => onPickPhoto(new Blob(["bild"], { type: "image/png" }))}
+        data-testid="pick-photo"
+      >
+        Foto wählen
+      </button>
+    </div>
+  ),
 }));
 
 vi.mock("~/lib/student-companion-api", async (importOriginal) => ({
@@ -135,8 +200,12 @@ describe("PersonalInfoFormModal", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    photosEnabledState.enabled = false;
     fetchStudentCompanionsMock.mockImplementation(
       () => new Promise(() => undefined),
+    );
+    fetchStudentPrivacyConsentMock.mockImplementation(() =>
+      Promise.resolve({ accepted: true, dataRetentionDays: 30 }),
     );
   });
 
@@ -698,6 +767,205 @@ describe("PersonalInfoFormModal", () => {
           }),
         );
       });
+    });
+  });
+
+  // Gruppe, Datenschutz und Foto (#3115): bis dahin nur im Pane der
+  // Kinderdaten zu bearbeiten, jetzt an der einen Objektansicht.
+  describe("Register fields at the object (#3115)", () => {
+    it("offers the school's groups and saves the chosen one", async () => {
+      mockOnSave.mockResolvedValue(undefined);
+
+      render(
+        <PersonalInfoFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          student={createMockStudent({ group_id: "" })}
+          onSave={mockOnSave}
+          groups={[
+            { value: "7", label: "Füchse" },
+            { value: "9", label: "Igel" },
+          ]}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("combobox", { name: "Gruppe" }));
+      fireEvent.click(screen.getByRole("option", { name: "Füchse" }));
+      fireEvent.click(screen.getByText("Speichern"));
+
+      await waitFor(() => {
+        expect(mockOnSave).toHaveBeenCalledWith(
+          expect.objectContaining({ group_id: "7" }),
+        );
+      });
+    });
+
+    it("loads the stored privacy consent into the form and submits it", async () => {
+      mockOnSave.mockResolvedValue(undefined);
+      fetchStudentPrivacyConsentMock.mockResolvedValue({
+        accepted: true,
+        dataRetentionDays: 21,
+      });
+
+      render(
+        <PersonalInfoFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          student={createMockStudent()}
+          onSave={mockOnSave}
+        />,
+      );
+
+      const consent = await screen.findByRole("checkbox", {
+        name: "Einwilligung zur Datenverarbeitung erteilt",
+      });
+      expect(consent).toBeChecked();
+      const retention = screen.getByLabelText<HTMLInputElement>(
+        "Aufbewahrungsdauer (Tage)",
+      );
+      expect(retention.value).toBe("21");
+
+      fireEvent.change(retention, { target: { value: "14" } });
+      fireEvent.click(screen.getByText("Speichern"));
+
+      await waitFor(() => {
+        expect(mockOnSave).toHaveBeenCalledWith(
+          expect.objectContaining({
+            privacy_consent_accepted: true,
+            data_retention_days: 14,
+          }),
+        );
+      });
+    });
+
+    it("blocks saving while the privacy consent could not be loaded", async () => {
+      fetchStudentPrivacyConsentMock.mockRejectedValue(new Error("offline"));
+
+      render(
+        <PersonalInfoFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          student={createMockStudent()}
+          onSave={mockOnSave}
+        />,
+      );
+
+      await screen.findByText(
+        /Datenschutzeinstellungen konnten nicht geladen werden/,
+      );
+      fireEvent.click(screen.getByText("Speichern"));
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Bitte neu laden, bevor Sie speichern/),
+        ).toBeInTheDocument();
+      });
+      expect(mockOnSave).not.toHaveBeenCalled();
+    });
+
+    it("shows the photo section only when the school has photos on", () => {
+      const { unmount } = render(
+        <PersonalInfoFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          student={createMockStudent()}
+          onSave={mockOnSave}
+        />,
+      );
+      expect(screen.queryByTestId("photo-section")).not.toBeInTheDocument();
+      unmount();
+
+      photosEnabledState.enabled = true;
+      render(
+        <PersonalInfoFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          student={createMockStudent()}
+          onSave={mockOnSave}
+        />,
+      );
+      expect(screen.getByTestId("photo-section")).toBeInTheDocument();
+    });
+
+    it("uploads a picked photo only after the save succeeded, then refreshes", async () => {
+      photosEnabledState.enabled = true;
+      const onStudentRefresh = vi.fn(() => Promise.resolve());
+      let resolveSave: () => void = () => undefined;
+      mockOnSave.mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveSave = resolve;
+          }),
+      );
+
+      render(
+        <PersonalInfoFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          student={createMockStudent()}
+          onSave={mockOnSave}
+          onStudentRefresh={onStudentRefresh}
+        />,
+      );
+
+      fireEvent.click(screen.getByTestId("toggle-photo-consent"));
+      fireEvent.click(screen.getByTestId("pick-photo"));
+      expect(screen.getByTestId("photo-section")).toHaveAttribute(
+        "data-pending",
+        "1",
+      );
+      fireEvent.click(screen.getByText("Speichern"));
+
+      await waitFor(() => {
+        expect(mockOnSave).toHaveBeenCalledWith(
+          expect.objectContaining({ photo_consent_given: true }),
+        );
+      });
+      // Nichts geht raus, solange der PUT läuft.
+      expect(uploadStudentPhotoMock).not.toHaveBeenCalled();
+
+      resolveSave();
+
+      await waitFor(() => {
+        expect(uploadStudentPhotoMock).toHaveBeenCalledWith(
+          "123",
+          expect.any(Blob),
+          { consentAcknowledged: true },
+        );
+      });
+      await waitFor(() => {
+        expect(onStudentRefresh).toHaveBeenCalled();
+        expect(mockOnClose).toHaveBeenCalled();
+      });
+    });
+
+    it("keeps the photo draft and reports a partial success when the upload fails", async () => {
+      photosEnabledState.enabled = true;
+      mockOnSave.mockResolvedValue(undefined);
+      uploadStudentPhotoMock.mockRejectedValueOnce(new Error("zu groß"));
+
+      render(
+        <PersonalInfoFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          student={createMockStudent({ photo_consent_given: true })}
+          onSave={mockOnSave}
+        />,
+      );
+
+      fireEvent.click(screen.getByTestId("pick-photo"));
+      fireEvent.click(screen.getByText("Speichern"));
+
+      await waitFor(() => {
+        expect(screen.getByRole("alert")).toHaveTextContent(
+          /Daten gespeichert, aber das Foto/,
+        );
+      });
+      expect(mockOnClose).not.toHaveBeenCalled();
+      expect(screen.getByTestId("photo-section")).toHaveAttribute(
+        "data-pending",
+        "1",
+      );
     });
   });
 

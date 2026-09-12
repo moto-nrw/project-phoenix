@@ -40,3 +40,12 @@ export const WithTrailingAccessory: Story = {
     trailingAccessory: <span className="text-xs text-gray-400">Aktiv</span>,
   },
 };
+
+export const AsObjectLink: Story = {
+  args: {
+    title: "Mia Fischer",
+    subtitle: "Klasse 3a · Gruppe Blau",
+    isSelected: false,
+    href: "/students/7?from=%2Fdatabase%2Fstudents",
+  },
+};

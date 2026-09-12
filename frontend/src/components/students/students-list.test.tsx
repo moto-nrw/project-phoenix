@@ -7,22 +7,9 @@ import type { Student } from "~/lib/student-helpers";
 // Mocks
 // ─────────────────────────────────────────────────────────────────────────────
 
-vi.mock("~/components/database/master-detail-layout", () => ({
-  MasterDetailLayout: (props: {
-    list: React.ReactNode;
-    detail: React.ReactNode;
-    onDeselect: () => void;
-    selectedId: string | null;
-  }) => (
-    <div>
-      <button type="button" data-testid="deselect" onClick={props.onDeselect}>
-        deselect
-      </button>
-      <div data-testid="list" data-selected={props.selectedId ?? "none"}>
-        {props.list}
-      </div>
-      <div data-testid="detail">{props.detail}</div>
-    </div>
+vi.mock("~/components/database/database-list-layout", () => ({
+  DatabaseListLayout: (props: { children: React.ReactNode }) => (
+    <div data-testid="list-layout">{props.children}</div>
   ),
 }));
 
@@ -65,44 +52,6 @@ vi.mock("~/components/database/grouped-list", () => ({
   },
 }));
 
-vi.mock("~/components/database/detail-panel", () => ({
-  DetailPanel: (props: {
-    header: React.ReactNode;
-    tabs: { id: string; label: string; content: React.ReactNode }[];
-    activeTab: string;
-    onTabChange: (id: string) => void;
-  }) => (
-    <div>
-      <div data-testid="detail-header">{props.header}</div>
-      <div>
-        {props.tabs.map((tab) => (
-          <button
-            type="button"
-            key={tab.id}
-            data-testid={`tab-trigger-${tab.id}`}
-            onClick={() => props.onTabChange(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-      {props.tabs.map((tab) =>
-        tab.id === props.activeTab ? (
-          <div key={tab.id} data-testid={`tab-content-${tab.id}`}>
-            {tab.content}
-          </div>
-        ) : null,
-      )}
-    </div>
-  ),
-}));
-
-vi.mock("~/components/database/empty-detail-state", () => ({
-  EmptyDetailState: (props: { title?: string; description?: string }) => (
-    <div data-testid="empty-detail">{props.title}</div>
-  ),
-}));
-
 vi.mock("./class-bulk-arrival-modal", () => ({
   FilteredBulkArrivalModal: (props: {
     isOpen: boolean;
@@ -143,12 +92,6 @@ vi.mock("./class-bulk-arrival-modal", () => ({
     ) : null,
 }));
 
-vi.mock("./care-schedule-manager", () => ({
-  CareScheduleManager: (props: { studentId: string }) => (
-    <div data-testid="care-schedule-manager">{props.studentId}</div>
-  ),
-}));
-
 vi.mock("./selection-bulk-pickup-modal", () => ({
   SelectionBulkPickupModal: (props: {
     studentIds: string[];
@@ -181,77 +124,33 @@ vi.mock("./class-trip-bulk-status-modal", () => ({
   ),
 }));
 
-vi.mock("~/components/database/database-detail-header", () => ({
-  DatabaseDetailHeader: (props: {
-    avatar: string;
-    title: string;
-    subtitle: string;
-    warning?: string | null;
-    actions?: React.ReactNode;
-  }) => (
-    <div data-testid="detail-header-inner" data-warning={props.warning ?? ""}>
-      {props.title}
-      {props.actions}
-    </div>
-  ),
-}));
-
-vi.mock("./student-guardians-tab", () => ({
-  StudentGuardiansTab: () => <div data-testid="guardians-tab" />,
-}));
-
-vi.mock("./student-historie-tab", () => ({
-  StudentHistorieTab: () => <div data-testid="historie-tab" />,
-}));
-
-vi.mock("./student-enrollments-tab", () => ({
-  StudentEnrollmentsTab: () => <div data-testid="enrollments-tab" />,
-}));
-
 vi.mock("~/components/database/database-list-item", () => ({
   DatabaseListItem: (props: {
     title: string;
     subtitle: React.ReactNode;
-    isSelected: boolean;
-    onSelect: () => void;
+    href?: string;
     trailingAccessory?: React.ReactNode;
+    selectionMode?: boolean;
+    isChecked?: boolean;
   }) => {
-    // Test fixtures use names like "First1 Last1"; derive the id back so
-    // assertions written against the pre-migration `student-1` testid keep
-    // working without changing the assertion shape.
     const idMatch = /First(\S+)/.exec(props.title);
     const idSlug = idMatch ? idMatch[1] : props.title;
     return (
-      <button
-        type="button"
+      <a
+        href={props.href}
         data-testid={`student-${idSlug}`}
-        data-selected={props.isSelected}
         data-trailing={props.trailingAccessory ? "true" : ""}
-        onClick={props.onSelect}
+        data-selection-mode={props.selectionMode ? "true" : "false"}
+        data-checked={props.isChecked ? "true" : "false"}
       >
         {props.title}
-        <span data-testid="list-item-subtitle">{props.subtitle}</span>
-      </button>
+        <span data-testid={`subtitle-${props.title}`}>{props.subtitle}</span>
+      </a>
     );
   },
 }));
 
-vi.mock("./student-stammdaten-tab", () => ({
-  StudentStammdatenTab: (props: {
-    student: Student;
-    onSave: (data: Partial<Student>) => Promise<void>;
-  }) => (
-    <button
-      type="button"
-      data-testid="stammdaten-tab"
-      onClick={() => void props.onSave({ first_name: "Updated" })}
-    >
-      stammdaten
-    </button>
-  ),
-}));
-
-import { StudentsMasterDetail } from "./students-master-detail";
+import { StudentsList } from "./students-list";
 
 function makeStudent(id: string, overrides: Partial<Student> = {}): Student {
   return {
@@ -267,13 +166,14 @@ function makeStudent(id: string, overrides: Partial<Student> = {}): Student {
   } as Student;
 }
 
-describe("StudentsMasterDetail", () => {
+const objectHref = (student: Student) =>
+  `/students/${student.id}?from=%2Fdatabase%2Fstudents`;
+
+describe("StudentsList", () => {
   const baseProps = {
-    selectedId: null,
-    onSelect: vi.fn(),
     onArrivalDataChanged: vi.fn(),
-    groups: [] as Array<{ value: string; label: string }>,
-    onUpdateStudent: vi.fn(),
+    objectHref,
+    arrivalSummaryById: new Map<string, string>(),
   };
 
   beforeEach(() => {
@@ -282,12 +182,11 @@ describe("StudentsMasterDetail", () => {
 
   it("shows empty state when students list is empty", () => {
     render(
-      <StudentsMasterDetail
+      <StudentsList
         {...baseProps}
         students={[]}
         grouping="class"
         studentsWithArrival={new Set()}
-        arrivalSummaryById={new Map()}
       />,
     );
 
@@ -295,33 +194,33 @@ describe("StudentsMasterDetail", () => {
     expect(screen.getByText("Keine Kinder gefunden.")).toBeInTheDocument();
   });
 
-  it("keeps the student list constrained to the scrollable master pane", () => {
+  it("links every row to the child's object route", () => {
     render(
-      <StudentsMasterDetail
+      <StudentsList
         {...baseProps}
         students={[makeStudent("1"), makeStudent("2")]}
-        grouping="class"
+        grouping="none"
         studentsWithArrival={new Set(["1", "2"])}
-        arrivalSummaryById={new Map()}
       />,
     );
 
-    expect(screen.getByTestId("list").firstElementChild).toHaveClass(
-      "flex",
-      "min-h-0",
-      "flex-1",
-      "flex-col",
+    expect(screen.getByTestId("student-1")).toHaveAttribute(
+      "href",
+      "/students/1?from=%2Fdatabase%2Fstudents",
+    );
+    expect(screen.getByTestId("student-2")).toHaveAttribute(
+      "href",
+      "/students/2?from=%2Fdatabase%2Fstudents",
     );
   });
 
   it("renders a flat single-group list when grouping is 'none'", () => {
     render(
-      <StudentsMasterDetail
+      <StudentsList
         {...baseProps}
         students={[makeStudent("1"), makeStudent("2")]}
         grouping="none"
         studentsWithArrival={new Set(["1", "2"])}
-        arrivalSummaryById={new Map()}
       />,
     );
 
@@ -332,7 +231,7 @@ describe("StudentsMasterDetail", () => {
 
   it("groups by class and shows warning variant when some miss arrival", () => {
     render(
-      <StudentsMasterDetail
+      <StudentsList
         {...baseProps}
         students={[
           makeStudent("1", { school_class: "3a" }),
@@ -341,7 +240,6 @@ describe("StudentsMasterDetail", () => {
         ]}
         grouping="class"
         studentsWithArrival={new Set(["1"])}
-        arrivalSummaryById={new Map()}
       />,
     );
 
@@ -352,23 +250,24 @@ describe("StudentsMasterDetail", () => {
     );
   });
 
-  it("labels fallback group when student has no class", () => {
+  it("labels fallback groups when class or group are missing", () => {
     render(
-      <StudentsMasterDetail
+      <StudentsList
         {...baseProps}
-        students={[makeStudent("1", { school_class: "" })]}
+        students={[
+          makeStudent("1", { school_class: "" }),
+          makeStudent("2", { school_class: "3a" }),
+        ]}
         grouping="class"
-        studentsWithArrival={new Set(["1"])}
-        arrivalSummaryById={new Map()}
+        studentsWithArrival={new Set(["1", "2"])}
       />,
     );
-
     expect(screen.getByTestId("group-title-Ohne Klasse")).toBeInTheDocument();
   });
 
   it("groups by group_name and falls back on missing name", () => {
     render(
-      <StudentsMasterDetail
+      <StudentsList
         {...baseProps}
         students={[
           makeStudent("1", { group_name: "Füchse" }),
@@ -376,7 +275,6 @@ describe("StudentsMasterDetail", () => {
         ]}
         grouping="group"
         studentsWithArrival={new Set(["1", "2"])}
-        arrivalSummaryById={new Map()}
       />,
     );
 
@@ -390,7 +288,7 @@ describe("StudentsMasterDetail", () => {
 
   it("passes arrival summary and arrival flag to list items", () => {
     render(
-      <StudentsMasterDetail
+      <StudentsList
         {...baseProps}
         students={[makeStudent("1"), makeStudent("2")]}
         grouping="class"
@@ -399,180 +297,18 @@ describe("StudentsMasterDetail", () => {
       />,
     );
 
-    // With-arrival student: subtitle carries the formatted summary, no
-    // trailing warning icon.
     const one = screen.getByTestId("student-1");
     expect(one).toHaveAttribute("data-trailing", "");
     expect(one).toHaveTextContent("Mo-Fr 08:00");
 
-    // Without-arrival student: subtitle says "keine Ankunft" and the
-    // trailing accessory (AlertCircle) is set.
     const two = screen.getByTestId("student-2");
     expect(two).toHaveAttribute("data-trailing", "true");
     expect(two).toHaveTextContent("keine Ankunft");
   });
 
-  it("calls onSelect when a list item is clicked", () => {
-    const onSelect = vi.fn();
-    render(
-      <StudentsMasterDetail
-        {...baseProps}
-        onSelect={onSelect}
-        students={[makeStudent("1")]}
-        grouping="class"
-        studentsWithArrival={new Set()}
-        arrivalSummaryById={new Map()}
-      />,
-    );
-
-    fireEvent.click(screen.getByTestId("student-1"));
-    expect(onSelect).toHaveBeenCalledWith("1");
-  });
-
-  it("calls onSelect(null) on deselect", () => {
-    const onSelect = vi.fn();
-    render(
-      <StudentsMasterDetail
-        {...baseProps}
-        onSelect={onSelect}
-        students={[makeStudent("1")]}
-        grouping="class"
-        studentsWithArrival={new Set()}
-        arrivalSummaryById={new Map()}
-      />,
-    );
-
-    fireEvent.click(screen.getByTestId("deselect"));
-    expect(onSelect).toHaveBeenCalledWith(null);
-  });
-
-  it("renders empty detail when no student is selected", () => {
-    render(
-      <StudentsMasterDetail
-        {...baseProps}
-        students={[makeStudent("1")]}
-        grouping="class"
-        studentsWithArrival={new Set()}
-        arrivalSummaryById={new Map()}
-      />,
-    );
-
-    expect(screen.getByTestId("empty-detail")).toHaveTextContent(
-      "Kein Kind ausgewählt",
-    );
-  });
-
-  it("renders detail panel with Stammdaten tab active by default", () => {
-    render(
-      <StudentsMasterDetail
-        {...baseProps}
-        selectedId="1"
-        students={[makeStudent("1")]}
-        grouping="class"
-        studentsWithArrival={new Set(["1"])}
-        arrivalSummaryById={new Map()}
-      />,
-    );
-
-    expect(screen.getByTestId("detail-header-inner")).toHaveAttribute(
-      "data-warning",
-      "",
-    );
-    expect(screen.getByTestId("tab-content-master-data")).toBeInTheDocument();
-  });
-
-  it("shows Anmeldungen tab only when allowed", () => {
-    const { rerender } = render(
-      <StudentsMasterDetail
-        {...baseProps}
-        students={[makeStudent("1")]}
-        selectedId="1"
-        grouping="none"
-        studentsWithArrival={new Set(["1"])}
-        arrivalSummaryById={new Map()}
-      />,
-    );
-
-    expect(screen.queryByText("Anmeldungen")).not.toBeInTheDocument();
-
-    rerender(
-      <StudentsMasterDetail
-        {...baseProps}
-        students={[makeStudent("1")]}
-        selectedId="1"
-        grouping="none"
-        studentsWithArrival={new Set(["1"])}
-        arrivalSummaryById={new Map()}
-        canViewEnrollments
-      />,
-    );
-
-    expect(screen.getByText("Anmeldungen")).toBeInTheDocument();
-  });
-
-  it("shows warning in header when student has no arrival", () => {
-    render(
-      <StudentsMasterDetail
-        {...baseProps}
-        selectedId="1"
-        students={[makeStudent("1")]}
-        grouping="class"
-        studentsWithArrival={new Set()}
-        arrivalSummaryById={new Map()}
-      />,
-    );
-
-    expect(screen.getByTestId("detail-header-inner")).toHaveAttribute(
-      "data-warning",
-      "Ankunft offen",
-    );
-  });
-
-  it("switches tab when a tab trigger is clicked", () => {
-    render(
-      <StudentsMasterDetail
-        {...baseProps}
-        selectedId="1"
-        students={[makeStudent("1")]}
-        grouping="class"
-        studentsWithArrival={new Set()}
-        arrivalSummaryById={new Map()}
-      />,
-    );
-
-    fireEvent.click(screen.getByTestId("tab-trigger-betreuungszeiten"));
-    expect(screen.getByTestId("care-schedule-manager")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByTestId("tab-trigger-history"));
-    expect(screen.getByTestId("historie-tab")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByTestId("tab-trigger-guardians"));
-    expect(screen.getByTestId("guardians-tab")).toBeInTheDocument();
-  });
-
-  it("propagates Stammdaten onSave to onUpdateStudent", () => {
-    const onUpdateStudent = vi.fn();
-    render(
-      <StudentsMasterDetail
-        {...baseProps}
-        onUpdateStudent={onUpdateStudent}
-        selectedId="1"
-        students={[makeStudent("1")]}
-        grouping="class"
-        studentsWithArrival={new Set(["1"])}
-        arrivalSummaryById={new Map()}
-      />,
-    );
-
-    fireEvent.click(screen.getByTestId("stammdaten-tab"));
-    expect(onUpdateStudent).toHaveBeenCalledWith("1", {
-      first_name: "Updated",
-    });
-  });
-
   it("renders class actions menu only for known class groups", () => {
     render(
-      <StudentsMasterDetail
+      <StudentsList
         {...baseProps}
         students={[
           makeStudent("1", { school_class: "3a" }),
@@ -580,19 +316,18 @@ describe("StudentsMasterDetail", () => {
         ]}
         grouping="class"
         studentsWithArrival={new Set(["1", "2"])}
-        arrivalSummaryById={new Map()}
       />,
     );
 
     expect(screen.getByLabelText("Aktionen für 3a")).toBeInTheDocument();
     expect(
-      screen.queryByLabelText("Aktionen für Klasse Ohne Klasse"),
+      screen.queryByLabelText("Aktionen für Ohne Klasse"),
     ).not.toBeInTheDocument();
   });
 
   it("renders arrival actions when grouping by a known group", () => {
     render(
-      <StudentsMasterDetail
+      <StudentsList
         {...baseProps}
         students={[
           makeStudent("1", {
@@ -603,7 +338,6 @@ describe("StudentsMasterDetail", () => {
         ]}
         grouping="group"
         studentsWithArrival={new Set(["1"])}
-        arrivalSummaryById={new Map()}
       />,
     );
 
@@ -612,12 +346,11 @@ describe("StudentsMasterDetail", () => {
 
   it("opens bulk arrival modal from class actions menu", () => {
     render(
-      <StudentsMasterDetail
+      <StudentsList
         {...baseProps}
         students={[makeStudent("1", { school_class: "3a" })]}
         grouping="class"
         studentsWithArrival={new Set(["1"])}
-        arrivalSummaryById={new Map()}
       />,
     );
 
@@ -638,12 +371,11 @@ describe("StudentsMasterDetail", () => {
 
   it("opens bulk arrival modal with the selected group filter", () => {
     render(
-      <StudentsMasterDetail
+      <StudentsList
         {...baseProps}
         students={[makeStudent("1", { group_id: "17", group_name: "Füchse" })]}
         grouping="group"
         studentsWithArrival={new Set(["1"])}
-        arrivalSummaryById={new Map()}
       />,
     );
 
@@ -662,9 +394,9 @@ describe("StudentsMasterDetail", () => {
     );
   });
 
-  it("uses the unfiltered cohort for the bulk preview", () => {
+  it("uses the unfiltered cohort for the bulk preview and class trips", () => {
     render(
-      <StudentsMasterDetail
+      <StudentsList
         {...baseProps}
         students={[makeStudent("1", { school_class: "3a" })]}
         bulkStudents={[
@@ -673,7 +405,6 @@ describe("StudentsMasterDetail", () => {
         ]}
         grouping="class"
         studentsWithArrival={new Set(["1"])}
-        arrivalSummaryById={new Map()}
       />,
     );
 
@@ -681,69 +412,32 @@ describe("StudentsMasterDetail", () => {
     fireEvent.click(
       screen.getByRole("menuitem", { name: /Ankunftszeit bearbeiten/ }),
     );
-
     expect(screen.getByTestId("bulk-modal")).toHaveAttribute(
       "data-student-count",
       "2",
     );
-  });
-
-  it("uses the unfiltered cohort for class-trip planning", () => {
-    render(
-      <StudentsMasterDetail
-        {...baseProps}
-        students={[makeStudent("1", { school_class: "3a" })]}
-        bulkStudents={[
-          makeStudent("1", { school_class: "3a" }),
-          makeStudent("2", { school_class: "3a" }),
-        ]}
-        grouping="class"
-        studentsWithArrival={new Set(["1"])}
-        arrivalSummaryById={new Map()}
-      />,
-    );
+    fireEvent.click(screen.getByTestId("bulk-close"));
+    expect(screen.queryByTestId("bulk-modal")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText("Aktionen für 3a"));
     fireEvent.click(
       screen.getByRole("menuitem", { name: "Klassenfahrt planen" }),
     );
-
     expect(screen.getByTestId("class-trip-selection-modal")).toHaveAttribute(
       "data-student-ids",
       "1,2",
     );
   });
 
-  it("closes bulk modal via onClose", () => {
-    render(
-      <StudentsMasterDetail
-        {...baseProps}
-        students={[makeStudent("1", { school_class: "3a" })]}
-        grouping="class"
-        studentsWithArrival={new Set(["1"])}
-        arrivalSummaryById={new Map()}
-      />,
-    );
-
-    fireEvent.click(screen.getByLabelText("Aktionen für 3a"));
-    fireEvent.click(
-      screen.getByRole("menuitem", { name: /Ankunftszeit bearbeiten/ }),
-    );
-
-    fireEvent.click(screen.getByTestId("bulk-close"));
-    expect(screen.queryByTestId("bulk-modal")).not.toBeInTheDocument();
-  });
-
   it("invokes onArrivalDataChanged when bulk modal succeeds", () => {
     const onArrivalDataChanged = vi.fn();
     render(
-      <StudentsMasterDetail
+      <StudentsList
         {...baseProps}
         onArrivalDataChanged={onArrivalDataChanged}
         students={[makeStudent("1", { school_class: "3a" })]}
         grouping="class"
         studentsWithArrival={new Set(["1"])}
-        arrivalSummaryById={new Map()}
       />,
     );
 
@@ -756,37 +450,15 @@ describe("StudentsMasterDetail", () => {
     expect(onArrivalDataChanged).toHaveBeenCalled();
   });
 
-  it("actions menu closes on outside click", () => {
-    render(
-      <div>
-        <div data-testid="outside">outside</div>
-        <StudentsMasterDetail
-          {...baseProps}
-          students={[makeStudent("1", { school_class: "3a" })]}
-          grouping="class"
-          studentsWithArrival={new Set(["1"])}
-          arrivalSummaryById={new Map()}
-        />
-      </div>,
-    );
-
-    fireEvent.click(screen.getByLabelText("Aktionen für 3a"));
-    expect(screen.getByRole("menu")).toBeInTheDocument();
-
-    fireEvent.mouseDown(screen.getByTestId("outside"));
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
-  });
-
   it("uses the controlled selection for bulk actions and selection controls", () => {
     const onClearSelection = vi.fn();
     const onFinishSelection = vi.fn();
     render(
-      <StudentsMasterDetail
+      <StudentsList
         {...baseProps}
         students={[makeStudent("1"), makeStudent("2"), makeStudent("3")]}
         grouping="none"
         studentsWithArrival={new Set(["1", "2", "3"])}
-        arrivalSummaryById={new Map()}
         selectionMode
         selectedStudentIds={new Set(["1", "3"])}
         onClearSelection={onClearSelection}
@@ -796,24 +468,24 @@ describe("StudentsMasterDetail", () => {
 
     expect(screen.getByText("2 ausgewählt")).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Auswahl" })).toBeInTheDocument();
+    expect(screen.getByTestId("student-1")).toHaveAttribute(
+      "data-selection-mode",
+      "true",
+    );
+    expect(screen.getByTestId("student-1")).toHaveAttribute(
+      "data-checked",
+      "true",
+    );
     fireEvent.click(screen.getByRole("button", { name: "Aufheben" }));
     fireEvent.click(screen.getByRole("button", { name: "Fertig" }));
     expect(onClearSelection).toHaveBeenCalledOnce();
     expect(onFinishSelection).toHaveBeenCalledOnce();
 
-    expect(
-      screen.getByRole("button", { name: "Gehzeiten" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Klassenfahrt" }),
-    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Ankunftszeiten" }));
     expect(screen.getByTestId("bulk-modal")).toHaveAttribute(
       "data-filter-value",
       "1,3",
     );
-    fireEvent.click(screen.getByTestId("bulk-success"));
-    expect(screen.getByText("2 ausgewählt")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("bulk-close"));
 
     fireEvent.click(screen.getByRole("button", { name: "Gehzeiten" }));
@@ -828,5 +500,105 @@ describe("StudentsMasterDetail", () => {
       "data-student-ids",
       "1,3",
     );
+  });
+
+  describe("Betreuung beenden (#2487)", () => {
+    const selectionProps = {
+      ...baseProps,
+      grouping: "class" as const,
+      studentsWithArrival: new Set<string>(["1", "2", "3"]),
+    };
+
+    it("selects exactly the children currently shown", () => {
+      const onSelectAllVisible = vi.fn();
+      render(
+        <StudentsList
+          {...selectionProps}
+          students={[makeStudent("1"), makeStudent("2")]}
+          selectionMode
+          selectedStudentIds={new Set()}
+          onSelectAllVisible={onSelectAllVisible}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Alle 2 auswählen" }));
+      expect(onSelectAllVisible).toHaveBeenCalledWith(["1", "2"]);
+    });
+
+    it("offers 'Betreuung beenden' only with the delete permission", () => {
+      const { rerender } = render(
+        <StudentsList
+          {...selectionProps}
+          students={[makeStudent("1")]}
+          selectionMode
+          selectedStudentIds={new Set(["1"])}
+        />,
+      );
+      expect(
+        screen.queryByRole("button", { name: "Betreuung beenden" }),
+      ).toBeNull();
+
+      const onEndCare = vi.fn();
+      rerender(
+        <StudentsList
+          {...selectionProps}
+          students={[makeStudent("1")]}
+          selectionMode
+          selectedStudentIds={new Set(["1"])}
+          onEndCare={onEndCare}
+        />,
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Betreuung beenden" }),
+      );
+      expect(onEndCare).toHaveBeenCalled();
+    });
+
+    it("disables the bulk action while nothing is selected", () => {
+      render(
+        <StudentsList
+          {...selectionProps}
+          students={[makeStudent("1")]}
+          selectionMode
+          selectedStudentIds={new Set()}
+          onEndCare={vi.fn()}
+        />,
+      );
+      expect(
+        screen.getByRole("button", { name: "Betreuung beenden" }),
+      ).toBeDisabled();
+    });
+
+    it("labels a planned exit in the list", () => {
+      render(
+        <StudentsList
+          {...selectionProps}
+          students={[
+            makeStudent("1", {
+              care_ends_on: "2026-09-30",
+              care_ended: false,
+              care_exit_recorded: true,
+            }),
+          ]}
+        />,
+      );
+      expect(screen.getByTestId("subtitle-First1 Last1").textContent).toContain(
+        "Betreuung endet am 30.09.2026",
+      );
+    });
+
+    it("says nothing about a mere end of the enrolment phase", () => {
+      render(
+        <StudentsList
+          {...selectionProps}
+          students={[
+            makeStudent("1", { care_ends_on: "2027-07-31", care_ended: false }),
+          ]}
+        />,
+      );
+      expect(
+        screen.getByTestId("subtitle-First1 Last1").textContent,
+      ).not.toContain("Betreuung endet");
+    });
   });
 });
