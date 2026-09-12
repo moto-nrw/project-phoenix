@@ -521,8 +521,9 @@ of the adapter exists only because the per-type decide routes still render
 the same wire shapes from the retained service items; it goes when those
 routes move to their owners. #3174 converts the temporary permissions for the
 adapter's legacy imports, its tests, and its students and root-composition
-callers to exact `imports.forbidden` debt in `legacy.jsonl`. Keep #3174 open
-while those tuples remain. The adapter's own public-capability binding, its
+callers to exact `imports.forbidden` debt in `legacy.jsonl`, tracked by #3179.
+Keep #3179 open until all 27 imports and the legacy adapter are removed.
+The adapter's own public-capability binding, its
 Care Plan public-contract import, and the students HTTP call to the public
 projection remain target-allowed. Rebind each legacy port to its owner's
 public capability as it appears, remove each tuple with its import, and delete
