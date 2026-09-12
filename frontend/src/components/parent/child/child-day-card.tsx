@@ -294,14 +294,17 @@ function ChildDayActions({
   const t = useTranslations("parentToday");
   if (!features) return null;
 
-  const anyAction =
+  const canReportAbsence =
     features.sick_note_enabled ||
+    (features.excused_note_enabled ?? features.sick_note_enabled);
+  const anyAction =
+    canReportAbsence ||
     features.pickup_change_enabled ||
     features.notes_enabled;
   if (!anyAction) return null;
 
   const actionCount = [
-    features.sick_note_enabled,
+    canReportAbsence,
     features.pickup_change_enabled,
     features.notes_enabled,
   ].filter(Boolean).length;
@@ -383,7 +386,7 @@ function ChildDayActions({
     <div
       className={`grid grid-cols-1 gap-2 border-t border-gray-100 pt-4 ${gridColumns}`}
     >
-      {features.sick_note_enabled &&
+      {canReportAbsence &&
         (onSick ? (
           <Button
             type="button"

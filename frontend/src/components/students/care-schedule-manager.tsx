@@ -147,6 +147,7 @@ interface CareScheduleManagerProps {
   readonly isExcused?: boolean;
   readonly statusDays?: StudentStatusDay[];
   readonly onDeleteStatusDay?: (statusDayId: string) => Promise<void>;
+  readonly canDeleteStatusDay?: (day: StudentStatusDay) => boolean;
   readonly onVisibleDateRangeChange?: (from: string, to: string) => void;
 }
 
@@ -240,6 +241,7 @@ export function CareScheduleManager({
   isExcused = false,
   statusDays = EMPTY_STATUS_DAYS,
   onDeleteStatusDay,
+  canDeleteStatusDay,
   onVisibleDateRangeChange,
 }: CareScheduleManagerProps) {
   const [arrivalData, setArrivalData] = useState<ArrivalData>({
@@ -906,6 +908,7 @@ export function CareScheduleManager({
             onSelectDay={(day) => setSelectedDateKey(formatDateISO(day.date))}
             onEditDay={(day) => setEditorTarget({ date: day })}
             onRequestDeleteStatusDay={setStatusDayToDelete}
+            canDeleteStatusDay={canDeleteStatusDay}
           />
         </div>
         <div className="hidden @4xl:block">
@@ -918,6 +921,7 @@ export function CareScheduleManager({
                 onEditDay={(day) => setEditorTarget({ date: day })}
                 deletingStatusDayId={deletingStatusDayId}
                 onRequestDeleteStatusDay={setStatusDayToDelete}
+                canDeleteStatusDay={canDeleteStatusDay}
               />
             ))}
           </div>
@@ -1008,6 +1012,7 @@ function MobileCareWeek({
   onSelectDay,
   onEditDay,
   onRequestDeleteStatusDay,
+  canDeleteStatusDay,
 }: {
   readonly days: CareDayData[];
   readonly weekMonth: string;
@@ -1019,6 +1024,7 @@ function MobileCareWeek({
   readonly onSelectDay: (day: CareDayData) => void;
   readonly onEditDay: (date: Date) => void;
   readonly onRequestDeleteStatusDay: (statusDay: StudentStatusDay) => void;
+  readonly canDeleteStatusDay?: (day: StudentStatusDay) => boolean;
 }) {
   return (
     <div className="space-y-3">
@@ -1055,6 +1061,7 @@ function MobileCareWeek({
           onEditDay={onEditDay}
           deletingStatusDayId={deletingStatusDayId}
           onRequestDeleteStatusDay={onRequestDeleteStatusDay}
+          canDeleteStatusDay={canDeleteStatusDay}
           isMobileDetail
         />
       ) : null}
@@ -1139,6 +1146,7 @@ function CareDayCard({
   onEditDay,
   deletingStatusDayId,
   onRequestDeleteStatusDay,
+  canDeleteStatusDay,
   isMobileDetail = false,
 }: {
   readonly day: CareDayData;
@@ -1146,6 +1154,7 @@ function CareDayCard({
   readonly onEditDay: (date: Date) => void;
   readonly deletingStatusDayId: string | null;
   readonly onRequestDeleteStatusDay: (statusDay: StudentStatusDay) => void;
+  readonly canDeleteStatusDay?: (day: StudentStatusDay) => boolean;
   readonly isMobileDetail?: boolean;
 }) {
   const weekdayInfo = WEEKDAYS[day.weekday - 1];
@@ -1226,7 +1235,11 @@ function CareDayCard({
           <AbsencePlaceholder
             status={day.status}
             statusDay={day.statusDay}
-            readOnly={readOnly}
+            readOnly={
+              day.statusDay
+                ? !(canDeleteStatusDay?.(day.statusDay) ?? !readOnly)
+                : true
+            }
             isDeleting={deletingStatusDayId === day.statusDay?.id}
             onRequestDeleteStatusDay={onRequestDeleteStatusDay}
           />

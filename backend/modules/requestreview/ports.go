@@ -98,7 +98,7 @@ type Queue interface {
 	// decision first.
 	History(ctx context.Context, filter QueueFilter) ([]Row, *Cursor, error)
 	// OpenCount is the number of pending requests the caller may review.
-	OpenCount(ctx context.Context) (int, error)
+	OpenCount(ctx context.Context, today Date) (int, error)
 }
 
 // CorrectionLog is the office's own booking corrections. A correction has no

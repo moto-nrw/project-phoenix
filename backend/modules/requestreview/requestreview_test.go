@@ -27,6 +27,7 @@ type fakeQueue struct {
 	histCalls []QueueFilter
 	count     int
 	countErr  error
+	countDays []Date
 }
 
 func keyset(rows []Row, filter QueueFilter) ([]Row, *Cursor) {
@@ -82,7 +83,10 @@ func (q *fakeQueue) History(_ context.Context, filter QueueFilter) ([]Row, *Curs
 	return rows, next, nil
 }
 
-func (q *fakeQueue) OpenCount(context.Context) (int, error) { return q.count, q.countErr }
+func (q *fakeQueue) OpenCount(_ context.Context, today Date) (int, error) {
+	q.countDays = append(q.countDays, today)
+	return q.count, q.countErr
+}
 
 type fakeAccess struct {
 	caller    Caller
@@ -167,6 +171,56 @@ func parse(t *testing.T, raw string) ListQuery {
 	q, err := ParseListQuery(values)
 	require.NoError(t, err)
 	return q
+}
+
+func TestConflictScanUsesTheRequestDay(t *testing.T) {
+	t.Parallel()
+	f := newFixture()
+	row := openRow(TypeMasterData, 1, 10, "Child", base)
+	row.ConflictKeys = []string{"field"}
+	f.master.open = []Row{row}
+	calls := 0
+	query := New(Dependencies{
+		Queues: Queues{MasterData: f.master, CareSchedule: f.care, Offering: f.offering, Excused: f.excused, DirectCorrections: f.corrections},
+		Access: f.access,
+		Today: func() Date {
+			calls++
+			if calls == 1 {
+				return Date("2026-08-10")
+			}
+			return Date("2026-08-11")
+		},
+	})
+	_, err := query.ListRequests(context.Background(), parse(t, "type=master_data"))
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(f.master.openCalls), 2, "includes the whole-queue conflict scan")
+	for _, filter := range f.master.openCalls {
+		assert.Equal(t, "2026-08-10", filter.UrgentDate)
+	}
+	assert.Equal(t, 1, calls)
+}
+
+func TestPendingCountUsesOneRequestDay(t *testing.T) {
+	t.Parallel()
+	f := newFixture()
+	calls := 0
+	query := New(Dependencies{
+		Queues: Queues{MasterData: f.master, CareSchedule: f.care, Offering: f.offering, Excused: f.excused, DirectCorrections: f.corrections},
+		Access: f.access,
+		Today: func() Date {
+			calls++
+			if calls == 1 {
+				return Date("2026-08-10")
+			}
+			return Date("2026-08-11")
+		},
+	})
+	_, err := query.PendingCount(context.Background())
+	require.NoError(t, err)
+	for _, queue := range []*fakeQueue{f.master, f.care, f.offering, f.excused} {
+		assert.Equal(t, []Date{"2026-08-10"}, queue.countDays)
+	}
+	assert.Equal(t, 1, calls)
 }
 
 func itemIDs(page Page) []string {
@@ -330,7 +384,7 @@ func TestListJudgesUrgencyAgainstTheInjectedDay(t *testing.T) {
 	phases := 0
 	for _, call := range f.excused.openCalls {
 		if call.UrgentOnly == nil {
-			assert.Empty(t, call.UrgentDate, "the conflict scan spans both phases and judges no urgency")
+			assert.Equal(t, "2026-08-24", call.UrgentDate, "the conflict scan spans both phases on the same shared day")
 			continue
 		}
 		phases++

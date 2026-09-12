@@ -72,6 +72,7 @@ interface PlannedStatusDaysModalProps {
   ) => Promise<StudentPartialAbsence[]>;
   readonly onSubmit: (dates: string[], reason?: string) => Promise<void>;
   readonly onDeleteStatusDay?: (statusDayId: string) => Promise<void>;
+  readonly canDeleteStatusDay?: (day: StudentStatusDay) => boolean;
   readonly loadCarePlanDay?: (date: string) => Promise<CarePlanDay>;
   readonly onSubmitPartialAbsence?: (
     partialAbsenceId: string | null,
@@ -111,6 +112,7 @@ export function PlannedStatusDaysModal({
   loadPartialAbsences,
   onSubmit,
   onDeleteStatusDay,
+  canDeleteStatusDay,
   loadCarePlanDay,
   onSubmitPartialAbsence,
   onDeletePartialAbsence,
@@ -1064,7 +1066,8 @@ export function PlannedStatusDaysModal({
                             </span>
                           ) : null}
                         </span>
-                        {onDeleteStatusDay ? (
+                        {onDeleteStatusDay &&
+                        (canDeleteStatusDay?.(day) ?? true) ? (
                           <OverflowMenu
                             ariaLabel={`Aktionen für ${formatDateLabel(day.date)}`}
                             items={[

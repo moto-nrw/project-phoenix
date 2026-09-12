@@ -55,6 +55,14 @@ func New(deps Dependencies) Query {
 	return &service{deps: deps}
 }
 
+// NewChecked rejects incomplete native wiring during composition.
+func NewChecked(deps Dependencies) (Query, error) {
+	if err := (&service{deps: deps}).configured(); err != nil {
+		return nil, err
+	}
+	return New(deps), nil
+}
+
 // Wire names of the request types. They double as the cursor's map keys.
 const (
 	TypeMasterData   = "master_data"
@@ -181,7 +189,7 @@ func (s *service) ListRequests(ctx context.Context, query ListQuery) (Page, erro
 		return Page{}, err
 	}
 	if !query.History {
-		if err := s.decorateOpenPage(ctx, &page, query.Types); err != nil {
+		if err := s.decorateOpenPage(ctx, &page, query.Types, query.today); err != nil {
 			return Page{}, err
 		}
 	}
@@ -198,7 +206,8 @@ func (s *service) PendingCount(ctx context.Context) (int, error) {
 	if err := s.configured(); err != nil {
 		return 0, err
 	}
-	pending, err := s.deps.Queues.Excused.OpenCount(ctx)
+	today := s.deps.Today()
+	pending, err := s.deps.Queues.Excused.OpenCount(ctx, today)
 	if err != nil {
 		return 0, err
 	}
@@ -210,7 +219,7 @@ func (s *service) PendingCount(ctx context.Context) (int, error) {
 		return pending, nil
 	}
 	for _, queue := range []Queue{s.deps.Queues.MasterData, s.deps.Queues.CareSchedule, s.deps.Queues.Offering} {
-		count, err := queue.OpenCount(ctx)
+		count, err := queue.OpenCount(ctx, today)
 		if err != nil {
 			return 0, err
 		}

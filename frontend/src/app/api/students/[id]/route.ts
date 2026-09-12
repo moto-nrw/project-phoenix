@@ -147,6 +147,7 @@ export const GET = createGetHandler(
         has_full_access?: boolean;
         has_write_access?: boolean;
         has_absence_write_access?: boolean;
+        has_sick_excused_write_access?: boolean;
         group_supervisors?: Array<{
           id: number;
           first_name: string;
@@ -173,6 +174,8 @@ export const GET = createGetHandler(
       // Stammdaten flag so an older backend keeps the previous behavior.
       const hasAbsenceWriteAccess =
         studentData.has_absence_write_access ?? hasWriteAccess;
+      const hasSickExcusedWriteAccess =
+        studentData.has_sick_excused_write_access ?? hasAbsenceWriteAccess;
       const groupSupervisors = studentData.group_supervisors ?? [];
       const attendanceLogEnabled =
         (studentData.attendance_log_enabled as boolean) ?? false;
@@ -204,6 +207,7 @@ export const GET = createGetHandler(
         has_full_access: hasFullAccess,
         has_write_access: hasWriteAccess,
         has_absence_write_access: hasAbsenceWriteAccess,
+        has_sick_excused_write_access: hasSickExcusedWriteAccess,
         group_supervisors: groupSupervisors,
         attendance_log_enabled: attendanceLogEnabled,
         feedback_enabled: feedbackEnabled,

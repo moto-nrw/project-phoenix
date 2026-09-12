@@ -422,6 +422,7 @@ function StudentDetailPageContent() {
     hasFullAccess,
     hasWriteAccess,
     hasAbsenceWriteAccess,
+    hasSickExcusedWriteAccess,
     attendanceLogEnabled,
     feedbackEnabled,
     supervisors,
@@ -594,12 +595,20 @@ function StudentDetailPageContent() {
   // planning dialog opened empty for a school without feste Gruppen — existing
   // sick days stayed invisible and could not be cleared.
   const canReadStatusDays = hasFullAccess || hasAbsenceWriteAccess;
+  const canDeleteStatusDay = useCallback(
+    (day: StudentStatusDay) =>
+      day.status === "class_trip"
+        ? hasAbsenceWriteAccess
+        : hasSickExcusedWriteAccess,
+    [hasAbsenceWriteAccess, hasSickExcusedWriteAccess],
+  );
   // A partial excusal ("Ab Uhrzeit") is a pickup exception, not a status day:
   // its endpoints require users:update at the route AND full care access to the
   // child in the handler. The absence permission grants neither, so the scope
   // switch stays hidden for an absence-only staffer instead of offering a save
   // that would fail (#2232).
   const canPlanPartialExcusal =
+    hasSickExcusedWriteAccess &&
     hasFullAccess &&
     hasWriteAccess &&
     sessionStatus === "authenticated" &&
@@ -1243,6 +1252,7 @@ function StudentDetailPageContent() {
           showCheckout={showCheckout}
           showCheckin={showCheckin}
           hasAbsenceWriteAccess={hasAbsenceWriteAccess}
+          hasSickExcusedWriteAccess={hasSickExcusedWriteAccess}
           onCheckoutClick={() => setShowConfirmCheckout(true)}
           onCheckinClick={() => setShowConfirmCheckin(true)}
           onSickClick={handleSickClick}
@@ -1294,7 +1304,7 @@ function StudentDetailPageContent() {
 
           {/* Sick Report Confirmation Modal */}
           <ConfirmationModal
-            isOpen={showConfirmSick}
+            isOpen={showConfirmSick && hasSickExcusedWriteAccess}
             onClose={() => {
               setShowConfirmSick(false);
               setSickReason("");
@@ -1341,7 +1351,7 @@ function StudentDetailPageContent() {
 
           {/* Excused Confirmation Modal */}
           <ConfirmationModal
-            isOpen={showConfirmExcused}
+            isOpen={showConfirmExcused && hasSickExcusedWriteAccess}
             onClose={() => setShowConfirmExcused(false)}
             onConfirm={handleConfirmExcusedToggle}
             title={
@@ -1369,7 +1379,7 @@ function StudentDetailPageContent() {
 
           {/* Switch Dialog, shown when user clicks one flag but the other is set */}
           <ConfirmationModal
-            isOpen={switchTarget !== null}
+            isOpen={switchTarget !== null && hasSickExcusedWriteAccess}
             onClose={() => setSwitchTarget(null)}
             onConfirm={handleConfirmSwitch}
             title={
@@ -1399,7 +1409,12 @@ function StudentDetailPageContent() {
           </ConfirmationModal>
 
           <PlannedStatusDaysModal
-            isOpen={plannedStatusModal !== null}
+            isOpen={
+              plannedStatusModal !== null &&
+              (plannedStatusModal === "class_trip"
+                ? hasAbsenceWriteAccess
+                : hasSickExcusedWriteAccess)
+            }
             status={plannedStatusModal ?? "sick"}
             studentName={student.name}
             isSubmitting={plannedStatusLoading}
@@ -1413,8 +1428,11 @@ function StudentDetailPageContent() {
             loadCarePlanDay={loadPlannedCarePlanDay}
             onSubmit={handleCreatePlannedStatus}
             onDeleteStatusDay={handleDeletePlannedStatus}
+            canDeleteStatusDay={canDeleteStatusDay}
             onSubmitPartialAbsence={handleSavePartialAbsence}
-            onDeletePartialAbsence={handleDeletePartialAbsence}
+            onDeletePartialAbsence={
+              canPlanPartialExcusal ? handleDeletePartialAbsence : undefined
+            }
           />
         </>
       }
@@ -1472,6 +1490,7 @@ function StudentDetailPageContent() {
           onTabChange={handleTabChange}
           statusDays={statusDays}
           onDeleteStatusDay={handleDeletePlannedStatus}
+          canDeleteStatusDay={canDeleteStatusDay}
           onVisibleDateRangeChange={ensureStatusDayRange}
           showPersonalInfoEdit={showPersonalInfoEdit}
           onOpenPersonalInfoEdit={() => setShowPersonalInfoEdit(true)}
@@ -1514,6 +1533,7 @@ function StudentQuickActions({
   showCheckout,
   showCheckin,
   hasAbsenceWriteAccess,
+  hasSickExcusedWriteAccess,
   onCheckoutClick,
   onCheckinClick,
   onSickClick,
@@ -1528,6 +1548,7 @@ function StudentQuickActions({
   showCheckout: boolean;
   showCheckin: boolean;
   hasAbsenceWriteAccess: boolean;
+  hasSickExcusedWriteAccess: boolean;
   onCheckoutClick: () => void;
   onCheckinClick: () => void;
   onSickClick: () => void;
@@ -1538,7 +1559,13 @@ function StudentQuickActions({
   onClassTripClick: () => void;
   plannedStatusLoading: boolean;
 }>) {
-  if (!showCheckout && !showCheckin && !hasAbsenceWriteAccess) return null;
+  if (
+    !showCheckout &&
+    !showCheckin &&
+    !hasAbsenceWriteAccess &&
+    !hasSickExcusedWriteAccess
+  )
+    return null;
 
   return (
     // Auf dem Telefon zwei Spalten: vier Karten nebeneinander passen bei
@@ -1553,7 +1580,7 @@ function StudentQuickActions({
         <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
       )}
       {showCheckin && <StudentCheckinSection onCheckinClick={onCheckinClick} />}
-      {hasAbsenceWriteAccess && (
+      {hasSickExcusedWriteAccess && (
         <StudentSickReportSection
           isSick={student.sick ?? false}
           sickSince={student.sick_since}
@@ -1561,7 +1588,7 @@ function StudentQuickActions({
           isLoading={sickLoading}
         />
       )}
-      {hasAbsenceWriteAccess && (
+      {hasSickExcusedWriteAccess && (
         <StudentExcusedReportSection
           isExcused={isQuickExcused}
           excusedSince={isQuickExcused ? student.excused_since : undefined}
@@ -1709,6 +1736,7 @@ interface FullAccessViewProps {
   onTabChange: (tab: string) => void;
   statusDays: StudentStatusDay[];
   onDeleteStatusDay: (statusDayId: string) => Promise<void>;
+  canDeleteStatusDay: (day: StudentStatusDay) => boolean;
   onVisibleDateRangeChange: (from: string, to: string) => void;
   showPersonalInfoEdit: boolean;
   onOpenPersonalInfoEdit: () => void;
@@ -1732,6 +1760,7 @@ function FullAccessView({
   onTabChange,
   statusDays,
   onDeleteStatusDay,
+  canDeleteStatusDay,
   onVisibleDateRangeChange,
   showPersonalInfoEdit,
   onOpenPersonalInfoEdit,
@@ -1880,6 +1909,7 @@ function FullAccessView({
           isExcused={student.excused}
           statusDays={statusDays}
           onDeleteStatusDay={onDeleteStatusDay}
+          canDeleteStatusDay={canDeleteStatusDay}
           onVisibleDateRangeChange={onVisibleDateRangeChange}
         />
       </StudentTabPanel>

@@ -10,13 +10,13 @@ import (
 // review reach (so an empty list can explain itself), the conflict groups,
 // the child's group, and the Familienschutz flag. Optional ports stay
 // optional — without them the field is simply omitted.
-func (s *service) decorateOpenPage(ctx context.Context, page *Page, types []string) error {
+func (s *service) decorateOpenPage(ctx context.Context, page *Page, types []string, today Date) error {
 	access, err := s.deps.Access.ReviewAccess(ctx)
 	if err != nil {
 		return err
 	}
 	page.ReviewAccess = access
-	if err := s.decorateConflicts(ctx, page, types); err != nil {
+	if err := s.decorateConflicts(ctx, page, types, today); err != nil {
 		return err
 	}
 	if s.deps.Students != nil {
@@ -89,7 +89,7 @@ const conflictScopeLimit = 200
 // size counted from the window would tell staff "1" for a request that has a
 // contradiction waiting one scroll away. That is the failure this whole
 // feature exists to prevent, so it is worth four extra queries per page.
-func (s *service) decorateConflicts(ctx context.Context, page *Page, types []string) error {
+func (s *service) decorateConflicts(ctx context.Context, page *Page, types []string, today Date) error {
 	ids := studentIDs(page.Items)
 	if len(ids) == 0 {
 		return nil
@@ -107,7 +107,7 @@ func (s *service) decorateConflicts(ctx context.Context, page *Page, types []str
 			keyed[studentID][key]++
 		}
 	}
-	if err := s.scanOpenConflicts(ctx, ids, types, count); err != nil {
+	if err := s.scanOpenConflicts(ctx, ids, types, today, count); err != nil {
 		return err
 	}
 	for i := range page.Items {
@@ -142,9 +142,10 @@ func (s *service) scanOpenConflicts(
 	ctx context.Context,
 	ids []int64,
 	types []string,
+	today Date,
 	report func(studentID int64, keys []string),
 ) error {
-	filter := QueueFilter{StudentIDs: ids, Limit: conflictScopeLimit}
+	filter := QueueFilter{StudentIDs: ids, Limit: conflictScopeLimit, UrgentDate: today.String()}
 	queues := s.deps.Queues
 	for _, scan := range []struct {
 		typ   string

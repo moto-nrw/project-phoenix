@@ -22,6 +22,20 @@ describe("timetable operation mappers", () => {
     expect(mapRoster({ ...base, can_operate: false }).canOperate).toBe(false);
     expect(mapRoster({ ...base, can_operate: true }).canOperate).toBe(true);
     expect(mapRoster(base)).not.toHaveProperty("canOperate");
+    expect(
+      mapRoster({
+        ...base,
+        can_operate: false,
+        can_edit_attendance: true,
+        can_report_absence: false,
+      }),
+    ).toMatchObject({
+      canOperate: false,
+      canEditAttendance: true,
+      canReportAbsence: false,
+    });
+    expect(mapRoster(base)).not.toHaveProperty("canEditAttendance");
+    expect(mapRoster(base)).not.toHaveProperty("canReportAbsence");
   });
 
   it("keeps loaded pickup times distinct from a failed pickup lookup", () => {

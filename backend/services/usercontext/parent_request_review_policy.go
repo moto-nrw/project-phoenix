@@ -9,30 +9,35 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-type parentRequestBoolResolver interface {
+type parentRequestSettingsResolver interface {
 	ResolveBool(ctx context.Context, key string) (bool, error)
+	ResolveString(ctx context.Context, key string) (string, error)
 }
 
 type parentRequestGroupResolver interface {
 	GetMyGroups(ctx context.Context) ([]*education.Group, error)
+	GetCurrentStaff(ctx context.Context) (*users.Staff, error)
 }
 
 // ParentRequestReviewPolicy narrows review access behind the route-level
 // permissions. Administrators remain school-wide; group leaders are opt-in.
 type ParentRequestReviewPolicy struct {
-	settings   parentRequestBoolResolver
-	groups     parentRequestGroupResolver
-	settingKey string
+	settings          parentRequestSettingsResolver
+	groups            parentRequestGroupResolver
+	settingKey        string
+	absenceSettingKey string
 }
 
 func NewParentRequestReviewPolicy(
-	settings parentRequestBoolResolver,
+	settings parentRequestSettingsResolver,
 	groups parentRequestGroupResolver,
 	settingKey string,
+	absenceSettingKey string,
 ) *ParentRequestReviewPolicy {
-	return &ParentRequestReviewPolicy{settings: settings, groups: groups, settingKey: settingKey}
+	return &ParentRequestReviewPolicy{settings: settings, groups: groups, settingKey: settingKey, absenceSettingKey: absenceSettingKey}
 }
 
 // StudentFilter resolves one immutable request-scoped filter. Resolving once
@@ -74,6 +79,59 @@ func (p *ParentRequestReviewPolicy) Scope(ctx context.Context, permissions []str
 	return schoolWide, groupIDs, nil
 }
 
+// AbsenceScope applies only to sick/excused parent requests. Other request
+// kinds continue to use Scope, including their original group-leader switch.
+func (p *ParentRequestReviewPolicy) AbsenceScope(ctx context.Context, permissions []string) (bool, []int64, error) {
+	if hasEffectiveAdminScope(ctx) || authorize.HasAdminWildcard(permissions) {
+		return true, nil, nil
+	}
+	if authorize.AbsenceReadPrerequisiteUnmet(permissions) {
+		return false, nil, authorize.ErrAbsenceReadRequired
+	}
+	if !authorize.CanReviewExcusedAbsenceRequests(permissions) {
+		return false, nil, nil
+	}
+	if p == nil || p.settings == nil || p.groups == nil || p.absenceSettingKey == "" {
+		return false, nil, fmt.Errorf("parent absence review policy is not configured")
+	}
+	scope, err := p.settings.ResolveString(ctx, p.absenceSettingKey)
+	if err != nil {
+		return false, nil, fmt.Errorf("resolve parent absence review scope: %w", err)
+	}
+	switch scope {
+	case "inherit":
+		return p.Scope(ctx, permissions)
+	case "admins":
+		return false, nil, nil
+	case "group_leaders":
+		groups, err := p.groups.GetMyGroups(ctx)
+		if err != nil {
+			return false, nil, fmt.Errorf("resolve absence review groups: %w", err)
+		}
+		ids := make([]int64, 0, len(groups))
+		for _, group := range groups {
+			if group != nil && group.ID > 0 {
+				ids = append(ids, group.ID)
+			}
+		}
+		slices.Sort(ids)
+		return false, slices.Compact(ids), nil
+	case "all_staff":
+		claims := jwt.ClaimsFromCtx(ctx)
+		if claims.ID <= 0 || claims.TenantID <= 0 || claims.TenantID != tenant.FromContext(ctx) ||
+			(claims.Scope != "" && claims.Scope != "tenant" && claims.Scope != "org") {
+			return false, nil, nil
+		}
+		staff, err := p.groups.GetCurrentStaff(ctx)
+		if err != nil {
+			return false, nil, fmt.Errorf("resolve absence reviewer staff: %w", err)
+		}
+		return staff != nil && staff.ID > 0 && staff.TenantID == claims.TenantID, nil, nil
+	default:
+		return false, nil, fmt.Errorf("unknown parent absence review scope %q", scope)
+	}
+}
+
 // Allows applies the same scope to a single decision.
 func (p *ParentRequestReviewPolicy) Allows(
 	ctx context.Context,
@@ -92,13 +150,13 @@ func (p *ParentRequestReviewPolicy) Allows(
 // "your school has not given you this".
 const (
 	ReviewAccessAdmin       = "admin"
+	ReviewAccessTeam        = "team"
 	ReviewAccessGroupLeader = "group_leader"
 	ReviewAccessNone        = "none"
 )
 
-// AccessLevel reports the caller's coarse review reach. It is the same
-// decision StudentFilter makes, without the per-child part, so a client can
-// explain an empty queue instead of only showing it.
+// AccessLevel reports the union of the queues the caller can review. Each
+// queue still applies its own scope to rows, notes, counts and decisions.
 func (p *ParentRequestReviewPolicy) AccessLevel(ctx context.Context, permissions []string) (string, error) {
 	schoolWide, groupIDs, err := p.resolveScope(ctx, permissions)
 	if err != nil {
@@ -107,7 +165,14 @@ func (p *ParentRequestReviewPolicy) AccessLevel(ctx context.Context, permissions
 	if schoolWide {
 		return ReviewAccessAdmin, nil
 	}
-	if len(groupIDs) > 0 {
+	absenceWide, absenceGroups, err := p.AbsenceScope(ctx, permissions)
+	if err != nil {
+		return "", err
+	}
+	if absenceWide {
+		return ReviewAccessTeam, nil
+	}
+	if len(groupIDs) > 0 || len(absenceGroups) > 0 {
 		return ReviewAccessGroupLeader, nil
 	}
 	return ReviewAccessNone, nil

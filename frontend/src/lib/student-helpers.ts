@@ -590,9 +590,9 @@ export interface SupervisorContact {
 export interface BackendStudentDetail extends BackendStudent {
   has_full_access: boolean;
   has_write_access: boolean;
-  /** Absence actions only (krank / entschuldigt / Klassenfahrt) — a superset of
-   *  has_write_access in a school without fixed groups (#2232). */
+  /** Class-trip authority; sick/excused reports carry a separate capability. */
   has_absence_write_access?: boolean;
+  has_sick_excused_write_access?: boolean;
   group_supervisors?: SupervisorContact[];
   attendance_log_enabled: boolean;
 }
@@ -700,9 +700,9 @@ export interface Student {
   // Additional fields for access control
   has_full_access?: boolean;
   has_write_access?: boolean;
-  /** May report/clear absences for this child, even without Stammdaten write
-   *  access (open care, #2232). */
+  /** Class-trip authority, independent of Stammdaten write access. */
   has_absence_write_access?: boolean;
+  has_sick_excused_write_access?: boolean;
   group_supervisors?: SupervisorContact[];
   // Feature flag: tenant has attendance log enabled
   attendance_log_enabled?: boolean;
@@ -941,6 +941,9 @@ export function mapStudentDetailResponse(
   student.has_write_access = backendStudent.has_write_access;
   student.has_absence_write_access =
     backendStudent.has_absence_write_access ?? backendStudent.has_write_access;
+  student.has_sick_excused_write_access =
+    backendStudent.has_sick_excused_write_access ??
+    student.has_absence_write_access;
   student.group_supervisors = backendStudent.group_supervisors;
   student.attendance_log_enabled = backendStudent.attendance_log_enabled;
 

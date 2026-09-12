@@ -126,6 +126,13 @@ func buildSchemaWithScope(
 		}
 	}
 
+	if err := projectParentAbsenceReviewScope(resolvedMap, snapshot); err != nil {
+		return nil, err
+	}
+	if err := projectParentReportModes(resolvedMap, outputMap, snapshot); err != nil {
+		return nil, err
+	}
+
 	// Evaluate DependsOn visibility. Dependencies may be nested, so resolve
 	// parent visibility recursively instead of relying on map iteration order.
 	visibilityMemo := make(map[string]bool, len(resolvedMap))

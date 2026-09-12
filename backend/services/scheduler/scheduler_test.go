@@ -1121,6 +1121,9 @@ func (m *mockActiveService) ListStudentsPresentToday(_ context.Context) ([]int64
 func (m *mockActiveService) AssignTransitStudentsToActiveGroup(_ context.Context, _ []int64, _ int64) (*activeService.TransitAssignResult, error) {
 	return nil, nil
 }
+func (m *mockActiveService) AssignTransitStudentsToActiveGroupAuthorized(_ context.Context, _ []int64, _ int64, _ activeService.StudentMoveAuthorization) (*activeService.TransitAssignResult, error) {
+	return nil, nil
+}
 func (m *mockActiveService) MoveStudentsToActiveGroup(_ context.Context, _ []int64, _ int64) (*activeService.StudentMoveResult, error) {
 	return nil, nil
 }

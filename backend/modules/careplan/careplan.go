@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/offeringrequests"
 )
 
 const DateLayout = excusedrequests.DateLayout
@@ -141,28 +142,7 @@ type CareOfferingFilter struct {
 
 // OfferingChangeRequest is one requested effective booking change. Dates use
 // DateLayout. Payload and snapshot are deliberately opaque JSON contracts.
-type OfferingChangeRequest struct {
-	ID                          int64
-	TenantID                    int64
-	CreatedAt                   time.Time
-	UpdatedAt                   time.Time
-	StudentID                   int64
-	RequestChildID              int64
-	SubmittedBy                 int64
-	CompleteWithdrawalConfirmed bool
-	WithdrawalConfirmedBy       *int64
-	WithdrawalConfirmedAt       *time.Time
-	ApprovedCompleteWithdrawal  bool
-	Payload                     json.RawMessage
-	EffectiveFrom               string
-	ParentNote                  *string
-	Status                      string
-	DecisionReason              *string
-	DecisionSnapshot            json.RawMessage
-	ReviewedBy                  *int64
-	ReviewedAt                  *time.Time
-	AppliedAt                   *time.Time
-}
+type OfferingChangeRequest = offeringrequests.Request
 
 type OfferingChangeFilter struct {
 	IDs           []int64

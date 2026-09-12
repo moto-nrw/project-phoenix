@@ -174,13 +174,12 @@ var queryBudgets = map[string]queryBudget{
 	// of the transaction runtime. The presence mode is a settings read that
 	// the scenario fakes.
 	"modules.emergencysnapshot.snapshot": {max: 10, exact: true},
-	// modules/requestreview/legacy — #2705: the open review page of one
-	// child with one request in each of the four retained queues (the RLS
+	// modules/requestreview/compose — #3179: the open review page of one
+	// child with one request in each of the four native queues (the RLS
 	// proof fixture), inside one tenant transaction: the urgent and the
 	// normal phase of every queue, the conflict scan, the group and
-	// Familienschutz decorations. The retained queues hydrate per request
-	// (their own N+1, unchanged by the cutover), so this is a ceiling for the
-	// fixture, not a flat cost.
+	// Familienschutz decorations. This remains a ceiling for the fixture,
+	// not a claim that every owner read has flat cost.
 	"modules.requestreview.open_page": {max: 101},
 	// test/e2e/timetable — end-to-end counts include TenantTxMiddleware overhead.
 	"e2e.timetable.exception_conflicts.cancelled": {max: 22},

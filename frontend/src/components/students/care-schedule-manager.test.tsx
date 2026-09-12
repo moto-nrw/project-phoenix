@@ -993,6 +993,26 @@ describe("CareScheduleManager", () => {
     expect(mockCreateStudentPickupException).not.toHaveBeenCalled();
   });
 
+  it("keeps a restricted absence visible without a deletion affordance", async () => {
+    const onDeleteStatusDay = vi.fn();
+    render(
+      <CareScheduleManager
+        studentId="42"
+        statusDays={statusDays}
+        onDeleteStatusDay={onDeleteStatusDay}
+        canDeleteStatusDay={(day) => day.status === "class_trip"}
+      />,
+    );
+    await screen.findByText("Betreuungszeiten");
+    expect(
+      screen.getAllByText("Ganztägig entschuldigt").length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.queryByLabelText("Ganztägig entschuldigt entfernen"),
+    ).not.toBeInTheDocument();
+    expect(onDeleteStatusDay).not.toHaveBeenCalled();
+  });
+
   it("opens confirmation before deleting a planned status day", async () => {
     const onDeleteStatusDay = vi.fn().mockResolvedValue(undefined);
 

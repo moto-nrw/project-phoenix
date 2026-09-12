@@ -136,6 +136,57 @@ const AUTO_SAVE_DELAY_MS = 3000;
 const HIGHLIGHT_FLASH_MS = 2200;
 const EMPTY_CATEGORY_ITEMS: ResolvedSetting[] = [];
 
+interface AttendanceScopeChange {
+  readonly key: string;
+  readonly value: string;
+  readonly writable: boolean;
+  readonly title: string;
+  readonly body: string;
+  readonly confirmText: string;
+}
+
+function attendanceScopePrerequisite(
+  key: string,
+  value: unknown,
+  items: ResolvedSetting[],
+): AttendanceScopeChange | null {
+  const visibility = items.find(
+    (item) => item.key === "operations.operational_overview_scope",
+  );
+  const attendance = items.find(
+    (item) => item.key === "operations.attendance_edit_scope",
+  );
+  if (
+    key === attendance?.key &&
+    value === "all_staff" &&
+    visibility?.value === "own"
+  ) {
+    return {
+      key: visibility.key,
+      value: "all_staff",
+      writable: visibility.writable,
+      title: "Auch den Sichtbereich erweitern?",
+      body: "Überall an- und abmelden geht nur mit schulweitem Überblick. Das Team sieht danach alle Gruppen und Blöcke.",
+      confirmText: "Beides erweitern",
+    };
+  }
+  if (
+    key === visibility?.key &&
+    value === "own" &&
+    attendance?.value === "all_staff"
+  ) {
+    return {
+      key: attendance.key,
+      value: "own",
+      writable: attendance.writable,
+      title: "Auch die Bearbeitung begrenzen?",
+      body: "Eigene Zuständigkeiten als Sichtbereich erfordern denselben Bereich für An- und Abmelden. Vorhandene Sonderzugänge bleiben erhalten.",
+      confirmText: "Beides begrenzen",
+    };
+  }
+  return null;
+}
+
 interface SettingsFieldProps {
   readonly setting: ResolvedSetting;
   readonly categoryItems?: ResolvedSetting[];
@@ -405,16 +456,35 @@ export function SettingsField({
   const enableConfig = CONFIRM_ON_ENABLE[setting.key];
   const disableConfig = CONFIRM_ON_DISABLE[setting.key];
   const pendingValueRef = useRef<unknown>(null);
+  const pendingScopeChangeRef = useRef<AttendanceScopeChange | null>(null);
   const fieldRef = useRef<HTMLDivElement | null>(null);
   const activeConfirmConfig =
-    enableConfig && pendingValueRef.current === true
+    pendingScopeChangeRef.current ??
+    (enableConfig && pendingValueRef.current === true
       ? enableConfig
       : disableConfig && pendingValueRef.current === false
         ? disableConfig
-        : null;
+        : null);
 
   const handleImmediateSave = useCallback(
     async (value: unknown) => {
+      const prerequisite = attendanceScopePrerequisite(
+        setting.key,
+        value,
+        categoryItems,
+      );
+      if (prerequisite) {
+        if (!prerequisite.writable) {
+          setError(
+            "Dafür muss zuerst die andere Einstellung geändert werden. Bitte wenden Sie sich an die OGS-Leitung.",
+          );
+          return;
+        }
+        pendingScopeChangeRef.current = prerequisite;
+        pendingValueRef.current = value;
+        setConfirmOpen(true);
+        return;
+      }
       if (legalActivationTextKey && value === true) {
         setLegalActivationText(toStr(legalActivationTextSetting?.value));
         setLegalActivationDocumentURL(legalDocumentURL);
@@ -446,6 +516,7 @@ export function SettingsField({
     },
     [
       doSave,
+      categoryItems,
       enableConfig,
       disableConfig,
       legalDocumentURL,
@@ -571,11 +642,22 @@ export function SettingsField({
 
   const handleConfirm = useCallback(async () => {
     setConfirmOpen(false);
-    if (pendingValueRef.current != null) {
-      await doSave(pendingValueRef.current);
-      pendingValueRef.current = null;
+    const value = pendingValueRef.current;
+    const prerequisite = pendingScopeChangeRef.current;
+    pendingValueRef.current = null;
+    pendingScopeChangeRef.current = null;
+    if (value != null) {
+      if (prerequisite) {
+        const failure = await onSave(prerequisite.key, prerequisite.value);
+        if (failure) {
+          setError(failure);
+          toastError(failure);
+          return;
+        }
+      }
+      await doSave(value);
     }
-  }, [doSave]);
+  }, [doSave, onSave, toastError]);
 
   // Local change — for text/number/time (debounce auto-save)
   const handleLocalChange = useCallback(
@@ -696,7 +778,7 @@ export function SettingsField({
         )}
       </div>
 
-      <div className="flex shrink-0 items-center gap-3">
+      <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-3 sm:flex-nowrap">
         {isEnrollmentLegalTextSetting
           ? renderEnrollmentLegalTextEditor(
               localValue,
@@ -737,13 +819,15 @@ export function SettingsField({
           onClose={() => {
             setConfirmOpen(false);
             pendingValueRef.current = null;
+            pendingScopeChangeRef.current = null;
           }}
           onConfirm={handleConfirm}
           title={activeConfirmConfig.title}
           confirmText={
-            pendingValueRef.current === false
+            pendingScopeChangeRef.current?.confirmText ??
+            (pendingValueRef.current === false
               ? (disableConfig?.confirmText ?? "Deaktivieren")
-              : "Aktivieren"
+              : "Aktivieren")
           }
           cancelText="Abbrechen"
           confirmVariant={

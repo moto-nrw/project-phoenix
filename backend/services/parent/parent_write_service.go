@@ -256,6 +256,17 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 	if !enabled {
 		return nil, ErrSickNoteDisabled
 	}
+	reportKey := configModels.KeyParentSickReportsEnabled
+	if status == activeModels.StudentStatusDayExcused {
+		reportKey = configModels.KeyParentExcusedReportsEnabled
+	}
+	enabled, err = s.Settings.ResolveBoolForTenant(ctx, child.tenantID, reportKey)
+	if err != nil {
+		return nil, fmt.Errorf("parent: resolve report setting %s: %w", reportKey, err)
+	}
+	if !enabled {
+		return nil, ErrSickNoteDisabled
+	}
 
 	// Count characters (runes), not UTF-8 bytes, so the limit matches the
 	// frontend's maxLength — a German text with umlauts stays under the budget.
@@ -719,6 +730,8 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 	}
 	keys := []string{
 		configModels.KeyParentSickNoteEnabled,
+		configModels.KeyParentSickReportsEnabled,
+		configModels.KeyParentExcusedReportsEnabled,
 		configModels.KeyParentSickRequiresApproval,
 		configModels.KeyParentExcusedRequiresApproval,
 		configModels.KeyParentNotesEnabled,
@@ -760,6 +773,14 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 	sickApproval, err := resolveBool(configModels.KeyParentSickRequiresApproval)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve sick-approval setting: %w", err)
+	}
+	sickReports, err := resolveBool(configModels.KeyParentSickReportsEnabled)
+	if err != nil {
+		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve sick reports: %w", err)
+	}
+	excusedReports, err := resolveBool(configModels.KeyParentExcusedReportsEnabled)
+	if err != nil {
+		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve excused reports: %w", err)
 	}
 	excusedApproval, err := resolveBool(configModels.KeyParentExcusedRequiresApproval)
 	if err != nil {
@@ -832,7 +853,8 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 
 	return ChildFeatureFlags{
 		HasOpenChangeRequest:         s.hasOpenChangeRequest(ctx, child.tenantID, accountID, studentID),
-		SickNoteEnabled:              sick && child.hasPermission(authorize.GuardianPermissionSickNoteSubmit),
+		SickNoteEnabled:              sick && sickReports && child.hasPermission(authorize.GuardianPermissionSickNoteSubmit),
+		ExcusedNoteEnabled:           sick && excusedReports && child.hasPermission(authorize.GuardianPermissionSickNoteSubmit),
 		SickRequiresApproval:         sickApproval,
 		ExcusedRequiresApproval:      excusedApproval,
 		NotesEnabled:                 notes && child.hasPermission(authorize.GuardianPermissionNotesWrite),

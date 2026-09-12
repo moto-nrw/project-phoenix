@@ -10,6 +10,8 @@ import (
 // tenant in context when one is present; inside an admin transaction they
 // span every tenant. Writes always require a tenant.
 type StudentStore interface {
+	ListDepartureModes(context.Context, []int64) (map[int64]map[string][]string, domain.OperationStats, error)
+	CurrentFamilyProtection(context.Context, []int64) (map[int64]bool, domain.OperationStats, error)
 	ReadEnrollment(context.Context, int64, string) (domain.EnrollmentRecord, domain.OperationStats, error)
 	LockEnrollmentClassWrites(context.Context) (domain.OperationStats, error)
 	ApplyEnrollmentProfile(context.Context, int64, domain.EnrollmentProfilePatch) (domain.OperationStats, error)

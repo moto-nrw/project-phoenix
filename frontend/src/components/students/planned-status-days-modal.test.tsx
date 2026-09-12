@@ -549,6 +549,29 @@ describe("PlannedStatusDaysModal", () => {
     });
   });
 
+  it("shows restricted existing absences without offering to remove them", () => {
+    render(
+      <PlannedStatusDaysModal
+        isOpen
+        status="excused"
+        studentName="Kevin Anders"
+        isSubmitting={false}
+        existingDays={existingDays}
+        onClose={vi.fn()}
+        loadExistingDays={loadKnownExistingDays}
+        onSubmit={vi.fn()}
+        onDeleteStatusDay={vi.fn()}
+        canDeleteStatusDay={() => false}
+      />,
+    );
+    expect(screen.getAllByText("Bereits entschuldigt").length).toBeGreaterThan(
+      0,
+    );
+    expect(
+      screen.queryByRole("button", { name: /^Aktionen für / }),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows existing status labels and deletes one planned day", async () => {
     const onDeleteStatusDay = vi.fn().mockResolvedValue(undefined);
 

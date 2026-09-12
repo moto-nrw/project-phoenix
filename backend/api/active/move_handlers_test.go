@@ -18,6 +18,7 @@ import (
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	userSvc "github.com/moto-nrw/project-phoenix/services/users"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -46,6 +47,49 @@ func withStaffMoveContext(req *http.Request) *http.Request {
 	ctx := context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 2})
 	ctx = context.WithValue(ctx, jwt.CtxPermissions, []string{"visits:update"})
 	return req.WithContext(ctx)
+}
+
+func TestMoveHandlerOnlyPassesSchoolWideEligibilityForTenantStaff(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name        string
+		scope       string
+		claimTenant int64
+		staffTenant int64
+		permissions []string
+		want        bool
+	}{
+		{name: "OGS staff", claimTenant: 42, staffTenant: 42, permissions: []string{"visits:update"}, want: true},
+		{name: "school portal", scope: "school", claimTenant: 42, staffTenant: 42, permissions: []string{"visits:update"}},
+		{name: "parent portal", scope: "parent", claimTenant: 42, staffTenant: 42, permissions: []string{"visits:update"}},
+		{name: "operator portal", scope: "platform", claimTenant: 42, staffTenant: 42, permissions: []string{"visits:update"}},
+		{name: "missing permission", claimTenant: 42, staffTenant: 42},
+		{name: "wrong tenant", claimTenant: 43, staffTenant: 43, permissions: []string{"visits:update"}},
+		{name: "foreign staff", claimTenant: 42, staffTenant: 43, permissions: []string{"visits:update"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			staff := &userModel.Staff{Model: base.Model{ID: 20}}
+			staff.TenantID = tc.staffTenant
+			called := false
+			rs := &Resource{
+				PersonService: moveAuthPersonService{person: &userModel.Person{Model: base.Model{ID: 10}}, staff: staff},
+				ActiveService: &trackingMockActiveService{moveStudentsToActiveGroupAuthorizedFunc: func(_ context.Context, _ []int64, _ int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
+					called = true
+					require.Equal(t, tc.want, auth.SchoolWideAttendanceEligible)
+					require.False(t, auth.BypassResourceChecks)
+					return nil, &activeSvc.ActiveError{Op: "MoveStudentsToActiveGroup", Err: activeSvc.ErrStudentMoveForbidden}
+				}},
+			}
+			ctx := testpkg.ContextForTenant(context.Background(), 42)
+			ctx = testpkg.IdentityContext(ctx, 2, tc.claimTenant, tc.scope, tc.permissions)
+			req := httptest.NewRequest(http.MethodPost, "/visits/move-to-group", bytes.NewBufferString(`{"student_ids":[123],"target_active_group_id":99}`)).WithContext(ctx)
+			rr := httptest.NewRecorder()
+			rs.moveStudentsToActiveGroup(rr, req)
+			require.True(t, called)
+			require.Equal(t, http.StatusForbidden, rr.Code)
+		})
+	}
 }
 
 func TestMoveStudentsToActiveGroup(t *testing.T) {
