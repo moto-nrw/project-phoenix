@@ -321,8 +321,11 @@ func importBatchKey[T any](request importModels.ImportRequest[T], rows json.RawM
 func (s *ImportService[T]) applyBatchRow(ctx context.Context, request importModels.ImportRequest[T], result *importModels.ImportResult[T], row *T, rowNum int) error {
 	id, err := s.config.FindExisting(ctx, *row)
 	if err != nil {
+		// Match errors are per-row, not write failures. Preview and the
+		// retained importer skip the row; returning here would roll back the
+		// whole unit of work and block resume of an identical upload.
 		recordDuplicateCheckError(result, rowNum, row, err)
-		return err
+		return nil
 	}
 	action, skip := s.determineImportAction(request, result, row, rowNum, id)
 	if skip {

@@ -74,3 +74,44 @@ func TestImportBatches_StudentCrossBatchGuardianAndExplicitPermissionRevocation(
 	check(false)
 	assert.Equal(t, 4, countImportRows(t, db, testpkg.Tenant(t)).audits, "absent and explicit false are separate imports")
 }
+
+func TestImportBatches_StudentAmbiguousMatchSkipsRowAndContinuesBatch(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewImportTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	actor := newImporter(t, db)
+	testpkg.CreateTestStudent(t, db, "Doppelt", "Namenskollision", "1A")
+	testpkg.CreateTestStudent(t, db, "Doppelt", "Namenskollision", "1A")
+	before := countImportRows(t, db, testpkg.Tenant(t))
+
+	rows := make([]importModels.StudentImportRow, 102)
+	for i := range rows {
+		rows[i] = importModels.StudentImportRow{
+			FirstName: fmt.Sprintf("Kind%d", i), LastName: "Eindeutig", SchoolClass: "1A", DataRetentionDays: 30,
+		}
+	}
+	rows[100] = importModels.StudentImportRow{
+		FirstName: "Doppelt", LastName: "Namenskollision", SchoolClass: "1A", DataRetentionDays: 30,
+	}
+	audit := importService.BatchAudit{EntityType: "student", Filename: "ambiguous.csv", AccountID: actor.accountID}
+	request := importModels.ImportRequest[importModels.StudentImportRow]{Rows: rows, Mode: importModels.ImportModeCreate, UserID: actor.staffID, SkipInvalidRows: true}
+
+	result, err := module.Import.ImportBatches(testpkg.Ctx(t), request, audit)
+	require.NoError(t, err)
+	assert.Equal(t, 101, result.CreatedCount, "the unique row after the clash still commits")
+	assert.Equal(t, 1, result.ErrorCount)
+	require.Len(t, result.Errors, 1)
+	assert.Equal(t, 102, result.Errors[0].RowNumber)
+	require.NotEmpty(t, result.Errors[0].Errors)
+	assert.Equal(t, "duplicate_check_failed", result.Errors[0].Errors[0].Code)
+	after := countImportRows(t, db, testpkg.Tenant(t))
+	assert.Equal(t, before.students+101, after.students)
+	assert.Equal(t, before.audits+2, after.audits, "the second batch commits its receipt with the skipped row")
+
+	result, err = module.Import.ImportBatches(testpkg.Ctx(t), request, audit)
+	require.NoError(t, err)
+	assert.Equal(t, 101, result.CreatedCount)
+	assert.Equal(t, 1, result.ErrorCount)
+	assert.Equal(t, after, countImportRows(t, db, testpkg.Tenant(t)), "replay restores the skipped-row receipt")
+}

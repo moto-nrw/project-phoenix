@@ -59,6 +59,7 @@ remain distinct from transaction infrastructure errors.
 | One injected 40P01 or 40001 after the first row | Whole two-row transaction retries once; one receipt, no duplicate rows; one failed command attempt is observed |
 | Invalid final row in a 205-row file | Preview writes only its audit; actual import accepts 204; replay preserves serialized row errors and timestamps |
 | 101 student rows sharing a guardian | One guardian and 101 links across two batches; completed replay writes nothing |
+| Create-mode student row whose name+class matches more than one existing child | The clash is a `duplicate_check_failed` row error; later valid rows in the same 100-row unit of work still commit; identical replay restores that receipt |
 | Absent versus explicit false guardian flags | Absent cells preserve flags; explicit false revokes them; the otherwise identical JSON inputs do not share a checkpoint |
 | Student owner insert failures | Person, student, consent, guardian, phone, link, arrival, pickup and consent-history failures each roll back owner writes; replay succeeds after failure removal |
 | Staff owner insert failures | Person, staff, caregiver, master data, qualifications and invitation failures each roll back; replay creates each once |
