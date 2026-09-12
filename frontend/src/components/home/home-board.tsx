@@ -38,7 +38,7 @@ import {
   type HomeMoveDirection,
   type HomeMoveTarget,
 } from "~/lib/home-blocks";
-import { BELOW_SM, useMediaQuery } from "~/lib/hooks/use-media-query";
+import { useMediaQuery } from "~/lib/hooks/use-media-query";
 
 /**
  * Das Brett der Startseite (#2180): die Bausteine an ihren Plätzen.
@@ -94,12 +94,43 @@ import { BELOW_SM, useMediaQuery } from "~/lib/hooks/use-media-query";
 
 // Auch das Handy hat zwei Spalten: eine Kennzahl ist eine Zahl mit einem Wort
 // und braucht keine volle Bildschirmbreite — untereinander gestellt schiebt
-// sie alles Wichtige unter den Rand. Listen nehmen dort beide Spalten.
+// sie alles Wichtige unter den Rand. Listen nehmen dort beide Spalten. Nur
+// dort fließen die Kacheln; ab `sm` überschreiben die Zellvariablen die
+// Spalte (siehe CELL_CLASSES).
 const SPAN_CLASS: Record<HomeBlockSpan, string> = {
   1: "col-span-1",
-  2: "col-span-2 xl:col-span-2",
-  4: "col-span-2 xl:col-span-4",
+  2: "col-span-2",
+  4: "col-span-2",
 };
+
+/**
+ * Ab der zweispaltigen Ansicht bekommt jede Kachel ihre Zelle ausdrücklich —
+ * und zwar ÜBER CSS, nicht über JavaScript. Die Kachel trägt beide Zellen als
+ * Variablen (die des Zwei-Spalten-Rasters und die der vier Spalten der
+ * Person), und der Breakpoint entscheidet, welche gilt. So stimmt schon das
+ * Server-HTML bei jeder Bildschirmbreite. Vorher entschied eine Media-Query
+ * aus JavaScript über die Spaltenzahl; die kennt der Server nicht und lieferte
+ * immer zwei Spalten. In einem breiten Fenster standen dann alle Kacheln bis
+ * zur Hydration in der linken Hälfte des Vier-Spalten-Rasters und sprangen
+ * erst danach auf volle Breite.
+ */
+const CELL_CLASSES =
+  "sm:[grid-column:var(--cell-col-2)] sm:[grid-row:var(--cell-row-2)] xl:[grid-column:var(--cell-col-4)] xl:[grid-row:var(--cell-row-4)]";
+
+/** Spalten des schmalen Rasters (Tablet und schmaler Desktop). */
+const NARROW_BOARD_COLUMNS = 2;
+
+/** Die Zelle eines Rasters als die Variablen, die CELL_CLASSES liest. */
+function cellVariables(
+  cell: HomeBoardCell | null,
+  columns: number,
+): Record<string, string> {
+  if (!cell) return {};
+  return {
+    [`--cell-col-${columns}`]: `${cell.columnStart} / span ${cell.columnSpan}`,
+    [`--cell-row-${columns}`]: `${cell.rowStart} / span ${cell.rowSpan}`,
+  };
+}
 
 const SPAN_LABEL: Record<HomeBlockSpan, string> = {
   1: "Schmal",
@@ -124,16 +155,6 @@ const SETTLE: Transition = {
   mass: 0.9,
 };
 const INSTANT: Transition = { duration: 0 };
-
-/**
- * Eine Kennzahl ist eine Reihe hoch, eine Liste zwei — aber erst ab der
- * zweispaltigen Ansicht. Auf einem Handy gibt es keine Reihe, neben der eine
- * Karte stehen müsste: dort wächst jede Karte mit ihrem Inhalt und die Seite
- * scrollt. Eine feste Höhe würde dort nur Inhalt anschneiden.
- */
-function rowClass(definition: HomeBlockDefinition | null): string {
-  return definition?.kind === "tile" ? "sm:row-span-1" : "sm:row-span-2";
-}
 
 export interface HomeBoardProps {
   readonly placements: readonly HomeBlockPlacement[];
@@ -469,11 +490,13 @@ export function HomeBoard({
     onMoveBy(key, direction);
   };
 
-  // Ab der zweispaltigen Ansicht bekommt jede Kachel ihre Zelle ausdrücklich;
-  // die vier Spalten der Anordnung gibt es erst auf einem breiten Bildschirm.
-  const flow = useMediaQuery(BELOW_SM);
+  // Beide Raster werden immer gerechnet; welches gilt, entscheidet CSS am
+  // Breakpoint (siehe CELL_CLASSES). `wide` steuert nur noch das Ziehen: die
+  // vier Spalten der Anordnung lassen sich erst auf einem breiten Bildschirm
+  // anfassen, und das ist eine Frage der Bedienung, nicht der Darstellung.
   const wide = useMediaQuery(WIDE_BOARD);
-  const cells = computeBoardCells(placements, wide ? HOME_BOARD_COLUMNS : 2);
+  const wideCells = computeBoardCells(placements, HOME_BOARD_COLUMNS);
+  const narrowCells = computeBoardCells(placements, NARROW_BOARD_COLUMNS);
 
   const selectedIndex = placements.findIndex(
     (placement) => placement.key === selectedKey,
@@ -527,8 +550,8 @@ export function HomeBoard({
             <BoardItem
               key={placement.key}
               placement={placement}
-              definition={definition}
-              cell={flow ? null : (cells.get(placement.key) ?? null)}
+              wideCell={wideCells.get(placement.key) ?? null}
+              narrowCell={narrowCells.get(placement.key) ?? null}
               editing={editing}
               dragging={dragging}
               reduceMotion={reduceMotion}
@@ -572,8 +595,8 @@ export function HomeBoard({
  */
 function BoardItem({
   placement,
-  definition,
-  cell,
+  wideCell,
+  narrowCell,
   editing,
   dragging,
   reduceMotion,
@@ -585,9 +608,10 @@ function BoardItem({
   children,
 }: {
   readonly placement: HomeBlockPlacement;
-  readonly definition: HomeBlockDefinition | null;
-  /** Die ausdrückliche Rasterzelle; `null` lässt die Kachel fließen (Handy). */
-  readonly cell: HomeBoardCell | null;
+  /** Die Zelle im Vier-Spalten-Raster der Person (ab `xl`). */
+  readonly wideCell: HomeBoardCell | null;
+  /** Die Zelle im Zwei-Spalten-Raster (ab `sm`, unter `xl`). */
+  readonly narrowCell: HomeBoardCell | null;
   readonly editing: boolean;
   readonly dragging: boolean;
   readonly reduceMotion: boolean;
@@ -638,19 +662,16 @@ function BoardItem({
         y,
         position: "relative",
         zIndex: dragging ? 10 : undefined,
-        ...(cell
-          ? {
-              gridColumn: `${cell.columnStart} / span ${cell.columnSpan}`,
-              gridRow: `${cell.rowStart} / span ${cell.rowSpan}`,
-            }
-          : {}),
+        // Beide Zellen als Variablen; CELL_CLASSES wählt am Breakpoint aus.
+        ...cellVariables(narrowCell, NARROW_BOARD_COLUMNS),
+        ...cellVariables(wideCell, HOME_BOARD_COLUMNS),
       }}
       data-testid={`home-block-${placement.key}`}
       data-block-key={placement.key}
       data-span={placement.span}
       data-col={placement.col}
       data-row={placement.row}
-      className={`min-h-0 ${cell ? "" : `${SPAN_CLASS[placement.span]} ${rowClass(definition)}`} ${
+      className={`min-h-0 ${SPAN_CLASS[placement.span]} ${CELL_CLASSES} ${
         editing ? "touch-pan-y select-none" : ""
       }`}
       // Zeigerereignisse statt HTML5-Ziehen: das native Ziehen kennt kein
