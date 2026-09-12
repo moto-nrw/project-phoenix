@@ -1,7 +1,6 @@
-/** Stable error code of a write failure after earlier batches committed. */
-export const IMPORT_BATCH_FAILED_CODE = "import_batch_failed";
+const importBatchFailedCode = "import_batch_failed";
 
-export interface ImportBatchRowError {
+interface ImportBatchRowError {
   RowNumber: number;
 }
 
@@ -24,7 +23,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export function readImportBatchFailure<T>(
   payload: unknown,
 ): ImportBatchResult<T> | null {
-  if (!isRecord(payload) || payload.code !== IMPORT_BATCH_FAILED_CODE) {
+  if (!isRecord(payload) || payload.code !== importBatchFailedCode) {
     return null;
   }
   if (!isRecord(payload.details) || !isRecord(payload.details.result)) {
@@ -50,9 +49,7 @@ export function importBatchSavedCount(result: {
   return result.CreatedCount + result.UpdatedCount;
 }
 
-export function importBatchBlockingRow(
-  result: ImportBatchResult,
-): number | undefined {
+function importBatchBlockingRow(result: ImportBatchResult): number | undefined {
   const row = result.Errors.find((entry) => entry.RowNumber > 0);
   return row?.RowNumber;
 }
