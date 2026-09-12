@@ -269,6 +269,7 @@ func TestPresenceModeSetting(t *testing.T) {
 	assert.Equal(t, config.PresenceModeDetailed, def.Default, "default must be detailed for backwards compatibility")
 	assert.Equal(t, config.AccessOperatorOnly, def.AccessPolicy, "presence_mode is operator-only - cascading impact too large for tenant admins")
 	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "anwesenheit-erfassen", def.Category)
 	require.NotNil(t, def.Options)
 	require.Len(t, def.Options.Static, 2)
 	values := []any{def.Options.Static[0].Value, def.Options.Static[1].Value}
@@ -405,7 +406,7 @@ func TestAttendanceSetupSettings(t *testing.T) {
 	assert.Equal(t, true, webDef.Default, "web attendance should default on")
 	assert.Equal(t, config.AccessOperatorOnly, webDef.AccessPolicy, "web attendance is a provisioning flag, not a tenant-admin setting")
 	assert.Equal(t, "operations", webDef.Tab)
-	assert.Equal(t, "anwesenheit", webDef.Category)
+	assert.Equal(t, "anwesenheit-erfassen", webDef.Category)
 	assert.Equal(t, "config:manage", webDef.WritePermission)
 
 	nfcDef := config.GetDefinition(config.KeyAttendanceNFCEnabled)
@@ -414,8 +415,10 @@ func TestAttendanceSetupSettings(t *testing.T) {
 	assert.Equal(t, false, nfcDef.Default, "nfc attendance should default off")
 	assert.Equal(t, config.AccessOperatorOnly, nfcDef.AccessPolicy, "nfc attendance is provisioned by operators after NFC setup")
 	assert.Equal(t, "operations", nfcDef.Tab)
-	assert.Equal(t, "anwesenheit", nfcDef.Category)
+	assert.Equal(t, "anwesenheit-erfassen", nfcDef.Category)
 	assert.Equal(t, "config:manage", nfcDef.WritePermission)
+	assert.Nil(t, webDef.DependsOn, "web must remain independent from NFC")
+	assert.Nil(t, nfcDef.DependsOn, "NFC must remain independent from web")
 }
 
 // TestOperationalOverviewScopeSetting pins the two modes that decide which
@@ -429,11 +432,11 @@ func TestOperationalOverviewScopeSetting(t *testing.T) {
 	assert.Equal(t, config.OverviewScopeAllStaff, def.Default, "new schools start with the whole-team scope")
 	assert.Equal(t, config.AccessShared, def.AccessPolicy)
 	assert.Equal(t, "operations", def.Tab)
-	assert.Equal(t, "aufsicht", def.Category)
+	assert.Equal(t, "sehen-und-bearbeiten", def.Category)
 	assert.Equal(t, "config:update", def.WritePermission)
 	require.NotNil(t, def.Options)
 	require.Equal(t, []config.SelectOption{
-		{Label: "Ganzes Team", Value: config.OverviewScopeAllStaff},
+		{Label: "Alle Gruppen und Blöcke", Value: config.OverviewScopeAllStaff},
 		{Label: "Eigene Zuständigkeiten", Value: config.OverviewScopeOwn},
 	}, def.Options.Static)
 

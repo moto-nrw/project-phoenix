@@ -15,13 +15,13 @@ func TestPolicyKeepsPermissionPrerequisitesAndSettingFailures(t *testing.T) {
 		name      string
 		principal Principal
 		wantError error
-		level     string
+		wantScope Scope
 	}{
-		{"admin bypasses setting", Principal{Admin: true}, nil, "admin"},
-		{"read only has no review", Principal{UsersRead: true}, nil, "none"},
-		{"absence requires read", Principal{UsersAbsence: true}, ErrAbsenceReadRequired, ""},
-		{"write needs school opt-in", Principal{UsersUpdate: true}, failure, ""},
-		{"absence and read need opt-in", Principal{UsersRead: true, UsersAbsence: true}, failure, ""},
+		{"admin bypasses setting", Principal{Admin: true}, nil, Scope{SchoolWide: true}},
+		{"read only has no review", Principal{UsersRead: true}, nil, Scope{}},
+		{"absence requires read", Principal{UsersAbsence: true}, ErrAbsenceReadRequired, Scope{}},
+		{"write needs school opt-in", Principal{UsersUpdate: true}, failure, Scope{}},
+		{"absence and read need opt-in", Principal{UsersRead: true, UsersAbsence: true}, failure, Scope{}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			policy, err := New(Dependencies{
@@ -35,7 +35,7 @@ func TestPolicyKeepsPermissionPrerequisitesAndSettingFailures(t *testing.T) {
 				require.ErrorIs(t, err, tc.wantError)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, tc.level, scope.AccessLevel())
+				require.Equal(t, tc.wantScope, scope)
 			}
 		})
 	}
@@ -54,5 +54,5 @@ func TestPolicyDisabledSettingDoesNotResolveGroups(t *testing.T) {
 	require.NoError(t, err)
 	scope, err := policy.Scope(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, "none", scope.AccessLevel())
+	require.Equal(t, Scope{}, scope)
 }

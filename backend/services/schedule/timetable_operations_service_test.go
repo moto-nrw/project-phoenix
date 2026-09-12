@@ -2084,7 +2084,7 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 		rooms:         &fakeOpsRoomRepo{rooms: []*facilitiesModel.Room{{ID: 810, Name: "Lernraum"}}},
 		personService: &fakeOpsPersonService{people: map[int64]*usersModel.Person{}, staffByPersonID: map[int64]*usersModel.Staff{}, staffWithPerson: map[int64]*usersModel.Staff{}},
 		tracks:        &fakeOpsPlanningTrackRepo{byID: map[int64]*scheduleModel.PlanningTrack{}},
-		settings:      &fakeOpsSettings{},
+		settings:      &fakeOpsSettings{attendanceScope: configModel.AttendanceEditScopeOwn, absenceScope: configModel.StudentAbsenceEditScopeAllStaff},
 		broadcaster:   testpkg.NewRecordingBroadcaster(),
 	}
 	deps.service = NewTimetableOperationsService(TimetableOperationsDependencies{
@@ -2523,11 +2523,13 @@ func (s *fakeOpsPersonService) GetStaffWithPersonByIDs(_ context.Context, ids []
 }
 
 type fakeOpsSettings struct {
-	err         error
-	mode        string
-	scope       string
-	stringErr   error
-	leadMinutes int
+	attendanceScope string
+	absenceScope    string
+	err             error
+	mode            string
+	scope           string
+	stringErr       error
+	leadMinutes     int
 }
 
 func (s *fakeOpsSettings) ResolveBool(_ context.Context, _ string) (bool, error) {
@@ -2540,6 +2542,12 @@ func (s *fakeOpsSettings) ResolveString(_ context.Context, key string) (string, 
 	}
 	if key == configModel.KeyOperationalOverviewScope {
 		return s.scope, nil
+	}
+	if key == configModel.KeyAttendanceEditScope {
+		return s.attendanceScope, nil
+	}
+	if key == configModel.KeyStudentAbsenceEditScope {
+		return s.absenceScope, nil
 	}
 	return s.mode, nil
 }

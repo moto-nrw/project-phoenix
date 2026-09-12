@@ -2,6 +2,7 @@ package students
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -49,4 +50,30 @@ func TestCorrectionAccessDoesNotTreatAdminClaimAsWildcard(t *testing.T) {
 	require.True(t, RequestReviewCorrectionAccess(ctx, func(context.Context) (bool, error) { return true, nil }))
 	ctx = context.WithValue(ctx, jwt.CtxPermissions, []string{"admin:*"})
 	require.True(t, RequestReviewCorrectionAccess(ctx, nil))
+}
+
+func TestRequestReviewAccessPreservesAbsenceOnlyCapability(t *testing.T) {
+	t.Parallel()
+	ctx := context.WithValue(context.Background(), jwt.CtxPermissions, []string{"users:read", "users:absence"})
+	for _, level := range []string{"team", "group_leader", "none", "admin"} {
+		access, err := reviewcompose.NewAccess(RequestReviewPrincipal, func(received context.Context) (string, error) {
+			require.Equal(t, ctx, received)
+			return level, nil
+		})
+		require.NoError(t, err)
+		got, err := access.ReviewAccess(ctx)
+		require.NoError(t, err)
+		require.Equal(t, level, got)
+		caller, err := access.Caller(ctx)
+		require.NoError(t, err)
+		require.False(t, caller.ReviewsWriteQueues, "absence review must not grant access to other queues")
+	}
+	failure := errors.New("review setting unavailable")
+	access, err := reviewcompose.NewAccess(RequestReviewPrincipal, func(context.Context) (string, error) {
+		return "", failure
+	})
+	require.NoError(t, err)
+	level, err := access.ReviewAccess(ctx)
+	require.ErrorIs(t, err, failure)
+	require.Empty(t, level)
 }

@@ -244,6 +244,7 @@ export interface ChildFeatures {
   // scheitern würden.
   readonly care_ended?: boolean;
   readonly sick_note_enabled: boolean;
+  readonly excused_note_enabled?: boolean;
   // Whether a Krankmeldung stays pending until the OGS confirms it.
   readonly sick_requires_approval?: boolean;
   readonly notes_enabled: boolean;

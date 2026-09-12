@@ -1183,7 +1183,11 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("request review policy: %w", err)
 	}
-	reviewAccess, err := requestreviewcompose.NewAccess(studentsAPI.RequestReviewPrincipal, reviewPolicy)
+	// Report the union of ordinary and absence-review rights, as the
+	// navigation capability does. Each native queue keeps its own scope.
+	reviewAccess, err := requestreviewcompose.NewAccess(studentsAPI.RequestReviewPrincipal, func(ctx context.Context) (string, error) {
+		return api.Services.RequestReviewPolicy.AccessLevel(ctx, projectJWT.PermissionsFromCtx(ctx))
+	})
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("request review access: %w", err)
 	}

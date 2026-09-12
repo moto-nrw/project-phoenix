@@ -8,22 +8,18 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 )
 
-type reviewScope interface {
-	Scope(context.Context) (reviewidentity.Scope, error)
-}
-
 type access struct {
 	principal func(context.Context) reviewidentity.Principal
-	policy    reviewScope
+	level     func(context.Context) (string, error)
 }
 
 // NewAccess requires request identity; the optional review policy controls
 // whether review_access is included, independently of queue authorization.
-func NewAccess(principal func(context.Context) reviewidentity.Principal, policy reviewScope) (requestreview.Access, error) {
+func NewAccess(principal func(context.Context) reviewidentity.Principal, level func(context.Context) (string, error)) (requestreview.Access, error) {
 	if principal == nil {
 		return nil, errors.New("request review access: request identity is required")
 	}
-	return access{principal: principal, policy: policy}, nil
+	return access{principal: principal, level: level}, nil
 }
 
 func (a access) Caller(ctx context.Context) (requestreview.Caller, error) {
@@ -31,12 +27,8 @@ func (a access) Caller(ctx context.Context) (requestreview.Caller, error) {
 }
 
 func (a access) ReviewAccess(ctx context.Context) (string, error) {
-	if a.policy == nil {
+	if a.level == nil {
 		return "", nil
 	}
-	scope, err := a.policy.Scope(ctx)
-	if err != nil {
-		return "", err
-	}
-	return scope.AccessLevel(), nil
+	return a.level(ctx)
 }

@@ -31,6 +31,7 @@ type reasonPolicySettings struct {
 func (reasonPolicySettings) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
 	switch key {
 	case configModels.KeyParentSickNoteEnabled,
+		configModels.KeyParentSickReportsEnabled, configModels.KeyParentExcusedReportsEnabled,
 		configModels.KeyParentSickRequiresApproval,
 		configModels.KeyParentExcusedRequiresApproval:
 		return true, nil

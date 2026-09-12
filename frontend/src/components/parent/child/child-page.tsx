@@ -246,12 +246,15 @@ function ChildSections({ child }: Readonly<{ child: Child }>) {
   const hasPendingPickupRequest = care.pickupChangeRequests.some(
     (request) => request.status === "pending",
   );
+  const canReportAbsence =
+    care.features.sick_note_enabled ||
+    (care.features.excused_note_enabled ?? care.features.sick_note_enabled);
   const canManageExistingPickup =
     (hasGuardianPickup || hasPendingPickupRequest) &&
     care.features.pickup_manage_allowed === true;
   useEffect(() => {
     if (care.loading || !requestedAction) return;
-    if (requestedAction === "sick" && care.features.sick_note_enabled) {
+    if (requestedAction === "sick" && canReportAbsence) {
       setModal("sick");
     } else if (
       requestedAction === "pickup" &&
@@ -264,6 +267,7 @@ function ChildSections({ child }: Readonly<{ child: Child }>) {
     requestedAction,
     care,
     canManageExistingPickup,
+    canReportAbsence,
     router,
     child.student_id,
   ]);
@@ -304,9 +308,7 @@ function ChildSections({ child }: Readonly<{ child: Child }>) {
                   canManageExistingPickup,
               }
         }
-        onSick={
-          care.features.sick_note_enabled ? () => setModal("sick") : undefined
-        }
+        onSick={canReportAbsence ? () => setModal("sick") : undefined}
         onPickup={
           care.features.pickup_change_enabled || canManageExistingPickup
             ? () => setModal("pickup")
@@ -328,11 +330,16 @@ function ChildSections({ child }: Readonly<{ child: Child }>) {
         onCareRefresh={care.refresh}
       />
 
-      {modal === "sick" && (
+      {modal === "sick" && canReportAbsence && (
         <SickNoteModal
           studentId={child.student_id}
           onClose={() => setModal(null)}
           onSubmit={care.reportSick}
+          sickEnabled={care.features.sick_note_enabled}
+          excusedEnabled={
+            care.features.excused_note_enabled ??
+            care.features.sick_note_enabled
+          }
           sickRequiresApproval={care.features.sick_requires_approval}
           reasonRequired={requiresGuardianReason(care.features)}
           excusedRequiresApproval={care.features.excused_requires_approval}

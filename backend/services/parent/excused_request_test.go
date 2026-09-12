@@ -36,7 +36,7 @@ type excusedApprovalSettings struct {
 
 func (s excusedApprovalSettings) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
 	switch key {
-	case configModels.KeyParentSickNoteEnabled:
+	case configModels.KeyParentSickNoteEnabled, configModels.KeyParentSickReportsEnabled, configModels.KeyParentExcusedReportsEnabled:
 		return true, nil
 	case configModels.KeyParentSickRequiresApproval:
 		return s.sickRequiresApproval, nil

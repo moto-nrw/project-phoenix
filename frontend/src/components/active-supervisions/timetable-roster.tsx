@@ -208,7 +208,14 @@ function ExcuseScopeModal({
   );
 }
 
+interface RosterActionAccess {
+  readonly attendance: boolean;
+  readonly statuses: boolean;
+  readonly absence: boolean;
+}
+
 interface RosterRowActionsProps {
+  readonly access: RosterActionAccess;
   readonly row: TimetableRosterRow;
   readonly onAction: (
     action: RosterAction,
@@ -216,14 +223,17 @@ interface RosterRowActionsProps {
   ) => Promise<void>;
 }
 
-function RosterRowActions({ row, onAction }: RosterRowActionsProps) {
+function RosterRowActions({ row, onAction, access }: RosterRowActionsProps) {
+  if (!access.attendance && !access.statuses && !access.absence) return null;
   const runAction = async (action: RosterAction) => {
     await onAction(action, row);
   };
 
   return (
     <div className="flex flex-wrap gap-2">
-      {!row.currentlyPresent && row.status === "expected" ? (
+      {access.attendance &&
+      !row.currentlyPresent &&
+      row.status === "expected" ? (
         <Button
           type="button"
           onClick={() => runAction("check-in")}
@@ -233,7 +243,9 @@ function RosterRowActions({ row, onAction }: RosterRowActionsProps) {
           Einchecken
         </Button>
       ) : null}
-      {!row.currentlyPresent && row.status !== "expected" ? (
+      {access.attendance &&
+      !row.currentlyPresent &&
+      row.status !== "expected" ? (
         <Button
           type="button"
           onClick={() => runAction("check-in")}
@@ -243,7 +255,7 @@ function RosterRowActions({ row, onAction }: RosterRowActionsProps) {
           Wieder einchecken
         </Button>
       ) : null}
-      {row.currentlyPresent ? (
+      {access.attendance && row.currentlyPresent ? (
         <Button
           type="button"
           onClick={() => runAction("check-out")}
@@ -257,26 +269,35 @@ function RosterRowActions({ row, onAction }: RosterRowActionsProps) {
       row.status === "expected" &&
       isCareDayExpected(row.careDayStatus) ? (
         <>
-          <Button
-            type="button"
-            onClick={() => runAction("excused")}
-            variant="outline"
-            size="md"
-            className="text-moto-purple-strong !ring-moto-purple"
-          >
-            Entschuldigt
-          </Button>
-          <Button
-            type="button"
-            onClick={() => runAction("absent")}
-            variant="outline"
-            size="md"
-          >
-            Abwesend
-          </Button>
+          {access.absence ? (
+            <Button
+              type="button"
+              onClick={() => runAction("excused")}
+              variant="outline"
+              size="md"
+              className="text-moto-purple-strong !ring-moto-purple"
+            >
+              Entschuldigt
+            </Button>
+          ) : null}
+          {access.statuses ? (
+            <Button
+              type="button"
+              onClick={() => runAction("absent")}
+              variant="outline"
+              size="md"
+            >
+              Abwesend
+            </Button>
+          ) : null}
         </>
       ) : null}
-      {row.planned && !row.currentlyPresent && row.status === "absent" ? (
+      {(row.substatus === "sick" || row.substatus === "excused"
+        ? access.absence
+        : access.statuses) &&
+      row.planned &&
+      !row.currentlyPresent &&
+      row.status === "absent" ? (
         <Button
           type="button"
           onClick={() => runAction("expected")}
@@ -291,7 +312,7 @@ function RosterRowActions({ row, onAction }: RosterRowActionsProps) {
 }
 
 interface TimetableRosterRowProps {
-  readonly attendanceWebEnabled: boolean;
+  readonly actionAccess: RosterActionAccess;
   readonly instanceIsSpontaneous: boolean;
   /** Minute clock of the page — decides whether an expected arrival is still ahead. */
   readonly now: Date;
@@ -309,7 +330,7 @@ interface TimetableRosterRowProps {
 }
 
 function TimetableRosterStudentRow({
-  attendanceWebEnabled,
+  actionAccess,
   instanceIsSpontaneous,
   now,
   rosterDate,
@@ -411,15 +432,13 @@ function TimetableRosterStudentRow({
           </div>
         ) : null}
       </div>
-      {attendanceWebEnabled ? (
-        <RosterRowActions row={row} onAction={onAction} />
-      ) : null}
+      <RosterRowActions row={row} onAction={onAction} access={actionAccess} />
     </div>
   );
 }
 
 interface TimetableRosterSectionProps {
-  readonly attendanceWebEnabled: boolean;
+  readonly actionAccess: RosterActionAccess;
   /** One line under the section title — for a precondition the rows share. */
   readonly description?: string;
   readonly instanceIsSpontaneous: boolean;
@@ -435,7 +454,7 @@ interface TimetableRosterSectionProps {
 }
 
 function TimetableRosterSection({
-  attendanceWebEnabled,
+  actionAccess,
   description,
   instanceIsSpontaneous,
   now,
@@ -467,7 +486,7 @@ function TimetableRosterSection({
       {rows.map((row) => (
         <TimetableRosterStudentRow
           key={`${row.studentId}-${row.status}-${row.visitId ?? "planned"}`}
-          attendanceWebEnabled={attendanceWebEnabled}
+          actionAccess={actionAccess}
           instanceIsSpontaneous={instanceIsSpontaneous}
           now={now}
           rosterDate={rosterDate}
@@ -494,6 +513,7 @@ function confirmExpectedLabel(
 
 interface TimetableRosterHeaderProps {
   readonly attendanceWebEnabled: boolean;
+  readonly lifecycleEnabled: boolean;
   readonly confirmableExpectedRows: TimetableRosterRow[];
   readonly isCompletingInstance: boolean;
   readonly isConfirmingExpected: boolean;
@@ -517,6 +537,7 @@ interface TimetableRosterHeaderProps {
 
 function TimetableRosterHeader({
   attendanceWebEnabled,
+  lifecycleEnabled,
   confirmableExpectedRows,
   isCompletingInstance,
   isConfirmingExpected,
@@ -603,7 +624,7 @@ function TimetableRosterHeader({
               {confirmLabel}
             </Button>
           ) : null}
-          {attendanceWebEnabled ? (
+          {lifecycleEnabled ? (
             <Button
               type="button"
               disabled={isCompletingInstance || !completeEnabled}
@@ -861,8 +882,21 @@ export function TimetableRosterContent({
   // Seeing a running block does not mean acting on it (#3167): staff who only
   // see it through the all_staff overview get the list without actions and a
   // line that says why. Older backends omit the flag and keep the actions.
-  const viewOnly = attendanceWebEnabled && roster.canOperate === false;
-  const actionsEnabled = attendanceWebEnabled && !viewOnly;
+  const lifecycleEnabled = attendanceWebEnabled && roster.canOperate !== false;
+  const actionsEnabled =
+    attendanceWebEnabled &&
+    (roster.canEditAttendance ?? roster.canOperate ?? true);
+  const actionAccess: RosterActionAccess = {
+    attendance: actionsEnabled,
+    statuses: lifecycleEnabled,
+    absence:
+      attendanceWebEnabled && (roster.canReportAbsence ?? lifecycleEnabled),
+  };
+  const viewOnly =
+    attendanceWebEnabled &&
+    !actionsEnabled &&
+    !lifecycleEnabled &&
+    !actionAccess.absence;
   const note = viewOnly
     ? [TIMETABLE_VIEW_ONLY_NOTICE, headerNote].filter(Boolean).join(" ")
     : headerNote;
@@ -959,7 +993,7 @@ export function TimetableRosterContent({
   const instanceIsSpontaneous = roster.instance.isSpontaneous;
   const unplannedTitle = instanceIsSpontaneous ? "Teilnehmende" : "Ungeplant";
   const sectionProps = {
-    attendanceWebEnabled: actionsEnabled,
+    actionAccess,
     instanceIsSpontaneous,
     now,
     rosterDate: roster.instance.date,
@@ -974,6 +1008,7 @@ export function TimetableRosterContent({
     <div className="space-y-4">
       <TimetableRosterHeader
         attendanceWebEnabled={actionsEnabled}
+        lifecycleEnabled={lifecycleEnabled}
         confirmableExpectedRows={confirmableExpectedRows}
         isCompletingInstance={isCompletingInstance}
         isConfirmingExpected={isConfirmingExpected}
@@ -1015,7 +1050,7 @@ export function TimetableRosterContent({
           onSearchChange={onSearchChange}
         />
       ) : null}
-      {attendanceWebEnabled && onExcuseRestOfDay ? (
+      {actionAccess.absence && onExcuseRestOfDay ? (
         <ExcuseScopeModal
           instance={roster.instance}
           row={excuseRow}

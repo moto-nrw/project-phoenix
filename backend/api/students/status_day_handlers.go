@@ -69,7 +69,7 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 	}
 
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	authorized, authErr := rs.canManageStudentAbsence(r.Context(), userPermissions, student)
+	authorized, authErr := rs.canManageStudentStatus(r.Context(), userPermissions, student, req.Status)
 	if !authorized {
 		renderError(w, r, common.ErrorForbidden(authErr))
 		return
@@ -232,8 +232,8 @@ func (rs *Resource) newStatusDayWriteContext(r *http.Request, userPermissions []
 		DB:             rs.DB,
 		TenantID:       tenantID,
 		StudentService: rs.StudentService,
-		Authorize: func(ctx context.Context, student *users.Student) bool {
-			ok, _ := rs.canManageStudentAbsence(ctx, userPermissions, student)
+		Authorize: func(ctx context.Context, student *users.Student, status string) bool {
+			ok, _ := rs.canManageStudentStatus(ctx, userPermissions, student, status)
 			return ok
 		},
 		AfterCommit: func(studentID int64) {

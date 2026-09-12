@@ -629,6 +629,9 @@ func (s *settingsService) SetValue(ctx context.Context, key string, value any, c
 	if err := checkWritePermission(def, userPermissions); err != nil {
 		return &SettingsError{Op: "set_value", Err: err}
 	}
+	if mode, ok := value.(string); ok && parentReportApprovalKey(key) != "" {
+		return s.setParentReportMode(ctx, key, mode, changedBy, userPermissions)
+	}
 
 	if err := validateValue(def, value); err != nil {
 		return &SettingsError{
@@ -645,6 +648,21 @@ func (s *settingsService) SetValue(ctx context.Context, key string, value any, c
 	tenantID := s.tenantID(ctx)
 	if tenantID <= 0 {
 		return &SettingsError{Op: "set_value", Err: fmt.Errorf("no tenant context")}
+	}
+	if isAttendanceScopeKey(key) || isParentReportSettingKey(key) {
+		if s.runtime == nil {
+			return &SettingsError{Op: "set_value", Err: ErrRuntimeUnavailable}
+		}
+		if !s.runtime.HasTransaction(ctx) {
+			return s.runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
+				return s.SetValue(txCtx, key, value, changedBy, userPermissions)
+			})
+		}
+	}
+	if isParentReportSettingKey(key) {
+		if err := s.lockParentReportModes(ctx); err != nil {
+			return err
+		}
 	}
 
 	// Serialize a security.mfa_mode change against session mints that are
@@ -732,6 +750,24 @@ func (s *settingsService) ResetValue(ctx context.Context, key string, changedBy 
 	tenantID := s.tenantID(ctx)
 	if tenantID <= 0 {
 		return &SettingsError{Op: "reset_value", Err: fmt.Errorf("no tenant context")}
+	}
+	if parentReportApprovalKey(key) != "" && ctx.Value(parentReportResetContextKey{}) != true {
+		return s.resetParentReportMode(ctx, key, changedBy, userPermissions)
+	}
+	if isAttendanceScopeKey(key) || isParentReportSettingKey(key) {
+		if s.runtime == nil {
+			return &SettingsError{Op: "reset_value", Err: ErrRuntimeUnavailable}
+		}
+		if !s.runtime.HasTransaction(ctx) {
+			return s.runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
+				return s.ResetValue(txCtx, key, changedBy, userPermissions)
+			})
+		}
+	}
+	if isParentReportSettingKey(key) {
+		if err := s.lockParentReportModes(ctx); err != nil {
+			return err
+		}
 	}
 
 	// A reset restores the registry default, which changes the effective mode
@@ -883,6 +919,8 @@ func validateValue(def *config.Definition, value any) error {
 // order — never blocks a reachable configuration.
 func (s *settingsService) validateCrossField(ctx context.Context, key string, value any) error {
 	switch key {
+	case config.KeyOperationalOverviewScope, config.KeyAttendanceEditScope:
+		return s.validateAttendanceScopePair(ctx, key, value)
 	case config.KeySlotListShortDayCutoff, config.KeySlotListLongDayCutoff:
 		return s.validateSlotListCutoffPair(ctx, key, value)
 	case config.KeyEnrollmentCollectGradeLevel, config.KeyEnrollmentCollectSchoolClass:

@@ -8430,7 +8430,7 @@
       "declaration": "buildReasonPolicyServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        52
+        53
       ],
       "tables": []
     },
@@ -8524,7 +8524,7 @@
       "declaration": "TestListSickDays_ExcludesStaffCreatedExcused",
       "target": "database/repositories.NewFactory",
       "lines": [
-        835
+        842
       ],
       "tables": []
     },
@@ -8534,7 +8534,7 @@
       "declaration": "TestSubmitSickNote_ClearsClassTripForSubmittedDate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        563
+        570
       ],
       "tables": []
     },
@@ -8544,7 +8544,7 @@
       "declaration": "TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck",
       "target": "database/repositories.NewFactory",
       "lines": [
-        395
+        402
       ],
       "tables": []
     },
@@ -8554,7 +8554,7 @@
       "declaration": "TestSubmitSickNote_NonContiguousExcludesUnrelatedRows",
       "target": "database/repositories.NewFactory",
       "lines": [
-        706
+        713
       ],
       "tables": []
     },
@@ -8564,7 +8564,7 @@
       "declaration": "TestSubmitSickNote_RefusesPartialAbsenceConflict",
       "target": "database/repositories.NewFactory",
       "lines": [
-        357
+        364
       ],
       "tables": []
     },
@@ -8574,7 +8574,7 @@
       "declaration": "buildMessagingWriteService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        113
+        120
       ],
       "tables": []
     },
@@ -8584,7 +8584,7 @@
       "declaration": "buildWriteService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        86
+        96
       ],
       "tables": []
     },
@@ -9811,7 +9811,7 @@
       "declaration": "TestUserContextService_UpdateAvatar",
       "target": "database/repositories.NewFactory",
       "lines": [
-        577
+        590
       ],
       "tables": []
     },
@@ -27260,7 +27260,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 1265,
+          "line": 1269,
           "declaration": "initializeAPIResources"
         }
       ]

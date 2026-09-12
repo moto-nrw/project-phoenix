@@ -25,16 +25,6 @@ type Scope struct {
 	GroupIDs   []int64
 }
 
-func (s Scope) AccessLevel() string {
-	if s.SchoolWide {
-		return "admin"
-	}
-	if len(s.GroupIDs) > 0 {
-		return "group_leader"
-	}
-	return "none"
-}
-
 type Dependencies struct {
 	Principal          func(context.Context) Principal
 	GroupLeaderEnabled func(context.Context) (bool, error)
