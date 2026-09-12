@@ -227,7 +227,7 @@ vi.mock("@/components/roles/roles-master-detail", () => ({
     onSelect,
     onSaveRole,
     onDeleteClick,
-    onManagePermissions,
+    onPermissionsSaved,
   }: {
     roles: Array<{ id: string; name: string }>;
     selectedId: string | null;
@@ -235,7 +235,7 @@ vi.mock("@/components/roles/roles-master-detail", () => ({
     onSelect: (id: string | null) => void;
     onSaveRole: (data: { name: string }) => Promise<void>;
     onDeleteClick: () => void;
-    onManagePermissions: () => void;
+    onPermissionsSaved: () => void | Promise<void>;
   }) => {
     const [editing, setEditing] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -281,10 +281,10 @@ vi.mock("@/components/roles/roles-master-detail", () => ({
             </button>
             <button
               type="button"
-              data-testid="trigger-permissions"
-              onClick={onManagePermissions}
+              data-testid="trigger-permissions-saved"
+              onClick={() => void onPermissionsSaved()}
             >
-              Permissions
+              Permissions saved
             </button>
             <button
               type="button"
@@ -317,11 +317,6 @@ vi.mock("@/components/roles/roles-master-detail", () => ({
       </div>
     );
   },
-}));
-
-vi.mock("@/components/auth/role-permission-management-modal", () => ({
-  RolePermissionManagementModal: ({ isOpen }: { isOpen: boolean }) =>
-    isOpen ? <div data-testid="role-permission-modal" /> : null,
 }));
 
 const mockRoles = [
@@ -676,7 +671,10 @@ describe("RolesPage", () => {
     });
   });
 
-  it("opens the permission management modal from the detail panel", async () => {
+  // Berechtigungen werden im Reiter des Detailbereichs bearbeitet (#3116);
+  // die Seite lädt danach Liste und Detail neu, damit die Zahl in der Liste
+  // stimmt.
+  it("reloads the roles and the detail after the permissions were saved", async () => {
     setSelectedRole("1");
 
     render(<RolesPage />);
@@ -684,12 +682,18 @@ describe("RolesPage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("role-detail-panel")).toBeInTheDocument();
     });
+    const listCallsBefore = mockGetList.mock.calls.length;
+    const detailCallsBefore = mockGetOne.mock.calls.length;
 
-    fireEvent.click(screen.getByTestId("trigger-permissions"));
+    fireEvent.click(screen.getByTestId("trigger-permissions-saved"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("role-permission-modal")).toBeInTheDocument();
+      expect(mockGetList.mock.calls.length).toBe(listCallsBefore + 1);
     });
+    await waitFor(() => {
+      expect(mockGetOne.mock.calls.length).toBe(detailCallsBefore + 1);
+    });
+    expect(mockGetOne).toHaveBeenLastCalledWith("1");
   });
 
   it("calls update service when saving the inline edit form", async () => {
