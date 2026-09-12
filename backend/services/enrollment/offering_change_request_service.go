@@ -24,6 +24,7 @@ import (
 	"unicode/utf8"
 
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/enrollment/selection"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -3105,43 +3106,24 @@ func annotateAutomaticShares(
 	materialized []materializedOfferingSelection,
 	offeringByID map[int64]*enrollmentModels.CareOffering,
 ) {
-	selByID := materializedSelectionPointers(materialized)
+	shares := selection.AutomaticShares(materialized, nativeOfferingCatalog(offeringByID))
 	for i := range entries {
-		annotateAutomaticShare(&entries[i], selByID, offeringByID)
-	}
-}
-
-func annotateAutomaticShare(
-	entry *OfferingChangeDiffEntry,
-	selections map[int64]*materializedOfferingSelection,
-	offerings map[int64]*enrollmentModels.CareOffering,
-) {
-	selection, ok := selections[entry.OfferingID]
-	if !ok || selection == nil || len(selection.AutomaticSelectedDays) == 0 {
-		return
-	}
-	entry.NewAutomaticDays = append([]string(nil), selection.AutomaticSelectedDays...)
-	target := offerings[entry.OfferingID]
-	if target == nil {
-		return
-	}
-	ruleDays := ruleContributionForTarget(target, selection, selections, offerings)
-	if len(ruleDays) == 0 {
-		return
-	}
-	entry.NewRuleDays = append([]string(nil), ruleDays...)
-	entry.NewDaysWithoutRules = nonRuleDaysForTarget(target, selection, selections, offerings)
-	for _, triggerID := range target.AutoAddTriggerOfferingIDs {
-		triggerDays := autoDaysForTarget(target, []int64{triggerID}, selections, offerings)
-		if !daysOverlap(triggerDays, ruleDays) {
+		entry := &entries[i]
+		share, ok := shares[entry.OfferingID]
+		if !ok {
 			continue
 		}
-		name := fmt.Sprintf("Angebot %d", triggerID)
-		if trigger := offerings[triggerID]; trigger != nil && trigger.Name != "" {
-			name = trigger.Name
+		entry.NewAutomaticDays = share.AutomaticDays
+		entry.NewRuleDays = share.RuleDays
+		entry.NewDaysWithoutRules = share.DaysWithoutRules
+		entry.AutoTriggerIDs = share.TriggerIDs
+		for _, triggerID := range share.TriggerIDs {
+			name := fmt.Sprintf("Angebot %d", triggerID)
+			if trigger := offeringByID[triggerID]; trigger != nil && trigger.Name != "" {
+				name = trigger.Name
+			}
+			entry.AutoTriggerNames = append(entry.AutoTriggerNames, name)
 		}
-		entry.AutoTriggerIDs = append(entry.AutoTriggerIDs, triggerID)
-		entry.AutoTriggerNames = append(entry.AutoTriggerNames, name)
 	}
 }
 
@@ -3186,15 +3168,6 @@ func daysExcept(days, excluded []string) []string {
 	return slices.DeleteFunc(slices.Clone(days), func(day string) bool {
 		return slices.Contains(excluded, day)
 	})
-}
-
-func daysOverlap(left, right []string) bool {
-	for _, day := range left {
-		if slices.Contains(right, day) {
-			return true
-		}
-	}
-	return false
 }
 
 func offeringDiffEntry(

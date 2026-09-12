@@ -15,7 +15,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	requestreviewlegacy "github.com/moto-nrw/project-phoenix/modules/requestreview/legacy"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/offeringrequests"
+	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
@@ -161,9 +162,9 @@ func TestPreviewOfferingChangeRequest_ReturnsMaterializedDays(t *testing.T) {
 func TestToOfferingRequestResponse_IncludesRemainingDaysForOverridePreview(t *testing.T) {
 	t.Parallel()
 
-	view := &enrollmentService.OfferingChangeView{
-		Request: &enrollmentModels.OfferingChangeRequest{},
-		Diff: []enrollmentService.OfferingChangeDiffEntry{{
+	view := &offeringrequests.ReviewItem{
+		Request: &offeringrequests.Request{},
+		Diff: []offeringrequests.DiffEntry{{
 			OfferingID:          9,
 			Label:               "Mittagessen",
 			NewState:            "booked",
@@ -176,7 +177,7 @@ func TestToOfferingRequestResponse_IncludesRemainingDaysForOverridePreview(t *te
 		}},
 	}
 
-	response := requestreviewlegacy.ToOfferingRequestResponse(view)
+	response := requestreviewcompose.ToOfferingRequestResponse(view)
 
 	require.Len(t, response.Diff, 1)
 	assert.Equal(t, "Di", response.Diff[0].RuleDays)
@@ -187,17 +188,17 @@ func TestToOfferingRequestResponse_IncludesRemainingDaysForOverridePreview(t *te
 func TestToOfferingRequestResponse_ReportsFullWithdrawalAndUntouchedBookings(t *testing.T) {
 	t.Parallel()
 
-	view := &enrollmentService.OfferingChangeView{
-		Request:        &enrollmentModels.OfferingChangeRequest{},
+	view := &offeringrequests.ReviewItem{
+		Request:        &offeringrequests.Request{},
 		FullWithdrawal: true,
-		Diff: []enrollmentService.OfferingChangeDiffEntry{{
+		Diff: []offeringrequests.DiffEntry{{
 			OfferingID: 3,
 			Label:      "Regelbetreuung",
 			OldState:   "booked",
 			OldDays:    []string{"mon", "tue"},
 			NewState:   "removed",
 		}},
-		Unchanged: []enrollmentService.OfferingChangeDiffEntry{{
+		Unchanged: []offeringrequests.DiffEntry{{
 			OfferingID: 4,
 			Label:      "Mittagessen",
 			OldState:   "booked",
@@ -207,7 +208,7 @@ func TestToOfferingRequestResponse_ReportsFullWithdrawalAndUntouchedBookings(t *
 		}},
 	}
 
-	resp := requestreviewlegacy.ToOfferingRequestResponse(view)
+	resp := requestreviewcompose.ToOfferingRequestResponse(view)
 
 	assert.True(t, resp.FullWithdrawal)
 	assert.Equal(t, "abgemeldet", resp.Diff[0].New)
@@ -220,9 +221,9 @@ func TestToOfferingRequestResponse_ReportsFullWithdrawalAndUntouchedBookings(t *
 func TestToOfferingRequestResponse_OmitsFullWithdrawalForAnOrdinaryRequest(t *testing.T) {
 	t.Parallel()
 
-	view := &enrollmentService.OfferingChangeView{
-		Request: &enrollmentModels.OfferingChangeRequest{},
-		Diff: []enrollmentService.OfferingChangeDiffEntry{{
+	view := &offeringrequests.ReviewItem{
+		Request: &offeringrequests.Request{},
+		Diff: []offeringrequests.DiffEntry{{
 			OfferingID: 3,
 			Label:      "Regelbetreuung",
 			OldState:   "booked",
@@ -232,7 +233,7 @@ func TestToOfferingRequestResponse_OmitsFullWithdrawalForAnOrdinaryRequest(t *te
 		}},
 	}
 
-	resp := requestreviewlegacy.ToOfferingRequestResponse(view)
+	resp := requestreviewcompose.ToOfferingRequestResponse(view)
 
 	assert.False(t, resp.FullWithdrawal)
 	assert.Empty(t, resp.Unchanged)

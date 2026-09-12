@@ -18,6 +18,16 @@ func (e *recordingEngine) LockEnrollmentClassWrites(context.Context) error {
 	return nil
 }
 
+func (e *recordingEngine) CurrentFamilyProtection(context.Context, []int64) (map[int64]bool, error) {
+	e.calls++
+	return map[int64]bool{}, nil
+}
+
+func (e *recordingEngine) ListStudentDepartureModes(context.Context, []int64) (map[int64]map[string][]string, error) {
+	e.calls++
+	return map[int64]map[string][]string{}, nil
+}
+
 func (e *recordingEngine) ApplyEnrollmentProfile(context.Context, int64, enrollment.ProfilePatch) error {
 	e.calls++
 	return nil

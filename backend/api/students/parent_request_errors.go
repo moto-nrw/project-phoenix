@@ -11,6 +11,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+	reviewidentity "github.com/moto-nrw/project-phoenix/modules/identityaccess/requestreview"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
@@ -72,12 +73,8 @@ var parentRequestSharedRules = []common.ErrorRule{
 	{Target: excusedrequests.ErrParentRequestCorrectionUnsupported, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, codeCorrectionUnsupp)
 	}},
-	{Target: authorize.ErrAbsenceReadRequired, Render: func(error) render.Renderer {
-		return common.ErrorForbiddenMessageWithCode(
-			"Für Elternanfragen zu Abwesenheiten brauchen Sie zusätzlich das Recht „Kinder sehen“.",
-			codeAbsenceReadRequird,
-		)
-	}},
+	{Target: authorize.ErrAbsenceReadRequired, Render: absenceReadRequiredResponse},
+	{Target: reviewidentity.ErrAbsenceReadRequired, Render: absenceReadRequiredResponse},
 	{Target: userService.ErrParentRequestReasonRequired, Render: func(error) render.Renderer {
 		return common.ErrorInvalidRequestMessageWithCode(
 			"Bitte tragen Sie eine Begründung ein.",
@@ -113,6 +110,13 @@ func parentRequestRules(own ...common.ErrorRule) []common.ErrorRule {
 	rules := make([]common.ErrorRule, 0, len(own)+len(parentRequestSharedRules))
 	rules = append(rules, own...)
 	return append(rules, parentRequestSharedRules...)
+}
+
+func absenceReadRequiredResponse(error) render.Renderer {
+	return common.ErrorForbiddenMessageWithCode(
+		"Für Elternanfragen zu Abwesenheiten brauchen Sie zusätzlich das Recht „Kinder sehen“.",
+		codeAbsenceReadRequird,
+	)
 }
 
 // parentRequestQueueErrorRenderer is what the read surfaces (aggregated list,
