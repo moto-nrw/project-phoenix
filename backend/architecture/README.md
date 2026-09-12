@@ -519,21 +519,32 @@ education and Familienschutz services, and derives the per-row facts
 four-service fan-out in that package is deleted. The `inbound-students` import
 of the adapter exists only because the per-type decide routes still render
 the same wire shapes from the retained service items; it goes when those
-routes move to their owners. Every `request-review-view.adapter.*`,
-`request-review-view.adapter-test.*` and
-`inbound-students.adapter-test.request-review-adapter` rule is a compatibility
-permission that exists only because PR mode cannot record debt for a package
-the candidate creates: convert them to exact debt with the rule above once the
-package exists at a base SHA, rebind each port to its owner's public
-capability as it appears, and delete the adapter with the last legacy source.
+routes move to their owners. #3174 converts the temporary permissions for the
+adapter's legacy imports, its tests, and its students and root-composition
+callers to exact `imports.forbidden` debt in `legacy.jsonl`, tracked by #3179.
+Keep #3179 open until all 27 imports and the legacy adapter are removed.
+The adapter's own public-capability binding, its
+Care Plan public-contract import, and the students HTTP call to the public
+projection remain target-allowed. Rebind each legacy port to its owner's
+public capability as it appears, remove each tuple with its import, and delete
+the adapter with the last legacy source.
 The projection reads no table directly, so it needs no `read_projections`
 grant; the owner queues keep their per-child scope and tenant isolation. Its
 `Today` port resolves the review day once per call, so the queues' urgency
 phase and the rows' urgency and past flags cannot straddle midnight or
-disagree under a test clock. The staff RSS feed
-(`/students/change-requests/rss-feed`) still reads the request tables through
-its own registered `parent-request-feed-read-model` grant; moving it onto this
-owner is open under #2705.
+disagree under a test clock. The public enrollment change requests keep
+their own `config:manage`-gated list (#2435), which the client merges into
+the same Eltern list, so the projection does not cross that permission
+boundary. The staff RSS feed (`/students/change-requests/rss-feed`) keeps its
+own registered `parent-request-feed-read-model` grant. It postdates #2705's
+evidence, also announces the `config:manage` enrollment change requests and
+selects by submission instant in one statement, and this owner cannot take it
+over in PR mode: a `read_projections`
+grant is accepted only for a newly created projection owner, `care-plan` may
+not import `request-review-view/public`, and neither
+`request-review-view/adapter` nor the root may import
+`parent-request-feed-view/postgres`. Moving the feed needs a reviewed policy
+decision under #2580.
 
 The Device Fleet authentication composition (`modules/devicefleet/deviceauth`)
 is classified as `device-fleet`/`http`. Its `device-fleet.device-auth.*`
