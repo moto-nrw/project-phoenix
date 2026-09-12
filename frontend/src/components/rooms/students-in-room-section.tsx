@@ -1,6 +1,6 @@
 // components/rooms/students-in-room-section.tsx
 //
-// Live "Kinder im Raum" view inside the room-detail slide-over (#1323).
+// Live "Kinder im Raum" view on the room page /rooms/[id] (#1323, #3115).
 //
 // Uses the same `/api/students?room_id=` data path as Kindersuche, but
 // renders a compact name + class + group row per child (CompactStudentCard)
@@ -92,13 +92,13 @@ export function StudentsInRoomSection({
     { type: "idle" } | { type: "loading" } | { type: "error"; message: string }
   >({ type: "idle" });
   const sectionSearchParams = useSearchParams();
-  // Drilling into a child must return to the same /rooms grid state the
-  // user came from. Preserve the full query string (room=… AND any
-  // filter params like ?search=…&building=…&status=…) so the user lands
-  // back on the same narrowed view with the slide-over reopened.
+  // Drilling into a child must return to the room page the user came from
+  // (#3115). Its own query (the `from` back to the grid or the register, the
+  // open tab) rides along so the way back stays intact: child → room →
+  // collection.
   const fromReferrer = (() => {
     const qs = sectionSearchParams?.toString() ?? "";
-    return qs ? `/rooms?${qs}` : `/rooms?room=${roomId}`;
+    return qs ? `/rooms/${roomId}?${qs}` : `/rooms/${roomId}`;
   })();
 
   // pageSize must comfortably exceed any realistic room occupancy (combined

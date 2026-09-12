@@ -943,6 +943,12 @@ describe("StudentDetailPage", () => {
         expect(mockRefreshData).toHaveBeenCalled();
         expect(mockToastSuccess).toHaveBeenCalled();
       });
+      const payload = mockUpdateStudent.mock.calls[0]?.[1] as Record<
+        string,
+        unknown
+      >;
+      expect(payload).not.toHaveProperty("privacy_consent_accepted");
+      expect(payload).not.toHaveProperty("data_retention_days");
     });
 
     it("revalidates field history after saving personal info", async () => {
@@ -1202,14 +1208,28 @@ describe("StudentDetailPage", () => {
       expect(backButton).toHaveAttribute("data-referrer", "/students/search");
     });
 
-    it("uses custom referrer from URL params", () => {
-      mockSearchParams.set("from", "/my-room");
+    it("falls back for an external referrer from URL params", () => {
+      mockSearchParams.set("from", "//attacker.example");
 
       render(<StudentDetailPage />);
 
       const backButton = screen.getByTestId("back-button");
-      expect(backButton).toHaveAttribute("data-referrer", "/my-room");
+      expect(backButton).toHaveAttribute("data-referrer", "/students/search");
     });
+
+    it.each(["/messages", "/absences", "/ogs-groups"])(
+      "keeps %s as a valid referrer",
+      (referrer) => {
+        mockSearchParams.set("from", referrer);
+
+        render(<StudentDetailPage />);
+
+        expect(screen.getByTestId("back-button")).toHaveAttribute(
+          "data-referrer",
+          referrer,
+        );
+      },
+    );
   });
 
   describe("Embedded Manager Updates", () => {

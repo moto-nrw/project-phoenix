@@ -849,14 +849,40 @@ function SidebarContent({
     if (from.startsWith("/ogs-groups")) return "/ogs-groups";
     if (from.startsWith("/active-supervisions")) return "/active-supervisions";
     if (from.startsWith("/day-log")) return "/day-log";
-    // Drill-in from a room ("Kinder im Raum"), both the legacy subpage
-    // /rooms/{id} and the modal URL /rooms?room={id} count, so the
-    // sidebar reflects the actual entry path in either flow.
+    // Drill-in from a room ("Kinder im Raum"): the room page /rooms/{id}
+    // (#3115) and old /rooms?room={id} links count, so the sidebar reflects
+    // the actual entry path in either flow.
     if (from.startsWith("/rooms/") || from.startsWith("/rooms?"))
       return "/rooms";
+    // Die Kinderdaten der Datenverwaltung verlinken auf die Kindakte (#3115).
+    if (from.startsWith("/database/students")) return "/database/students";
     if (from.startsWith("/students/search")) return "/students/search";
     return "/students/search";
   };
+
+  // Die Objektrouten (Kindakte, Personalakte, Raumseite) haben keinen eigenen
+  // Eintrag in der Seitenleiste: markiert wird die Sammlung, aus der man kam
+  // (`?from=`). Die Register der Datenverwaltung verlinken seit #3115 auf
+  // dieselben Routen wie die Übersichten; ohne den Rückweg leuchtete dann
+  // immer die Übersicht, auch wer aus der Datenverwaltung kam.
+  const objectRouteActiveHref = (() => {
+    const from = searchParams.get("from");
+    if (pathname.startsWith("/students/") && pathname !== "/students/search") {
+      return getStudentDetailActiveHref(from);
+    }
+    if (
+      pathname.startsWith("/staff/") &&
+      !pathname.startsWith("/staff/dienstplan")
+    ) {
+      return from?.startsWith("/database/personal")
+        ? "/database/personal"
+        : "/staff";
+    }
+    if (pathname.startsWith("/rooms/")) {
+      return from?.startsWith("/database/rooms") ? "/database/rooms" : "/rooms";
+    }
+    return null;
+  })();
 
   // Operator drill-in highlight: hierarchy-based, not tab-based.
   // The sidebar reflects WHERE in the tree the user is, not which tab they
@@ -884,11 +910,8 @@ function SidebarContent({
 
   // Check if a navigation link should be highlighted as active
   const isActiveLink = (href: string) => {
-    const isStudentDetailPage =
-      pathname.startsWith("/students/") && pathname !== "/students/search";
-    if (isStudentDetailPage) {
-      const from = searchParams.get("from");
-      return getStudentDetailActiveHref(from) === href;
+    if (objectRouteActiveHref !== null) {
+      return objectRouteActiveHref === href;
     }
     const operatorDrillInHref = getOperatorDrillInActiveHref();
     if (operatorDrillInHref) {
@@ -933,11 +956,11 @@ function SidebarContent({
     parentHref: string,
     hasSubItemSelected: boolean,
   ) => {
-    const isStudentDetailPage =
-      pathname.startsWith("/students/") && pathname !== "/students/search";
-    if (isStudentDetailPage) {
-      const from = searchParams.get("from");
-      if (getStudentDetailActiveHref(from) !== parentHref) return false;
+    if (objectRouteActiveHref !== null) {
+      // Aus einem Register der Datenverwaltung heraus zählt dessen Eintrag,
+      // nicht der Bereichskopf.
+      if (objectRouteActiveHref.startsWith(`${parentHref}/`)) return false;
+      if (objectRouteActiveHref !== parentHref) return false;
       // If a sub-item is highlighted on the child page, don't highlight the parent
       return !hasSubItemSelected;
     }
@@ -1703,9 +1726,14 @@ function SidebarContent({
         {...sectionProps("database", handleDatabaseToggle)}
         isActive={isAccordionSectionActive(
           "/database",
-          databaseSubPages.some((p) => pathname === p.href),
+          databaseSubPages.some(
+            (p) => pathname === p.href || objectRouteActiveHref === p.href,
+          ),
         )}
-        isIconActive={pathname.startsWith("/database")}
+        isIconActive={
+          pathname.startsWith("/database") ||
+          objectRouteActiveHref?.startsWith("/database/") === true
+        }
         hasChildren={databaseSubPages.length > 0}
       >
         {databaseSubPages.map((page) => (
@@ -1717,7 +1745,11 @@ function SidebarContent({
             // Eltern accordion. No-op in subdomain mode.
             href={tenantPath(page.href)}
             label={page.label}
-            isActive={pathname === page.href}
+            // Auch aktiv, wenn die Objektroute (Kindakte, Personalakte,
+            // Raumseite) aus diesem Register geöffnet wurde (#3115).
+            isActive={
+              pathname === page.href || objectRouteActiveHref === page.href
+            }
           />
         ))}
       </SidebarAccordionSection>

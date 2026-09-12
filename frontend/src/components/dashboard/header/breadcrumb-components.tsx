@@ -370,22 +370,92 @@ export function StudentDetailBreadcrumb({
 }
 
 /**
- * Staff detail breadcrumb (2-level: Mitarbeiter / Name)
+ * Staff detail breadcrumb: Mitarbeiter / Name, oder aus dem Register der
+ * Datenverwaltung heraus Datenverwaltung / Personal / Name (#3115).
  */
 interface StaffDetailBreadcrumbProps {
   readonly staffName: string;
+  /** Die Sammlung, aus der die Personalakte geöffnet wurde (`?from=`). */
+  readonly referrer?: string;
   readonly isScrolled?: boolean;
 }
 
 export function StaffDetailBreadcrumb({
   staffName,
+  referrer = "/staff",
   isScrolled = false,
 }: StaffDetailBreadcrumbProps) {
+  const fromDatabase = referrer.startsWith("/database/personal");
   return (
     <BreadcrumbNav isScrolled={isScrolled}>
-      <BreadcrumbLink href="/staff">Mitarbeiter</BreadcrumbLink>
+      {fromDatabase ? (
+        <>
+          <BreadcrumbLink href="/database">Datenverwaltung</BreadcrumbLink>
+          <BreadcrumbSeparator />
+          <BreadcrumbLink href={referrer}>Personal</BreadcrumbLink>
+        </>
+      ) : (
+        <BreadcrumbLink href="/staff">Mitarbeiter</BreadcrumbLink>
+      )}
       <BreadcrumbSeparator />
       <BreadcrumbCurrent>{staffName}</BreadcrumbCurrent>
+    </BreadcrumbNav>
+  );
+}
+
+interface AnnouncementDetailBreadcrumbProps {
+  readonly title: string;
+  /** Die Liste samt Reiter, aus der die Seite geöffnet wurde (`?from=`). */
+  readonly referrer: string;
+  readonly isScrolled?: boolean;
+}
+
+/** Die Mitteilungsseite /parent-announcements/[id] (#3115): Mitteilungen / Titel. */
+export function AnnouncementDetailBreadcrumb({
+  title,
+  referrer,
+  isScrolled = false,
+}: AnnouncementDetailBreadcrumbProps) {
+  return (
+    <BreadcrumbNav isScrolled={isScrolled}>
+      <BreadcrumbLink href={referrer}>Mitteilungen</BreadcrumbLink>
+      <BreadcrumbSeparator />
+      <BreadcrumbCurrent>{title}</BreadcrumbCurrent>
+    </BreadcrumbNav>
+  );
+}
+
+interface RoomDetailBreadcrumbProps {
+  readonly roomName: string;
+  /** Die Sammlung, aus der die Raumseite geöffnet wurde (`?from=`). */
+  readonly referrer: string;
+  readonly isScrolled?: boolean;
+}
+
+/**
+ * Die Raumseite /rooms/[id] (#3115): zwei Stufen, die erste ist die
+ * Sammlung, aus der man kam — die Übersicht „Räume" oder das Register der
+ * Datenverwaltung.
+ */
+export function RoomDetailBreadcrumb({
+  roomName,
+  referrer,
+  isScrolled = false,
+}: RoomDetailBreadcrumbProps) {
+  const fromDatabase = referrer.startsWith("/database/rooms");
+  return (
+    <BreadcrumbNav isScrolled={isScrolled}>
+      {fromDatabase ? (
+        <>
+          <BreadcrumbLink href="/database">Datenverwaltung</BreadcrumbLink>
+          <BreadcrumbSeparator />
+          <BreadcrumbLink href={referrer}>Räume</BreadcrumbLink>
+        </>
+      ) : (
+        <BreadcrumbLink href={referrer}>Räume</BreadcrumbLink>
+      )}
+      <BreadcrumbSeparator />
+      <BreadcrumbCurrent>{roomName}</BreadcrumbCurrent>
     </BreadcrumbNav>
   );
 }

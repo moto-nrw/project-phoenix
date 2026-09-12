@@ -20,6 +20,7 @@
     "bauart/no-autosave": "error",
     "bauart/no-toast-form-error": "error",
     "bauart/no-manage-surface-in-overlay": "error",
+    "bauart/one-detail-per-type": "error",
     "date-safety/no-utc-date-extraction": "error",
     "logging-safety/no-serialized-context": "error",
     "test-clock/no-real-clock": "error",

@@ -48,6 +48,20 @@ Aktivitäten, Gruppen, Rollen, Geräte, Dateien, Nachrichten, Anfragen.
    Slide-over als Ersatz für eine Detailseite, kein zentriertes Modal als
    Detailansicht. Eine nicht klickbare Zeile in einer Liste klickbarer Zeilen
    gibt es nicht.
+
+   **Wann ein Pane neben der Liste zulässig ist (#3115):** nur, wenn es die
+   einzige Objektansicht des Typs im Portal ist (Gruppe, Gerät, Rolle,
+   Aktivität, Berechtigung, die Kataloge der Datenverwaltung). Dann steht
+   die Auswahl in der Adresse (`?group=`), damit ein Eintrag verlinkbar
+   bleibt; `useUpdateUrlParams` schreibt sie per `router.replace`, ein
+   Zurück im Browser springt also zur vorigen Seite, nicht zum vorigen
+   Eintrag. Sobald der Typ eine Route hat (Kind, Person, Raum,
+   Elternmitteilung), verlinkt die Zeile dorthin (`DatabaseListItem href`,
+   `?from=` trägt den Rückweg zur Sammlung samt Filtern) und es gibt kein
+   Pane, kein Slide-over und keinen zweiten Detailbaum daneben. Was das
+   Pane an Feldern oder Aktionen mehr konnte als die Route, zieht als Reiter
+   oder Kebab-Eintrag auf die Route um.
+
 3. **„Neu anlegen" steht immer als Kopf-Aktion**, auf jeder Sammlung ihres
    Typs, mit demselben Wort („Kind anlegen", „Raum anlegen"). Es gibt keine
    Sammlung, auf der man das Objekt sehen, aber nicht anlegen kann, während
@@ -122,6 +136,16 @@ keine zweite Ansicht.
    Nachtragen eines Objekts in eine Liste (Kind in die Aufsicht, Person an
    ein Kind) ist eine Kopf-Aktion mit `FormModal`, kein Formular im
    Listenkörper.
+
+   **Slide-over oder `FormModal` (#3115):** `FormModal` ist der Standard
+   für Anlegen und Nachtragen. Ein Slide-over nur, wenn das Formular
+   breiter ist, als ein Modal trägt (mehrstufiger Assistent mit
+   Empfängerwahl), oder die Liste dahinter sichtbar bleiben muss. Ein
+   Slide-over ist nie eine Detailansicht (Bauart 1 Regel 2). Ein Assistent
+   mit zwei Abschlüssen („Als Entwurf speichern" und „Veröffentlichen")
+   behält seinen eigenen Fuß; `EditActions` gilt für den Bearbeiten-Zustand
+   mit genau einem Speichern.
+
 5. **Fehler stehen im `Alert` oben im Bearbeiten-Bereich und, wo zuordenbar,
    am Feld.** Kein Toast als einzige Fehlermeldung, kein roter Absatz.
    Der Platz dafür ist fest: `error` an `FormModal`, `error` an
@@ -218,7 +242,15 @@ bekommt eine shrink-only Baseline analog zum bestehenden
 `oxlint-plugin-ui-kit.mjs`:
 
 1. `bauart/one-detail-per-type` — kein zweiter Detailbaum für einen
-   Objekttyp.
+   Objekttyp. **Umgesetzt** (`scripts/oxlint-plugin-bauart.mjs`, hard-zero,
+   #3115): `MasterDetailLayout` darf nur von den Typen importiert werden,
+   deren Pane die einzige Objektansicht ist (feste Liste im Plugin: Gruppe,
+   Gerät, Rolle, Aktivität, Berechtigung, Kataloge); `DetailPanel` und
+   `DatabaseDetailHeader` in einem Overlay sowie `InfoSection`/`DataGrid`
+   in einem `SlideOver`/`Drawer` fallen durch. Zentrierte Modale bleiben
+   außen vor, weil ein `FormModal` ein Feld zur Einordnung zeigen darf;
+   dasselbe gilt ortsgebunden für ein Formular im Slide-over (Übergabe einer
+   Gruppe). Operator-, Eltern- und Schul-Portal sind nicht im Scope.
 2. `bauart/no-local-field-grid` — kein lokales `<dt>/<dd>`-Feldgitter
    außerhalb `ui/detail-modal-components`.
 3. `bauart/one-delete-confirm` — nur `ConfirmDeleteModal`; kein

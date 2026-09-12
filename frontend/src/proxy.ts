@@ -560,6 +560,101 @@ function getBareTenantPrefixedPath(pathname: string): string | null {
   return match[2] ?? "/";
 }
 
+type LegacySelectionSource = {
+  readonly collectionPath: string;
+  readonly selectionKey: string;
+  readonly target: (selection: string) => string;
+  readonly tab?: string;
+};
+
+const LEGACY_SELECTION_SOURCES: readonly LegacySelectionSource[] = [
+  {
+    collectionPath: "/rooms",
+    selectionKey: "room",
+    target: (selection: string) =>
+      selection === "__transit__"
+        ? "/rooms/unterwegs"
+        : `/rooms/${encodePathSegment(selection)}`,
+  },
+  {
+    collectionPath: "/database/rooms",
+    selectionKey: "room",
+    target: (selection: string) => `/rooms/${encodePathSegment(selection)}`,
+    tab: "stammdaten",
+  },
+  {
+    collectionPath: "/database/students",
+    selectionKey: "student",
+    target: (selection: string) => `/students/${encodePathSegment(selection)}`,
+  },
+  {
+    collectionPath: "/database/personal",
+    selectionKey: "staff",
+    target: (selection: string) => `/staff/${encodePathSegment(selection)}`,
+    tab: "konto",
+  },
+];
+
+/** Dots must stay encoded: assigning a literal `..` to URL.pathname would
+ * normalize it into a different route. */
+function encodePathSegment(value: string): string {
+  return encodeURIComponent(value).replaceAll(".", "%2E");
+}
+
+/**
+ * The old collection panes selected their object through a query parameter.
+ * Next's static redirects forward extra query parameters beside the fixed
+ * destination query, but cannot nest them in `from`. This request-aware
+ * redirect keeps search and grouping on the originating collection instead.
+ */
+function redirectLegacySelection(request: NextRequest): NextResponse | null {
+  const { pathname, searchParams } = request.nextUrl;
+  let collectionPath = pathname;
+  let tenantPrefix = "";
+
+  if (
+    !LEGACY_SELECTION_SOURCES.some((rule) => rule.collectionPath === pathname)
+  ) {
+    const match =
+      /^\/([^/]+)(\/(?:rooms|database\/(?:rooms|students|personal)))$/.exec(
+        pathname,
+      );
+    const tenant = match?.[1];
+    const nestedCollectionPath = match?.[2];
+    // These are fixed first path segments, never tenant slugs. The same
+    // exclusion made the previous next.config redirect unambiguous.
+    if (
+      !tenant ||
+      !nestedCollectionPath ||
+      ["api", "database", "rooms", "students", "staff"].includes(tenant)
+    ) {
+      return null;
+    }
+    collectionPath = nestedCollectionPath;
+    tenantPrefix = `/${tenant}`;
+  }
+
+  const rule = LEGACY_SELECTION_SOURCES.find(
+    (entry) => entry.collectionPath === collectionPath,
+  );
+  if (!rule) return null;
+
+  const selection = searchParams.get(rule.selectionKey);
+  if (!selection) return null;
+
+  const collectionQuery = new URLSearchParams(searchParams);
+  collectionQuery.delete(rule.selectionKey);
+  const query = collectionQuery.toString();
+  const referrer = query ? `${collectionPath}?${query}` : collectionPath;
+  const url = request.nextUrl.clone();
+  url.pathname = `${tenantPrefix}${rule.target(selection)}`;
+  url.search = "";
+  if (rule.tab) url.searchParams.set("tab", rule.tab);
+  url.searchParams.set("from", referrer);
+
+  return withSecurityHeaders(NextResponse.redirect(url));
+}
+
 // --- Main proxy ---
 
 export function proxy(request: NextRequest): NextResponse {
@@ -602,6 +697,12 @@ export function proxy(request: NextRequest): NextResponse {
   if (isSchoolHost(hostname)) {
     return handleSchoolSubdomain(request);
   }
+
+  // Object links from panes that existed before #3115 need the whole
+  // collection query nested in `from`, which static next.config redirects
+  // cannot express. Handle both tenant-subdomain and path-routing URLs here.
+  const legacySelection = redirectLegacySelection(request);
+  if (legacySelection) return legacySelection;
 
   // 2. /api/* and /monitoring (Sentry tunnel): pass through with security headers.
   if (pathname.startsWith("/api") || pathname.startsWith("/monitoring")) {

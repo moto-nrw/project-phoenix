@@ -33,30 +33,6 @@ vi.mock("~/hooks/useUpdateUrlParams", () => ({
   useUpdateUrlParams: () => mockUpdateUrlParams,
 }));
 
-vi.mock("~/components/rooms/room-detail-panel", () => ({
-  TRANSIT_ROOM_ID: "__transit__",
-  // Surface the onClose handler as a clickable element so tests can
-  // exercise the modal-close branch (back vs. updateUrlParams).
-  RoomDetailPanel: ({
-    roomId,
-    onClose,
-  }: {
-    roomId: string | null;
-    onClose: () => void;
-  }) =>
-    roomId ? (
-      <div data-testid="room-detail-panel" data-room-id={roomId}>
-        <button
-          type="button"
-          data-testid="room-detail-panel-close"
-          onClick={onClose}
-        >
-          close
-        </button>
-      </div>
-    ) : null,
-}));
-
 vi.mock("swr", () => ({
   default: vi.fn(),
   mutate: vi.fn(),
@@ -254,7 +230,7 @@ describe("RoomsPage", () => {
     });
   });
 
-  it("pushes ?room={id} as a new history entry on card click", () => {
+  it("links each room tile to the room page with the filters as referrer", async () => {
     vi.mocked(useSWRAuth).mockReturnValue({
       data: mockRooms,
       isLoading: false,
@@ -263,93 +239,23 @@ describe("RoomsPage", () => {
 
     render(<RoomsPage />);
 
-    fireEvent.click(screen.getByRole("button", { name: /Raum 101/i }));
+    // Ohne Filter führt der Rückweg schlicht auf die Übersicht. Der Link
+    // trägt den Mandanten-Slug, der Rückweg bleibt slug-frei.
+    expect(screen.getByRole("link", { name: "Raum 101" })).toHaveAttribute(
+      "href",
+      `/test-tenant/rooms/1?from=${encodeURIComponent("/rooms")}`,
+    );
 
-    // Opening the modal must use router.push (not replace) so the
-    // browser Back button closes the overlay instead of skipping past
-    // the rooms page. mockPush is the underlying next/navigation router
-    // that useTenantRouter wraps.
-    expect(mockPush).toHaveBeenCalledWith("/test-tenant/rooms?room=1");
-    // updateUrlParams (which uses replace internally) must NOT be called
-    // for opening, only for closing.
-    expect(mockUpdateUrlParams).not.toHaveBeenCalledWith({ room: "1" });
-  });
+    fireEvent.click(screen.getByTestId("filter-building"));
 
-  it("pops the modal entry on close after open (back, not replace)", () => {
-    vi.mocked(useSWRAuth).mockReturnValue({
-      data: mockRooms,
-      isLoading: false,
-      error: null,
-    } as never);
-
-    const { rerender } = render(<RoomsPage />);
-    fireEvent.click(screen.getByRole("button", { name: /Raum 101/i }));
-
-    // Simulate the URL update that production would receive from
-    // router.push: flip the mocked searchParam and re-render so the
-    // modal mounts and exposes the close affordance.
-    searchParamsState.roomParam = "1";
-    rerender(<RoomsPage />);
-
-    fireEvent.click(screen.getByTestId("room-detail-panel-close"));
-
-    // After open-then-close, history must collapse to a single /rooms
-    // entry. Replace would leave [/rooms, /rooms] and Back would appear
-    // to do nothing, the close path has to pop the modal entry.
-    expect(mockBack).toHaveBeenCalledTimes(1);
-    expect(mockUpdateUrlParams).not.toHaveBeenCalledWith({ room: null });
-  });
-
-  it("still pops the modal entry after a /rooms → /students → /rooms remount", () => {
-    // Verifies the marker that drives the close decision lives on
-    // window.history.state, not in component state. Otherwise drilling
-    // into a child and pressing browser Back would remount /rooms with
-    // a fresh ref, and the close path would silently fall back to
-    // replace, leaving the duplicate-/rooms history bug intact.
-    vi.mocked(useSWRAuth).mockReturnValue({
-      data: mockRooms,
-      isLoading: false,
-      error: null,
-    } as never);
-
-    // 1. First mount: open the modal. The effect tags the now-current
-    //    history entry with roomModalPushed=true.
-    const first = render(<RoomsPage />);
-    fireEvent.click(screen.getByRole("button", { name: /Raum 101/i }));
-    searchParamsState.roomParam = "1";
-    first.rerender(<RoomsPage />);
-
-    // 2. Simulate the user navigating away (drill into a student) and
-    //    returning via browser back: same history entry, fresh React
-    //    component instance.
-    first.unmount();
-    render(<RoomsPage />);
-
-    // 3. Close from the remounted page. The marker on history.state
-    //    survives, so close still pops via router.back.
-    fireEvent.click(screen.getByTestId("room-detail-panel-close"));
-
-    expect(mockBack).toHaveBeenCalledTimes(1);
-    expect(mockUpdateUrlParams).not.toHaveBeenCalledWith({ room: null });
-  });
-
-  it("falls back to replace when closing a deep-linked modal entry", () => {
-    // User landed on /rooms?room=2 directly (refresh / shared link), so
-    // there is no in-app prior /rooms entry to pop. router.back() would
-    // leave the page; updateUrlParams clears the param in place instead.
-    vi.mocked(useSWRAuth).mockReturnValue({
-      data: mockRooms,
-      isLoading: false,
-      error: null,
-    } as never);
-    searchParamsState.roomParam = "2";
-
-    render(<RoomsPage />);
-
-    fireEvent.click(screen.getByTestId("room-detail-panel-close"));
-
-    expect(mockUpdateUrlParams).toHaveBeenCalledWith({ room: null });
-    expect(mockBack).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.getByRole("link", { name: "Raum 101" })).toHaveAttribute(
+        "href",
+        `/test-tenant/rooms/1?from=${encodeURIComponent("/rooms?building=Main")}`,
+      );
+    });
+    // Öffnen ist ein Link, kein Push: Mittelklick und „in neuem Tab" gehen.
+    expect(mockPush).not.toHaveBeenCalled();
   });
 
   it("shows error message when rooms fetch fails", () => {
@@ -464,7 +370,7 @@ describe("RoomsPage", () => {
     expect(screen.getByText("Keine Räume gefunden")).toBeInTheDocument();
   });
 
-  it("opens the transit assignment drawer from the work list", () => {
+  it("links the transit work list to its own page with the active filters", async () => {
     vi.mocked(useSWRAuth).mockImplementation((key: unknown) => {
       if (key === "dashboard-analytics") {
         return {
@@ -483,11 +389,19 @@ describe("RoomsPage", () => {
 
     render(<RoomsPage />);
 
-    fireEvent.click(screen.getByRole("button", { name: /Unterwegs/i }));
-
-    expect(mockPush).toHaveBeenCalledWith(
-      "/test-tenant/rooms?room=__transit__",
+    expect(screen.getByRole("link", { name: /Unterwegs/i })).toHaveAttribute(
+      "href",
+      `/test-tenant/rooms/unterwegs?from=${encodeURIComponent("/rooms")}`,
     );
+
+    fireEvent.click(screen.getByTestId("filter-building"));
+
+    await waitFor(() => {
+      expect(screen.getByRole("link", { name: /Unterwegs/i })).toHaveAttribute(
+        "href",
+        `/test-tenant/rooms/unterwegs?from=${encodeURIComponent("/rooms?building=Main")}`,
+      );
+    });
   });
 
   it("displays occupied room with group name", () => {

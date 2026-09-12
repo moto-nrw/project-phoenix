@@ -538,14 +538,17 @@
 /* Jede sichtbare Hülle auf dem Weg zur letzten Kartenfläche wird selbst zur
    Flex-Spalte. `flex: 1` allein wirkt nur auf Flex-Elemente und ließ bei
    verschachtelten Seitenhüllen ansonsten den Punkthintergrund unter der
-   letzten Karte frei. */
+   letzten Karte frei. Eine Hülle, die ab `md` ausgeblendet ist (die
+   gestapelten Telefonzeilen einer `DataTable`), bleibt außen vor: sonst
+   schlägt dieses `display: flex` ihr `md:hidden` und die Zeilen stehen auf
+   dem Desktop doppelt, als Karten und als Tabelle. */
 .moto-tenant-body
-  > :last-child:not(.grid, .moto-content-surface, .hidden):has(
+  > :last-child:not(.grid, .moto-content-surface, .hidden, .md\:hidden):has(
     .moto-content-surface:last-child:is(section, div)
   ),
 .moto-tenant-body
-  > :last-child:not(.grid, .moto-content-surface, .hidden)
-  :not(.grid, .moto-content-surface, .hidden):has(
+  > :last-child:not(.grid, .moto-content-surface, .hidden, .md\:hidden)
+  :not(.grid, .moto-content-surface, .hidden, .md\:hidden):has(
     .moto-content-surface:last-child:is(section, div)
   ) {
   display: flex;

@@ -16,7 +16,8 @@ import { Button } from "~/components/ui/button";
 import { useToast } from "~/contexts/ToastContext";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useTenantRouter } from "~/lib/tenant-router";
-import { studentService } from "~/lib/api";
+import { resolveDetailReferrer } from "~/lib/tenant-path";
+import { groupService, studentService } from "~/lib/api";
 import { schoolCheckinStudent } from "~/lib/student-api";
 import {
   useStudentData,
@@ -43,7 +44,11 @@ import {
   PersonalInfoReadOnly,
   StudentHistorySection,
 } from "~/components/students/student-detail-components";
-import { PersonalInfoEditPanel } from "~/components/students/personal-info-form-modal";
+import {
+  PersonalInfoEditPanel,
+  type PersonalInfoSaveDraft,
+} from "~/components/students/personal-info-form-modal";
+import { StudentRecordActions } from "~/components/students/student-record-actions";
 import { ParentMessagesCard } from "~/components/students/parent-messages-card";
 import { StudentEnrollmentsTab } from "~/components/students/student-enrollments-tab";
 import { StudentDokumenteTab } from "~/components/students/dokumente-tab";
@@ -104,6 +109,8 @@ type TodayArrival = {
 };
 
 const logger = createLogger({ component: "StudentDetailPage" });
+
+const EMPTY_GROUP_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [];
 
 // Tabbed navigation for the student detail page (issue #1501). The cross-cutting
 // action bar (check-in/out, Krank/Entschuldigt) and the attendance header stay
@@ -355,8 +362,28 @@ function StudentDetailPageContent() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const navRouter = useRouter();
+  const tenantRouter = useTenantRouter();
   const studentId = params.id as string;
-  const referrer = searchParams.get("from") ?? "/students/search";
+  const referrer = resolveDetailReferrer(
+    searchParams.get("from"),
+    "/students/search",
+    [
+      "/students/search",
+      "/database/students",
+      "/rooms",
+      "/active-supervisions",
+      "/day-log",
+      "/messages",
+      "/absences",
+      "/ogs-groups",
+    ],
+  );
+  // Der Rückweg heißt wie die Sammlung, aus der man kam: die Kinderdaten der
+  // Datenverwaltung verlinken seit #3115 hierher, statt ein eigenes Pane zu
+  // tragen.
+  const backLabel = referrer.startsWith("/database/students")
+    ? "Zurück zu den Kinderdaten"
+    : "Zurück zur Kinderübersicht";
   const toast = useToast();
   const { data: session, status: sessionStatus } = useSession();
 
@@ -404,6 +431,17 @@ function StudentDetailPageContent() {
     mySupervisedRooms,
     refreshData,
   } = useStudentData(studentId);
+  // Gruppen für das Auswahlfeld im Bearbeiten-Zustand der Stammdaten (#3115).
+  // Derselbe Schlüssel wie im Register der Kinderdaten, damit beide denselben
+  // Zwischenspeicher teilen; ohne Schreibrecht wird gar nicht erst geladen.
+  const { data: groupOptions = EMPTY_GROUP_OPTIONS } = useSWRAuth<
+    ReadonlyArray<{ value: string; label: string }>
+  >(hasWriteAccess ? "database-groups-dropdown" : null, async () => {
+    const groups = await groupService.getGroups();
+    return groups
+      .map((group) => ({ value: String(group.id), label: group.name }))
+      .sort((a, b) => a.label.localeCompare(b.label, "de"));
+  });
   const refreshDataAndHistory = useCallback(() => {
     refreshData();
     return mutate(`/api/students/${studentId}/change-history`).catch((err) => {
@@ -436,6 +474,10 @@ function StudentDetailPageContent() {
     hasPermission(session, "users:checkin");
   const canCompleteCareWithdrawal =
     sessionStatus === "authenticated" && canReviewCareWithdrawals(session);
+  // Datensatz-Aktionen im Kebab der Kopfkarte (Betreuung beenden, Löschen):
+  // dieselbe Berechtigung wie das frühere Pane der Kinderdaten (#2487, #3115).
+  const canManageRecord =
+    sessionStatus === "authenticated" && hasPermission(session, "users:delete");
   const [careWithdrawal, setCareWithdrawal] =
     useState<CareWithdrawalCompletion | null>(null);
   const [careWithdrawalLoadFailed, setCareWithdrawalLoadFailed] =
@@ -747,7 +789,9 @@ function StudentDetailPageContent() {
   // split both depend on `hasFullAccess`, a field on the student object that
   // isn't known until this fetch resolves.
   if (loading) {
-    return <StudentDetailLoadingPage referrer={referrer} />;
+    return (
+      <StudentDetailLoadingPage referrer={referrer} backLabel={backLabel} />
+    );
   }
 
   // Show error state
@@ -757,7 +801,7 @@ function StudentDetailPageContent() {
         title="Kindakte"
         back
         backHref={referrer}
-        backLabel="Zurück zur Kinderübersicht"
+        backLabel={backLabel}
         error={error ?? "Kind nicht gefunden"}
       />
     );
@@ -767,7 +811,10 @@ function StudentDetailPageContent() {
   // EVENT HANDLERS
   // =============================================================================
 
-  const handleSavePersonal = async (editedStudent: ExtendedStudent) => {
+  const handleSavePersonal = async ({
+    privacyConsentChanged,
+    ...editedStudent
+  }: PersonalInfoSaveDraft) => {
     const allowedDepartureModes = normalizeAllowedDepartureModes(
       editedStudent.allowed_departure_modes ??
         allowedDepartureModesFromDeparture(
@@ -782,6 +829,22 @@ function StudentDetailPageContent() {
       first_name: editedStudent.first_name,
       second_name: editedStudent.second_name,
       school_class: editedStudent.school_class,
+      // Gruppe, Datenschutz und Foto-Einwilligung (#3115): vorher nur im Pane
+      // der Kinderdaten zu bearbeiten, jetzt an der einen Objektansicht.
+      group_id: editedStudent.group_id,
+      // Die Einwilligung liegt getrennt vom Kind. Ein unveränderter Entwurf
+      // darf eine zwischenzeitlich geänderte Einwilligung nicht überschreiben.
+      ...(privacyConsentChanged
+        ? {
+            privacy_consent_accepted: editedStudent.privacy_consent_accepted,
+            data_retention_days: editedStudent.data_retention_days,
+          }
+        : {}),
+      // Nur mitschicken, wenn der Entwurf den Wert kennt: `undefined` lässt
+      // das Backend die Einwilligung unangetastet, `false` nimmt sie zurück.
+      ...(editedStudent.photo_consent_given === undefined
+        ? {}
+        : { photo_consent_given: editedStudent.photo_consent_given }),
       birthday: editedStudent.birthday,
       address_street: editedStudent.address_street,
       address_postal_code: editedStudent.address_postal_code,
@@ -1137,9 +1200,19 @@ function StudentDetailPageContent() {
     <TenantPage
       back
       backHref={referrer}
-      backLabel="Zurück zur Kinderübersicht"
+      backLabel={backLabel}
       leading={<StudentHeaderAvatar student={student} />}
       title={studentHeaderTitle(student)}
+      actions={
+        canManageRecord ? (
+          <StudentRecordActions
+            student={student}
+            displayName={studentHeaderTitle(student)}
+            onChanged={refreshDataAndHistory}
+            onDeleted={() => tenantRouter.push(referrer)}
+          />
+        ) : undefined
+      }
       stats={
         // Der Aufenthaltsort ist Status, keine Aktion: er steht in der
         // Statuszeile des Identitätskopfes und nicht im Aktionsplatz, wo er
@@ -1423,6 +1496,7 @@ function StudentDetailPageContent() {
           onOpenPersonalInfoEdit={() => setShowPersonalInfoEdit(true)}
           onClosePersonalInfoEdit={() => setShowPersonalInfoEdit(false)}
           onSavePersonal={handleSavePersonal}
+          groupOptions={groupOptions}
           onRefreshData={refreshDataAndHistory}
         />
       ) : (
@@ -1667,8 +1741,9 @@ interface FullAccessViewProps {
   showPersonalInfoEdit: boolean;
   onOpenPersonalInfoEdit: () => void;
   onClosePersonalInfoEdit: () => void;
-  onSavePersonal: (student: ExtendedStudent) => Promise<void>;
+  onSavePersonal: (student: PersonalInfoSaveDraft) => Promise<void>;
   onRefreshData: () => void;
+  groupOptions: ReadonlyArray<{ value: string; label: string }>;
 }
 
 function FullAccessView({
@@ -1692,6 +1767,7 @@ function FullAccessView({
   onClosePersonalInfoEdit,
   onSavePersonal,
   onRefreshData,
+  groupOptions,
 }: Readonly<FullAccessViewProps>) {
   const historyRouter = useTenantRouter();
   const changeProtocolFilters = useMemo<AggregatedRequestFilters>(
@@ -1752,6 +1828,8 @@ function FullAccessView({
             student={student}
             onSave={onSavePersonal}
             onCancel={onClosePersonalInfoEdit}
+            onStudentRefresh={onRefreshData}
+            groups={groupOptions}
           />
         ) : (
           <PersonalInfoReadOnly
