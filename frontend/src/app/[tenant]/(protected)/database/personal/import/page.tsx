@@ -610,7 +610,7 @@ export default function StaffImportPage() {
       />
 
       {/* Preview Section */}
-      {previewData.length > 0 && !importComplete && (
+      {(previewData.length > 0 || importInterrupted) && !importComplete && (
         <>
           <StatsCards
             total={stats.total}
@@ -622,25 +622,27 @@ export default function StaffImportPage() {
             errors={stats.errors}
           />
 
-          <SectionCard title="Datenvorschau" icon={ListChecks}>
-            <div className="space-y-2">
-              {previewData.map((staff, idx) => (
-                <StudentRowCard
-                  key={staff.row}
-                  student={{
-                    row: staff.row,
-                    status: staff.status,
-                    errors: staff.errors,
-                    notes: staff.notes,
-                    first_name: staff.first_name,
-                    last_name: staff.last_name,
-                    meta: [staff.email, staff.role_name, staff.position],
-                  }}
-                  index={idx}
-                />
-              ))}
-            </div>
-          </SectionCard>
+          {previewData.length > 0 && (
+            <SectionCard title="Datenvorschau" icon={ListChecks}>
+              <div className="space-y-2">
+                {previewData.map((staff, idx) => (
+                  <StudentRowCard
+                    key={staff.row}
+                    student={{
+                      row: staff.row,
+                      status: staff.status,
+                      errors: staff.errors,
+                      notes: staff.notes,
+                      first_name: staff.first_name,
+                      last_name: staff.last_name,
+                      meta: [staff.email, staff.role_name, staff.position],
+                    }}
+                    index={idx}
+                  />
+                ))}
+              </div>
+            </SectionCard>
+          )}
 
           {/* Spacer for sticky action bar */}
           <div className="h-20" />

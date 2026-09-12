@@ -505,7 +505,7 @@ export default function ClassListImportPage() {
       />
 
       {/* Preview Section */}
-      {previewData.length > 0 && !importComplete && (
+      {(previewData.length > 0 || importInterrupted) && !importComplete && (
         <>
           <StatsCards
             total={stats.total}
@@ -514,24 +514,26 @@ export default function ClassListImportPage() {
             errors={stats.errors}
           />
 
-          <SectionCard title="Datenvorschau" icon={ListChecks}>
-            <div className="space-y-2">
-              {previewData.map((entry, idx) => (
-                <StudentRowCard
-                  key={entry.row}
-                  student={{
-                    row: entry.row,
-                    status: entry.status,
-                    errors: entry.errors,
-                    first_name: entry.first_name,
-                    last_name: entry.last_name,
-                    meta: [entry.school_class],
-                  }}
-                  index={idx}
-                />
-              ))}
-            </div>
-          </SectionCard>
+          {previewData.length > 0 && (
+            <SectionCard title="Datenvorschau" icon={ListChecks}>
+              <div className="space-y-2">
+                {previewData.map((entry, idx) => (
+                  <StudentRowCard
+                    key={entry.row}
+                    student={{
+                      row: entry.row,
+                      status: entry.status,
+                      errors: entry.errors,
+                      first_name: entry.first_name,
+                      last_name: entry.last_name,
+                      meta: [entry.school_class],
+                    }}
+                    index={idx}
+                  />
+                ))}
+              </div>
+            </SectionCard>
+          )}
 
           {/* Spacer for sticky action bar */}
           <div className="h-20" />

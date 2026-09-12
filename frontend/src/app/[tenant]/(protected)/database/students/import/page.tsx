@@ -640,7 +640,7 @@ export default function StudentImportPage() {
       />
 
       {/* Preview Section */}
-      {previewData.length > 0 && !importComplete && (
+      {(previewData.length > 0 || importInterrupted) && !importComplete && (
         <>
           {/* Statistics */}
           <StatsCards
@@ -653,30 +653,31 @@ export default function StudentImportPage() {
             errors={stats.errors}
           />
 
-          {/* Data List */}
-          <SectionCard title="Datenvorschau" icon={ListChecks}>
-            <div className="space-y-2">
-              {previewData.map((student, idx) => (
-                <StudentRowCard
-                  key={student.row}
-                  student={{
-                    row: student.row,
-                    status: student.status,
-                    errors: student.errors,
-                    notes: student.notes,
-                    first_name: student.first_name,
-                    last_name: student.last_name,
-                    meta: [
-                      student.school_class,
-                      student.group_name,
-                      student.guardian_info,
-                    ],
-                  }}
-                  index={idx}
-                />
-              ))}
-            </div>
-          </SectionCard>
+          {previewData.length > 0 && (
+            <SectionCard title="Datenvorschau" icon={ListChecks}>
+              <div className="space-y-2">
+                {previewData.map((student, idx) => (
+                  <StudentRowCard
+                    key={student.row}
+                    student={{
+                      row: student.row,
+                      status: student.status,
+                      errors: student.errors,
+                      notes: student.notes,
+                      first_name: student.first_name,
+                      last_name: student.last_name,
+                      meta: [
+                        student.school_class,
+                        student.group_name,
+                        student.guardian_info,
+                      ],
+                    }}
+                    index={idx}
+                  />
+                ))}
+              </div>
+            </SectionCard>
+          )}
 
           {/* Spacer for sticky action bar */}
           <div className="h-20" />
