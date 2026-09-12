@@ -177,6 +177,9 @@ func (s *stubActiveService) ListStudentsPresentToday(_ context.Context) ([]int64
 func (s *stubActiveService) AssignTransitStudentsToActiveGroup(_ context.Context, _ []int64, _ int64) (*activeSvc.TransitAssignResult, error) {
 	return nil, nil
 }
+func (s *stubActiveService) AssignTransitStudentsToActiveGroupAuthorized(_ context.Context, _ []int64, _ int64, _ activeSvc.StudentMoveAuthorization) (*activeSvc.TransitAssignResult, error) {
+	return nil, nil
+}
 func (s *stubActiveService) MoveStudentsToActiveGroupAuthorized(_ context.Context, _ []int64, _ int64, _ activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
 	return nil, nil
 }

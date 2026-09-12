@@ -56,6 +56,7 @@ func newTrackingMockSettingsService(resolveBoolFunc func(ctx context.Context, ke
 // --- Mock ActiveService (stub all methods, only GetTrackingIndicators functional) ---
 
 type trackingMockActiveService struct {
+	assignTransitStudentsAuthorizedFunc     func(ctx context.Context, studentIDs []int64, activeGroupID int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.TransitAssignResult, error)
 	getTrackingIndicatorsFunc               func(ctx context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error)
 	assignTransitStudentsToActiveGroupFunc  func(ctx context.Context, studentIDs []int64, activeGroupID int64) (*activeSvc.TransitAssignResult, error)
 	moveStudentsToActiveGroupFunc           func(ctx context.Context, studentIDs []int64, activeGroupID int64) (*activeSvc.StudentMoveResult, error)
@@ -187,6 +188,12 @@ func (m *trackingMockActiveService) AssignTransitStudentsToActiveGroup(ctx conte
 		return m.assignTransitStudentsToActiveGroupFunc(ctx, studentIDs, activeGroupID)
 	}
 	return nil, nil
+}
+func (m *trackingMockActiveService) AssignTransitStudentsToActiveGroupAuthorized(ctx context.Context, studentIDs []int64, activeGroupID int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.TransitAssignResult, error) {
+	if m.assignTransitStudentsAuthorizedFunc != nil {
+		return m.assignTransitStudentsAuthorizedFunc(ctx, studentIDs, activeGroupID, auth)
+	}
+	return m.AssignTransitStudentsToActiveGroup(ctx, studentIDs, activeGroupID)
 }
 func (m *trackingMockActiveService) MoveStudentsToActiveGroupAuthorized(ctx context.Context, studentIDs []int64, activeGroupID int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
 	if m.moveStudentsToActiveGroupAuthorizedFunc != nil {

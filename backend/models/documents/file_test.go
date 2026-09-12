@@ -1,14 +1,12 @@
-package documents_test
+package documents
 
 import (
 	"testing"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/documents"
 )
 
-func validFile() *documents.File {
-	f := &documents.File{
+func validFile() *File {
+	f := &File{
 		Category:        "attest",
 		FilenameDisplay: "Attest.pdf",
 		FilenameStored:  "0f5b9d4e-1d3a-4a2f-9a3c-1b2c3d4e5f60.pdf",
@@ -22,14 +20,14 @@ func validFile() *documents.File {
 func TestValidateFileAcceptsACompleteRow(t *testing.T) {
 	t.Parallel()
 
-	if err := documents.ValidateFile(validFile()); err != nil {
+	if err := ValidateFile(validFile()); err != nil {
 		t.Fatalf("ValidateFile = %v, want nil", err)
 	}
 	// Zero bytes is a degenerate but storable file; only a negative size is a
 	// bug, and it must not reach a column the download handler trusts.
 	zero := validFile()
 	zero.SizeBytes = 0
-	if err := documents.ValidateFile(zero); err != nil {
+	if err := ValidateFile(zero); err != nil {
 		t.Fatalf("ValidateFile with a zero-byte file = %v, want nil", err)
 	}
 }
@@ -37,21 +35,21 @@ func TestValidateFileAcceptsACompleteRow(t *testing.T) {
 func TestValidateFileRejectsIncompleteRows(t *testing.T) {
 	t.Parallel()
 
-	cases := map[string]func(*documents.File){
-		"missing category":         func(f *documents.File) { f.Category = "  " },
-		"missing display filename": func(f *documents.File) { f.FilenameDisplay = "" },
+	cases := map[string]func(*File){
+		"missing category":         func(f *File) { f.Category = "  " },
+		"missing display filename": func(f *File) { f.FilenameDisplay = "" },
 		// Without the stored name nothing can ever find the bytes again, so
 		// the row would be an unreclaimable orphan from the moment it is written.
-		"missing stored filename": func(f *documents.File) { f.FilenameStored = " " },
-		"negative size":           func(f *documents.File) { f.SizeBytes = -1 },
-		"missing content type":    func(f *documents.File) { f.ContentType = "" },
-		"missing uploader":        func(f *documents.File) { f.UploadedBy = 0 },
+		"missing stored filename": func(f *File) { f.FilenameStored = " " },
+		"negative size":           func(f *File) { f.SizeBytes = -1 },
+		"missing content type":    func(f *File) { f.ContentType = "" },
+		"missing uploader":        func(f *File) { f.UploadedBy = 0 },
 	}
 	for name, break_ := range cases {
 		t.Run(name, func(t *testing.T) {
 			f := validFile()
 			break_(f)
-			if err := documents.ValidateFile(f); err == nil {
+			if err := ValidateFile(f); err == nil {
 				t.Fatalf("ValidateFile(%s) = nil, want an error", name)
 			}
 		})
@@ -106,7 +104,7 @@ func TestFileSoftDeleteIsNotFileDeletion(t *testing.T) {
 func TestFileCleanupAccessors(t *testing.T) {
 	t.Parallel()
 
-	cleanup := &documents.FileCleanup{OwnerID: 9, FilenameStored: "orphan.pdf"}
+	cleanup := &FileCleanup{OwnerID: 9, FilenameStored: "orphan.pdf"}
 	if cleanup.GetOwnerID() != 9 {
 		t.Errorf("GetOwnerID = %d", cleanup.GetOwnerID())
 	}

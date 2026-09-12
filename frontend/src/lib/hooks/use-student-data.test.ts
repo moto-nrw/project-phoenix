@@ -509,6 +509,7 @@ describe("useStudentData", () => {
           has_full_access: false,
           has_write_access: false,
           has_absence_write_access: true,
+          has_sick_excused_write_access: false,
         },
       } as unknown as Awaited<
         ReturnType<typeof mockStudentService.getStudent>
@@ -532,11 +533,13 @@ describe("useStudentData", () => {
       const fetched = (await fetcher!()) as {
         student: ExtendedStudent;
         hasAbsenceWriteAccess: boolean;
+        hasSickExcusedWriteAccess: boolean;
       };
 
       // Without this the toggle would render "Krank melden" for a child who is
       // already reported sick, turning a clearing click into a fresh report.
       expect(fetched.hasAbsenceWriteAccess).toBe(true);
+      expect(fetched.hasSickExcusedWriteAccess).toBe(false);
       expect(fetched.student.sick).toBe(true);
       expect(fetched.student.sick_since).toBe("2026-08-11T08:00:00Z");
       // Everything the read scope covers stays redacted.

@@ -29,6 +29,7 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/enrollment/selection"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -40,31 +41,31 @@ var (
 	ErrEnrollmentDisabled      = errors.New("enrollment is not enabled for this tenant")
 	ErrEnrollmentWindowClosed  = errors.New("enrollment window is closed")
 	ErrLateInviteInvalid       = errors.New("late invite is invalid")
-	ErrInvalidSubmission       = errors.New("invalid submission")
-	ErrCareOfferingClosed      = errors.New("one or more selected care offerings are not currently accepting applications")
-	ErrCareOfferingUnavailable = errors.New("one or more selected care offerings are not available for this child")
+	ErrInvalidSubmission       = selection.ErrInvalidSubmission
+	ErrCareOfferingClosed      = selection.ErrCareOfferingClosed
+	ErrCareOfferingUnavailable = selection.ErrCareOfferingUnavailable
 	ErrCareOfferingFull        = errors.New("one or more selected care offerings are at capacity")
 	ErrCareOfferingsDisabled   = errors.New("care offerings are disabled for this tenant")
 	// ErrCareOfferingMissing is returned when a phase requires at least
 	// one care offering per child but a child has no offering selected.
 	// Mapped to 400 with a stable code so the parent form can highlight
 	// the right child.
-	ErrCareOfferingMissing = errors.New("care offering selection is required for every child")
+	ErrCareOfferingMissing = selection.ErrCareOfferingMissing
 	// ErrCareOfferingExactlyOneRequired is returned when a phase requires
 	// exactly one care offering per child but a child selected none or
 	// more than one.
-	ErrCareOfferingExactlyOneRequired = errors.New("exactly one care offering must be selected for every child")
+	ErrCareOfferingExactlyOneRequired = selection.ErrCareOfferingExactlyOneRequired
 	// ErrRequiredCareOfferingMissing is returned when a care offering
 	// flagged is_required is not selected for one of the children. Unlike
 	// ErrCareOfferingMissing (the phase-wide "at least one" gate), this
 	// targets a specific mandatory offering. Mapped to 400 with a stable
 	// code so the parent form can highlight the right child.
-	ErrRequiredCareOfferingMissing = errors.New("a required care offering was not selected for every child")
+	ErrRequiredCareOfferingMissing = selection.ErrRequiredCareOfferingMissing
 	// ErrCareOfferingRule wraps ErrInvalidSubmission (so the HTTP layer
 	// maps it to 400) and is returned when a child's offering selection
 	// violates a group's selection rule (exactly_one / at_least_one /
 	// at_most_one). Defense-in-depth: the parent form enforces the same.
-	ErrCareOfferingRule     = fmt.Errorf("%w: care offering selection rule not satisfied", ErrInvalidSubmission)
+	ErrCareOfferingRule     = selection.ErrCareOfferingRule
 	ErrRateLimited          = errors.New("too many submission attempts; please retry later")
 	ErrRequestNotFound      = errors.New("enrollment request not found")
 	ErrInvalidGuardianPhone = errors.New("guardian phone number has an invalid format")
@@ -88,9 +89,9 @@ var (
 	// The three parent-input day errors (#1846/#1885) wrap
 	// ErrInvalidSubmission (HTTP 400) and carry their own identity so the
 	// handler can attach stable codes for localized form messages.
-	ErrSelectedDayNotAvailable = fmt.Errorf("%w: selected day is not available for this offering", ErrInvalidSubmission)
-	ErrDaySelectionRequired    = fmt.Errorf("%w: offering requires the parent to pick at least one day", ErrInvalidSubmission)
-	ErrDaySelectionNotAllowed  = fmt.Errorf("%w: offering does not allow parent day selection (days_of_week_mode=fixed)", ErrInvalidSubmission)
+	ErrSelectedDayNotAvailable = selection.ErrSelectedDayNotAvailable
+	ErrDaySelectionRequired    = selection.ErrDaySelectionRequired
+	ErrDaySelectionNotAllowed  = selection.ErrDaySelectionNotAllowed
 	ErrEditNotAllowed          = errors.New("request can no longer be edited")
 	ErrWithdrawNotAllowed      = errors.New("child cannot be withdrawn in its current state")
 	ErrDuplicateEnrollment     = errors.New("an active enrollment already exists for this parent and child in this phase")
@@ -323,12 +324,7 @@ type CreateLateInviteResult struct {
 	Token  string
 }
 
-type materializedOfferingSelection struct {
-	OfferingID            int64
-	SelectedDays          []string
-	ManualSelectedDays    []string
-	AutomaticSelectedDays []string
-}
+type materializedOfferingSelection = selection.Selection
 
 // EditDraft is the complete persisted request shape needed to reopen the
 // public enrollment form for a submitted request.
@@ -1352,69 +1348,29 @@ func materializeAndValidateChildrenOfferingSelectionsForAdjustment(
 	grandfathered GrandfatheredOfferings,
 	allowCompleteWithdrawal bool,
 ) ([][]materializedOfferingSelection, error) {
-	out := make([][]materializedOfferingSelection, len(children))
-	for i := range children {
-		availableByID, err := availableCareOfferingsForGrade(openByID, children[i].TargetGradeLevel)
-		if err != nil {
-			return nil, fmt.Errorf("child %d: %w", i, err)
-		}
-		for id := range grandfatheredStillSelected(children[i], grandfathered.Manual) {
-			if offering, ok := openByID[id]; ok {
-				availableByID[id] = offering
+	nativeChildren := make([]selection.Child, len(children))
+	for i, child := range children {
+		nativeChildren[i] = selection.Child{TargetGradeLevel: child.TargetGradeLevel, OfferingIDs: child.OfferingIDs, ExcludedAutoAddTargetIDs: child.ExcludedAutoAddTargetIDs}
+		if child.OfferingDays != nil {
+			nativeChildren[i].OfferingDays = make([]selection.DaySelection, len(child.OfferingDays))
+			for j, row := range child.OfferingDays {
+				nativeChildren[i].OfferingDays[j] = selection.DaySelection{OfferingID: row.OfferingID, SelectedDays: row.SelectedDays}
 			}
 		}
-		if err := validateOfferingSelectionsForChild(children[i], openByID, availableByID); err != nil {
-			return nil, fmt.Errorf("child %d: %w", i, err)
-		}
-		// Auto-add works off a wider catalog than validation does, so a
-		// holding's automatic days can be re-derived without the offering
-		// becoming selectable, required, or choosable.
-		materializeByID := availableByID
-		if len(grandfathered.Automatic) > 0 {
-			materializeByID = make(map[int64]*enrollmentModels.CareOffering, len(availableByID)+len(grandfathered.Automatic))
-			for id, offering := range availableByID {
-				materializeByID[id] = offering
-			}
-			for id := range grandfathered.Automatic {
-				if offering, ok := openByID[id]; ok {
-					materializeByID[id] = offering
-				}
-			}
-		}
-		manualChild := cloneSubmitChildrenOfferingSelections([]SubmitChild{children[i]})[0]
-		selections, err := materializeOfferingSelections(children[i], materializeByID)
-		if err != nil {
-			return nil, fmt.Errorf("child %d: %w", i, err)
-		}
-		children[i].OfferingIDs, children[i].OfferingDays = selectionPayload(selections, materializeByID)
-		completeWithdrawal := allowCompleteWithdrawal && !materializedSelectionsHaveCareDays(selections, materializeByID)
-		if err := validateOfferingGroupRulesWithMissingRequiredAllowed(
-			[]SubmitChild{children[i]}, availableByID, completeWithdrawal,
-		); err != nil {
-			return nil, err
-		}
-		if (len(openByID) == 0 || hasChoosableCareOffering(availableByID)) && completeWithdrawal {
-			if err := validateCareOfferingSelectionModeAllowingMissing(
-				[]SubmitChild{manualChild}, availableByID, selectionMode,
-			); err != nil {
-				return nil, err
-			}
-		}
-		if completeWithdrawal {
-			out[i] = selections
+	}
+	result, err := selection.MaterializeAdjustments(nativeChildren, nativeOfferingCatalog(openByID), selectionMode, selection.Grandfathered{Manual: grandfathered.Manual, Automatic: grandfathered.Automatic}, allowCompleteWithdrawal)
+	for i, child := range nativeChildren {
+		children[i].OfferingIDs = child.OfferingIDs
+		if child.OfferingDays == nil {
+			children[i].OfferingDays = nil
 			continue
 		}
-		if err := validateRequiredOfferings([]SubmitChild{children[i]}, availableByID); err != nil {
-			return nil, err
+		children[i].OfferingDays = make([]SubmitOfferingDays, len(child.OfferingDays))
+		for j, row := range child.OfferingDays {
+			children[i].OfferingDays[j] = SubmitOfferingDays{OfferingID: row.OfferingID, SelectedDays: row.SelectedDays}
 		}
-		if len(openByID) == 0 || hasChoosableCareOffering(availableByID) {
-			if err := validateCareOfferingSelectionMode([]SubmitChild{manualChild}, availableByID, selectionMode); err != nil {
-				return nil, err
-			}
-		}
-		out[i] = selections
 	}
-	return out, nil
+	return result, err
 }
 
 func materializedSelectionsHaveCareDays(
@@ -1449,28 +1405,6 @@ type GrandfatheredOfferings struct {
 	// Automatic: the booking carries days derived from a trigger, which are
 	// never submitted and must survive a save that does not mention them.
 	Automatic map[int64]bool
-}
-
-// grandfatheredStillSelected narrows a grandfathering set to the ids the
-// submitted payload still carries for this child. Both the id list and the
-// per-offering day rows count as "selected": either one means the admin kept
-// the booking.
-func grandfatheredStillSelected(child SubmitChild, grandfathered map[int64]bool) map[int64]bool {
-	if len(grandfathered) == 0 {
-		return nil
-	}
-	kept := make(map[int64]bool, len(grandfathered))
-	for _, id := range child.OfferingIDs {
-		if grandfathered[id] {
-			kept[id] = true
-		}
-	}
-	for _, row := range child.OfferingDays {
-		if grandfathered[row.OfferingID] {
-			kept[row.OfferingID] = true
-		}
-	}
-	return kept
 }
 
 func availableCareOfferingsForGrade(catalog map[int64]*enrollmentModels.CareOffering, grade *int16) (map[int64]*enrollmentModels.CareOffering, error) {
@@ -1845,13 +1779,6 @@ func validateRequiredOfferings(children []SubmitChild, openByID map[int64]*enrol
 // function is designed to avoid.
 func validateCareOfferingSelectionMode(children []SubmitChild, openByID map[int64]*enrollmentModels.CareOffering, mode string) error {
 	return validateCareOfferingSelectionModeWithMissing(children, openByID, mode, false)
-}
-
-// validateCareOfferingSelectionModeAllowingMissing waives only the lower
-// bound for a confirmed complete withdrawal. The exactly-one upper bound
-// remains binding for non-care offerings that stay selected.
-func validateCareOfferingSelectionModeAllowingMissing(children []SubmitChild, openByID map[int64]*enrollmentModels.CareOffering, mode string) error {
-	return validateCareOfferingSelectionModeWithMissing(children, openByID, mode, true)
 }
 
 func validateCareOfferingSelectionModeWithMissing(children []SubmitChild, openByID map[int64]*enrollmentModels.CareOffering, mode string, allowMissing bool) error {

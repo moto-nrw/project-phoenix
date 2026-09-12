@@ -12,10 +12,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	apiDocuments "github.com/moto-nrw/project-phoenix/api/common/documents"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	apiDocuments "github.com/moto-nrw/project-phoenix/modules/filestorage/documents"
 	filestoreSvc "github.com/moto-nrw/project-phoenix/services/filestore"
 	"github.com/uptrace/bun"
 )

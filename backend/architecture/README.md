@@ -459,6 +459,93 @@ to the emergency HTTP adapter (`modules/emergencysnapshot/http`,
 and the Bun database the shared tenant middleware takes) and its
 `inbound-emergency.adapter-test.*` permission.
 
+The plan export capability (`modules/planexport`, `document-rendering`/`public`,
+#2706) renders the printable Dienstplan and Betreuungsplan from plain records
+through consumer-owned ports declared in the same package; it owns no table
+and never writes. Its compatibility adapter (`modules/planexport/legacy`,
+`document-rendering`/`adapter`) binds those ports to the retained schedule
+services and repositories and maps their rows field by field. Every
+`document-rendering.adapter.*`, `document-rendering.adapter-test.*` and
+`document-rendering.decision-test.*` rule and the
+`legacy-composition.compose.to.document-rendering.*` root edges are
+compatibility permissions that exist only because PR mode cannot record debt
+for a package the candidate creates: convert them to exact debt with the rule
+above once the packages exist at a base SHA, rebind each port to its owner's
+public capability as it appears, and delete the adapter with the last legacy
+source. The retained `services/listexport` renderer keeps its
+`module-internal-test` seam, so the capability's rendering tests declare the
+`workflow-decision-test` seam and the adapter tests the `adapter-test` seam.
+The `inbound-timetable.to.document-rendering` and
+`workforce.http.document-rendering-public` edges are the target shape (an
+inbound adapter calling the public capability) and stay.
+The same change moves the birthday routes to `modules/birthdays/http`
+(`inbound-birthdays`/`http`, `inbound-birthdays.*` permissions) and the
+document upload coordinator to `modules/filestorage/documents`
+(`file-storage`/`adapter`, `file-storage.adapter.delivery-adapter`), under the
+same conversion rule. The `inbound-filestore.to.file-storage-adapter` and
+`inbound-students.to.file-storage-adapter` bindings are different: their
+source packages existed before the move and imported the old path as debt
+under #2707 and #2731, which PR mode cannot carry over to the new target. They
+are a
+[named exception](https://github.com/moto-nrw/project-phoenix/issues/2580#issuecomment-5638973300)
+to rule 5 of `backend/CLAUDE.md`, still tracked by #2707 and #2731; each goes
+when its caller moves to the public File Storage capability, and no new caller
+may rely on them. The generic file-metadata
+repository (`database/repositories/documents`) and model (`models/documents`)
+keep their five `document-rendering` debt entries under #2706: their tables
+belong to File Storage (ADR 0010) and move with #2707.
+
+The shared request-review projection (`modules/requestreview`,
+`request-review-view`/`public`, #2705) is the one staff-facing list of every
+parent request awaiting or carrying a decision (Stammdaten, Betreuungszeiten,
+Angebote, Abwesenheiten and the office's own booking corrections): origin,
+type, child, requested change and decision. It owns the merged newest-first
+order with its deterministic tie-break, the one keyset cursor across the
+queues, the urgent-before-normal phases, the permission narrowing of a caller
+without `users:update` to the excused queue, the past-request bulk
+consequences, the whole-queue conflict grouping and the badge count; it
+persists nothing and never writes. The per-type wire shapes live in its
+public package because the decide, preview and detail routes answer with the
+same shapes. Every foreign fact enters through consumer-owned ports: the four
+queues, the correction log, the caller's rights, the group names and the
+Familienschutz flag. Its compatibility adapter (`modules/requestreview/legacy`,
+`request-review-view`/`adapter`) binds those ports to the retained
+`services/users`, `services/schedule`, `services/enrollment` review queues,
+the Care Plan excused-request contract, the retained review policy, people,
+education and Familienschutz services, and derives the per-row facts
+(urgency, past scope, version, conflict keys) with the owners' own rules.
+`api/students` serves `GET /students/change-requests` and
+`/change-requests/pending-count` through the public capability; the old
+four-service fan-out in that package is deleted. The `inbound-students` import
+of the adapter exists only because the per-type decide routes still render
+the same wire shapes from the retained service items; it goes when those
+routes move to their owners. #3174 converts the temporary permissions for the
+adapter's legacy imports, its tests, and its students and root-composition
+callers to exact `imports.forbidden` debt in `legacy.jsonl`, tracked by #3179.
+Keep #3179 open until all 27 imports and the legacy adapter are removed.
+The adapter's own public-capability binding, its
+Care Plan public-contract import, and the students HTTP call to the public
+projection remain target-allowed. Rebind each legacy port to its owner's
+public capability as it appears, remove each tuple with its import, and delete
+the adapter with the last legacy source.
+The projection reads no table directly, so it needs no `read_projections`
+grant; the owner queues keep their per-child scope and tenant isolation. Its
+`Today` port resolves the review day once per call, so the queues' urgency
+phase and the rows' urgency and past flags cannot straddle midnight or
+disagree under a test clock. The public enrollment change requests keep
+their own `config:manage`-gated list (#2435), which the client merges into
+the same Eltern list, so the projection does not cross that permission
+boundary. The staff RSS feed (`/students/change-requests/rss-feed`) keeps its
+own registered `parent-request-feed-read-model` grant. It postdates #2705's
+evidence, also announces the `config:manage` enrollment change requests and
+selects by submission instant in one statement, and this owner cannot take it
+over in PR mode: a `read_projections`
+grant is accepted only for a newly created projection owner, `care-plan` may
+not import `request-review-view/public`, and neither
+`request-review-view/adapter` nor the root may import
+`parent-request-feed-view/postgres`. Moving the feed needs a reviewed policy
+decision under #2580.
+
 The Device Fleet authentication composition (`modules/devicefleet/deviceauth`)
 is classified as `device-fleet`/`http`. Its `device-fleet.device-auth.*`
 permissions for the retained `models/platform` school row, the

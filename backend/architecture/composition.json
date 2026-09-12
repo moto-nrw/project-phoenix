@@ -46,7 +46,7 @@
       "declaration": "initializeModuleServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        292
+        295
       ],
       "tables": []
     },
@@ -8430,7 +8430,7 @@
       "declaration": "buildReasonPolicyServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        52
+        53
       ],
       "tables": []
     },
@@ -8524,7 +8524,7 @@
       "declaration": "TestListSickDays_ExcludesStaffCreatedExcused",
       "target": "database/repositories.NewFactory",
       "lines": [
-        835
+        842
       ],
       "tables": []
     },
@@ -8534,7 +8534,7 @@
       "declaration": "TestSubmitSickNote_ClearsClassTripForSubmittedDate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        563
+        570
       ],
       "tables": []
     },
@@ -8544,7 +8544,7 @@
       "declaration": "TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck",
       "target": "database/repositories.NewFactory",
       "lines": [
-        395
+        402
       ],
       "tables": []
     },
@@ -8554,7 +8554,7 @@
       "declaration": "TestSubmitSickNote_NonContiguousExcludesUnrelatedRows",
       "target": "database/repositories.NewFactory",
       "lines": [
-        706
+        713
       ],
       "tables": []
     },
@@ -8564,7 +8564,7 @@
       "declaration": "TestSubmitSickNote_RefusesPartialAbsenceConflict",
       "target": "database/repositories.NewFactory",
       "lines": [
-        357
+        364
       ],
       "tables": []
     },
@@ -8574,7 +8574,7 @@
       "declaration": "buildMessagingWriteService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        113
+        120
       ],
       "tables": []
     },
@@ -8584,7 +8584,7 @@
       "declaration": "buildWriteService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        86
+        96
       ],
       "tables": []
     },
@@ -9811,7 +9811,7 @@
       "declaration": "TestUserContextService_UpdateAvatar",
       "target": "database/repositories.NewFactory",
       "lines": [
-        577
+        590
       ],
       "tables": []
     },
@@ -27240,27 +27240,27 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 170,
+          "line": 173,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 472,
+          "line": 475,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 635,
+          "line": 638,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 873,
+          "line": 876,
           "declaration": "initializeAPIResourcesWithRequestFeed"
         },
         {
           "file": "api/base.go",
-          "line": 1161,
+          "line": 1280,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -27270,7 +27270,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 292,
+          "line": 295,
           "declaration": "initializeModuleServices"
         }
       ]
@@ -27280,12 +27280,12 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 171,
+          "line": 174,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 632,
+          "line": 635,
           "declaration": "type API"
         },
         {
@@ -27395,12 +27395,12 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 447,
+          "line": 448,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 487,
+          "line": 488,
           "declaration": "newFactory"
         },
         {

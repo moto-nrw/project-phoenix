@@ -91,6 +91,10 @@
       "kind": "projection"
     },
     {
+      "id": "request-review-view",
+      "kind": "projection"
+    },
+    {
       "id": "enrollment",
       "kind": "domain"
     },
@@ -160,10 +164,6 @@
     },
     {
       "id": "inbound-common",
-      "kind": "inbound"
-    },
-    {
-      "id": "inbound-common-documents",
       "kind": "inbound"
     },
     {
@@ -442,6 +442,55 @@
   ],
   "packages": [
     {
+      "path": "database/repositories/audit/integration",
+      "owner": "audit-platform",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/securityruntime",
+      "owner": "security-runtime",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/enrollment/selection",
+      "owner": "enrollment",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/offeringrequests",
+      "owner": "care-plan",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/auditlog",
+      "owner": "audit-platform",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/auditlog/compose",
+      "owner": "audit-platform",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/auditlog/internal/adapters/postgres",
+      "owner": "audit-platform",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/peopledirectory/enrollment",
       "owner": "people-directory",
       "role": "contract",
@@ -624,7 +673,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/birthdays",
+      "path": "modules/birthdays/http",
       "owner": "inbound-birthdays",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -652,11 +701,11 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/common/documents",
-      "owner": "inbound-common-documents",
-      "role": "http",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
+      "path": "modules/filestorage/documents",
+      "owner": "file-storage",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
     },
     {
       "path": "api/config",
@@ -1667,6 +1716,48 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/requestreview",
+      "owner": "request-review-view",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/carerequests",
+      "owner": "care-plan",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/masterdatarequests",
+      "owner": "care-plan",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/settings/review",
+      "owner": "settings-platform",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/identityaccess/requestreview",
+      "owner": "identity-access",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/requestreview/compose",
+      "owner": "request-review-view",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "services/enrollment",
       "owner": "enrollment",
       "role": "application",
@@ -2199,10 +2290,17 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/planexport",
+      "path": "modules/planexport",
       "owner": "document-rendering",
-      "role": "application",
-      "internal_test_role": "module-internal-test",
+      "role": "public",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/planexport/legacy",
+      "owner": "document-rendering",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
       "external_test_role": "module-behavior-test"
     },
     {
@@ -2939,20 +3037,6 @@
       "role": "compose",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
-    },
-    {
-      "path": "database/repositories/audit/integration",
-      "owner": "audit-platform",
-      "role": "adapter",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
-    },
-    {
-      "path": "modules/securityruntime",
-      "owner": "security-runtime",
-      "role": "public",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
     }
   ],
   "data_objects": [
@@ -4457,6 +4541,207 @@
     }
   ],
   "rules": [
+    {
+      "id": "legacy-composition.compose.security-runtime.fingerprint",
+      "description": "The import composition supplies content fingerprinting through the Security Runtime capability (#2708).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "security-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "audit-platform.checkpoint-adapter-test.postgres",
+      "description": "Checkpoint adapter tests exercise append, rollback and tenant isolation through the Audit persistence boundary (#2708).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "adapter-test",
+      "target_owner": "audit-platform",
+      "target_role": "postgres"
+    },
+    {
+      "id": "audit-platform.checkpoint-adapter-test.domain",
+      "description": "Checkpoint adapter tests exercise append, rollback and tenant isolation through the Audit persistence boundary (#2708).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "adapter-test",
+      "target_owner": "audit-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "audit-platform.checkpoint-adapter-test.orm-sql",
+      "description": "Checkpoint adapter tests supply the real authoritative transaction (#2708).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "adapter-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "request-review-view.integration.care-plan-public",
+      "description": "Native queue contract and tenant-isolation tests use Care Plan review facts (#3179).",
+      "scopes": ["internal_test"],
+      "source_owner": "request-review-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "request-review-view.integration.care-plan-contract",
+      "description": "Native queue serialization tests assert the owner's plain request records (#3179).",
+      "scopes": ["internal_test"],
+      "source_owner": "request-review-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "request-review-view.integration.orm",
+      "description": "The two-tenant integration proof inspects RLS inside least-privilege transactions (#3179).",
+      "scopes": ["internal_test"],
+      "source_owner": "request-review-view",
+      "source_role": "workflow-integration-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "care-plan.application.native-enrollment-selection",
+      "description": "Offering review consumes Enrollment's native selection calculation without retained service models (#3179).",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "application",
+      "target_owner": "enrollment",
+      "target_role": "contract"
+    },
+    {
+      "id": "enrollment.application.native-selection-contract",
+      "description": "Share the native selection calculation with the retained adjustment entry point (#3179).",
+      "scopes": ["production"],
+      "source_owner": "enrollment",
+      "source_role": "application",
+      "target_owner": "enrollment",
+      "target_role": "contract"
+    },
+    {
+      "id": "request-review-view.integration.own-public",
+      "description": "Exercise native history adapters through request-review's public contract (#3179).",
+      "scopes": ["internal_test"],
+      "source_owner": "request-review-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "request-review-view",
+      "target_role": "public"
+    },
+    {
+      "id": "request-review-view.compose.audit-corrections.public",
+      "description": "Render the native Audit correction history without retained audit models (#3179).",
+      "scopes": ["production"],
+      "source_owner": "request-review-view",
+      "source_role": "compose",
+      "target_owner": "audit-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "request-review-view.compose.audit-corrections.compose",
+      "description": "Bind the native tenant-scoped Audit correction reader (#3179).",
+      "scopes": ["production"],
+      "source_owner": "request-review-view",
+      "source_role": "compose",
+      "target_owner": "audit-platform",
+      "target_role": "compose"
+    },
+    {
+      "id": "audit-platform.native-corrections.compose.public",
+      "description": "Compose and verify the native tenant-scoped Audit correction reader (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "compose",
+      "target_owner": "audit-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "audit-platform.native-corrections.compose.postgres",
+      "description": "Compose and verify the native tenant-scoped Audit correction reader (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "compose",
+      "target_owner": "audit-platform",
+      "target_role": "postgres"
+    },
+    {
+      "id": "audit-platform.native-corrections.compose.tenant",
+      "description": "Compose and verify the native tenant-scoped Audit correction reader (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "audit-platform.native-corrections.postgres.public",
+      "description": "Compose and verify the native tenant-scoped Audit correction reader (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "postgres",
+      "target_owner": "audit-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "audit-platform.native-corrections.integration.public",
+      "description": "Compose and verify the native tenant-scoped Audit correction reader (#3179).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "workflow-integration-test",
+      "target_owner": "audit-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "audit-platform.native-corrections.integration.tenant",
+      "description": "Compose and verify the native tenant-scoped Audit correction reader (#3179).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "workflow-integration-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "audit-platform.native-corrections.integration.fixtures",
+      "description": "Compose and verify the native tenant-scoped Audit correction reader (#3179).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "audit-platform.native-corrections.compose.orm",
+      "description": "Bind the native Audit correction query to the caller's database transaction (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
     {
       "id": "enrollment.application.student-enrollment",
       "description": "Enrollment decisions consume only the new student enrollment command contract (#2699).",
@@ -7143,17 +7428,6 @@
       "source_owner": "inbound-classlistentries",
       "source_role": "http",
       "target_owner": "school-membership",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-common-documents.to.delivery-platform",
-      "description": "inbound-common-documents calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-common-documents",
-      "source_role": "http",
-      "target_owner": "delivery-platform",
       "target_role": "public"
     },
     {
@@ -14443,17 +14717,6 @@
       "target_role": "application"
     },
     {
-      "id": "workforce.http.document-rendering-application",
-      "description": "The Workforce shift-planning composition renders the printable Dienstplan through the retained plan export service (#2689).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "http",
-      "target_owner": "document-rendering",
-      "target_role": "application"
-    },
-    {
       "id": "workforce.http.orm-sql",
       "description": "The Workforce shift-planning HTTP composition passes the concrete Bun database to the shared tenant middleware.",
       "scopes": [
@@ -18306,47 +18569,697 @@
       "target_class": "test"
     },
     {
-      "id": "legacy-composition.compose.security-runtime.fingerprint",
-      "description": "The import composition supplies content fingerprinting through the Security Runtime capability (#2708).",
+      "id": "document-rendering.public.calendar-date",
+      "description": "The public plan export capability resolves request and record days with the repository calendar-date value type (#2706).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "public",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "document-rendering.adapter.public",
+      "description": "The plan export compatibility adapter implements the capability's consumer-owned ports and returns its public service (#2706).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter",
+      "target_owner": "document-rendering",
+      "target_role": "public"
+    },
+    {
+      "id": "document-rendering.adapter.timetable-application",
+      "description": "Compatibility binding (#2706): the plan export adapter reads the staff schedule overview, the materialized blocks, their staff, the rooms, the closing days and the holidays from the retained schedule services until Timetable & Activities exposes them publicly.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "document-rendering.adapter.timetable-domain",
+      "description": "Compatibility binding (#2706): the plan export adapter maps the retained shift-type, planning-track, instance and activity-group rows and their calendar-date column type.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "document-rendering.adapter.calendar-date",
+      "description": "The plan export adapter translates the port's day strings into the retained calendar-date signatures (#2706).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "document-rendering.decision-test.public",
+      "description": "Plan export rendering tests drive the public capability with in-memory port records (#2706).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "workflow-decision-test",
+      "target_owner": "document-rendering",
+      "target_role": "public"
+    },
+    {
+      "id": "document-rendering.decision-test.application",
+      "description": "Plan export rendering tests inspect the rendered Document Rendering document field by field (#2706).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "workflow-decision-test",
+      "target_owner": "document-rendering",
+      "target_role": "application"
+    },
+    {
+      "id": "document-rendering.decision-test.calendar-date",
+      "description": "Plan export rendering tests pin calendar weeks with the repository calendar-date value type (#2706).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "workflow-decision-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "document-rendering.adapter-test.adapter",
+      "description": "Plan export adapter tests construct the compatibility bindings under test (#2706).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter-test",
+      "target_owner": "document-rendering",
+      "target_role": "adapter"
+    },
+    {
+      "id": "document-rendering.adapter-test.timetable-application",
+      "description": "Plan export adapter tests build the retained staff schedule overview and holiday rows (#2706).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter-test",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "document-rendering.adapter-test.timetable-domain",
+      "description": "Plan export adapter tests build retained shift, instance, shift-type, planning-track, closing-day and activity-group rows (#2706).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter-test",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "document-rendering.adapter-test.people-directory-domain",
+      "description": "Plan export adapter tests build retained staff rows with and without a person record (#2706).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter-test",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "document-rendering.adapter-test.facilities-domain",
+      "description": "Plan export adapter tests build retained room rows (#2706).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter-test",
+      "target_owner": "facilities",
+      "target_role": "domain"
+    },
+    {
+      "id": "document-rendering.adapter-test.document-rendering-application",
+      "description": "Plan export adapter tests inspect the rendered Document Rendering document and render the runtime evidence through the real renderer (#2706).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter-test",
+      "target_owner": "document-rendering",
+      "target_role": "application"
+    },
+    {
+      "id": "document-rendering.adapter-test.timetable-postgres",
+      "description": "Plan export adapter tests construct the retained instance and instance-staff repositories for the two-tenant RLS proof and the runtime evidence (#2706).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter-test",
+      "target_owner": "timetable-activities",
+      "target_role": "postgres"
+    },
+    {
+      "id": "document-rendering.adapter-test.facilities-compose",
+      "description": "Plan export adapter tests construct the Facilities facade for the real room names (#2706).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter-test",
+      "target_owner": "facilities",
+      "target_role": "compose"
+    },
+    {
+      "id": "document-rendering.adapter-test.orm-sql",
+      "description": "Plan export adapter tests seed shift-type and planning-track rows and open tenant transactions through the Bun database (#2706).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "document-rendering.adapter-test.calendar-date",
+      "description": "Plan export adapter tests pin calendar days with the repository calendar-date value type (#2706).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-timetable.to.document-rendering",
+      "description": "The timetable Betreuungsplan export calls the public plan export capability (#2706).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "http",
+      "target_owner": "document-rendering",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.http.document-rendering-public",
+      "description": "The Workforce shift-planning composition renders the printable Dienstplan through the public plan export capability (#2706).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "http",
+      "target_owner": "document-rendering",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.compose.to.document-rendering.public",
+      "description": "The legacy root names the public plan export capability it composes (#2706).",
       "scopes": [
         "production"
       ],
       "source_owner": "legacy-composition",
       "source_role": "compose",
-      "target_owner": "security-runtime",
+      "target_owner": "document-rendering",
       "target_role": "public"
     },
     {
-      "id": "audit-platform.checkpoint-adapter-test.postgres",
-      "description": "Checkpoint adapter tests exercise append, rollback and tenant isolation through the Audit persistence boundary (#2708).",
+      "id": "legacy-composition.compose.to.document-rendering.adapter",
+      "description": "The legacy root constructs the plan export compatibility adapter over the retained schedule services (#2706).",
       "scopes": [
-        "external_test"
+        "production"
       ],
-      "source_owner": "audit-platform",
-      "source_role": "adapter-test",
-      "target_owner": "audit-platform",
-      "target_role": "postgres"
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "document-rendering",
+      "target_role": "adapter"
     },
     {
-      "id": "audit-platform.checkpoint-adapter-test.domain",
-      "description": "Checkpoint adapter tests exercise append, rollback and tenant isolation through the Audit persistence boundary (#2708).",
+      "id": "file-storage.adapter.delivery-adapter",
+      "description": "Compatibility binding (#2706): the File Storage object-store adapter writes, streams and removes document bytes through the retained storage backend until Delivery exposes it publicly.",
       "scopes": [
-        "external_test"
+        "production"
       ],
-      "source_owner": "audit-platform",
-      "source_role": "adapter-test",
-      "target_owner": "audit-platform",
+      "source_owner": "file-storage",
+      "source_role": "adapter",
+      "target_owner": "delivery-platform",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-filestore.to.file-storage-adapter",
+      "description": "Named exception (https://github.com/moto-nrw/project-phoenix/issues/2580#issuecomment-5638973300), not a target dependency: the pre-existing file store handlers keep moving document bytes through the moved File Storage object-store adapter; delete this rule when #2707 moves them to the public File Storage capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-filestore",
+      "source_role": "http",
+      "target_owner": "file-storage",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-students.to.file-storage-adapter",
+      "description": "Named exception (https://github.com/moto-nrw/project-phoenix/issues/2580#issuecomment-5638973300), not a target dependency: the pre-existing student document handlers keep moving document bytes through the moved File Storage object-store adapter; delete this rule when #2731 moves them to the public File Storage capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "http",
+      "target_owner": "file-storage",
+      "target_role": "adapter"
+    },
+    {
+      "id": "root-composition.to.inbound-birthdays-http",
+      "description": "The production root constructs the birthdays HTTP adapter (#2706).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "inbound-birthdays",
+      "target_role": "http"
+    },
+    {
+      "id": "inbound-birthdays.http-common",
+      "description": "Birthday handlers reuse common HTTP rendering, the tenant middleware chain, the permission gates and the student access scope (#2706).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-birthdays",
+      "source_role": "http",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "inbound-birthdays.security-contract",
+      "description": "Birthday handlers name the users and time-tracking permissions (#2706).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-birthdays",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "inbound-birthdays.identity-adapter",
+      "description": "Birthday handlers read the acting account from the JWT claims for the personal opt-out (#2706).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-birthdays",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-birthdays.identity-application",
+      "description": "Compatibility binding (#2706): the birthday handlers resolve the caller's student data scope through the retained user context service.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-birthdays",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-birthdays.people-directory-application",
+      "description": "Compatibility binding (#2706): the birthday handlers call the retained birthday service until People Directory exposes the birthday display publicly.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-birthdays",
+      "source_role": "http",
+      "target_owner": "people-directory",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-birthdays.people-directory-domain",
+      "description": "Compatibility binding (#2706): the staff Geburtstagsliste export lays out the retained birthday entry rows.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-birthdays",
+      "source_role": "http",
+      "target_owner": "people-directory",
       "target_role": "domain"
     },
     {
-      "id": "audit-platform.checkpoint-adapter-test.orm-sql",
-      "description": "Checkpoint adapter tests supply the real authoritative transaction (#2708).",
+      "id": "inbound-birthdays.document-rendering",
+      "description": "The staff Geburtstagsliste renders through the Document Rendering renderer (#2706).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-birthdays",
+      "source_role": "http",
+      "target_owner": "document-rendering",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-birthdays.orm-sql",
+      "description": "Birthday HTTP composition passes the concrete Bun database to the shared tenant middleware (#2706).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-birthdays",
+      "source_role": "http",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "inbound-birthdays.adapter-test.http-router",
+      "description": "Birthday handler tests exercise HTTP requests and responses (#2706).",
       "scopes": [
         "external_test"
       ],
-      "source_owner": "audit-platform",
+      "source_owner": "inbound-birthdays",
+      "source_role": "adapter-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "inbound-birthdays.adapter-test.orm-sql",
+      "description": "Birthday handler tests stamp birth dates on fixture rows through the Bun database (#2706).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-birthdays",
       "source_role": "adapter-test",
       "target_class": "orm-sql"
+    },
+    {
+      "id": "inbound-birthdays.adapter-test.identity-adapter",
+      "description": "Birthday handler tests construct tenant claims (#2706).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-birthdays",
+      "source_role": "adapter-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-birthdays.adapter-test.calendar-date",
+      "description": "Birthday handler tests pin birth dates with the repository calendar-date value type (#2706).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-birthdays",
+      "source_role": "adapter-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-birthdays.adapter-test.settings-domain",
+      "description": "Birthday handler tests name the two birthday setting keys (#2706).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-birthdays",
+      "source_role": "adapter-test",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "request-review-view.public.calendar-date",
+      "description": "The request-review projection parses the history's decided-at bounds and names today's calendar day with the shared calendar-date type (#2705).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "public",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-students.to.request-review-view",
+      "description": "The students HTTP surface serves the aggregated parent-request list and the pending-count badge through the request-review projection's one public capability (#2705).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "http",
+      "target_owner": "request-review-view",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-students.http.native-request-review-mappers",
+      "description": "Render decision and detail responses through the new native request-review boundary (#3179).",
+      "scopes": ["production"],
+      "source_owner": "inbound-students",
+      "source_role": "http",
+      "target_owner": "request-review-view",
+      "target_role": "compose"
+    },
+    {
+      "id": "request-review-view.compose.impact-token",
+      "description": "Render the existing SHA-256 pickup-impact wire token from native facts (#3179).",
+      "scopes": ["production"],
+      "source_owner": "request-review-view",
+      "source_role": "compose",
+      "target_class": "crypto"
+    },
+    {
+      "id": "request-review-view.compose.enrollment.public",
+      "description": "Bind native approved booking facts for care schedule reviews (#3179).",
+      "scopes": ["production"],
+      "source_owner": "request-review-view",
+      "source_role": "compose",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "request-review-view.compose.enrollment.compose",
+      "description": "Compose the native approved booking reader for care schedule reviews (#3179).",
+      "scopes": ["production"],
+      "source_owner": "request-review-view",
+      "source_role": "compose",
+      "target_owner": "enrollment",
+      "target_role": "compose"
+    },
+    {
+      "id": "request-review-view.compose.timetable.public",
+      "description": "Bind native class dismissal and pickup impact facts (#3179).",
+      "scopes": ["production"],
+      "source_owner": "request-review-view",
+      "source_role": "compose",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "request-review-view.compose.timetable.compose",
+      "description": "Compose bounded native timetable reads for care schedule reviews (#3179).",
+      "scopes": ["production"],
+      "source_owner": "request-review-view",
+      "source_role": "compose",
+      "target_owner": "timetable-activities",
+      "target_role": "compose"
+    },
+    {
+      "id": "request-review-view.compose.care-plan.public",
+      "description": "Request review binds native Care Plan queue facts and workflow ports (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "compose",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "request-review-view.compose.care-plan.compose",
+      "description": "Request review binds native Care Plan queue facts and workflow ports (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "compose",
+      "target_owner": "care-plan",
+      "target_role": "compose"
+    },
+    {
+      "id": "request-review-view.compose.care-plan.contract",
+      "description": "Request review binds native Care Plan queue facts and workflow ports (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "compose",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "request-review-view.compose.production.identity-access.review-contract",
+      "description": "Bind native request-review identity and tenant-setting contracts without retained model dependencies (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "contract"
+    },
+    {
+      "id": "root-composition.compose.production.identity-access.review-contract",
+      "description": "Bind native request-review identity and tenant-setting contracts without retained model dependencies (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "contract"
+    },
+    {
+      "id": "inbound-students.http.production.identity-access.review-contract",
+      "description": "Bind native request-review identity and tenant-setting contracts without retained model dependencies (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "contract"
+    },
+    {
+      "id": "root-composition.compose.production.settings-platform.review-contract",
+      "description": "Bind native request-review identity and tenant-setting contracts without retained model dependencies (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "settings-platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "settings-platform.domain.production.settings-platform.review-contract",
+      "description": "Bind native request-review identity and tenant-setting contracts without retained model dependencies (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "domain",
+      "target_owner": "settings-platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "inbound-students.adapter-test.internal.native-request-review-compose",
+      "description": "Exercise the native access binding at the HTTP identity boundary (#3179).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "adapter-test",
+      "target_owner": "request-review-view",
+      "target_role": "compose"
+    },
+    {
+      "id": "request-review-view.compose.people-directory.public",
+      "description": "Request review binds native owner capabilities through typed composition (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "compose",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "request-review-view.compose.school-structure.public",
+      "description": "Request review binds native owner capabilities through typed composition (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "compose",
+      "target_owner": "school-structure",
+      "target_role": "public"
+    },
+    {
+      "id": "request-review-view.compose.school-structure.compose",
+      "description": "Request review binds native owner capabilities through typed composition (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "compose",
+      "target_owner": "school-structure",
+      "target_role": "compose"
+    },
+    {
+      "id": "request-review-view.compose.request-review-view.public",
+      "description": "Request review binds native owner capabilities through typed composition (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "compose",
+      "target_owner": "request-review-view",
+      "target_role": "public"
+    },
+    {
+      "id": "request-review-view.compose.orm",
+      "description": "Native School Structure composition receives the ambient database; the projection performs no SQL (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "request-review-view.integration.people-compose",
+      "description": "Native directory integration tests exercise the public People Directory with PostgreSQL (#3179).",
+      "scopes": ["internal_test"],
+      "source_owner": "request-review-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "people-directory",
+      "target_role": "compose"
+    },
+    {
+      "id": "request-review-view.integration.test-support",
+      "description": "Native request-review integration tests use isolated tenant fixtures (#3179).",
+      "scopes": ["internal_test"],
+      "source_owner": "request-review-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "root-composition.compose.native-request-review-compose",
+      "description": "Request review binds native owner capabilities through typed composition (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "request-review-view",
+      "target_role": "compose"
+    },
+    {
+      "id": "inbound-students.adapter-test.native-request-review-compose",
+      "description": "Request review binds native owner capabilities through typed composition (#3179).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "adapter-test",
+      "target_owner": "request-review-view",
+      "target_role": "compose"
     }
   ]
 }

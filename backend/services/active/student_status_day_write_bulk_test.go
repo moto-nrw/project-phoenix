@@ -40,7 +40,7 @@ func TestCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 		DB:             db,
 		TenantID:       testpkg.Tenant(t),
 		StudentService: studentService,
-		Authorize:      func(context.Context, *userModels.Student) bool { return true },
+		Authorize:      func(context.Context, *userModels.Student, string) bool { return true },
 		AfterCommit:    func(int64) {},
 	}, student.ID, activeModels.StudentStatusDayExcused, "Termin", []timezone.Date{conflictDate, freshDate})
 
@@ -87,7 +87,7 @@ func TestBulkCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 		DB:             db,
 		TenantID:       testpkg.Tenant(t),
 		StudentService: studentService,
-		Authorize:      func(context.Context, *userModels.Student) bool { return true },
+		Authorize:      func(context.Context, *userModels.Student, string) bool { return true },
 		AfterCommit:    func(int64) {},
 	}, []int64{withConflict.ID, clear.ID}, activeModels.StudentStatusDayClassTrip, "Klassenfahrt", []timezone.Date{conflictDate, freshDate})
 
@@ -150,7 +150,7 @@ func TestBulkCreateForDates_RejectsUnauthorizedWithoutPartialWrites(t *testing.T
 		DB:             db,
 		TenantID:       testpkg.Tenant(t),
 		StudentService: studentService,
-		Authorize: func(_ context.Context, student *userModels.Student) bool {
+		Authorize: func(_ context.Context, student *userModels.Student, _ string) bool {
 			return student.ID == allowed.ID
 		},
 		AfterCommit: func(int64) {},

@@ -46,6 +46,7 @@ type Service interface {
 	ListStudentsInTransit(ctx context.Context) ([]int64, error)
 	ListStudentsPresentToday(ctx context.Context) ([]int64, error)
 	AssignTransitStudentsToActiveGroup(ctx context.Context, studentIDs []int64, activeGroupID int64) (*TransitAssignResult, error)
+	AssignTransitStudentsToActiveGroupAuthorized(ctx context.Context, studentIDs []int64, activeGroupID int64, auth StudentMoveAuthorization) (*TransitAssignResult, error)
 	MoveStudentsToActiveGroupAuthorized(ctx context.Context, studentIDs []int64, activeGroupID int64, auth StudentMoveAuthorization) (*StudentMoveResult, error)
 	MoveStudentsToTransitAuthorized(ctx context.Context, studentIDs []int64, auth StudentMoveAuthorization) (*StudentMoveResult, error)
 
@@ -220,6 +221,9 @@ type StudentMoveResult struct {
 type StudentMoveAuthorization struct {
 	StaffID              int64
 	BypassResourceChecks bool
+	// Set only after the inbound adapter verified an OGS staff actor with
+	// the existing move permission. The service still resolves tenant settings.
+	SchoolWideAttendanceEligible bool
 }
 
 // DashboardAnalytics represents aggregated analytics for dashboard

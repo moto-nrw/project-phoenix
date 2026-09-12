@@ -48,6 +48,8 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/planexport"
+	planexportlegacy "github.com/moto-nrw/project-phoenix/modules/planexport/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
@@ -76,7 +78,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/services/parent"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
-	"github.com/moto-nrw/project-phoenix/services/planexport"
 	"github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/statistics"
@@ -2407,6 +2408,7 @@ func newFactory(
 		settingsService,
 		userContextService,
 		configModels.KeyParentRequestGroupLeaderReviewEnabled,
+		configModels.KeyParentAbsenceReviewScope,
 	)
 
 	// One append-only ledger for every parent request, shared by all four
@@ -2796,9 +2798,11 @@ func newFactory(
 		ListExport:      listExportService,
 	})
 
-	// Printable weekly plans (#2079). A pure projection over the same reads
-	// the two planning screens use — it renders, it never writes.
-	planExportService := planexport.NewService(planexport.Dependencies{
+	// Printable weekly plans (#2079) are the Document Rendering plan export
+	// capability (#2706): a pure projection over the same reads the two
+	// planning screens use — it renders, it never writes. The retained
+	// schedule services and repositories are its compatibility bindings.
+	planExportService := planexportlegacy.New(planexportlegacy.Sources{
 		Overview:       staffScheduleOverviewService,
 		ShiftTypes:     repos.ShiftType,
 		Instances:      repos.ActivityInstance,
@@ -2811,7 +2815,8 @@ func newFactory(
 		ClosingDays:    closingDayService,
 		Holidays:       holidayService,
 		Renderer:       listExportService,
-	}, logger.With("service", "plan_export"))
+		Logger:         logger.With("service", "plan_export"),
+	})
 
 	pushSubscriptionsService := notifications.NewPushSubscriptionService(
 		db,

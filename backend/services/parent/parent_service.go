@@ -367,8 +367,9 @@ type ChildFeatureFlags struct {
 	// capability: when it is true every write flag below is false, and the
 	// portal shows a read-only profile with one sentence explaining why
 	// instead of buttons that would all fail the same way.
-	CareEnded       bool
-	SickNoteEnabled bool
+	CareEnded          bool
+	SickNoteEnabled    bool
+	ExcusedNoteEnabled bool
 	// SickRequiresApproval is true when a Krankmeldung stays pending until the
 	// OGS confirms it (operations.parent_sick_requires_approval, #2449).
 	SickRequiresApproval bool
@@ -376,7 +377,7 @@ type ChildFeatureFlags struct {
 	// by the office before it takes effect (operations.parent_excused_requires_approval,
 	// #1845). The parent UI uses it to explain that the absence will be pending
 	// and to keep the mandatory-note requirement visible. Only meaningful while
-	// SickNoteEnabled is true.
+	// ExcusedNoteEnabled is true.
 	ExcusedRequiresApproval bool
 	NotesEnabled            bool
 	// RequestSubmitEnabled is true when messaging is on AND the guardian holds

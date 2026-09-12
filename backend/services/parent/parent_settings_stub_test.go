@@ -3,6 +3,8 @@ package parent_test
 import (
 	"context"
 
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
+
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
 
@@ -24,6 +26,9 @@ func (s parentSettingsStub) ResolveBoolForTenant(_ context.Context, _ int64, key
 	}
 	if v, ok := s.boolValues[key]; ok {
 		return v, nil
+	}
+	if key == configModels.KeyParentSickReportsEnabled || key == configModels.KeyParentExcusedReportsEnabled {
+		return true, nil
 	}
 	return s.boolDefault, nil
 }

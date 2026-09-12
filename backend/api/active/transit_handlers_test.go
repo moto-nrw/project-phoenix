@@ -9,7 +9,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
@@ -108,7 +107,7 @@ func TestAssignTransitStudents(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
-	t.Run("rejects regular staff outside target room scope", func(t *testing.T) {
+	t.Run("renders the service refusal outside target room scope", func(t *testing.T) {
 		calledAssign := false
 		rs := &Resource{
 			PersonService: moveAuthPersonService{
@@ -116,15 +115,11 @@ func TestAssignTransitStudents(t *testing.T) {
 				staff:  &userModel.Staff{Model: base.Model{ID: 20}},
 			},
 			ActiveService: &trackingMockActiveService{
-				getActiveGroupFunc: func(_ context.Context, id int64) (*activeModel.Group, error) {
-					return &activeModel.Group{Model: base.Model{ID: id}, RoomID: 77}, nil
-				},
-				getStaffActiveSupervisionsFunc: func(_ context.Context, _ int64) ([]*activeModel.GroupSupervisor, error) {
-					return []*activeModel.GroupSupervisor{{GroupID: 123}}, nil
-				},
-				assignTransitStudentsToActiveGroupFunc: func(_ context.Context, _ []int64, _ int64) (*activeSvc.TransitAssignResult, error) {
+				assignTransitStudentsAuthorizedFunc: func(_ context.Context, _ []int64, _ int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.TransitAssignResult, error) {
 					calledAssign = true
-					return nil, nil
+					require.Equal(t, int64(20), auth.StaffID)
+					require.False(t, auth.BypassResourceChecks)
+					return nil, &activeSvc.ActiveError{Op: "AssignTransitStudentsToActiveGroup", Err: activeSvc.ErrStudentMoveForbidden}
 				},
 			},
 		}
@@ -139,12 +134,11 @@ func TestAssignTransitStudents(t *testing.T) {
 		rs.assignTransitStudents(w, req)
 
 		require.Equal(t, http.StatusForbidden, w.Code)
-		assert.False(t, calledAssign)
+		assert.True(t, calledAssign)
 	})
 
-	// #2329: supervising the TARGET active group is the whole per-request check;
-	// which children are being claimed is no longer scoped per student.
-	t.Run("allows target supervisor to assign open transit students", func(t *testing.T) {
+	// Target access is now checked against locked state by the service.
+	t.Run("assigns transit students authorized by the service", func(t *testing.T) {
 		calledAssign := false
 		rs := &Resource{
 			PersonService: moveAuthPersonService{
@@ -152,14 +146,10 @@ func TestAssignTransitStudents(t *testing.T) {
 				staff:  &userModel.Staff{Model: base.Model{ID: 20}},
 			},
 			ActiveService: &trackingMockActiveService{
-				getActiveGroupFunc: func(_ context.Context, id int64) (*activeModel.Group, error) {
-					return &activeModel.Group{Model: base.Model{ID: id}, RoomID: 77}, nil
-				},
-				getStaffActiveSupervisionsFunc: func(_ context.Context, _ int64) ([]*activeModel.GroupSupervisor, error) {
-					return []*activeModel.GroupSupervisor{{GroupID: 99}}, nil
-				},
-				assignTransitStudentsToActiveGroupFunc: func(_ context.Context, studentIDs []int64, activeGroupID int64) (*activeSvc.TransitAssignResult, error) {
+				assignTransitStudentsAuthorizedFunc: func(_ context.Context, studentIDs []int64, activeGroupID int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.TransitAssignResult, error) {
 					calledAssign = true
+					require.Equal(t, int64(20), auth.StaffID)
+					require.False(t, auth.BypassResourceChecks)
 					return &activeSvc.TransitAssignResult{
 						Assigned:      studentIDs,
 						Skipped:       []activeSvc.TransitAssignSkipped{},
@@ -191,15 +181,9 @@ func TestAssignTransitStudents(t *testing.T) {
 				staff:  &userModel.Staff{Model: base.Model{ID: 20}},
 			},
 			ActiveService: &trackingMockActiveService{
-				getActiveGroupFunc: func(_ context.Context, _ int64) (*activeModel.Group, error) {
-					return nil, errors.New("active group lookup failed")
-				},
-				getStaffActiveSupervisionsFunc: func(_ context.Context, _ int64) ([]*activeModel.GroupSupervisor, error) {
-					return []*activeModel.GroupSupervisor{{GroupID: 99}}, nil
-				},
 				assignTransitStudentsToActiveGroupFunc: func(_ context.Context, _ []int64, _ int64) (*activeSvc.TransitAssignResult, error) {
 					calledAssign = true
-					return nil, nil
+					return nil, errors.New("active group lookup failed")
 				},
 			},
 		}
@@ -214,6 +198,6 @@ func TestAssignTransitStudents(t *testing.T) {
 		rs.assignTransitStudents(w, req)
 
 		require.Equal(t, http.StatusInternalServerError, w.Code)
-		assert.False(t, calledAssign)
+		assert.True(t, calledAssign)
 	})
 }

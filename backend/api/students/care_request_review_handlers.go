@@ -4,107 +4,28 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strconv"
-	"time"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-nrw/project-phoenix/modules/requestreview"
+	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 // CareRequestResponse is the staff-facing projection of one parent
-// care-schedule change request in the review queue, including the live
-// "current → requested" weekly diff.
-type CareRequestResponse struct {
-	ID              string                    `json:"id"`
-	StudentID       string                    `json:"student_id"`
-	FirstName       string                    `json:"first_name"`
-	LastName        string                    `json:"last_name"`
-	Status          string                    `json:"status"`
-	RequestKind     string                    `json:"request_kind"`
-	Diff            []CareRequestDiffResponse `json:"diff"`
-	RequestReason   *string                   `json:"request_reason,omitempty"`
-	DecisionReason  *string                   `json:"decision_reason,omitempty"`
-	CreatedAt       time.Time                 `json:"created_at"`
-	ReviewedAt      *time.Time                `json:"reviewed_at,omitempty"`
-	AffectedBlocks  []AffectedCareBlock       `json:"affected_blocks"`
-	ImpactAvailable bool                      `json:"impact_available"`
-	ImpactToken     string                    `json:"impact_token"`
-}
+// care-schedule change request, including the live "current → requested"
+// weekly diff; the shared request-review projection (#2705) owns the shape
+// and the decide route answers with the same one.
+type CareRequestResponse = requestreview.CareRequestResponse
 
-type AffectedCareBlock struct {
-	ID        string `json:"id"`
-	Title     string `json:"title"`
-	StartTime string `json:"start_time"`
-	EndTime   string `json:"end_time"`
-}
+type AffectedCareBlock = requestreview.AffectedCareBlock
 
 // CareRequestDiffResponse mirrors the request-diff wire shape the messaging
 // thread page used, so the frontend's RequestDiffPanel renders it unchanged.
-type CareRequestDiffResponse struct {
-	Label    string   `json:"label"`
-	Old      string   `json:"old"`
-	New      string   `json:"new"`
-	Weekday  int      `json:"weekday,omitempty"`
-	CareKind string   `json:"care_kind,omitempty"`
-	OldModes []string `json:"old_modes,omitempty"`
-	NewMode  string   `json:"new_mode,omitempty"`
-}
-
-// toCareRequestDiffResponses maps service diff entries onto the wire shape —
-// shared by the review queue and both history projections (frozen diff and
-// requested summary; the latter's Old/OldModes are empty by construction).
-func toCareRequestDiffResponses(entries []scheduleService.RequestDiffEntry) []CareRequestDiffResponse {
-	out := make([]CareRequestDiffResponse, 0, len(entries))
-	for _, e := range entries {
-		out = append(out, CareRequestDiffResponse{
-			Label:    e.Label,
-			Old:      e.Old,
-			New:      e.New,
-			Weekday:  e.Weekday,
-			CareKind: e.CareKind,
-			OldModes: e.OldModes,
-			NewMode:  e.NewMode,
-		})
-	}
-	return out
-}
-
-func toCareRequestResponse(item *scheduleService.CareRequestReviewItem) CareRequestResponse {
-	r := item.Request
-	diff := toCareRequestDiffResponses(item.Diff)
-	return CareRequestResponse{
-		ID:              strconv.FormatInt(r.ID, 10),
-		StudentID:       strconv.FormatInt(r.StudentID, 10),
-		FirstName:       item.FirstName,
-		LastName:        item.LastName,
-		Status:          r.Status,
-		RequestKind:     r.RequestKind,
-		Diff:            diff,
-		RequestReason:   item.Reason,
-		DecisionReason:  r.DecisionReason,
-		CreatedAt:       r.CreatedAt,
-		ReviewedAt:      r.ReviewedAt,
-		AffectedBlocks:  toAffectedCareBlocks(item.AffectedBlocks),
-		ImpactAvailable: item.ImpactAvailable,
-		ImpactToken:     item.ImpactToken,
-	}
-}
-
-func toAffectedCareBlocks(blocks []scheduleModels.PartialAbsenceBlock) []AffectedCareBlock {
-	out := make([]AffectedCareBlock, 0, len(blocks))
-	for _, block := range blocks {
-		out = append(out, AffectedCareBlock{
-			ID:        strconv.FormatInt(block.ID, 10),
-			Title:     block.Title,
-			StartTime: block.StartTime.Format("15:04"),
-			EndTime:   block.EndTime.Format("15:04"),
-		})
-	}
-	return out
-}
+type CareRequestDiffResponse = requestreview.CareRequestDiffResponse
 
 // DecideCareRequestBody is the body of POST
 // .../care-schedule-change-requests/{requestId}/decide.
@@ -136,7 +57,29 @@ func (rs *Resource) decideCareScheduleChangeRequest(w http.ResponseWriter, r *ht
 		renderError(w, r, careRequestDecisionErrorRenderer(err))
 		return
 	}
-	common.Respond(w, r, http.StatusOK, toCareRequestResponse(item), "Decision applied")
+	common.Respond(w, r, http.StatusOK, careDecisionResponse(item), "Decision applied")
+}
+
+func nativeCareDiffs(entries []scheduleService.RequestDiffEntry) []carerequests.DiffEntry {
+	result := make([]carerequests.DiffEntry, 0, len(entries))
+	for _, entry := range entries {
+		result = append(result, carerequests.DiffEntry{Label: entry.Label, Old: entry.Old, New: entry.New, Weekday: entry.Weekday, CareKind: entry.CareKind, OldModes: entry.OldModes, NewMode: entry.NewMode})
+	}
+	return result
+}
+
+func careDecisionResponse(item *scheduleService.CareRequestReviewItem) requestreview.CareRequestResponse {
+	r := item.Request
+	blocks := make([]carerequests.Block, 0, len(item.AffectedBlocks))
+	for _, block := range item.AffectedBlocks {
+		blocks = append(blocks, carerequests.Block{ID: block.ID, Title: block.Title, StartTime: block.StartTime, EndTime: block.EndTime})
+	}
+	response := requestreviewcompose.ToCareRequestResponse(&carerequests.ReviewItem{
+		Request:   &carerequests.Request{ID: r.ID, StudentID: r.StudentID, Status: r.Status, RequestKind: r.RequestKind, DecisionReason: r.DecisionReason, CreatedAt: r.CreatedAt, ReviewedAt: r.ReviewedAt},
+		FirstName: item.FirstName, LastName: item.LastName, Diff: nativeCareDiffs(item.Diff), Reason: item.Reason, AffectedBlocks: blocks, ImpactAvailable: item.ImpactAvailable,
+	})
+	response.ImpactToken = item.ImpactToken
+	return response
 }
 
 func decodeCareRequestDecision(w http.ResponseWriter, r *http.Request) (scheduleService.CareRequestDecideInput, bool) {

@@ -164,18 +164,18 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyOperationalOverviewScope,
-		Label:           "Sichtbereich für Mitarbeitende",
-		Description:     "Legt fest, welche Gruppen und laufenden Betreuungen Mitarbeitende sehen. Admins sehen immer alles. Die Auswahl gibt keine neuen Rechte.",
+		Label:           "Welche Gruppen und Blöcke sieht das Team?",
+		Description:     "Die Auswahl ändert nur den Überblick, nicht die Schreibrechte. Freigegebene offene Räume bleiben sichtbar.",
 		Type:            config.FieldSelect,
 		Default:         config.OverviewScopeAllStaff,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "operations",
-		Category:        "aufsicht",
+		Category:        "sehen-und-bearbeiten",
 		SortOrder:       1,
 		Options: &config.SelectOptions{
 			Static: []config.SelectOption{
-				{Label: "Ganzes Team", Value: config.OverviewScopeAllStaff},
+				{Label: "Alle Gruppen und Blöcke", Value: config.OverviewScopeAllStaff},
 				{Label: "Eigene Zuständigkeiten", Value: config.OverviewScopeOwn},
 			},
 		},
@@ -338,20 +338,20 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyPresenceMode,
-		Label:           "Anwesenheits-Modus",
-		Description:     "Detailliert erfasst Räume und Aktivitäten. Binär erfasst nur, ob ein Kind in der Schule ist (ohne Raumverfolgung).",
+		Label:           "Was wird erfasst?",
+		Description:     "Wählen Sie, ob auch der Aufenthaltsort erfasst wird.",
 		Type:            config.FieldSelect,
 		Default:         config.PresenceModeDetailed,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
 		Tab:             "operations",
-		Category:        "anwesenheit",
-		SortOrder:       40,
+		Category:        "anwesenheit-erfassen",
+		SortOrder:       2,
 		AccessPolicy:    config.AccessOperatorOnly,
 		Options: &config.SelectOptions{
 			Static: []config.SelectOption{
-				{Label: "Detailliert (Räume & Aktivitäten)", Value: config.PresenceModeDetailed},
-				{Label: "Binär (nur An-/Abwesend)", Value: config.PresenceModeBinary},
+				{Label: "Zusätzlich Räume und Aktivitäten", Value: config.PresenceModeDetailed},
+				{Label: "Anwesend oder abwesend", Value: config.PresenceModeBinary},
 			},
 		},
 	})
@@ -396,29 +396,29 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyAttendanceWebEnabled,
-		Label:           "Anwesenheit über Web-App erfassen",
-		Description:     "Mitarbeitende können Kinder über die Web-App an- und abmelden oder in Aktivitäten eintragen.",
+		Label:           "Anwesenheit am Handy oder Computer erfassen",
+		Description:     "Das Team kann Kinder an- und abmelden. Das geht auch zusätzlich zu NFC-Geräten.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
 		Tab:             "operations",
-		Category:        "anwesenheit",
-		SortOrder:       43,
+		Category:        "anwesenheit-erfassen",
+		SortOrder:       0,
 		AccessPolicy:    config.AccessOperatorOnly,
 	})
 
 	config.Register(config.Definition{
 		Key:             config.KeyAttendanceNFCEnabled,
-		Label:           "Anwesenheit über NFC-Geräte erfassen",
+		Label:           "NFC-Geräte verwenden",
 		Description:     "Die OGS nutzt NFC-Armbänder oder Karten an Geräten, zum Beispiel für Räume, Schulhof oder Abmeldung.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
 		Tab:             "operations",
-		Category:        "anwesenheit",
-		SortOrder:       44,
+		Category:        "anwesenheit-erfassen",
+		SortOrder:       1,
 		AccessPolicy:    config.AccessOperatorOnly,
 	})
 

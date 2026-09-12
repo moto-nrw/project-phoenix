@@ -227,17 +227,21 @@ func (e engine) ListCourseGroups(ctx context.Context, filter timetable.CourseGro
 	}
 	result := make([]timetable.CourseGroup, 0, len(values))
 	for _, value := range values {
-		result = append(result, timetable.CourseGroup{
-			ID:                    value.ID,
-			Active:                value.Active,
-			MaxParticipants:       value.MaxParticipants,
-			SourceCareOfferingIDs: append([]int64(nil), value.SourceCareOfferingIDs...),
-			SourceGradeLevels:     append([]int(nil), value.SourceGradeLevels...),
-			SourceSchoolClasses:   append([]string(nil), value.SourceSchoolClasses...),
-			ScheduledWeekdays:     append([]int(nil), value.ScheduledWeekdays...),
-		})
+		result = append(result, courseGroupToPublic(value))
 	}
 	return result, nil
+}
+
+func courseGroupToPublic(value domain.CourseGroup) timetable.CourseGroup {
+	return timetable.CourseGroup{
+		ID:                    value.ID,
+		Active:                value.Active,
+		MaxParticipants:       value.MaxParticipants,
+		SourceCareOfferingIDs: append([]int64(nil), value.SourceCareOfferingIDs...),
+		SourceGradeLevels:     append([]int(nil), value.SourceGradeLevels...),
+		SourceSchoolClasses:   append([]string(nil), value.SourceSchoolClasses...),
+		ScheduledWeekdays:     append([]int(nil), value.ScheduledWeekdays...),
+	}
 }
 
 func (e engine) ListTemplateRows(ctx context.Context, templateID *int64) ([]timetable.TemplateListRow, error) {

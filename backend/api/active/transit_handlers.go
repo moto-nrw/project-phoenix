@@ -25,11 +25,12 @@ func (rs *Resource) assignTransitStudents(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if !rs.authorizeBulkStudentMove(w, r, req.StudentIDs, &req.ActiveGroupID) {
+	auth, ok := rs.bulkStudentMoveAuthorization(w, r)
+	if !ok {
 		return
 	}
 
-	result, err := rs.ActiveService.AssignTransitStudentsToActiveGroup(r.Context(), req.StudentIDs, req.ActiveGroupID)
+	result, err := rs.ActiveService.AssignTransitStudentsToActiveGroupAuthorized(r.Context(), req.StudentIDs, req.ActiveGroupID, *auth)
 	if err != nil {
 		tenant.MarkRollback(r.Context())
 		common.RenderError(w, r, ErrorRenderer(err))

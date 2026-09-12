@@ -229,6 +229,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		settingsService,
 		userContextService,
 		configModels.KeyParentRequestGroupLeaderReviewEnabled,
+		configModels.KeyParentAbsenceReviewScope,
 	)
 	parentRequestEvents := users.NewParentRequestEventRecorder(repos.ParentRequestEvent)
 	careRequestService := schedule.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(

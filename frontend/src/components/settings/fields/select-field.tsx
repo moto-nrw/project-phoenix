@@ -30,21 +30,23 @@ export function SelectField({
   disabled = false,
 }: SelectFieldProps) {
   return (
-    <CustomSelect
-      ariaLabel={ariaLabel}
-      value={toStr(value)}
-      options={options.map((opt) => ({
-        value: toStr(opt.value),
-        label: opt.label,
-      }))}
-      onChange={(next) => {
-        const selected = options.find((opt) => toStr(opt.value) === next);
-        if (selected) {
-          onChange(selected.value);
-        }
-      }}
-      disabled={disabled}
-      triggerClassName="moto-content-surface h-10 w-auto min-w-[8rem] max-w-xs hover:border-gray-300"
-    />
+    <div className="max-w-full min-w-0">
+      <CustomSelect
+        ariaLabel={ariaLabel}
+        value={toStr(value)}
+        options={options.map((opt) => ({
+          value: toStr(opt.value),
+          label: opt.label,
+        }))}
+        onChange={(next) => {
+          const selected = options.find((opt) => toStr(opt.value) === next);
+          if (selected) {
+            onChange(selected.value);
+          }
+        }}
+        disabled={disabled}
+        triggerClassName="moto-content-surface h-10 w-auto min-w-[8rem] max-w-full hover:border-gray-300 sm:max-w-xs"
+      />
+    </div>
   );
 }

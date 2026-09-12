@@ -14,6 +14,7 @@ import (
 type ReviewStudent struct {
 	ID            int64
 	PersonID      int64
+	SchoolClass   string
 	GroupID       *int64
 	Alumnus       bool
 	EnrolledUntil domain.Date
