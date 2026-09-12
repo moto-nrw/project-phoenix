@@ -1,6 +1,8 @@
 package services
 
 import (
+	"time"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
@@ -11,10 +13,11 @@ import (
 )
 
 type ImportTestModule struct {
-	Import          *importService.ImportService[importModels.StudentImportRow]
-	StaffImport     *importService.ImportService[importModels.StaffImportRow]
-	ClassListImport *importService.ImportService[importModels.ClassListEntryImportRow]
-	Users           users.PersonService
+	Import               *importService.ImportService[importModels.StudentImportRow]
+	StaffImport          *importService.ImportService[importModels.StaffImportRow]
+	ClassListImport      *importService.ImportService[importModels.ClassListEntryImportRow]
+	OpeningBalanceImport importService.OpeningBalanceImportFactory
+	Users                users.PersonService
 	// Observations collects the per-run counters the production observer
 	// receives, so tests can assert the runtime evidence contract.
 	Observations *[]importService.ImportObservation
@@ -26,6 +29,7 @@ type ImportTestModule struct {
 // contrived data shape.
 type ImportTestOptions struct {
 	WrapGuardians importService.GuardianPortDecorator
+	Clock         func() time.Time
 }
 
 // NewImportTestModule composes the Data Import over the real owners
@@ -71,6 +75,18 @@ func NewImportTestModuleWithOptions(db *bun.DB, unit tenant.UnitOfWork, options 
 	if err != nil {
 		return ImportTestModule{}, err
 	}
+	var clocks []func() time.Time
+	if options.Clock != nil {
+		clocks = append(clocks, options.Clock)
+	}
+	workforce, err := NewWorkforceTestModule(db, unit, clocks...)
+	if err != nil {
+		return ImportTestModule{}, err
+	}
+	workforceReads, err := repositories.NewWorkforceTestRepositories(db, command)
+	if err != nil {
+		return ImportTestModule{}, err
+	}
 
 	observations := &[]importService.ImportObservation{}
 	persons := guardians.PeopleDirectory
@@ -84,7 +100,13 @@ func NewImportTestModuleWithOptions(db *bun.DB, unit tenant.UnitOfWork, options 
 			School: repos.School, Groups: repos.Group, Rooms: repos.Room,
 		},
 		ConsentHistory: users.NewStudentConsentService(repos.StudentConsentChange),
-		Audit:          command,
+		OpeningBalance: importService.OpeningBalanceImportDeps{
+			StaffRepo: workforceReads.Staff, AdjustmentRepo: workforceReads.StaffBalanceAdjust,
+			VacationOpeningRepo:  workforceReads.StaffVacationOpening,
+			BalanceAdjustService: OpeningBalanceBookingCapability(workforce.StaffBalanceAdjust),
+			StaffAbsenceService:  VacationTakeoverCapability(workforce.StaffAbsence),
+		},
+		Audit: command,
 		Observe: func(observation importService.ImportObservation) {
 			*observations = append(*observations, observation)
 		},
@@ -99,6 +121,7 @@ func NewImportTestModuleWithOptions(db *bun.DB, unit tenant.UnitOfWork, options 
 	dataImports := newImports(wiring)
 	return ImportTestModule{
 		Import: dataImports.Student, StaffImport: dataImports.Staff, ClassListImport: dataImports.ClassList,
-		Users: people.Users, Observations: observations,
+		OpeningBalanceImport: dataImports.OpeningBalance,
+		Users:                people.Users, Observations: observations,
 	}, nil
 }

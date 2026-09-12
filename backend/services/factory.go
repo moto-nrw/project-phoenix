@@ -415,7 +415,8 @@ type DurableDeliveryObserver func(transport, template, operation string, duratio
 // DataImportObserver records one Data Import run (#2708): rows parsed,
 // accepted, rejected, created and updated plus the run duration. The
 // composition root supplies it so this package keeps no metrics dependency.
-type DataImportObserver func(entity string, dryRun bool, rows, accepted, rejected, created, updated int, duration time.Duration)
+type DataImportObservation = importService.ImportObservation
+type DataImportObserver func(DataImportObservation)
 
 func newAuditCommand(store auditModels.AppendStore, logger *slog.Logger, observe AuditAppendObserver) (auditModels.Command, error) {
 	if store == nil || logger == nil || observe == nil {
@@ -1914,13 +1915,13 @@ func newFactory(
 			StaffRepo:            repos.Staff,
 			AdjustmentRepo:       repos.StaffBalanceAdjust,
 			VacationOpeningRepo:  repos.StaffVacationOpening,
-			BalanceAdjustService: staffBalanceAdjustService,
-			StaffAbsenceService:  staffAbsenceService,
+			BalanceAdjustService: OpeningBalanceBookingCapability(staffBalanceAdjustService),
+			StaffAbsenceService:  VacationTakeoverCapability(staffAbsenceService),
 		},
 		ConsentHistory: studentConsentService,
 		Audit:          auditCommand,
 		Observe: func(observation importService.ImportObservation) {
-			observeDataImport(observation.Entity, observation.DryRun, observation.Rows, observation.Accepted, observation.Rejected, observation.Created, observation.Updated, observation.Duration)
+			observeDataImport(observation)
 		},
 	})
 

@@ -1,7 +1,7 @@
 // Package ports holds the consumer-owned ports of the Data Import workflow
 // (#2708). Student, staff and class-list rows are committed through the
-// public commands of the owners named here; opening balances and a few
-// read-only lookups still use retained services and repositories, bound in
+// public commands of the owners named here, as do opening balances. A few
+// read-only lookups still use retained repositories, bound in
 // services/import_composition.go. The import issues no SQL of its own.
 // The ports name the owner contracts through their public types, so the
 // application and its decision tests depend on this package alone. The
@@ -185,3 +185,21 @@ type StaffRecords interface {
 type AuditCommand interface {
 	Append(context.Context, any) error
 }
+
+// Workforce go-live opening commands and their public values.
+type (
+	OpeningBalanceBookings    = workforce.OpeningBalanceBookings
+	VacationTakeovers         = workforce.VacationTakeovers
+	StaffBalanceAdjustment    = workforce.StaffBalanceAdjustment
+	StaffVacationOpening      = workforce.StaffVacationOpening
+	VacationQuotaSummary      = workforce.VacationQuotaSummary
+	SetVacationOpeningRequest = workforce.SetVacationOpeningRequest
+)
+
+var (
+	ErrOpeningAlreadyExists                = workforce.ErrOpeningAlreadyExists
+	ErrVacationOpeningExists               = workforce.ErrVacationOpeningExists
+	ErrVacationOpeningAbsencesBeforeCutoff = workforce.ErrVacationOpeningAbsencesBeforeCutoff
+	ErrAdjustmentInClosedMonth             = workforce.ErrAdjustmentInClosedMonth
+	ErrAdjustmentHasDependentReset         = workforce.ErrAdjustmentHasDependentReset
+)

@@ -118,6 +118,7 @@ type adjustmentFreezeReader interface {
 }
 
 type staffBalanceAdjustmentService struct {
+	todayFunc      func() timezone.Date
 	adjustmentRepo activeModels.StaffBalanceAdjustmentRepository
 	monthService   WorkTimeMonthService
 	settings       monthSettingsResolver
@@ -157,13 +158,25 @@ func NewStaffBalanceAdjustmentService(
 	monthService WorkTimeMonthService,
 	settings monthSettingsResolver,
 	logger *slog.Logger,
+	today ...func() timezone.Date,
 ) StaffBalanceAdjustmentService {
-	return &staffBalanceAdjustmentService{
+	service := &staffBalanceAdjustmentService{
 		adjustmentRepo: adjustmentRepo,
 		monthService:   monthService,
 		settings:       settings,
 		logger:         logger,
 	}
+	if len(today) > 0 {
+		service.todayFunc = today[0]
+	}
+	return service
+}
+
+func (s *staffBalanceAdjustmentService) today() timezone.Date {
+	if s.todayFunc != nil {
+		return s.todayFunc()
+	}
+	return timezone.TodayDate()
 }
 
 // rejectPreAccountDate fails a booking dated before the account start: such
@@ -172,7 +185,7 @@ func NewStaffBalanceAdjustmentService(
 // resolved against TODAY's chain (the account the KPI shows), mirroring
 // chainAnchor's empty-setting fallback (January 1st of the current year).
 func (s *staffBalanceAdjustmentService) rejectPreAccountDate(ctx context.Context, effectiveDate timezone.Date) error {
-	anchor, err := resolveAccountAnchor(ctx, s.settings, s.getLogger(), monthOf(timezone.TodayDate()))
+	anchor, err := resolveAccountAnchor(ctx, s.settings, s.getLogger(), monthOf(s.today()))
 	if err != nil {
 		return fmt.Errorf("failed to resolve account start for adjustment: %w", err)
 	}
@@ -234,7 +247,7 @@ func (s *staffBalanceAdjustmentService) CreateAdjustment(ctx context.Context, st
 	// Mirror the Monatskarte's future bound: beyond it the closing-balance
 	// read has no defined result (and far enough out it fails), so an
 	// unbounded date must be a 400, not a 500 (#1420 review).
-	if horizon := monthOf(timezone.TodayDate()).addMonths(maxFutureMonths); horizon.before(monthOf(req.EffectiveDate)) {
+	if horizon := monthOf(s.today()).addMonths(maxFutureMonths); horizon.before(monthOf(req.EffectiveDate)) {
 		return nil, fmt.Errorf(
 			"%w: effective_date %s is more than %d months ahead",
 			ErrAdjustmentInvalid, req.EffectiveDate.String(), maxFutureMonths,
@@ -416,7 +429,7 @@ func (s *staffBalanceAdjustmentService) ResetBalance(ctx context.Context, staffI
 	// A reset needs a closed cutoff. Today's sessions, absences, and targets
 	// can still change after this request, which would make the stored delta
 	// stale before the day ends.
-	if !effectiveDate.Before(timezone.TodayDate()) {
+	if !effectiveDate.Before(s.today()) {
 		return nil, fmt.Errorf("%w: effective_date must be before today", ErrAdjustmentInvalid)
 	}
 	if err := s.rejectPreAccountDate(ctx, effectiveDate); err != nil {
@@ -560,7 +573,7 @@ func (s *staffBalanceAdjustmentService) validateOpeningBalance(ctx context.Conte
 	}
 	// Same reasoning as the reset: the Stichtag needs a closed cutoff so the
 	// stored delta cannot go stale before the day ends.
-	if !effectiveDate.Before(timezone.TodayDate()) {
+	if !effectiveDate.Before(s.today()) {
 		return 0, fmt.Errorf("%w: effective_date must be before today", ErrAdjustmentInvalid)
 	}
 	if err := s.rejectPreAccountDate(ctx, effectiveDate); err != nil {

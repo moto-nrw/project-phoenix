@@ -289,7 +289,10 @@ func (c *StaffImportConfig) invite(ctx context.Context, personID int64, row impo
 		SchoolName:       c.schoolName,
 		ActorPermissions: ImporterPermissionsFromContext(ctx),
 	}
-	if _, err := c.InvitationService.CreateInvitation(ctx, req); err != nil {
+	if err := ports.ObserveCommand(ctx, "identity-access", "create_invitation", func() error {
+		_, err := c.InvitationService.CreateInvitation(ctx, req)
+		return err
+	}); err != nil {
 		return fmt.Errorf("Einladung anlegen: %w", err) //nolint:staticcheck // ST1005: user-facing German message
 	}
 	return nil

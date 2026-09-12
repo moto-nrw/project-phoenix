@@ -35,10 +35,12 @@ func importModeFromContext(ctx context.Context) importModels.ImportMode {
 
 // ImportService handles generic import logic for any entity type
 type ImportService[T any] struct {
-	config    importModels.ImportConfig[T]
-	batchSize int
-	audit     ports.AuditCommand
-	observe   func(ImportObservation)
+	config      importModels.ImportConfig[T]
+	batchSize   int
+	audit       ports.AuditCommand
+	observe     func(ImportObservation)
+	fingerprint func([]byte) string
+	checkpoints audit.ImportCheckpointReader
 	// config keeps request-specific reference data after PreloadReferenceData.
 	// Serialize processing while that mutable configuration is shared.
 	importMu sync.Mutex
@@ -47,14 +49,21 @@ type ImportService[T any] struct {
 // ImportObservation is emitted once per import run: the row counters of the
 // batch and how long the run took. It carries no personal data.
 type ImportObservation struct {
-	Entity   string
-	DryRun   bool
-	Rows     int
-	Accepted int
-	Rejected int
-	Created  int
-	Updated  int
-	Duration time.Duration
+	Entity           string
+	DryRun           bool
+	Rows             int
+	Accepted         int
+	Rejected         int
+	Created          int
+	Updated          int
+	Duration         time.Duration
+	BatchesCommitted int
+	BatchesRetried   int
+	CheckpointLag    int
+	Deadlocks        int
+	PoolWait         time.Duration
+	LockWait         time.Duration
+	Commands         []ports.CommandObservation
 }
 
 type requestScopedConfig[T any] interface {
@@ -77,19 +86,23 @@ type importModeAuthorizer interface {
 // ImportObservation per run. A nil Observe disables observation; a nil
 // Audit makes RecordAuditInTransaction fail.
 type ImportRuntime struct {
-	Audit   ports.AuditCommand
-	Observe func(ImportObservation)
+	Audit       ports.AuditCommand
+	Observe     func(ImportObservation)
+	Fingerprint func([]byte) string
 }
 
 // NewImportService creates an import service bound to its platform
 // collaborators. A zero ImportRuntime is legitimate for decision tests that
 // never record an audit row or read an observation.
 func NewImportService[T any](config importModels.ImportConfig[T], runtime ImportRuntime) *ImportService[T] {
+	checkpoints, _ := runtime.Audit.(audit.ImportCheckpointReader)
 	return &ImportService[T]{
-		config:    config,
-		batchSize: 100, // Default batch size
-		audit:     runtime.Audit,
-		observe:   runtime.Observe,
+		config:      config,
+		batchSize:   100, // Default batch size
+		audit:       ports.ObserveAuditCommand(runtime.Audit),
+		observe:     runtime.Observe,
+		fingerprint: runtime.Fingerprint,
+		checkpoints: checkpoints,
 	}
 }
 

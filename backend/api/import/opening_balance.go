@@ -264,8 +264,8 @@ func (rs *Resource) PreviewOpeningBalanceImport(w http.ResponseWriter, r *http.R
 	common.Respond(w, r, http.StatusOK, result, "Import-Vorschau erfolgreich")
 }
 
-// ImportOpeningBalances handles the actual import. The handler owns its
-// tenant transaction so partial failures roll back per the import result.
+// ImportOpeningBalances resolves the actor, then lets the workflow own its
+// bounded tenant transactions. A failure rolls back the current batch only.
 func (rs *Resource) ImportOpeningBalances(w http.ResponseWriter, r *http.Request) {
 	if rs.openingBalanceImportFactory == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("opening balance import is not configured")))
@@ -276,42 +276,28 @@ func (rs *Resource) ImportOpeningBalances(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	tenantID := tenant.FromContext(r.Context())
-	var (
-		result       *importModels.ImportResult[importModels.OpeningBalanceImportRow]
-		svc          *importService.ImportService[importModels.OpeningBalanceImportRow]
-		deciderError error
-	)
-	// This route deliberately carries no tenant-tx middleware (it owns its
-	// transaction), so the tenant-scoped staff lookup has to happen INSIDE the
-	// transaction — outside it the RLS role is missing and the lookup fails.
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		decidedBy, err := rs.resolveOpeningBalanceDecider(ctx, reqCtx.AccountID)
-		if err != nil {
-			deciderError = err
-			return err
-		}
-		svc = rs.openingBalanceImportFactory(reqCtx.EffectiveDate, reqCtx.Note, decidedBy)
-
-		var txErr error
-		result, txErr = svc.Import(ctx, importModels.ImportRequest[importModels.OpeningBalanceImportRow]{
-			Rows:            reqCtx.Rows,
-			Mode:            importModels.ImportModeCreate,
-			DryRun:          false,
-			StopOnError:     false,
-			UserID:          reqCtx.AccountID,
-			SkipInvalidRows: true,
-		})
-		if txErr != nil {
-			return txErr
-		}
-		return svc.RecordAuditInTransaction(ctx, "opening_balance", reqCtx.Filename, result, reqCtx.AccountID, false, tenantID)
+	var decidedBy int64
+	var deciderError error
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenant.FromContext(r.Context()), func(ctx context.Context, _ bun.Tx) error {
+		decidedBy, deciderError = rs.resolveOpeningBalanceDecider(ctx, reqCtx.AccountID)
+		return deciderError
 	}); err != nil {
 		if deciderError != nil {
 			common.RenderError(w, r, common.ErrorUnauthorized(deciderError))
-			return
+		} else {
+			common.RenderError(w, r, common.ErrorInternalServerWrap("Import fehlgeschlagen", err))
 		}
-		common.RenderError(w, r, common.ErrorInternalServerWrap("Import fehlgeschlagen", err))
+		return
+	}
+	svc := rs.openingBalanceImportFactory(reqCtx.EffectiveDate, reqCtx.Note, decidedBy)
+	result, err := svc.ImportBatches(r.Context(), importModels.ImportRequest[importModels.OpeningBalanceImportRow]{
+		Rows: reqCtx.Rows, Mode: importModels.ImportModeCreate, UserID: reqCtx.AccountID, SkipInvalidRows: true,
+	}, importService.BatchAudit{
+		EntityType: "opening_balance", Filename: reqCtx.Filename, AccountID: reqCtx.AccountID,
+		Options: fmt.Sprintf("%s\n%d\n%s", reqCtx.EffectiveDate.String(), decidedBy, reqCtx.Note),
+	})
+	if err != nil {
+		renderBatchImportError(w, r, result, err)
 		return
 	}
 

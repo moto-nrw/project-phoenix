@@ -176,6 +176,9 @@ type indexedStaff struct {
 
 // NewStaffImportConfig creates a new staff import configuration.
 func NewStaffImportConfig(deps StaffImportDeps) *StaffImportConfig {
+	deps.Persons = ports.ObservePersonDirectory(deps.Persons)
+	deps.Membership = ports.ObserveStaffMembership(deps.Membership)
+	deps.Records = ports.ObserveStaffRecords(deps.Records)
 	return &StaffImportConfig{StaffImportDeps: deps, importMu: &sync.Mutex{}}
 }
 

@@ -2939,6 +2939,20 @@
       "role": "compose",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
+    },
+    {
+      "path": "database/repositories/audit/integration",
+      "owner": "audit-platform",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/securityruntime",
+      "owner": "security-runtime",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
     }
   ],
   "data_objects": [
@@ -18290,6 +18304,49 @@
       "source_owner": "inbound-iot",
       "source_role": "compose",
       "target_class": "test"
+    },
+    {
+      "id": "legacy-composition.compose.security-runtime.fingerprint",
+      "description": "The import composition supplies content fingerprinting through the Security Runtime capability (#2708).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "security-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "audit-platform.checkpoint-adapter-test.postgres",
+      "description": "Checkpoint adapter tests exercise append, rollback and tenant isolation through the Audit persistence boundary (#2708).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "adapter-test",
+      "target_owner": "audit-platform",
+      "target_role": "postgres"
+    },
+    {
+      "id": "audit-platform.checkpoint-adapter-test.domain",
+      "description": "Checkpoint adapter tests exercise append, rollback and tenant isolation through the Audit persistence boundary (#2708).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "adapter-test",
+      "target_owner": "audit-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "audit-platform.checkpoint-adapter-test.orm-sql",
+      "description": "Checkpoint adapter tests supply the real authoritative transaction (#2708).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "adapter-test",
+      "target_class": "orm-sql"
     }
   ]
 }

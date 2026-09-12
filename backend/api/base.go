@@ -388,13 +388,24 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 		observability.ObserveDeviceFleetOperation,
 		observability.ObserveIdentityAccessOperation,
 		workTime,
-		observability.ObserveDataImport,
+		observeDataImport,
 	)
 	if err != nil {
 		return moduleServices{}, err
 	}
 	legacyFacilities = factory.Facilities
 	return moduleServices{repositories: repoFactory, services: factory, communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, membership: membership, workforce: workTime}, nil
+}
+
+func observeDataImport(observation services.DataImportObservation) {
+	observability.ObserveDataImport(observation.Entity, observation.DryRun, observation.Rows, observation.Accepted, observation.Rejected, observation.Created, observation.Updated, observation.Duration)
+	if observation.DryRun {
+		return
+	}
+	observability.ObserveDataImportRuntime(observation.Entity, observation.BatchesCommitted, observation.BatchesRetried, observation.CheckpointLag, observation.Deadlocks, observation.PoolWait, observation.LockWait)
+	for _, command := range observation.Commands {
+		observability.ObserveDataImportCommand(observation.Entity, command.Owner, command.Operation, command.Duration, command.Failed)
+	}
 }
 
 func composeFacilities(db *bun.DB, legacyFacilities *interface {

@@ -43,6 +43,8 @@ type ClassListImportConfig struct {
 
 // NewClassListImportConfig creates the import config.
 func NewClassListImportConfig(deps ClassListImportDeps) *ClassListImportConfig {
+	deps.Membership = ports.ObserveClassListMembership(deps.Membership)
+	deps.Audit = ports.ObserveAuditCommand(deps.Audit)
 	return &ClassListImportConfig{deps: deps}
 }
 

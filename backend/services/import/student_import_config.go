@@ -136,6 +136,11 @@ type StudentImportDeps struct {
 
 // NewStudentImportConfig creates a new student import configuration.
 func NewStudentImportConfig(deps StudentImportDeps) *StudentImportConfig {
+	deps.Persons = ports.ObservePersonDirectory(deps.Persons)
+	deps.Students = ports.ObserveStudentDirectory(deps.Students)
+	deps.Guardians = ports.ObserveGuardianDirectory(deps.Guardians)
+	deps.Schedules = ports.ObserveStudentSchedules(deps.Schedules)
+	deps.PrivacyConsents = ports.ObservePrivacyConsents(deps.PrivacyConsents)
 	return &StudentImportConfig{StudentImportDeps: deps}
 }
 
