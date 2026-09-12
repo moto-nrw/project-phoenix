@@ -30,7 +30,7 @@ vi.mock("~/lib/supervision-context", () => ({
 
 const { mockPush, mockSearchParamsToString } = vi.hoisted(() => ({
   mockPush: vi.fn(),
-  mockSearchParamsToString: vi.fn(() => "room=__transit__"),
+  mockSearchParamsToString: vi.fn(() => ""),
 }));
 const { mockUseSession } = vi.hoisted(() => ({
   mockUseSession: vi.fn(),
@@ -215,7 +215,7 @@ describe("TransitStudentsSection", () => {
     vi.mocked(useAttendanceWebEnabled).mockReturnValue(true);
     vi.mocked(useOptionalSupervision).mockReturnValue(EMPTY_SUPERVISION);
     vi.clearAllMocks();
-    mockSearchParamsToString.mockReturnValue("room=__transit__");
+    mockSearchParamsToString.mockReturnValue("");
     mockUseSession.mockReturnValue({
       data: {
         user: {
@@ -443,7 +443,7 @@ describe("TransitStudentsSection", () => {
     );
 
     expect(mockPush).toHaveBeenCalledWith(
-      `/students/11?from=${encodeURIComponent("/rooms?room=__transit__")}`,
+      `/students/11?from=${encodeURIComponent("/rooms/unterwegs")}`,
     );
   });
 

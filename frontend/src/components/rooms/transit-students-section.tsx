@@ -158,9 +158,11 @@ export function TransitStudentsSection({
   const totalCount = studentsData?.pagination?.total_records ?? students.length;
   const allSelected =
     students.length > 0 && selectedVisibleCount === students.length;
+  // Die Kindakte kehrt auf die Seite „Unterwegs" zurück (#3115); ihre
+  // Abfrage (etwa der Rückweg zur Übersicht) reist mit.
   const defaultFromReferrer = (() => {
     const qs = sectionSearchParams?.toString() ?? "";
-    return qs ? `/rooms?${qs}` : "/rooms?room=__transit__";
+    return qs ? `/rooms/unterwegs?${qs}` : "/rooms/unterwegs";
   })();
   const fromReferrer = fromReferrerOverride ?? defaultFromReferrer;
 

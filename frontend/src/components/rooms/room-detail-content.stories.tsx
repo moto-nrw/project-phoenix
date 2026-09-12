@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { ToastProvider } from "~/contexts/ToastContext";
-import { RoomDetailContent, RoomDetailLoader } from "./room-detail-content";
+import { RoomDetailContent, RoomDetailSkeleton } from "./room-detail-content";
 
 // RoomDetailContent renders <StudentsInRoomSection>, which needs
 // ToastProvider (see students-in-room-section.stories.tsx) and fetches its
@@ -70,7 +70,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Free room, no occupancy history — the subpage layout (no headerAction). */
+/** Free room, no occupancy history. */
 export const Default: Story = {};
 
 /** Occupied room with active activity, supervisor, and student count. */
@@ -78,19 +78,6 @@ export const Occupied: Story = {
   args: {
     room: occupiedRoom,
     history,
-  },
-};
-
-/** Modal context: a headerAction is passed (renders the sticky header + close button slot). */
-export const ModalContext: Story = {
-  args: {
-    room: occupiedRoom,
-    history,
-    headerAction: (
-      <button type="button" className="rounded-md p-2 text-gray-500">
-        Schließen
-      </button>
-    ),
   },
 };
 
@@ -107,17 +94,8 @@ export const HistoryDisabled: Story = {
   },
 };
 
-/**
- * RoomDetailLoader fetches room + history via SWR on mount. There is no
- * backend in Storybook, so this demonstrates the loading skeleton followed
- * by the error state ("Raum nicht gefunden" / fetch error) rather than a
- * populated room — the same behavior any unmocked network dependency shows
- * here (see students-in-room-section.stories.tsx for the same pattern).
- */
-export const LoaderErrorState: StoryObj<typeof RoomDetailLoader> = {
-  render: (args) => <RoomDetailLoader {...args} />,
-  args: {
-    roomId: "1",
-  },
+/** Das Skelett der Übersicht, solange Raum und Historie laden. */
+export const Loading: StoryObj<typeof RoomDetailSkeleton> = {
+  render: () => <RoomDetailSkeleton />,
   decorators: [withToast],
 };

@@ -1,6 +1,30 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { RoomDetailContent, RoomDetailLoader } from "./room-detail-content";
+import {
+  RoomDetailContent,
+  RoomDetailSkeleton,
+  useRoomDetail,
+} from "./room-detail-content";
+
+// Die Seite /rooms/[id] verbindet Hook, Skelett und Inhalt; dieser Harness
+// tut dasselbe in kleinstem Umfang, damit die Hook-Zweige (Antwortformen der
+// Historie, Fehler, Laden) hier prüfbar bleiben.
+function RoomDetailHarness({ roomId }: { readonly roomId: string }) {
+  const { room, history, loading, error, historyDisabled } =
+    useRoomDetail(roomId);
+  if (loading) return <RoomDetailSkeleton />;
+  if (error || !room) return <div>{error ?? "Raum nicht gefunden"}</div>;
+  return (
+    <>
+      <h1>{room.name}</h1>
+      <RoomDetailContent
+        room={room}
+        history={history}
+        historyDisabled={historyDisabled}
+      />
+    </>
+  );
+}
 
 // ----------------------------------------------------------------------------
 // Mocks: keep dependencies cheap so we exercise this file's own logic
@@ -179,7 +203,7 @@ const notOk = (): FetchResponse => ({
 // useRoomDetail, exercised through the RoomDetailLoader render path.
 // ----------------------------------------------------------------------------
 
-describe("useRoomDetail (via RoomDetailLoader)", () => {
+describe("useRoomDetail (via harness)", () => {
   it("maps a room with the bare-array history shape (aggregated sessions)", async () => {
     mockFetch
       .mockResolvedValueOnce(
@@ -211,7 +235,7 @@ describe("useRoomDetail (via RoomDetailLoader)", () => {
 
     render(
       <Wrapper>
-        <RoomDetailLoader roomId="bare-array" />
+        <RoomDetailHarness roomId="bare-array" />
       </Wrapper>,
     );
 
@@ -251,7 +275,7 @@ describe("useRoomDetail (via RoomDetailLoader)", () => {
 
     render(
       <Wrapper>
-        <RoomDetailLoader roomId="wrapped" />
+        <RoomDetailHarness roomId="wrapped" />
       </Wrapper>,
     );
 
@@ -278,7 +302,7 @@ describe("useRoomDetail (via RoomDetailLoader)", () => {
 
     render(
       <Wrapper>
-        <RoomDetailLoader roomId="null-data" />
+        <RoomDetailHarness roomId="null-data" />
       </Wrapper>,
     );
 
@@ -307,7 +331,7 @@ describe("useRoomDetail (via RoomDetailLoader)", () => {
 
     render(
       <Wrapper>
-        <RoomDetailLoader roomId="feature-disabled" />
+        <RoomDetailHarness roomId="feature-disabled" />
       </Wrapper>,
     );
 
@@ -326,7 +350,7 @@ describe("useRoomDetail (via RoomDetailLoader)", () => {
 
     render(
       <Wrapper>
-        <RoomDetailLoader roomId="history-not-ok" />
+        <RoomDetailHarness roomId="history-not-ok" />
       </Wrapper>,
     );
 
@@ -341,7 +365,7 @@ describe("useRoomDetail (via RoomDetailLoader)", () => {
 
     render(
       <Wrapper>
-        <RoomDetailLoader roomId="room-fetch-fails" />
+        <RoomDetailHarness roomId="room-fetch-fails" />
       </Wrapper>,
     );
 
@@ -361,7 +385,7 @@ describe("useRoomDetail (via RoomDetailLoader)", () => {
 
     render(
       <Wrapper>
-        <RoomDetailLoader roomId="name-fallback" />
+        <RoomDetailHarness roomId="name-fallback" />
       </Wrapper>,
     );
 
@@ -388,10 +412,9 @@ describe("RoomDetailContent", () => {
         <RoomDetailContent room={{ ...baseRoom }} history={[]} />
       </Wrapper>,
     );
-    // "Frei" renders in the StatusBadge AND in the Rauminformationen
-    // Status row, both must be present to give staff the same signal
-    // wherever they look.
-    expect(screen.getAllByText(/Frei/).length).toBeGreaterThanOrEqual(2);
+    // Die Kopfkarte der Seite trägt das Statusabzeichen; hier steht der
+    // Status genau einmal, in der Zeile der Rauminformationen (#3115).
+    expect(screen.getByText("Frei")).toBeInTheDocument();
     expect(screen.queryByText("Aktuelle Aktivität")).not.toBeInTheDocument();
     expect(screen.queryByText("Aktuelle Aufsicht")).not.toBeInTheDocument();
     expect(screen.queryByText("Aktuell anwesend")).not.toBeInTheDocument();
@@ -412,8 +435,7 @@ describe("RoomDetailContent", () => {
         />
       </Wrapper>,
     );
-    // "Belegt" appears in the badge and the Status DetailRow.
-    expect(screen.getAllByText(/Belegt/).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("Belegt")).toBeInTheDocument();
     // DetailRow pairs label + value as siblings; assert both are present.
     expect(screen.getByText("Aktuelle Aktivität")).toBeInTheDocument();
     expect(screen.getByText("Schildkröten")).toBeInTheDocument();
@@ -584,22 +606,6 @@ describe("RoomDetailContent", () => {
     expect(screen.getByText("Laufend")).toBeInTheDocument();
   });
 
-  it("focuses the room title when rendered as drawer content", async () => {
-    render(
-      <Wrapper>
-        <RoomDetailContent
-          room={{ ...baseRoom }}
-          history={[]}
-          headerAction={<button type="button">Schließen</button>}
-        />
-      </Wrapper>,
-    );
-
-    await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Testraum" })).toHaveFocus();
-    });
-  });
-
   it("sorts history days newest first and sessions within a day by start time DESC", () => {
     render(
       <Wrapper>
@@ -647,19 +653,19 @@ describe("RoomDetailContent", () => {
 });
 
 // ----------------------------------------------------------------------------
-// RoomDetailLoader states
+// Ladezustand
 // ----------------------------------------------------------------------------
 
-describe("RoomDetailLoader states", () => {
+describe("RoomDetailSkeleton", () => {
   it("renders the content-shaped skeleton while the SWR fetch is in flight", () => {
     // fetch returns a never-resolving promise → SWR stays in loading state.
-    // The skeleton mirrors the three-card content layout so the slide-over
-    // body doesn't visibly resize when real data arrives (#1323 review).
+    // The skeleton mirrors the three-card content layout so the page body
+    // doesn't visibly resize when real data arrives (#1323 review).
     mockFetch.mockReturnValue(new Promise(() => {}));
 
     render(
       <Wrapper>
-        <RoomDetailLoader roomId="loading-state" />
+        <RoomDetailHarness roomId="loading-state" />
       </Wrapper>,
     );
 
@@ -669,25 +675,5 @@ describe("RoomDetailLoader states", () => {
     expect(
       screen.getByRole("status", { name: "Raumdetails werden geladen" }),
     ).toBeInTheDocument();
-  });
-
-  it("renders the supplied emptyAction below the error message on fetch failure", async () => {
-    mockFetch.mockResolvedValueOnce(notOk());
-
-    render(
-      <Wrapper>
-        <RoomDetailLoader
-          roomId="empty-action"
-          emptyAction={<button type="button">Zurück</button>}
-        />
-      </Wrapper>,
-    );
-
-    await waitFor(() =>
-      expect(
-        screen.getByText("Fehler beim Laden der Raumdaten."),
-      ).toBeInTheDocument(),
-    );
-    expect(screen.getByRole("button", { name: "Zurück" })).toBeInTheDocument();
   });
 });

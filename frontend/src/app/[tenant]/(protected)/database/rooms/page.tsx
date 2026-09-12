@@ -24,23 +24,17 @@ import { createCrudService } from "@/lib/database/service-factory";
 import { roomsConfig } from "@/components/database/configs/rooms.config";
 import { formatFloor, type Room } from "@/lib/room-helpers";
 import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
-import { RoomsMasterDetail } from "@/components/rooms/rooms-master-detail";
-import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import { RoomsList } from "@/components/rooms/rooms-list";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
-import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
-import {
-  useSWRAuth,
-  useTenantMutate,
-  useTenantMutateMatching,
-} from "~/lib/swr";
+import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import {
   DATABASE_ROOMS_LIST_CACHE_KEY,
-  ROOM_DERIVED_CACHE_KEY_FRAGMENTS,
   ROOM_LIST_CACHE_KEYS,
 } from "~/lib/swr/room-derived-caches";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 
 const logger = createLogger({ component: "DatabaseRoomsPage" });
 
@@ -53,6 +47,9 @@ const ROOMS_GROUPING_OPTIONS: { value: RoomsGroupingMode; label: string }[] = [
   { value: "floor", label: "Etage" },
   { value: "none", label: "Keine" },
 ];
+
+/** Die Sammlung dieser Seite, für den Rückweg aus der Raumseite (`?from=`). */
+const COLLECTION_PATH = "/database/rooms";
 
 function parseRoomsGrouping(value: string | null): RoomsGroupingMode {
   if (value === "floor" || value === "none") return value;
@@ -67,11 +64,17 @@ export default function RoomsPage() {
   );
 }
 
+/**
+ * Räume (BAUARTEN-SPEC Bauart 1): die Sammlung mit Anlegen, Gruppierung,
+ * Suche und Filter. Jede Zeile führt auf die Raumseite `/rooms/[id]`, die
+ * einzige Objektansicht eines Raums (#3115); Stammdaten und Löschen liegen
+ * dort.
+ */
 function RoomsPageContent() {
+  const tenantPath = useTenantAwarePath();
   const searchParams = useSearchParams();
   const updateUrlParams = useUpdateUrlParams();
 
-  const selectedId = searchParams.get("room");
   const grouping = parseRoomsGrouping(searchParams.get("groupBy"));
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -79,14 +82,7 @@ function RoomsPageContent() {
 
   const [showCreateModal, setShowCreateModal] = useState(false);
 
-  const {
-    showConfirmModal: showDeleteConfirmModal,
-    handleDeleteClick,
-    handleDeleteCancel,
-    confirmDelete,
-  } = useDeleteConfirmation();
-
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess } = useToast();
 
   const { status } = useSession({
     required: true,
@@ -97,15 +93,6 @@ function RoomsPageContent() {
 
   const service = useMemo(() => createCrudService(roomsConfig), []);
   const tenantMutate = useTenantMutate();
-  // Other pages stamp room data (colour, name) into their cached student/
-  // visit rows, so a Room save has to invalidate them too — otherwise the
-  // badge colours stay stale until the user navigates away and back. The
-  // list of affected cache substrings lives in lib/swr/room-derived-caches.ts
-  // as a single source of truth — keep it there, not inline here, so future
-  // SWR consumers see the doc comment when they touch the file.
-  const refreshRoomConsumers = useTenantMutateMatching(
-    ROOM_DERIVED_CACHE_KEY_FRAGMENTS,
-  );
   const refreshRoomLists = useCallback(
     () => Promise.all(ROOM_LIST_CACHE_KEYS.map((key) => tenantMutate(key))),
     [tenantMutate],
@@ -195,21 +182,15 @@ function RoomsPageContent() {
     return arr;
   }, [roomsData, searchTerm, categoryFilter]);
 
-  // Resolve against the unfiltered list so the detail panel survives a search
-  // narrowing the visible rows.
-  const selectedRoom = useMemo(
-    () =>
-      selectedId
-        ? ((roomsData ?? []).find((room) => room.id === selectedId) ?? null)
-        : null,
-    [roomsData, selectedId],
-  );
-
-  const handleSelectRoom = useCallback(
-    (id: string | null) => {
-      updateUrlParams({ room: id });
+  // Der Rückweg trägt die Gruppierung mit, damit „Zurück" aus der Raumseite
+  // dieselbe Liste zeigt, die man verlassen hat.
+  const objectHref = useCallback(
+    (room: Room) => {
+      const query = searchParams.toString();
+      const from = query ? `${COLLECTION_PATH}?${query}` : COLLECTION_PATH;
+      return tenantPath(`/rooms/${room.id}?from=${encodeURIComponent(from)}`);
     },
-    [updateUrlParams],
+    [searchParams, tenantPath],
   );
 
   const handleGroupingChange = useCallback(
@@ -279,74 +260,7 @@ function RoomsPageContent() {
     [service, refreshRoomLists, toastSuccess],
   );
 
-  const handleUpdateRoom = useCallback(
-    async (data: Partial<Room>) => {
-      if (!selectedRoom) return;
-      try {
-        if (roomsConfig.form.transformBeforeSubmit) {
-          data = roomsConfig.form.transformBeforeSubmit(data);
-        }
-        await service.update(selectedRoom.id, data);
-        toastSuccess(
-          getDbOperationMessage(
-            "update",
-            roomsConfig.name.singular,
-            selectedRoom.name,
-          ),
-        );
-        await Promise.all([
-          refreshRoomLists(),
-          // Refetch every consumer that holds room-stamped data so badges
-          // pick up the new color without a manual reload.
-          refreshRoomConsumers(),
-        ]);
-      } catch (updateError) {
-        logger.error("failed to update room", {
-          room_id: selectedRoom.id,
-          error:
-            updateError instanceof Error
-              ? updateError.message
-              : String(updateError),
-        });
-        throw updateError;
-      }
-    },
-    [
-      selectedRoom,
-      service,
-      refreshRoomLists,
-      refreshRoomConsumers,
-      toastSuccess,
-    ],
-  );
-
-  const handleDeleteRoom = useCallback(async () => {
-    if (!selectedRoom) return;
-    const deleteError = await service.delete(selectedRoom.id);
-    if (deleteError) {
-      toastError(deleteError);
-      return;
-    }
-    toastSuccess(
-      getDbOperationMessage(
-        "delete",
-        roomsConfig.name.singular,
-        selectedRoom.name,
-      ),
-    );
-    handleSelectRoom(null);
-    await refreshRoomLists();
-  }, [
-    selectedRoom,
-    service,
-    toastError,
-    toastSuccess,
-    handleSelectRoom,
-    refreshRoomLists,
-  ]);
-
-  const canShowDetail =
-    !loading && (filteredRooms.length > 0 || selectedRoom !== null);
+  const canShowList = !loading && filteredRooms.length > 0;
 
   return (
     <DatabasePageLayout
@@ -354,7 +268,7 @@ function RoomsPageContent() {
       sessionLoading={status === "loading"}
       error={error}
       empty={
-        filteredRooms.length === 0 && selectedRoom === null
+        filteredRooms.length === 0
           ? {
               title:
                 searchTerm || categoryFilter !== "all"
@@ -383,35 +297,13 @@ function RoomsPageContent() {
           : null
       }
       overlays={
-        <>
-          <DatabaseFormModal<Room>
-            isOpen={showCreateModal}
-            onClose={() => setShowCreateModal(false)}
-            mode="create"
-            config={roomsConfig}
-            onSubmit={handleCreateRoom}
-          />
-
-          {selectedRoom && (
-            <ConfirmDeleteModal
-              isOpen={showDeleteConfirmModal}
-              onClose={handleDeleteCancel}
-              onConfirm={() => confirmDelete(() => void handleDeleteRoom())}
-              title="Raum löschen?"
-              description={
-                <>
-                  Möchten Sie den Raum{" "}
-                  <span className="font-medium">{selectedRoom.name}</span>{" "}
-                  wirklich löschen? Diese Aktion kann nicht rückgängig gemacht
-                  werden.
-                </>
-              }
-              gate={{ mode: "twoStep" }}
-              loading={false}
-              error=""
-            />
-          )}
-        </>
+        <DatabaseFormModal<Room>
+          isOpen={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          mode="create"
+          config={roomsConfig}
+          onSubmit={handleCreateRoom}
+        />
       }
       className="flex w-full flex-col"
       intro={{
@@ -463,15 +355,11 @@ function RoomsPageContent() {
         />
       }
     >
-      {canShowDetail ? (
+      {canShowList ? (
         <div className="min-h-0 flex-1 pb-4">
-          <RoomsMasterDetail
+          <RoomsList
             groupDefinitions={groupDefinitions}
-            selectedId={selectedId}
-            selectedRoom={selectedRoom}
-            onSelect={handleSelectRoom}
-            onSaveRoom={handleUpdateRoom}
-            onDeleteClick={handleDeleteClick}
+            objectHref={objectHref}
           />
         </div>
       ) : null}
