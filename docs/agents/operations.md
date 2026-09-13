@@ -138,7 +138,11 @@ before changing deployment environments or maintenance jobs.
 CI uses `SOPS_AGE_KEY`, `STAGING_SSH_*`, and `PRODUCTION_SSH_*` secrets;
 failure recipients are in the `DEPLOY_NOTIFY_EMAILS` repository variable.
 Server layout is `~/{staging,production}/` (`.env`, `docker-compose.yml`,
-`.deploy-state`) and `~/backups/{env}/` (3 staging / 7 production dumps).
+`.deploy-state`) and `~/backups/{env}/` (3 staging / 7 production complete
+snapshot sets). See [complete release backup and rollback](../operations/release-backup-rollback.md)
+for snapshot contents, verification, manual recovery and data-loss boundaries.
+Rollbacks restore matching images, configuration, roles, database and uploads;
+an old image alone is not compatible with every newer schema.
 For env changes, read `.claude/rules/env-docker-sync.md` before editing.
 
 ## PR screenshots and QA evidence

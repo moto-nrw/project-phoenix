@@ -138,6 +138,12 @@ jobs:
               - 'scripts/check-frontend-quality.sh'
               - 'scripts/quality-timing.sh'
               - 'scripts/check-secrets.sh'
+              - 'scripts/check-release-architecture*'
+              - 'scripts/release-backup*'
+              - 'scripts/test-support/release-docker.mjs'
+              - 'scripts/deploy-remote.sh'
+              - 'scripts/rollback-remote.sh'
+              - 'scripts/restore-db.sh'
               - 'scripts/run-go-toolchain.sh'
               - '.github/**'
               - 'sonar-project.properties'
@@ -146,7 +152,11 @@ jobs:
               - 'package.json'
 
       - name: Verify pre-push failure and selection behavior
-        run: node --test scripts/pre-push.test.mjs
+        run: node --test scripts/pre-push.test.mjs scripts/check-release-architecture.test.mjs scripts/release-backup.test.mjs
+
+      - name: Verify complete release restore with PostgreSQL
+        if: steps.filter.outputs.ci == 'true'
+        run: node --test scripts/release-backup.integration.test.mjs
 
   lint:
     permissions:
@@ -168,6 +178,7 @@ jobs:
     permissions:
       contents: read
       issues: read
+      actions: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -186,12 +197,16 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           CUTOVER_BASE_SHA: 1c66eb9233fb398b186420b4ffb36004a8a83c6c
           EVENT_NAME: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ github.token }}
           HEAD_REF: ${{ github.head_ref }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
           REPOSITORY: ${{ github.repository }}
         run: |
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
-            if git cat-file -e "$BASE_SHA:backend/architecture/legacy.jsonl" 2>/dev/null; then
+            if [[ "$BASE_REF" == "main" && "$HEAD_REF" == "development" && "$HEAD_REPO" == "$REPOSITORY" ]]; then
+              node scripts/check-release-architecture.mjs
+            elif git cat-file -e "$BASE_SHA:backend/architecture/legacy.jsonl" 2>/dev/null; then
               scripts/backend-architecture.sh check --base-ref "$BASE_SHA"
             elif [[ "$BASE_SHA" == "$CUTOVER_BASE_SHA" ]]; then
               # The baseline cannot exist in the base commit that introduces it.
@@ -202,11 +217,6 @@ jobs:
                 echo "$unexpected"
                 exit 1
               fi
-              scripts/backend-architecture.sh check
-            elif [[ "$BASE_REF" == "main" && "$HEAD_REF" == "development" && "$HEAD_REPO" == "$REPOSITORY" ]]; then
-              # The first release that carries the ratchet cannot compare
-              # against main because main does not have a baseline yet. Only
-              # the repository's development branch may take this path.
               scripts/backend-architecture.sh check
             else
               echo "Base commit $BASE_SHA has no architecture baseline; rebase onto the cutover."
