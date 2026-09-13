@@ -211,6 +211,35 @@ describe("GET /api/staff", () => {
     expect(json.data[0]?.person_id).toBe(personID);
   });
 
+  it("keeps a bigint account_id as the exact decimal string", async () => {
+    const accountID = "9007199254740993";
+    mockApiGet.mockResolvedValueOnce([
+      {
+        id: 1,
+        person_id: "1",
+        is_teacher: false,
+        person: {
+          id: 1,
+          first_name: "Jane",
+          last_name: "Smith",
+          account_id: accountID,
+          created_at: "2024-01-01T00:00:00Z",
+          updated_at: "2024-01-01T00:00:00Z",
+        },
+        created_at: "2024-01-01T00:00:00Z",
+        updated_at: "2024-01-01T00:00:00Z",
+      },
+    ]);
+
+    const request = createMockRequest("/api/staff");
+    const response = await GET(request, createMockContext());
+
+    const json = await parseJsonResponse<{
+      data: Array<{ account_id: string }>;
+    }>(response);
+    expect(json.data[0]?.account_id).toBe(accountID);
+  });
+
   it("returns empty array when backend returns null", async () => {
     mockApiGet.mockResolvedValueOnce(null);
 

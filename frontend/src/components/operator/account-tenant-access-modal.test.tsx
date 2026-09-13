@@ -378,7 +378,7 @@ describe("AccountTenantAccessModal", () => {
     expect(options).not.toContain("Lehrkraft");
   });
 
-  it("keeps lehrkraft selectable for an entry that already is lehrkraft", async () => {
+  it("keeps an existing lehrkraft role read-only", async () => {
     mockList.mockResolvedValue([
       access({
         roles: [{ id: "9", name: "lehrkraft", isSystem: true, baseRole: null }],
@@ -387,16 +387,16 @@ describe("AccountTenantAccessModal", () => {
     renderModal();
 
     // Der aktuelle Wert muss anzeigbar bleiben; der Wechsel Richtung
-    // Betreuung/Verwaltung ist erlaubt (das Backend legt das fehlende
-    // Profil über ensureSchoolIdentity an).
     const roleSelect = await screen.findByLabelText("Rolle an OGS Nord");
     const options = Array.from(roleSelect.querySelectorAll("option")).map(
       (option) => option.textContent,
     );
 
     expect(options).toContain("Lehrkraft");
-    expect(options).toContain("Betreuung");
+    expect(options).not.toContain("Betreuung");
+    expect(options).not.toContain("Verwaltung");
     expect((roleSelect as HTMLSelectElement).value).toBe("9");
+    expect(roleSelect).toBeDisabled();
   });
 
   it("changes the role of an existing school access", async () => {

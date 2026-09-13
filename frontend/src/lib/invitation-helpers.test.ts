@@ -123,7 +123,7 @@ describe("invitation-helpers", () => {
       const backendData: BackendInvitation = {
         id: 123,
         email: "teacher@school.com",
-        role_id: 5,
+        role_id: "5",
         role_name: "Teacher",
         token: "abc123xyz",
         expires_at: "2024-12-31T23:59:59Z",
@@ -139,7 +139,7 @@ describe("invitation-helpers", () => {
       expect(result).toEqual({
         id: 123,
         email: "teacher@school.com",
-        roleId: 5,
+        roleId: "5",
         roleName: "Teacher",
         createdBy: 1,
         creatorEmail: "admin@school.com",
@@ -155,7 +155,7 @@ describe("invitation-helpers", () => {
       const backendData: BackendInvitation = {
         id: 456,
         email: "teacher@school.com",
-        role_id: 5,
+        role_id: "5",
         role_name: undefined,
         expires_at: "2024-12-31T23:59:59Z",
         created_by: 1,
@@ -170,7 +170,7 @@ describe("invitation-helpers", () => {
       const backendData: BackendInvitation = {
         id: 789,
         email: "teacher@school.com",
-        role_id: 5,
+        role_id: "5",
         role_name: "Teacher",
         token: undefined,
         expires_at: "2024-12-31T23:59:59Z",
@@ -186,7 +186,7 @@ describe("invitation-helpers", () => {
       expect(result).toEqual({
         id: 789,
         email: "teacher@school.com",
-        roleId: 5,
+        roleId: "5",
         roleName: "Teacher",
         createdBy: 1,
         creatorEmail: undefined,
@@ -202,7 +202,7 @@ describe("invitation-helpers", () => {
       const backendData: BackendInvitation = {
         id: 101,
         email: "admin@school.com",
-        role_id: 1,
+        role_id: "1",
         role_name: "Admin",
         token: undefined,
         expires_at: "2024-06-30T12:00:00Z",
@@ -218,7 +218,7 @@ describe("invitation-helpers", () => {
       expect(result).toEqual({
         id: 101,
         email: "admin@school.com",
-        roleId: 1,
+        roleId: "1",
         roleName: "Admin",
         createdBy: 1,
         creatorEmail: undefined,
@@ -234,7 +234,7 @@ describe("invitation-helpers", () => {
       const backendData: BackendInvitation = {
         id: 202,
         email: "staff@school.com",
-        role_id: 3,
+        role_id: "3",
         role_name: "Staff",
         token: "token123",
         expires_at: "2024-08-15T10:00:00Z",
@@ -250,7 +250,7 @@ describe("invitation-helpers", () => {
       expect(result).toEqual({
         id: 202,
         email: "staff@school.com",
-        roleId: 3,
+        roleId: "3",
         roleName: "Staff",
         createdBy: 2,
         creatorEmail: "supervisor@school.com",
@@ -266,7 +266,7 @@ describe("invitation-helpers", () => {
       const backendData: BackendInvitation = {
         id: 303,
         email: "teacher+special@example.com",
-        role_id: 5,
+        role_id: "5",
         role_name: "Teacher (Substitute)",
         token: "abc-123-xyz",
         expires_at: "2024-12-31T23:59:59Z",
@@ -287,11 +287,11 @@ describe("invitation-helpers", () => {
       expect(result.creatorEmail).toBe("admin+main@example.com");
     });
 
-    it("should handle numeric IDs correctly", () => {
+    it("should preserve role IDs as decimal strings", () => {
       const backendData: BackendInvitation = {
         id: 999999,
         email: "test@example.com",
-        role_id: 888888,
+        role_id: "9007199254740993",
         role_name: "Role",
         expires_at: "2024-12-31T23:59:59Z",
         created_by: 777777,
@@ -300,7 +300,7 @@ describe("invitation-helpers", () => {
       const result = mapPendingInvitationResponse(backendData);
 
       expect(result.id).toBe(999999);
-      expect(result.roleId).toBe(888888);
+      expect(result.roleId).toBe("9007199254740993");
       expect(result.createdBy).toBe(777777);
     });
   });

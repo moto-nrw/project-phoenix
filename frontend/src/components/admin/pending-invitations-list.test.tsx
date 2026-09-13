@@ -67,7 +67,7 @@ const mockInvitations: PendingInvitation[] = [
   {
     id: 1,
     email: "test1@example.com",
-    roleId: 1,
+    roleId: "1",
     roleName: "teacher",
     createdBy: 1,
     creatorEmail: "admin@example.com",
@@ -79,7 +79,7 @@ const mockInvitations: PendingInvitation[] = [
   {
     id: 2,
     email: "test2@example.com",
-    roleId: 1,
+    roleId: "1",
     roleName: "teacher",
     createdBy: 1,
     creatorEmail: "admin@example.com",

@@ -1643,12 +1643,12 @@ func TestProvisioningResource_CreateSchoolAccount(t *testing.T) {
 			assert.Equal(t, "Secure123!", req.Password)
 			assert.Equal(t, "Lehrerin", req.Position)
 			require.NotNil(t, req.RoleID)
-			assert.Equal(t, int64(3), *req.RoleID)
+			assert.Equal(t, int64(9007199254740993), *req.RoleID)
 			return &authModels.Account{Model: modelBase.Model{ID: 99}, Email: "teacher@example.com"}, nil
 		},
 	})
 
-	body := `{"email":" TEACHER@example.com ","first_name":" Ada ","last_name":" Lovelace ","password":"Secure123!","confirm_password":"Secure123!","role_id":3,"position":" Lehrerin "}`
+	body := `{"email":" TEACHER@example.com ","first_name":" Ada ","last_name":" Lovelace ","password":"Secure123!","confirm_password":"Secure123!","role_id":"9007199254740993","position":" Lehrerin "}`
 	req := httptest.NewRequest(http.MethodPost, "/operator/schools/7/create-account", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.RemoteAddr = "203.0.113.50:1234"
@@ -1729,7 +1729,7 @@ func TestProvisioningResource_ListSystemRoles(t *testing.T) {
 
 	resource := NewProvisioningResource(&mockProvisioningService{
 		listSystemRolesFn: func(_ context.Context) ([]*authModels.Role, error) {
-			return []*authModels.Role{{Name: "admin"}, {Name: "teacher"}}, nil
+			return []*authModels.Role{{Model: modelBase.Model{ID: 9007199254740993}, Name: "admin"}, {Name: "teacher"}}, nil
 		},
 	})
 	req := httptest.NewRequest(http.MethodGet, "/operator/roles", nil)
@@ -1737,6 +1737,9 @@ func TestProvisioningResource_ListSystemRoles(t *testing.T) {
 
 	resource.ListSystemRoles(rr, req)
 	assert.Equal(t, http.StatusOK, rr.Code)
+	body := decodeBody(t, rr)
+	roles := body["data"].([]any)
+	assert.Equal(t, "9007199254740993", roles[0].(map[string]any)["id"])
 }
 
 func TestProvisioningResource_ListSystemRoles_Error(t *testing.T) {
@@ -1759,7 +1762,7 @@ func TestProvisioningResource_ListSystemRoles_Error(t *testing.T) {
 func TestCreateSchoolAccountRequest_Bind_TrimAndLowercaseEmail(t *testing.T) {
 	t.Parallel()
 
-	roleID := int64(3)
+	roleID := common.JSONID(3)
 	req := &createSchoolAccountRequest{
 		Email:           "  TEACHER@EXAMPLE.COM  ",
 		FirstName:       "  Ada  ",

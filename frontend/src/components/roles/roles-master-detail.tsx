@@ -3,7 +3,6 @@
 import { Pencil } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useState } from "react";
 import { DatabaseDetailHeader } from "~/components/database/database-detail-header";
 import { DatabaseListItem } from "~/components/database/database-list-item";
@@ -25,6 +24,7 @@ import {
   InfoSection,
 } from "~/components/ui/detail-modal-components";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { RolePermissionsTab } from "~/components/roles/role-permissions-tab";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import {
   getBaseRoleLabel,
@@ -38,11 +38,14 @@ interface RolesMasterDetailProps {
   selectedId: string | null;
   selectedRole: Role | null;
   detailLoading: boolean;
+  /** Darf den Berechtigungskatalog laden und Rollenrechte ändern. */
+  canManagePermissions?: boolean;
   onSelect: (id: string | null) => void;
   /** Speichert die im Detailbereich bearbeiteten Stammdaten. */
   onSaveRole: (data: Partial<Role>) => Promise<void>;
   onDeleteClick: () => void;
-  onManagePermissions: () => void;
+  /** Nach dem Speichern der Berechtigungen: Liste und Detail neu laden. */
+  onPermissionsSaved: () => void | Promise<void>;
 }
 
 function keyForRole(role: Role): string {
@@ -59,10 +62,11 @@ export function RolesMasterDetail({
   selectedId,
   selectedRole,
   detailLoading,
+  canManagePermissions = false,
   onSelect,
   onSaveRole,
   onDeleteClick,
-  onManagePermissions,
+  onPermissionsSaved,
 }: RolesMasterDetailProps) {
   const groupDefinitions = useGroupedItems(roles, "none", {}, "Rollen");
 
@@ -93,9 +97,10 @@ export function RolesMasterDetail({
       key={selectedRole.id}
       role={selectedRole}
       loading={detailLoading}
+      canManagePermissions={canManagePermissions}
       onSaveRole={onSaveRole}
       onDeleteClick={onDeleteClick}
-      onManagePermissions={onManagePermissions}
+      onPermissionsSaved={onPermissionsSaved}
     />
   ) : (
     <EmptyDetailState
@@ -121,21 +126,25 @@ export function RolesMasterDetail({
 interface RoleDetailContentProps {
   role: Role;
   loading: boolean;
+  canManagePermissions: boolean;
   onSaveRole: (data: Partial<Role>) => Promise<void>;
   onDeleteClick: () => void;
-  onManagePermissions: () => void;
+  onPermissionsSaved: () => void | Promise<void>;
 }
 
 function RoleDetailContent({
   role,
   loading,
+  canManagePermissions,
   onSaveRole,
   onDeleteClick,
-  onManagePermissions,
+  onPermissionsSaved,
 }: RoleDetailContentProps) {
   const [activeTab, setActiveTab] = useState<string>("master-data");
-  // Bearbeitet wird am Objekt, nicht in einem Modal daneben
-  // (BAUARTEN-SPEC Bauart 2 Regel 3).
+  // Bearbeitet wird am Objekt, nicht in einem Modal daneben (BAUARTEN-SPEC
+  // Bauart 2 Regel 3): „Bearbeiten" schaltet den OFFENEN Reiter um, Stammdaten
+  // wie Berechtigungen (#3116). Ein Reiterwechsel beendet den Zustand, der
+  // Entwurf gehört zum Reiter.
   const [editing, setEditing] = useState(false);
 
   const handleSaveRole = async (data: Partial<Role>) => {
@@ -143,27 +152,31 @@ function RoleDetailContent({
     setEditing(false);
   };
 
+  const handlePermissionsSaved = async () => {
+    await onPermissionsSaved();
+    setEditing(false);
+  };
+
+  const handleTabChange = (id: string) => {
+    setEditing(false);
+    setActiveTab(id);
+  };
+
+  const canEditActiveTab = activeTab !== "permissions" || canManagePermissions;
   const headerActions =
     role.isSystem || editing ? null : (
       <>
-        <Button
-          type="button"
-          variant="outline"
-          size="compact"
-          onClick={onManagePermissions}
-        >
-          <MotoConceptIcon concept="permissions" size={16} />
-          Berechtigungen
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="compact"
-          onClick={() => setEditing(true)}
-        >
-          <Pencil className="h-3.5 w-3.5" aria-hidden />
-          Bearbeiten
-        </Button>
+        {canEditActiveTab ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="compact"
+            onClick={() => setEditing(true)}
+          >
+            <Pencil className="h-3.5 w-3.5" aria-hidden />
+            Bearbeiten
+          </Button>
+        ) : null}
         <DetailDeleteButton onClick={onDeleteClick} />
       </>
     );
@@ -176,12 +189,29 @@ function RoleDetailContent({
         <RoleStammdatenTab
           role={role}
           loading={loading}
-          editing={editing}
+          editing={editing && activeTab === "master-data"}
           onSaveRole={handleSaveRole}
           onCancelEdit={() => setEditing(false)}
         />
       ),
     },
+    ...(canManagePermissions
+      ? [
+          {
+            id: "permissions",
+            label: "Berechtigungen",
+            content: (
+              <RolePermissionsTab
+                key={role.id}
+                role={role}
+                editing={editing && activeTab === "permissions"}
+                onSaved={handlePermissionsSaved}
+                onCancelEdit={() => setEditing(false)}
+              />
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -202,7 +232,7 @@ function RoleDetailContent({
       }
       tabs={tabs}
       activeTab={activeTab}
-      onTabChange={setActiveTab}
+      onTabChange={handleTabChange}
     />
   );
 }

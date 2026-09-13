@@ -20,6 +20,7 @@ type roleManagementRoleRepo struct {
 	noopRoleRepository
 
 	findByIDFn           func(context.Context, interface{}) (*authModel.Role, error)
+	findByIDForUpdateFn  func(context.Context, int64) (*authModel.Role, error)
 	updateFn             func(context.Context, *authModel.Role) error
 	deleteFn             func(context.Context, interface{}) error
 	listFn               func(context.Context, map[string]interface{}) ([]*authModel.Role, error)
@@ -32,6 +33,13 @@ func (r roleManagementRoleRepo) FindByID(ctx context.Context, id interface{}) (*
 		return r.findByIDFn(ctx, id)
 	}
 	return nil, sql.ErrNoRows
+}
+
+func (r roleManagementRoleRepo) FindByIDForUpdate(ctx context.Context, id int64) (*authModel.Role, error) {
+	if r.findByIDForUpdateFn != nil {
+		return r.findByIDForUpdateFn(ctx, id)
+	}
+	return r.FindByID(ctx, id)
 }
 
 func (r roleManagementRoleRepo) Update(ctx context.Context, role *authModel.Role) error {

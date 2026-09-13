@@ -4,11 +4,10 @@ import { useState, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import RolesPage from "./page";
 
+const mockUseSession = vi.hoisted(() => vi.fn());
+
 vi.mock("next-auth/react", () => ({
-  useSession: vi.fn(() => ({
-    data: { user: { id: "1", token: "test-token" }, expires: "2099-01-01" },
-    status: "authenticated",
-  })),
+  useSession: mockUseSession,
 }));
 
 let currentSearch = new URLSearchParams();
@@ -227,7 +226,8 @@ vi.mock("@/components/roles/roles-master-detail", () => ({
     onSelect,
     onSaveRole,
     onDeleteClick,
-    onManagePermissions,
+    onPermissionsSaved,
+    canManagePermissions,
   }: {
     roles: Array<{ id: string; name: string }>;
     selectedId: string | null;
@@ -235,7 +235,8 @@ vi.mock("@/components/roles/roles-master-detail", () => ({
     onSelect: (id: string | null) => void;
     onSaveRole: (data: { name: string }) => Promise<void>;
     onDeleteClick: () => void;
-    onManagePermissions: () => void;
+    onPermissionsSaved: () => void | Promise<void>;
+    canManagePermissions?: boolean;
   }) => {
     const [editing, setEditing] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -248,7 +249,10 @@ vi.mock("@/components/roles/roles-master-detail", () => ({
         });
     };
     return (
-      <div data-testid="roles-master-detail">
+      <div
+        data-testid="roles-master-detail"
+        data-can-manage-permissions={canManagePermissions}
+      >
         {roles.map((role) => (
           <button
             type="button"
@@ -281,10 +285,10 @@ vi.mock("@/components/roles/roles-master-detail", () => ({
             </button>
             <button
               type="button"
-              data-testid="trigger-permissions"
-              onClick={onManagePermissions}
+              data-testid="trigger-permissions-saved"
+              onClick={() => void onPermissionsSaved()}
             >
-              Permissions
+              Permissions saved
             </button>
             <button
               type="button"
@@ -319,11 +323,6 @@ vi.mock("@/components/roles/roles-master-detail", () => ({
   },
 }));
 
-vi.mock("@/components/auth/role-permission-management-modal", () => ({
-  RolePermissionManagementModal: ({ isOpen }: { isOpen: boolean }) =>
-    isOpen ? <div data-testid="role-permission-modal" /> : null,
-}));
-
 const mockRoles = [
   {
     id: "1",
@@ -349,6 +348,10 @@ const mockRoles = [
 describe("RolesPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseSession.mockReturnValue({
+      data: { user: { id: "1", token: "test-token" }, expires: "2099-01-01" },
+      status: "authenticated",
+    });
     currentSearch = new URLSearchParams();
 
     mockGetList.mockResolvedValue({ data: mockRoles });
@@ -363,6 +366,75 @@ describe("RolesPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Vertretungslehrkraft")).toBeInTheDocument();
       // System role label is mapped via getRoleDisplayName; "admin" will map.
+    });
+  });
+
+  it("does not enable permission editing with roles:manage alone", async () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          token: "test-token",
+          permissions: ["roles:manage"],
+        },
+        expires: "2099-01-01",
+      },
+      status: "authenticated",
+    });
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("roles-master-detail")).toHaveAttribute(
+        "data-can-manage-permissions",
+        "false",
+      );
+    });
+  });
+
+  it("does not enable permission editing without roles:read", async () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          token: "test-token",
+          permissions: ["roles:manage", "permissions:read"],
+        },
+        expires: "2099-01-01",
+      },
+      status: "authenticated",
+    });
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("roles-master-detail")).toHaveAttribute(
+        "data-can-manage-permissions",
+        "false",
+      );
+    });
+  });
+
+  it("does not expose permissions to users who only create accounts", async () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          token: "test-token",
+          permissions: ["users:create"],
+        },
+        expires: "2099-01-01",
+      },
+      status: "authenticated",
+    });
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("roles-master-detail")).toHaveAttribute(
+        "data-can-manage-permissions",
+        "false",
+      );
     });
   });
 
@@ -676,7 +748,10 @@ describe("RolesPage", () => {
     });
   });
 
-  it("opens the permission management modal from the detail panel", async () => {
+  // Berechtigungen werden im Reiter des Detailbereichs bearbeitet (#3116);
+  // die Seite lädt danach Liste und Detail neu, damit die Zahl in der Liste
+  // stimmt.
+  it("reloads the roles and the detail after the permissions were saved", async () => {
     setSelectedRole("1");
 
     render(<RolesPage />);
@@ -684,12 +759,18 @@ describe("RolesPage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("role-detail-panel")).toBeInTheDocument();
     });
+    const listCallsBefore = mockGetList.mock.calls.length;
+    const detailCallsBefore = mockGetOne.mock.calls.length;
 
-    fireEvent.click(screen.getByTestId("trigger-permissions"));
+    fireEvent.click(screen.getByTestId("trigger-permissions-saved"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("role-permission-modal")).toBeInTheDocument();
+      expect(mockGetList.mock.calls.length).toBe(listCallsBefore + 1);
     });
+    await waitFor(() => {
+      expect(mockGetOne.mock.calls.length).toBe(detailCallsBefore + 1);
+    });
+    expect(mockGetOne).toHaveBeenLastCalledWith("1");
   });
 
   it("calls update service when saving the inline edit form", async () => {

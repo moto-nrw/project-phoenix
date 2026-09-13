@@ -2264,7 +2264,7 @@
       "declaration": "TestRoleRepository_AssignRoleToAccount",
       "target": "database/repositories.NewFactory",
       "lines": [
-        243
+        264
       ],
       "tables": []
     },
@@ -2326,7 +2326,7 @@
       "declaration": "TestRoleRepository_FindRoleNamesByAccountIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        283
+        304
       ],
       "tables": [
         "auth.account_roles"
@@ -2348,7 +2348,7 @@
       "declaration": "TestRoleRepository_RemoveRoleFromAccount",
       "target": "database/repositories.NewFactory",
       "lines": [
-        261
+        282
       ],
       "tables": []
     },

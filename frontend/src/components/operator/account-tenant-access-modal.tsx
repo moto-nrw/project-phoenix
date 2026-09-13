@@ -82,7 +82,7 @@ export function AccountTenantAccessModal({
   const [access, setAccess] = useState<AccountTenantAccess[]>([]);
   const [schools, setSchools] = useState<{ id: string; label: string }[]>([]);
   const [rolesBySchool, setRolesBySchool] = useState<
-    Record<string, { id: string; name: string }[]>
+    Record<string, { id: string; name: string; isSystem: boolean }[]>
   >({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -225,7 +225,7 @@ export function AccountTenantAccessModal({
     // assignable since the class day view shipped; it lives in the school
     // portal since the cutover (#2207).
     return (rolesBySchool[schoolId] ?? []).filter((role) =>
-      isAssignableStaffRole(role.name),
+      isAssignableStaffRole(role.name, role.isSystem),
     );
   }
 
@@ -233,19 +233,15 @@ export function AccountTenantAccessModal({
     return entry.roles.some((role) => role.name.toLowerCase() === "lehrkraft");
   }
 
-  // Rollenwechsel-Ziele eines bestehenden Zugangs: Lehrkraft ist für
-  // Betreuungs-/Verwaltungs-Einträge gesperrt — UpdateAccountTenantRole
-  // tauscht nur die auth-Rolle und würde das Betreuungsprofil
-  // (users.teachers) samt aktiver Gruppen-Aufsichten stehen lassen, während
-  // das Konto nur noch class_day-Rechte trägt (Spiegel der Härtung in
-  // role-management-modal). Die Gegenrichtung bleibt erlaubt: für einen
-  // Lehrkraft-Eintrag legt das Backend beim Wechsel auf Betreuung/Verwaltung
-  // das fehlende Profil über ensureSchoolIdentity an. Beim Ergänzen eines
-  // NEUEN Schulzugangs (rolesForSchool direkt) ist Lehrkraft weiterhin
-  // wählbar.
+  // Eine bestehende Lehrkraft-Rolle ist unveränderlich. Der Wechsel würde
+  // einen Schulportal-Zugang in eine andere Personalrolle umwandeln und muss
+  // über die Abmeldung und ein neues Konto erfolgen. Beim Ergänzen eines
+  // neuen Schulzugangs bleibt Lehrkraft wählbar.
   function roleChangeOptions(entry: AccountTenantAccess) {
     const options = rolesForSchool(entry.tenantId);
-    if (entryIsLehrkraft(entry)) return options;
+    if (entryIsLehrkraft(entry)) {
+      return options.filter((role) => role.name.toLowerCase() === "lehrkraft");
+    }
     return options.filter((role) => role.name.toLowerCase() !== "lehrkraft");
   }
 
@@ -422,7 +418,8 @@ export function AccountTenantAccessModal({
                             disabled={
                               saving ||
                               !entry.schoolActive ||
-                              !rolesBySchool[entry.tenantId]
+                              !rolesBySchool[entry.tenantId] ||
+                              entryIsLehrkraft(entry)
                             }
                             ariaLabel={`Rolle an ${entry.schoolName}`}
                             placeholder="Rolle wählen"

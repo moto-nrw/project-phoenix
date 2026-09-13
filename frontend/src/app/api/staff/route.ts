@@ -7,7 +7,7 @@ import {
 } from "~/lib/route-wrapper.server";
 import { createLogger } from "~/lib/logger";
 import type { WireID } from "~/lib/wire-id";
-import { toIdString } from "~/lib/wire-id";
+import { toIdString, toOptionalIdString } from "~/lib/wire-id";
 
 const logger = createLogger({ component: "StaffRoute" });
 
@@ -34,7 +34,7 @@ interface BackendStaffResponse {
     email?: string;
     avatar?: string;
     tag_id?: string;
-    account_id?: number;
+    account_id?: WireID;
     created_at: string;
     updated_at: string;
   };
@@ -132,7 +132,7 @@ function mapBackendStaff(staff: BackendStaffResponse) {
     lastName: staff.person?.last_name ?? "",
     email: staff.person?.email ?? null,
     avatar: staff.person?.avatar ?? null,
-    account_id: staff.person?.account_id,
+    account_id: toOptionalIdString(staff.person?.account_id),
     specialization: staff.specialization ?? null,
     role: staff.role ?? null,
     qualifications: staff.qualifications ?? null,

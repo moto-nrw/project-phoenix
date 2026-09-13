@@ -18,10 +18,10 @@ function mapTeacherResponse(data: unknown): Teacher {
 
   // Get account_id from either direct data or nested person object
   const accountId =
-    (typedData.account_id as number | undefined) ??
-    (typedData.accountId as number | undefined) ??
-    (person?.account_id as number | undefined) ??
-    (person?.accountId as number | undefined);
+    toOptionalIdString(typedData.account_id as WireID | undefined) ??
+    toOptionalIdString(typedData.accountId as WireID | undefined) ??
+    toOptionalIdString(person?.account_id as WireID | undefined) ??
+    toOptionalIdString(person?.accountId as WireID | undefined);
 
   // Get email from either direct data or nested person object
   const email =

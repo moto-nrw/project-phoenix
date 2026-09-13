@@ -346,7 +346,11 @@ func TestAccountTenantRepository_ListAccountsByOrganizationID(t *testing.T) {
 func TestAccountTenantRepository_ListAllAccounts(t *testing.T) {
 	t.Parallel()
 
-	db := testpkg.SetupTestDB(t)
+	// A "list all" sweep reads every school twice (IDs first, names second).
+	// On the package database a parallel sibling hard-deletes its school
+	// between those reads and the sweep fails with "school missing for
+	// account row"; a clone of its own has no concurrent deleters.
+	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
 
 	tenantID := testpkg.UniqueTestTenantID(t)
@@ -393,7 +397,8 @@ func containsAccount(accounts []authModels.OrgAccountInfo, email string) bool {
 func TestAccountTenantRepository_ListAllAccounts_ExcludesDeletedSchool(t *testing.T) {
 	t.Parallel()
 
-	db := testpkg.SetupTestDB(t)
+	// Same sweep as above, same race with parallel school deletes.
+	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
 
 	tenantID := testpkg.UniqueTestTenantID(t)

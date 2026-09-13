@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
-import { GET } from "./route";
+import { GET, PUT } from "./route";
 
 // ============================================================================
 // Types
@@ -15,9 +15,10 @@ interface ExtendedSession extends Session {
 // Mocks
 // ============================================================================
 
-const { mockAuth, mockApiGet } = vi.hoisted(() => ({
+const { mockAuth, mockApiGet, mockApiPut } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
   mockApiGet: vi.fn(),
+  mockApiPut: vi.fn(),
 }));
 
 vi.mock("~/server/auth", () => ({
@@ -26,7 +27,38 @@ vi.mock("~/server/auth", () => ({
 
 vi.mock("@/lib/api-helpers.server", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
-  return { ...actual, apiGet: mockApiGet };
+  return { ...actual, apiGet: mockApiGet, apiPut: mockApiPut };
+});
+
+describe("PUT /api/auth/roles/[roleId]/permissions", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAuth.mockResolvedValue(defaultSession);
+  });
+
+  it("forwards exact permission ids to the authenticated backend route", async () => {
+    mockApiPut.mockResolvedValueOnce(undefined);
+
+    const request = new NextRequest(
+      "http://localhost:3000/api/auth/roles/9007199254740993/permissions",
+      {
+        method: "PUT",
+        body: JSON.stringify({ permission_ids: ["9007199254740995"] }),
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+    const response = await PUT(
+      request,
+      createMockContext({ roleId: "9007199254740993" }),
+    );
+
+    expect(mockApiPut).toHaveBeenCalledWith(
+      "/auth/roles/9007199254740993/permissions",
+      "test-token",
+      { permission_ids: ["9007199254740995"] },
+    );
+    expect(response.status).toBe(200);
+  });
 });
 
 // ============================================================================

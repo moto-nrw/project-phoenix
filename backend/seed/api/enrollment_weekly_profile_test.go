@@ -245,7 +245,7 @@ func (m *weeklyProfileAPIMock) serve(t *testing.T, w seedHTTPResponseWriter, r *
 		}
 		data = map[string]any{"weekdays": rows}
 	case path == "/auth/roles":
-		data = []map[string]any{{"id": 9000, "name": "admin"}}
+		data = []map[string]any{{"id": "9000", "name": "admin"}}
 	case path == "/auth/link-to-tenant":
 		data = map[string]any{"school_identity": map[string]any{"staff_id": "9001"}}
 	case path == "/auth/account/tenants":

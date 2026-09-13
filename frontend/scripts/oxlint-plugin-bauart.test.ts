@@ -899,3 +899,126 @@ describe("bauart/one-detail-per-type", () => {
     expect(output).not.toContain("bauart(one-detail-per-type)");
   });
 });
+
+describe("bauart/no-edit-overlay", () => {
+  it("rejects a modal titled „… bearbeiten“ and a slide-over titled „… verwalten“", () => {
+    const { status, output } = lintSource(
+      `import { FormModal } from "~/components/ui/form-modal";
+      import { SlideOver, SlideOverContent, SlideOverTitle } from "~/components/ui/slide-over";
+      export function Probe({ name }: { name: string }) {
+        return (
+          <>
+            <FormModal isOpen onClose={() => {}} title="Personal bearbeiten" onSubmit={() => {}}>
+              <p>Felder</p>
+            </FormModal>
+            <SlideOver open onOpenChange={() => {}}>
+              <SlideOverContent>
+                <SlideOverTitle>{\`Rolle verwalten: \${name}\`}</SlideOverTitle>
+              </SlideOverContent>
+            </SlideOver>
+          </>
+        );
+      }`,
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain("bauart(no-edit-overlay)");
+    expect(output).toContain("Personal bearbeiten");
+    expect(output).toContain("Rolle verwalten:");
+  });
+
+  it("sees the edit branch of a conditional title and of DatabaseFormModal mode", () => {
+    const { status, output } = lintSource(
+      `import { Modal } from "~/components/ui/modal";
+      import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
+      export function Probe({ initial }: { initial: object | null }) {
+        return (
+          <>
+            <Modal isOpen onClose={() => {}} title={initial ? "Ordner bearbeiten" : "Neuer Ordner"}>
+              <p>Felder</p>
+            </Modal>
+            <DatabaseFormModal isOpen onClose={() => {}} mode={initial ? "edit" : "create"} config={{}} onSubmit={() => {}} />
+          </>
+        );
+      }`,
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain("Ordner bearbeiten Neuer Ordner");
+    expect(output).toContain('DatabaseFormModal mode="edit"');
+  });
+
+  it("accepts creating, adding and confirming in an overlay", () => {
+    const { output } = lintSource(
+      `import { FormModal } from "~/components/ui/form-modal";
+      import { ConfirmationModal } from "~/components/ui/modal";
+      import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
+      export function Probe() {
+        return (
+          <>
+            <FormModal isOpen onClose={() => {}} title="Kind nachtragen" onSubmit={() => {}}>
+              <p>Felder</p>
+            </FormModal>
+            <ConfirmationModal isOpen onClose={() => {}} onConfirm={() => {}} title="Bearbeitung abschließen?" confirmText="Abschließen">
+              <p>Sicher?</p>
+            </ConfirmationModal>
+            <DatabaseFormModal isOpen onClose={() => {}} mode="create" config={{}} onSubmit={() => {}} />
+          </>
+        );
+      }`,
+    );
+
+    expect(output).not.toContain("bauart(no-edit-overlay)");
+  });
+
+  it("leaves the kit directory, tests and the other portals alone", () => {
+    const source = `import { FormModal } from "~/components/ui/form-modal";
+      export function Probe() {
+        return (
+          <FormModal isOpen onClose={() => {}} title="Träger bearbeiten" onSubmit={() => {}}>
+            <p>Felder</p>
+          </FormModal>
+        );
+      }`;
+
+    for (const path of [
+      "src/components/ui/form-modal.tsx",
+      "src/components/probe.test.tsx",
+      "src/app/operator/provisioning/edit-organization-modal.tsx",
+      "src/app/parents/page.tsx",
+    ]) {
+      expect(lintSource(source, path).output).not.toContain(
+        "bauart(no-edit-overlay)",
+      );
+    }
+  });
+
+  it("tolerates only the baselined overlay at its recorded location", () => {
+    const source = `import { Modal } from "~/components/ui/modal";
+      export function Probe({ initial }: { initial: object | null }) {
+        return (
+          <Modal
+            isOpen
+            onClose={() => {}}
+            title={initial ? "Schließtag bearbeiten" : "Schließtag anlegen"}
+          >
+            <p>Felder</p>
+          </Modal>
+        );
+      }`;
+    const baselined = lintSource(
+      // Der Eintrag steht in der Baseline auf Zeile 89; darüber Leerzeilen,
+      // damit das Element genau dort landet.
+      `${"\n".repeat(85)}${source}`,
+      "src/components/planning/closing-day-modal.tsx",
+    );
+    expect(baselined.output).not.toContain("bauart(no-edit-overlay)");
+
+    const moved = lintSource(
+      source,
+      "src/components/planning/closing-day-modal.tsx",
+    );
+    expect(moved.status).toBe(1);
+    expect(moved.output).toContain("bauart(no-edit-overlay)");
+  });
+});

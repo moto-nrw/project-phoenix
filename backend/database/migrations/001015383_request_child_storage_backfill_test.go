@@ -596,16 +596,37 @@ func TestRequestChildStorageBackfillWaitsOutApplicationLocks(t *testing.T) {
 	require.NoError(t, err)
 	holder, err := db.BeginTx(t.Context(), nil)
 	require.NoError(t, err)
+	defer func() { _ = holder.Rollback() }()
 	_, err = holder.ExecContext(t.Context(), `SELECT id FROM enrollment.care_offering_bookings WHERE id = ? FOR UPDATE`, fixture.legacyIDs[0])
 	require.NoError(t, err)
-	released := make(chan struct{})
+	type backfillResult struct {
+		report RequestChildStorageReport
+		err    error
+	}
+	done := make(chan backfillResult, 1)
 	go func() {
-		defer close(released)
-		time.Sleep(400 * time.Millisecond)
-		_ = holder.Rollback()
+		report, err := RunRequestChildStorageBackfill(t.Context(), db, RequestChildStorageBackfillOptions{
+			TenantIDs: []int64{fixture.tenant}, LockTimeout: 50 * time.Millisecond, MaxRetries: 50,
+		})
+		done <- backfillResult{report: report, err: err}
 	}()
-	report := runBackfill(t, db, RequestChildStorageBackfillOptions{LockTimeout: 50 * time.Millisecond, MaxRetries: 50})
-	<-released
+	require.Eventually(t, func() bool {
+		var waiting bool
+		err := db.NewRaw(`SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE datname = current_database()
+			AND wait_event_type = 'Lock' AND query LIKE '%DELETE FROM enrollment.care_offering_bookings%')`).Scan(t.Context(), &waiting)
+		return err == nil && waiting
+	}, 3*time.Second, 10*time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
+	require.NoError(t, holder.Rollback())
+	var result backfillResult
+	select {
+	case result = <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("backfill did not finish after releasing the lock")
+	}
+	require.NoError(t, result.err)
+	require.Len(t, result.report.Tenants, 1)
+	report := result.report.Tenants[0]
 	require.True(t, report.Complete)
 	assert.GreaterOrEqual(t, report.LockTimeouts, int64(1), "the batch waited on the application lock and retried")
 	assert.Equal(t, report.LockTimeouts, report.BatchesRetried)
