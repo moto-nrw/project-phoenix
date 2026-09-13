@@ -2,6 +2,7 @@ package enrollment_test
 
 import (
 	"context"
+
 	"log/slog"
 	"testing"
 	"time"
@@ -256,7 +257,7 @@ func TestOfferingChangeRequestService_Create_StripsChangedCurrentAutomaticOfferi
 	// This row represents an offering materialized from another selection. A
 	// crafted request must not be able to change its days and persist it as a
 	// manual booking.
-	require.NoError(t, env.repos.Enrollment().InsertRequestChildOffering(ctx, &capability.RequestChildOffering{
+	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, &capability.RequestChildOffering{
 		RequestChildID:        fx.childID,
 		CareOfferingID:        automatic.ID,
 		SelectedDays:          []string{"mon"},
@@ -1248,7 +1249,7 @@ func TestOfferingChangeRequestService_PreviewDecision_ReportsOnlyUncoveredManual
 		o.ActivityGroupID = &parentChoiceGroup.ID
 		o.CountsAsCare, o.CountsAsCareSet = true, true
 	})
-	require.NoError(t, env.repos.Enrollment().InsertRequestChildOffering(ctx, &capability.RequestChildOffering{
+	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, &capability.RequestChildOffering{
 		RequestChildID: fx.childID,
 		CareOfferingID: parentChoiceOffering.ID,
 		SelectedDays:   []string{},

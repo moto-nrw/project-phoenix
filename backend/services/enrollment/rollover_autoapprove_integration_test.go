@@ -2,6 +2,9 @@ package enrollment_test
 
 import (
 	"context"
+
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+
 	"log/slog"
 	"testing"
 	"time"
@@ -79,6 +82,7 @@ func setupAutoApproveIntegrationEnvWithSettings(
 
 	// Rebuild the rollover service so DecisionService is injected.
 	env.rolloverSvc = enrollmentService.NewRolloverService(enrollmentService.RolloverServiceConfig{
+		Bookings:              requestTestBookingCommands(),
 		Phases:                env.repos.Enrollment(),
 		Requests:              env.repos.Enrollment(),
 		Children:              env.repos.Enrollment(),
@@ -525,7 +529,7 @@ func TestRolloverService_AutoApprove_ValidationFailureRollsBackStudentUpdate(t *
 		CareOfferingID: offering.ID,
 	}
 	link.TenantID = testpkg.Tenant(t)
-	require.NoError(t, env.repos.Enrollment().InsertRequestChildOffering(ctx, link))
+	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, link))
 
 	req := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true)
 	req.RolloverAutoApprove = true

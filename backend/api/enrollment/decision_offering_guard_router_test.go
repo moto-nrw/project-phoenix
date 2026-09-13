@@ -218,7 +218,7 @@ func attachOfferingGuardLink(t *testing.T, repos repositories.EnrollmentTestRepo
 	}
 	link := createLink("Ganztag", fixture == requiredOnly)
 	if fixture == twoOfferings {
-		require.NoError(t, repos.Enrollment().InsertRequestChildOffering(ctx, link))
+		require.NoError(t, testutil.NewEnrollmentOwner().InsertRequestChildOffering(ctx, link))
 		link = createLink("Spätbetreuung", false)
 	}
 	today := timezone.TodayDate()
@@ -231,7 +231,7 @@ func attachOfferingGuardLink(t *testing.T, repos repositories.EnrollmentTestRepo
 	if fixture == historicalOffering {
 		link.ValidFrom, link.ValidUntil = datePointers(timezone.Date(phase.ServiceStartDate), today)
 	}
-	require.NoError(t, repos.Enrollment().InsertRequestChildOffering(ctx, link))
+	require.NoError(t, testutil.NewEnrollmentOwner().InsertRequestChildOffering(ctx, link))
 }
 
 func datePointers(from, until timezone.Date) (*capability.Date, *capability.Date) {

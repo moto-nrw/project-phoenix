@@ -1,6 +1,8 @@
 package enrollment_test
 
 import (
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -19,9 +21,9 @@ func TestOwnerOfferingSelectionsAtDate_DoesNotReturnFutureSelection(t *testing.T
 	ctx := testpkg.Ctx(t)
 	fx := setupOfferingChangeFixture(t, env, "FutureSelection")
 
-	require.NoError(t, env.repos.Enrollment().ReplaceRequestChildOfferings(ctx, fx.childID, nil))
+	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ReplaceRequestChildOfferings(ctx, fx.childID, nil))
 	futureStart := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(30)
-	require.NoError(t, env.repos.Enrollment().ScheduleRequestChildOfferings(
+	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(
 		ctx,
 		fx.childID,
 		owner.Date(futureStart),
@@ -73,7 +75,7 @@ func TestOwnerOfferingSelectionsAtDates_DoesNotReturnHistoricalSelection(t *test
 	fx := setupOfferingChangeFixture(t, env, "HistoricalSelection")
 
 	futureStart := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(30)
-	require.NoError(t, env.repos.Enrollment().ScheduleRequestChildOfferings(
+	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(
 		ctx,
 		fx.childID,
 		owner.Date(futureStart),

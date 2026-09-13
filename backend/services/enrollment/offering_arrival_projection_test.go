@@ -2,6 +2,9 @@ package enrollment_test
 
 import (
 	"context"
+
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+
 	"log/slog"
 	"testing"
 	"time"
@@ -243,7 +246,7 @@ func TestArrivalProjection_BookingEndStopsTheArrival(t *testing.T) {
 	secondMonday := firstMonday.AddDays(7)
 
 	// Abmeldung: the booking stops at the second Monday (half-open window).
-	err := env.repos.Enrollment().ScheduleRequestChildOfferings(ctx, childID, capability.Date(secondMonday), nil)
+	err := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, capability.Date(secondMonday), nil)
 	require.NoError(t, err)
 
 	baseline := bookingModeArrivalBaseline(t, env, true)

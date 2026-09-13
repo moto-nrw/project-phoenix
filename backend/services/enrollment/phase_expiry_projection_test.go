@@ -2,17 +2,20 @@ package enrollment_test
 
 import (
 	"context"
-	"encoding/json"
+	"fmt"
+
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+	peopleTest "github.com/moto-nrw/project-phoenix/modules/peopledirectory/peopletest"
+	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+
 	"testing"
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -34,18 +37,18 @@ func TestPhaseExpiryProjection_ListSnapshots_CountsWholeCohortAtFirstAffectedDat
 	request := makeOwnerRequest(0, uniqueToken("expiry-whole-cohort"), "cohort@example.test")
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		if err := enrollmentCompose.New().InsertPhase(ctx, phase); err != nil {
+		if err := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertPhase(ctx, phase); err != nil {
 			return err
 		}
 		request.PhaseID = phase.ID
-		return enrollmentCompose.New().InsertRequest(ctx, request)
+		return repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequest(ctx, request)
 	}))
 
 	mondayStudent := testpkg.CreateTestStudent(t, db, "Monday", "Child", "2a")
 	fridayStudent := testpkg.CreateTestStudent(t, db, "Friday", "Child", "2a")
 	validUntil := timezone.Date(phase.ServiceEndDate).AddDays(1)
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		studentRepo := usersRepo.NewStudentRepository(db)
+		studentRepo := newExpiryStudentFixture(t, db)
 		for _, student := range []*usersModels.Student{mondayStudent, fridayStudent} {
 			if err := studentRepo.SetEnrollmentWindowByID(
 				ctx, student.ID, timezone.Date(phase.ServiceStartDate), usersModels.StudentStatusActive,
@@ -53,9 +56,9 @@ func TestPhaseExpiryProjection_ListSnapshots_CountsWholeCohortAtFirstAffectedDat
 				return err
 			}
 		}
-		childRepo := enrollmentCompose.New()
+		childRepo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 		offeringRepo := carePlanTest.NewCareOfferingRepository(t, db)
-		linkRepo := enrollmentCompose.New()
+		linkRepo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 		for _, fixture := range []struct {
 			student *usersModels.Student
 			day     string
@@ -103,7 +106,7 @@ func TestPhaseExpiryProjection_ListSnapshots_CountsWholeCohortAtFirstAffectedDat
 
 	futureStart := timezone.Date(phase.ServiceEndDate).AddDays(1)
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		studentRepo := usersRepo.NewStudentRepository(db)
+		studentRepo := newExpiryStudentFixture(t, db)
 		if err := studentRepo.SetEnrollmentWindowByID(
 			ctx, mondayStudent.ID, timezone.Date(phase.ServiceEndDate), usersModels.StudentStatusPending,
 		); err != nil {
@@ -128,7 +131,7 @@ func TestPhaseExpiryProjection_ListSnapshots_CountsWholeCohortAtFirstAffectedDat
 
 	enrollmentEndedBeforePhaseEnd := timezone.Date(phase.ServiceEndDate).AddDays(-1)
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		studentRepo := usersRepo.NewStudentRepository(db)
+		studentRepo := newExpiryStudentFixture(t, db)
 		if err := studentRepo.SetEnrollmentWindowByID(
 			ctx, fridayStudent.ID, timezone.Date(phase.ServiceEndDate), usersModels.StudentStatusPending,
 		); err != nil {
@@ -164,18 +167,18 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	phase.ServiceStartDate = capability.Date(timezone.NewDate(2026, 8, 1))
 	phase.ServiceEndDate = capability.Date(timezone.NewDate(2027, 1, 29))
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return enrollmentCompose.New().InsertPhase(ctx, phase)
+		return repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertPhase(ctx, phase)
 	}))
 
 	request := makeOwnerRequest(phase.ID, uniqueToken("expiry-source"), "expiry@example.test")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return enrollmentCompose.New().InsertRequest(ctx, request)
+		return repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequest(ctx, request)
 	}))
 
 	student := testpkg.CreateTestStudent(t, db, "Expiry", "Student", "2a")
 	lastCareDay := timezone.Date(phase.ServiceEndDate)
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		studentRepo := usersRepo.NewStudentRepository(db)
+		studentRepo := newExpiryStudentFixture(t, db)
 		if err := studentRepo.SetEnrollmentWindowByID(
 			ctx, student.ID, timezone.Date(phase.ServiceStartDate), usersModels.StudentStatusActive,
 		); err != nil {
@@ -188,7 +191,7 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	child.Status = enrollmentModels.ChildStatusApproved
 	child.CreatedStudentID = &student.ID
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return enrollmentCompose.New().InsertChild(ctx, child)
+		return repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertChild(ctx, child)
 	}))
 
 	offering := makeOffering(phase.ID, uniqueOfferingName("lunch"))
@@ -209,7 +212,7 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 		ValidUntil:     offeringDatePointer(validUntil),
 	}
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return enrollmentCompose.New().InsertRequestChildOffering(ctx, link)
+		return repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, link)
 	}))
 	secondOffering := makeOffering(phase.ID, uniqueOfferingName("second-offering"))
 	secondOffering.AvailableDays = []string{"tue"}
@@ -217,7 +220,7 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 		return carePlanTest.NewCareOfferingRepository(t, db).Create(ctx, secondOffering)
 	}))
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return enrollmentCompose.New().InsertRequestChildOffering(ctx, &capability.RequestChildOffering{
+		return repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, &capability.RequestChildOffering{
 			RequestChildID: child.ID,
 			CareOfferingID: secondOffering.ID,
 		})
@@ -243,7 +246,7 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	assert.Equal(t, 1, snapshot.UnresolvedChildren)
 	assert.Nil(t, snapshot.SuccessorPhaseID)
 
-	studentRepo := usersRepo.NewStudentRepository(db)
+	studentRepo := newExpiryStudentFixture(t, db)
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return studentRepo.UpdateStatus(ctx, student.ID, usersModels.StudentStatusPending)
 	}))
@@ -264,7 +267,7 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	}))
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return enrollmentCompose.New().UpdateChildStatus(ctx, child.ID, enrollmentModels.ChildStatusSubmitted, nil, 0)
+		return repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).UpdateChildStatus(ctx, child.ID, enrollmentModels.ChildStatusSubmitted, nil, 0)
 	}))
 	err = runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var listErr error
@@ -278,7 +281,7 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	require.NoError(t, err)
 	assert.Empty(t, snapshots, "a non-approved request child must not trigger a warning")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return enrollmentCompose.New().UpdateChildStatus(ctx, child.ID, enrollmentModels.ChildStatusApproved, nil, 0)
+		return repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).UpdateChildStatus(ctx, child.ID, enrollmentModels.ChildStatusApproved, nil, 0)
 	}))
 	offering.IsActive = false
 	secondOffering.IsActive = false
@@ -306,7 +309,7 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	}))
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return usersRepo.NewStudentRepository(db).UpdateStatus(ctx, student.ID, usersModels.StudentStatusInactive)
+		return newExpiryStudentFixture(t, db).UpdateStatus(ctx, student.ID, usersModels.StudentStatusInactive)
 	}))
 	err = runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var listErr error
@@ -334,104 +337,86 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	assert.Equal(t, 1, snapshots[0].AffectedChildren)
 }
 
-type legacyStudentDirectory struct {
-	students usersModels.StudentRepository
-}
+type expiryStudentDirectory struct{ query peopleTest.StudentQuery }
 
-func (d legacyStudentDirectory) ListEnrolledStudents(ctx context.Context) ([]expiryStudent, error) {
-	students, err := d.students.List(ctx, map[string]any{})
+func (d expiryStudentDirectory) ListEnrolledStudents(ctx context.Context) ([]enrollmentService.PhaseExpiryStudent, error) {
+	students, err := d.query.ListEnrolledStudents(ctx)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]expiryStudent, 0, len(students))
+	result := make([]enrollmentService.PhaseExpiryStudent, 0, len(students))
 	for _, student := range students {
-		if student.IsAlumnus() {
-			continue
-		}
-		result = append(result, toDirectoryStudent(student))
+		result = append(result, enrollmentService.PhaseExpiryStudent{ID: student.ID, Status: student.Status, EnrolledFrom: student.EnrolledFrom, EnrolledUntil: student.EnrolledUntil})
 	}
 	return result, nil
-}
-
-func toDirectoryStudent(student *usersModels.Student) expiryStudent {
-	row := expiryStudent{
-		ID: student.ID, Status: string(student.Status),
-	}
-	if student.EnrolledFrom != nil {
-		row.EnrolledFrom = student.EnrolledFrom.String()
-	}
-	if student.EnrolledUntil != nil {
-		row.EnrolledUntil = student.EnrolledUntil.String()
-	}
-	return row
 }
 
 type phaseExpiryCareOfferingDirectory struct{ query careplan.Query }
 
-func (d phaseExpiryCareOfferingDirectory) ListCareOfferings(ctx context.Context) ([]expiryOffering, error) {
+func (d phaseExpiryCareOfferingDirectory) ListCareOfferings(ctx context.Context) ([]enrollmentService.PhaseExpiryOffering, error) {
 	values, err := d.query.ListCareOfferings(ctx, careplan.CareOfferingFilter{Order: careplan.OfferingOrderID})
 	if err != nil {
 		return nil, err
 	}
-	result := make([]expiryOffering, 0, len(values))
+	result := make([]enrollmentService.PhaseExpiryOffering, 0, len(values))
 	for _, value := range values {
-		result = append(result, expiryOffering{
-			ID: value.ID, TenantID: value.TenantID, PhaseID: value.PhaseID,
-			DaysOfWeekMode: value.DaysOfWeekMode, AvailableDays: value.AvailableDays, IsActive: value.IsActive,
-		})
+		result = append(result, enrollmentService.PhaseExpiryOffering{ID: value.ID, TenantID: value.TenantID, PhaseID: value.PhaseID, DaysOfWeekMode: value.DaysOfWeekMode, AvailableDays: value.AvailableDays, IsActive: value.IsActive})
 	}
 	return result, nil
 }
 
-// newPhaseExpiryProjection returns the phase-expiry repository with the
-// student port bound, as the service graph composes it.
-
-type expiryOffering struct {
-	ID             int64    `json:"id"`
-	TenantID       int64    `json:"tenant_id"`
-	PhaseID        int64    `json:"phase_id"`
-	DaysOfWeekMode string   `json:"days_of_week_mode"`
-	AvailableDays  []string `json:"available_days"`
-	IsActive       bool     `json:"is_active"`
-}
-
-type expiryFixtureProjection struct {
-	owner     *capability.Module
-	students  legacyStudentDirectory
-	offerings phaseExpiryCareOfferingDirectory
-}
-
-func newPhaseExpiryProjection(t *testing.T, db *bun.DB) expiryFixtureProjection {
+// Exercise the production projection with the real owners.
+func newPhaseExpiryProjection(t *testing.T, db *bun.DB) enrollmentService.PhaseExpirySnapshots {
 	t.Helper()
-	return expiryFixtureProjection{enrollmentCompose.New(), legacyStudentDirectory{usersRepo.NewStudentRepository(db)}, phaseExpiryCareOfferingDirectory{carePlanTest.NewCarePlan(t, db)}}
+	owner := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
+	students, err := peopleTest.NewStudentQuery(db)
+	require.NoError(t, err)
+	return enrollmentService.NewPhaseExpiryProjection(owner, expiryStudentDirectory{students}, phaseExpiryCareOfferingDirectory{carePlanTest.NewCarePlan(t, db)}, owner)
 }
 
-func (p expiryFixtureProjection) ListSnapshots(ctx context.Context, asOf, through timezone.Date) ([]*capability.PhaseExpirySnapshot, error) {
-	students, err := p.students.ListEnrolledStudents(ctx)
-	if err != nil {
-		return nil, err
-	}
-	offerings, err := p.offerings.ListCareOfferings(ctx)
-	if err != nil {
-		return nil, err
-	}
-	encoded, err := json.Marshal(offerings)
-	if err != nil {
-		return nil, err
-	}
-	input := capability.PhaseExpiryInput{AsOf: capability.Date(asOf), WarningThrough: capability.Date(through), OfferingsJSON: string(encoded)}
-	for _, student := range students {
-		input.StudentIDs = append(input.StudentIDs, student.ID)
-		input.StudentStatuses = append(input.StudentStatuses, student.Status)
-		input.EnrolledFrom = append(input.EnrolledFrom, student.EnrolledFrom)
-		input.EnrolledUntil = append(input.EnrolledUntil, student.EnrolledUntil)
-	}
-	return p.owner.PhaseExpirySnapshots(ctx, input)
+// Fixture-only lifecycle setup: the report tests do not exercise lifecycle commands.
+type expiryStudentFixture struct {
+	t  *testing.T
+	db *bun.DB
 }
 
-type expiryStudent struct {
-	ID            int64
-	Status        string
-	EnrolledFrom  string
-	EnrolledUntil string
+func newExpiryStudentFixture(t *testing.T, db *bun.DB) expiryStudentFixture {
+	t.Helper()
+	return expiryStudentFixture{t, db}
+}
+
+func (f expiryStudentFixture) set(ctx context.Context, ids []int64, values map[string]any) (count int64, err error) {
+	err = testpkg.WithTenantTx(f.t, ctx, f.db, testpkg.Tenant(f.t), func(ctx context.Context, tx bun.Tx) error {
+		query := tx.NewUpdate().TableExpr("users.students").Where("tenant_id = ?", testpkg.Tenant(f.t)).Where("id IN (?)", bun.List(ids))
+		for column, value := range values {
+			query = query.Set("? = ?", bun.Ident(column), value)
+		}
+		result, err := query.Exec(ctx)
+		if err != nil {
+			return err
+		}
+		count, err = result.RowsAffected()
+		return err
+	})
+	return count, err
+}
+
+func (f expiryStudentFixture) SetEnrollmentWindowByID(ctx context.Context, id int64, from timezone.Date, status usersModels.StudentStatus) error {
+	count, err := f.set(ctx, []int64{id}, map[string]any{"enrolled_from": from, "enrolled_until": nil, "status": string(status)})
+	if err == nil && count != 1 {
+		return fmt.Errorf("student fixture: expected one row, got %d", count)
+	}
+	return err
+}
+
+func (f expiryStudentFixture) SetEnrolledUntilByIDs(ctx context.Context, ids []int64, until *timezone.Date) (int64, error) {
+	return f.set(ctx, ids, map[string]any{"enrolled_until": until})
+}
+
+func (f expiryStudentFixture) UpdateStatus(ctx context.Context, id int64, status usersModels.StudentStatus) error {
+	count, err := f.set(ctx, []int64{id}, map[string]any{"status": string(status)})
+	if err == nil && count != 1 {
+		return fmt.Errorf("student fixture: expected one row, got %d", count)
+	}
+	return err
 }

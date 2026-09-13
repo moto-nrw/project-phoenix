@@ -34,6 +34,7 @@ func newChangeRequestServiceForTestWithAuthorizer(
 ) enrollmentService.ChangeRequestService {
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	return enrollmentService.NewChangeRequestService(enrollmentService.ChangeRequestServiceConfig{
+		Bookings:            requestTestBookingCommands(),
 		Requests:            repoFactory.Enrollment(),
 		Children:            repoFactory.Enrollment(),
 		Guardians:           repoFactory.Enrollment(),
@@ -100,6 +101,7 @@ func newChangeRequestServiceWithDecisionAndIntakeForTest(
 ) enrollmentService.ChangeRequestService {
 	t.Helper()
 	return enrollmentService.NewChangeRequestService(enrollmentService.ChangeRequestServiceConfig{
+		Bookings:            requestTestBookingCommands(),
 		Requests:            requests,
 		Children:            env.repos.Enrollment(),
 		Guardians:           env.repos.Enrollment(),
@@ -176,6 +178,7 @@ func TestNewChangeRequestService_ParentsURLRequired(t *testing.T) {
 
 	assert.PanicsWithValue(t, "PARENTS_URL is required", func() {
 		enrollmentService.NewChangeRequestService(enrollmentService.ChangeRequestServiceConfig{
+			Bookings:    requestTestBookingCommands(),
 			FrontendURL: "http://localhost:3000",
 		})
 	})
@@ -185,6 +188,7 @@ func TestChangeRequestService_CorrectApprovedChildData_RequiresReason(t *testing
 	t.Parallel()
 
 	svc := enrollmentService.NewChangeRequestService(enrollmentService.ChangeRequestServiceConfig{
+		Bookings:   requestTestBookingCommands(),
 		ParentsURL: "http://parents.localhost:3000",
 	})
 	_, err := svc.CorrectApprovedChildData(context.Background(), enrollmentService.CorrectApprovedChildDataInput{
@@ -1794,6 +1798,7 @@ func TestChangeRequestService_PreservesReadFailures(t *testing.T) {
 	} {
 		t.Run(tc.operation+"/"+tc.fail, func(t *testing.T) {
 			svc := enrollmentService.NewChangeRequestService(enrollmentService.ChangeRequestServiceConfig{
+				Bookings: requestTestBookingCommands(),
 				Requests: failingChangeRequestReader{ChangeRequestIntakeRequests: env.config.Requests.(enrollmentService.ChangeRequestIntakeRequests), fail: tc.fail},
 				Children: env.config.Children, Settings: env.settings,
 				Catalog: failingChangeRequestCatalog{IntakeCatalog: env.config.Catalog},

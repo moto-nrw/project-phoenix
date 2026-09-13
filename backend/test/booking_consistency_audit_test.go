@@ -14,7 +14,7 @@ import (
 func bookingConsistencyAuditTestRepository(t *testing.T) any {
 	t.Helper()
 	db := SetupTestDB(t)
-	repo := auditRepo.NewBookingConsistencyRepository(auditRepo.NewRuntime(db, AuditTenantIDFromContext), enrollmentTest.New())
+	repo := auditRepo.NewBookingConsistencyRepository(auditRepo.NewRuntime(db, AuditTenantIDFromContext), bookingAuditEnrollment{Module: enrollmentTest.New(), bookings: carePlanTest.NewOfferingBookings()})
 	// The audit reads the alumnus exclusion through the People Directory port
 	// (#2662); this package serves it straight from the table it may read.
 	repo.(interface {
@@ -24,6 +24,40 @@ func bookingConsistencyAuditTestRepository(t *testing.T) any {
 		BindCarePlan(auditRepo.CareOfferingDirectory)
 	}).BindCarePlan(testCareOfferingDirectory{query: carePlanTest.NewCarePlan(t, db)})
 	return repo
+}
+
+type bookingAuditEnrollment struct {
+	*enrollmentTest.Module
+	bookings careplan.OfferingBookingQueries
+}
+
+func (a bookingAuditEnrollment) ApprovedBookingOfferingLinks(ctx context.Context) ([]enrollmentTest.CareOfferingLink, error) {
+	children, err := a.CareExitApplicationLinks(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]int64, 0, len(children))
+	for _, child := range children {
+		if child.Status == enrollmentTest.ChildStatusApproved {
+			ids = append(ids, child.ID)
+		}
+	}
+	bookings, err := a.bookings.CareOfferingBookingHistory(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	rows := make([]enrollmentTest.CareOfferingLink, 0, len(bookings))
+	for _, booking := range bookings {
+		row := enrollmentTest.CareOfferingLink{ID: booking.ID, TenantID: booking.TenantID, RequestChildID: booking.RequestChildID, CareOfferingID: booking.CareOfferingID, SelectedDays: booking.EffectiveSelectedDays()}
+		if booking.ValidFrom != nil {
+			row.ValidFrom = new(enrollmentTest.Date(*booking.ValidFrom))
+		}
+		if booking.ValidUntil != nil {
+			row.ValidUntil = new(enrollmentTest.Date(*booking.ValidUntil))
+		}
+		rows = append(rows, row)
+	}
+	return rows, nil
 }
 
 type testCareOfferingDirectory struct{ query careplan.Query }

@@ -1,13 +1,12 @@
 package testutil
 
 import (
-	enrollmentFixture "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/uptrace/bun"
 )
 
-func NewEnrollmentOwner() *enrollmentFixture.Module {
-	return enrollmentFixture.New()
+func NewEnrollmentOwner() services.EnrollmentBookingFixture {
+	return services.NewEnrollmentBookingFixture()
 }
 
 // NewApprovedOfferingProjection wires the same owner projection used by the
