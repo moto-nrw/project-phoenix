@@ -47,7 +47,7 @@ import {
 import {
   PersonalInfoEditPanel,
   type PersonalInfoSaveDraft,
-} from "~/components/students/personal-info-form-modal";
+} from "~/components/students/personal-info-edit-panel";
 import { StudentRecordActions } from "~/components/students/student-record-actions";
 import { ParentMessagesCard } from "~/components/students/parent-messages-card";
 import { StudentEnrollmentsTab } from "~/components/students/student-enrollments-tab";

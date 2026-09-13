@@ -1022,3 +1022,93 @@ describe("bauart/no-edit-overlay", () => {
     expect(moved.output).toContain("bauart(no-edit-overlay)");
   });
 });
+
+describe("bauart/no-local-field-grid", () => {
+  it("rejects a hand-written <dt>/<dd> field grid", () => {
+    const { status, output } = lintSource(
+      `export function Probe({ name }: { name: string }) {
+        return (
+          <dl className="space-y-3">
+            <div>
+              <dt className="text-xs text-gray-500">Vorname</dt>
+              <dd className="text-sm text-gray-900">{name}</dd>
+            </div>
+          </dl>
+        );
+      }`,
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain("bauart(no-local-field-grid)");
+  });
+
+  it("accepts the kit's DataField and DataGrid", () => {
+    const { output } = lintSource(
+      `import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
+      export function Probe({ name }: { name: string }) {
+        return (
+          <DataGrid>
+            <DataField label="Vorname">{name}</DataField>
+          </DataGrid>
+        );
+      }`,
+    );
+
+    expect(output).not.toContain("bauart(no-local-field-grid)");
+  });
+
+  it("leaves the kit directory, tests and the other portals alone", () => {
+    const source = `export function Probe() {
+        return (
+          <dl>
+            <dt>Vorname</dt>
+            <dd>Mila</dd>
+          </dl>
+        );
+      }`;
+
+    for (const path of [
+      "src/components/ui/detail-modal-components.tsx",
+      "src/components/probe.test.tsx",
+      "src/app/operator/settings/page.tsx",
+      "src/components/parent/child-master-data.tsx",
+    ]) {
+      expect(lintSource(source, path).output).not.toContain(
+        "bauart(no-local-field-grid)",
+      );
+    }
+  });
+
+  it("tolerates exactly the baselined count per file and no more", () => {
+    // custom-allowance-editor.tsx carries one <dt> in the baseline.
+    const one = `export function Probe() {
+        return (
+          <dl>
+            <dt>Zuschlag</dt>
+            <dd>3 h</dd>
+          </dl>
+        );
+      }`;
+    expect(
+      lintSource(one, "src/components/staff/custom-allowance-editor.tsx")
+        .output,
+    ).not.toContain("bauart(no-local-field-grid)");
+
+    const two = `export function Probe() {
+        return (
+          <dl>
+            <dt>Zuschlag</dt>
+            <dd>3 h</dd>
+            <dt>Grund</dt>
+            <dd>Nachtdienst</dd>
+          </dl>
+        );
+      }`;
+    const grown = lintSource(
+      two,
+      "src/components/staff/custom-allowance-editor.tsx",
+    );
+    expect(grown.status).toBe(1);
+    expect(grown.output).toContain("bauart(no-local-field-grid)");
+  });
+});

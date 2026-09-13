@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
-import { PersonalInfoFormModal } from "./personal-info-form-modal";
+import { PersonalInfoEditPanel } from "./personal-info-edit-panel";
 import { ToastProvider } from "~/contexts/ToastContext";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
 
@@ -15,8 +15,8 @@ const baseStudent: ExtendedStudent = {
 };
 
 const meta = {
-  title: "students/PersonalInfoFormModal",
-  component: PersonalInfoFormModal,
+  title: "students/PersonalInfoEditPanel",
+  component: PersonalInfoEditPanel,
   decorators: [
     (Story) => (
       <ToastProvider>
@@ -28,16 +28,15 @@ const meta = {
     layout: "fullscreen",
   },
   args: {
-    isOpen: true,
     student: baseStudent,
-    onClose: () => {
+    onCancel: () => {
       // no-op for story
     },
     onSave: async () => {
       // no-op for story
     },
   },
-} satisfies Meta<typeof PersonalInfoFormModal>;
+} satisfies Meta<typeof PersonalInfoEditPanel>;
 
 export default meta;
 
@@ -53,11 +52,5 @@ export const WithNotes: Story = {
       supervisor_notes: "Braucht Unterstützung bei den Hausaufgaben",
       extra_info: "Abholung nur durch Erziehungsberechtigte",
     },
-  },
-};
-
-export const Closed: Story = {
-  args: {
-    isOpen: false,
   },
 };

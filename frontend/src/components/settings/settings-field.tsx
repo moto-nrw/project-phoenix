@@ -21,7 +21,7 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { BooleanField } from "./fields/boolean-field";
 import { NumberField } from "./fields/number-field";
-import { TimeField } from "./fields/time-field";
+import { SettingsTimeField } from "./fields/time-field";
 import { DateField } from "./fields/date-field";
 import { TextField } from "./fields/text-field";
 import { TextareaField } from "./fields/textarea-field";
@@ -1460,7 +1460,7 @@ function renderField(
       );
     case "time":
       return (
-        <TimeField
+        <SettingsTimeField
           ariaLabel={setting.label}
           value={toStr(localValue)}
           onChange={onLocalChange}
