@@ -26,16 +26,21 @@ export async function loadAccountRoleAssignment(
     authService.getRoles(),
   ]);
   return {
-    // lehrkraft ist bewusst NICHT wählbar: der Rollen-Tausch würde nur die
-    // auth-Rolle wechseln und das Betreuungsprofil samt aktiver
+    // Die Systemrolle lehrkraft ist bewusst NICHT wählbar: der Rollen-Tausch
+    // würde nur die auth-Rolle wechseln und das Betreuungsprofil samt aktiver
     // Gruppen-Aufsichten stehen lassen, genau die Kombination, die Einladung
-    // und Operator-Provisioning verbieten.
-    options: toAssignableRoleOptions(allRoles).filter(
-      (option) => option.systemName !== "lehrkraft",
+    // und Operator-Provisioning verbieten. Gleichnamige Rollen der Schule
+    // bleiben dagegen regulär wählbar.
+    options: toAssignableRoleOptions(
+      allRoles.filter(
+        (role) =>
+          role.isSystem !== true || role.name.toLowerCase() !== "lehrkraft",
+      ),
     ),
     currentRoleIds: accountRoles.map((role) => Number(role.id)),
     currentIsLehrkraft: accountRoles.some(
-      (role) => role.name.toLowerCase() === "lehrkraft",
+      (role) =>
+        role.isSystem === true && role.name.toLowerCase() === "lehrkraft",
     ),
   };
 }

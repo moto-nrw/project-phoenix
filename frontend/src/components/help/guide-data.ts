@@ -327,7 +327,8 @@ export const setupChapters: readonly GuideChapter[] = [
           "Um die Rolle einer bereits angelegten Person nachträglich zu ändern (z. B. jemanden zur Administratorin zu machen), die Person in der Personal-Liste antippen. Das öffnet die Personalakte; im Reiter `Konto` führt `Bearbeiten` zu Name, Position, Systemrolle und den Notizen der Leitung, ein `Speichern` unten übernimmt alles. Im Menü mit den drei Punkten oben rechts stehen `Löschen` sowie die Kontoaktionen `Zwei-Faktor-Authentifizierung verwalten` und `Betreuung verwalten`.",
           "Für ein ganzes Team unter `Personal` den `Import` nutzen: Vorlage herunterladen, ausfüllen und hochladen. Jede Zeile wird sofort mit Stammdaten (Personalnummer, Adresse, Vertragsdaten, Qualifikationen) angelegt. Steht eine E-Mail in der Zeile, geht zusätzlich eine Einladung heraus. Mit `Nur bestehende aktualisieren` ziehen Sie später Änderungen aus einer Liste nach; leere Zellen ändern nichts. Diese Auswahl sehen nur Personen, die Personalstammdaten pflegen und Mitarbeitende verwalten dürfen.",
         ],
-        screenshot: "Personalformular mit Vorname, Nachname, E-Mail und Rolle.",
+        screenshot:
+          "Personalakte im Reiter Konto mit Bearbeiten, Rolle und Notizen.",
         image: "/help/screens/mitarbeitende-anlegen.webp",
       },
     ],
@@ -1812,7 +1813,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Den gewünschten Bereich wählen: `Kinderdaten`, `Personal`, `Räume`, `Gruppen`, `Rollen`, `Berechtigungen` oder `Jahrgangswechsel`.",
           "Wenn NFC oder Tablets genutzt werden, zusätzlich `Aktivitäten` und `Geräte` öffnen.",
           "Die kurzen Listen, aus denen andere Seiten auswählen, liegen ebenfalls hier: `Terminkategorien` (ordnen Termine und Aktivitäten ein), `Planungsspuren` (bündeln Regeltermine farblich), `Schichtarten` (benennen die Aufgabe einer Schicht) und `Abwesenheitsarten` (eigene Namen für Abwesenheiten).",
-          "Einträge anlegen, bearbeiten oder prüfen. Bei `Kinderdaten`, `Personal` und `Räume` öffnet ein Tipp auf einen Eintrag die Seite des Kindes, der Person oder des Raums; `Zurück` führt in die Liste. Bei `Gruppen`, `Rollen`, `Aktivitäten` und `Geräten` steht der Eintrag rechts neben der Liste; bei einer Rolle liegen die Stammdaten und die Berechtigungen in zwei Reitern, `Bearbeiten` schaltet den offenen Reiter um und `Speichern` unten übernimmt die Änderung. `Berechtigungen` können Sie nur ansehen.",
+          "Einträge anlegen, bearbeiten oder prüfen. Bei `Kinderdaten`, `Personal` und `Räume` öffnet ein Tipp auf einen Eintrag die Seite des Kindes, der Person oder des Raums; `Zurück` führt in die Liste. Bei `Gruppen`, `Rollen`, `Aktivitäten` und `Geräten` steht der Eintrag rechts neben der Liste; bei einer Rolle liegen die Stammdaten und die Berechtigungen in zwei Reitern, `Bearbeiten` schaltet den offenen Reiter um und `Speichern` unten übernimmt die Änderung. Unter `Berechtigungen` sehen Sie alle verfügbaren Rechte. Die Rechte einer Rolle ändern Sie im Reiter `Berechtigungen` der Rolle.",
           "Unter `Exporte` liegen alle Listen der Schule gebündelt, siehe nächster Abschnitt.",
         ],
         screenshot: "Datenverwaltung mit allen Bereichen und Eintragszahlen.",

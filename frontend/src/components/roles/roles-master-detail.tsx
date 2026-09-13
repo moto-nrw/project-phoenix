@@ -38,6 +38,8 @@ interface RolesMasterDetailProps {
   selectedId: string | null;
   selectedRole: Role | null;
   detailLoading: boolean;
+  /** Darf den Berechtigungskatalog laden und Rollenrechte ändern. */
+  canManagePermissions?: boolean;
   onSelect: (id: string | null) => void;
   /** Speichert die im Detailbereich bearbeiteten Stammdaten. */
   onSaveRole: (data: Partial<Role>) => Promise<void>;
@@ -60,6 +62,7 @@ export function RolesMasterDetail({
   selectedId,
   selectedRole,
   detailLoading,
+  canManagePermissions = false,
   onSelect,
   onSaveRole,
   onDeleteClick,
@@ -94,6 +97,7 @@ export function RolesMasterDetail({
       key={selectedRole.id}
       role={selectedRole}
       loading={detailLoading}
+      canManagePermissions={canManagePermissions}
       onSaveRole={onSaveRole}
       onDeleteClick={onDeleteClick}
       onPermissionsSaved={onPermissionsSaved}
@@ -122,6 +126,7 @@ export function RolesMasterDetail({
 interface RoleDetailContentProps {
   role: Role;
   loading: boolean;
+  canManagePermissions: boolean;
   onSaveRole: (data: Partial<Role>) => Promise<void>;
   onDeleteClick: () => void;
   onPermissionsSaved: () => void | Promise<void>;
@@ -130,6 +135,7 @@ interface RoleDetailContentProps {
 function RoleDetailContent({
   role,
   loading,
+  canManagePermissions,
   onSaveRole,
   onDeleteClick,
   onPermissionsSaved,
@@ -156,8 +162,9 @@ function RoleDetailContent({
     setActiveTab(id);
   };
 
+  const canEditActiveTab = activeTab !== "permissions" || canManagePermissions;
   const headerActions =
-    role.isSystem || editing ? null : (
+    role.isSystem || editing || !canEditActiveTab ? null : (
       <>
         <Button
           type="button"

@@ -392,6 +392,9 @@ function KontoEditForm({
 }) {
   const assignment = editing.roleAssignment;
   const currentRoleId = assignment?.currentRoleIds[0];
+  const requiredNameMissing =
+    editing.canEditPersonFields &&
+    (!draft.firstName.trim() || !draft.lastName.trim());
   const roleValue =
     draft.roleId !== ""
       ? draft.roleId
@@ -526,7 +529,11 @@ function KontoEditForm({
         />
       </InfoSection>
 
-      <EditActions onCancel={onCancel} saving={saving} />
+      <EditActions
+        onCancel={onCancel}
+        saving={saving}
+        disabled={requiredNameMissing}
+      />
     </form>
   );
 }

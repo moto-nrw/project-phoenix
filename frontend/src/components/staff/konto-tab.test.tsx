@@ -156,7 +156,7 @@ describe("KontoTab", () => {
     });
   });
 
-  it("marks an empty name and keeps the edit state", async () => {
+  it("disables saving until both required name fields have content", () => {
     const editing = editingProps();
     render(<KontoTab teacher={teacher} editing={editing} />);
 
@@ -164,14 +164,7 @@ describe("KontoTab", () => {
     fireEvent.change(screen.getByLabelText("Nachname"), {
       target: { value: "  " },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
-
-    expect(
-      await screen.findByText("Nachname ist erforderlich."),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Bitte prüfen Sie die markierten Felder."),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
     expect(editing.onSave).not.toHaveBeenCalled();
     expect(screen.getByLabelText("Nachname")).toBeInTheDocument();
   });

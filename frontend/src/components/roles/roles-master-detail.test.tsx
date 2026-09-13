@@ -168,6 +168,7 @@ describe("RolesMasterDetail", () => {
         selectedId="1"
         selectedRole={customRole}
         detailLoading={false}
+        canManagePermissions
         onSelect={onSelect}
         onSaveRole={onSaveRole}
         onDeleteClick={onDeleteClick}
@@ -205,6 +206,7 @@ describe("RolesMasterDetail", () => {
         selectedId="1"
         selectedRole={customRole}
         detailLoading={false}
+        canManagePermissions
         onSelect={onSelect}
         onSaveRole={onSaveRole}
         onDeleteClick={onDeleteClick}

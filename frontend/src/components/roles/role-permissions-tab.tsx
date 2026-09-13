@@ -9,6 +9,7 @@ import { EditActions } from "~/components/ui/edit-actions";
 import { useFormError } from "~/components/ui/form-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
+import { SectionCard } from "~/components/ui/section-card";
 import { useToast } from "~/contexts/ToastContext";
 import { authService } from "~/lib/auth-service";
 import type { Permission, Role } from "~/lib/auth-helpers";
@@ -73,33 +74,36 @@ export function RolePermissionsTab({
   const [searchTerm, setSearchTerm] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
-  const fetchPermissions = useCallback(async () => {
-    try {
-      setLoading(true);
-      setLoadError(null);
-      const [all, assigned] = await Promise.all([
-        authService.getPermissions(),
-        authService.getRolePermissions(role.id),
-      ]);
-      const map: AssignedMap = {};
-      for (const permission of assigned) map[permission.id] = true;
-      setAllPermissions(all);
-      setAssignedMap(map);
-      setDraftMap(map);
-    } catch (error) {
-      logger.error("role_permissions_load_failed", {
-        role_id: role.id,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      setLoadError("Die Berechtigungen konnten nicht geladen werden.");
-    } finally {
-      setLoading(false);
-    }
-  }, [role.id]);
+  const fetchPermissions = useCallback(
+    async (includeCatalogue: boolean) => {
+      try {
+        setLoading(true);
+        setLoadError(null);
+        const assignedRequest = authService.getRolePermissions(role.id);
+        const [assigned, all] = includeCatalogue
+          ? await Promise.all([assignedRequest, authService.getPermissions()])
+          : [await assignedRequest, undefined];
+        const map: AssignedMap = {};
+        for (const permission of assigned) map[permission.id] = true;
+        setAllPermissions(all ?? assigned);
+        setAssignedMap(map);
+        setDraftMap(map);
+      } catch (error) {
+        logger.error("role_permissions_load_failed", {
+          role_id: role.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        setLoadError("Die Berechtigungen konnten nicht geladen werden.");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [role.id],
+  );
 
   useEffect(() => {
-    void fetchPermissions();
-  }, [fetchPermissions]);
+    void fetchPermissions(editing);
+  }, [editing, fetchPermissions]);
 
   // Der Entwurf beginnt beim Umschalten in den Bearbeiten-Zustand immer beim
   // gespeicherten Stand; ein Abbruch wirft die Kästchen zurück.
@@ -190,7 +194,7 @@ export function RolePermissionsTab({
         ),
       ]);
       toastSuccess("Berechtigungen gespeichert.");
-      await fetchPermissions();
+      await fetchPermissions(true);
       await onSaved();
     } catch (error) {
       logger.error("role_permissions_save_failed", {
@@ -215,7 +219,9 @@ export function RolePermissionsTab({
     return (
       <div className="space-y-4">
         <p className="text-sm text-gray-600">
-          {assignedCount} von {allPermissions.length} Berechtigungen zugewiesen.
+          {editing
+            ? `${assignedCount} von ${allPermissions.length} Berechtigungen zugewiesen.`
+            : `${assignedCount} Berechtigungen zugewiesen.`}
         </p>
         {viewGroups.length === 0 ? (
           <p className="text-sm text-gray-500">
@@ -224,7 +230,7 @@ export function RolePermissionsTab({
               : "Noch keine Berechtigungen zugewiesen. Mit „Bearbeiten“ oben rechts wählen Sie aus, was diese Rolle darf."}
           </p>
         ) : (
-          <div className="moto-content-surface divide-y divide-gray-100 rounded-xl border shadow-sm">
+          <SectionCard className="!p-0">
             {viewGroups.map(([resource, permissions]) => (
               <section key={resource} className="px-4 py-3">
                 <h4 className="text-sm font-semibold text-gray-900">
@@ -242,7 +248,7 @@ export function RolePermissionsTab({
                 </ul>
               </section>
             ))}
-          </div>
+          </SectionCard>
         )}
       </div>
     );

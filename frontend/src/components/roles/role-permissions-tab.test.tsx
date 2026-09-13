@@ -93,7 +93,7 @@ describe("RolePermissionsTab", () => {
     );
 
     expect(
-      await screen.findByText("1 von 3 Berechtigungen zugewiesen."),
+      await screen.findByText("1 Berechtigungen zugewiesen."),
     ).toBeInTheDocument();
     expect(screen.getByText("students:read")).toBeInTheDocument();
     expect(screen.queryByText("rooms:read")).not.toBeInTheDocument();
@@ -102,6 +102,7 @@ describe("RolePermissionsTab", () => {
     expect(
       screen.queryByRole("button", { name: "Speichern" }),
     ).not.toBeInTheDocument();
+    expect(mockGetPermissions).not.toHaveBeenCalled();
   });
 
   it("names the next step when nothing is assigned yet", async () => {
@@ -237,7 +238,7 @@ describe("RolePermissionsTab", () => {
   });
 
   it("reports when the permissions could not be loaded", async () => {
-    mockGetPermissions.mockRejectedValueOnce(new Error("offline"));
+    mockGetRolePermissions.mockRejectedValueOnce(new Error("offline"));
     render(
       <RolePermissionsTab
         role={role}

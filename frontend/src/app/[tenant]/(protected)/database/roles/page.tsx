@@ -20,6 +20,7 @@ import { createCrudService } from "@/lib/database/service-factory";
 import { rolesConfig } from "@/components/database/configs/roles.config";
 import type { Role } from "@/lib/auth-helpers";
 import { getRoleDisplayName } from "@/lib/auth-helpers";
+import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { RolesMasterDetail } from "@/components/roles/roles-master-detail";
 import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -65,12 +66,14 @@ function RolesPageContent() {
 
   const { success: toastSuccess, error: toastError } = useToast();
 
-  const { status } = useSession({
+  const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
       redirect("/");
     },
   });
+  const canManagePermissions =
+    isAdmin(session) || hasPermission(session, "roles:manage");
 
   const service = useMemo(() => createCrudService(rolesConfig), []);
 
@@ -445,6 +448,7 @@ function RolesPageContent() {
             selectedId={selectedId}
             selectedRole={selectedRole}
             detailLoading={detailLoading}
+            canManagePermissions={canManagePermissions}
             onSelect={handleSelectRole}
             onSaveRole={handleUpdateRole}
             onDeleteClick={handleDeleteClick}
