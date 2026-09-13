@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronRight } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { DetailLoadingSpinner } from "~/components/database/detail-loading-spinner";
@@ -73,9 +73,11 @@ export function RolePermissionsTab({
   const [saveError, setSaveError] = useFormError();
   const [searchTerm, setSearchTerm] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const latestPermissionRequest = useRef(0);
 
   const fetchPermissions = useCallback(
     async (includeCatalogue: boolean) => {
+      const request = ++latestPermissionRequest.current;
       try {
         setLoading(true);
         setLoadError(null);
@@ -83,19 +85,21 @@ export function RolePermissionsTab({
         const [assigned, all] = includeCatalogue
           ? await Promise.all([assignedRequest, authService.getPermissions()])
           : [await assignedRequest, undefined];
+        if (request !== latestPermissionRequest.current) return;
         const map: AssignedMap = {};
         for (const permission of assigned) map[permission.id] = true;
         setAllPermissions(all ?? assigned);
         setAssignedMap(map);
         setDraftMap(map);
       } catch (error) {
+        if (request !== latestPermissionRequest.current) return;
         logger.error("role_permissions_load_failed", {
           role_id: role.id,
           error: error instanceof Error ? error.message : String(error),
         });
         setLoadError("Die Berechtigungen konnten nicht geladen werden.");
       } finally {
-        setLoading(false);
+        if (request === latestPermissionRequest.current) setLoading(false);
       }
     },
     [role.id],

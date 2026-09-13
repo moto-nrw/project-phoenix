@@ -1,5 +1,11 @@
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Permission, Role } from "~/lib/auth-helpers";
 import { RolePermissionsTab } from "./role-permissions-tab";
@@ -119,6 +125,45 @@ describe("RolePermissionsTab", () => {
     expect(
       await screen.findByText(/Noch keine Berechtigungen zugewiesen/),
     ).toBeInTheDocument();
+  });
+
+  it("keeps the catalogue when the earlier read-only request finishes late", async () => {
+    let resolveReadOnly: (permissions: Permission[]) => void = () => undefined;
+    mockGetRolePermissions
+      .mockImplementationOnce(
+        () =>
+          new Promise<Permission[]>((resolve) => {
+            resolveReadOnly = resolve;
+          }),
+      )
+      .mockResolvedValueOnce([allPermissions[0]!]);
+    const { rerender } = render(
+      <RolePermissionsTab
+        role={role}
+        editing={false}
+        onSaved={onSaved}
+        onCancelEdit={onCancelEdit}
+      />,
+    );
+
+    rerender(
+      <RolePermissionsTab
+        role={role}
+        editing
+        onSaved={onSaved}
+        onCancelEdit={onCancelEdit}
+      />,
+    );
+
+    expect(
+      await screen.findByText("1 von 3 Berechtigungen ausgewählt."),
+    ).toBeInTheDocument();
+
+    await act(async () => resolveReadOnly([allPermissions[0]!]));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("rooms:read")).toBeInTheDocument();
+    });
   });
 
   it("saves only the differences with one save button", async () => {
