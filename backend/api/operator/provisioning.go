@@ -476,7 +476,7 @@ func (rs *ProvisioningResource) ListSystemRoles(w http.ResponseWriter, r *http.R
 		common.RenderError(w, r, ProvisioningErrorRenderer(err))
 		return
 	}
-	common.Respond(w, r, http.StatusOK, roleOptions(roles), "System roles retrieved successfully")
+	common.Respond(w, r, http.StatusOK, platformSvc.OperatorRoleOptions(roles), "System roles retrieved successfully")
 }
 
 func jsonIDPointer(id *common.JSONID) *int64 {

@@ -8,7 +8,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
 
@@ -79,7 +78,7 @@ func (rs *ProvisioningResource) ListAssignableSchoolRoles(w http.ResponseWriter,
 		common.RenderError(w, r, accountTenantAccessErrorRenderer(err))
 		return
 	}
-	common.Respond(w, r, http.StatusOK, roleOptions(roles), "Assignable school roles retrieved successfully")
+	common.Respond(w, r, http.StatusOK, platformSvc.OperatorRoleOptions(roles), "Assignable school roles retrieved successfully")
 }
 
 // GrantAccountTenantAccess handles POST /operator/accounts/{accountId}/tenants.
@@ -136,23 +135,6 @@ func (rs *ProvisioningResource) UpdateAccountTenantRole(w http.ResponseWriter, r
 		return
 	}
 	common.Respond(w, r, http.StatusOK, entries, "School role updated successfully")
-}
-
-type roleOption struct {
-	ID       int64  `json:"id,string"`
-	Name     string `json:"name"`
-	IsSystem bool   `json:"is_system"`
-}
-
-func roleOptions(roles []*authModels.Role) []roleOption {
-	options := make([]roleOption, 0, len(roles))
-	for _, role := range roles {
-		if role == nil {
-			continue
-		}
-		options = append(options, roleOption{ID: role.ID, Name: role.Name, IsSystem: role.IsSystem})
-	}
-	return options
 }
 
 // RevokeAccountTenantAccess handles DELETE /operator/accounts/{accountId}/tenants/{tenantId}.
