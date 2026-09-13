@@ -1112,3 +1112,271 @@ describe("bauart/no-local-field-grid", () => {
     expect(grown.output).toContain("bauart(no-local-field-grid)");
   });
 });
+
+describe("bauart/no-own-skeleton", () => {
+  it("rejects a hand-written pulse block on a gray fill", () => {
+    const { status, output } = lintSource(
+      `export function Probe() {
+        return <div className="h-4 w-24 animate-pulse rounded bg-gray-200" />;
+      }`,
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain("bauart(no-own-skeleton)");
+  });
+
+  it("sees through a template class list", () => {
+    const { status, output } = lintSource(
+      `export function Probe({ width }: { width: string }) {
+        return (
+          <div className={\`ml-3 h-4 \${width} animate-pulse rounded bg-gray-200\`} />
+        );
+      }`,
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain("bauart(no-own-skeleton)");
+  });
+
+  it("rejects gray fills with Tailwind variants and opacity", () => {
+    for (const className of [
+      "animate-pulse bg-gray-200/50",
+      "animate-pulse hover:bg-gray-200",
+      "animate-pulse dark:bg-gray-700",
+    ]) {
+      const { status, output } = lintSource(
+        `export function Probe() {
+          return <div className="${className}" />;
+        }`,
+      );
+
+      expect(status).toBe(1);
+      expect(output).toContain("bauart(no-own-skeleton)");
+    }
+  });
+
+  it("lets a pulsing live indicator through", () => {
+    const source = `export function Probe({ occupied }: { occupied: boolean }) {
+        return (
+          <>
+            <span className={occupied ? "bg-moto-red animate-pulse" : "bg-moto-green"} />
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+          </>
+        );
+      }`;
+
+    expect(lintSource(source).output).not.toContain("bauart(no-own-skeleton)");
+  });
+
+  it("lets the kit skeleton and its consumers through", () => {
+    const source = `import { Skeleton } from "~/components/ui/skeleton";
+      export function Probe() {
+        return <Skeleton className="h-4 w-24 bg-gray-700" />;
+      }`;
+
+    expect(lintSource(source).output).not.toContain("bauart(no-own-skeleton)");
+  });
+
+  it("exempts the kit, tests, stories and the other portals", () => {
+    const source = `export function Probe() {
+        return <div className="h-4 animate-pulse rounded bg-gray-200" />;
+      }`;
+
+    for (const path of [
+      "src/components/ui/skeleton.tsx",
+      "src/components/probe.test.tsx",
+      "src/components/probe.stories.tsx",
+      "src/app/parents/page.tsx",
+      "src/components/school/room-board.tsx",
+    ]) {
+      expect(lintSource(source, path).output).not.toContain(
+        "bauart(no-own-skeleton)",
+      );
+    }
+  });
+
+  it("tolerates exactly the baselined count per file and no more", () => {
+    // birthday-list.tsx carries one pulse block in the baseline.
+    const one = `export function Probe() {
+        return <div className="h-12 animate-pulse rounded-xl bg-gray-100" />;
+      }`;
+    expect(
+      lintSource(one, "src/components/dashboard/birthday-list.tsx").output,
+    ).not.toContain("bauart(no-own-skeleton)");
+
+    const two = `export function Probe() {
+        return (
+          <>
+            <div className="h-12 animate-pulse rounded-xl bg-gray-100" />
+            <div className="h-12 animate-pulse rounded-xl bg-gray-100" />
+          </>
+        );
+      }`;
+    const grown = lintSource(two, "src/components/dashboard/birthday-list.tsx");
+    expect(grown.status).toBe(1);
+    expect(grown.output).toContain("bauart(no-own-skeleton)");
+  });
+});
+
+describe("bauart/no-raw-status-hex", () => {
+  it("rejects a hex color inside an arbitrary-value class", () => {
+    const { status, output } = lintSource(
+      `export function Probe() {
+        return <p className="mt-1 text-sm text-[#8A5600]">Offen</p>;
+      }`,
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain("bauart(no-raw-status-hex)");
+    expect(output).toContain("#8A5600");
+  });
+
+  it("rejects a hex constant and a template chunk", () => {
+    const { status, output } = lintSource(
+      `const FALLBACK = "#E5E7EB";
+      export function Probe({ tone }: { tone: string }) {
+        return (
+          <div className={\`border-[#F78C10]/30 \${tone}\`} style={{ background: FALLBACK }} />
+        );
+      }`,
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain("#E5E7EB");
+    expect(output).toContain("#F78C10");
+  });
+
+  it("flags a bare three-digit hex but not an issue reference", () => {
+    const short = lintSource(
+      `export const MESSAGE_STYLE = { color: "#666" };`,
+      "src/components/probe.ts",
+    );
+    expect(short.status).toBe(1);
+    expect(short.output).toContain("bauart(no-raw-status-hex)");
+
+    const reference = lintSource(
+      `export const LABEL = "Siehe Rückfrage #405 und #3118";
+      export const ANCHOR = "#section-2";`,
+      "src/components/probe.ts",
+    );
+    expect(reference.output).not.toContain("bauart(no-raw-status-hex)");
+  });
+
+  it("flags short hex colors in arbitrary-value classes", () => {
+    for (const color of ["#666", "#abcd"]) {
+      const { status, output } = lintSource(
+        `export function Probe() {
+          return <p className="text-[${color}]">Offen</p>;
+        }`,
+      );
+
+      expect(status).toBe(1);
+      expect(output).toContain("bauart(no-raw-status-hex)");
+      expect(output).toContain(color);
+    }
+  });
+
+  it("flags short hex colors in CSS declarations", () => {
+    for (const [declaration, color] of [
+      ["border: 1px solid #666", "#666"],
+      ["color: #abcd", "#abcd"],
+    ]) {
+      const { status, output } = lintSource(
+        `export const STYLE = "${declaration}";`,
+      );
+
+      expect(status).toBe(1);
+      expect(output).toContain("bauart(no-raw-status-hex)");
+      expect(output).toContain(color);
+    }
+  });
+
+  it("exempts the token source, the manifest, test support and the other portals", () => {
+    const source = `export const COLOR = "#83CD2D";`;
+
+    for (const path of [
+      "src/lib/location-helper.ts",
+      "src/lib/favicon-variants.ts",
+      "src/app/global-error.tsx",
+      "src/test/fixtures/rooms.ts",
+      "src/components/ui/status-badge.tsx",
+      "src/components/probe.test.ts",
+      "src/app/operator/tenants/page.tsx",
+      "src/components/parent/child-card.tsx",
+    ]) {
+      expect(lintSource(source, path).output).not.toContain(
+        "bauart(no-raw-status-hex)",
+      );
+    }
+  });
+
+  it("tolerates exactly the baselined count per file and no more", () => {
+    // timetable-style.ts carries one hex literal in the baseline.
+    const one = `export const EDGE = "#D1D5DB";`;
+    expect(
+      lintSource(one, "src/components/timetable/timetable-style.ts").output,
+    ).not.toContain("bauart(no-raw-status-hex)");
+
+    const two = `export const EDGE = "#D1D5DB";
+      export const FILL = "#F3F4F6";`;
+    const grown = lintSource(
+      two,
+      "src/components/timetable/timetable-style.ts",
+    );
+    expect(grown.status).toBe(1);
+    expect(grown.output).toContain("bauart(no-raw-status-hex)");
+  });
+});
+
+describe("bauart/no-disabled-menu-item", () => {
+  it("rejects a menu entry that is disabled by literal", () => {
+    const { status, output } = lintSource(
+      `import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+      export function Probe() {
+        return (
+          <OverflowMenu
+            items={[
+              { label: "Exportieren", onClick: () => {}, disabled: true },
+              { label: "Hilfe", href: "/help", disabled: true },
+            ]}
+          />
+        );
+      }`,
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain("bauart(no-disabled-menu-item)");
+  });
+
+  it("lets a state-bound entry and a select placeholder through", () => {
+    const source = `export function Probe({ busy }: { busy: boolean }) {
+        const items = [
+          { label: "Exportieren", onClick: () => {}, disabled: busy },
+          { label: "Drucken", onClick: () => {}, disabled: !busy },
+        ];
+        const options = [{ value: "", label: "Bitte wählen", disabled: true }];
+        return <div data-items={items.length} data-options={options.length} />;
+      }`;
+
+    expect(lintSource(source).output).not.toContain(
+      "bauart(no-disabled-menu-item)",
+    );
+  });
+
+  it("exempts the kit, tests and the other portals", () => {
+    const source = `export const items = [
+        { label: "Exportieren", onClick: () => {}, disabled: true },
+      ];`;
+
+    for (const path of [
+      "src/components/ui/page-header/OverflowMenu.stories.tsx",
+      "src/components/probe.test.tsx",
+      "src/app/school/page.tsx",
+      "src/components/operator/tenant-menu.tsx",
+    ]) {
+      expect(lintSource(source, path).output).not.toContain(
+        "bauart(no-disabled-menu-item)",
+      );
+    }
+  });
+});

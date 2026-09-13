@@ -266,13 +266,45 @@ bekommt eine shrink-only Baseline analog zum bestehenden
    `title` einer `Modal`/`ChoiceModal`/`FormModal`) auf „löschen“ /
    „entfernen“ und jeden `window.confirm`-Aufruf.
 4. `bauart/no-own-skeleton` — kein eigenes Seiten-Skelett neben den
-   `TenantPage`-Zuständen.
+   `TenantPage`-Zuständen. **Umgesetzt** (`scripts/oxlint-plugin-bauart.mjs`,
+   #3118): ein `className`, das `animate-pulse` zusammen mit einer grauen
+   Fläche (`bg-gray-*`, auch mit Variante oder Transparenz) trägt, ist ein
+   handgebauter Platzhalter und fällt durch; der einzige Platzhalter ist das
+   Kit-`Skeleton` bzw. die Bausteine aus `ui/page-skeletons`, eingehängt über
+   `TenantPage.loading`. Ein
+   pulsierender Live-Punkt (belegter Raum, „nähert sich“) hat keine graue
+   Fläche und passiert. Shrink-only Baseline je Datei für den Bestand
+   (Startseiten-Bausteine, Seitenleiste, Räume); Operator-, Eltern- und
+   Schul-Portal sind nicht im Scope. Ein Skelett, das aus Kit-Bausteinen
+   zusammengesetzt, aber neben `TenantPage` statt in `loading` gerendert
+   wird, erkennt die Ratsche nicht — das gehört ins Review.
 5. `bauart/no-raw-status-hex` — keine rohen Hexwerte für Status- und
-   Planungsfarben.
+   Planungsfarben. **Umgesetzt** (`scripts/oxlint-plugin-bauart.mjs`,
+   #3118): jedes String-Literal und jeder Template-Abschnitt mit einem
+   CSS-Hexwert (`#83CD2D`, `text-[#4070C8]`, `text-[#666]`, ein nacktes
+   `#abcd`) fällt durch; ein Literal zählt einmal. Ausgenommen sind die
+   Quelle der Token selbst (`lib/location-helper.ts`), das Web-App-Manifest
+   (`lib/favicon-variants.ts`) und `app/global-error.tsx`, das ohne
+   Stylesheet rendert. Shrink-only Baseline je Datei für den Bestand
+   (Raumkategorien und Planungsflächen in `lib/`, Hilfe-Seiten, einzelne
+   Klassenliterale); Operator-, Eltern- und Schul-Portal sowie `src/test/`
+   sind nicht im Scope.
 6. `bauart/no-disabled-menu-item` — keine dauerhaft deaktivierten
+   Menüeinträge. **Umgesetzt** (`scripts/oxlint-plugin-bauart.mjs`,
+   hard-zero, #3118): ein Menüeintrag (`label` plus `onClick` oder `href`)
+   mit dem Literal `disabled: true` fällt durch; `disabled: busy` ist ein
+   Zustand und passiert. Auswahlfeld-Optionen (`value` + `label`) sind keine
    Menüeinträge.
 7. Erweiterung von `tenant-page-scaffold.test.ts`: jede Seite deklariert ihre
-   Bauart, und die Zuordnung ist vollständig.
+   Bauart, und die Zuordnung ist vollständig. **Umgesetzt** (#3118): die
+   Zuordnung liegt zentral im Test (`BAUART`), damit eine neue Seite ohne
+   Eintrag und ein Eintrag ohne Seite gleichermaßen durchfallen. Eine Route
+   mit dynamischem Segment (`[id]`) ist immer eine Objektansicht. Seiten,
+   die in keine der vier Bauarten passen, stehen mit Begründung in
+   `OHNE_BAUART`: Weiterleitungen alter Adressen (müssen `redirect`
+   enthalten), die Startseite aus Bausteinen (#2180), der Index der
+   Datenverwaltung und die Export-Übersicht. Diese Liste ist shrink-only;
+   wer eine Seite hinzufügen will, ändert diesen Spec.
 8. `bauart/no-unconfirmed-destructive-click` — kein Löschen, Entfernen,
    Archivieren, Zurücknehmen, Widerrufen oder Stornieren direkt aus dem
    Klick. **Umgesetzt** (`scripts/oxlint-plugin-bauart.mjs`, hard-zero,

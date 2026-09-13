@@ -1,6 +1,6 @@
 // Bauarten ratchet (BAUARTEN-SPEC.md, Abschnitt „Ratschen“).
 //
-// Five rules; a production match beyond the tolerated remainder fails
+// Twelve rules; a production match beyond the tolerated remainder fails
 // `pnpm run check`:
 //
 //   bauart/one-delete-confirm — deletion is confirmed by ConfirmDeleteModal
@@ -98,6 +98,41 @@
 //                               per-file baseline (FIELD_GRID_BASELINE) for the
 //                               remainder the issue distributes over follow-up
 //                               PRs; tenant portal only.
+//
+//   bauart/no-own-skeleton — loading comes from `TenantPage.loading` with
+//                               the kit skeletons (ui/skeleton,
+//                               ui/page-skeletons); no hand-written pulse
+//                               block (Bauart 1 Regel 7, Bauart 3 Regel 5,
+//                               issue #3118). The rule flags a `className`
+//                               whose static chunks carry `animate-pulse`
+//                               together with a neutral `bg-gray-*` fill —
+//                               the silhouette of a placeholder. A pulsing
+//                               live dot (occupied room, „nähert sich“) has
+//                               no gray fill and passes. Shrink-only per-file
+//                               baseline (OWN_SKELETON_BASELINE); tenant
+//                               portal only.
+//
+//   bauart/no-raw-status-hex — status and planning colors come from
+//                               LOCATION_COLORS / MOTO_COLOR_PALETTE or a
+//                               `moto-*` class, also as fallback (Querregel
+//                               Farbe, issue #3118). The rule flags every
+//                               string literal or template chunk holding a
+//                               CSS hex color (`#83CD2D`, `text-[#4070C8]`,
+//                               a bare `#666`); one literal counts once.
+//                               The token source itself, the web manifest
+//                               and global-error.tsx (no stylesheet at that
+//                               boundary) are exempt by name
+//                               (HEX_TOKEN_SOURCES). Shrink-only per-file
+//                               baseline (RAW_HEX_BASELINE); tenant portal
+//                               only, src/test/ excluded.
+//
+//   bauart/no-disabled-menu-item — an action that does not exist is not in
+//                               the menu (Bauart 2 Regel 7, issue #3118).
+//                               The rule flags a menu entry object (`label`
+//                               plus `onClick` or `href`) whose `disabled`
+//                               is the literal `true`; a computed
+//                               `disabled: busy` is a state and passes.
+//                               Hard-zero; tenant portal only.
 //
 // Files under src/components/ui/ are exempt (ConfirmDeleteModal is itself
 // built on Modal and owns the final destructive button), as are tests and
@@ -1756,6 +1791,250 @@ const noLocalFieldGrid = {
   },
 };
 
+// --- bauart/no-own-skeleton ---------------------------------------------------
+
+// A loading placeholder is `animate-pulse` on a neutral gray fill — exactly
+// what ui/skeleton renders. `animate-pulse` alone is not enough: the portal
+// also pulses a live dot (occupied room, „nähert sich“ status, running
+// session), and those are indicators, not skeletons.
+const PULSE_CLASS_RE = /(?:^|\s)animate-pulse(?:\s|$)/;
+const PLACEHOLDER_FILL_RE =
+  /(?:^|\s)(?:[^\s:]+:)*bg-gray-\d{2,3}(?:\/[^\s]+)?(?=\s|$)/;
+
+// Shrink-only per-file tolerance: the number of hand-written pulse blocks a
+// file may still carry. Keys are repo-relative posix paths under src/ (#3118).
+const OWN_SKELETON_BASELINE = new Map(
+  Object.entries({
+    // Eigene Seiten-Skelette neben TenantPage.loading, noch auf
+    // ui/page-skeletons (SkeletonRegion, CardGridSkeleton, ListSkeleton)
+    // oder das Kit-`Skeleton` umzuziehen (#3118, Folge-PRs über #3119).
+    "src/app/[tenant]/(protected)/database/page.tsx": 1,
+    "src/app/[tenant]/(protected)/rooms/page-skeleton.tsx": 6,
+    "src/components/rooms/room-detail-content.tsx": 2,
+    // Startseiten-Bausteine (#2180): jeder Block pulst seine eigenen Zeilen.
+    "src/components/home/day-flow-block.tsx": 2,
+    "src/components/home/home-block-content.tsx": 2,
+    "src/components/home/my-day-block.tsx": 2,
+    "src/components/home/my-group-block.tsx": 3,
+    "src/components/home/reminders-block.tsx": 2,
+    "src/components/home/staff-notices-block.tsx": 3,
+    // Seitenleiste und Geburtstagsliste: Platzhalter außerhalb einer Seite.
+    "src/components/dashboard/birthday-list.tsx": 1,
+    "src/components/dashboard/sidebar-accordion-section.tsx": 3,
+    "src/components/dashboard/sidebar.tsx": 2,
+  }),
+);
+
+const noOwnSkeleton = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Loading placeholders come from ui/skeleton and ui/page-skeletons via TenantPage.loading; no hand-written animate-pulse block outside the kit.",
+    },
+    messages: {
+      ownSkeleton:
+        "Eigenes Ladeskelett (`animate-pulse` auf grauer Fläche): Laden kommt aus `TenantPage.loading` mit `Skeleton`/`SkeletonRegion` aus ui/page-skeletons (BAUARTEN-SPEC Bauart 1 Regel 7, Bauart 3 Regel 5, #3118). Die Baseline in scripts/oxlint-plugin-bauart.mjs ist shrink-only.",
+    },
+    schema: [],
+  },
+  create(context) {
+    if (isExempt(context)) return {};
+    const key = fileKey(context);
+    if (OTHER_PORTAL_RE.test(key)) return {};
+    let tolerated = OWN_SKELETON_BASELINE.get(key) ?? 0;
+
+    return {
+      JSXAttribute(node) {
+        if (
+          node.name?.type !== "JSXIdentifier" ||
+          node.name.name !== "className" ||
+          !node.value
+        ) {
+          return;
+        }
+        const chunks = [];
+        collectStaticStrings(node.value, chunks);
+        const classes = chunks.join(" ");
+        if (!PULSE_CLASS_RE.test(classes) || !PLACEHOLDER_FILL_RE.test(classes))
+          return;
+        if (tolerated > 0) {
+          tolerated -= 1;
+          return;
+        }
+        context.report({ node, messageId: "ownSkeleton" });
+      },
+    };
+  },
+};
+
+// --- bauart/no-raw-status-hex --------------------------------------------------
+
+// A CSS hex color in a string: `#83CD2D`, `#83cd2d80`, or a bare `#666`. Six
+// and eight digits match anywhere in the string (`text-[#4070C8]`,
+// `border-[#F78C10]/30`). Three and four digits match as a bare value, in a
+// CSS color declaration, or in a Tailwind arbitrary value (`text-[#666]`),
+// so an issue reference like „#405“ in a label stays out.
+const HEX_COLOR_RE = /#[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?(?![0-9a-zA-Z])/;
+const SHORT_HEX_COLOR_RE = /#[0-9a-fA-F]{3,4}(?![0-9a-zA-Z])/g;
+const CSS_COLOR_DECLARATION_PREFIX_RE =
+  /(?:^|[;{])\s*(?:accent-color|background(?:-color)?|border(?:-[a-z-]+)?|box-shadow|caret-color|color|column-rule-color|fill|outline(?:-color)?|stroke|text(?:-decoration)?-color|text-shadow)\s*:[^;{}]*$/;
+
+function findShortHexColor(text) {
+  for (const match of text.matchAll(SHORT_HEX_COLOR_RE)) {
+    const start = match.index ?? 0;
+    const end = start + match[0].length;
+    if (
+      (start === 0 && end === text.length) ||
+      (text[start - 1] === "[" && text[end] === "]") ||
+      CSS_COLOR_DECLARATION_PREFIX_RE.test(text.slice(0, start))
+    ) {
+      return match[0];
+    }
+  }
+  return null;
+}
+
+// Files that define or must emit raw hex by construction. Not a baseline:
+// these do not shrink.
+const HEX_TOKEN_SOURCES = new Set([
+  // Die Quelle der Farbwerte selbst (LOCATION_COLORS, MOTO_COLOR_PALETTE).
+  "src/lib/location-helper.ts",
+  // Web-App-Manifest: theme_color/background_color sind Hex per Spezifikation.
+  "src/lib/favicon-variants.ts",
+  // Ersetzt das Root-Layout samt Stylesheet; es gibt dort keine Klassen.
+  "src/app/global-error.tsx",
+]);
+const TEST_SUPPORT_DIR_RE = /(?:^|\/)src\/test\//;
+
+// Shrink-only per-file tolerance: the number of hex color strings a file may
+// still carry. Keys are repo-relative posix paths under src/ (#3118).
+const RAW_HEX_BASELINE = new Map(
+  Object.entries({
+    // Status- und Planungsfarben als Klassenliteral oder Konstante, noch auf
+    // LOCATION_COLORS / MOTO_COLOR_PALETTE / moto-*-Klassen umzuziehen
+    // (#3118, Folge-PRs über #3119).
+    // Ein Eintrag zählt je String-Literal: `border-[#83CD2D] bg-[#83CD2D]/5`
+    // ist ein Treffer, nicht zwei.
+    "src/components/auth/auth-shell.tsx": 1,
+    "src/components/auth/mfa-admin-override-modal.tsx": 2,
+    "src/components/auth/reset-password-page-content.tsx": 2,
+    "src/components/enrollment/admin-enrollment-detail.tsx": 2,
+    "src/components/enrollment/enrollment-status-view.tsx": 1,
+    "src/components/guardians/guardian-contact-actions.tsx": 1,
+    "src/components/staff/abwesenheiten-tab.tsx": 2,
+    "src/components/staff/arbeitszeitmodell-tab.tsx": 1,
+    "src/components/staff/dokumente-tab.tsx": 2,
+    "src/components/staff/staff-session-table.tsx": 1,
+    "src/components/students/dokumente-tab.tsx": 2,
+    "src/components/timetable/instance-detail-modal.tsx": 1,
+    "src/components/timetable/tagesplan-view.tsx": 1,
+    "src/components/timetable/timetable-style.ts": 1,
+    "src/contexts/ToastContext.tsx": 2,
+    // Farbtabellen neben LOCATION_COLORS: Raumkategorien und die hellen
+    // Planungsflächen gehören in MOTO_COLOR_PALETTE.
+    "src/lib/room-helpers.ts": 5,
+    "src/lib/timetable-helpers.ts": 3,
+    // Hilfe-Seiten (unter app/help, darum im Scope): eigene Farbwelt der
+    // NFC-Anleitung und der Anleitungs-Bauteile.
+    "src/app/help/nfc/erste-schritte/page.tsx": 4,
+    "src/components/help/guide-components.tsx": 3,
+  }),
+);
+
+const noRawStatusHex = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Status and planning colors come from LOCATION_COLORS / MOTO_COLOR_PALETTE or moto-* classes; no raw hex value outside src/lib/location-helper.ts.",
+    },
+    messages: {
+      rawHex:
+        "Roher Hexwert „{{value}}“: Farbe bedeutet Status und kommt aus `LOCATION_COLORS`/`MOTO_COLOR_PALETTE` oder einer `moto-*`-Klasse, auch als Fallback (BAUARTEN-SPEC Querregel Farbe, #3118). Die Baseline in scripts/oxlint-plugin-bauart.mjs ist shrink-only.",
+    },
+    schema: [],
+  },
+  create(context) {
+    if (isExempt(context)) return {};
+    const key = fileKey(context);
+    if (OTHER_PORTAL_RE.test(key) || TEST_SUPPORT_DIR_RE.test(key)) return {};
+    if (HEX_TOKEN_SOURCES.has(key)) return {};
+    let tolerated = RAW_HEX_BASELINE.get(key) ?? 0;
+
+    function check(node, text) {
+      const match = HEX_COLOR_RE.exec(text)?.[0] ?? findShortHexColor(text);
+      if (!match) return;
+      if (tolerated > 0) {
+        tolerated -= 1;
+        return;
+      }
+      context.report({ node, messageId: "rawHex", data: { value: match } });
+    }
+
+    return {
+      Literal(node) {
+        if (typeof node.value === "string") check(node, node.value);
+      },
+      TemplateElement(node) {
+        check(node, node.value.raw);
+      },
+    };
+  },
+};
+
+// --- bauart/no-disabled-menu-item ---------------------------------------------
+
+// A menu entry is an object with a `label` and a target (`onClick` or `href`);
+// that is the shape OverflowMenu (and the header kebab) consume. `disabled:
+// true` as a literal is a placeholder that never becomes clickable; a
+// computed `disabled: busy` is a state and passes.
+function objectProperty(node, name) {
+  return node.properties.find(
+    (property) =>
+      property.type === "Property" &&
+      !property.computed &&
+      ((property.key.type === "Identifier" && property.key.name === name) ||
+        (property.key.type === "Literal" && property.key.value === name)),
+  );
+}
+
+const noDisabledMenuItem = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "No permanently disabled menu entry: an action that does not exist is not in the menu.",
+    },
+    messages: {
+      disabledMenuItem:
+        "Dauerhaft deaktivierter Menüeintrag: Was es nicht gibt, steht nicht im Menü (BAUARTEN-SPEC Bauart 2 Regel 7, #3118). Den Eintrag weglassen oder `disabled` an einen Zustand binden.",
+    },
+    schema: [],
+  },
+  create(context) {
+    if (isExempt(context)) return {};
+    if (OTHER_PORTAL_RE.test(fileKey(context))) return {};
+
+    return {
+      ObjectExpression(node) {
+        const disabled = objectProperty(node, "disabled");
+        if (
+          !disabled ||
+          disabled.value?.type !== "Literal" ||
+          disabled.value.value !== true
+        ) {
+          return;
+        }
+        if (!objectProperty(node, "label")) return;
+        if (!objectProperty(node, "onClick") && !objectProperty(node, "href"))
+          return;
+        context.report({ node: disabled, messageId: "disabledMenuItem" });
+      },
+    };
+  },
+};
+
 export default {
   meta: { name: "bauart" },
   rules: {
@@ -1768,5 +2047,8 @@ export default {
     "one-detail-per-type": oneDetailPerType,
     "no-edit-overlay": noEditOverlay,
     "no-local-field-grid": noLocalFieldGrid,
+    "no-own-skeleton": noOwnSkeleton,
+    "no-raw-status-hex": noRawStatusHex,
+    "no-disabled-menu-item": noDisabledMenuItem,
   },
 };
