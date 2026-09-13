@@ -1138,6 +1138,23 @@ describe("bauart/no-own-skeleton", () => {
     expect(output).toContain("bauart(no-own-skeleton)");
   });
 
+  it("rejects gray fills with Tailwind variants and opacity", () => {
+    for (const className of [
+      "animate-pulse bg-gray-200/50",
+      "animate-pulse hover:bg-gray-200",
+      "animate-pulse dark:bg-gray-700",
+    ]) {
+      const { status, output } = lintSource(
+        `export function Probe() {
+          return <div className="${className}" />;
+        }`,
+      );
+
+      expect(status).toBe(1);
+      expect(output).toContain("bauart(no-own-skeleton)");
+    }
+  });
+
   it("lets a pulsing live indicator through", () => {
     const source = `export function Probe({ occupied }: { occupied: boolean }) {
         return (
@@ -1243,6 +1260,20 @@ describe("bauart/no-raw-status-hex", () => {
       "src/components/probe.ts",
     );
     expect(reference.output).not.toContain("bauart(no-raw-status-hex)");
+  });
+
+  it("flags short hex colors in arbitrary-value classes", () => {
+    for (const color of ["#666", "#abcd"]) {
+      const { status, output } = lintSource(
+        `export function Probe() {
+          return <p className="text-[${color}]">Offen</p>;
+        }`,
+      );
+
+      expect(status).toBe(1);
+      expect(output).toContain("bauart(no-raw-status-hex)");
+      expect(output).toContain(color);
+    }
   });
 
   it("exempts the token source, the manifest, test support and the other portals", () => {

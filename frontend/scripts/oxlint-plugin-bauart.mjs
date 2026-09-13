@@ -1798,7 +1798,8 @@ const noLocalFieldGrid = {
 // also pulses a live dot (occupied room, „nähert sich“ status, running
 // session), and those are indicators, not skeletons.
 const PULSE_CLASS_RE = /(?:^|\s)animate-pulse(?:\s|$)/;
-const PLACEHOLDER_FILL_RE = /(?:^|\s)bg-gray-\d{2,3}(?:\s|$)/;
+const PLACEHOLDER_FILL_RE =
+  /(?:^|\s)(?:[^\s:]+:)*bg-gray-\d{2,3}(?:\/[^\s]+)?(?=\s|$)/;
 
 // Shrink-only per-file tolerance: the number of hand-written pulse blocks a
 // file may still carry. Keys are repo-relative posix paths under src/ (#3118).
@@ -1871,10 +1872,11 @@ const noOwnSkeleton = {
 
 // A CSS hex color in a string: `#83CD2D`, `#83cd2d80`, or a bare `#666`. Six
 // and eight digits match anywhere in the string (`text-[#4070C8]`,
-// `border-[#F78C10]/30`); three digits only as the whole string, so an
-// issue reference like „#405“ in a label stays out.
+// `border-[#F78C10]/30`). Three and four digits match as a bare value or in
+// a Tailwind arbitrary value (`text-[#666]`), so an issue reference like
+// „#405“ in a label stays out.
 const HEX_COLOR_RE = /#[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?(?![0-9a-zA-Z])/;
-const SHORT_HEX_COLOR_RE = /^#[0-9a-fA-F]{3}$/;
+const SHORT_HEX_COLOR_RE = /(?:^|(?<=\[))#[0-9a-fA-F]{3,4}(?=$|\])/;
 
 // Files that define or must emit raw hex by construction. Not a baseline:
 // these do not shrink.

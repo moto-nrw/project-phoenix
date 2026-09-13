@@ -268,9 +268,10 @@ bekommt eine shrink-only Baseline analog zum bestehenden
 4. `bauart/no-own-skeleton` — kein eigenes Seiten-Skelett neben den
    `TenantPage`-Zuständen. **Umgesetzt** (`scripts/oxlint-plugin-bauart.mjs`,
    #3118): ein `className`, das `animate-pulse` zusammen mit einer grauen
-   Fläche (`bg-gray-*`) trägt, ist ein handgebauter Platzhalter und fällt
-   durch; der einzige Platzhalter ist das Kit-`Skeleton` bzw. die Bausteine
-   aus `ui/page-skeletons`, eingehängt über `TenantPage.loading`. Ein
+   Fläche (`bg-gray-*`, auch mit Variante oder Transparenz) trägt, ist ein
+   handgebauter Platzhalter und fällt durch; der einzige Platzhalter ist das
+   Kit-`Skeleton` bzw. die Bausteine aus `ui/page-skeletons`, eingehängt über
+   `TenantPage.loading`. Ein
    pulsierender Live-Punkt (belegter Raum, „nähert sich“) hat keine graue
    Fläche und passiert. Shrink-only Baseline je Datei für den Bestand
    (Startseiten-Bausteine, Seitenleiste, Räume); Operator-, Eltern- und
@@ -280,9 +281,9 @@ bekommt eine shrink-only Baseline analog zum bestehenden
 5. `bauart/no-raw-status-hex` — keine rohen Hexwerte für Status- und
    Planungsfarben. **Umgesetzt** (`scripts/oxlint-plugin-bauart.mjs`,
    #3118): jedes String-Literal und jeder Template-Abschnitt mit einem
-   CSS-Hexwert (`#83CD2D`, `text-[#4070C8]`, ein nacktes `#666`) fällt
-   durch; ein Literal zählt einmal. Ausgenommen sind die Quelle der Token
-   selbst (`lib/location-helper.ts`), das Web-App-Manifest
+   CSS-Hexwert (`#83CD2D`, `text-[#4070C8]`, `text-[#666]`, ein nacktes
+   `#abcd`) fällt durch; ein Literal zählt einmal. Ausgenommen sind die
+   Quelle der Token selbst (`lib/location-helper.ts`), das Web-App-Manifest
    (`lib/favicon-variants.ts`) und `app/global-error.tsx`, das ohne
    Stylesheet rendert. Shrink-only Baseline je Datei für den Bestand
    (Raumkategorien und Planungsflächen in `lib/`, Hilfe-Seiten, einzelne
