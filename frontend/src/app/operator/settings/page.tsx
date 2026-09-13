@@ -359,10 +359,10 @@ function OperatorSettingsContent() {
               Abbrechen
             </Button>
             <Button
-              type="button"
+              form="operator-email-change-form"
+              type="submit"
               variant="primary"
               size="md"
-              onClick={() => void handleEmailChange()}
               disabled={!emailChangeReady}
             >
               {emailChangeLoading
@@ -373,6 +373,7 @@ function OperatorSettingsContent() {
         }
       >
         <form
+          id="operator-email-change-form"
           className="space-y-4"
           onSubmit={(e) => {
             e.preventDefault();
