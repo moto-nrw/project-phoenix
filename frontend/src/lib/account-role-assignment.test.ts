@@ -40,7 +40,7 @@ describe("loadAccountRoleAssignment", () => {
     const assignment = await loadAccountRoleAssignment("7");
 
     expect(assignment.options).toEqual([
-      { id: 4, name: "Lehrkraft", systemName: "lehrkraft" },
+      { id: "4", name: "Lehrkraft", systemName: "lehrkraft" },
     ]);
     expect(assignment.currentIsLehrkraft).toBe(false);
   });
