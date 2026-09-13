@@ -252,7 +252,13 @@ bekommt eine shrink-only Baseline analog zum bestehenden
    dasselbe gilt ortsgebunden für ein Formular im Slide-over (Übergabe einer
    Gruppe). Operator-, Eltern- und Schul-Portal sind nicht im Scope.
 2. `bauart/no-local-field-grid` — kein lokales `<dt>/<dd>`-Feldgitter
-   außerhalb `ui/detail-modal-components`.
+   außerhalb `ui/detail-modal-components`. **Umgesetzt**
+   (`scripts/oxlint-plugin-bauart.mjs`, #3117): jedes handgeschriebene
+   `<dt>` außerhalb des Kits fällt durch; `DataField` rendert die einzige
+   erlaubte Beschriftungszelle. Shrink-only Baseline je Datei für den
+   Bestand, den #3117 auf Folge-PRs verteilt; Operator-, Eltern- und
+   Schul-Portal sind nicht im Scope. Beschriftungspaare aus `<p>`/`<span>`
+   erkennt die Ratsche nicht — die gehören ins Review.
 3. `bauart/one-delete-confirm` — nur `ConfirmDeleteModal`; kein
    `window.confirm`, kein `ConfirmationModal` für Löschen. **Umgesetzt**
    (`scripts/oxlint-plugin-bauart.mjs`, hard-zero, #3110): prüft die

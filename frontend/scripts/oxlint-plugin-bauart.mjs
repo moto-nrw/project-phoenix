@@ -87,6 +87,18 @@
 //                               the very object the dialog edits, which
 //                               Bauart 2 Regel 4 allows.
 //
+//   bauart/no-local-field-grid — a label/value pair in a detail view comes
+//                               from `DataField` / `DataGrid` in
+//                               ui/detail-modal-components (Bauart 2 Regel 2,
+//                               issue #3117). The rule flags every hand-
+//                               written `<dt>` outside the kit: the `<dt>` is
+//                               the label cell of a local field grid, and it
+//                               cannot be confused with a kit call, so the
+//                               check stays a plain element count. Shrink-only
+//                               per-file baseline (FIELD_GRID_BASELINE) for the
+//                               remainder the issue distributes over follow-up
+//                               PRs; tenant portal only.
+//
 // Files under src/components/ui/ are exempt (ConfirmDeleteModal is itself
 // built on Modal and owns the final destructive button), as are tests and
 // stories.
@@ -1683,6 +1695,67 @@ const noEditOverlay = {
   },
 };
 
+// --- bauart/no-local-field-grid ----------------------------------------------
+
+// Shrink-only per-file tolerance: the number of hand-written `<dt>` elements a
+// file may still carry. Keys are repo-relative posix paths under src/. A file
+// that drops below its count lowers the entry; a file that is not listed has
+// none to spare (#3117).
+const FIELD_GRID_BASELINE = new Map(
+  Object.entries({
+    // Feldgitter an Objektansichten und Dialogen, noch auf DataField/DataGrid
+    // umzuziehen (#3117, Folge-PRs über #3119).
+    "src/app/[tenant]/(protected)/database/personal/opening-balances/page.tsx": 1,
+    "src/app/[tenant]/(protected)/time-tracking/page.tsx": 3,
+    "src/components/enrollment/admin-enrollment-change-requests.tsx": 1,
+    "src/components/enrollment/enrollment-change-request-diff.tsx": 1,
+    "src/components/staff/abwesenheiten-tab.tsx": 3,
+    "src/components/staff/custom-allowance-editor.tsx": 1,
+    "src/components/staff/sick-report-modal.tsx": 5,
+    // Kennzahlen- und Statuslisten als <dl>: kein Feldgitter im engen Sinn,
+    // aber dieselbe handgebaute Beschriftungszeile. Die Spec kennt dafür
+    // noch kein Bauteil (StatCard trägt eine Zahl, nicht fünf Zeilen).
+    "src/app/[tenant]/(protected)/statistics/page.tsx": 1,
+    "src/components/announcements/letter-status-panel.tsx": 5,
+    "src/components/settings/push-notification-section.tsx": 2,
+    // Öffentliche Anmeldeseite (unter app/[tenant], darum im Scope): Phasen-
+    // Infos für Eltern, kein Objekt des Portals.
+    "src/app/[tenant]/(public)/anmeldung/[phaseId]/page.tsx": 2,
+  }),
+);
+
+const noLocalFieldGrid = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Label/value pairs in a detail view come from DataField/DataGrid (ui/detail-modal-components); no hand-written <dt>/<dd> field grid outside the kit.",
+    },
+    messages: {
+      fieldGrid:
+        "Handgebautes Feldgitter (`<dt>`): Felder kommen aus `DataField`/`DataGrid` in ui/detail-modal-components (BAUARTEN-SPEC Bauart 2 Regel 2, #3117). Die Baseline in scripts/oxlint-plugin-bauart.mjs ist shrink-only.",
+    },
+    schema: [],
+  },
+  create(context) {
+    if (isExempt(context)) return {};
+    const key = fileKey(context);
+    if (OTHER_PORTAL_RE.test(key)) return {};
+    let tolerated = FIELD_GRID_BASELINE.get(key) ?? 0;
+
+    return {
+      JSXOpeningElement(node) {
+        if (jsxName(node.name) !== "dt") return;
+        if (tolerated > 0) {
+          tolerated -= 1;
+          return;
+        }
+        context.report({ node, messageId: "fieldGrid" });
+      },
+    };
+  },
+};
+
 export default {
   meta: { name: "bauart" },
   rules: {
@@ -1694,5 +1767,6 @@ export default {
     "no-manage-surface-in-overlay": noManageSurfaceInOverlay,
     "one-detail-per-type": oneDetailPerType,
     "no-edit-overlay": noEditOverlay,
+    "no-local-field-grid": noLocalFieldGrid,
   },
 };
