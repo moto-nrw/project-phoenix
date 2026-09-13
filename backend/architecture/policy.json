@@ -442,6 +442,48 @@
   ],
   "packages": [
     {
+      "path": "modules/peopledirectory/departure",
+      "owner": "people-directory",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/workforce/openingbalance",
+      "owner": "workforce",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/auditlog/classlist",
+      "owner": "audit-platform",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/auditlog/imports",
+      "owner": "audit-platform",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/auditlog/consents",
+      "owner": "audit-platform",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "api/import/compose",
+      "owner": "inbound-import",
+      "role": "compose",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "e2e-test"
+    },
+    {
       "path": "database/repositories/audit/integration",
       "owner": "audit-platform",
       "role": "adapter",
@@ -1492,9 +1534,23 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "models/import",
+      "path": "modules/dataimport/compose",
       "owner": "data-import",
-      "role": "domain",
+      "role": "compose",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/dataimport/fileformat",
+      "owner": "data-import",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/dataimport",
+      "owner": "data-import",
+      "role": "public",
       "internal_test_role": "workflow-decision-test",
       "external_test_role": "workflow-integration-test"
     },
@@ -3037,6 +3093,13 @@
       "role": "compose",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
+    },
+    {
+      "path": "sharedkernel/calendar",
+      "owner": "shared-kernel",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
     }
   ],
   "data_objects": [
@@ -4542,6 +4605,473 @@
   ],
   "rules": [
     {
+      "id": "workforce.domain.vacation-opening-contract",
+      "description": "Validate import and native ledger takeovers with the same Workforce value contract (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "domain",
+      "target_owner": "workforce",
+      "target_role": "contract"
+    },
+    {
+      "id": "data-import.port.vacation-opening-contract",
+      "description": "Validate import and native ledger takeovers with the same Workforce value contract (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "port",
+      "target_owner": "workforce",
+      "target_role": "contract"
+    },
+    {
+      "id": "data-import.compose.school-name.tenant-runtime",
+      "description": "Bind the optional invitation school label to the native current-school query (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.compose.school-name.organization-tenancy",
+      "description": "Bind the optional invitation school label to the native current-school query (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "compose",
+      "target_owner": "organization-tenancy",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.compose.opening-references.workforce",
+      "description": "Bind opening-balance matching and duplicate detection to native tenant-scoped owner queries (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "compose",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.compose.opening-references.people-directory",
+      "description": "Bind opening-balance matching and duplicate detection to native tenant-scoped owner queries (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "compose",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.compose.opening-references.school-membership",
+      "description": "Bind opening-balance matching and duplicate detection to native tenant-scoped owner queries (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "compose",
+      "target_owner": "school-membership",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.workflow-decision-test.audit-event-contract",
+      "description": "Verify native import audit events and replay checkpoints (#2744).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "data-import",
+      "source_role": "workflow-decision-test",
+      "target_owner": "audit-platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "audit-platform.postgres.audit-consent-contract",
+      "description": "Record consent transitions through the Audit command using persistence-free consent types (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "postgres",
+      "target_owner": "audit-platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "audit-platform.application.audit-consent-contract",
+      "description": "Record consent transitions through the Audit command using persistence-free consent types (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "application",
+      "target_owner": "audit-platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "legacy-composition.compose.audit-consent-contract",
+      "description": "Record consent transitions through the Audit command using persistence-free consent types (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "audit-platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "data-import.application.audit-consent-contract",
+      "description": "Record consent transitions through the Audit command using persistence-free consent types (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "application",
+      "target_owner": "audit-platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "inbound-import.e2e-test.orm-sql",
+      "description": "Exercise import HTTP requests and persisted audit checkpoints (#2744).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-import",
+      "source_role": "e2e-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "inbound-import.e2e-test.http-router",
+      "description": "Exercise import HTTP requests and persisted audit checkpoints (#2744).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-import",
+      "source_role": "e2e-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "inbound-import.e2e-test.people-directory.public",
+      "description": "Exercise composed import routes and verify native owner records (#2744).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-import",
+      "source_role": "e2e-test",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-import.e2e-test.data-import.public",
+      "description": "Exercise composed import routes and verify native owner records (#2744).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-import",
+      "source_role": "e2e-test",
+      "target_owner": "data-import",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-import.e2e-test.data-import.adapter",
+      "description": "Exercise composed import routes and verify native owner records (#2744).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-import",
+      "source_role": "e2e-test",
+      "target_owner": "data-import",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-import.e2e-test.inbound-import.compose",
+      "description": "Exercise composed import routes and verify native owner records (#2744).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-import",
+      "source_role": "e2e-test",
+      "target_owner": "inbound-import",
+      "target_role": "compose"
+    },
+    {
+      "id": "inbound-import.e2e-test.inbound-import.http",
+      "description": "Exercise composed import routes and verify native owner records (#2744).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-import",
+      "source_role": "e2e-test",
+      "target_owner": "inbound-import",
+      "target_role": "http"
+    },
+    {
+      "id": "root-composition.compose.import-compose",
+      "description": "Compose the import HTTP runtime over native owner queries (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "inbound-import",
+      "target_role": "compose"
+    },
+    {
+      "id": "inbound-import.compose.orm-sql",
+      "description": "Bind the import HTTP and transaction runtime (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-import",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "inbound-import.compose.http-router",
+      "description": "Bind the import HTTP and transaction runtime (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-import",
+      "source_role": "compose",
+      "target_class": "http-router"
+    },
+    {
+      "id": "inbound-import.compose.data-import.public",
+      "description": "Bind native import actors and the established HTTP runtime outside handlers (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-import",
+      "source_role": "compose",
+      "target_owner": "data-import",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-import.compose.school-membership.public",
+      "description": "Bind native import actors and the established HTTP runtime outside handlers (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-import",
+      "source_role": "compose",
+      "target_owner": "school-membership",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-import.compose.people-directory.public",
+      "description": "Bind native import actors and the established HTTP runtime outside handlers (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-import",
+      "source_role": "compose",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-import.compose.tenant-runtime.public",
+      "description": "Bind native import actors and the established HTTP runtime outside handlers (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-import",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-import.compose.identity-access.adapter",
+      "description": "Bind native import actors and the established HTTP runtime outside handlers (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-import",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-import.compose.inbound-common.http",
+      "description": "Bind native import actors and the established HTTP runtime outside handlers (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-import",
+      "source_role": "compose",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "inbound-import.compose.inbound-import.http",
+      "description": "Bind native import actors and the established HTTP runtime outside handlers (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-import",
+      "source_role": "compose",
+      "target_owner": "inbound-import",
+      "target_role": "http"
+    },
+    {
+      "id": "data-import.compose.production.data-import.public",
+      "description": "Bind import reference lookups to native tenant-scoped owner queries (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "compose",
+      "target_owner": "data-import",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.compose.production.school-structure.public",
+      "description": "Bind import reference lookups to native tenant-scoped owner queries (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "compose",
+      "target_owner": "school-structure",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.compose.production.facilities.public",
+      "description": "Bind import reference lookups to native tenant-scoped owner queries (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "compose",
+      "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.compose.production.data-import.compose",
+      "description": "Bind import reference lookups to native tenant-scoped owner queries (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "data-import",
+      "target_role": "compose"
+    },
+    {
+      "id": "data-import.workflow-decision-test.internal_test.data-import.compose",
+      "description": "Bind import reference lookups to native tenant-scoped owner queries (#2744).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "data-import",
+      "source_role": "workflow-decision-test",
+      "target_owner": "data-import",
+      "target_role": "compose"
+    },
+    {
+      "id": "data-import.adapter.file-rendering",
+      "description": "The import file adapter decodes Excel workbooks without exposing spreadsheet types (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "adapter",
+      "target_class": "rendering"
+    },
+    {
+      "id": "data-import.adapter-test.file-rendering",
+      "description": "The import file adapter decodes Excel workbooks without exposing spreadsheet types (#2744).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "data-import",
+      "source_role": "adapter-test",
+      "target_class": "rendering"
+    },
+    {
+      "id": "data-import.adapter.production.data-import.public",
+      "description": "Decode import files through the Data Import file adapter (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "adapter",
+      "target_owner": "data-import",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.workflow-decision-test.internal_test.data-import.adapter",
+      "description": "Decode import files through the Data Import file adapter (#2744).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "data-import",
+      "source_role": "workflow-decision-test",
+      "target_owner": "data-import",
+      "target_role": "adapter"
+    },
+    {
+      "id": "root-composition.compose.production.data-import.adapter",
+      "description": "Decode import files through the Data Import file adapter (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "data-import",
+      "target_role": "adapter"
+    },
+    {
+      "id": "data-import.application.public",
+      "description": "Import processing consumes its public row and result contract (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "application",
+      "target_owner": "data-import",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.decision-test.public",
+      "description": "Import decision tests exercise the public row and result contract (#2744).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "data-import",
+      "source_role": "workflow-decision-test",
+      "target_owner": "data-import",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.integration-test.public",
+      "description": "Import integration tests exercise the public row and result contract (#2744).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "data-import",
+      "source_role": "workflow-integration-test",
+      "target_owner": "data-import",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.compose.data-import.public",
+      "description": "Import composition wires the public row and result contract (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "data-import",
+      "target_role": "public"
+    },
+    {
       "id": "legacy-composition.compose.security-runtime.fingerprint",
       "description": "The import composition supplies content fingerprinting through the Security Runtime capability (#2708).",
       "scopes": [
@@ -4587,7 +5117,9 @@
     {
       "id": "request-review-view.integration.care-plan-public",
       "description": "Native queue contract and tenant-isolation tests use Care Plan review facts (#3179).",
-      "scopes": ["internal_test"],
+      "scopes": [
+        "internal_test"
+      ],
       "source_owner": "request-review-view",
       "source_role": "workflow-integration-test",
       "target_owner": "care-plan",
@@ -4596,7 +5128,9 @@
     {
       "id": "request-review-view.integration.care-plan-contract",
       "description": "Native queue serialization tests assert the owner's plain request records (#3179).",
-      "scopes": ["internal_test"],
+      "scopes": [
+        "internal_test"
+      ],
       "source_owner": "request-review-view",
       "source_role": "workflow-integration-test",
       "target_owner": "care-plan",
@@ -4605,7 +5139,9 @@
     {
       "id": "request-review-view.integration.orm",
       "description": "The two-tenant integration proof inspects RLS inside least-privilege transactions (#3179).",
-      "scopes": ["internal_test"],
+      "scopes": [
+        "internal_test"
+      ],
       "source_owner": "request-review-view",
       "source_role": "workflow-integration-test",
       "target_class": "orm-sql"
@@ -4613,7 +5149,9 @@
     {
       "id": "care-plan.application.native-enrollment-selection",
       "description": "Offering review consumes Enrollment's native selection calculation without retained service models (#3179).",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "care-plan",
       "source_role": "application",
       "target_owner": "enrollment",
@@ -4622,7 +5160,9 @@
     {
       "id": "enrollment.application.native-selection-contract",
       "description": "Share the native selection calculation with the retained adjustment entry point (#3179).",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "enrollment",
       "source_role": "application",
       "target_owner": "enrollment",
@@ -4631,7 +5171,9 @@
     {
       "id": "request-review-view.integration.own-public",
       "description": "Exercise native history adapters through request-review's public contract (#3179).",
-      "scopes": ["internal_test"],
+      "scopes": [
+        "internal_test"
+      ],
       "source_owner": "request-review-view",
       "source_role": "workflow-integration-test",
       "target_owner": "request-review-view",
@@ -4640,7 +5182,9 @@
     {
       "id": "request-review-view.compose.audit-corrections.public",
       "description": "Render the native Audit correction history without retained audit models (#3179).",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "request-review-view",
       "source_role": "compose",
       "target_owner": "audit-platform",
@@ -4649,7 +5193,9 @@
     {
       "id": "request-review-view.compose.audit-corrections.compose",
       "description": "Bind the native tenant-scoped Audit correction reader (#3179).",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "request-review-view",
       "source_role": "compose",
       "target_owner": "audit-platform",
@@ -4888,7 +5434,9 @@
     {
       "id": "inbound-iot-checkin.adapter-test.student-presence-compose",
       "description": "Kiosk checkout contract tests verify attendance and visit state through the production presence facade.",
-      "scopes": ["external_test"],
+      "scopes": [
+        "external_test"
+      ],
       "source_owner": "inbound-iot-checkin",
       "source_role": "adapter-test",
       "target_owner": "student-presence",
@@ -4974,7 +5522,9 @@
     {
       "id": "student-presence.port.calendar-date",
       "description": "Presence records retain the canonical calendar-date value without legacy ORM models.",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "student-presence",
       "source_role": "port",
       "target_owner": "legacy-shared",
@@ -4983,7 +5533,9 @@
     {
       "id": "student-presence.compose.calendar-dates",
       "description": "Presence composition maps public calendar strings through the canonical Date parser.",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "student-presence",
       "source_role": "compose",
       "target_owner": "legacy-shared",
@@ -4992,7 +5544,9 @@
     {
       "id": "class-day-view.module-behavior-test.student-presence-public",
       "description": "Slot-list fixtures use public Student Presence facts and commands (#2691).",
-      "scopes": ["external_test"],
+      "scopes": [
+        "external_test"
+      ],
       "source_owner": "class-day-view",
       "source_role": "module-behavior-test",
       "target_owner": "student-presence",
@@ -5001,7 +5555,9 @@
     {
       "id": "legacy-composition.module-internal-test.student-presence-public",
       "description": "Reminder composition tests preserve room grouping and failed-read behavior from public presence facts (#2691).",
-      "scopes": ["internal_test"],
+      "scopes": [
+        "internal_test"
+      ],
       "source_owner": "legacy-composition",
       "source_role": "module-internal-test",
       "target_owner": "student-presence",
@@ -5010,7 +5566,9 @@
     {
       "id": "legacy-composition.compose.presence-cutover.student-presence.public",
       "description": "Composition shares the Student Presence facade across legacy consumers.",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "legacy-composition",
       "source_role": "compose",
       "target_owner": "student-presence",
@@ -5096,7 +5654,9 @@
     {
       "id": "inbound-timetable.http.student-presence-public",
       "description": "Timetable day/week responses map plain Student Presence visits (#2691).",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "inbound-timetable",
       "source_role": "http",
       "target_owner": "student-presence",
@@ -5105,7 +5665,9 @@
     {
       "id": "school-structure.application.student-presence-public",
       "description": "Grade-transition guards consume Student Presence facts before graduating students (#2691).",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "school-structure",
       "source_role": "application",
       "target_owner": "student-presence",
@@ -5114,7 +5676,9 @@
     {
       "id": "school-structure.module-internal-test.student-presence-public",
       "description": "Grade-transition guard tests verify presence read failures and latest attendance semantics (#2691).",
-      "scopes": ["internal_test"],
+      "scopes": [
+        "internal_test"
+      ],
       "source_owner": "school-structure",
       "source_role": "module-internal-test",
       "target_owner": "student-presence",
@@ -5123,7 +5687,9 @@
     {
       "id": "device-fleet.application.student-presence-public",
       "description": "Display occupancy aggregates plain Student Presence facts (#2691).",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "device-fleet",
       "source_role": "application",
       "target_owner": "student-presence",
@@ -5132,7 +5698,9 @@
     {
       "id": "inbound-display.adapter-test.student-presence-compose",
       "description": "Display API fixtures construct Student Presence for tenant-isolated aggregates (#2691).",
-      "scopes": ["external_test"],
+      "scopes": [
+        "external_test"
+      ],
       "source_owner": "inbound-display",
       "source_role": "adapter-test",
       "target_owner": "student-presence",
@@ -5141,7 +5709,9 @@
     {
       "id": "identity-access.application.student-presence-public",
       "description": "Authorized user-context group queries consume plain Student Presence visits (#2691).",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "identity-access",
       "source_role": "application",
       "target_owner": "student-presence",
@@ -5150,7 +5720,9 @@
     {
       "id": "inbound-usercontext.http.student-presence-public",
       "description": "User-context HTTP maps plain visits into its existing response contract (#2691).",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "inbound-usercontext",
       "source_role": "http",
       "target_owner": "student-presence",
@@ -5159,7 +5731,9 @@
     {
       "id": "identity-access.module-behavior-test.student-presence-compose",
       "description": "User-context behavior fixtures construct the Student Presence owner (#2691).",
-      "scopes": ["external_test"],
+      "scopes": [
+        "external_test"
+      ],
       "source_owner": "identity-access",
       "source_role": "module-behavior-test",
       "target_owner": "student-presence",
@@ -5168,7 +5742,9 @@
     {
       "id": "school-calendar.module-behavior-test.student-presence-compose",
       "description": "Calendar fixtures wire user-context queries to Student Presence (#2691).",
-      "scopes": ["external_test"],
+      "scopes": [
+        "external_test"
+      ],
       "source_owner": "school-calendar",
       "source_role": "module-behavior-test",
       "target_owner": "student-presence",
@@ -5177,7 +5753,9 @@
     {
       "id": "care-plan.application.student-presence-public",
       "description": "Parent status and pickup guards consume attendance-only Student Presence facts (#2691).",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "care-plan",
       "source_role": "application",
       "target_owner": "student-presence",
@@ -5186,7 +5764,9 @@
     {
       "id": "care-plan.module-internal-test.student-presence-public",
       "description": "Parent status projection tests use plain Student Presence attendance (#2691).",
-      "scopes": ["internal_test"],
+      "scopes": [
+        "internal_test"
+      ],
       "source_owner": "care-plan",
       "source_role": "module-internal-test",
       "target_owner": "student-presence",
@@ -5195,7 +5775,9 @@
     {
       "id": "timetable-activities.module-behavior-test.student-presence-public",
       "description": "Attendance-sync behavior tests pass plain Student Presence visits (#2691).",
-      "scopes": ["external_test"],
+      "scopes": [
+        "external_test"
+      ],
       "source_owner": "timetable-activities",
       "source_role": "module-behavior-test",
       "target_owner": "student-presence",
@@ -5204,7 +5786,9 @@
     {
       "id": "timetable-activities.module-internal-test.student-presence-public",
       "description": "Lifecycle test doubles exercise the plain Student Presence contract (#2691).",
-      "scopes": ["internal_test"],
+      "scopes": [
+        "internal_test"
+      ],
       "source_owner": "timetable-activities",
       "source_role": "module-internal-test",
       "target_owner": "student-presence",
@@ -5213,7 +5797,9 @@
     {
       "id": "timetable-activities.application.student-presence-public",
       "description": "Schedule workflows read and lock attendance through the Student Presence facade (#2691).",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "timetable-activities",
       "source_role": "application",
       "target_owner": "student-presence",
@@ -5222,7 +5808,9 @@
     {
       "id": "timetable-activities.behavior-test.student-presence-compose",
       "description": "Schedule behavior tests inject the production Student Presence facade (#2691).",
-      "scopes": ["external_test"],
+      "scopes": [
+        "external_test"
+      ],
       "source_owner": "timetable-activities",
       "source_role": "module-behavior-test",
       "target_owner": "student-presence",
@@ -5231,7 +5819,9 @@
     {
       "id": "care-plan.behavior-test.student-presence-compose",
       "description": "Parent pickup-change tests inject the production attendance guard (#2691).",
-      "scopes": ["external_test"],
+      "scopes": [
+        "external_test"
+      ],
       "source_owner": "care-plan",
       "source_role": "module-behavior-test",
       "target_owner": "student-presence",
@@ -5371,7 +5961,9 @@
     {
       "id": "enrollment.integration-test.enrollment.postgres",
       "description": "Enrollment rollback tests inject failures around real owner writes while exercising the public command.",
-      "scopes": ["internal_test"],
+      "scopes": [
+        "internal_test"
+      ],
       "source_owner": "enrollment",
       "source_role": "workflow-integration-test",
       "target_owner": "enrollment",
@@ -7243,7 +7835,9 @@
     {
       "id": "process-device-scan.decision-test.student-presence",
       "description": "Device scan decision tests inject failures through public visit command DTOs.",
-      "scopes": ["internal_test"],
+      "scopes": [
+        "internal_test"
+      ],
       "source_owner": "process-device-scan",
       "source_role": "workflow-decision-test",
       "target_owner": "student-presence",
@@ -7252,7 +7846,9 @@
     {
       "id": "test-support.e2e.student-presence",
       "description": "End-to-end timetable scenarios create visits through the public presence DTO contract.",
-      "scopes": ["internal_test"],
+      "scopes": [
+        "internal_test"
+      ],
       "source_owner": "test-support",
       "source_role": "e2e-test",
       "target_owner": "student-presence",
@@ -7261,7 +7857,9 @@
     {
       "id": "scheduler-runtime.internal-test.student-presence",
       "description": "Scheduler service doubles use public visit DTOs.",
-      "scopes": ["internal_test"],
+      "scopes": [
+        "internal_test"
+      ],
       "source_owner": "scheduler-runtime",
       "source_role": "module-internal-test",
       "target_owner": "student-presence",
@@ -7270,7 +7868,9 @@
     {
       "id": "identity-access.internal-test.student-presence",
       "description": "User-context service doubles use public visit DTOs.",
-      "scopes": ["internal_test"],
+      "scopes": [
+        "internal_test"
+      ],
       "source_owner": "identity-access",
       "source_role": "module-internal-test",
       "target_owner": "student-presence",
@@ -8751,7 +9351,9 @@
     {
       "id": "test-support.to.student-presence-public",
       "description": "Shared presence fixtures return public attendance and visit DTOs.",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "test-support",
       "source_role": "test-support",
       "target_owner": "student-presence",
@@ -8760,7 +9362,9 @@
     {
       "id": "test-support.to.student-presence-compose",
       "description": "Shared presence fixtures create records through the real owner module.",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "test-support",
       "source_role": "test-support",
       "target_owner": "student-presence",
@@ -14027,7 +14631,9 @@
     {
       "id": "care-plan.compose.parent-request-feed-view",
       "description": "Care Plan composition binds current access through the request-feed projection.",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "care-plan",
       "source_role": "compose",
       "target_owner": "parent-request-feed-view",
@@ -14123,7 +14729,9 @@
     {
       "id": "root-composition.to.request-feed-http",
       "description": "The production root mounts the parent-request RSS HTTP adapter.",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "root-composition",
       "source_role": "compose",
       "target_owner": "care-plan",
@@ -14165,7 +14773,9 @@
     {
       "id": "care-plan.postgres.parent-request-feed-view",
       "description": "Care Plan persistence consumes the tenant-safe parent-request feed projection.",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "care-plan",
       "source_role": "postgres",
       "target_owner": "parent-request-feed-view",
@@ -14174,7 +14784,9 @@
     {
       "id": "parent-request-feed-view.integration-test.support",
       "description": "The request-feed projection integration test uses hermetic database support.",
-      "scopes": ["internal_test"],
+      "scopes": [
+        "internal_test"
+      ],
       "source_owner": "parent-request-feed-view",
       "source_role": "workflow-integration-test",
       "target_owner": "test-support",
@@ -14183,7 +14795,9 @@
     {
       "id": "parent-request-feed-view.integration-test.orm-sql",
       "description": "The request-feed projection integration test executes against a tenant Bun transaction.",
-      "scopes": ["internal_test"],
+      "scopes": [
+        "internal_test"
+      ],
       "source_owner": "parent-request-feed-view",
       "source_role": "workflow-integration-test",
       "target_class": "orm-sql"
@@ -14290,7 +14904,9 @@
     {
       "id": "test-support.to.enrollment-support",
       "description": "Shared enrollment fixtures create owner records through Enrollment test support instead of legacy ORM models.",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "test-support",
       "source_role": "test-support",
       "target_owner": "enrollment",
@@ -14387,7 +15003,9 @@
     {
       "id": "identity-access.behavior-test.enrollment-public",
       "description": "Guardian invitation integration fixtures create Enrollment requests through public owner values.",
-      "scopes": ["external_test"],
+      "scopes": [
+        "external_test"
+      ],
       "source_owner": "identity-access",
       "source_role": "module-behavior-test",
       "target_owner": "enrollment",
@@ -14396,7 +15014,9 @@
     {
       "id": "timetable-activities.behavior-test.enrollment-public",
       "description": "Sourced-template integration fixtures create Enrollment phases through public owner values.",
-      "scopes": ["external_test"],
+      "scopes": [
+        "external_test"
+      ],
       "source_owner": "timetable-activities",
       "source_role": "module-behavior-test",
       "target_owner": "enrollment",
@@ -14405,7 +15025,9 @@
     {
       "id": "care-plan.internal-test.enrollment-public",
       "description": "Parent care-period tests implement the Enrollment owner query port with public values.",
-      "scopes": ["internal_test"],
+      "scopes": [
+        "internal_test"
+      ],
       "source_owner": "care-plan",
       "source_role": "module-internal-test",
       "target_owner": "enrollment",
@@ -17431,7 +18053,9 @@
     {
       "id": "people-directory.public.contact",
       "description": "Enrollment student commands use the new canonical contact contract, shared with retained model consumers (#2699).",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "people-directory",
       "source_role": "public",
       "target_owner": "people-directory",
@@ -17440,7 +18064,9 @@
     {
       "id": "people-directory.domain.contact",
       "description": "Retained student/contact model validation delegates to the new owner contact contract (#2699).",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "people-directory",
       "source_role": "domain",
       "target_owner": "people-directory",
@@ -19018,7 +19644,9 @@
     {
       "id": "inbound-students.http.native-request-review-mappers",
       "description": "Render decision and detail responses through the new native request-review boundary (#3179).",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "inbound-students",
       "source_role": "http",
       "target_owner": "request-review-view",
@@ -19027,7 +19655,9 @@
     {
       "id": "request-review-view.compose.impact-token",
       "description": "Render the existing SHA-256 pickup-impact wire token from native facts (#3179).",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "request-review-view",
       "source_role": "compose",
       "target_class": "crypto"
@@ -19035,7 +19665,9 @@
     {
       "id": "request-review-view.compose.enrollment.public",
       "description": "Bind native approved booking facts for care schedule reviews (#3179).",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "request-review-view",
       "source_role": "compose",
       "target_owner": "enrollment",
@@ -19044,7 +19676,9 @@
     {
       "id": "request-review-view.compose.enrollment.compose",
       "description": "Compose the native approved booking reader for care schedule reviews (#3179).",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "request-review-view",
       "source_role": "compose",
       "target_owner": "enrollment",
@@ -19053,7 +19687,9 @@
     {
       "id": "request-review-view.compose.timetable.public",
       "description": "Bind native class dismissal and pickup impact facts (#3179).",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "request-review-view",
       "source_role": "compose",
       "target_owner": "timetable-activities",
@@ -19062,7 +19698,9 @@
     {
       "id": "request-review-view.compose.timetable.compose",
       "description": "Compose bounded native timetable reads for care schedule reviews (#3179).",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "request-review-view",
       "source_role": "compose",
       "target_owner": "timetable-activities",
@@ -19224,7 +19862,9 @@
     {
       "id": "request-review-view.integration.people-compose",
       "description": "Native directory integration tests exercise the public People Directory with PostgreSQL (#3179).",
-      "scopes": ["internal_test"],
+      "scopes": [
+        "internal_test"
+      ],
       "source_owner": "request-review-view",
       "source_role": "workflow-integration-test",
       "target_owner": "people-directory",
@@ -19233,7 +19873,9 @@
     {
       "id": "request-review-view.integration.test-support",
       "description": "Native request-review integration tests use isolated tenant fixtures (#3179).",
-      "scopes": ["internal_test"],
+      "scopes": [
+        "internal_test"
+      ],
       "source_owner": "request-review-view",
       "source_role": "workflow-integration-test",
       "target_owner": "test-support",
@@ -19259,6 +19901,116 @@
       "source_owner": "inbound-students",
       "source_role": "adapter-test",
       "target_owner": "request-review-view",
+      "target_role": "compose"
+    },
+    {
+      "id": "data-import.compose.security-decisions",
+      "description": "Bind the import permission port to canonical Security Runtime decisions without exposing its implementation to the workflow (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "compose",
+      "target_owner": "security-runtime",
+      "target_role": "application"
+    },
+    {
+      "id": "data-import.compose.identity-queries",
+      "description": "Bind the import duplicate matcher to the native tenant-scoped Identity & Access queries (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.compose.identity-role-application",
+      "description": "Bind native role facts to existing Identity & Access classification policy (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "application"
+    },
+    {
+      "id": "data-import.compose.identity-role-domain",
+      "description": "Bind native role facts to existing Identity & Access classification policy (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "domain"
+    },
+    {
+      "id": "data-import.public.identity-role",
+      "description": "The import contract names the native Identity & Access role facts (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "public",
+      "target_owner": "identity-access",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-shared.domain.calendar-contract",
+      "description": "Use the canonical Date and WallClock shared-kernel contract (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-shared",
+      "source_role": "domain",
+      "target_owner": "shared-kernel",
+      "target_role": "contract"
+    },
+    {
+      "id": "data-import.application.calendar-contract",
+      "description": "Use the canonical Date and WallClock shared-kernel contract (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "application",
+      "target_owner": "shared-kernel",
+      "target_role": "contract"
+    },
+    {
+      "id": "data-import.workflow-decision-test.calendar-contract",
+      "description": "Use the canonical Date and WallClock shared-kernel contract (#2744).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "data-import",
+      "source_role": "workflow-decision-test",
+      "target_owner": "shared-kernel",
+      "target_role": "contract"
+    },
+    {
+      "id": "data-import.integration-test.shared-kernel.contract",
+      "description": "Integration tests exercise the canonical import contracts and their composition (#2744).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "data-import",
+      "source_role": "workflow-integration-test",
+      "target_owner": "shared-kernel",
+      "target_role": "contract"
+    },
+    {
+      "id": "data-import.integration-test.data-import.compose",
+      "description": "Integration tests exercise the canonical import contracts and their composition (#2744).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "data-import",
+      "source_role": "workflow-integration-test",
+      "target_owner": "data-import",
       "target_role": "compose"
     }
   ]

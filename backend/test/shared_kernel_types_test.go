@@ -19,8 +19,8 @@ func TestSharedKernelTypesAreNamedDefinitions(t *testing.T) {
 		file string
 		name string
 	}{
-		{"internal/timezone/date.go", "Date"},
-		{"internal/timezone/wall_clock.go", "WallClock"},
+		{"sharedkernel/calendar/date.go", "Date"},
+		{"sharedkernel/calendar/wall_clock.go", "WallClock"},
 		{"tenant/id.go", "TenantID"},
 		{"observability/correlation_id.go", "CorrelationID"},
 	}

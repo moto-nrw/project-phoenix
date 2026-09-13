@@ -9,9 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 	"github.com/moto-nrw/project-phoenix/services"
-	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -46,7 +45,7 @@ func TestDataImportCutover_StudentOwnerFailuresRollbackAndReplay(t *testing.T) {
 			removeFailure := refuseOwnerInsert(t, db, table)
 			ctx := tenant.WithUnitOfWork(testpkg.Ctx(t), testpkg.TenantRuntime(t, db))
 			run := func() (*importModels.ImportResult[importModels.StudentImportRow], error) {
-				return module.Import.ImportBatches(ctx, importModels.ImportRequest[importModels.StudentImportRow]{Rows: []importModels.StudentImportRow{row}, Mode: importModels.ImportModeCreate, UserID: actor.staffID, SkipInvalidRows: true}, importService.BatchAudit{EntityType: "student", Filename: "failure.csv", AccountID: actor.accountID})
+				return module.Import.ImportBatches(ctx, importModels.ImportRequest[importModels.StudentImportRow]{Rows: []importModels.StudentImportRow{row}, Mode: importModels.ImportModeCreate, UserID: actor.staffID, SkipInvalidRows: true}, importModels.BatchAudit{EntityType: "student", Filename: "failure.csv", AccountID: actor.accountID})
 			}
 			result, err := run()
 			require.Error(t, err)
@@ -99,14 +98,14 @@ func TestDataImportCutover_StaffOwnerFailuresRollbackAndReplay(t *testing.T) {
 			run := func() (*importModels.ImportResult[importModels.StaffImportRow], error) {
 				t.Helper()
 				ctx := tenant.WithUnitOfWork(testpkg.Ctx(t), testpkg.TenantRuntime(t, db))
-				ctx = importService.ContextWithImporterPermissions(ctx, []string{"admin:*"})
+				ctx = importModels.ContextWithImporterPermissions(ctx, []string{"admin:*"})
 				return module.StaffImport.ImportBatches(ctx, importModels.ImportRequest[importModels.StaffImportRow]{
 					Rows: []importModels.StaffImportRow{{
 						FirstName: "Anna", LastName: "Ownerfailure", RoleName: role.Name, Position: "Gruppenleitung", Email: "staff-ownerfailure@example.test",
 						PersonnelNumber: "P-2708", WeeklyHours: "19,5", Qualifications: "Erste Hilfe",
 					}},
 					Mode: importModels.ImportModeCreate, UserID: actor.accountID, SkipInvalidRows: true,
-				}, importService.BatchAudit{EntityType: "staff", Filename: "failure.csv", AccountID: actor.accountID})
+				}, importModels.BatchAudit{EntityType: "staff", Filename: "failure.csv", AccountID: actor.accountID})
 			}
 			before := counts()
 			removeFailure := refuseOwnerInsert(t, db, table)

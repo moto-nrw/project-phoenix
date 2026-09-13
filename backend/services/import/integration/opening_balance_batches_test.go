@@ -7,9 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 	"github.com/moto-nrw/project-phoenix/services"
-	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -32,7 +31,7 @@ func TestImportBatches_OpeningBalanceOwnersRollbackAndReplay(t *testing.T) {
 				Rows: []importModels.OpeningBalanceImportRow{{FirstName: "Opening", LastName: "Batch", HoursBalance: "-3,25", VacationEntitled: "30", VacationCarryover: "4", VacationRemaining: "12,5"}},
 				Mode: importModels.ImportModeCreate, UserID: actor.accountID, SkipInvalidRows: true,
 			}
-			audit := importService.BatchAudit{EntityType: "opening_balance", Filename: "opening.csv", AccountID: actor.accountID, Options: "2026-09-01"}
+			audit := importModels.BatchAudit{EntityType: "opening_balance", Filename: "opening.csv", AccountID: actor.accountID, Options: "2026-09-01"}
 			count := func(table string) int {
 				t.Helper()
 				var count int

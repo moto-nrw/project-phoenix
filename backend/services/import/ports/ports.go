@@ -12,6 +12,8 @@ package ports
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce/openingbalance"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -202,4 +204,85 @@ var (
 	ErrVacationOpeningAbsencesBeforeCutoff = workforce.ErrVacationOpeningAbsencesBeforeCutoff
 	ErrAdjustmentInClosedMonth             = workforce.ErrAdjustmentInClosedMonth
 	ErrAdjustmentHasDependentReset         = workforce.ErrAdjustmentHasDependentReset
+)
+
+// VacationOpeningValues are validated by the same contract as native ledger writes.
+type VacationOpeningValues = openingbalance.Vacation
+
+const BalanceAdjustmentTypeOpening = workforce.BalanceAdjustmentTypeOpening
+
+const (
+	GenderFemale           = peopledirectory.GenderFemale
+	GenderMale             = peopledirectory.GenderMale
+	GenderDiverse          = peopledirectory.GenderDiverse
+	EmploymentTypeFullTime = schoolmembership.EmploymentTypeFullTime
+	EmploymentTypePartTime = schoolmembership.EmploymentTypePartTime
+	EmploymentTypeMinijob  = schoolmembership.EmploymentTypeMinijob
+)
+
+func ValidateOptionalPhone(value string) error { return peopledirectory.ValidateOptionalPhone(value) }
+func IsValidEmailFormat(value string) bool     { return peopledirectory.IsValidEmailFormat(value) }
+
+type (
+	BusDays               = peopledirectory.BusDays
+	PickupDays            = peopledirectory.PickupDays
+	DepartureMode         = peopledirectory.DepartureMode
+	DepartureDays         = peopledirectory.DepartureDays
+	AllowedDepartureModes = peopledirectory.AllowedDepartureModes
+)
+
+const (
+	BusDayMonday            = peopledirectory.BusDayMonday
+	BusDayTuesday           = peopledirectory.BusDayTuesday
+	BusDayWednesday         = peopledirectory.BusDayWednesday
+	BusDayThursday          = peopledirectory.BusDayThursday
+	BusDayFriday            = peopledirectory.BusDayFriday
+	PickupDayMonday         = peopledirectory.PickupDayMonday
+	PickupDayTuesday        = peopledirectory.PickupDayTuesday
+	PickupDayWednesday      = peopledirectory.PickupDayWednesday
+	PickupDayThursday       = peopledirectory.PickupDayThursday
+	PickupDayFriday         = peopledirectory.PickupDayFriday
+	PickupStatusPickedUp    = peopledirectory.PickupStatusPickedUp
+	PickupStatusGoesAlone   = peopledirectory.PickupStatusGoesAlone
+	PickupStatusAccompanied = peopledirectory.PickupStatusAccompanied
+	DepartureAlone          = peopledirectory.DepartureAlone
+	DepartureBus            = peopledirectory.DepartureBus
+	DeparturePickup         = peopledirectory.DeparturePickup
+	DepartureAccompanied    = peopledirectory.DepartureAccompanied
+)
+
+var BusDayOrder = peopledirectory.BusDayOrder
+var PickupDayOrder = peopledirectory.PickupDayOrder
+
+func BusDaysFromLegacyFlag(enabled bool) BusDays {
+	return peopledirectory.BusDaysFromLegacyFlag(enabled)
+}
+func PickupDaysFromLegacyStatus(status string) PickupDays {
+	return peopledirectory.PickupDaysFromLegacyStatus(status)
+}
+func DepartureDaysFromLegacy(bus BusDays, pickup PickupDays) DepartureDays {
+	return peopledirectory.DepartureDaysFromLegacy(bus, pickup)
+}
+func AllowedDepartureModesFromDeparture(days DepartureDays) AllowedDepartureModes {
+	return peopledirectory.AllowedDepartureModesFromDeparture(days)
+}
+func AllowedDepartureModesFromLegacy(bus BusDays, pickup PickupDays) AllowedDepartureModes {
+	return peopledirectory.AllowedDepartureModesFromLegacy(bus, pickup)
+}
+
+const MaxDepartureCompanionNoteLen = peopledirectory.MaxDepartureCompanionNoteLen
+
+var ErrDepartureCompanionNoteRequired = peopledirectory.ErrDepartureCompanionNoteRequired
+
+func NormalizeCompanionNote(days DepartureDays, modes AllowedDepartureModes, note *string, covered map[string]bool) (*string, error) {
+	return peopledirectory.NormalizeCompanionNote(days, modes, note, covered)
+}
+
+const (
+	StudentStatusPending = peopledirectory.StudentStatusPending
+	StudentStatusActive  = peopledirectory.StudentStatusActive
+	PhoneTypeMobile      = peopledirectory.PhoneTypeMobile
+	PhoneTypeHome        = peopledirectory.PhoneTypeHome
+	PhoneTypeWork        = peopledirectory.PhoneTypeWork
+	PhoneTypeOther       = peopledirectory.PhoneTypeOther
 )

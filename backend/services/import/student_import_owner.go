@@ -7,14 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/strutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/auditlog/consents"
+	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 	"github.com/moto-nrw/project-phoenix/services/import/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // This file holds the owner-backed read and write paths of the student
@@ -160,9 +156,9 @@ func findStudentsByNameAndClass(ctx context.Context, persons ports.PersonDirecto
 // transaction: a failure after the person was created rolls that person back
 // while the other rows of the batch survive.
 func (c *StudentImportConfig) Create(ctx context.Context, row importModels.StudentImportRow) (int64, error) {
-	if _, hasTx := tenant.TransactionFromContext(ctx); hasTx {
+	if c.Transactions.HasTransaction(ctx) {
 		var studentID int64
-		err := tenant.WithSavepoint(ctx, func(savepointCtx context.Context) error {
+		err := c.Transactions.Savepoint(ctx, func(savepointCtx context.Context) error {
 			var err error
 			studentID, err = c.createAllEntities(savepointCtx, row)
 			return err
@@ -202,7 +198,7 @@ func (c *StudentImportConfig) createPersonFromRow(ctx context.Context, row impor
 		FirstName: strings.TrimSpace(row.FirstName),
 		LastName:  strings.TrimSpace(row.LastName),
 		Birthday:  calendarDateString(birthday),
-		TagID:     strutil.TrimToNil(row.TagID),
+		TagID:     importModels.OptionalCell(row.TagID),
 	})
 	if err != nil {
 		return ports.Person{}, fmt.Errorf("create person: %w", err)
@@ -225,25 +221,25 @@ func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID
 	// pending so the activate-students scheduler flips them to active once
 	// enrolled_from arrives (mirrors the parent-enrollment flow).
 	if enrollmentStartsInFuture(enrolledFrom) {
-		input.Status = string(users.StudentStatusPending)
+		input.Status = ports.StudentStatusPending
 	}
 	created, err := c.Students.CreateEnrollmentStudent(ctx, input)
 	if err != nil {
 		return 0, fmt.Errorf("create student: %w", err)
 	}
 
-	departure, err := importDeparturePatch(users.AllowedDepartureModesFromDeparture(departurePlanFromImportRow(row)), boundedNotePtr(row.DepartureCompanionNote))
+	departure, err := importDeparturePatch(ports.AllowedDepartureModesFromDeparture(departurePlanFromImportRow(row)), boundedNotePtr(row.DepartureCompanionNote))
 	if err != nil {
 		return 0, fmt.Errorf("create student: %w", err)
 	}
 	patch := departure
-	patch.ExtraInfoSet, patch.ExtraInfo = true, strutil.TrimToNil(row.ExtraInfo)
-	patch.SupervisorNotesSet, patch.SupervisorNotes = true, strutil.TrimToNil(row.SupervisorNotes)
-	patch.HealthInfoSet, patch.HealthInfo = true, strutil.TrimToNil(row.HealthInfo)
+	patch.ExtraInfoSet, patch.ExtraInfo = true, importModels.OptionalCell(row.ExtraInfo)
+	patch.SupervisorNotesSet, patch.SupervisorNotes = true, importModels.OptionalCell(row.SupervisorNotes)
+	patch.HealthInfoSet, patch.HealthInfo = true, importModels.OptionalCell(row.HealthInfo)
 	patch.AddressSet = true
-	patch.AddressStreet = strutil.TrimToNil(row.AddressStreet)
-	patch.AddressCity = strutil.TrimToNil(row.AddressCity)
-	patch.AddressPostalCode = strutil.TrimToNil(row.AddressPostalCode)
+	patch.AddressStreet = importModels.OptionalCell(row.AddressStreet)
+	patch.AddressCity = importModels.OptionalCell(row.AddressCity)
+	patch.AddressPostalCode = importModels.OptionalCell(row.AddressPostalCode)
 	patch.GroupIDSet, patch.GroupID = true, row.GroupID
 	patch.AGBAcceptedAtSet, patch.AGBAcceptedAt = true, parseOptionalImportDate(row.AGBAcceptedAt)
 	patch.DataProcessingAcceptedAtSet, patch.DataProcessingAcceptedAt = true, parseOptionalImportDate(row.DataProcessingAcceptedAt)
@@ -257,7 +253,7 @@ func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID
 	if c.ConsentHistory != nil {
 		after := consentSnapshot(created.ID, patch.AGBAcceptedAt, patch.DataProcessingAcceptedAt, patch.EmailContactAcceptedAt, patch.PhotoConsentGivenAt)
 		if err := ports.ObserveCommand(ctx, "audit-platform", "record_consent_transitions", func() error {
-			return c.ConsentHistory.RecordTransitions(ctx, nil, after, auditModels.StudentConsentSourceImport, nil, time.Now())
+			return c.ConsentHistory.RecordTransitions(ctx, nil, after, consents.ConsentSourceImport, nil, time.Now())
 		}); err != nil {
 			return 0, fmt.Errorf("create student consent history: %w", err)
 		}
@@ -267,9 +263,9 @@ func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID
 
 // consentSnapshot is the minimal student view the consent-history recorder
 // compares: the four consent timestamps of one persisted student.
-func consentSnapshot(studentID int64, agb, dataProcessing, emailContact, photo *time.Time) *users.Student {
-	return &users.Student{
-		Model:                    base.Model{ID: studentID},
+func consentSnapshot(studentID int64, agb, dataProcessing, emailContact, photo *time.Time) *consents.ConsentSnapshot {
+	return &consents.ConsentSnapshot{
+		StudentID:                studentID,
 		AGBAcceptedAt:            agb,
 		DataProcessingAcceptedAt: dataProcessing,
 		EmailContactAcceptedAt:   emailContact,
@@ -283,18 +279,14 @@ func consentSnapshot(studentID int64, agb, dataProcessing, emailContact, photo *
 // the companion note is kept only while a day is accompanied. The model
 // rules (bounded note, note required for an accompanied day) are enforced
 // before anything is written.
-func importDeparturePatch(modes users.AllowedDepartureModes, note *string) (ports.EnrollmentProfilePatch, error) {
+func importDeparturePatch(modes ports.AllowedDepartureModes, note *string) (ports.EnrollmentProfilePatch, error) {
 	allowed := modes.Normalize()
-	// The retained model owns the departure rules (bounded note, a note for
-	// every accompanied day). Validate them on a probe carrying only the
-	// plan; PersonID and SchoolClass are the two unrelated required fields
-	// its Validate checks first, and nothing here is persisted.
-	probe := users.Student{PersonID: 1, SchoolClass: "probe", DepartureDays: allowed.DepartureDays(), AllowedDepartureModes: allowed, DepartureCompanionNote: note}
-	if err := probe.Validate(); err != nil {
+	normalizedNote, err := ports.NormalizeCompanionNote(allowed.DepartureDays(), allowed, note, nil)
+	if err != nil {
 		return ports.EnrollmentProfilePatch{}, err
 	}
-	if !allowed.HasMode(users.DepartureAccompanied) {
-		probe.DepartureCompanionNote = nil
+	if !allowed.HasMode(ports.DepartureAccompanied) {
+		normalizedNote = nil
 	}
 	patch := ports.EnrollmentProfilePatch{
 		DepartureSet:           true,
@@ -303,7 +295,7 @@ func importDeparturePatch(modes users.AllowedDepartureModes, note *string) (port
 		BusDays:                map[string]bool(allowed.BusDays()),
 		PickupDays:             map[string]bool(allowed.PickupDays()),
 		PickupStatus:           allowed.LegacyPickupStatus(),
-		DepartureCompanionNote: probe.DepartureCompanionNote,
+		DepartureCompanionNote: normalizedNote,
 	}
 	for day, modes := range allowed {
 		for _, mode := range modes {
@@ -316,10 +308,10 @@ func importDeparturePatch(modes users.AllowedDepartureModes, note *string) (port
 	return patch, nil
 }
 
-func departureDaysFromRecord(record ports.EnrollmentRecord) users.DepartureDays {
-	days := users.DepartureDays{}
+func departureDaysFromRecord(record ports.EnrollmentRecord) ports.DepartureDays {
+	days := ports.DepartureDays{}
 	for day, mode := range record.DepartureDays {
-		days[day] = users.DepartureMode(mode)
+		days[day] = ports.DepartureMode(mode)
 	}
 	return days
 }
@@ -327,15 +319,15 @@ func departureDaysFromRecord(record ports.EnrollmentRecord) users.DepartureDays 
 // allowedModesFromRecord reads the stored mode sets of a child. A record
 // written before the unified plan existed carries none; its exclusive
 // per-day plan is then the source.
-func allowedModesFromRecord(record ports.EnrollmentRecord) users.AllowedDepartureModes {
-	modes := users.AllowedDepartureModes{}
+func allowedModesFromRecord(record ports.EnrollmentRecord) ports.AllowedDepartureModes {
+	modes := ports.AllowedDepartureModes{}
 	for day, values := range record.AllowedDepartureModes {
 		for _, value := range values {
-			modes[day] = append(modes[day], users.DepartureMode(value))
+			modes[day] = append(modes[day], ports.DepartureMode(value))
 		}
 	}
 	if !modes.HasAny() {
-		return users.AllowedDepartureModesFromDeparture(departureDaysFromRecord(record))
+		return ports.AllowedDepartureModesFromDeparture(departureDaysFromRecord(record))
 	}
 	return modes
 }
@@ -377,13 +369,13 @@ func (c *StudentImportConfig) createGuardianRelationship(ctx context.Context, st
 		IsPrimary:          guardianData.IsPrimary,
 		IsEmergencyContact: guardianData.IsEmergencyContact,
 		CanPickup:          guardianData.CanPickup,
-		PickupNotes:        strutil.TrimToNil(guardianData.PickupNotes),
+		PickupNotes:        importModels.OptionalCell(guardianData.PickupNotes),
 		EmergencyPriority:  guardianData.EmergencyPriority,
 	}
 	if link.EmergencyPriority < 1 {
 		link.EmergencyPriority = 1
 	}
-	if role, ok := MapGuardianRole(guardianData.GuardianRole); ok && role != "" {
+	if role, ok := importModels.MapGuardianRole(guardianData.GuardianRole); ok && role != "" {
 		link.GuardianRole = role
 	}
 	if _, err := c.Guardians.LinkGuardianToStudent(ctx, link); err != nil {
@@ -415,11 +407,11 @@ func (c *StudentImportConfig) createOrFindGuardian(ctx context.Context, data imp
 	guardian, err := c.Guardians.CreateGuardian(ctx, ports.GuardianInput{
 		FirstName:          strings.TrimSpace(data.FirstName),
 		LastName:           strings.TrimSpace(data.LastName),
-		Email:              strutil.TrimToNil(data.Email),
-		AddressStreet:      strutil.TrimToNil(data.AddressStreet),
-		AddressCity:        strutil.TrimToNil(data.AddressCity),
-		AddressPostalCode:  strutil.TrimToNil(data.AddressPostalCode),
-		Notes:              strutil.TrimToNil(data.Notes),
+		Email:              importModels.OptionalCell(data.Email),
+		AddressStreet:      importModels.OptionalCell(data.AddressStreet),
+		AddressCity:        importModels.OptionalCell(data.AddressCity),
+		AddressPostalCode:  importModels.OptionalCell(data.AddressPostalCode),
+		Notes:              importModels.OptionalCell(data.Notes),
 		LanguagePreference: guardianLanguagePreference(data.LanguagePreference),
 	})
 	if err != nil {
@@ -461,19 +453,19 @@ func (c *StudentImportConfig) updateExistingGuardianProfile(ctx context.Context,
 	}
 	updated := false
 	if v := strings.TrimSpace(data.AddressStreet); v != "" && !ptrEquals(existing.AddressStreet, v) {
-		input.AddressStreet = strutil.TrimToNil(v)
+		input.AddressStreet = importModels.OptionalCell(v)
 		updated = true
 	}
 	if v := strings.TrimSpace(data.AddressCity); v != "" && !ptrEquals(existing.AddressCity, v) {
-		input.AddressCity = strutil.TrimToNil(v)
+		input.AddressCity = importModels.OptionalCell(v)
 		updated = true
 	}
 	if v := strings.TrimSpace(data.AddressPostalCode); v != "" && !ptrEquals(existing.AddressPostalCode, v) {
-		input.AddressPostalCode = strutil.TrimToNil(v)
+		input.AddressPostalCode = importModels.OptionalCell(v)
 		updated = true
 	}
 	if v := strings.TrimSpace(data.Notes); v != "" && !ptrEquals(existing.Notes, v) {
-		input.Notes = strutil.TrimToNil(v)
+		input.Notes = importModels.OptionalCell(v)
 		updated = true
 	}
 	if v := guardianLanguagePreference(data.LanguagePreference); data.LanguagePreference != "" && v != existing.LanguagePreference {
@@ -578,7 +570,7 @@ func (c *StudentImportConfig) createPrivacyConsentIfMissing(ctx context.Context,
 // (matched by e-mail, new ones linked), schedules are replaced per weekday
 // given, privacy consent is only created when none exists yet.
 func (c *StudentImportConfig) Update(ctx context.Context, studentID int64, row importModels.StudentImportRow) error {
-	return tenant.WithSavepoint(ctx, func(ctx context.Context) error {
+	return c.Transactions.Savepoint(ctx, func(ctx context.Context) error {
 		return c.updateAllEntities(ctx, studentID, row)
 	})
 }
@@ -635,7 +627,7 @@ func (c *StudentImportConfig) updatePersonFromRow(ctx context.Context, person po
 		changed = true
 	}
 	if row.TagID != "" && !ptrEquals(person.TagID, row.TagID) {
-		input.TagID = strutil.TrimToNil(row.TagID)
+		input.TagID = importModels.OptionalCell(row.TagID)
 		changed = true
 	}
 	if !changed {
@@ -660,9 +652,9 @@ func (c *StudentImportConfig) updateStudentFromRow(ctx context.Context, record p
 	if d := parseOptionalImportCalendarDate(row.EnrolledFrom); d != nil {
 		renewal.EnrolledFrom = d.String()
 		if enrollmentStartsInFuture(d) {
-			renewal.Status = string(users.StudentStatusPending)
-		} else if renewal.Status == string(users.StudentStatusPending) {
-			renewal.Status = string(users.StudentStatusActive)
+			renewal.Status = ports.StudentStatusPending
+		} else if renewal.Status == ports.StudentStatusPending {
+			renewal.Status = ports.StudentStatusActive
 		}
 	}
 	if d := parseOptionalImportCalendarDate(row.EnrolledUntil); d != nil {
@@ -681,7 +673,7 @@ func (c *StudentImportConfig) updateStudentFromRow(ctx context.Context, record p
 	changed := false
 	setStr := func(set *bool, dst **string, v string) {
 		if strings.TrimSpace(v) != "" {
-			*set, *dst = true, strutil.TrimToNil(v)
+			*set, *dst = true, importModels.OptionalCell(v)
 			changed = true
 		}
 	}
@@ -739,7 +731,7 @@ func (c *StudentImportConfig) updateStudentFromRow(ctx context.Context, record p
 			for weekday, mode := range departurePlanFromImportRow(row) {
 				days[weekday] = mode
 			}
-			allowed = users.AllowedDepartureModesFromDeparture(days)
+			allowed = ports.AllowedDepartureModesFromDeparture(days)
 		}
 		if note == nil {
 			note = record.DepartureCompanionNote
@@ -766,7 +758,7 @@ func (c *StudentImportConfig) updateStudentFromRow(ctx context.Context, record p
 	if c.ConsentHistory != nil {
 		before := consentSnapshot(record.ID, record.AGBAcceptedAt, record.DataProcessingAcceptedAt, record.EmailContactAcceptedAt, record.PhotoConsentGivenAt)
 		if err := ports.ObserveCommand(ctx, "audit-platform", "record_consent_transitions", func() error {
-			return c.ConsentHistory.RecordTransitions(ctx, before, after, auditModels.StudentConsentSourceImport, nil, time.Now())
+			return c.ConsentHistory.RecordTransitions(ctx, before, after, consents.ConsentSourceImport, nil, time.Now())
 		}); err != nil {
 			return fmt.Errorf("Einwilligungsverlauf aktualisieren: %w", err) //nolint:staticcheck // ST1005: user-facing German message
 		}
@@ -778,7 +770,7 @@ func (c *StudentImportConfig) updateStudentFromRow(ctx context.Context, record p
 // the stored value.
 func keepUnlessGiven(current *string, cell string) *string {
 	if strings.TrimSpace(cell) != "" {
-		return strutil.TrimToNil(cell)
+		return importModels.OptionalCell(cell)
 	}
 	return current
 }
@@ -831,7 +823,7 @@ func (c *StudentImportConfig) mergeGuardianRelationships(ctx context.Context, st
 				changed = true
 			}
 		}
-		if role, ok := MapGuardianRole(data.GuardianRole); ok && role != "" && role != link.GuardianRole {
+		if role, ok := importModels.MapGuardianRole(data.GuardianRole); ok && role != "" && role != link.GuardianRole {
 			update.GuardianRole = &role
 			changed = true
 		}
@@ -988,7 +980,7 @@ func (c *StudentImportConfig) createArrivalSchedules(ctx context.Context, studen
 		}
 		if _, err := c.Schedules.CreateArrivalSchedule(ctx, ports.ArrivalSchedule{
 			StudentID: studentID, Weekday: sched.Weekday, ExpectedArrival: arrival,
-			Notes: strutil.TrimToNil(sched.Notes), CreatedBy: ImporterIDFromContext(ctx),
+			Notes: importModels.OptionalCell(sched.Notes), CreatedBy: ImporterIDFromContext(ctx),
 		}); err != nil {
 			return fmt.Errorf("create arrival schedule (weekday %d): %w", sched.Weekday, err)
 		}
@@ -1008,7 +1000,7 @@ func (c *StudentImportConfig) createPickupSchedules(ctx context.Context, student
 		}
 		if _, err := c.Schedules.CreatePickupSchedule(ctx, ports.PickupSchedule{
 			StudentID: studentID, Weekday: sched.Weekday, PickupTime: pickup,
-			Notes: strutil.TrimToNil(sched.Notes), CreatedBy: ImporterIDFromContext(ctx), Source: ports.ScheduleSourceStaff,
+			Notes: importModels.OptionalCell(sched.Notes), CreatedBy: ImporterIDFromContext(ctx), Source: ports.ScheduleSourceStaff,
 		}); err != nil {
 			return fmt.Errorf("create pickup schedule (weekday %d): %w", sched.Weekday, err)
 		}
@@ -1038,7 +1030,7 @@ func (c *StudentImportConfig) upsertArrivalSchedules(ctx context.Context, studen
 		current := existing[0]
 		current.ExpectedArrival = arrival
 		if strings.TrimSpace(sched.Notes) != "" {
-			current.Notes = strutil.TrimToNil(sched.Notes)
+			current.Notes = importModels.OptionalCell(sched.Notes)
 		}
 		if err := c.Schedules.UpdateArrivalSchedule(ctx, current); err != nil {
 			return fmt.Errorf("Ankunftszeit für Wochentag %d aktualisieren: %w", sched.Weekday, err) //nolint:staticcheck // ST1005: user-facing German message
@@ -1069,7 +1061,7 @@ func (c *StudentImportConfig) upsertPickupSchedules(ctx context.Context, student
 		current := existing[0]
 		current.PickupTime = pickup
 		if strings.TrimSpace(sched.Notes) != "" {
-			current.Notes = strutil.TrimToNil(sched.Notes)
+			current.Notes = importModels.OptionalCell(sched.Notes)
 		}
 		if err := c.Schedules.UpdatePickupSchedule(ctx, current); err != nil {
 			return fmt.Errorf("Abholzeit für Wochentag %d aktualisieren: %w", sched.Weekday, err) //nolint:staticcheck // ST1005: user-facing German message

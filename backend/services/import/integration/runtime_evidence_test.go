@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 	"github.com/moto-nrw/project-phoenix/services"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -71,7 +71,7 @@ func TestDataImportRuntimeEvidence(t *testing.T) {
 		started := time.Now()
 		result, err := module.Import.ImportBatches(baseCtx, importModels.ImportRequest[importModels.StudentImportRow]{
 			Rows: rows, Mode: importModels.ImportModeCreate, DryRun: dryRun, UserID: actor.staffID, SkipInvalidRows: true,
-		}, importService.BatchAudit{EntityType: "student", Filename: "runtime.csv", AccountID: actor.accountID})
+		}, importModels.BatchAudit{EntityType: "student", Filename: "runtime.csv", AccountID: actor.accountID})
 		elapsed := time.Since(started)
 		afterStats := db.Stats()
 		require.NoError(t, err)
