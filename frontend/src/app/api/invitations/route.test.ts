@@ -243,6 +243,58 @@ describe("POST /api/invitations", () => {
     expect(response.status).toBe(200);
   });
 
+  it("normalizes a legacy numeric role ID before forwarding", async () => {
+    mockApiPost.mockResolvedValueOnce({
+      data: {
+        id: 12,
+        email: "newteacher@example.com",
+        role_id: "2",
+        token: "new-inv-token-legacy",
+        expires_at: "2024-02-01T00:00:00Z",
+        created_by: 1,
+      },
+    });
+
+    const request = createMockRequest("/api/invitations", {
+      method: "POST",
+      body: { email: "newteacher@example.com", roleId: 2 },
+    });
+    const response = await POST(request, createMockContext());
+
+    expect(mockApiPost).toHaveBeenCalledWith(
+      "/auth/invitations",
+      "test-token",
+      expect.objectContaining({ role_id: "2" }),
+    );
+    expect(response.status).toBe(200);
+  });
+
+  it("normalizes a legacy numeric role_id before forwarding", async () => {
+    mockApiPost.mockResolvedValueOnce({
+      data: {
+        id: 13,
+        email: "newteacher@example.com",
+        role_id: "2",
+        token: "new-inv-token-legacy-snake",
+        expires_at: "2024-02-01T00:00:00Z",
+        created_by: 1,
+      },
+    });
+
+    const request = createMockRequest("/api/invitations", {
+      method: "POST",
+      body: { email: "newteacher@example.com", role_id: 2 },
+    });
+    const response = await POST(request, createMockContext());
+
+    expect(mockApiPost).toHaveBeenCalledWith(
+      "/auth/invitations",
+      "test-token",
+      expect.objectContaining({ role_id: "2" }),
+    );
+    expect(response.status).toBe(200);
+  });
+
   it("forwards a role ID above JavaScript's safe integer range unchanged", async () => {
     const roleId = "9007199254740993";
     mockApiPost.mockResolvedValueOnce({
@@ -268,6 +320,17 @@ describe("POST /api/invitations", () => {
       expect.objectContaining({ role_id: roleId }),
     );
     expect(response.status).toBe(200);
+  });
+
+  it("rejects an unsafe numeric role ID instead of forwarding its rounded value", async () => {
+    const request = createMockRequest("/api/invitations", {
+      method: "POST",
+      body: { email: "newteacher@example.com", roleId: 9007199254740992 },
+    });
+    const response = await POST(request, createMockContext());
+
+    expect(mockApiPost).not.toHaveBeenCalled();
+    expect(response.status).toBe(500);
   });
 
   it("returns error when role_id is missing", async () => {

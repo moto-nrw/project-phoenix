@@ -31,8 +31,8 @@ interface BackendResponse<T> {
 
 interface IncomingCreateInvitationPayload {
   email: string;
-  role_id?: string;
-  roleId?: string;
+  role_id?: string | number;
+  roleId?: string | number;
   first_name?: string;
   firstName?: string;
   last_name?: string;
@@ -48,6 +48,24 @@ interface BackendCreateInvitationPayload {
   position?: string;
 }
 
+function normalizeRoleId(
+  roleId: string | number | undefined,
+): string | undefined {
+  if (typeof roleId === "string") {
+    return /^[1-9]\d*$/.test(roleId) ? roleId : undefined;
+  }
+  // A parsed JSON number above MAX_SAFE_INTEGER has already lost its original
+  // digits. Reject it rather than forwarding a rounded, valid role ID.
+  if (
+    typeof roleId === "number" &&
+    Number.isSafeInteger(roleId) &&
+    roleId > 0
+  ) {
+    return String(roleId);
+  }
+  return undefined;
+}
+
 export const GET = proxyGet<BackendInvitation[]>("/auth/invitations");
 
 export const POST = createPostHandler<
@@ -59,9 +77,9 @@ export const POST = createPostHandler<
     body: IncomingCreateInvitationPayload,
     token: string,
   ) => {
-    const roleId = body.role_id ?? body.roleId;
+    const roleId = normalizeRoleId(body.role_id ?? body.roleId);
 
-    if (typeof roleId !== "string" || !/^[1-9]\d*$/.test(roleId)) {
+    if (roleId === undefined) {
       throw new TypeError("Invalid invitation payload: role id missing");
     }
 
