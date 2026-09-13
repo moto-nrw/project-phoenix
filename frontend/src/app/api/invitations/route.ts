@@ -6,7 +6,7 @@ import { proxyGet } from "~/lib/route-proxy.server";
 interface BackendInvitation {
   id: number;
   email: string;
-  role_id: number;
+  role_id: string;
   token: string;
   expires_at: string;
   created_by: number;
@@ -14,7 +14,7 @@ interface BackendInvitation {
   last_name?: string | null;
   position?: string | null;
   role?: {
-    id: number;
+    id: string;
     name: string;
   };
   creator?: {
@@ -31,8 +31,8 @@ interface BackendResponse<T> {
 
 interface IncomingCreateInvitationPayload {
   email: string;
-  role_id?: number;
-  roleId?: number;
+  role_id?: string;
+  roleId?: string;
   first_name?: string;
   firstName?: string;
   last_name?: string;
@@ -42,7 +42,7 @@ interface IncomingCreateInvitationPayload {
 
 interface BackendCreateInvitationPayload {
   email: string;
-  role_id: number;
+  role_id: string;
   first_name?: string;
   last_name?: string;
   position?: string;
@@ -61,7 +61,7 @@ export const POST = createPostHandler<
   ) => {
     const roleId = body.role_id ?? body.roleId;
 
-    if (typeof roleId !== "number") {
+    if (typeof roleId !== "string" || !/^[1-9]\d*$/.test(roleId)) {
       throw new TypeError("Invalid invitation payload: role id missing");
     }
 

@@ -60,7 +60,7 @@ const sampleBackendValidation: BackendInvitationValidation = {
 const sampleBackendInvitation: BackendInvitation = {
   id: 1,
   email: "teacher@example.com",
-  role_id: 2,
+  role_id: "2",
   role_name: "Teacher",
   token: "invitation-token-123",
   expires_at: "2025-12-31T23:59:59Z",
@@ -414,7 +414,7 @@ describe("invitation-api", () => {
   describe("createInvitation", () => {
     const createRequest: CreateInvitationRequest = {
       email: "newteacher@example.com",
-      roleId: 2,
+      roleId: "2",
       firstName: "Jane",
       lastName: "Smith",
       position: "Science Teacher",
@@ -437,7 +437,7 @@ describe("invitation-api", () => {
         credentials: "include",
       });
       expect(result.email).toBe("teacher@example.com");
-      expect(result.roleId).toBe(2);
+      expect(result.roleId).toBe("2");
     });
 
     it("creates invitation successfully with wrapped data response", async () => {

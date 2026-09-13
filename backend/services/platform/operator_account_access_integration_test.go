@@ -331,6 +331,27 @@ func TestIntegration_UpdateAccountTenantRole_RejectsLehrkraftForCaregiverProfile
 	require.ErrorAs(t, err, &invalid, "a caregiver profile must block the switch to lehrkraft")
 }
 
+func TestIntegration_UpdateAccountTenantRole_RejectsChangesFromLehrkraft(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+
+	service := buildProvisioningService(t, db)
+	ctx := context.Background()
+	account, cleanupAccount := setupAccessTestAccount(t, db)
+	defer cleanupAccount()
+	operator := testpkg.CreateTestOperator(t, db)
+
+	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
+		platformSvc.GrantAccountTenantAccessRequest{RoleID: systemRoleID(t, db, "lehrkraft")}, operator.ID, testClientIP)
+	require.NoError(t, err)
+
+	_, err = service.UpdateAccountTenantRole(ctx, account.ID, accessTargetTenantID(t),
+		systemRoleID(t, db, "admin"), operator.ID, testClientIP)
+
+	var invalid *platformSvc.InvalidDataError
+	require.ErrorAs(t, err, &invalid)
+}
+
 func TestIntegration_UpdateAccountTenantRole_RequiresExistingAccess(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

@@ -42,7 +42,7 @@ func TestInvitationHandlers_CreateInvitationAndListPending(t *testing.T) {
 	service := &authtest.InvitationServiceMock{
 		CreateInvitationFn: func(_ context.Context, req authService.InvitationRequest) (*authModels.InvitationToken, error) {
 			assert.Equal(t, "invitee@example.com", req.Email)
-			assert.Equal(t, int64(7), req.RoleID)
+			assert.Equal(t, int64(9007199254740993), req.RoleID)
 			assert.Equal(t, int64(44), req.CreatedBy)
 			return &authModels.InvitationToken{
 				Model:           modelBase.Model{ID: 1},
@@ -76,7 +76,7 @@ func TestInvitationHandlers_CreateInvitationAndListPending(t *testing.T) {
 
 	resource := NewResource(nil, service, nil, nil)
 
-	req := httptest.NewRequest(http.MethodPost, "/auth/invitations", bytes.NewBufferString(`{"email":" INVITEE@EXAMPLE.COM ","role_id":7,"first_name":" Ada ","last_name":" Lovelace ","position":" Principal "}`))
+	req := httptest.NewRequest(http.MethodPost, "/auth/invitations", bytes.NewBufferString(`{"email":" INVITEE@EXAMPLE.COM ","role_id":"9007199254740993","first_name":" Ada ","last_name":" Lovelace ","position":" Principal "}`))
 	req.Header.Set("Content-Type", "application/json")
 	req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 44}))
 	rr := httptest.NewRecorder()
@@ -84,6 +84,7 @@ func TestInvitationHandlers_CreateInvitationAndListPending(t *testing.T) {
 	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
 	body := decodeJSONBody(t, rr)
 	data := body["data"].(map[string]any)
+	assert.Equal(t, "9007199254740993", data["role_id"])
 	assert.Equal(t, float64(0), data["created_by"])
 	assert.Equal(t, "failed", data["delivery_status"])
 	assert.Equal(t, creator, data["creator"])

@@ -253,6 +253,11 @@ func (s *operatorProvisioningService) UpdateAccountTenantRole(
 		}
 
 		tenantCtx := tenant.WithTenantID(adminCtx, schoolID)
+		for _, existing := range current {
+			if existing.IsSystem && strings.EqualFold(existing.Name, "lehrkraft") && !authSvc.IsLehrkraftSystemRole(role) {
+				return &InvalidDataError{Err: authSvc.ErrLehrkraftRoleImmutable}
+			}
+		}
 		// Server-side mirror of the UI guards (role-management-modal,
 		// account-tenant-access-modal): switching an account whose school
 		// identity includes a caregiver profile to Lehrkraft would strand

@@ -68,15 +68,15 @@ vi.mock("~/lib/auth-helpers", () => {
           (role) => !["guardian", "teacher"].includes(role.name.toLowerCase()),
         )
         .map((role) => ({
-          id: Number(role.id),
+          id: role.id,
           name: role.name ? getRoleDisplayName(role.name) : `Rolle ${role.id}`,
         }))
-        .filter((role) => !Number.isNaN(role.id)),
+        .filter((role) => role.id.length > 0),
   };
 });
 
 const mockRoles = [
-  { id: "1", name: "user" },
+  { id: "9007199254740993", name: "user" },
   { id: "2", name: "admin" },
   { id: "3", name: "teacher" },
 ];
@@ -239,7 +239,7 @@ describe("InvitationForm", () => {
       expect(mockCreateInvitation).toHaveBeenCalledWith(
         expect.objectContaining({
           email: "test@example.com",
-          roleId: 1,
+          roleId: "9007199254740993",
         }),
       );
     });
