@@ -190,7 +190,8 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
       assignment &&
       !assignment.currentIsLehrkraft &&
       selectedRoleId !== undefined &&
-      !assignment.currentRoleIds.includes(selectedRoleId)
+      (assignment.currentRoleIds.length !== 1 ||
+        assignment.currentRoleIds[0] !== selectedRoleId)
         ? { role_id: selectedRoleId }
         : {}),
     };

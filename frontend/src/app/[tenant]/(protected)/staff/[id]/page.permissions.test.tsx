@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -8,6 +8,10 @@ import StaffDetailContent from "./page";
 
 const replaceMock = vi.fn();
 const searchParams = vi.hoisted(() => new URLSearchParams());
+const { mockRecordUpdate, mockUpdateTeacher } = vi.hoisted(() => ({
+  mockRecordUpdate: vi.fn(),
+  mockUpdateTeacher: vi.fn(() => Promise.resolve()),
+}));
 
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(),
@@ -31,6 +35,10 @@ vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => ({ success: vi.fn(), error: vi.fn() }),
 }));
 
+vi.mock("~/lib/teacher-api", () => ({
+  teacherService: { updateTeacher: mockUpdateTeacher },
+}));
+
 // Der Personal-Datensatz für den Reiter „Konto" (#3115).
 const staffRecord = {
   id: "42",
@@ -41,14 +49,14 @@ const staffRecord = {
   role: "Betreuung",
   email: "mila@example.test",
   tag_id: "ABC123",
-  account_id: 7,
+  account_id: "7",
 };
 
 vi.mock("~/lib/database/service-factory", () => ({
   createCrudService: () => ({
     getList: vi.fn(),
     getOne: vi.fn(),
-    update: vi.fn(),
+    update: mockRecordUpdate,
     delete: vi.fn(),
   }),
 }));
@@ -490,6 +498,41 @@ describe("StaffDetailContent permissions", () => {
     expect(
       screen.queryByRole("button", { name: "Weitere Aktionen" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("saves account fields through the person-aware teacher update", async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "7",
+          token: "test-token",
+          roles: ["teacher"],
+          permissions: ["staff:manage", "users:update", "users:manage"],
+        },
+        expires: "2099-01-01T00:00:00.000Z",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<StaffDetailContent />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    fireEvent.change(screen.getByLabelText("Vorname"), {
+      target: { value: "Milena" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(mockUpdateTeacher).toHaveBeenCalledWith(
+        "42",
+        expect.objectContaining({
+          first_name: "Milena",
+          last_name: "Muster",
+        }),
+      );
+    });
+    expect(mockRecordUpdate).not.toHaveBeenCalled();
   });
 
   it("offers account-role editing without staff:manage", () => {

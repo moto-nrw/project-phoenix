@@ -9,7 +9,7 @@ import { resolveDetailReferrer } from "~/lib/tenant-path";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { staffService } from "~/lib/staff-api";
 import type { Staff } from "~/lib/staff-api";
-import type { Teacher } from "~/lib/teacher-api";
+import { teacherService, type Teacher } from "~/lib/teacher-api";
 import { teachersConfig } from "~/components/database/configs/teachers.config";
 import { createCrudService } from "~/lib/database/service-factory";
 import { getDbOperationMessage } from "~/lib/use-notification";
@@ -176,7 +176,7 @@ export default function StaffDetailContent() {
     canViewRecord ? staffRecordKey(staffId) : null,
     () => recordService.getOne(staffId),
   );
-  const accountId = record?.account_id?.toString() ?? "";
+  const accountId = record?.account_id ?? "";
   const hasAccount = accountId !== "";
   const canEditRole = canManageUsers && hasAccount;
   // Der Bearbeiten-Zustand des Konto-Reiters (#3116): Positionen der Schule
@@ -225,7 +225,7 @@ export default function StaffDetailContent() {
       const hasRecordChanges = Object.keys(recordData).length > 0;
       if (hasRecordChanges) {
         try {
-          await recordService.update(staffId, recordData);
+          await teacherService.updateTeacher(staffId, recordData);
         } catch (err) {
           logger.error("failed to update staff record", {
             staff_id: staffId,
@@ -263,7 +263,6 @@ export default function StaffDetailContent() {
     },
     [
       accountId,
-      recordService,
       refreshRecord,
       roleAssignment,
       staffId,

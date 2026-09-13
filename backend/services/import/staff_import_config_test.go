@@ -37,6 +37,9 @@ func (r stubStaffRoleRepo) Create(context.Context, *authModels.Role) error { pan
 func (r stubStaffRoleRepo) FindByID(context.Context, interface{}) (*authModels.Role, error) {
 	panic("not implemented")
 }
+func (r stubStaffRoleRepo) FindByIDForUpdate(context.Context, int64) (*authModels.Role, error) {
+	panic("not implemented")
+}
 func (r stubStaffRoleRepo) Update(context.Context, *authModels.Role) error { panic("not implemented") }
 func (r stubStaffRoleRepo) Delete(context.Context, interface{}) error      { panic("not implemented") }
 func (r stubStaffRoleRepo) List(context.Context, map[string]interface{}) ([]*authModels.Role, error) {

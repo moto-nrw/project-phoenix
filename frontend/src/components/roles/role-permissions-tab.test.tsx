@@ -294,4 +294,25 @@ describe("RolePermissionsTab", () => {
       ),
     ).toBeInTheDocument();
   });
+
+  it("keeps cancellation available when the edit catalogue cannot be loaded", async () => {
+    mockGetRolePermissions.mockRejectedValueOnce(new Error("offline"));
+    render(
+      <RolePermissionsTab
+        role={role}
+        editing
+        onSaved={onSaved}
+        onCancelEdit={onCancelEdit}
+      />,
+    );
+
+    expect(
+      await screen.findByText(
+        "Die Berechtigungen konnten nicht geladen werden.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+    expect(onCancelEdit).toHaveBeenCalledOnce();
+  });
 });

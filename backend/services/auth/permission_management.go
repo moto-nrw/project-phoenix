@@ -228,7 +228,10 @@ func (s *Service) AssignPermissionToRole(ctx context.Context, roleID, permission
 // current selection is changed, so an invalid request leaves it untouched.
 func (s *Service) ReplaceRolePermissions(ctx context.Context, roleID int, permissionIDs []int64) error {
 	return s.runInTx(ctx, func(txCtx context.Context) error {
-		role, err := s.repos.Role.FindByID(txCtx, int64(roleID))
+		// The role row serializes full replacement requests. Lock it before
+		// loading mappings so a waiting request observes this replacement rather
+		// than applying its diff to the same stale set.
+		role, err := s.repos.Role.FindByIDForUpdate(txCtx, int64(roleID))
 		if err != nil {
 			return &AuthError{Op: "replace role permissions", Err: ErrRoleNotFound}
 		}

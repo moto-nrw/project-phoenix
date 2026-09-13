@@ -55,7 +55,7 @@ const teacher: Teacher = {
   staff_notes: "Springt gerne ein.",
   qualifications: "Erzieherin",
   created_at: "2026-01-05T09:00:00Z",
-  account_id: 7,
+  account_id: "7",
   is_teacher: true,
 };
 
@@ -236,6 +236,33 @@ describe("KontoTab", () => {
       expect(editing.onSave).toHaveBeenLastCalledWith(
         expect.objectContaining({ role_id: 1 }),
       );
+    });
+  });
+
+  it("replaces extra system roles even when the selected role is already assigned", async () => {
+    const editing = editingProps({
+      canEditPersonFields: false,
+      canEditStaffFields: false,
+      canEditRole: true,
+      roleAssignment: {
+        options: [
+          { id: 1, name: "Administration", systemName: "admin" },
+          { id: 2, name: "Betreuung", systemName: "user" },
+        ],
+        currentRoleIds: [2, 1],
+        currentIsLehrkraft: false,
+      },
+    });
+    render(<KontoTab teacher={teacher} editing={editing} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    expect(screen.getByLabelText<HTMLSelectElement>("Systemrolle").value).toBe(
+      "2",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(editing.onSave).toHaveBeenCalledWith({ role_id: 2 });
     });
   });
 

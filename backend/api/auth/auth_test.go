@@ -1331,6 +1331,17 @@ func TestRolePermissionAssignment(t *testing.T) {
 
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Replace failed: %s", rr.Body.String())
 	})
+
+	t.Run("rejects an unknown permission while replacing permissions", func(t *testing.T) {
+		role := testpkg.CreateTestRole(t, tc.db, "ReplacePermMissing")
+
+		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/roles/%d/permissions", role.ID), map[string][]int64{
+			"permission_ids": {99999},
+		})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"roles:manage"})
+
+		testutil.AssertNotFound(t, rr)
+	})
 }
 
 // ============================================================================

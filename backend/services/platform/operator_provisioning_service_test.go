@@ -353,6 +353,9 @@ func (m *mockRoleRepo) FindByID(ctx context.Context, id interface{}) (*authModel
 	}
 	return nil, nil
 }
+func (m *mockRoleRepo) FindByIDForUpdate(ctx context.Context, id int64) (*authModels.Role, error) {
+	return m.FindByID(ctx, id)
+}
 func (m *mockRoleRepo) Update(context.Context, *authModels.Role) error { return nil }
 func (m *mockRoleRepo) Delete(context.Context, interface{}) error      { return nil }
 func (m *mockRoleRepo) List(context.Context, map[string]interface{}) ([]*authModels.Role, error) {

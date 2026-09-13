@@ -83,6 +83,10 @@ type PINAttemptResult struct {
 // RoleRepository defines operations for managing roles
 type RoleRepository interface {
 	base.CRUDRepository[*Role]
+	// FindByIDForUpdate finds a role and locks it for the current transaction.
+	// Complete permission replacements use the role row as their serialization
+	// point, so each replacement reads the latest committed mapping set.
+	FindByIDForUpdate(ctx context.Context, id int64) (*Role, error)
 	FindByName(ctx context.Context, name string) (*Role, error)
 	FindByAccountID(ctx context.Context, accountID int64) ([]*Role, error)
 	FindRoleNamesByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error)

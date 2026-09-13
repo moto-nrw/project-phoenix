@@ -138,6 +138,9 @@ func renderRoleMutationError(err error) render.Renderer {
 		if errors.Is(authErr.Err, authService.ErrRoleNotFound) {
 			return common.ErrorNotFound(authErr.Err)
 		}
+		if errors.Is(authErr.Err, authService.ErrPermissionNotFound) {
+			return common.ErrorNotFound(authErr.Err)
+		}
 	}
 	// FindByID failures (sql.ErrNoRows wrapped in DatabaseError) → 404
 	if errors.Is(err, sql.ErrNoRows) {

@@ -176,6 +176,31 @@ func (r *RoleRepository) FindByID(ctx context.Context, id any) (*auth.Role, erro
 	return role, nil
 }
 
+// FindByIDForUpdate finds a role with the same tenant visibility as FindByID
+// and locks it until the surrounding transaction finishes. The role is the
+// serialization point for complete permission replacements.
+func (r *RoleRepository) FindByIDForUpdate(ctx context.Context, id int64) (*auth.Role, error) {
+	role := new(auth.Role)
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(role).
+		ModelTableExpr(roleTableAlias).
+		Where(whereRoleID, id).
+		For("UPDATE")
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("(role.tenant_id = ? OR role.tenant_id IS NULL)", tenantID)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by id for update",
+			Err: base.TranslateNotFound(err),
+		}
+	}
+
+	return role, nil
+}
+
 // Delete overrides the base Delete to restrict deletions to tenant-owned roles only.
 // System roles (tenant_id IS NULL) cannot be deleted at the repository level.
 func (r *RoleRepository) Delete(ctx context.Context, id any) error {

@@ -19,7 +19,7 @@ const meta: Meta<typeof KontoTab> = {
       qualifications: "Staatlich anerkannte Erzieherin",
       created_at: "2026-01-05T09:00:00Z",
       updated_at: "2026-09-01T14:30:00Z",
-      account_id: 7,
+      account_id: "7",
       is_teacher: true,
     },
   },

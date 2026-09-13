@@ -204,7 +204,12 @@ export function RolePermissionsTab({
   }
 
   if (loadError) {
-    return <FormErrorAlert message={loadError} />;
+    return (
+      <div className="space-y-4">
+        <FormErrorAlert message={loadError} />
+        {editing ? <EditActions onCancel={onCancelEdit} disabled /> : null}
+      </div>
+    );
   }
 
   if (!editing) {

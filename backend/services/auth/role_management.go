@@ -223,6 +223,13 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 // complete exchange.
 func (s *Service) ReplaceAccountRole(ctx context.Context, accountID, roleID int) error {
 	return s.runInTx(ctx, func(txCtx context.Context) error {
+		// Take the same account lock as single-role mutations before reading the
+		// current set. Otherwise two replacements can both read an old snapshot
+		// and preserve each other's newly assigned role.
+		if err := s.lockManageableAccount(txCtx, accountID, "replace account role"); err != nil {
+			return err
+		}
+
 		currentRoles, err := s.GetAccountRoles(txCtx, accountID)
 		if err != nil {
 			return err
