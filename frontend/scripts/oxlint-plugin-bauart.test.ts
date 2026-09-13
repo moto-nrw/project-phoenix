@@ -1276,6 +1276,21 @@ describe("bauart/no-raw-status-hex", () => {
     }
   });
 
+  it("flags short hex colors in CSS declarations", () => {
+    for (const [declaration, color] of [
+      ["border: 1px solid #666", "#666"],
+      ["color: #abcd", "#abcd"],
+    ]) {
+      const { status, output } = lintSource(
+        `export const STYLE = "${declaration}";`,
+      );
+
+      expect(status).toBe(1);
+      expect(output).toContain("bauart(no-raw-status-hex)");
+      expect(output).toContain(color);
+    }
+  });
+
   it("exempts the token source, the manifest, test support and the other portals", () => {
     const source = `export const COLOR = "#83CD2D";`;
 

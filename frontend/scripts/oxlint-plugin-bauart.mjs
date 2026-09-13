@@ -1872,11 +1872,28 @@ const noOwnSkeleton = {
 
 // A CSS hex color in a string: `#83CD2D`, `#83cd2d80`, or a bare `#666`. Six
 // and eight digits match anywhere in the string (`text-[#4070C8]`,
-// `border-[#F78C10]/30`). Three and four digits match as a bare value or in
-// a Tailwind arbitrary value (`text-[#666]`), so an issue reference like
-// „#405“ in a label stays out.
+// `border-[#F78C10]/30`). Three and four digits match as a bare value, in a
+// CSS color declaration, or in a Tailwind arbitrary value (`text-[#666]`),
+// so an issue reference like „#405“ in a label stays out.
 const HEX_COLOR_RE = /#[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?(?![0-9a-zA-Z])/;
-const SHORT_HEX_COLOR_RE = /(?:^|(?<=\[))#[0-9a-fA-F]{3,4}(?=$|\])/;
+const SHORT_HEX_COLOR_RE = /#[0-9a-fA-F]{3,4}(?![0-9a-zA-Z])/g;
+const CSS_COLOR_DECLARATION_PREFIX_RE =
+  /(?:^|[;{])\s*(?:accent-color|background(?:-color)?|border(?:-[a-z-]+)?|box-shadow|caret-color|color|column-rule-color|fill|outline(?:-color)?|stroke|text(?:-decoration)?-color|text-shadow)\s*:[^;{}]*$/;
+
+function findShortHexColor(text) {
+  for (const match of text.matchAll(SHORT_HEX_COLOR_RE)) {
+    const start = match.index ?? 0;
+    const end = start + match[0].length;
+    if (
+      (start === 0 && end === text.length) ||
+      (text[start - 1] === "[" && text[end] === "]") ||
+      CSS_COLOR_DECLARATION_PREFIX_RE.test(text.slice(0, start))
+    ) {
+      return match[0];
+    }
+  }
+  return null;
+}
 
 // Files that define or must emit raw hex by construction. Not a baseline:
 // these do not shrink.
@@ -1946,13 +1963,13 @@ const noRawStatusHex = {
     let tolerated = RAW_HEX_BASELINE.get(key) ?? 0;
 
     function check(node, text) {
-      const match = HEX_COLOR_RE.exec(text) ?? SHORT_HEX_COLOR_RE.exec(text);
+      const match = HEX_COLOR_RE.exec(text)?.[0] ?? findShortHexColor(text);
       if (!match) return;
       if (tolerated > 0) {
         tolerated -= 1;
         return;
       }
-      context.report({ node, messageId: "rawHex", data: { value: match[0] } });
+      context.report({ node, messageId: "rawHex", data: { value: match } });
     }
 
     return {
