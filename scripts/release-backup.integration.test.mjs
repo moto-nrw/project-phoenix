@@ -103,4 +103,11 @@ ALTER ROLE phoenix_auth NOLOGIN;`);
   assert.equal(readFileSync(join(cwd, '.env'), 'utf8'), 'RELEASE_MARKER=before\n');
   assert.equal(readFileSync(join(cwd, '.deploy-state'), 'utf8'), 'CURRENT_SHA=9c95677\n');
   assert.match(readFileSync(join(cwd, 'docker-compose.yml'), 'utf8'), /image: postgres@sha256:/);
+  // Reproduce an interrupted restore after DROP DATABASE. The same complete
+  // snapshot must remain usable even when the application database is absent.
+  docker('compose', 'stop', 'server', 'frontend');
+  docker('compose', 'exec', '-T', 'postgres', 'psql', '-X', '-U', 'postgres', '-d', 'template1',
+    '-v', 'ON_ERROR_STOP=1', '-c', 'DROP DATABASE postgres WITH (FORCE);');
+  run('bash', [join(scripts, 'restore-db.sh'), bundle]);
+  assert.equal(sql('SELECT id FROM auth.accounts;'), '41');
 });

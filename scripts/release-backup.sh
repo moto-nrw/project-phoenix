@@ -144,7 +144,7 @@ restore() {
   cp "$bundle/compose.yml" docker-compose.yml
   compose up -d --wait postgres
   compose exec -T postgres psql -X -U postgres -d template1 -v ON_ERROR_STOP=1 \
-    -c 'DROP DATABASE postgres WITH (FORCE);' >/dev/null
+    -c 'DROP DATABASE IF EXISTS postgres WITH (FORCE);' >/dev/null
   # The dedicated cluster's non-system roles must match the snapshot too:
   # replaying GRANT alone would retain privileges introduced after the backup.
   compose exec -T postgres psql -X -U postgres -d template1 -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
