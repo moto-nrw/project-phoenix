@@ -415,6 +415,29 @@ describe("RolesPage", () => {
     });
   });
 
+  it("does not expose permissions to users who only create accounts", async () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          token: "test-token",
+          permissions: ["users:create"],
+        },
+        expires: "2099-01-01",
+      },
+      status: "authenticated",
+    });
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("roles-master-detail")).toHaveAttribute(
+        "data-can-manage-permissions",
+        "false",
+      );
+    });
+  });
+
   it("shows error message when fetch fails", async () => {
     mockGetList.mockRejectedValueOnce(new Error("Failed to fetch"));
 

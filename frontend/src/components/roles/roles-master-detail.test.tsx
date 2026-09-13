@@ -132,6 +132,7 @@ describe("RolesMasterDetail", () => {
         selectedId="1"
         selectedRole={customRole}
         detailLoading={false}
+        canManagePermissions
         onSelect={onSelect}
         onSaveRole={onSaveRole}
         onDeleteClick={onDeleteClick}
@@ -199,7 +200,7 @@ describe("RolesMasterDetail", () => {
     expect(screen.getByText("Bearbeiten")).toBeInTheDocument();
   });
 
-  it("does not offer permission editing without catalogue access", () => {
+  it("hides permissions without permission access", () => {
     render(
       <RolesMasterDetail
         roles={[customRole]}
@@ -213,12 +214,8 @@ describe("RolesMasterDetail", () => {
       />,
     );
 
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "Berechtigungen" }), {
-      button: 0,
-    });
-
     expect(
-      screen.queryByRole("button", { name: "Bearbeiten" }),
+      screen.queryByRole("tab", { name: "Berechtigungen" }),
     ).not.toBeInTheDocument();
     expect(screen.getByText("Löschen")).toBeInTheDocument();
   });
@@ -260,6 +257,7 @@ describe("RolesMasterDetail", () => {
         selectedId="2"
         selectedRole={systemRole}
         detailLoading={false}
+        canManagePermissions
         onSelect={onSelect}
         onSaveRole={onSaveRole}
         onDeleteClick={onDeleteClick}

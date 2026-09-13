@@ -195,19 +195,23 @@ function RoleDetailContent({
         />
       ),
     },
-    {
-      id: "permissions",
-      label: "Berechtigungen",
-      content: (
-        <RolePermissionsTab
-          key={role.id}
-          role={role}
-          editing={editing && activeTab === "permissions"}
-          onSaved={handlePermissionsSaved}
-          onCancelEdit={() => setEditing(false)}
-        />
-      ),
-    },
+    ...(canManagePermissions
+      ? [
+          {
+            id: "permissions",
+            label: "Berechtigungen",
+            content: (
+              <RolePermissionsTab
+                key={role.id}
+                role={role}
+                editing={editing && activeTab === "permissions"}
+                onSaved={handlePermissionsSaved}
+                onCancelEdit={() => setEditing(false)}
+              />
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (
