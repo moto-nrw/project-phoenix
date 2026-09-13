@@ -78,31 +78,30 @@ func (s *Service) UpdateRole(ctx context.Context, role *auth.Role) error {
 
 // DeleteRole deletes a role. System roles cannot be deleted.
 func (s *Service) DeleteRole(ctx context.Context, id int) error {
-	// Verify the role exists and check if it's a system role
-	role, err := s.repos.Role.FindByID(ctx, int64(id))
-	if err != nil {
-		return &AuthError{Op: "delete role", Err: err}
-	}
-	if role.IsSystem {
-		return &AuthError{Op: "delete role", Err: ErrSystemRoleImmutable}
-	}
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		// ReplaceRolePermissions locks the role before its mappings. Take the
+		// same lock first so deleting a role cannot wait for a mapping while a
+		// concurrent replacement waits for the role.
+		role, err := s.repos.Role.FindByIDForUpdate(txCtx, int64(id))
+		if err != nil {
+			return &AuthError{Op: "delete role", Err: err}
+		}
+		if role.IsSystem {
+			return &AuthError{Op: "delete role", Err: ErrSystemRoleImmutable}
+		}
 
-	// First remove all account-role mappings for this role (batch delete)
-	if err := s.repos.AccountRole.DeleteByRoleID(ctx, int64(id)); err != nil {
-		return &AuthError{Op: "delete account role mappings", Err: err}
-	}
+		if err := s.repos.AccountRole.DeleteByRoleID(txCtx, int64(id)); err != nil {
+			return &AuthError{Op: "delete account role mappings", Err: err}
+		}
+		if err := s.repos.RolePermission.DeleteByRoleID(txCtx, int64(id)); err != nil {
+			return &AuthError{Op: "delete role permissions", Err: err}
+		}
+		if err := s.repos.Role.Delete(txCtx, int64(id)); err != nil {
+			return &AuthError{Op: "delete role", Err: err}
+		}
 
-	// Then remove all role-permission mappings (batch delete)
-	if err := s.repos.RolePermission.DeleteByRoleID(ctx, int64(id)); err != nil {
-		return &AuthError{Op: "delete role permissions", Err: err}
-	}
-
-	// Finally delete the role
-	if err := s.repos.Role.Delete(ctx, int64(id)); err != nil {
-		return &AuthError{Op: "delete role", Err: err}
-	}
-
-	return nil
+		return nil
+	})
 }
 
 // ListRoles retrieves roles matching the provided filters
@@ -134,6 +133,16 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 		}
 		if tenantID := tenant.FromContext(txCtx); tenantID > 0 && role.TenantID != nil && *role.TenantID != tenantID {
 			return &AuthError{Op: "assign role", Err: errors.New("role not found")}
+		}
+
+		if !IsLehrkraftSystemRole(role) {
+			isLehrkraft, roleErr := s.accountHoldsLehrkraftRole(txCtx, int64(accountID))
+			if roleErr != nil {
+				return &AuthError{Op: "assign role", Err: roleErr}
+			}
+			if isLehrkraft {
+				return &AuthError{Op: "assign role", Err: ErrLehrkraftRoleImmutable}
+			}
 		}
 
 		// Server-side mirror of the operator guards (#1772): the Lehrkraft

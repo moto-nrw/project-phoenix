@@ -10,7 +10,7 @@ import { FormField, FormError, SelectWithChevron } from "./provisioning-shared";
 const logger = createLogger({ component: "CreateAccountModal" });
 
 interface RoleOption {
-  id: number;
+  id: string;
   label: string;
   systemName: string;
 }
@@ -31,7 +31,7 @@ export function CreateAccountModal({
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
-  const [roleId, setRoleId] = useState<number | undefined>(undefined);
+  const [roleId, setRoleId] = useState<string | undefined>(undefined);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [position, setPosition] = useState("");
@@ -62,13 +62,12 @@ export function CreateAccountModal({
         const options = roleList
           .filter((role) => isAssignableStaffRole(role.name, role.isSystem))
           .map<RoleOption>((role) => ({
-            id: Number(role.id),
+            id: role.id,
             label: role.name
               ? getRoleDisplayName(role.name)
               : `Rolle ${role.id}`,
             systemName: role.name,
-          }))
-          .filter((role) => !Number.isNaN(role.id));
+          }));
         setRoles(options);
       } catch (err) {
         logger.error("failed_to_load_roles", {
@@ -305,9 +304,7 @@ export function CreateAccountModal({
               id="create-account-role"
               value={roleId ?? ""}
               onChange={(e) =>
-                setRoleId(
-                  e.target.value === "" ? undefined : Number(e.target.value),
-                )
+                setRoleId(e.target.value === "" ? undefined : e.target.value)
               }
               disabled={isLoadingRoles}
               required

@@ -276,7 +276,7 @@ describe("CreateAccountModal", () => {
       last_name: "Mustermann",
       password: "Test1234!",
       confirm_password: "Test1234!",
-      role_id: 1,
+      role_id: "1",
       position: undefined,
     });
   });

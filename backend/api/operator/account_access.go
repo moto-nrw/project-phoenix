@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
 
@@ -17,11 +18,11 @@ import (
 // but never into someone else's.
 
 type grantAccountTenantAccessRequest struct {
-	SchoolID  int64  `json:"school_id"`
-	RoleID    int64  `json:"role_id"`
-	FirstName string `json:"first_name,omitempty"`
-	LastName  string `json:"last_name,omitempty"`
-	Position  string `json:"position,omitempty"`
+	SchoolID  int64         `json:"school_id"`
+	RoleID    common.JSONID `json:"role_id"`
+	FirstName string        `json:"first_name,omitempty"`
+	LastName  string        `json:"last_name,omitempty"`
+	Position  string        `json:"position,omitempty"`
 }
 
 func (req *grantAccountTenantAccessRequest) Bind(_ *http.Request) error {
@@ -31,18 +32,18 @@ func (req *grantAccountTenantAccessRequest) Bind(_ *http.Request) error {
 	if req.SchoolID <= 0 {
 		return errors.New("school_id is required")
 	}
-	if req.RoleID <= 0 {
+	if req.RoleID.Int64() <= 0 {
 		return errors.New("role_id is required")
 	}
 	return nil
 }
 
 type updateAccountTenantRoleRequest struct {
-	RoleID int64 `json:"role_id"`
+	RoleID common.JSONID `json:"role_id"`
 }
 
 func (req *updateAccountTenantRoleRequest) Bind(_ *http.Request) error {
-	if req.RoleID <= 0 {
+	if req.RoleID.Int64() <= 0 {
 		return errors.New("role_id is required")
 	}
 	return nil
@@ -78,7 +79,7 @@ func (rs *ProvisioningResource) ListAssignableSchoolRoles(w http.ResponseWriter,
 		common.RenderError(w, r, accountTenantAccessErrorRenderer(err))
 		return
 	}
-	common.Respond(w, r, http.StatusOK, roles, "Assignable school roles retrieved successfully")
+	common.Respond(w, r, http.StatusOK, roleOptions(roles), "Assignable school roles retrieved successfully")
 }
 
 // GrantAccountTenantAccess handles POST /operator/accounts/{accountId}/tenants.
@@ -99,7 +100,7 @@ func (rs *ProvisioningResource) GrantAccountTenantAccess(w http.ResponseWriter, 
 		accountID,
 		req.SchoolID,
 		platformSvc.GrantAccountTenantAccessRequest{
-			RoleID:    req.RoleID,
+			RoleID:    req.RoleID.Int64(),
 			FirstName: req.FirstName,
 			LastName:  req.LastName,
 			Position:  req.Position,
@@ -128,13 +129,30 @@ func (rs *ProvisioningResource) UpdateAccountTenantRole(w http.ResponseWriter, r
 	}
 
 	entries, err := rs.service.UpdateAccountTenantRole(
-		r.Context(), accountID, schoolID, req.RoleID, operatorIDFromContext(r), getClientIP(r),
+		r.Context(), accountID, schoolID, req.RoleID.Int64(), operatorIDFromContext(r), getClientIP(r),
 	)
 	if err != nil {
 		common.RenderError(w, r, accountTenantAccessErrorRenderer(err))
 		return
 	}
 	common.Respond(w, r, http.StatusOK, entries, "School role updated successfully")
+}
+
+type roleOption struct {
+	ID       int64  `json:"id,string"`
+	Name     string `json:"name"`
+	IsSystem bool   `json:"is_system"`
+}
+
+func roleOptions(roles []*authModels.Role) []roleOption {
+	options := make([]roleOption, 0, len(roles))
+	for _, role := range roles {
+		if role == nil {
+			continue
+		}
+		options = append(options, roleOption{ID: role.ID, Name: role.Name, IsSystem: role.IsSystem})
+	}
+	return options
 }
 
 // RevokeAccountTenantAccess handles DELETE /operator/accounts/{accountId}/tenants/{tenantId}.

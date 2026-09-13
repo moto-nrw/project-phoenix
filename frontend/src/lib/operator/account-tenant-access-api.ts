@@ -40,7 +40,7 @@ interface BackendAccountTenantAccess {
   has_staff: boolean;
   roles?:
     | {
-        id: number;
+        id: string;
         name: string;
         is_system: boolean;
         base_role?: string | null;
@@ -84,7 +84,7 @@ function mapAccess(entry: BackendAccountTenantAccess): AccountTenantAccess {
     hasPerson: entry.has_person,
     hasStaff: entry.has_staff,
     roles: (entry.roles ?? []).map((role) => ({
-      id: role.id.toString(),
+      id: role.id,
       name: role.name,
       isSystem: role.is_system,
       baseRole: role.base_role ?? null,
@@ -143,10 +143,10 @@ async function requestRoles(
     await throwApiError(response);
   }
   const payload = (await response.json()) as {
-    data?: { id: number; name: string; is_system: boolean }[] | null;
+    data?: { id: string; name: string; is_system: boolean }[] | null;
   };
   return (payload.data ?? []).map((role) => ({
-    id: role.id.toString(),
+    id: role.id,
     name: role.name,
     isSystem: role.is_system,
   }));
@@ -172,7 +172,7 @@ class AccountTenantAccessService {
       method: "POST",
       body: JSON.stringify({
         school_id: Number(body.schoolId),
-        role_id: Number(body.roleId),
+        role_id: body.roleId,
         first_name: body.firstName,
         last_name: body.lastName,
         position: body.position,
@@ -183,7 +183,7 @@ class AccountTenantAccessService {
   updateRole(accountId: string, tenantId: string, roleId: string) {
     return request(`${basePath(accountId)}/${encodeURIComponent(tenantId)}`, {
       method: "PUT",
-      body: JSON.stringify({ role_id: Number(roleId) }),
+      body: JSON.stringify({ role_id: roleId }),
     });
   }
 

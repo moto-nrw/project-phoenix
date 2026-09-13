@@ -255,6 +255,7 @@ func (rs *Resource) renderAccountRoleMutationError(w http.ResponseWriter, r *htt
 	for _, policyErr := range []error{
 		authService.ErrRoleLehrkraftCaregiverProfile,
 		authService.ErrRoleCaregiverNeedsProfile,
+		authService.ErrLehrkraftRoleImmutable,
 	} {
 		if errors.Is(err, policyErr) {
 			common.RenderError(w, r, common.ErrorConflict(policyErr))

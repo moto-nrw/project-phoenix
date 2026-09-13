@@ -33,7 +33,7 @@ const accessAuditIP = "0.0.0.0"
 
 // AccountTenantRole is one role an account holds at one school.
 type AccountTenantRole struct {
-	ID       int64   `json:"id"`
+	ID       int64   `json:"id,string"`
 	Name     string  `json:"name"`
 	IsSystem bool    `json:"is_system"`
 	BaseRole *string `json:"base_role,omitempty"`

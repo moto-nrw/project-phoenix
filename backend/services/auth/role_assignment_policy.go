@@ -75,6 +75,11 @@ var (
 	// the tenant RBAC endpoint cannot, so it is refused there (#1772).
 	ErrRoleCaregiverNeedsProfile = errors.New("Ein Lehrkraft-Konto hat kein Betreuungsprofil und kann nicht auf eine Betreuer-Rolle umgestellt werden") //nolint:staticcheck // ST1005: user-facing German message
 
+	// ErrLehrkraftRoleImmutable keeps a Lehrkraft account from receiving any
+	// other role. Changing it would invalidate the account's school identity
+	// and must go through offboarding plus a new account or invitation.
+	ErrLehrkraftRoleImmutable = errors.New("Ein Lehrkraft-Konto kann nicht umgestellt werden") //nolint:staticcheck // ST1005: user-facing German message
+
 	// ErrRoleLehrkraftCaregiverProfile rejects assigning the Lehrkraft role
 	// to an account whose identity at the school still carries a live
 	// caregiver profile (users.teachers): the swap would strand the profile

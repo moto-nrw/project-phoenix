@@ -834,7 +834,7 @@ describe("OperatorProvisioningService", () => {
   describe("listSystemRoles", () => {
     it("calls correct endpoint", async () => {
       mockOperatorFetch.mockResolvedValue([
-        { id: 1, name: "admin", is_system: true },
+        { id: "1", name: "admin", is_system: true },
       ]);
 
       await operatorProvisioningService.listSystemRoles();
@@ -846,9 +846,9 @@ describe("OperatorProvisioningService", () => {
 
     it("maps response data correctly", async () => {
       mockOperatorFetch.mockResolvedValue([
-        { id: 1, name: "admin", is_system: true },
-        { id: 2, name: "teacher", is_system: true },
-        { id: 3, name: "custom_role", is_system: false },
+        { id: "1", name: "admin", is_system: true },
+        { id: "2", name: "teacher", is_system: true },
+        { id: "3", name: "custom_role", is_system: false },
       ]);
 
       const result = await operatorProvisioningService.listSystemRoles();
