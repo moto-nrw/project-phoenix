@@ -101,10 +101,14 @@ def main():
             compose("exec", "-T", "postgres", "psql", "-U", "postgres", "-v", "ON_ERROR_STOP=1", "-c", marker)
             backup = directory / "backup-rehearsal.dump"
             backup.write_bytes(compose("exec", "-T", "postgres", "pg_dump", "-U", "postgres", "-d", "postgres", "-Fc"))
-            globals_file = directory / "globals-rehearsal.sql"
-            globals_file.write_bytes(compose("exec", "-T", "postgres", "pg_dumpall", "-U", "postgres", "--globals-only"))
-            globals_file.chmod(0o600)
-            run(["bash", str(ROOT / "scripts/restore-db.sh"), str(backup)])
+            # This fixture builds local images without registry digests and has
+            # no persistent upload volume. It tests the runtime DB boundary;
+            # release-backup.integration.test.mjs covers complete release restore.
+            compose("exec", "-T", "postgres", "psql", "-U", "postgres", "-d", "template1",
+                    "-v", "ON_ERROR_STOP=1", "-c", "DROP DATABASE postgres WITH (FORCE);",
+                    "-c", "CREATE DATABASE postgres OWNER postgres TEMPLATE template0;")
+            compose("exec", "-T", "postgres", "pg_restore", "-U", "postgres", "-d", "postgres",
+                    "--exit-on-error", data=backup.read_bytes())
             restored = compose("exec", "-T", "postgres", "psql", "-U", "postgres", "-At", "-c",
                                "SELECT value = 'fixture' FROM public.env_rehearsal")
             if restored.strip() != b"t":

@@ -17,9 +17,11 @@ Keep the archive, view, functions, triggers, and counters for rollback.
 3. Deploy the new image. Exercise submission, effective-date changes,
    rollover, capacity, care exit, and deletion. Save the evidence below with
    the image identifiers and sampling times.
-4. If compatibility or checksum verification fails after the switch, deploy
-   the previous image against the retained view. Do not run a down migration
-   or rename the archive back over current bookings.
+4. If compatibility or checksum verification fails after the switch, follow
+   the [complete release rollback](release-backup-rollback.md). The retained
+   view supports the old Enrollment contract, but does not make the whole old
+   image compatible with other changed schemas, notably the email outbox.
+   Do not run a down migration or rename the archive over current bookings.
 
 After a committed switch, use the resumable compatibility repair, not the
 pre-cutover source-to-target copy:
@@ -41,8 +43,8 @@ schema definitions are shared and are repaired for every school.
 The old request-child-storage backfill still refuses to copy from a view:
 restart must never overwrite current targets with the stale archive. Repair
 does not invent missing submission history or modify owner data to conceal a
-checksum problem. If verification still fails, keep the previous image and
-fix the underlying defect before rerunning repair. This release retains the
+checksum problem. If verification still fails, keep the application stopped
+until repaired or restore the complete previous release. This release retains the
 rollback schema.
 
 ## Capture database evidence

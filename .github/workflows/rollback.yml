@@ -1,5 +1,5 @@
 name: Manual Rollback
-run-name: Rollback ${{ inputs.environment }} to ${{ inputs.target_sha || 'previous version' }}
+run-name: Rollback ${{ inputs.environment }} from ${{ inputs.backup_id || 'pre-deployment snapshot' }}
 
 on:
   workflow_dispatch:
@@ -11,31 +11,23 @@ on:
         options:
           - staging
           - production
-      target_sha:
-        description: "Image SHA tag (7-char, e.g. abc1234). Leave empty to use previous deploy."
+      backup_id:
+        description: "Complete backup ID. Empty restores the current deployment's pre-deployment snapshot."
         required: false
         type: string
-      restore_db:
-        description: "Restore database from latest backup"
-        required: true
-        type: boolean
-        default: true
 
 permissions: {}
 
-env:
-  REGISTRY: ghcr.io
-  BACKEND_IMAGE: ghcr.io/moto-nrw/phoenix-server
-  FRONTEND_IMAGE: ghcr.io/moto-nrw/phoenix-frontend
-
 jobs:
   rollback:
+    concurrency:
+      group: deploy-${{ inputs.environment }}
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     environment:
       name: ${{ inputs.environment }}
     permissions:
       contents: read
-      packages: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -51,7 +43,7 @@ jobs:
             exit 1
           fi
           case "$ENVIRONMENT" in
-            staging)    echo "dir=staging" >> "$GITHUB_OUTPUT" ;;
+            staging) echo "dir=staging" >> "$GITHUB_OUTPUT" ;;
             production) echo "dir=production" >> "$GITHUB_OUTPUT" ;;
           esac
 
@@ -67,70 +59,28 @@ jobs:
           chmod 644 ~/.ssh/known_hosts
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          echo "host=$SSH_HOST" >> $GITHUB_OUTPUT
-
-      - name: Determine target SHA
-        id: target
-        env:
-          INPUT_TARGET_SHA: ${{ inputs.target_sha }}
-          SSH_HOST: ${{ steps.ssh.outputs.host }}
-          DEPLOY_DIR: ${{ steps.env.outputs.dir }}
-        run: |
-          if [ -n "$INPUT_TARGET_SHA" ]; then
-            echo "sha=$INPUT_TARGET_SHA" >> $GITHUB_OUTPUT
-            echo "Using provided SHA: $INPUT_TARGET_SHA"
-          else
-            PREV=$(ssh -i ~/.ssh/deploy_key "root@${SSH_HOST}" \
-              "cat ~/${DEPLOY_DIR}/.deploy-state 2>/dev/null | grep '^PREVIOUS_SHA=' | cut -d= -f2")
-            if [ -z "$PREV" ]; then
-              echo "No .deploy-state found on server and no target_sha provided"
-              exit 1
-            fi
-            echo "sha=$PREV" >> $GITHUB_OUTPUT
-            echo "Using previous SHA from .deploy-state: $PREV"
-          fi
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Validate images exist in GHCR
-        env:
-          SHA: ${{ steps.target.outputs.sha }}
-        run: |
-          echo "Validating images for SHA: $SHA"
-          docker manifest inspect "${{ env.BACKEND_IMAGE }}:$SHA" > /dev/null 2>&1 \
-            || { echo "Backend image :$SHA not found in GHCR"; exit 1; }
-          docker manifest inspect "${{ env.FRONTEND_IMAGE }}:$SHA" > /dev/null 2>&1 \
-            || { echo "Frontend image :$SHA not found in GHCR"; exit 1; }
-          echo "Both images verified in GHCR"
+          echo "host=$SSH_HOST" >> "$GITHUB_OUTPUT"
 
       - name: Rollback
         id: rollback
         env:
-          TARGET_SHA: ${{ steps.target.outputs.sha }}
+          BACKUP_ID: ${{ inputs.backup_id }}
           DEPLOY_DIR: ${{ steps.env.outputs.dir }}
-          RESTORE_DB: ${{ inputs.restore_db }}
           SSH_HOST: ${{ steps.ssh.outputs.host }}
         run: |
-          ssh -i ~/.ssh/deploy_key "root@${SSH_HOST}" "mkdir -p ~/scripts"
-          scp -i ~/.ssh/deploy_key scripts/rollback-remote.sh root@$SSH_HOST:~/scripts/rollback-remote.sh
-          scp -i ~/.ssh/deploy_key scripts/restore-db.sh root@$SSH_HOST:~/scripts/restore-db.sh
-
-          set +e
-          ssh -i ~/.ssh/deploy_key "root@${SSH_HOST}" \
-            "TARGET_SHA=$TARGET_SHA DEPLOY_DIR=$DEPLOY_DIR RESTORE_DB=$RESTORE_DB bash ~/scripts/rollback-remote.sh"
-          ROLLBACK_EXIT=$?
-          set -e
-
-          echo "rollback_exit=$ROLLBACK_EXIT" >> $GITHUB_OUTPUT
-
-          if [ "$ROLLBACK_EXIT" -ne 0 ]; then
+          if [[ -n "$BACKUP_ID" && ! "$BACKUP_ID" =~ ^release-[0-9]{8}T[0-9]{6}Z-[a-f0-9]{7,40}$ ]]; then
+            echo "Invalid backup ID"
             exit 1
           fi
+          ssh -i ~/.ssh/deploy_key "root@${SSH_HOST}" "mkdir -p ~/scripts"
+          scp -i ~/.ssh/deploy_key scripts/rollback-remote.sh scripts/restore-db.sh scripts/release-backup.sh "root@$SSH_HOST:~/scripts/"
+          set +e
+          ssh -i ~/.ssh/deploy_key "root@${SSH_HOST}" \
+            "BACKUP_ID=$BACKUP_ID DEPLOY_DIR=$DEPLOY_DIR bash ~/scripts/rollback-remote.sh"
+          ROLLBACK_EXIT=$?
+          set -e
+          echo "rollback_exit=$ROLLBACK_EXIT" >> "$GITHUB_OUTPUT"
+          exit "$ROLLBACK_EXIT"
 
       - name: Cleanup SSH
         if: always()
@@ -143,8 +93,3 @@ jobs:
           exit_code: ${{ steps.rollback.outputs.rollback_exit }}
           environment: ${{ inputs.environment }}
           resend_api_key: ${{ secrets.RESEND_API_KEY }}
-          notify_emails: ${{ vars.DEPLOY_NOTIFY_EMAILS }}
-          run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          sha: ${{ steps.target.outputs.sha }}
-          actor: ${{ github.actor }}
-          notification_type: rollback
