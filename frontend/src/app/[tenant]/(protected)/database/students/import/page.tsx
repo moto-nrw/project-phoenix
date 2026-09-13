@@ -19,6 +19,13 @@ import {
   IMPORT_MODE_ITEMS,
   type ImportMode,
 } from "~/lib/import-mode";
+import {
+  countAlreadyExistsRows,
+  importBatchFailureAlertType,
+  importBatchFailureMessage,
+  importBatchSavedCount,
+  readImportBatchFailure,
+} from "~/lib/import-batch-result";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 
@@ -104,6 +111,29 @@ function splitMessages(errors: ImportError[]): {
   };
 }
 
+function toDisplayStudent(row: ImportRowResult): DisplayStudent {
+  return {
+    row: row.RowNumber,
+    status: row.Errors.some(
+      (error) =>
+        error.code === "already_exists" || error.code === "will_update",
+    )
+      ? "existing"
+      : row.Errors.some((error) => error.severity === "error")
+        ? "error"
+        : row.Errors.some((error) => error.severity === "warning")
+          ? "warning"
+          : "new",
+    ...splitMessages(row.Errors),
+    first_name: row.Data.first_name,
+    last_name: row.Data.last_name,
+    school_class: row.Data.school_class,
+    group_name: row.Data.group_name ?? "",
+    guardian_info: guardianLabel(row.Data.guardians),
+    health_info: row.Data.health_info ?? "",
+  };
+}
+
 /** "Maria Muster (Mutter)" from whatever parts the row carries; empty when none. */
 function guardianLabel(
   guardians: ImportRowResult["Data"]["guardians"] | undefined,
@@ -126,6 +156,7 @@ export default function StudentImportPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [importComplete, setImportComplete] = useState(false);
+  const [importInterrupted, setImportInterrupted] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [templateFormat, setTemplateFormat] = useState<"csv" | "xlsx">("xlsx");
@@ -148,6 +179,7 @@ export default function StudentImportPage() {
     setIsLoading(false);
     setIsImporting(false);
     setImportComplete(false);
+    setImportInterrupted(false);
     setImportResult(null);
     setError(null);
   }, []);
@@ -203,6 +235,7 @@ export default function StudentImportPage() {
       setError(null);
       setIsLoading(true);
       setImportComplete(false);
+      setImportInterrupted(false);
       setImportResult(null);
 
       try {
@@ -346,42 +379,35 @@ export default function StudentImportPage() {
       const result = (await response.json()) as Record<string, unknown>;
 
       if (!response.ok) {
+        const interrupted = readImportBatchFailure<ImportRowResult>(result);
+        if (interrupted) {
+          setImportResult(interrupted as ImportResult);
+          setImportInterrupted(true);
+          setPreviewData((interrupted.Errors ?? []).map(toDisplayStudent));
+          setError(importBatchFailureMessage(interrupted));
+          logger.error("student_import_batch_failed", {
+            created: interrupted.CreatedCount,
+            updated: interrupted.UpdatedCount,
+            errors: interrupted.ErrorCount,
+          });
+          return;
+        }
         throw new Error(
-          (result.message as string | undefined) ?? "Fehler beim Import",
+          (result.error as string | undefined) ??
+            (result.message as string | undefined) ??
+            "Fehler beim Import",
         );
       }
 
       const importData = result.data as ImportResult;
       setImportResult(importData);
+      setImportInterrupted(false);
 
       // Handle partial failures vs full success
       if (importData.ErrorCount > 0) {
         // Partial success: Show warning and keep form to display error details
         // Don't set importComplete - keep preview visible so user sees which rows failed
-        // Update previewData with error details from import result
-        const errorDisplayData: DisplayStudent[] = importData.Errors.map(
-          (row) => ({
-            row: row.RowNumber,
-            status: row.Errors.some(
-              (error) =>
-                error.code === "already_exists" || error.code === "will_update",
-            )
-              ? "existing"
-              : row.Errors.some((error) => error.severity === "error")
-                ? "error"
-                : row.Errors.some((error) => error.severity === "warning")
-                  ? "warning"
-                  : "new",
-            ...splitMessages(row.Errors),
-            first_name: row.Data.first_name,
-            last_name: row.Data.last_name,
-            school_class: row.Data.school_class,
-            group_name: row.Data.group_name ?? "",
-            guardian_info: guardianLabel(row.Data.guardians),
-            health_info: row.Data.health_info ?? "",
-          }),
-        );
-        setPreviewData(errorDisplayData);
+        setPreviewData(importData.Errors.map(toDisplayStudent));
         toast.warning(
           `${childCountLabel(importData.CreatedCount)} importiert, ${importData.UpdatedCount} aktualisiert, ${importData.ErrorCount} übersprungen`,
         );
@@ -444,19 +470,27 @@ export default function StudentImportPage() {
     }
   };
 
-  // Stats - use backend counts directly
+  // already_exists is a skip, not a blocking preview error. Create-mode
+  // recovery re-uploads count committed rows that way; they must not disable Import.
+  const alreadyExists = countAlreadyExistsRows(importResult?.Errors);
   const stats = {
     total: importResult?.TotalRows ?? 0,
     new: importResult?.CreatedCount ?? 0,
-    existing: importResult?.UpdatedCount ?? 0,
-    errors: importResult?.ErrorCount ?? 0,
+    existing: (importResult?.UpdatedCount ?? 0) + alreadyExists,
+    errors: (importResult?.ErrorCount ?? 0) - alreadyExists,
   };
-  const importLabel =
-    mode === "create"
+  const importable =
+    mode === "update"
+      ? (importResult?.UpdatedCount ?? 0)
+      : stats.new + (mode === "upsert" ? (importResult?.UpdatedCount ?? 0) : 0);
+  const importLabel = importInterrupted
+    ? "Erneut versuchen"
+    : mode === "create"
       ? `${childCountLabel(stats.new)} importieren`
       : mode === "update"
-        ? `${childCountLabel(stats.existing)} aktualisieren`
-        : `${childCountLabel(stats.new + stats.existing)} übernehmen`;
+        ? `${childCountLabel(importable)} aktualisieren`
+        : `${childCountLabel(importable)} übernehmen`;
+  const savedCount = importResult ? importBatchSavedCount(importResult) : 0;
 
   // Statuszeile des Seitenkopfs: der Stand des Imports, nicht ein Erklärsatz.
   const statusLine = uploadedFile
@@ -464,7 +498,9 @@ export default function StudentImportPage() {
         uploadedFile.name,
         importComplete
           ? "Import abgeschlossen"
-          : `${stats.total} ${stats.total === 1 ? "Zeile" : "Zeilen"}`,
+          : importInterrupted
+            ? `${savedCount} gespeichert`
+            : `${stats.total} ${stats.total === 1 ? "Zeile" : "Zeilen"}`,
         !importComplete && stats.errors > 0
           ? `${stats.errors} ${stats.errors === 1 ? "Fehler" : "Fehler"}`
           : null,
@@ -507,7 +543,14 @@ export default function StudentImportPage() {
       {/* Error Display */}
       {error && (
         <div className="relative">
-          <Alert type="error" message={error} />
+          <Alert
+            type={
+              importInterrupted && importResult
+                ? importBatchFailureAlertType(importResult)
+                : "error"
+            }
+            message={error}
+          />
           <Button
             type="button"
             variant="ghost"
@@ -604,7 +647,7 @@ export default function StudentImportPage() {
       />
 
       {/* Preview Section */}
-      {previewData.length > 0 && !importComplete && (
+      {(previewData.length > 0 || importInterrupted) && !importComplete && (
         <>
           {/* Statistics */}
           <StatsCards
@@ -617,30 +660,31 @@ export default function StudentImportPage() {
             errors={stats.errors}
           />
 
-          {/* Data List */}
-          <SectionCard title="Datenvorschau" icon={ListChecks}>
-            <div className="space-y-2">
-              {previewData.map((student, idx) => (
-                <StudentRowCard
-                  key={student.row}
-                  student={{
-                    row: student.row,
-                    status: student.status,
-                    errors: student.errors,
-                    notes: student.notes,
-                    first_name: student.first_name,
-                    last_name: student.last_name,
-                    meta: [
-                      student.school_class,
-                      student.group_name,
-                      student.guardian_info,
-                    ],
-                  }}
-                  index={idx}
-                />
-              ))}
-            </div>
-          </SectionCard>
+          {previewData.length > 0 && (
+            <SectionCard title="Datenvorschau" icon={ListChecks}>
+              <div className="space-y-2">
+                {previewData.map((student, idx) => (
+                  <StudentRowCard
+                    key={student.row}
+                    student={{
+                      row: student.row,
+                      status: student.status,
+                      errors: student.errors,
+                      notes: student.notes,
+                      first_name: student.first_name,
+                      last_name: student.last_name,
+                      meta: [
+                        student.school_class,
+                        student.group_name,
+                        student.guardian_info,
+                      ],
+                    }}
+                    index={idx}
+                  />
+                ))}
+              </div>
+            </SectionCard>
+          )}
 
           {/* Spacer for sticky action bar */}
           <div className="h-20" />
@@ -661,7 +705,11 @@ export default function StudentImportPage() {
               variant="success"
               size="md"
               className="flex-1"
-              disabled={stats.errors > 0 || isImporting || isLoading}
+              disabled={
+                isImporting ||
+                isLoading ||
+                (!importInterrupted && (stats.errors > 0 || importable === 0))
+              }
               onClick={() => void handleImport()}
             >
               {isImporting ? "Wird importiert…" : importLabel}

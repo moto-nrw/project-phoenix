@@ -19,6 +19,13 @@ import {
   IMPORT_MODE_ITEMS,
   type ImportMode,
 } from "~/lib/import-mode";
+import {
+  countAlreadyExistsRows,
+  importBatchFailureAlertType,
+  importBatchFailureMessage,
+  importBatchSavedCount,
+  readImportBatchFailure,
+} from "~/lib/import-batch-result";
 import { useToast } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
 import { createCrudService } from "~/lib/database/service-factory";
@@ -113,6 +120,7 @@ export default function StaffImportPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [importComplete, setImportComplete] = useState(false);
+  const [importInterrupted, setImportInterrupted] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [templateFormat, setTemplateFormat] = useState<"csv" | "xlsx">("xlsx");
@@ -166,6 +174,7 @@ export default function StaffImportPage() {
     setIsLoading(false);
     setIsImporting(false);
     setImportComplete(false);
+    setImportInterrupted(false);
     setImportResult(null);
     setError(null);
   }, []);
@@ -219,6 +228,7 @@ export default function StaffImportPage() {
       setError(null);
       setIsLoading(true);
       setImportComplete(false);
+      setImportInterrupted(false);
       setImportResult(null);
 
       try {
@@ -322,13 +332,29 @@ export default function StaffImportPage() {
       const result = (await response.json()) as Record<string, unknown>;
 
       if (!response.ok) {
+        const interrupted = readImportBatchFailure<ImportRowResult>(result);
+        if (interrupted) {
+          setImportResult(interrupted as ImportResult);
+          setImportInterrupted(true);
+          setPreviewData((interrupted.Errors ?? []).map(toDisplayStaff));
+          setError(importBatchFailureMessage(interrupted));
+          logger.error("staff_import_batch_failed", {
+            created: interrupted.CreatedCount,
+            updated: interrupted.UpdatedCount,
+            errors: interrupted.ErrorCount,
+          });
+          return;
+        }
         throw new Error(
-          (result.message as string | undefined) ?? "Fehler beim Import",
+          (result.error as string | undefined) ??
+            (result.message as string | undefined) ??
+            "Fehler beim Import",
         );
       }
 
       const importData = result.data as ImportResult;
       setImportResult(importData);
+      setImportInterrupted(false);
 
       if (importData.ErrorCount > 0) {
         // Partial success: keep preview visible so the user sees which rows failed.
@@ -393,18 +419,25 @@ export default function StaffImportPage() {
     }
   };
 
+  const alreadyExists = countAlreadyExistsRows(importResult?.Errors);
   const stats = {
     total: importResult?.TotalRows ?? 0,
     new: importResult?.CreatedCount ?? 0,
-    existing: importResult?.UpdatedCount ?? 0,
-    errors: importResult?.ErrorCount ?? 0,
+    existing: (importResult?.UpdatedCount ?? 0) + alreadyExists,
+    errors: (importResult?.ErrorCount ?? 0) - alreadyExists,
   };
-  const importLabel =
-    mode === "create"
+  const importable =
+    mode === "update"
+      ? (importResult?.UpdatedCount ?? 0)
+      : stats.new + (mode === "upsert" ? (importResult?.UpdatedCount ?? 0) : 0);
+  const importLabel = importInterrupted
+    ? "Erneut versuchen"
+    : mode === "create"
       ? `${stats.new} Mitarbeiter anlegen`
       : mode === "update"
-        ? `${stats.existing} Mitarbeiter aktualisieren`
-        : `${stats.new + stats.existing} Mitarbeiter übernehmen`;
+        ? `${importable} Mitarbeiter aktualisieren`
+        : `${importable} Mitarbeiter übernehmen`;
+  const savedCount = importResult ? importBatchSavedCount(importResult) : 0;
 
   // Statuszeile des Seitenkopfs: der Stand des Imports, nicht ein Erklärsatz.
   const statusLine = uploadedFile
@@ -412,7 +445,9 @@ export default function StaffImportPage() {
         uploadedFile.name,
         importComplete
           ? "Import abgeschlossen"
-          : `${stats.total} ${stats.total === 1 ? "Zeile" : "Zeilen"}`,
+          : importInterrupted
+            ? `${savedCount} gespeichert`
+            : `${stats.total} ${stats.total === 1 ? "Zeile" : "Zeilen"}`,
         !importComplete && stats.errors > 0 ? `${stats.errors} Fehler` : null,
       ]
         .filter(Boolean)
@@ -467,7 +502,14 @@ export default function StaffImportPage() {
       {/* Error Display */}
       {error && (
         <div className="relative">
-          <Alert type="error" message={error} />
+          <Alert
+            type={
+              importInterrupted && importResult
+                ? importBatchFailureAlertType(importResult)
+                : "error"
+            }
+            message={error}
+          />
           <Button
             type="button"
             variant="ghost"
@@ -574,7 +616,7 @@ export default function StaffImportPage() {
       />
 
       {/* Preview Section */}
-      {previewData.length > 0 && !importComplete && (
+      {(previewData.length > 0 || importInterrupted) && !importComplete && (
         <>
           <StatsCards
             total={stats.total}
@@ -586,25 +628,27 @@ export default function StaffImportPage() {
             errors={stats.errors}
           />
 
-          <SectionCard title="Datenvorschau" icon={ListChecks}>
-            <div className="space-y-2">
-              {previewData.map((staff, idx) => (
-                <StudentRowCard
-                  key={staff.row}
-                  student={{
-                    row: staff.row,
-                    status: staff.status,
-                    errors: staff.errors,
-                    notes: staff.notes,
-                    first_name: staff.first_name,
-                    last_name: staff.last_name,
-                    meta: [staff.email, staff.role_name, staff.position],
-                  }}
-                  index={idx}
-                />
-              ))}
-            </div>
-          </SectionCard>
+          {previewData.length > 0 && (
+            <SectionCard title="Datenvorschau" icon={ListChecks}>
+              <div className="space-y-2">
+                {previewData.map((staff, idx) => (
+                  <StudentRowCard
+                    key={staff.row}
+                    student={{
+                      row: staff.row,
+                      status: staff.status,
+                      errors: staff.errors,
+                      notes: staff.notes,
+                      first_name: staff.first_name,
+                      last_name: staff.last_name,
+                      meta: [staff.email, staff.role_name, staff.position],
+                    }}
+                    index={idx}
+                  />
+                ))}
+              </div>
+            </SectionCard>
+          )}
 
           {/* Spacer for sticky action bar */}
           <div className="h-20" />
@@ -625,7 +669,11 @@ export default function StaffImportPage() {
               variant="success"
               size="md"
               className="flex-1"
-              disabled={stats.errors > 0 || isImporting || isLoading}
+              disabled={
+                isImporting ||
+                isLoading ||
+                (!importInterrupted && (stats.errors > 0 || importable === 0))
+              }
               onClick={() => void handleImport()}
             >
               {isImporting ? "Wird importiert…" : importLabel}

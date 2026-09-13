@@ -20,6 +20,13 @@ import { StatsCards } from "~/components/import/stats-cards";
 import { StudentRowCard } from "~/components/import/student-row-card";
 import { useToast } from "~/contexts/ToastContext";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
+import {
+  countAlreadyExistsRows,
+  importBatchFailureAlertType,
+  importBatchFailureMessage,
+  importBatchSavedCount,
+  readImportBatchFailure,
+} from "~/lib/import-batch-result";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "ClassListImportPage" });
@@ -75,14 +82,6 @@ function rowStatusFor(errors: ImportError[]): RowStatus {
   return "new";
 }
 
-// The generic import engine records rows that are already on the class list
-// as already_exists row errors and never fills SkippedCount — the skipped
-// share has to be derived from the row results.
-function countAlreadyExists(rows: ImportRowResult[]): number {
-  return rows.filter((r) => r.Errors.some((e) => e.code === "already_exists"))
-    .length;
-}
-
 function toDisplayEntry(row: ImportRowResult): DisplayEntry {
   return {
     row: row.RowNumber,
@@ -101,6 +100,7 @@ export default function ClassListImportPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [importComplete, setImportComplete] = useState(false);
+  const [importInterrupted, setImportInterrupted] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [templateFormat, setTemplateFormat] = useState<"csv" | "xlsx">("xlsx");
@@ -125,6 +125,7 @@ export default function ClassListImportPage() {
     setIsLoading(false);
     setIsImporting(false);
     setImportComplete(false);
+    setImportInterrupted(false);
     setImportResult(null);
     setError(null);
   }, []);
@@ -177,6 +178,7 @@ export default function ClassListImportPage() {
       setError(null);
       setIsLoading(true);
       setImportComplete(false);
+      setImportInterrupted(false);
       setImportResult(null);
 
       try {
@@ -267,6 +269,19 @@ export default function ClassListImportPage() {
       const result = (await response.json()) as Record<string, unknown>;
 
       if (!response.ok) {
+        const interrupted = readImportBatchFailure<ImportRowResult>(result);
+        if (interrupted) {
+          setImportResult(interrupted as ImportResult);
+          setImportInterrupted(true);
+          setPreviewData((interrupted.Errors ?? []).map(toDisplayEntry));
+          setError(importBatchFailureMessage(interrupted));
+          logger.error("class_list_import_batch_failed", {
+            created: interrupted.CreatedCount,
+            updated: interrupted.UpdatedCount,
+            errors: interrupted.ErrorCount,
+          });
+          return;
+        }
         throw new Error(
           (result.error as string | undefined) ??
             (result.message as string | undefined) ??
@@ -276,12 +291,13 @@ export default function ClassListImportPage() {
 
       const importData = result.data as ImportResult;
       setImportResult(importData);
+      setImportInterrupted(false);
 
       if (importData.ErrorCount > 0) {
         // Partial success: keep preview visible so the user sees which rows
         // were skipped (already on the class list) or failed.
         setPreviewData(importData.Errors.map(toDisplayEntry));
-        const skipped = countAlreadyExists(importData.Errors);
+        const skipped = countAlreadyExistsRows(importData.Errors);
         const failed = importData.ErrorCount - skipped;
         toast.warning(
           `${importData.CreatedCount} angelegt, ${skipped} übersprungen` +
@@ -342,7 +358,7 @@ export default function ClassListImportPage() {
     }
   };
 
-  const existingCount = countAlreadyExists(importResult?.Errors ?? []);
+  const existingCount = countAlreadyExistsRows(importResult?.Errors);
   const stats = {
     total: importResult?.TotalRows ?? 0,
     new: importResult?.CreatedCount ?? 0,
@@ -351,12 +367,15 @@ export default function ClassListImportPage() {
   };
 
   // Statuszeile des Seitenkopfs: der Stand des Imports.
+  const savedCount = importResult ? importBatchSavedCount(importResult) : 0;
   const statusLine = uploadedFile
     ? [
         uploadedFile.name,
         importComplete
           ? "Import abgeschlossen"
-          : `${stats.total} ${stats.total === 1 ? "Zeile" : "Zeilen"}`,
+          : importInterrupted
+            ? `${savedCount} gespeichert`
+            : `${stats.total} ${stats.total === 1 ? "Zeile" : "Zeilen"}`,
         !importComplete && stats.errors > 0 ? `${stats.errors} Fehler` : null,
       ]
         .filter(Boolean)
@@ -395,7 +414,14 @@ export default function ClassListImportPage() {
       {/* Error Display */}
       {error && (
         <div className="relative">
-          <Alert type="error" message={error} />
+          <Alert
+            type={
+              importInterrupted && importResult
+                ? importBatchFailureAlertType(importResult)
+                : "error"
+            }
+            message={error}
+          />
           <Button
             type="button"
             variant="ghost"
@@ -472,7 +498,7 @@ export default function ClassListImportPage() {
       />
 
       {/* Preview Section */}
-      {previewData.length > 0 && !importComplete && (
+      {(previewData.length > 0 || importInterrupted) && !importComplete && (
         <>
           <StatsCards
             total={stats.total}
@@ -481,24 +507,26 @@ export default function ClassListImportPage() {
             errors={stats.errors}
           />
 
-          <SectionCard title="Datenvorschau" icon={ListChecks}>
-            <div className="space-y-2">
-              {previewData.map((entry, idx) => (
-                <StudentRowCard
-                  key={entry.row}
-                  student={{
-                    row: entry.row,
-                    status: entry.status,
-                    errors: entry.errors,
-                    first_name: entry.first_name,
-                    last_name: entry.last_name,
-                    meta: [entry.school_class],
-                  }}
-                  index={idx}
-                />
-              ))}
-            </div>
-          </SectionCard>
+          {previewData.length > 0 && (
+            <SectionCard title="Datenvorschau" icon={ListChecks}>
+              <div className="space-y-2">
+                {previewData.map((entry, idx) => (
+                  <StudentRowCard
+                    key={entry.row}
+                    student={{
+                      row: entry.row,
+                      status: entry.status,
+                      errors: entry.errors,
+                      first_name: entry.first_name,
+                      last_name: entry.last_name,
+                      meta: [entry.school_class],
+                    }}
+                    index={idx}
+                  />
+                ))}
+              </div>
+            </SectionCard>
+          )}
 
           {/* Spacer for sticky action bar */}
           <div className="h-20" />
@@ -520,11 +548,13 @@ export default function ClassListImportPage() {
               size="md"
               className="flex-1"
               onClick={() => void handleImport()}
-              disabled={stats.new === 0 || isImporting}
+              disabled={(!importInterrupted && stats.new === 0) || isImporting}
             >
               {isImporting
                 ? "Wird importiert…"
-                : `${stats.new} Einträge importieren`}
+                : importInterrupted
+                  ? "Erneut versuchen"
+                  : `${stats.new} Einträge importieren`}
             </Button>
           </div>
         </>

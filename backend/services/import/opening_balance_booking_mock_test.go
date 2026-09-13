@@ -11,7 +11,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/services/import/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,15 +31,15 @@ type recordingOpeningBooker struct {
 
 	lastMinutes int
 	lastNote    string
-	lastDate    timezone.Date
+	lastDate    string
 }
 
-func (b *recordingOpeningBooker) ValidateOpeningBalance(_ context.Context, _, _ int64, _ timezone.Date, _ int, _ string) error {
+func (b *recordingOpeningBooker) ValidateOpeningBalance(_ context.Context, _, _ int64, _ string, _ int, _ string) error {
 	*b.events = append(*b.events, "validate_hours")
 	return b.validateErr
 }
 
-func (b *recordingOpeningBooker) CreateOpeningBalance(_ context.Context, staffID, decidedBy int64, effectiveDate timezone.Date, balanceMinutes int, note string) (*activeModels.StaffBalanceAdjustment, error) {
+func (b *recordingOpeningBooker) CreateOpeningBalance(_ context.Context, staffID, decidedBy int64, effectiveDate string, balanceMinutes int, note string) (*ports.StaffBalanceAdjustment, error) {
 	*b.events = append(*b.events, "create_hours")
 	b.lastMinutes = balanceMinutes
 	b.lastNote = note
@@ -47,7 +47,7 @@ func (b *recordingOpeningBooker) CreateOpeningBalance(_ context.Context, staffID
 	if b.createErr != nil {
 		return nil, b.createErr
 	}
-	return &activeModels.StaffBalanceAdjustment{
+	return &ports.StaffBalanceAdjustment{
 		StaffID:       staffID,
 		Type:          activeModels.BalanceAdjustmentTypeOpening,
 		MinutesDelta:  balanceMinutes,
@@ -60,7 +60,7 @@ func (b *recordingOpeningBooker) CreateOpeningBalance(_ context.Context, staffID
 type recordingVacationBooker struct {
 	events *[]string
 
-	summary       *activeSvc.VacationQuotaSummary
+	summary       *ports.VacationQuotaSummary
 	summaryErr    error
 	upsertErr     error
 	openingErr    error
@@ -71,7 +71,7 @@ type recordingVacationBooker struct {
 	lastNote      string
 }
 
-func (b *recordingVacationBooker) GetVacationQuotaSummary(_ context.Context, staffID int64, year int) (*activeSvc.VacationQuotaSummary, error) {
+func (b *recordingVacationBooker) VacationQuotaSummary(_ context.Context, staffID int64, year int) (*ports.VacationQuotaSummary, error) {
 	*b.events = append(*b.events, "read_quota")
 	if b.summaryErr != nil {
 		return nil, b.summaryErr
@@ -79,7 +79,7 @@ func (b *recordingVacationBooker) GetVacationQuotaSummary(_ context.Context, sta
 	if b.summary != nil {
 		return b.summary, nil
 	}
-	return &activeSvc.VacationQuotaSummary{StaffID: staffID, Year: year, EntitledDays: 30, CarryoverDays: 0}, nil
+	return &ports.VacationQuotaSummary{StaffID: staffID, Year: year, EntitledDays: 30, CarryoverDays: 0}, nil
 }
 
 func (b *recordingVacationBooker) UpsertVacationQuota(_ context.Context, _ int64, _ int, entitled, carryover float64) error {
@@ -89,23 +89,27 @@ func (b *recordingVacationBooker) UpsertVacationQuota(_ context.Context, _ int64
 	return b.upsertErr
 }
 
-func (b *recordingVacationBooker) SetVacationOpening(_ context.Context, staffID, decidedBy int64, req activeSvc.SetVacationOpeningRequest) (*activeModels.StaffVacationOpening, error) {
+func (b *recordingVacationBooker) SetVacationOpening(_ context.Context, staffID, decidedBy int64, req ports.SetVacationOpeningRequest) (*ports.StaffVacationOpening, error) {
 	*b.events = append(*b.events, "create_vacation_opening")
 	b.lastRemaining = req.RemainingDays
 	b.lastNote = req.Note
 	if b.openingErr != nil {
 		return nil, b.openingErr
 	}
-	return &activeModels.StaffVacationOpening{
+	effective, err := timezone.ParseDate(req.EffectiveDate)
+	if err != nil {
+		return nil, err
+	}
+	return &ports.StaffVacationOpening{
 		StaffID:              staffID,
-		Year:                 req.EffectiveDate.Year(),
+		Year:                 effective.Year(),
 		EffectiveDate:        req.EffectiveDate,
 		EnteredRemainingDays: req.RemainingDays,
 		DecidedBy:            decidedBy,
 	}, nil
 }
 
-func (b *recordingVacationBooker) ValidateVacationOpeningAbsencesBefore(_ context.Context, _ int64, _ timezone.Date) error {
+func (b *recordingVacationBooker) ValidateVacationOpeningAbsencesBefore(_ context.Context, _ int64, _ string) error {
 	*b.events = append(*b.events, "validate_vacation")
 	return b.preflightErr
 }
@@ -271,7 +275,7 @@ func TestOpeningBalanceCreate_BooksOnlyTheSidesTheRowCarries(t *testing.T) {
 		assert.Equal(t, []string{"create_hours"}, events)
 		assert.Equal(t, -330, hours.lastMinutes, "a migrated account may start negative")
 		assert.Equal(t, c.Note, hours.lastNote, "the file-wide Begründung lands on the booking")
-		assert.Equal(t, c.EffectiveDate, hours.lastDate)
+		assert.Equal(t, c.EffectiveDate.String(), hours.lastDate)
 	})
 
 	t.Run("vacation only", func(t *testing.T) {
@@ -325,7 +329,7 @@ func TestOpeningBalanceCreate_QuotaKeepsUnsuppliedComponent(t *testing.T) {
 
 	events := []string{}
 	c, _, vacation := newBookingConfig(&events)
-	vacation.summary = &activeSvc.VacationQuotaSummary{EntitledDays: 30, CarryoverDays: 4}
+	vacation.summary = &ports.VacationQuotaSummary{EntitledDays: 30, CarryoverDays: 4}
 
 	// Only the Übertrag column is filled: the persisted Jahresanspruch must
 	// survive untouched.
@@ -379,17 +383,17 @@ func TestOpeningBalanceCreate_TranslatesLedgerRejections(t *testing.T) {
 	}{
 		{
 			name:    "second hours opening",
-			err:     activeSvc.ErrOpeningAlreadyExists,
+			err:     ports.ErrOpeningAlreadyExists,
 			wantMsg: "bereits ein Stundenkonto-Eröffnungssaldo",
 		},
 		{
 			name:    "closed month",
-			err:     activeSvc.ErrAdjustmentInClosedMonth,
+			err:     ports.ErrAdjustmentInClosedMonth,
 			wantMsg: "bereits abgeschlossen",
 		},
 		{
 			name:    "dependent reset",
-			err:     activeSvc.ErrAdjustmentHasDependentReset,
+			err:     ports.ErrAdjustmentHasDependentReset,
 			wantMsg: "spätere Stundenkonto-Buchungen",
 		},
 		{
@@ -426,12 +430,12 @@ func TestOpeningBalanceCreate_TranslatesVacationRejections(t *testing.T) {
 	}{
 		{
 			name:    "second takeover",
-			err:     activeSvc.ErrVacationOpeningExists,
+			err:     ports.ErrVacationOpeningExists,
 			wantMsg: "bereits eine Urlaubs-Übernahme",
 		},
 		{
 			name:    "absences before the Stichtag",
-			err:     activeSvc.ErrVacationOpeningAbsencesBeforeCutoff,
+			err:     ports.ErrVacationOpeningAbsencesBeforeCutoff,
 			wantMsg: "doppelt zählen",
 		},
 	}
@@ -492,7 +496,7 @@ func TestOpeningBalanceValidate_ReportsLedgerPreflightRejection(t *testing.T) {
 
 	events := []string{}
 	c, hours, _ := newBookingConfig(&events)
-	hours.validateErr = activeSvc.ErrAdjustmentInClosedMonth
+	hours.validateErr = ports.ErrAdjustmentInClosedMonth
 
 	row := &importModels.OpeningBalanceImportRow{
 		FirstName: "Anna", LastName: "Lehmann", HoursBalance: "12,5",
@@ -508,7 +512,7 @@ func TestOpeningBalanceValidate_ReportsVacationPreflightRejection(t *testing.T) 
 
 	events := []string{}
 	c, _, vacation := newBookingConfig(&events)
-	vacation.preflightErr = activeSvc.ErrVacationOpeningAbsencesBeforeCutoff
+	vacation.preflightErr = ports.ErrVacationOpeningAbsencesBeforeCutoff
 
 	row := &importModels.OpeningBalanceImportRow{
 		FirstName: "Anna", LastName: "Lehmann", VacationRemaining: "17,5",
@@ -539,7 +543,7 @@ func TestOpeningBalanceValidate_RejectsDerivedTakeoverOutsideTheModelRange(t *te
 	events := []string{}
 	c, _, vacation := newBookingConfig(&events)
 	// Entitled + carryover − Resturlaub must stay inside NUMERIC(5,1).
-	vacation.summary = &activeSvc.VacationQuotaSummary{EntitledDays: 30, CarryoverDays: 0}
+	vacation.summary = &ports.VacationQuotaSummary{EntitledDays: 30, CarryoverDays: 0}
 
 	row := &importModels.OpeningBalanceImportRow{
 		FirstName: "Anna", LastName: "Lehmann", VacationRemaining: "-990",
@@ -556,7 +560,7 @@ func TestOpeningBalanceValidate_DerivesTakeoverFromTheRowsOwnQuotaColumns(t *tes
 	c, _, vacation := newBookingConfig(&events)
 	// Persisted quota is 30 + 0, but the same row raises it to 28 + 4. The
 	// derived takeover must use the uploaded values, not the stored ones.
-	vacation.summary = &activeSvc.VacationQuotaSummary{EntitledDays: 30, CarryoverDays: 0}
+	vacation.summary = &ports.VacationQuotaSummary{EntitledDays: 30, CarryoverDays: 0}
 
 	row := &importModels.OpeningBalanceImportRow{
 		FirstName:         "Anna",

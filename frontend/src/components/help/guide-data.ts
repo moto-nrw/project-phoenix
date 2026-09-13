@@ -429,6 +429,7 @@ export const setupChapters: readonly GuideChapter[] = [
           "Datei hochladen und die `Datenvorschau` Zeile für Zeile prüfen.",
           "Fehler in der Datei beheben und erneut hochladen.",
           "Erst wenn die Vorschau stimmt, auf `Kinder importieren` klicken.",
+          "Wenn eine Zeile den Import anhält, bleiben die schon gespeicherten Zeilen. Die Seite zeigt die Zahl und die fehlerhafte Zeile.",
           "Eine Stichprobe unter `Alle Kinder` prüfen.",
         ],
         callout: {
@@ -1346,6 +1347,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Stichtag (z. B. der Tag vor dem Go-live) und eine Begründung eintragen; beides gilt für die ganze Datei und wird an jeder Buchung gespeichert.",
           "Die Vorschau prüfen: Zeilen mit Fehlern (unbekannte Person, ungültige Zahl, bereits vorhandene Übernahme) werden einzeln erklärt und beim Import übersprungen.",
           "Mit `Importieren` bestätigen. Jede Übernahme erscheint anschließend im Änderungsprotokoll der Zeiterfassung und in der Stundenkonto-Historie der Person.",
+          "Wenn eine Zeile den Import anhält, bleiben die schon gespeicherten Übernahmen. Die Seite zeigt die Zahl und die fehlerhafte Zeile.",
         ],
         callout: {
           title: "Nur einmal pro Person",
