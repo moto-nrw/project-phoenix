@@ -80,9 +80,17 @@ Manual runs accept an explicit base: `bash scripts/pre-push.sh origin/developmen
 
 `scripts/check-quality.sh` owns backend and frontend static checks for both CI
 and pre-push. Backend lint uses affected packages; dead-code and architecture
-analysis stay whole-program. Heavy checks run sequentially, followed by affected
-tests. Tool caches are reused, but there are no custom success stamps. CI keeps
-clean merge-checkout validation, builds, bundle limits, Storybook and seed smoke.
+analysis stay whole-program. Heavy checks run sequentially with stage timings.
+Successful static checks are cached in the worktree's Git directory under
+`pre-push-cache`. Keys include relevant committed files, checker scripts, base
+revision, pinned tools, platform and local configuration digests. Failures are
+never cached; dirty trees and missing tools fail even with a warm cache.
+Docs-only follow-up pushes reuse unchanged static results. Vulnerability scans
+always run. Runner/workflow-only changes run hook tests, not both full stacks.
+Affected/integration tests are not automatic hook steps: contributors still run
+`scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development` before
+pushing code. CI keeps independent validation, tests, builds, bundle limits,
+Storybook and seed smoke; it does not consume local success records.
 `scripts/pre-push.test.mjs` exercises selection and failure propagation in
 isolated Git repositories without running expensive analyzers.
 

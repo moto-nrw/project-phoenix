@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, copyFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, copyFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -49,19 +49,24 @@ function fixture(t) {
   git('config', 'user.name', 'Hook fixture');
   git('config', 'user.email', 'hook@example.invalid');
   write('.gitignore', '.devbox/\n');
-  for (const name of ['pre-push.sh', 'check-secrets.sh']) {
+  for (const name of ['pre-push.sh', 'check-secrets.sh', 'pre-push-cache.mjs', 'quality-timing.sh']) {
     write(`scripts/${name}`, readFileSync(join(source, name), 'utf8'));
   }
   write('scripts/run-go-toolchain.sh', `#!/bin/bash
 printf '%s\\n' "$*"
 if [[ "$*" == *check-quality.sh* && "\${FAIL_QUALITY:-}" == 1 ]]; then exit 9; fi
+if [[ "$*" == *check-quality.sh* && "\${MUTATE_SOURCE:-}" == 1 ]]; then echo changed >> backend/example.go; fi
 `);
   write('.devbox/nix/profile/default/bin/git-secrets', '#!/bin/bash\nexit "${FAIL_SECRETS:-0}"\n');
-  write('.devbox/nix/profile/default/bin/node', '#!/bin/bash\nexit 0\n');
+  symlinkSync(process.execPath, join(root, '.devbox/nix/profile/default/bin/node'));
+  write('.devbox/nix/profile/default/bin/go', '#!/bin/bash\nif [[ "$*" == *-json* ]]; then echo \'{"GOVERSION":"go1.27.0","GOWORK":"off"}\'; else echo go1.27.0; fi\n');
+  for (const tool of ['gofmt', 'golangci-lint', 'govulncheck']) write(`.devbox/nix/profile/default/bin/${tool}`, '#!/bin/bash\nexit 0\n');
+  for (const file of ['check-agent-context.mjs', 'check-agent-context.test.mjs', 'pre-push.test.mjs']) write(`scripts/${file}`, '// fixture\n');
   write('.devbox/nix/profile/default/bin/pnpm', '#!/bin/bash\necho "pnpm $*"\n');
   write('.devbox/nix/profile/default/bin/npx', '#!/bin/bash\nexit 0\n');
   write('scripts/check-quality.sh', '#!/bin/bash\necho "quality $*"\n');
   write('backend/.keep', '');
+  write('backend/go.mod', 'module example\n\ngo 1.27.0\n');
   write('frontend/.keep', '');
   commit('README.md', 'base\n');
   git('branch', 'base');
@@ -101,14 +106,14 @@ test('hook stdin validates the whole branch even if only the docs tip is pushed'
   assert.equal(result.status, 9, result.stdout + result.stderr);
 });
 
-test('shared quality configuration changes select both stacks', t => {
+test('runner-only changes run regression checks without selecting either stack', t => {
   const f = fixture(t);
   f.commit('lefthook.yml', 'changed hook configuration\n');
   const result = f.check();
   assert.equal(result.status, 0, result.stdout + result.stderr);
-  assert.match(result.stdout, /backend=true frontend=true/);
-  assert.match(result.stdout, /quality frontend/);
-  assert.match(result.stdout, /quality react-doctor base/);
+  assert.match(result.stdout, /backend=false frontend=false/);
+  assert.match(result.stdout, /\[hook-tests\]/);
+  assert.doesNotMatch(result.stdout, /\[backend-quality\]|\[frontend-quality\]/);
 });
 
 test('missing pinned frontend package manager fails closed', t => {
@@ -127,14 +132,14 @@ test('quoted and newline-containing backend paths cannot evade selection', t => 
   assert.equal(result.status, 9, result.stdout + result.stderr);
 });
 
-test('deleted backend files still trigger quality and affected tests', t => {
+test('deleted backend files still trigger quality but not integration tests', t => {
   const f = fixture(t);
   rmSync(join(f.root, 'backend/.keep'));
   f.commit('README.md', 'deleted backend file\n');
   const result = f.check();
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /check-quality.sh backend/);
-  assert.match(result.stdout, /test-changed.sh base/);
+  assert.doesNotMatch(result.stdout, /test-changed.sh/);
 });
 
 test('missing pinned secret scanner fails closed', t => {
@@ -155,6 +160,7 @@ test('secret findings fail the push', t => {
 test('missing pinned Go installation fails before analysis', t => {
   const f = fixture(t);
   copyFileSync(join(source, 'run-go-toolchain.sh'), join(f.root, 'scripts/run-go-toolchain.sh'));
+  rmSync(join(f.root, '.devbox/nix/profile/default/bin/go'));
   f.commit('backend/example.go', 'package example\n');
   const result = f.check();
   assert.notEqual(result.status, 0);
@@ -165,10 +171,11 @@ test('missing pinned linter cannot fall back to a global installation', t => {
   const f = fixture(t);
   copyFileSync(join(source, 'run-go-toolchain.sh'), join(f.root, 'scripts/run-go-toolchain.sh'));
   f.write('.devbox/nix/profile/default/bin/go', '#!/bin/bash\necho go1.27.0\n');
-  f.commit('backend/go.mod', 'module example\n\ngo 1.27.0\n');
+  rmSync(join(f.root, '.devbox/nix/profile/default/bin/golangci-lint'));
+  f.commit('backend/example.go', 'package example\n');
   const result = f.check();
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /Pinned command is not installed: golangci-lint/);
+  assert.match(result.stderr, /Pinned golangci-lint is missing/);
   assert.doesNotMatch(result.stdout, /quality checks passed/);
 });
 
@@ -227,11 +234,108 @@ test('branch deletion needs no code checks', t => {
 test('shared backend quality fails when an analyzer executable is missing', t => {
   const f = fixture(t);
   copyFileSync(join(source, 'check-quality.sh'), join(f.root, 'scripts/check-quality.sh'));
+  copyFileSync(join(source, 'check-backend-quality.sh'), join(f.root, 'scripts/check-backend-quality.sh'));
   f.write('limited/dirname', '#!/bin/bash\nprintf "%s\\n" "${1%/*}"\n');
   f.write('limited/gofmt', '#!/bin/bash\nexit 0\n');
+  symlinkSync('/bin/bash', join(f.root, 'limited/bash'));
   const result = f.run('/bin/bash', ['scripts/check-quality.sh', 'backend'], {
     env: { ...f.env, PATH: join(f.root, 'limited') },
   });
   assert.equal(result.status, 127);
   assert.match(result.stderr, /go: command not found/);
+});
+
+test('successful backend checks survive a docs-only follow-up but vulnerabilities still run', t => {
+  const f = fixture(t);
+  f.commit('backend/example.go', 'package example\n');
+  assert.equal(f.check().status, 0);
+  f.commit('README.md', 'docs-only follow-up\n');
+  const result = f.check();
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  for (const stage of ['backend-quality', 'backend-lint', 'architecture']) assert.match(result.stdout, new RegExp(`\\[${stage}\\] cache hit`));
+  assert.match(result.stdout, /vulnerabilities/);
+});
+
+test('failures never create successful cache records', t => {
+  const f = fixture(t);
+  f.commit('backend/example.go', 'package example\n');
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const result = f.check({ FAIL_QUALITY: '1' });
+    assert.equal(result.status, 9);
+    assert.match(result.stdout, /\[backend-quality\] cache miss/);
+  }
+  assert.equal(f.check().status, 0);
+});
+
+test('source edits invalidate a successful static result', t => {
+  const f = fixture(t);
+  f.commit('backend/example.go', 'package example\n');
+  assert.equal(f.check().status, 0);
+  f.commit('backend/example.go', 'package changed\n');
+  const result = f.check({ FAIL_QUALITY: '1' });
+  assert.equal(result.status, 9);
+  assert.match(result.stdout, /\[backend-quality\] cache miss/);
+});
+
+test('changing a checker invalidates its success', t => {
+  const f = fixture(t);
+  f.commit('backend/example.go', 'package example\n');
+  assert.equal(f.check().status, 0);
+  f.commit('scripts/check-quality.sh', '#!/bin/bash\n# changed checker\nexit 0\n');
+  const result = f.check({ FAIL_QUALITY: '1' });
+  assert.equal(result.status, 9);
+});
+
+test('advancing the base invalidates cached comparisons even if the merge-base is unchanged', t => {
+  const f = fixture(t);
+  f.commit('backend/example.go', 'package example\n');
+  assert.equal(f.check().status, 0);
+  const next = f.git('commit-tree', f.git('rev-parse', 'base^{tree}'), '-p', f.git('rev-parse', 'base'), '-m', 'advance base');
+  f.git('branch', '-f', 'base', next);
+  const result = f.check({ FAIL_QUALITY: '1' });
+  assert.equal(result.status, 9);
+});
+
+test('changed installed tools invalidate results; missing tools also fail on a warm cache', t => {
+  const f = fixture(t);
+  f.commit('backend/example.go', 'package example\n');
+  assert.equal(f.check().status, 0);
+  f.write('.devbox/nix/profile/default/bin/gofmt', '#!/bin/bash\n# updated tool\nexit 0\n');
+  assert.equal(f.check({ FAIL_QUALITY: '1' }).status, 9);
+  rmSync(join(f.root, '.devbox/nix/profile/default/bin/gofmt'));
+  assert.match(f.check().stderr, /Pinned gofmt is missing/);
+});
+
+test('a warm cache cannot hide dirty source or source changes during validation', t => {
+  const f = fixture(t);
+  f.commit('backend/example.go', 'package example\n');
+  const mutated = f.check({ MUTATE_SOURCE: '1' });
+  assert.notEqual(mutated.status, 0);
+  assert.match(mutated.stderr, /Source changed during pre-push/);
+  f.git('restore', 'backend/example.go');
+  assert.match(f.check().stdout, /\[backend-quality\] cache miss/);
+  f.write('backend/example.go', 'package dirty\n');
+  assert.match(f.check().stderr, /requires a clean working tree/);
+});
+
+test('frontend-only quality changes do not run backend analysis', t => {
+  const f = fixture(t);
+  f.commit('scripts/check-frontend-quality.sh', '#!/bin/bash\nexit 0\n');
+  const result = f.check();
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /backend=false frontend=true/);
+  assert.doesNotMatch(result.stdout, /\[backend-quality\]/);
+});
+
+test('frontend cached results survive docs but invalidate on source and generated-type changes', t => {
+  const f = fixture(t);
+  f.commit('.gitignore', '.devbox/\nfrontend/.next/\n');
+  f.commit('frontend/example.ts', 'export {};\n');
+  assert.equal(f.check().status, 0);
+  f.commit('README.md', 'docs\n');
+  assert.match(f.check().stdout, /\[frontend-quality\] cache hit/);
+  f.write('frontend/.next/types/routes.d.ts', 'export {};\n');
+  assert.match(f.check().stdout, /\[frontend-quality\] cache miss/);
+  f.commit('frontend/example.ts', 'export const changed = true;\n');
+  assert.match(f.check().stdout, /\[frontend-quality\] cache miss/);
 });

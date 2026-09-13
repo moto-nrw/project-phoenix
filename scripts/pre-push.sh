@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Validate the complete PR diff. Reuse tool caches, not custom success stamps.
+# Validate the complete PR diff with input-keyed static checks and stage timings.
 set -euo pipefail
 root=$(git rev-parse --show-toplevel)
 cd "$root"
@@ -8,6 +8,7 @@ cd "$root"
 while IFS= read -r git_variable; do
   unset "$git_variable"
 done < <(git rev-parse --local-env-vars)
+source "$root/scripts/quality-timing.sh"
 head=$(git rev-parse HEAD)
 if [[ "${1:-}" == --hook ]]; then
   shift
@@ -25,11 +26,10 @@ fi
 base=${1:-origin/development}
 # A failed fetch must not validate stale inputs.
 if [[ "$base" == origin/development ]]; then
-  git fetch --quiet origin development
+  quality_step fetch-base git fetch --quiet origin development
 fi
 merge_base=$(git merge-base "$head" "$base")
 backend=false
-full_backend=false
 frontend=false
 context=false
 env_sync=false
@@ -39,74 +39,68 @@ trap 'rm -f "$changed"' EXIT
 git diff --name-only -z "$merge_base" "$head" > "$changed"
 while IFS= read -r -d '' file; do
   case "$file" in
-    backend/go.mod|backend/go.sum|backend/.golangci.yml|scripts/backend-affected-packages*|scripts/backend-lint-packages.sh)
-      full_backend=true ;;
-  esac
-  case "$file" in
     *.md) context=true ;;
-    backend/*|scripts/backend-*|scripts/test-backend*|scripts/test-changed*|scripts/test-run-id.sh|scripts/check-deadcode*) backend=true ;;
-    frontend/*) frontend=true ;;
+    backend/*|scripts/backend-*|scripts/check-backend-quality.sh|scripts/check-deadcode*) backend=true ;;
+    frontend/*|scripts/check-frontend-quality.sh) frontend=true ;;
     environments/*|.env.example) env_sync=true ;;
-    scripts/pre-push*|scripts/check-quality.sh|scripts/check-secrets.sh|scripts/run-go-toolchain.sh|lefthook.yml|devbox.*|package.json|.github/*) backend=true; frontend=true; hooks=true ;;
+    scripts/check-quality.sh|scripts/quality-timing.sh|devbox.*|package.json) backend=true; frontend=true; hooks=true ;;
+    scripts/pre-push*|scripts/check-secrets.sh|scripts/run-go-toolchain.sh|lefthook.yml|.github/*|scripts/test-*) hooks=true ;;
     .agents/*|.claude/*|.codex/*|scripts/check-agent-context*) context=true ;;
   esac
 done < "$changed"
-# Uncommitted fixes must not mask broken committed code. Ignored local config
-# and build caches stay usable; other changes must be committed or stashed.
 if [[ -n "$(git status --porcelain --untracked-files=normal)" ]]; then
   echo 'Pre-push requires a clean working tree. Commit or stash changes, then push again.' >&2
   exit 1
 fi
 printf 'Pre-push %s..%s: backend=%s frontend=%s context=%s hooks=%s\n' "$merge_base" "$head" "$backend" "$frontend" "$context" "$hooks"
 export PATH="$root/.devbox/nix/profile/default/bin:$PATH"
+export GOTOOLCHAIN=local
+export CGO_ENABLED=${CGO_ENABLED:-0}
 require_pinned() {
   if [[ ! -x "$root/.devbox/nix/profile/default/bin/$1" ]]; then
     echo "Pinned $1 is missing. Run 'devbox install'." >&2
     exit 1
   fi
 }
-bash scripts/check-secrets.sh --scan
+cached() {
+  local stage=$1
+  shift
+  node scripts/pre-push-cache.mjs "$stage" "$base" "$@"
+}
+quality_step secrets bash scripts/check-secrets.sh --scan
+require_pinned node
 if [[ "$context" == true || "$hooks" == true ]]; then
-  require_pinned node
-  node scripts/check-agent-context.mjs
-  node --test scripts/check-agent-context.test.mjs
+  quality_step context node scripts/check-agent-context.mjs
+  quality_step context-tests node --test scripts/check-agent-context.test.mjs
 fi
 if [[ "$hooks" == true ]]; then
-  node --test scripts/pre-push.test.mjs
+  cached hook-tests node --test scripts/pre-push.test.mjs
 fi
 if [[ "$env_sync" == true ]]; then
-  bash scripts/env-check.sh
+  quality_step env-sync bash scripts/env-check.sh
 fi
 if [[ "$backend" == true ]]; then
-  scripts/run-go-toolchain.sh scripts/check-quality.sh backend
-  # Sequential whole-program checks bound memory. Lint uses CI's transitive
-  # affected-package selector, falling back to full lint for config-only edits.
-  if [[ "$full_backend" == true || "$hooks" == true ]]; then
-    packages_output=./...
-  else
-    packages_output=$(scripts/run-go-toolchain.sh scripts/backend-affected-packages.sh "$base")
-  fi
-  packages=()
-  while IFS= read -r package; do
-    [[ -z "$package" ]] || packages+=("$package")
-  done <<< "$packages_output"
-  [[ ${#packages[@]} -gt 0 ]] || packages=(./...)
-  (cd backend && ../scripts/run-go-toolchain.sh golangci-lint run --allow-serial-runners --timeout 20m "${packages[@]}")
+  # Validate installed tools even on cache hits. Keep vulnerability results
+  # fresh; the external vulnerability database is not a static cache input.
+  scripts/run-go-toolchain.sh go version >/dev/null
+  require_pinned golangci-lint
+  require_pinned govulncheck
+  cached backend-quality scripts/run-go-toolchain.sh scripts/check-quality.sh backend
+  cached backend-lint scripts/run-go-toolchain.sh scripts/check-backend-quality.sh lint "$base"
   architecture_base=$(git rev-parse "$base")
-  scripts/run-go-toolchain.sh scripts/backend-architecture.sh check --base-ref "$architecture_base"
-  (cd backend && ../scripts/run-go-toolchain.sh govulncheck ./...)
+  cached architecture scripts/run-go-toolchain.sh scripts/backend-architecture.sh check --base-ref "$architecture_base"
+  quality_step vulnerabilities scripts/run-go-toolchain.sh scripts/check-backend-quality.sh vulnerabilities
 fi
 if [[ "$frontend" == true ]]; then
-  require_pinned node
   require_pinned pnpm
   require_pinned npx
-  (cd frontend && CI=true pnpm install --frozen-lockfile)
-  bash scripts/check-quality.sh frontend
-  bash scripts/check-quality.sh react-doctor "$base"
+  # Frozen installation verifies the dependency state before looking up results.
+  quality_step frontend-install bash -c 'cd frontend && CI=true pnpm install --frozen-lockfile'
+  cached frontend-quality bash scripts/check-quality.sh frontend
+  cached react-doctor bash scripts/check-quality.sh react-doctor "$base"
 fi
-if [[ "$backend" == true || "$frontend" == true ]]; then
-  scripts/run-go-toolchain.sh scripts/test-changed.sh "$base"
-fi
+# Integration/affected tests run in CI, not on every push. Explicit pre-push
+# verification by contributors still uses scripts/test-changed.sh.
 if [[ "$(git rev-parse HEAD)" != "$head" || -n "$(git status --porcelain --untracked-files=normal)" ]]; then
   echo 'Source changed during pre-push. Commit or stash changes and retry.' >&2
   exit 1

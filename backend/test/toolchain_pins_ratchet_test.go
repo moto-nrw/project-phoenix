@@ -109,9 +109,8 @@ func assertLocalHooksUsePinnedRunner(t *testing.T, repoRoot string) {
 	// The final argument selects a quality mode or base revision.
 	prefixChecks := map[string][]string{
 		"scripts/pre-push.sh": {
-			"scripts/run-go-toolchain.sh scripts/check-quality.sh",
-			"scripts/run-go-toolchain.sh scripts/backend-architecture.sh check --base-ref",
-			"scripts/run-go-toolchain.sh scripts/test-changed.sh",
+			"cached backend-quality scripts/run-go-toolchain.sh scripts/check-quality.sh",
+			"cached architecture scripts/run-go-toolchain.sh scripts/backend-architecture.sh check --base-ref",
 		},
 	}
 
