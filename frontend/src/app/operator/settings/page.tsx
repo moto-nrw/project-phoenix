@@ -387,6 +387,8 @@ function OperatorSettingsContent() {
             required
             autoFocus
             autoComplete="email"
+            pattern="[A-Za-z0-9._+%\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]+"
+            title="Bitte geben Sie eine gültige E-Mail-Adresse ein (z.B. name@beispiel.de)"
             value={emailChangeNewEmail}
             onChange={(e) => setEmailChangeNewEmail(e.target.value)}
             placeholder="neue@email.de"

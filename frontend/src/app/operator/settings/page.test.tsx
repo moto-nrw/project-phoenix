@@ -358,6 +358,26 @@ describe("OperatorSettingsPage", () => {
       );
     });
 
+    it("does not submit an email address without a top-level domain", async () => {
+      render(<OperatorSettingsPage />);
+
+      fireEvent.click(await screen.findByText("E-Mail ändern"));
+
+      const emailInput = await screen.findByLabelText("Neue E-Mail-Adresse");
+      fireEvent.change(emailInput, { target: { value: "user@localhost" } });
+      fireEvent.change(screen.getByLabelText("Aktuelles Passwort"), {
+        target: { value: "mypassword" },
+      });
+
+      fireEvent.click(screen.getByText("E-Mail-Änderung anfordern"));
+
+      expect(emailInput).toBeInvalid();
+      expect(mockSessionFetch).not.toHaveBeenCalledWith(
+        "/api/operator/profile/email-change",
+        expect.anything(),
+      );
+    });
+
     it("closes dialog after successful submission", async () => {
       render(<OperatorSettingsPage />);
 
