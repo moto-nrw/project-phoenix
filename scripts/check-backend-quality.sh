@@ -30,8 +30,14 @@ case "${1:-quality}" in
       output=$("$root/scripts/backend-affected-packages.sh" "$base")
     fi
     packages=()
+    module=$(go list -m)
     while IFS= read -r package; do
-      [[ -z "$package" ]] || packages+=("$package")
+      case "$package" in
+        "") ;;
+        "$module") packages+=(.) ;;
+        "$module"/*) packages+=(".${package#"$module"}") ;;
+        *) packages+=("$package") ;;
+      esac
     done <<< "$output"
     [[ ${#packages[@]} -gt 0 ]] || packages=(./...)
     golangci-lint run --allow-serial-runners --timeout 20m "${packages[@]}"
