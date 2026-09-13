@@ -14,6 +14,12 @@ type testBookingCommands struct {
 	owner *careplan.OfferingBookings
 }
 
+type recordCareBookingsFunc func(context.Context, int64, []enrollmentService.CareBookingInput) error
+
+func (f recordCareBookingsFunc) RecordCareBookings(ctx context.Context, childID int64, bookings []enrollmentService.CareBookingInput) error {
+	return f(ctx, childID, bookings)
+}
+
 func requestTestBookingCommands() testBookingCommands {
 	return testBookingCommands{owner: carePlanTest.NewOfferingBookings()}
 }

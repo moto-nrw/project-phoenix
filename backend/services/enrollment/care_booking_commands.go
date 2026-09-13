@@ -63,12 +63,6 @@ func changeCareBookings(ctx context.Context, commands CareBookingChanges, childI
 	return commands.ReplaceCareBookings(ctx, childID, bookings)
 }
 
-type RecordCareBookingsFunc func(context.Context, int64, []CareBookingInput) error
-
-func (f RecordCareBookingsFunc) RecordCareBookings(ctx context.Context, childID int64, bookings []CareBookingInput) error {
-	return f(ctx, childID, bookings)
-}
-
 func (s *requestService) recordOfferingSubmission(ctx context.Context, childID int64, selections []materializedOfferingSelection, from, through owner.Date) error {
 	if len(selections) == 0 {
 		return nil

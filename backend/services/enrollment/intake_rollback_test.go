@@ -355,7 +355,7 @@ func TestPublicIntakeRollsBackAfterCarePlanBookingCommand(t *testing.T) {
 	config := env.config
 	calls := 0
 	fail := true
-	config.Bookings = enrollmentService.RecordCareBookingsFunc(func(ctx context.Context, childID int64, bookings []enrollmentService.CareBookingInput) error {
+	config.Bookings = recordCareBookingsFunc(func(ctx context.Context, childID int64, bookings []enrollmentService.CareBookingInput) error {
 		if err := env.config.Bookings.RecordCareBookings(ctx, childID, bookings); err != nil {
 			return err
 		}
