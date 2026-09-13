@@ -199,6 +199,29 @@ describe("RolesMasterDetail", () => {
     expect(screen.getByText("Bearbeiten")).toBeInTheDocument();
   });
 
+  it("does not offer permission editing without catalogue access", () => {
+    render(
+      <RolesMasterDetail
+        roles={[customRole]}
+        selectedId="1"
+        selectedRole={customRole}
+        detailLoading={false}
+        onSelect={onSelect}
+        onSaveRole={onSaveRole}
+        onDeleteClick={onDeleteClick}
+        onPermissionsSaved={onPermissionsSaved}
+      />,
+    );
+
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Berechtigungen" }), {
+      button: 0,
+    });
+
+    expect(
+      screen.queryByRole("button", { name: "Bearbeiten" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("ends the edit state when the tab changes", () => {
     render(
       <RolesMasterDetail

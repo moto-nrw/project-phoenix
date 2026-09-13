@@ -4,11 +4,10 @@ import { useState, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import RolesPage from "./page";
 
+const mockUseSession = vi.hoisted(() => vi.fn());
+
 vi.mock("next-auth/react", () => ({
-  useSession: vi.fn(() => ({
-    data: { user: { id: "1", token: "test-token" }, expires: "2099-01-01" },
-    status: "authenticated",
-  })),
+  useSession: mockUseSession,
 }));
 
 let currentSearch = new URLSearchParams();
@@ -228,6 +227,7 @@ vi.mock("@/components/roles/roles-master-detail", () => ({
     onSaveRole,
     onDeleteClick,
     onPermissionsSaved,
+    canManagePermissions,
   }: {
     roles: Array<{ id: string; name: string }>;
     selectedId: string | null;
@@ -236,6 +236,7 @@ vi.mock("@/components/roles/roles-master-detail", () => ({
     onSaveRole: (data: { name: string }) => Promise<void>;
     onDeleteClick: () => void;
     onPermissionsSaved: () => void | Promise<void>;
+    canManagePermissions?: boolean;
   }) => {
     const [editing, setEditing] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -248,7 +249,10 @@ vi.mock("@/components/roles/roles-master-detail", () => ({
         });
     };
     return (
-      <div data-testid="roles-master-detail">
+      <div
+        data-testid="roles-master-detail"
+        data-can-manage-permissions={canManagePermissions}
+      >
         {roles.map((role) => (
           <button
             type="button"
@@ -344,6 +348,10 @@ const mockRoles = [
 describe("RolesPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseSession.mockReturnValue({
+      data: { user: { id: "1", token: "test-token" }, expires: "2099-01-01" },
+      status: "authenticated",
+    });
     currentSearch = new URLSearchParams();
 
     mockGetList.mockResolvedValue({ data: mockRoles });
@@ -358,6 +366,29 @@ describe("RolesPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Vertretungslehrkraft")).toBeInTheDocument();
       // System role label is mapped via getRoleDisplayName; "admin" will map.
+    });
+  });
+
+  it("does not enable permission editing with roles:manage alone", async () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          token: "test-token",
+          permissions: ["roles:manage"],
+        },
+        expires: "2099-01-01",
+      },
+      status: "authenticated",
+    });
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("roles-master-detail")).toHaveAttribute(
+        "data-can-manage-permissions",
+        "false",
+      );
     });
   });
 
