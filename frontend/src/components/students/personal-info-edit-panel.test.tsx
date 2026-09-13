@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { PersonalInfoFormModal } from "./personal-info-form-modal";
+import { PersonalInfoEditPanel } from "./personal-info-edit-panel";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
 import type { StudentCompanion } from "~/lib/student-companion-api";
 import { CompanionPlanConflictError } from "~/lib/api";
@@ -107,66 +107,6 @@ vi.mock("~/lib/student-companion-api", async (importOriginal) => ({
 }));
 
 // Mock FormModal
-// Das Panel laeuft als SlideOver (Vaul). Vaul rendert in jsdom nicht, deshalb
-// steht hier dieselbe Struktur ohne Animationsschicht; die Testkennungen
-// bleiben unveraendert.
-vi.mock("~/components/ui/slide-over", () => ({
-  SlideOver: ({
-    open,
-    onOpenChange,
-    children,
-  }: {
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    children: React.ReactNode;
-  }) =>
-    open ? (
-      <div data-testid="form-modal">
-        <button
-          type="button"
-          onClick={() => onOpenChange(false)}
-          data-testid="close-modal"
-        >
-          Close
-        </button>
-        {children}
-      </div>
-    ) : null,
-  SlideOverContent: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-  SlideOverHeader: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-  SlideOverBody: ({
-    error,
-    children,
-  }: {
-    error?: string | { message: string } | null;
-    children: React.ReactNode;
-  }) => (
-    <div>
-      {error ? (
-        <div role="alert">
-          {typeof error === "string" ? error : error.message}
-        </div>
-      ) : null}
-      {children}
-    </div>
-  ),
-  SlideOverFooter: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="modal-footer">{children}</div>
-  ),
-  SlideOverTitle: ({ children }: { children: React.ReactNode }) => (
-    <h1>{children}</h1>
-  ),
-  SlideOverDescription: ({ children }: { children: React.ReactNode }) => (
-    <p>{children}</p>
-  ),
-  SlideOverCloseButton: (
-    props: React.ButtonHTMLAttributes<HTMLButtonElement>,
-  ) => <button type="button" {...props} />,
-}));
 
 // Mock ToastContext
 const mockToast = {
@@ -188,8 +128,8 @@ vi.mock("./student-detail-components", () => ({
   WarningIcon: () => <span data-testid="warning-icon" />,
 }));
 
-describe("PersonalInfoFormModal", () => {
-  const mockOnClose = vi.fn();
+describe("PersonalInfoEditPanel", () => {
+  const mockOnCancel = vi.fn();
   const mockOnSave = vi.fn();
 
   const createMockStudent = (
@@ -224,53 +164,25 @@ describe("PersonalInfoFormModal", () => {
     fetchStudentPrivacyConsentMock.mockImplementation(resolvedPrivacyConsent);
   });
 
-  describe("Modal open/close behavior", () => {
-    it("renders nothing when isOpen is false", () => {
-      render(
-        <PersonalInfoFormModal
-          isOpen={false}
-          onClose={mockOnClose}
-          student={createMockStudent()}
-          onSave={mockOnSave}
-        />,
-      );
-
-      expect(screen.queryByTestId("form-modal")).not.toBeInTheDocument();
-    });
-
-    it("renders modal when isOpen is true", () => {
-      render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          student={createMockStudent()}
-          onSave={mockOnSave}
-        />,
-      );
-
-      expect(screen.getByTestId("form-modal")).toBeInTheDocument();
-    });
-
+  describe("Panel", () => {
     it("displays correct title", () => {
       render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
           student={createMockStudent()}
           onSave={mockOnSave}
         />,
       );
 
-      expect(screen.getByText("Persönliche Infos")).toBeInTheDocument();
+      expect(screen.getByText("Persönliche Informationen")).toBeInTheDocument();
     });
   });
 
   describe("Form fields", () => {
     it("displays student first name in input", () => {
       render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
           student={createMockStudent({ first_name: "Anna" })}
           onSave={mockOnSave}
         />,
@@ -282,9 +194,8 @@ describe("PersonalInfoFormModal", () => {
 
     it("displays student last name in input", () => {
       render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
           student={createMockStudent({ second_name: "Schmidt" })}
           onSave={mockOnSave}
         />,
@@ -296,9 +207,8 @@ describe("PersonalInfoFormModal", () => {
 
     it("displays school class in input", () => {
       render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
           student={createMockStudent({ school_class: "4b" })}
           onSave={mockOnSave}
         />,
@@ -310,9 +220,8 @@ describe("PersonalInfoFormModal", () => {
 
     it("displays birthday in date input", () => {
       render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
           student={createMockStudent({ birthday: "2016-03-20" })}
           onSave={mockOnSave}
         />,
@@ -324,9 +233,8 @@ describe("PersonalInfoFormModal", () => {
 
     it("displays address inputs", () => {
       render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
           student={createMockStudent()}
           onSave={mockOnSave}
         />,
@@ -343,9 +251,8 @@ describe("PersonalInfoFormModal", () => {
 
     it("updates first name when changed", () => {
       render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
           student={createMockStudent()}
           onSave={mockOnSave}
         />,
@@ -359,9 +266,8 @@ describe("PersonalInfoFormModal", () => {
 
     it("does not render sick toggle (moved to StudentSickReportSection)", () => {
       render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
           student={createMockStudent()}
           onSave={mockOnSave}
         />,
@@ -379,9 +285,8 @@ describe("PersonalInfoFormModal", () => {
       );
 
       render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
           student={createMockStudent({
             privacy_consent_accepted: false,
             data_retention_days: 7,
@@ -400,9 +305,8 @@ describe("PersonalInfoFormModal", () => {
       mockOnSave.mockResolvedValue(undefined);
 
       render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
           student={createMockStudent()}
           onSave={mockOnSave}
         />,
@@ -420,9 +324,8 @@ describe("PersonalInfoFormModal", () => {
       mockOnSave.mockResolvedValue(undefined);
 
       render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
           student={createMockStudent()}
           onSave={mockOnSave}
         />,
@@ -432,7 +335,7 @@ describe("PersonalInfoFormModal", () => {
       fireEvent.click(saveButton);
 
       await waitFor(() => {
-        expect(mockOnClose).toHaveBeenCalled();
+        expect(mockOnCancel).toHaveBeenCalled();
       });
     });
 
@@ -440,9 +343,8 @@ describe("PersonalInfoFormModal", () => {
       mockOnSave.mockRejectedValue(new Error("Save failed"));
 
       render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
           student={createMockStudent()}
           onSave={mockOnSave}
         />,
@@ -475,9 +377,8 @@ describe("PersonalInfoFormModal", () => {
       );
 
       render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
           student={createMockStudent()}
           onSave={mockOnSave}
         />,
@@ -497,9 +398,8 @@ describe("PersonalInfoFormModal", () => {
       );
 
       render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
           student={createMockStudent()}
           onSave={mockOnSave}
         />,
@@ -511,7 +411,7 @@ describe("PersonalInfoFormModal", () => {
       expect(screen.getByText("Wird gespeichert…")).toBeInTheDocument();
 
       await waitFor(() => {
-        expect(mockOnClose).toHaveBeenCalled();
+        expect(mockOnCancel).toHaveBeenCalled();
       });
     });
   });
@@ -519,9 +419,8 @@ describe("PersonalInfoFormModal", () => {
   describe("Cancel functionality", () => {
     it("resets form and closes modal on cancel", () => {
       render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
           student={createMockStudent({ first_name: "Original" })}
           onSave={mockOnSave}
         />,
@@ -536,16 +435,15 @@ describe("PersonalInfoFormModal", () => {
       const cancelButton = screen.getByText("Abbrechen");
       fireEvent.click(cancelButton);
 
-      expect(mockOnClose).toHaveBeenCalled();
+      expect(mockOnCancel).toHaveBeenCalled();
     });
   });
 
   describe("Select inputs", () => {
     it("shows bus days as 'Bus' in the unified departure picker (#1610)", () => {
       render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
           student={createMockStudent({
             buskind: true,
             bus_days: { mon: true },
@@ -565,9 +463,8 @@ describe("PersonalInfoFormModal", () => {
 
     it("shows pickup days as 'Abholung' in the departure picker", () => {
       render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
           student={createMockStudent({
             pickup_status: "Wird abgeholt",
             pickup_days: { mon: true, wed: true },
@@ -589,9 +486,8 @@ describe("PersonalInfoFormModal", () => {
     it("sets a bus day and saves the derived bus_days", async () => {
       mockOnSave.mockResolvedValue(undefined);
       render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
           student={createMockStudent({ buskind: false })}
           onSave={mockOnSave}
         />,
@@ -615,9 +511,8 @@ describe("PersonalInfoFormModal", () => {
     it("changes only Monday from pickup to walking and closes after saving", async () => {
       mockOnSave.mockResolvedValue(undefined);
       render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
           student={createMockStudent({
             allowed_departure_modes: {
               mon: ["pickup"],
@@ -649,16 +544,15 @@ describe("PersonalInfoFormModal", () => {
             },
           }),
         );
-        expect(mockOnClose).toHaveBeenCalledTimes(1);
+        expect(mockOnCancel).toHaveBeenCalledTimes(1);
       });
     });
 
     it("sends derived departure_days when only legacy day maps exist", async () => {
       mockOnSave.mockResolvedValue(undefined);
       render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
           student={createMockStudent({
             bus_days: { mon: true },
             pickup_days: { wed: true },
@@ -701,9 +595,8 @@ describe("PersonalInfoFormModal", () => {
       ]);
 
       render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
           student={createMockStudent(accompaniedStudentProps)}
           onSave={mockOnSave}
         />,
@@ -726,9 +619,8 @@ describe("PersonalInfoFormModal", () => {
       );
 
       render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
           student={createMockStudent(accompaniedStudentProps)}
           onSave={mockOnSave}
         />,
@@ -754,9 +646,8 @@ describe("PersonalInfoFormModal", () => {
       fetchStudentCompanionsMock.mockRejectedValue(new Error("500"));
 
       render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
           student={createMockStudent(accompaniedStudentProps)}
           onSave={mockOnSave}
         />,
@@ -783,9 +674,8 @@ describe("PersonalInfoFormModal", () => {
       ]);
 
       render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
           student={createMockStudent(accompaniedStudentProps)}
           onSave={mockOnSave}
         />,
@@ -815,9 +705,8 @@ describe("PersonalInfoFormModal", () => {
       mockOnSave.mockResolvedValue(undefined);
 
       render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
           student={createMockStudent({ group_id: "" })}
           onSave={mockOnSave}
           groups={[
@@ -846,9 +735,8 @@ describe("PersonalInfoFormModal", () => {
       });
 
       render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
           student={createMockStudent()}
           onSave={mockOnSave}
         />,
@@ -885,9 +773,8 @@ describe("PersonalInfoFormModal", () => {
       });
 
       render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
           student={createMockStudent()}
           onSave={mockOnSave}
         />,
@@ -917,9 +804,8 @@ describe("PersonalInfoFormModal", () => {
       fetchStudentPrivacyConsentMock.mockRejectedValue(new Error("offline"));
 
       render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
           student={createMockStudent()}
           onSave={mockOnSave}
         />,
@@ -934,9 +820,8 @@ describe("PersonalInfoFormModal", () => {
 
     it("shows the photo section only when the school has photos on", () => {
       const { unmount } = render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
           student={createMockStudent()}
           onSave={mockOnSave}
         />,
@@ -946,9 +831,8 @@ describe("PersonalInfoFormModal", () => {
 
       photosEnabledState.enabled = true;
       render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
           student={createMockStudent()}
           onSave={mockOnSave}
         />,
@@ -968,9 +852,8 @@ describe("PersonalInfoFormModal", () => {
       );
 
       render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
           student={createMockStudent()}
           onSave={mockOnSave}
           onStudentRefresh={onStudentRefresh}
@@ -1004,7 +887,7 @@ describe("PersonalInfoFormModal", () => {
       });
       await waitFor(() => {
         expect(onStudentRefresh).toHaveBeenCalled();
-        expect(mockOnClose).toHaveBeenCalled();
+        expect(mockOnCancel).toHaveBeenCalled();
       });
     });
 
@@ -1014,9 +897,8 @@ describe("PersonalInfoFormModal", () => {
       uploadStudentPhotoMock.mockRejectedValueOnce(new Error("zu groß"));
 
       render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
           student={createMockStudent({ photo_consent_given: true })}
           onSave={mockOnSave}
         />,
@@ -1030,7 +912,7 @@ describe("PersonalInfoFormModal", () => {
           /Daten gespeichert, aber das Foto/,
         );
       });
-      expect(mockOnClose).not.toHaveBeenCalled();
+      expect(mockOnCancel).not.toHaveBeenCalled();
       expect(screen.getByTestId("photo-section")).toHaveAttribute(
         "data-pending",
         "1",
@@ -1041,9 +923,8 @@ describe("PersonalInfoFormModal", () => {
   describe("Textarea inputs", () => {
     it("displays health info in textarea", () => {
       render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
           student={createMockStudent({ health_info: "Hat Allergie" })}
           onSave={mockOnSave}
         />,
@@ -1057,9 +938,8 @@ describe("PersonalInfoFormModal", () => {
 
     it("updates health info when changed", () => {
       render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
           student={createMockStudent()}
           onSave={mockOnSave}
         />,
@@ -1078,7 +958,7 @@ describe("PersonalInfoFormModal", () => {
 // A companion-plan 409 is a question ("may we widen the linked child's own
 // Heimweg?"), and the answer decides whether a write lands on a DIFFERENT
 // child. Dismissing it must leave nothing behind that a later save carries.
-describe("PersonalInfoFormModal — companion plan conflicts", () => {
+describe("PersonalInfoEditPanel — companion plan conflicts", () => {
   const student: ExtendedStudent = {
     id: "123",
     name: "Max Mustermann",
@@ -1115,9 +995,8 @@ describe("PersonalInfoFormModal — companion plan conflicts", () => {
       .mockResolvedValue(undefined);
 
     render(
-      <PersonalInfoFormModal
-        isOpen={true}
-        onClose={vi.fn()}
+      <PersonalInfoEditPanel
+        onCancel={vi.fn()}
         student={student}
         onSave={onSave}
       />,
@@ -1127,7 +1006,7 @@ describe("PersonalInfoFormModal — companion plan conflicts", () => {
     await screen.findByRole("button", { name: "Ergänzen und speichern" });
 
     // The banner's "Abbrechen" sits above the footer's — dismissing the
-    // question, not the modal.
+    // question, not the edit state.
     fireEvent.click(screen.getAllByRole("button", { name: "Abbrechen" })[0]!);
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 

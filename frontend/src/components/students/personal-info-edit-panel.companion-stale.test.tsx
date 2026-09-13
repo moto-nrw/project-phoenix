@@ -88,7 +88,7 @@ vi.mock("./student-form-fields", () => ({
   EnrollmentConsentsSection: () => <div />,
 }));
 
-import { PersonalInfoFormModal } from "./personal-info-form-modal";
+import { PersonalInfoEditPanel } from "./personal-info-edit-panel";
 import { notifyStudentCompanionsChanged } from "~/lib/student-companion-api";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
 
@@ -119,9 +119,8 @@ async function renderOpenModal(
   studentProp: ExtendedStudent = student,
 ) {
   render(
-    <PersonalInfoFormModal
-      isOpen
-      onClose={vi.fn()}
+    <PersonalInfoEditPanel
+      onCancel={vi.fn()}
       student={studentProp}
       onSave={onSave}
     />,
@@ -132,7 +131,7 @@ async function renderOpenModal(
   return onSave;
 }
 
-describe("PersonalInfoFormModal — remote companion changes", () => {
+describe("PersonalInfoEditPanel — remote companion changes", () => {
   beforeEach(() => {
     fetchStudentCompanionsMock.mockReset();
     toastErrorMock.mockReset();

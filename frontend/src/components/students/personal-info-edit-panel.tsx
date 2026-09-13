@@ -7,15 +7,6 @@ import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
-import {
-  SlideOver,
-  SlideOverCloseButton,
-  SlideOverContent,
-  SlideOverBody,
-  SlideOverFooter,
-  SlideOverHeader,
-  SlideOverTitle,
-} from "~/components/ui/slide-over";
 import { SectionCard } from "~/components/ui/section-card";
 import { todayISO } from "~/lib/date-helpers";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
@@ -64,7 +55,7 @@ import {
 import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
 import { createLogger } from "~/lib/logger";
 
-const logger = createLogger({ component: "PersonalInfoFormModal" });
+const logger = createLogger({ component: "PersonalInfoEditPanel" });
 
 const EMPTY_GROUP_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [];
 
@@ -91,9 +82,7 @@ function departureModesOf(
   );
 }
 
-interface PersonalInfoFormModalProps {
-  readonly isOpen: boolean;
-  readonly onClose: () => void;
+interface PersonalInfoEditPanelProps {
   readonly student: ExtendedStudent;
   readonly onSave: (student: PersonalInfoSaveDraft) => Promise<void>;
   /**
@@ -109,53 +98,23 @@ interface PersonalInfoFormModalProps {
    * (sie kennt die Sitzung); ohne Liste bleibt nur „Keine Gruppe".
    */
   readonly groups?: ReadonlyArray<{ value: string; label: string }>;
-  /**
-   * „inline" bearbeitet am Objekt: dieselben Felder, dieselbe Prüfung,
-   * derselbe Speicheraufruf, nur ohne Dialogschicht. Die Kindakte nutzt
-   * ausschließlich diese Form (siehe `PersonalInfoEditPanel`).
-   */
-  readonly variant?: "modal" | "inline";
+  /** Verlässt den Bearbeiten-Zustand ohne zu speichern. */
+  readonly onCancel: () => void;
 }
 
 /**
- * Bearbeiten der Stammdaten IM Stammdaten-Reiter der Kindakte: kein Modal,
- * ein „Speichern" unten, Fehler oben im Bearbeiten-Bereich.
+ * Bearbeiten der Stammdaten IM Stammdaten-Reiter der Kindakte (Bauart 2
+ * Regel 3): kein Modal, ein „Speichern" unten, Fehler oben im
+ * Bearbeiten-Bereich. Die frühere Dialog-Variante (`PersonalInfoFormModal`)
+ * hatte keinen Verwender mehr und ist entfernt (#3117).
  */
 export function PersonalInfoEditPanel({
   student,
   onSave,
-  onCancel,
-  onStudentRefresh,
-  groups,
-}: Readonly<{
-  student: ExtendedStudent;
-  onSave: (student: PersonalInfoSaveDraft) => Promise<void>;
-  onCancel: () => void;
-  onStudentRefresh?: () => void | Promise<void>;
-  groups?: ReadonlyArray<{ value: string; label: string }>;
-}>) {
-  return (
-    <PersonalInfoFormModal
-      variant="inline"
-      isOpen
-      onClose={onCancel}
-      student={student}
-      onSave={onSave}
-      onStudentRefresh={onStudentRefresh}
-      groups={groups}
-    />
-  );
-}
-
-export function PersonalInfoFormModal({
-  isOpen,
-  onClose,
-  student,
-  onSave,
   onStudentRefresh,
   groups = EMPTY_GROUP_OPTIONS,
-  variant = "modal",
-}: PersonalInfoFormModalProps) {
+  onCancel,
+}: PersonalInfoEditPanelProps) {
   const [editedStudent, setEditedStudent] = useState<ExtendedStudent>(student);
   const [isSaving, setIsSaving] = useState(false);
   // Foto (#3115): bis zum Speichern nur im Browser. Eine Datei zu wählen oder
@@ -208,43 +167,41 @@ export function PersonalInfoFormModal({
   );
   const [reloadCompanions, setReloadCompanions] = useState(0);
 
-  // Reset form when modal opens with new student data. The confirmation state
-  // resets too — a yes given in an earlier session of this modal must not
-  // carry over into a new edit.
+  // Reset the draft whenever the panel is handed new student data. The
+  // confirmation state resets too — a yes given in an earlier edit session
+  // must not carry over into a new one.
   useEffect(() => {
-    if (isOpen) {
-      // A refresh (SWR/SSE) hands in a NEW object for the SAME child while the
-      // modal is open. The companions live in their own table and are fetched
-      // separately, so copying the incoming student verbatim would drop them —
-      // and the fetch below would not run again, because student.id did not
-      // change. Since the submitted list REPLACES the stored one, the next save
-      // would delete the child's whole Laufgemeinschaft. Carry the loaded links
-      // through a same-child reset; a different child starts from nothing and
-      // the fetch below refills them.
-      setEditedStudent((prev) =>
-        prev.id === student.id
-          ? { ...student, companions: prev.companions }
-          : student,
-      );
-      setPlanConflict(null);
-      setConfirmedExtensions([]);
-      setPendingExtensions([]);
-      setSaveError(null);
-      setDepartureError(null);
-      setPrivacyConsentChanged(false);
-    }
-  }, [isOpen, student, setSaveError]);
+    // A refresh (SWR/SSE) hands in a NEW object for the SAME child while the
+    // panel is open. The companions live in their own table and are fetched
+    // separately, so copying the incoming student verbatim would drop them —
+    // and the fetch below would not run again, because student.id did not
+    // change. Since the submitted list REPLACES the stored one, the next save
+    // would delete the child's whole Laufgemeinschaft. Carry the loaded links
+    // through a same-child reset; a different child starts from nothing and
+    // the fetch below refills them.
+    setEditedStudent((prev) =>
+      prev.id === student.id
+        ? { ...student, companions: prev.companions }
+        : student,
+    );
+    setPlanConflict(null);
+    setConfirmedExtensions([]);
+    setPendingExtensions([]);
+    setSaveError(null);
+    setDepartureError(null);
+    setPrivacyConsentChanged(false);
+  }, [student, setSaveError]);
 
   // Ein nicht gespeicherter Foto-Entwurf gehört zu genau dieser Sitzung des
   // Formulars und zu genau diesem Kind.
   useEffect(() => {
     setPendingPhotoBlob(null);
     setPendingPhotoRemoved(false);
-  }, [isOpen, student.id]);
+  }, [student.id]);
 
   // Einwilligung und Frist des Kindes in den Entwurf holen (siehe oben).
   useEffect(() => {
-    if (!isOpen || !student.id) return;
+    if (!student.id) return;
     let cancelled = false;
     setPrivacyConsentStatus("loading");
     setPrivacyConsentChanged(false);
@@ -270,12 +227,12 @@ export function PersonalInfoFormModal({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, student.id]);
+  }, [student.id]);
 
   // The Laufgemeinschaft lives in its own table, so it is fetched when the
-  // modal opens and submitted together with the departure plan it belongs to.
+  // panel opens and submitted together with the departure plan it belongs to.
   useEffect(() => {
-    if (!isOpen || !student.id) return;
+    if (!student.id) return;
     let cancelled = false;
     setCompanionsStatus("loading");
     setLoadedCompanions([]);
@@ -296,7 +253,7 @@ export function PersonalInfoFormModal({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, student.id, reloadCompanions]);
+  }, [student.id, reloadCompanions]);
 
   const companionsDirty =
     companionsStatus === "ready" &&
@@ -338,13 +295,13 @@ export function PersonalInfoFormModal({
   );
   const { companionsStale, refreshFromRemote, withOwnWrite, markStale } =
     useCompanionRemoteRefresh({
-      // Listening for the whole time the modal is open, including while the
-      // first load is still in flight — that request can have been answered
-      // before the remote write landed.
-      active: isOpen,
-      // Closing is the usual end of a stale flag here, but the modal also
-      // reloads in place when it is handed another child — that new form must
-      // not inherit the previous child's conflict warning.
+      // Listening for the whole time the panel is mounted, including while
+      // the first load is still in flight — that request can have been
+      // answered before the remote write landed.
+      active: true,
+      // Leaving the edit state is the usual end of a stale flag here, but the
+      // panel also reloads in place when it is handed another child — that
+      // new form must not inherit the previous child's conflict warning.
       resetKey: student.id,
       hasUnsavedCompanionEdits: companionsDirty || departurePlanDirty,
       // Both halves of what a save submits about the Laufgemeinschaft: the list
@@ -564,7 +521,7 @@ export function PersonalInfoFormModal({
         );
         return;
       }
-      onClose();
+      onCancel();
     } catch (err) {
       if (err instanceof CompanionPlanConflictError) {
         // Not a failure: ask, then repeat the same save confirming exactly the
@@ -612,7 +569,7 @@ export function PersonalInfoFormModal({
     setEditedStudent(student);
     setSaveError(null);
     setDepartureError(null);
-    onClose();
+    onCancel();
   };
 
   const footer = (
@@ -640,8 +597,7 @@ export function PersonalInfoFormModal({
 
   const fields = (
     <div className="space-y-4">
-      {/* Speicherfehler oben im Bearbeiten-Bereich (Bauart 2 Regel 5), in
-          beiden Varianten: Reiterfläche und Panel. */}
+      {/* Speicherfehler oben im Bearbeiten-Bereich (Bauart 2 Regel 5). */}
       <FormErrorAlert message={saveError} />
       {companionsStale ? (
         <div className="border-moto-orange bg-moto-orange/5 rounded-lg border p-3">
@@ -899,37 +855,13 @@ export function PersonalInfoFormModal({
     </div>
   );
 
-  if (variant === "inline") {
-    // Bearbeitet wird am Objekt, nicht daneben: derselbe Inhalt in der Fläche
-    // des Reiters, ein „Speichern" unten.
-    return (
-      <SectionCard title="Persönliche Informationen">
-        {fields}
-        <div className="mt-6 flex flex-wrap justify-end gap-2">{footer}</div>
-      </SectionCard>
-    );
-  }
-
+  // Bearbeitet wird am Objekt, nicht daneben: derselbe Inhalt in der Fläche
+  // des Reiters, ein „Speichern" unten.
   return (
-    <SlideOver
-      open={isOpen}
-      onOpenChange={(open) => {
-        if (!open) handleCancel();
-      }}
-    >
-      <SlideOverContent widthClass="sm:w-[720px]">
-        <SlideOverHeader className="flex-row items-start justify-between gap-3">
-          <div className="min-w-0">
-            <SlideOverTitle>Persönliche Infos</SlideOverTitle>
-          </div>
-          <SlideOverCloseButton aria-label="Fenster schließen" />
-        </SlideOverHeader>
-        <SlideOverBody>{fields}</SlideOverBody>
-        <SlideOverFooter className="flex-row justify-end gap-2">
-          {footer}
-        </SlideOverFooter>
-      </SlideOverContent>
-    </SlideOver>
+    <SectionCard title="Persönliche Informationen">
+      {fields}
+      <div className="mt-6 flex flex-wrap justify-end gap-2">{footer}</div>
+    </SectionCard>
   );
 }
 
