@@ -234,7 +234,8 @@ func (rs *Resource) replaceAccountRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	approvedRoleID, _, abort := rs.authorizeRoleAssignment(w, r, req.RoleID)
+	requestedRoleID := req.RoleID.Int64()
+	approvedRoleID, _, abort := rs.authorizeRoleAssignment(w, r, &requestedRoleID)
 	if abort {
 		return
 	}
@@ -516,7 +517,11 @@ func (rs *Resource) replaceRolePermissions(w http.ResponseWriter, r *http.Reques
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	if err := rs.AuthService.ReplaceRolePermissions(r.Context(), roleID, req.PermissionIDs); err != nil {
+	permissionIDs := make([]int64, len(req.PermissionIDs))
+	for i, permissionID := range req.PermissionIDs {
+		permissionIDs[i] = permissionID.Int64()
+	}
+	if err := rs.AuthService.ReplaceRolePermissions(r.Context(), roleID, permissionIDs); err != nil {
 		tenant.MarkRollback(r.Context())
 		common.RenderError(w, r, renderRoleMutationError(err))
 		return

@@ -8,7 +8,7 @@ import { authService } from "~/lib/auth-service";
  */
 export interface AccountRoleAssignment {
   readonly options: readonly RoleOption[];
-  readonly currentRoleIds: readonly number[];
+  readonly currentRoleIds: readonly string[];
   /**
    * Ein Lehrkraft-Konto (#1772) hat kein Betreuungsprofil. Ein Tausch auf
    * Betreuung oder Verwaltung würde die volle Rolle ohne
@@ -34,10 +34,11 @@ export async function loadAccountRoleAssignment(
     options: toAssignableRoleOptions(
       allRoles.filter(
         (role) =>
-          role.isSystem !== true || role.name.toLowerCase() !== "lehrkraft",
+          (role.isSystem !== true || role.name.toLowerCase() !== "lehrkraft") &&
+          role.baseRole?.toLowerCase() !== "guardian",
       ),
     ),
-    currentRoleIds: accountRoles.map((role) => Number(role.id)),
+    currentRoleIds: accountRoles.map((role) => role.id),
     currentIsLehrkraft: accountRoles.some(
       (role) =>
         role.isSystem === true && role.name.toLowerCase() === "lehrkraft",
@@ -50,7 +51,7 @@ export async function loadAccountRoleAssignment(
  */
 export async function replaceAccountRole(
   accountId: string,
-  targetRoleId: number,
+  targetRoleId: string,
 ): Promise<void> {
-  await authService.replaceAccountRole(accountId, String(targetRoleId));
+  await authService.replaceAccountRole(accountId, targetRoleId);
 }

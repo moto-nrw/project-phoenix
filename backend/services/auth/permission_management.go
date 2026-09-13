@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/models/auth"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -202,25 +203,35 @@ func (s *Service) ensureOrganizationRBACMembership(ctx context.Context, accountI
 
 // AssignPermissionToRole assigns a permission to a role. System roles cannot be modified.
 func (s *Service) AssignPermissionToRole(ctx context.Context, roleID, permissionID int) error {
-	// Verify role exists and check system role protection
-	role, err := s.repos.Role.FindByID(ctx, int64(roleID))
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		if _, err := s.lockMutableRole(txCtx, roleID, opAssignPermissionToRole); err != nil {
+			return err
+		}
+		if _, err := s.repos.Permission.FindByID(txCtx, int64(permissionID)); err != nil {
+			return &AuthError{Op: opAssignPermissionToRole, Err: ErrPermissionNotFound}
+		}
+		if err := s.repos.Permission.AssignPermissionToRole(txCtx, int64(roleID), int64(permissionID)); err != nil {
+			return &AuthError{Op: opAssignPermissionToRole, Err: err}
+		}
+		return nil
+	})
+}
+
+// lockMutableRole serializes every role-permission mutation on the role row.
+// It preserves infrastructure failures so callers do not turn them into a
+// misleading not-found response.
+func (s *Service) lockMutableRole(ctx context.Context, roleID int, op string) (*auth.Role, error) {
+	role, err := s.repos.Role.FindByIDForUpdate(ctx, int64(roleID))
 	if err != nil {
-		return &AuthError{Op: opAssignPermissionToRole, Err: ErrRoleNotFound}
+		if modelBase.IsNoRows(err) {
+			return nil, &AuthError{Op: op, Err: ErrRoleNotFound}
+		}
+		return nil, &AuthError{Op: op, Err: err}
 	}
 	if role.IsSystem {
-		return &AuthError{Op: opAssignPermissionToRole, Err: ErrSystemRoleImmutable}
+		return nil, &AuthError{Op: op, Err: ErrSystemRoleImmutable}
 	}
-
-	// Verify permission exists
-	if _, err := s.repos.Permission.FindByID(ctx, int64(permissionID)); err != nil {
-		return &AuthError{Op: opAssignPermissionToRole, Err: ErrPermissionNotFound}
-	}
-
-	if err := s.repos.Permission.AssignPermissionToRole(ctx, int64(roleID), int64(permissionID)); err != nil {
-		return &AuthError{Op: opAssignPermissionToRole, Err: err}
-	}
-
-	return nil
+	return role, nil
 }
 
 // ReplaceRolePermissions applies a complete permission selection to a custom
@@ -228,15 +239,11 @@ func (s *Service) AssignPermissionToRole(ctx context.Context, roleID, permission
 // current selection is changed, so an invalid request leaves it untouched.
 func (s *Service) ReplaceRolePermissions(ctx context.Context, roleID int, permissionIDs []int64) error {
 	return s.runInTx(ctx, func(txCtx context.Context) error {
-		// The role row serializes full replacement requests. Lock it before
-		// loading mappings so a waiting request observes this replacement rather
-		// than applying its diff to the same stale set.
-		role, err := s.repos.Role.FindByIDForUpdate(txCtx, int64(roleID))
-		if err != nil {
-			return &AuthError{Op: "replace role permissions", Err: ErrRoleNotFound}
-		}
-		if role.IsSystem {
-			return &AuthError{Op: "replace role permissions", Err: ErrSystemRoleImmutable}
+		// The role row serializes full replacements and the legacy one-at-a-time
+		// mutations. Lock it before loading mappings so each operation observes
+		// the preceding committed selection.
+		if _, err := s.lockMutableRole(txCtx, roleID, "replace role permissions"); err != nil {
+			return err
 		}
 
 		desired := make(map[int64]struct{}, len(permissionIDs))
@@ -280,19 +287,15 @@ func (s *Service) ReplaceRolePermissions(ctx context.Context, roleID int, permis
 
 // RemovePermissionFromRole removes a permission from a role. System roles cannot be modified.
 func (s *Service) RemovePermissionFromRole(ctx context.Context, roleID, permissionID int) error {
-	// Verify role exists and check system role protection
-	role, err := s.repos.Role.FindByID(ctx, int64(roleID))
-	if err != nil {
-		return &AuthError{Op: "remove permission from role", Err: ErrRoleNotFound}
-	}
-	if role.IsSystem {
-		return &AuthError{Op: "remove permission from role", Err: ErrSystemRoleImmutable}
-	}
-
-	if err := s.repos.Permission.RemovePermissionFromRole(ctx, int64(roleID), int64(permissionID)); err != nil {
-		return &AuthError{Op: "remove permission from role", Err: err}
-	}
-	return nil
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		if _, err := s.lockMutableRole(txCtx, roleID, "remove permission from role"); err != nil {
+			return err
+		}
+		if err := s.repos.Permission.RemovePermissionFromRole(txCtx, int64(roleID), int64(permissionID)); err != nil {
+			return &AuthError{Op: "remove permission from role", Err: err}
+		}
+		return nil
+	})
 }
 
 // GetRolePermissions retrieves all permissions for a role

@@ -11,6 +11,7 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/go-ozzo/ozzo-validation/is"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 )
@@ -380,16 +381,16 @@ type UpdateRoleRequest struct {
 // ReplaceRolePermissionsRequest contains the complete target set for a role.
 // An explicit empty array removes every permission; an omitted field is invalid.
 type ReplaceRolePermissionsRequest struct {
-	PermissionIDs []int64 `json:"permission_ids"`
+	PermissionIDs []common.JSONID `json:"permission_ids"`
 }
 
 func (req *ReplaceRolePermissionsRequest) Bind(_ *http.Request) error {
 	if req.PermissionIDs == nil {
 		return errors.New("permission_ids is required")
 	}
-	seen := make(map[int64]struct{}, len(req.PermissionIDs))
+	seen := make(map[common.JSONID]struct{}, len(req.PermissionIDs))
 	for _, permissionID := range req.PermissionIDs {
-		if permissionID <= 0 {
+		if permissionID.Int64() <= 0 {
 			return errors.New("permission_ids must contain positive IDs")
 		}
 		if _, duplicate := seen[permissionID]; duplicate {
@@ -403,11 +404,11 @@ func (req *ReplaceRolePermissionsRequest) Bind(_ *http.Request) error {
 // ReplaceAccountRoleRequest contains the one role an account should hold in
 // the current tenant.
 type ReplaceAccountRoleRequest struct {
-	RoleID *int64 `json:"role_id"`
+	RoleID *common.JSONID `json:"role_id"`
 }
 
 func (req *ReplaceAccountRoleRequest) Bind(_ *http.Request) error {
-	if req.RoleID == nil || *req.RoleID <= 0 {
+	if req.RoleID == nil || req.RoleID.Int64() <= 0 {
 		return errors.New("role_id is required")
 	}
 	return nil
@@ -452,7 +453,7 @@ func validateBaseRole(br *string) error {
 
 // RoleResponse represents a role response
 type RoleResponse struct {
-	ID          int64    `json:"id"`
+	ID          int64    `json:"id,string"`
 	Name        string   `json:"name"`
 	Description string   `json:"description"`
 	IsSystem    bool     `json:"is_system"`
@@ -492,7 +493,7 @@ type UpdatePermissionRequest = CreatePermissionRequest
 
 // PermissionResponse represents a permission response
 type PermissionResponse struct {
-	ID          int64  `json:"id"`
+	ID          int64  `json:"id,string"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	Resource    string `json:"resource"`

@@ -838,7 +838,7 @@ export const authService = {
   ): Promise<void> =>
     authFetchVoid(`/auth/roles/${roleId}/permissions`, {
       method: "PUT",
-      body: { permission_ids: permissionIds.map(Number) },
+      body: { permission_ids: permissionIds },
       errorPrefix: "Replace role permissions",
     }),
 
@@ -974,7 +974,7 @@ export const authService = {
   ): Promise<void> =>
     authFetchVoid(`/auth/accounts/${accountId}/roles`, {
       method: "PUT",
-      body: { role_id: Number(roleId) },
+      body: { role_id: roleId },
       errorPrefix: "Replace account role",
     }),
 

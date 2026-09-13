@@ -42,10 +42,10 @@ export const Editable: Story = {
       canEditRole: true,
       roleAssignment: {
         options: [
-          { id: 1, name: "Administration", systemName: "admin" },
-          { id: 2, name: "Betreuung", systemName: "user" },
+          { id: "1", name: "Administration", systemName: "admin" },
+          { id: "2", name: "Betreuung", systemName: "user" },
         ],
-        currentRoleIds: [2],
+        currentRoleIds: ["2"],
         currentIsLehrkraft: false,
       },
       onEditingChange: () => undefined,

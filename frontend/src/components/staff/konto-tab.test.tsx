@@ -206,10 +206,10 @@ describe("KontoTab", () => {
       canEditRole: true,
       roleAssignment: {
         options: [
-          { id: 1, name: "Administration", systemName: "admin" },
-          { id: 2, name: "Betreuung", systemName: "user" },
+          { id: "1", name: "Administration", systemName: "admin" },
+          { id: "2", name: "Betreuung", systemName: "user" },
         ],
-        currentRoleIds: [2],
+        currentRoleIds: ["2"],
         currentIsLehrkraft: false,
       },
     });
@@ -234,22 +234,22 @@ describe("KontoTab", () => {
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
     await waitFor(() => {
       expect(editing.onSave).toHaveBeenLastCalledWith(
-        expect.objectContaining({ role_id: 1 }),
+        expect.objectContaining({ role_id: "1" }),
       );
     });
   });
 
-  it("replaces extra system roles even when the selected role is already assigned", async () => {
+  it("keeps extra system roles when no replacement was selected", async () => {
     const editing = editingProps({
       canEditPersonFields: false,
       canEditStaffFields: false,
       canEditRole: true,
       roleAssignment: {
         options: [
-          { id: 1, name: "Administration", systemName: "admin" },
-          { id: 2, name: "Betreuung", systemName: "user" },
+          { id: "1", name: "Administration", systemName: "admin" },
+          { id: "2", name: "Betreuung", systemName: "user" },
         ],
-        currentRoleIds: [2, 1],
+        currentRoleIds: ["2", "1"],
         currentIsLehrkraft: false,
       },
     });
@@ -262,7 +262,16 @@ describe("KontoTab", () => {
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     await waitFor(() => {
-      expect(editing.onSave).toHaveBeenCalledWith({ role_id: 2 });
+      expect(editing.onSave).toHaveBeenCalledWith({});
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    fireEvent.change(screen.getByLabelText("Systemrolle"), {
+      target: { value: "2" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() => {
+      expect(editing.onSave).toHaveBeenLastCalledWith({ role_id: "2" });
     });
   });
 
@@ -273,10 +282,10 @@ describe("KontoTab", () => {
       canEditRole: true,
       roleAssignment: {
         options: [
-          { id: 1, name: "Administration", systemName: "admin" },
-          { id: 2, name: "Betreuung", systemName: "user" },
+          { id: "1", name: "Administration", systemName: "admin" },
+          { id: "2", name: "Betreuung", systemName: "user" },
         ],
-        currentRoleIds: [2],
+        currentRoleIds: ["2"],
         currentIsLehrkraft: false,
       },
     });
@@ -295,7 +304,7 @@ describe("KontoTab", () => {
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     await waitFor(() => {
-      expect(editing.onSave).toHaveBeenCalledWith({ role_id: 1 });
+      expect(editing.onSave).toHaveBeenCalledWith({ role_id: "1" });
     });
   });
 
@@ -306,8 +315,8 @@ describe("KontoTab", () => {
         editing={editingProps({
           canEditRole: true,
           roleAssignment: {
-            options: [{ id: 1, name: "Administration", systemName: "admin" }],
-            currentRoleIds: [3],
+            options: [{ id: "1", name: "Administration", systemName: "admin" }],
+            currentRoleIds: ["3"],
             currentIsLehrkraft: true,
           },
         })}

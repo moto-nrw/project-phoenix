@@ -82,7 +82,7 @@ export function AccountTenantAccessModal({
   const [access, setAccess] = useState<AccountTenantAccess[]>([]);
   const [schools, setSchools] = useState<{ id: string; label: string }[]>([]);
   const [rolesBySchool, setRolesBySchool] = useState<
-    Record<string, { id: string; name: string }[]>
+    Record<string, { id: string; name: string; isSystem: boolean }[]>
   >({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -225,7 +225,7 @@ export function AccountTenantAccessModal({
     // assignable since the class day view shipped; it lives in the school
     // portal since the cutover (#2207).
     return (rolesBySchool[schoolId] ?? []).filter((role) =>
-      isAssignableStaffRole(role.name),
+      isAssignableStaffRole(role.name, role.isSystem),
     );
   }
 

@@ -134,7 +134,7 @@ async function request(
 
 async function requestRoles(
   endpoint: string,
-): Promise<{ id: string; name: string }[]> {
+): Promise<{ id: string; name: string; isSystem: boolean }[]> {
   const response = await fetch(endpoint, {
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -143,11 +143,12 @@ async function requestRoles(
     await throwApiError(response);
   }
   const payload = (await response.json()) as {
-    data?: { id: number; name: string }[] | null;
+    data?: { id: number; name: string; is_system: boolean }[] | null;
   };
   return (payload.data ?? []).map((role) => ({
     id: role.id.toString(),
     name: role.name,
+    isSystem: role.is_system,
   }));
 }
 

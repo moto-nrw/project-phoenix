@@ -114,6 +114,15 @@ describe("toAssignableRoleOptions", () => {
       role("4", "guardian", false),
     ]);
 
-    expect(options.map((option) => option.id)).toEqual([3, 4]);
+    expect(options.map((option) => option.id)).toEqual(["3", "4"]);
+  });
+
+  it("excludes roles based on the guardian base role", () => {
+    const options = toAssignableRoleOptions([
+      { ...role("1", "Elternkoordination", false), baseRole: "guardian" },
+      { ...role("2", "Betreuung", false), baseRole: "user" },
+    ]);
+
+    expect(options.map((option) => option.id)).toEqual(["2"]);
   });
 });

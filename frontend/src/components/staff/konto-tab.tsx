@@ -35,7 +35,7 @@ export interface KontoDraft {
   readonly role?: string | null;
   readonly staff_notes?: string;
   /** Neue Systemrolle, nur wenn sie sich von der aktuellen unterscheidet. */
-  readonly role_id?: number;
+  readonly role_id?: string;
 }
 
 /** Der Bearbeiten-Zustand des Reiters. */
@@ -151,10 +151,7 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
   const handleSave = async () => {
     if (!editing || !draft) return;
     const assignment = editing.roleAssignment;
-    const currentRoleId = assignment?.currentRoleIds[0];
-    // Solange niemand gewählt hat, gilt die aktuelle Rolle.
-    const selectedRoleId =
-      draft.roleId === "" ? currentRoleId : Number(draft.roleId);
+    const selectedRoleId = draft.roleId;
 
     const nextFieldErrors: typeof fieldErrors = {};
     if (editing.canEditPersonFields) {
@@ -189,7 +186,7 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
       ...(editing.canEditRole &&
       assignment &&
       !assignment.currentIsLehrkraft &&
-      selectedRoleId !== undefined &&
+      selectedRoleId !== "" &&
       (assignment.currentRoleIds.length !== 1 ||
         assignment.currentRoleIds[0] !== selectedRoleId)
         ? { role_id: selectedRoleId }

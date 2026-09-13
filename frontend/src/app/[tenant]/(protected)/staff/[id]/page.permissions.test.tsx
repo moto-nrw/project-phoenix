@@ -87,8 +87,8 @@ vi.mock("~/lib/swr", () => ({
     if (key?.startsWith("staff-role-assignment-")) {
       return {
         data: {
-          options: [{ id: 1, name: "Administration", systemName: "admin" }],
-          currentRoleIds: [1],
+          options: [{ id: "1", name: "Administration", systemName: "admin" }],
+          currentRoleIds: ["1"],
           currentIsLehrkraft: false,
         },
         isLoading: false,

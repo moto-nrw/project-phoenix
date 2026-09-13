@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -967,7 +968,8 @@ func TestRoleManagement(t *testing.T) {
 
 		createResp := testutil.ParseJSONResponse(t, createRr.Body.Bytes())
 		data := createResp["data"].(map[string]interface{})
-		roleID := int64(data["id"].(float64))
+		roleID, err := strconv.ParseInt(data["id"].(string), 10, 64)
+		require.NoError(t, err)
 
 		// Now get the role
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/auth/roles/%d", roleID), nil)
@@ -1165,7 +1167,8 @@ func TestPermissionManagement(t *testing.T) {
 		assert.Equal(t, "read", data["action"])
 
 		// Cleanup: delete the created permission
-		permID := int64(data["id"].(float64))
+		permID, err := strconv.ParseInt(data["id"].(string), 10, 64)
+		require.NoError(t, err)
 		_, _ = tc.db.NewDelete().TableExpr("auth.permissions").Where("id = ?", permID).Exec(context.Background())
 	})
 
@@ -1324,8 +1327,8 @@ func TestRolePermissionAssignment(t *testing.T) {
 		role := testpkg.CreateTestRole(t, tc.db, "ReplacePermRole")
 		permission := testpkg.CreateTestPermission(t, tc.db, "ReplaceRolePermission", "test", "read")
 
-		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/roles/%d/permissions", role.ID), map[string][]int64{
-			"permission_ids": {permission.ID},
+		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/roles/%d/permissions", role.ID), map[string][]string{
+			"permission_ids": {fmt.Sprintf("%d", permission.ID)},
 		})
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"roles:manage"})
 
@@ -1458,8 +1461,8 @@ func TestAccountRoleAssignment(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("replacerole%d", time.Now().UnixNano()))
 		role := testpkg.CreateTestRole(t, tc.db, "ReplaceAccRole")
 
-		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/accounts/%d/roles", account.ID), map[string]int64{
-			"role_id": role.ID,
+		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/accounts/%d/roles", account.ID), map[string]string{
+			"role_id": fmt.Sprintf("%d", role.ID),
 		})
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
 

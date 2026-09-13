@@ -14,7 +14,7 @@ export interface BackendAccount {
 }
 
 export interface BackendRole {
-  ID: number;
+  ID: string | number;
   Name: string;
   Description: string;
   IsSystem: boolean;
@@ -25,7 +25,7 @@ export interface BackendRole {
 }
 
 export interface BackendPermission {
-  id: number;
+  id: string | number;
   name: string;
   description: string;
   resource: string;
@@ -134,8 +134,8 @@ export function mapAccountResponse(backendAccount: BackendAccount): Account {
 
 // Flexible role interface for handling mixed case API responses
 interface FlexibleRoleData {
-  ID?: number;
-  id?: number;
+  ID?: string | number;
+  id?: string | number;
   Name?: string;
   name?: string;
   Description?: string;
@@ -261,7 +261,7 @@ export function getRoleDisplayDescription(
 }
 
 export interface RoleOption {
-  id: number;
+  id: string;
   name: string;
   // Raw backend role name ("lehrkraft", "user", …) — the display `name` is
   // the German label, so flows that must branch on the role (e.g. Lehrkraft
@@ -283,7 +283,7 @@ const NON_ASSIGNABLE_STAFF_ROLE_NAMES = new Set(["guardian", "teacher"]);
  */
 export function isAssignableStaffRole(
   roleName: string,
-  isSystem = true,
+  isSystem: boolean,
 ): boolean {
   return (
     !isSystem || !NON_ASSIGNABLE_STAFF_ROLE_NAMES.has(roleName.toLowerCase())
@@ -297,13 +297,16 @@ export function isAssignableStaffRole(
  */
 export function toAssignableRoleOptions(roles: Role[]): RoleOption[] {
   return roles
-    .filter((role) => isAssignableStaffRole(role.name, role.isSystem))
+    .filter(
+      (role) =>
+        isAssignableStaffRole(role.name, role.isSystem) &&
+        role.baseRole?.toLowerCase() !== "guardian",
+    )
     .map((role) => ({
-      id: Number(role.id),
+      id: role.id,
       name: role.name ? getRoleDisplayName(role.name) : `Rolle ${role.id}`,
       systemName: role.name?.toLowerCase() ?? "",
-    }))
-    .filter((role) => !Number.isNaN(role.id));
+    }));
 }
 
 // Request/Response types
