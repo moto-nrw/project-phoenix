@@ -266,9 +266,6 @@ func DepartureDaysFromLegacy(bus BusDays, pickup PickupDays) DepartureDays {
 func AllowedDepartureModesFromDeparture(days DepartureDays) AllowedDepartureModes {
 	return peopledirectory.AllowedDepartureModesFromDeparture(days)
 }
-func AllowedDepartureModesFromLegacy(bus BusDays, pickup PickupDays) AllowedDepartureModes {
-	return peopledirectory.AllowedDepartureModesFromLegacy(bus, pickup)
-}
 
 const MaxDepartureCompanionNoteLen = peopledirectory.MaxDepartureCompanionNoteLen
 

@@ -9,9 +9,9 @@ pre-commit:
       glob: "{AGENTS.md,CLAUDE.md,backend/AGENTS.md,backend/CLAUDE.md,frontend/AGENTS.md,frontend/CLAUDE.md,.agents/**,.claude/**,.codex/**,backend/.claude/**,frontend/.agents/**,frontend/.claude/**,docs/agents/**,scripts/check-agent-context*.mjs,lefthook.yml}"
       run: node scripts/check-agent-context.mjs && node --test scripts/check-agent-context.test.mjs
 
-    # Git secrets check (if installed)
+    # Fail closed if the pinned secret scanner is unavailable.
     git-secrets:
-      run: git secrets --pre_commit_hook 2>/dev/null || true
+      run: bash scripts/check-secrets.sh --pre_commit_hook
 
     # Frontend lint-staged (prettier + oxlint with auto-fix)
     frontend-lint:
@@ -72,53 +72,12 @@ pre-commit:
           exit 1
         fi
 
-# Pre-push: Full quality checks (runs before pushing to remote)
+# Pre-push checks the whole PR diff, not just the latest pushed files.
 pre-push:
-  parallel: true
   commands:
-    git-secrets:
-      run: git secrets --pre_commit_hook 2>/dev/null || true
-
-    go-vet:
-      glob: "backend/**/*.go"
-      run: cd backend && ../scripts/run-go-toolchain.sh go vet ./...
-
-    golangci-lint:
-      glob: "backend/**/*.go"
-      run: cd backend && ../scripts/run-go-toolchain.sh golangci-lint run --timeout 20m
-
-    toolchain-pins:
-      glob: "{backend/go.mod,backend/tools/go.mod,backend/Dockerfile,backend/Dockerfile.dev,devbox.json,devbox.lock,package.json,frontend/package.json,lefthook.yml,scripts/backend-architecture/go.mod,scripts/run-go-toolchain.sh,.github/workflows/*.yml}"
-      run: cd backend && ../scripts/run-go-toolchain.sh go test ./test -run '^TestToolchainPinsRatchet$' -count=1
-
-    backend-architecture:
-      glob: "{backend/**/*.go,backend/architecture/**,backend/internal/architecture/**,scripts/backend-architecture.sh}"
-      run: scripts/run-go-toolchain.sh scripts/backend-architecture.sh check
-
-    # Dead code detection (matches CI)
-    go-deadcode:
-      glob: "backend/**/*.go"
-      run: scripts/run-go-toolchain.sh scripts/check-deadcode.sh
-
-    # Security vulnerability detection
-    go-vulncheck:
-      glob: "backend/**/*.go"
-      run: cd backend && ../scripts/run-go-toolchain.sh govulncheck ./...
-
-    # Frontend lint + typecheck (pnpm check = oxlint + tsc --noEmit)
-    frontend-check:
-      glob: "frontend/**/*.{ts,tsx}"
-      run: cd frontend && pnpm run check
-
-    # Frontend dependency graph validation (matches CI)
-    frontend-depcruise:
-      glob: "frontend/**/*.{ts,tsx,js,jsx}"
-      run: cd frontend && pnpm depcruise
-
-    # Frontend unused code detection (matches CI)
-    frontend-knip:
-      glob: "frontend/**/*.{ts,tsx,js,jsx}"
-      run: cd frontend && pnpm knip && pnpm knip:production
+    quality:
+      use_stdin: true
+      run: bash scripts/pre-push.sh --hook
 
 # Post-merge: Check env sync after git pull
 post-merge:

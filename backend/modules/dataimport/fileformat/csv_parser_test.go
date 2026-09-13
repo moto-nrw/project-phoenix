@@ -217,55 +217,6 @@ Max,Mustermann,1A,test@example.com`
 	assert.Equal(t, "test@example.com", rows[0].Guardians[0].Email)
 }
 
-func TestCSVParser_ValidateHeader_RequiredColumns(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name      string
-		csvData   string
-		wantError bool
-	}{
-		{
-			name:      "all required columns present",
-			csvData:   "Vorname,Nachname,Klasse",
-			wantError: false,
-		},
-		{
-			name:      "missing Vorname",
-			csvData:   "Nachname,Klasse",
-			wantError: true,
-		},
-		{
-			name:      "missing Nachname",
-			csvData:   "Vorname,Klasse",
-			wantError: true,
-		},
-		{
-			name:      "missing Klasse",
-			csvData:   "Vorname,Nachname",
-			wantError: true,
-		},
-		{
-			name:      "extra columns ok",
-			csvData:   "Vorname,Nachname,Klasse,Gruppe,Extra1,Extra2",
-			wantError: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			parser := NewCSVParser()
-			err := parser.ValidateHeader(strings.NewReader(tt.csvData))
-
-			if tt.wantError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
 func TestCSVParser_ParseStudents_GuardianExtensibility(t *testing.T) {
 	t.Parallel()
 
@@ -559,7 +510,7 @@ Max,Mustermann,1A,Maria,Müller,maria@example.com,0123-456789,Mutter,Ja,Ja,Ja,Mu
 	assert.Equal(t, "Frühschluss", rows[0].PickupSchedules[1].Notes)
 }
 
-func TestCSVParser_GetColumnMapping(t *testing.T) {
+func TestCSVParser_ParseStudents_ColumnMapping(t *testing.T) {
 	t.Parallel()
 
 	csvData := `Vorname,Nachname,Klasse,Erz1.Email,Erz2.Email
@@ -569,7 +520,7 @@ Max,Mustermann,1A,test1@ex.com,test2@ex.com`
 	_, err := parser.ParseStudents(strings.NewReader(csvData))
 	require.NoError(t, err)
 
-	mapping := parser.GetColumnMapping()
+	mapping := parser.columnMapping
 	assert.NotEmpty(t, mapping)
 
 	// Check expected columns are mapped

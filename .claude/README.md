@@ -68,6 +68,24 @@ Claude wires both. Keep lefthook and CI backstops. The guard resolves tracked
 scripts against payload `cwd`, falling back to the hook process working directory.
 Do not assume a hook ran merely because a config file exists.
 
+### Git quality gates
+
+Pre-commit keeps formatting/import checks scoped to staged files and fails if
+the pinned secret scanner is missing. Pre-push always invokes
+`scripts/pre-push.sh`: it refreshes `origin/development`, selects checks from
+the entire branch diff against the merge-base, and requires a clean working
+tree. Commit or stash non-ignored changes before pushing; ignored local config
+and tool caches remain available. Push the checked-out branch, not another ref.
+Manual runs accept an explicit base: `bash scripts/pre-push.sh origin/development`.
+
+`scripts/check-quality.sh` owns backend and frontend static checks for both CI
+and pre-push. Backend lint uses affected packages; dead-code and architecture
+analysis stay whole-program. Heavy checks run sequentially, followed by affected
+tests. Tool caches are reused, but there are no custom success stamps. CI keeps
+clean merge-checkout validation, builds, bundle limits, Storybook and seed smoke.
+`scripts/pre-push.test.mjs` exercises selection and failure propagation in
+isolated Git repositories without running expensive analyzers.
+
 ## Maintaining context
 
 - Keep a rule in one canonical source. Entry points carry its trigger and a

@@ -577,76 +577,10 @@ func TestXLSXParser_ParseStudents_FullRowAllNewFields(t *testing.T) {
 }
 
 // ============================================================================
-// ValidateHeader Tests
+// Parsed column mapping
 // ============================================================================
 
-func TestXLSXParser_ValidateHeader(t *testing.T) {
-	t.Parallel()
-
-	t.Run("validates complete header", func(t *testing.T) {
-		// ARRANGE
-		headers := []string{"Vorname", "Nachname", "Klasse", "Geburtstag"}
-		rows := [][]string{{"Max", "Mustermann", "1A", "2015-01-01"}}
-		buf := createTestXLSX(t, headers, rows)
-
-		parser := NewXLSXParser()
-
-		// ACT
-		err := parser.ValidateHeader(buf)
-
-		// ASSERT
-		require.NoError(t, err)
-	})
-
-	t.Run("returns error for missing required columns", func(t *testing.T) {
-		// ARRANGE - Missing "Vorname"
-		headers := []string{"Nachname", "Klasse"}
-		rows := [][]string{{"Mustermann", "1A"}}
-		buf := createTestXLSX(t, headers, rows)
-
-		parser := NewXLSXParser()
-
-		// ACT
-		err := parser.ValidateHeader(buf)
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "vorname")
-	})
-
-	t.Run("returns error for empty file", func(t *testing.T) {
-		// ARRANGE - Create empty Excel file
-		f := excelize.NewFile()
-		defer func() { _ = f.Close() }()
-		buf, _ := f.WriteToBuffer()
-
-		parser := NewXLSXParser()
-
-		// ACT
-		err := parser.ValidateHeader(buf)
-
-		// ASSERT
-		require.Error(t, err)
-	})
-
-	t.Run("returns error for invalid Excel data", func(t *testing.T) {
-		// ARRANGE
-		parser := NewXLSXParser()
-		invalidData := bytes.NewBufferString("not an excel file")
-
-		// ACT
-		err := parser.ValidateHeader(invalidData)
-
-		// ASSERT
-		require.Error(t, err)
-	})
-}
-
-// ============================================================================
-// GetColumnMapping Tests
-// ============================================================================
-
-func TestXLSXParser_GetColumnMapping(t *testing.T) {
+func TestXLSXParser_ParseStudents_ColumnMapping(t *testing.T) {
 	t.Parallel()
 
 	t.Run("returns column mapping after parsing", func(t *testing.T) {
@@ -660,7 +594,7 @@ func TestXLSXParser_GetColumnMapping(t *testing.T) {
 		require.NoError(t, err)
 
 		// ACT
-		mapping := parser.GetColumnMapping()
+		mapping := parser.columnMapping
 
 		// ASSERT
 		assert.NotNil(t, mapping)

@@ -98,25 +98,20 @@ func assertLocalHooksUsePinnedRunner(t *testing.T, repoRoot string) {
 			// goimports' stderr out of the diff variable — but it still has to
 			// go through the pinned runner, which is what this pin is for.
 			`DIFF=$(../scripts/run-go-toolchain.sh go tool goimports -d $FILES)`,
-			"run: cd backend && ../scripts/run-go-toolchain.sh go vet ./...",
-			"run: cd backend && ../scripts/run-go-toolchain.sh go test ./test -run '^TestToolchainPinsRatchet$' -count=1",
-			"run: scripts/run-go-toolchain.sh scripts/backend-architecture.sh check",
-			"run: scripts/run-go-toolchain.sh scripts/check-deadcode.sh",
-			"run: cd backend && ../scripts/run-go-toolchain.sh govulncheck ./...",
+			"run: bash scripts/pre-push.sh --hook",
 		},
 		".claude/hooks/format-go.sh": {
 			`cd "${project_root}/backend"`,
 			`"${project_root}/scripts/run-go-toolchain.sh" go tool goimports -w "${file_path}"`,
 		},
 	}
-	// Commands whose last argument is a machine-speed knob rather than part of
-	// the toolchain contract. What stays pinned is that the hook runs through
-	// run-go-toolchain.sh; the concrete value may differ per machine (golangci-lint
-	// needs well over 5 minutes on a slow checkout, and pinning the duration made
-	// every adjustment break this test).
+	// Keep the pinned runner contract when the hook delegates to shared scripts.
+	// The final argument selects a quality mode or base revision.
 	prefixChecks := map[string][]string{
-		"lefthook.yml": {
-			"run: cd backend && ../scripts/run-go-toolchain.sh golangci-lint run --timeout",
+		"scripts/pre-push.sh": {
+			"scripts/run-go-toolchain.sh scripts/check-quality.sh",
+			"scripts/run-go-toolchain.sh scripts/backend-architecture.sh check --base-ref",
+			"scripts/run-go-toolchain.sh scripts/test-changed.sh",
 		},
 	}
 
@@ -153,6 +148,7 @@ func assertRunnerResolvesExactBinary(t *testing.T, path string) {
 	t.Helper()
 	content := string(readToolchainFile(t, path))
 	for _, required := range []string{
+		`export CGO_ENABLED=${CGO_ENABLED:-0}`,
 		`command_path="$tool_bin/$requested_command"`,
 		`if [[ ! -x "$command_path" ]]; then`,
 		`exec "$command_path" "$@"`,

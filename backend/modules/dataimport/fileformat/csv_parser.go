@@ -4,7 +4,6 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
-	"strings"
 
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 )
@@ -70,44 +69,4 @@ func (p *CSVParser) ParseStudents(reader io.Reader) ([]importModels.StudentImpor
 	}
 
 	return rows, nil
-}
-
-// GetColumnMapping returns the detected column mapping
-func (p *CSVParser) GetColumnMapping() map[string]int {
-	return p.columnMapping
-}
-
-// ValidateHeader checks if the CSV has required columns
-func (p *CSVParser) ValidateHeader(reader io.Reader) error {
-	csvReader := csv.NewReader(reader)
-	csvReader.FieldsPerRecord = -1
-
-	// Read only the header
-	header, err := csvReader.Read()
-	if err != nil {
-		return fmt.Errorf("read header: %w", err)
-	}
-
-	// Build column mapping
-	mapping := make(map[string]int)
-	for i, col := range header {
-		key := normalizeHeaderKey(col)
-		mapping[key] = i
-	}
-
-	// Required columns
-	requiredColumns := []string{"vorname", "nachname", "klasse"}
-	missing := []string{}
-
-	for _, col := range requiredColumns {
-		if _, exists := mapping[col]; !exists {
-			missing = append(missing, col)
-		}
-	}
-
-	if len(missing) > 0 {
-		return fmt.Errorf("fehlende erforderliche Spalten: %s", strings.Join(missing, ", "))
-	}
-
-	return nil
 }
