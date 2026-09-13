@@ -396,7 +396,6 @@ const TINY_TEXT_RE = /\btext-\[(?:9|10|11)px\]/g;
 
 const TINY_TEXT_BASELINE_FILES = new Set([
   "src/app/[tenant]/(protected)/calendar/page.tsx",
-  "src/app/[tenant]/(protected)/database/personal/opening-balances/page.tsx",
   "src/app/[tenant]/(protected)/day-log/page.tsx",
   "src/app/[tenant]/(protected)/meal-plan/page.tsx",
   "src/app/[tenant]/(protected)/time-tracking/page.tsx",
@@ -461,7 +460,6 @@ const TINY_TEXT_BASELINE_FILES = new Set([
 ]);
 
 const TINY_TEXT_BASELINE = parseLocationBaseline(`
-src/app/[tenant]/(protected)/database/personal/opening-balances/page.tsx|text-[11px]@188 text-[11px]@225
 src/app/[tenant]/(protected)/day-log/page.tsx|text-[11px]@164
 src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]@1335 text-[11px]@1335 text-[10px]@1339 text-[10px]@1348 text-[11px]@1348
 src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198

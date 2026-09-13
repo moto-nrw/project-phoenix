@@ -256,7 +256,9 @@ func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID
 
 	if c.ConsentHistory != nil {
 		after := consentSnapshot(created.ID, patch.AGBAcceptedAt, patch.DataProcessingAcceptedAt, patch.EmailContactAcceptedAt, patch.PhotoConsentGivenAt)
-		if err := c.ConsentHistory.RecordTransitions(ctx, nil, after, auditModels.StudentConsentSourceImport, nil, time.Now()); err != nil {
+		if err := ports.ObserveCommand(ctx, "audit-platform", "record_consent_transitions", func() error {
+			return c.ConsentHistory.RecordTransitions(ctx, nil, after, auditModels.StudentConsentSourceImport, nil, time.Now())
+		}); err != nil {
 			return 0, fmt.Errorf("create student consent history: %w", err)
 		}
 	}
@@ -763,7 +765,9 @@ func (c *StudentImportConfig) updateStudentFromRow(ctx context.Context, record p
 	}
 	if c.ConsentHistory != nil {
 		before := consentSnapshot(record.ID, record.AGBAcceptedAt, record.DataProcessingAcceptedAt, record.EmailContactAcceptedAt, record.PhotoConsentGivenAt)
-		if err := c.ConsentHistory.RecordTransitions(ctx, before, after, auditModels.StudentConsentSourceImport, nil, time.Now()); err != nil {
+		if err := ports.ObserveCommand(ctx, "audit-platform", "record_consent_transitions", func() error {
+			return c.ConsentHistory.RecordTransitions(ctx, before, after, auditModels.StudentConsentSourceImport, nil, time.Now())
+		}); err != nil {
 			return fmt.Errorf("Einwilligungsverlauf aktualisieren: %w", err) //nolint:staticcheck // ST1005: user-facing German message
 		}
 	}

@@ -249,29 +249,15 @@ func (rs *Resource) ImportStaff(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := importService.ContextWithImporterPermissions(r.Context(), jwt.ClaimsFromCtx(r.Context()).Permissions)
-	tenantID := tenant.FromContext(ctx)
-	var result *importModels.ImportResult[importModels.StaffImportRow]
-	if err := tenant.WithTenantTx(ctx, rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		request := importModels.ImportRequest[importModels.StaffImportRow]{
-			Rows:            uploadResult.Rows,
-			Mode:            mode,
-			DryRun:          false,
-			StopOnError:     false,
-			UserID:          accountID,
-			SkipInvalidRows: true,
+	result, err := rs.staffImportService.ImportBatches(ctx, importModels.ImportRequest[importModels.StaffImportRow]{
+		Rows: uploadResult.Rows, Mode: mode, UserID: accountID, SkipInvalidRows: true,
+	}, importService.BatchAudit{EntityType: "staff", Filename: uploadResult.Filename, AccountID: accountID})
+	if err != nil {
+		if result == nil {
+			renderStaffImportError(w, r, err, "Import fehlgeschlagen")
+		} else {
+			renderBatchImportError(w, r, result, err)
 		}
-
-		var txErr error
-		result, txErr = rs.staffImportService.Import(ctx, request)
-		if txErr != nil {
-			return txErr
-		}
-		// GDPR Compliance: Audit log for actual import (Article 30). Written
-		// inside the import transaction so the import is only acknowledged
-		// once its audit record is persisted.
-		return rs.staffImportService.RecordAuditInTransaction(ctx, "staff", uploadResult.Filename, result, accountID, false, tenantID)
-	}); err != nil {
-		renderStaffImportError(w, r, err, "Import fehlgeschlagen")
 		return
 	}
 

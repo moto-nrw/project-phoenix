@@ -108,8 +108,7 @@ func (rs *Resource) Router() chi.Router {
 			r.With(common.RequiresPermission(permUsersCreate)).Post(routePreview, rs.previewStudentImport)
 
 			// Actual import - requires UsersCreate
-			// Note: no withTx here — the handler manages its own WithTenantTx
-			// to control commit/rollback based on import results.
+			// No withTx: the workflow commits bounded batches and checkpoints.
 			r.With(common.RequiresPermission(permUsersCreate)).Post(routeImport, rs.importStudents)
 		})
 
@@ -122,17 +121,15 @@ func (rs *Resource) Router() chi.Router {
 			// tenant transaction so the GDPR audit row is committed before
 			// the success response.
 			r.With(common.RequiresPermission(permTimeTrackingManage)).Post(routePreview, rs.PreviewOpeningBalanceImport)
-			// Note: no withTx here — the handler manages its own WithTenantTx
-			// to control commit/rollback based on import results.
+			// No withTx: the workflow commits bounded batches and checkpoints.
 			r.With(common.RequiresPermission(permTimeTrackingManage)).Post(routeImport, rs.ImportOpeningBalances)
 		})
 
 		// Class-list entry (Klassenlisteneintrag, #2382) import endpoints
 		r.Route("/class-list-entries", func(r chi.Router) {
 			r.With(common.RequiresPermission(permUsersRead), withTx).Get(routeTemplate, rs.DownloadClassListTemplate)
-			// Note: no withTx on preview/import — the handler owns its tenant
-			// transaction so the GDPR audit row is committed before the
-			// success response.
+			// No withTx: the workflow commits its audit before the response,
+			// in one preview transaction or bounded import transactions.
 			r.With(common.RequiresPermission(permUsersCreate)).Post(routePreview, rs.PreviewClassListImport)
 			r.With(common.RequiresPermission(permUsersCreate)).Post(routeImport, rs.ImportClassList)
 		})
@@ -151,8 +148,7 @@ func (rs *Resource) Router() chi.Router {
 			r.With(common.RequiresPermission(permUsersCreate)).Post(routePreview, rs.PreviewStaffImport)
 
 			// Actual import - requires UsersCreate
-			// Note: no withTx here — the handler manages its own WithTenantTx
-			// to control commit/rollback based on import results.
+			// No withTx: the workflow commits bounded batches and checkpoints.
 			r.With(common.RequiresPermission(permUsersCreate)).Post(routeImport, rs.ImportStaff)
 		})
 	})
@@ -625,37 +621,22 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Run actual import inside tenant transaction.
-	// Staff ID resolution must happen inside the TX because RLS requires tenant context.
-	tenantID := tenant.FromContext(r.Context())
-	var result *importModels.ImportResult[importModels.StudentImportRow]
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		// Resolve staff ID within tenant TX (pickup schedule FK references users.staff, not auth.accounts)
-		staffID, staffErr := rs.getStaffIDFromJWT(ctx)
-		if staffErr != nil {
-			return fmt.Errorf("staff resolution failed: %w", staffErr)
-		}
-
-		request := importModels.ImportRequest[importModels.StudentImportRow]{
-			Rows:            uploadResult.Rows,
-			Mode:            mode,
-			DryRun:          false, // ACTUAL IMPORT
-			StopOnError:     false, // Continue on errors
-			UserID:          staffID,
-			SkipInvalidRows: true, // Skip invalid rows, import valid ones
-		}
-
-		var txErr error
-		result, txErr = rs.studentImportService.Import(ctx, request)
-		if txErr != nil {
-			return txErr
-		}
-		// GDPR Compliance: Audit log for actual import (Article 30). Written
-		// inside the import transaction so the import is only acknowledged
-		// once its audit record is persisted.
-		return rs.studentImportService.RecordAuditInTransaction(ctx, "student", uploadResult.Filename, result, accountID, false, tenantID)
+	// Resolve the actor in a short tenant transaction. The workflow owns the
+	// subsequent bounded write transactions and their audit checkpoints.
+	var staffID int64
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenant.FromContext(r.Context()), func(ctx context.Context, _ bun.Tx) error {
+		var err error
+		staffID, err = rs.getStaffIDFromJWT(ctx)
+		return err
 	}); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("Import fehlgeschlagen", err))
+		return
+	}
+	result, err := rs.studentImportService.ImportBatches(r.Context(), importModels.ImportRequest[importModels.StudentImportRow]{
+		Rows: uploadResult.Rows, Mode: mode, UserID: staffID, SkipInvalidRows: true,
+	}, importService.BatchAudit{EntityType: "student", Filename: uploadResult.Filename, AccountID: accountID})
+	if err != nil {
+		renderBatchImportError(w, r, result, err)
 		return
 	}
 
@@ -671,6 +652,20 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 		result.CreatedCount, result.UpdatedCount, result.ErrorCount)
 
 	common.Respond(w, r, http.StatusOK, result, message)
+}
+
+// A failed batch may follow committed batches. Keep that progress and the
+// stable row errors available without reporting the upload as successful.
+func renderBatchImportError[T any](w http.ResponseWriter, r *http.Request, result *importModels.ImportResult[T], err error) {
+	if result == nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("Import fehlgeschlagen", err))
+		return
+	}
+	common.RenderError(w, r, &common.ErrResponse{
+		Err: err, HTTPStatusCode: http.StatusInternalServerError,
+		Status: "error", ErrorText: "Import fehlgeschlagen", Code: "import_batch_failed",
+		Details: map[string]any{"result": result},
+	})
 }
 
 // getAccountIDFromContext extracts the account ID from the JWT context
