@@ -257,6 +257,7 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 	config := enrollmentService.RequestServiceConfig{
 		Requests:         repoFactory.Enrollment(),
 		Children:         repoFactory.Enrollment(),
+		Bookings:         requestTestBookingCommands(),
 		Guardians:        repoFactory.Enrollment(),
 		CareOfferingRepo: repoFactory.CareOffering,
 		Catalog:          repoFactory.Enrollment(),
@@ -3454,7 +3455,10 @@ func TestRequestService_Edit_AdminContextUsesPinnedSchema(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	owner, ok := env.config.Catalog.(*enrollmentCapability.Module)
+	owner, ok := env.config.Catalog.(interface {
+		enrollmentService.FormSchemaOwner
+		UpdatePhase(context.Context, *enrollmentCapability.Phase) error
+	})
 	require.True(t, ok)
 	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{Owner: owner})
 	schema, err := schemaSvc.CreateSchemaWithLegal(ctx, "Admin edit schema", []enrollmentCapability.FormField{

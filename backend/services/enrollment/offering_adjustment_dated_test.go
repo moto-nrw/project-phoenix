@@ -112,6 +112,9 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchCapsOldAndStartsNewGrou
 		t, env, "dated-switch@example.com", "DatedSwitch",
 		[]*enrollmentModels.CareOffering{oldOffering},
 	)
+	submittedBefore, err := env.repos.Enrollment().SubmittedOfferingChoices(ctx, []int64{childID})
+	require.NoError(t, err)
+	require.Len(t, submittedBefore, 1)
 
 	rows := listStudentEnrollmentRowsForDecisionTest(t, env, studentID)
 	require.Len(t, rows, 1)
@@ -123,7 +126,7 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchCapsOldAndStartsNewGrou
 	// after the materialized valid_from and not in the past.
 	switchDate := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(150)
 
-	_, err := env.decision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
+	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
 		RequestID:      requestID,
 		ChildID:        childID,
 		ActorAccountID: env.creatorID,
@@ -170,6 +173,9 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchCapsOldAndStartsNewGrou
 	newTaken, err := env.repos.Enrollment().OfferingCapacityPeak(ctx, newOffering.ID, nil, capability.Date(switchDate), capability.Date(switchDate.AddDays(1)))
 	require.NoError(t, err)
 	assert.Equal(t, 1, newTaken)
+	submittedAfter, err := env.repos.Enrollment().SubmittedOfferingChoices(ctx, []int64{childID})
+	require.NoError(t, err)
+	assert.Equal(t, submittedBefore, submittedAfter, "a care switch must not rewrite or append original submission choices")
 }
 
 func TestDecisionService_UpdateChildOfferings_DatedSwitchKeepsUnchangedOffering(t *testing.T) {

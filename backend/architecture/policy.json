@@ -3556,6 +3556,14 @@
       "write_owner": "enrollment"
     },
     {
+      "name": "enrollment.request_child_compatibility_reads",
+      "write_owner": "migrations"
+    },
+    {
+      "name": "enrollment.request_child_compatibility_writes",
+      "write_owner": "migrations"
+    },
+    {
       "name": "enrollment.request_child_offering_selections",
       "write_owner": "enrollment"
     },

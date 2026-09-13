@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
 	"log/slog"
 	"os"
 	"sync"
@@ -137,7 +138,7 @@ func TestEnrollmentDeletionOwner_MismatchedRequestPreservesChildSelections(t *te
 	offering := &enrollmentModels.CareOffering{PhaseID: f.phase, Name: "Care", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"}, IsActive: true, CountsAsCare: true, CountsAsCareSet: true}
 	require.NoError(t, f.repos.CareOffering.Create(f.scope.Context(), offering))
 	selection := &capability.RequestChildOffering{RequestChildID: child.ID, CareOfferingID: offering.ID, SelectedDays: []string{"mon"}}
-	require.NoError(t, f.repos.Enrollment().InsertRequestChildOffering(f.scope.Context(), selection))
+	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequestChildOffering(f.scope.Context(), selection))
 	counts, err := f.repos.Enrollment().DeletionChildCounts(f.scope.Context(), other.ID, child.ID)
 	require.NoError(t, err)
 	require.Zero(t, counts.Offerings)
@@ -231,8 +232,17 @@ func TestEnrollmentDeletion_DeleteRequestCleansDependenciesAndPreservesPeople(t 
 
 	offering := &enrollmentModels.CareOffering{PhaseID: f.phase, Name: "Test care", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"}, IsActive: true, CountsAsCare: true, CountsAsCareSet: true, AutoAddGradeLevels: []int{}, SelectionRule: enrollmentModels.SelectionRuleOptional}
 	require.NoError(t, f.repos.CareOffering.Create(f.scope.Context(), offering))
-	childOffering := &capability.RequestChildOffering{RequestChildID: child.ID, CareOfferingID: offering.ID, SelectedDays: []string{"mon"}}
-	require.NoError(t, f.repos.Enrollment().InsertRequestChildOffering(f.scope.Context(), childOffering))
+	require.NoError(t, f.repos.Enrollment().RecordSubmittedOfferingChoices(f.scope.Context(), child.ID, []capability.SubmittedOfferingChoice{
+		{CareOfferingID: offering.ID, SelectedDays: []string{"mon"}},
+	}))
+	start, until := timezone.NewDate(2026, 9, 1), timezone.NewDate(2027, 8, 1)
+	require.NoError(t, requestTestBookingCommands().RecordCareBookings(f.scope.Context(), child.ID, []enrollmentService.CareBookingInput{
+		{CareOfferingID: offering.ID, ManualSelectedDays: []string{"mon"}, ValidFrom: &start, ValidUntil: &until},
+	}))
+	bookings, err := f.repos.CarePlan().CareOfferingBookingHistory(f.scope.Context(), []int64{child.ID})
+	require.NoError(t, err)
+	require.Len(t, bookings, 1)
+	childOffering := bookings[0]
 	change := &capability.ChangeRequest{RequestID: request.ID, RequestChildID: &child.ID, Origin: capability.ChangeRequestOriginParent, BaseSnapshot: json.RawMessage("{}"), ProposedSnapshot: json.RawMessage("{}"), Diff: json.RawMessage("{}")}
 	require.NoError(t, f.repos.Enrollment().InsertChangeRequest(f.scope.Context(), change))
 	message := &capability.ChangeRequestMessage{ChangeRequestID: change.ID, AuthorType: capability.ChangeRequestMessageAuthorStaff, AuthorAccountID: &f.actor, Body: "dependent message"}
@@ -255,12 +265,15 @@ func TestEnrollmentDeletion_DeleteRequestCleansDependenciesAndPreservesPeople(t 
 	assert.Equal(t, 1, preview.ParentAccountsWithoutStudents)
 	assert.Equal(t, 1, preview.Counts.EmailOutbox)
 	assert.Equal(t, 1, preview.Counts.OfferingAdjustments)
+	assert.Equal(t, 1, preview.Counts.RequestChildOfferings)
 
 	impact, err := tenantCall(t, db, f.scope.TenantID, func(ctx context.Context) (*enrollmentModels.DeletionImpact, error) {
 		return f.service(nil, nil).DeleteRequest(ctx, request.ID, f.actor, "Genehmigte Testanmeldung bereinigen")
 	})
 	require.NoError(t, err)
 	assert.Equal(t, preview.Counts, impact.Counts)
+	assert.Zero(t, tableCount(t, db, "enrollment.request_child_offering_selections", "tenant_id = ? AND request_child_id = ?", f.scope.TenantID, child.ID))
+	assert.Zero(t, tableCount(t, db, "enrollment.care_offering_bookings", "tenant_id = ? AND request_child_id = ?", f.scope.TenantID, child.ID))
 	for _, check := range []struct {
 		table string
 		id    int64
@@ -500,7 +513,7 @@ func (f *deletionTestFixture) preview() enrollmentService.DeletionPreview {
 		},
 		count: people.CountGuardianLinks,
 	}
-	return enrollmentService.NewDeletionPreview(f.repos.Enrollment(), guardians, f.repos.EnrollmentOfferingAdjustment.CountForDeletion)
+	return enrollmentService.NewDeletionPreview(f.repos.Enrollment(), guardians, f.repos.EnrollmentOfferingAdjustment.CountForDeletion, f.repos.CarePlan().CountCareOfferingBookings)
 }
 
 type deletionTestGuardians struct {

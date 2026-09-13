@@ -391,6 +391,7 @@ type DecisionLateInvites interface {
 }
 
 type DecisionServiceConfig struct {
+	Bookings                  CareBookingChanges
 	ApprovedOfferings         ApprovedOfferingReader
 	Requests                  DecisionRequests
 	Children                  DecisionChildren

@@ -560,6 +560,7 @@ type IntakeLateInvites interface {
 type RequestServiceConfig struct {
 	Requests         IntakeRequests
 	Children         IntakeChildren
+	Bookings         CareBookingCommands
 	Guardians        IntakeGuardians
 	LateInviteRepo   IntakeLateInvites
 	CareOfferingRepo enrollmentModels.CareOfferingRepository
@@ -979,17 +980,8 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 				return fmt.Errorf("submit: create request child %d: %w", i, err)
 			}
 
-			for _, selection := range materializedSelections[i] {
-				link := &enrollmentCapability.RequestChildOffering{
-					RequestChildID:        row.ID,
-					CareOfferingID:        selection.OfferingID,
-					SelectedDays:          selection.SelectedDays,
-					ManualSelectedDays:    selection.ManualSelectedDays,
-					AutomaticSelectedDays: selection.AutomaticSelectedDays,
-				}
-				if err := s.Children.InsertRequestChildOffering(txCtx, link); err != nil {
-					return fmt.Errorf("submit: create child-offering link: %w", err)
-				}
+			if err := s.recordOfferingSubmission(txCtx, row.ID, materializedSelections[i], phase.ServiceStartDate, phase.ServiceEndDate); err != nil {
+				return fmt.Errorf("submit: record child offerings: %w", err)
 			}
 			createdChildren = append(createdChildren, row)
 		}
@@ -2545,17 +2537,8 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 			if err := createIntakeChild(txCtx, s.Children, row); err != nil {
 				return fmt.Errorf("edit replace: create request child %d: %w", i, err)
 			}
-			for _, selection := range materializedSelections[i] {
-				link := &enrollmentCapability.RequestChildOffering{
-					RequestChildID:        row.ID,
-					CareOfferingID:        selection.OfferingID,
-					SelectedDays:          selection.SelectedDays,
-					ManualSelectedDays:    selection.ManualSelectedDays,
-					AutomaticSelectedDays: selection.AutomaticSelectedDays,
-				}
-				if err := s.Children.InsertRequestChildOffering(txCtx, link); err != nil {
-					return fmt.Errorf("edit replace: create child-offering link: %w", err)
-				}
+			if err := s.recordOfferingSubmission(txCtx, row.ID, materializedSelections[i], phase.ServiceStartDate, phase.ServiceEndDate); err != nil {
+				return fmt.Errorf("edit replace: record child offerings: %w", err)
 			}
 			createdChildren = append(createdChildren, row)
 		}

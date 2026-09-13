@@ -2,6 +2,9 @@ package enrollment_test
 
 import (
 	"context"
+
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+
 	"log/slog"
 	"testing"
 	"time"
@@ -90,7 +93,7 @@ func TestOfferingPickupProjection_FutureBookingEndIsNotVisibleOnEffectiveDate(t 
 	)
 
 	effectiveFrom := nextWeekday(timezone.NewDate(2026, 8, 24).AddDays(1), time.Monday)
-	err := env.repos.Enrollment().ScheduleRequestChildOfferings(ctx, childID, capability.Date(effectiveFrom), nil)
+	err := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, capability.Date(effectiveFrom), nil)
 	require.NoError(t, err)
 
 	reader := projectedPickupReader(env)
@@ -143,7 +146,7 @@ func TestOfferingPickupProjection_FutureReplacementStartsExactlyOnEffectiveDate(
 	)
 
 	effectiveFrom := nextWeekday(timezone.NewDate(2026, 8, 24).AddDays(1), time.Monday)
-	require.NoError(t, env.repos.Enrollment().ScheduleRequestChildOfferings(
+	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(
 		ctx,
 		childID,
 		capability.Date(effectiveFrom),

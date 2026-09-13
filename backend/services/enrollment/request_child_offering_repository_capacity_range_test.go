@@ -2,6 +2,10 @@ package enrollment_test
 
 import (
 	"context"
+
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,14 +13,13 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	owner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 )
 
 func TestOwnerOffering_CountMaxActiveByCareOfferingInRange_IncludesFutureBookings(t *testing.T) {
 	t.Parallel()
 
-	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t)
-	repo := enrollmentTest.New()
+	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
+	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 	from := timezone.NewDate(2026, 8, 24)
 	futureFrom := from.AddDays(30)
 	until := from.AddDays(90)
@@ -47,8 +50,8 @@ func TestOwnerOffering_CountMaxActiveByCareOfferingInRange_IncludesFutureBooking
 func TestOwnerOffering_CountMaxActiveByCareOfferingInRangeExcludingRequestChild_ExcludesReplacedIntervals(t *testing.T) {
 	t.Parallel()
 
-	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t)
-	repo := enrollmentTest.New()
+	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
+	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 	from := timezone.NewDate(2026, 8, 24)
 	until := from.AddDays(90)
 

@@ -18,6 +18,7 @@ type DeletionPreview interface {
 }
 
 type DeletionQueries interface {
+	RequestChildrenReader
 	DeletionRequestCounts(context.Context, int64) (*capability.DeletionRequestCounts, error)
 	DeletionChildTarget(context.Context, int64, int64) (*capability.DeletionChildTarget, error)
 	DeletionChildCounts(context.Context, int64, int64) (*capability.DeletionChildCounts, error)
@@ -26,6 +27,7 @@ type DeletionQueries interface {
 }
 
 type deletionPreview struct {
+	countBookings         func(context.Context, []int64) (int, error)
 	enrollment            DeletionQueries
 	countAuditAdjustments func(context.Context, int64, *int64) (int, error)
 	guardians             GuardianDirectory
@@ -35,8 +37,9 @@ func NewDeletionPreview(
 	enrollment DeletionQueries,
 	guardians GuardianDirectory,
 	countAuditAdjustments func(context.Context, int64, *int64) (int, error),
+	countBookings func(context.Context, []int64) (int, error),
 ) DeletionPreview {
-	return &deletionPreview{enrollment: enrollment, guardians: guardians, countAuditAdjustments: countAuditAdjustments}
+	return &deletionPreview{enrollment: enrollment, guardians: guardians, countAuditAdjustments: countAuditAdjustments, countBookings: countBookings}
 }
 
 // guardianPreservation is what a request deletion leaves behind on the
@@ -144,12 +147,31 @@ func sortedIDs(set map[int64]struct{}) []int64 {
 	return result
 }
 
+func (r *deletionPreview) bookingCount(ctx context.Context, ids []int64) (int, error) {
+	if r.countBookings == nil {
+		return 0, fmt.Errorf("deletion preview requires Care Plan booking counts")
+	}
+	return r.countBookings(ctx, ids)
+}
+
 func (r *deletionPreview) PreviewRequest(ctx context.Context, requestID int64) (*enrollmentModels.DeletionImpact, error) {
 	_, err := deletionTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}
 	row, err := r.enrollment.DeletionRequestCounts(ctx, requestID)
+	if err != nil {
+		return nil, err
+	}
+	children, err := r.enrollment.ChildrenForRequest(ctx, requestID, false)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]int64, 0, len(children))
+	for _, child := range children {
+		ids = append(ids, child.ID)
+	}
+	row.RequestChildOfferings, err = r.bookingCount(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -205,6 +227,10 @@ func (r *deletionPreview) PreviewChild(ctx context.Context, requestID, childID i
 	}
 
 	row, err := r.enrollment.DeletionChildCounts(ctx, requestID, childID)
+	if err != nil {
+		return nil, err
+	}
+	row.Offerings, err = r.bookingCount(ctx, []int64{childID})
 	if err != nil {
 		return nil, err
 	}

@@ -2038,7 +2038,7 @@ func newFactory(
 		SiteKey:        cfg.EnrollmentCaptchaSiteKey,
 	})
 
-	enrollmentDeletionPreview := enrollment.NewDeletionPreview(repos.Enrollment(), enrollmentGuardianDirectory{persons}, repos.EnrollmentOfferingAdjustment.CountForDeletion)
+	enrollmentDeletionPreview := enrollment.NewDeletionPreview(repos.Enrollment(), enrollmentGuardianDirectory{persons}, repos.EnrollmentOfferingAdjustment.CountForDeletion, repos.CarePlan().CountCareOfferingBookings)
 	enrollmentDeletionService := enrollment.NewEnrollmentDeletionService(
 		repos.Enrollment(),
 		repos.Enrollment(),
@@ -2082,6 +2082,7 @@ func newFactory(
 	})
 	enrollmentPhaseExpiryService := enrollment.NewPhaseExpiryService(enrollment.NewPhaseExpiryProjection(
 		repos.Enrollment(), phaseExpiryStudents{query: persons}, phaseExpiryCarePlanDirectory{query: repos.CarePlan()},
+		repos.Enrollment(),
 	))
 
 	studentAuditService := users.NewStudentAuditService(
@@ -2127,6 +2128,7 @@ func newFactory(
 	}
 
 	enrollmentDecisionService := enrollment.NewDecisionService(enrollment.DecisionServiceConfig{
+		Bookings:                  enrollmentCareBookingCommands{owner: repos.CarePlan()},
 		Requests:                  repos.Enrollment(),
 		Children:                  repos.Enrollment(),
 		Guardians:                 repos.Enrollment(),
@@ -2260,6 +2262,7 @@ func newFactory(
 	enrollmentRequestService := enrollment.NewRequestService(enrollment.RequestServiceConfig{
 		Requests:           repos.Enrollment(),
 		Children:           repos.Enrollment(),
+		Bookings:           enrollmentCareBookingCommands{owner: repos.CarePlan()},
 		Guardians:          repos.Enrollment(),
 		LateInviteRepo:     repos.Enrollment(),
 		CareOfferingRepo:   repos.CareOffering,
@@ -2358,6 +2361,7 @@ func newFactory(
 	)
 
 	enrollmentChangeRequestService := enrollment.NewChangeRequestService(enrollment.ChangeRequestServiceConfig{
+		Bookings:             enrollmentCareBookingCommands{owner: repos.CarePlan()},
 		Requests:             repos.Enrollment(),
 		Children:             repos.Enrollment(),
 		Guardians:            repos.Enrollment(),
@@ -2387,6 +2391,7 @@ func newFactory(
 		return nil, fmt.Errorf("enrollment care offering service does not implement rollover catalog cloning")
 	}
 	enrollmentRolloverService := enrollment.NewRolloverService(enrollment.RolloverServiceConfig{
+		Bookings:              enrollmentCareBookingCommands{owner: repos.CarePlan()},
 		Phases:                repos.Enrollment(),
 		Requests:              repos.Enrollment(),
 		Children:              repos.Enrollment(),
