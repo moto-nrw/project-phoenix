@@ -7,9 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 	"github.com/moto-nrw/project-phoenix/services"
-	importService "github.com/moto-nrw/project-phoenix/services/import"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -26,7 +25,7 @@ func TestImportBatches_StudentCrossBatchGuardianAndExplicitPermissionRevocation(
 			Guardians: []importModels.GuardianImportData{{FirstName: "Maria", LastName: "Sharedguardian", Email: "shared@example.test", RelationshipType: "Mutter", CanPickup: true, IsPrimary: true, IsEmergencyContact: true}},
 		}
 	}
-	audit := importService.BatchAudit{EntityType: "student", Filename: "siblings.csv", AccountID: actor.accountID}
+	audit := importModels.BatchAudit{EntityType: "student", Filename: "siblings.csv", AccountID: actor.accountID}
 	request := importModels.ImportRequest[importModels.StudentImportRow]{Rows: rows, Mode: importModels.ImportModeCreate, UserID: actor.staffID, SkipInvalidRows: true}
 	result, err := module.Import.ImportBatches(testpkg.Ctx(t), request, audit)
 	require.NoError(t, err)
@@ -94,7 +93,7 @@ func TestImportBatches_StudentAmbiguousMatchSkipsRowAndContinuesBatch(t *testing
 	rows[100] = importModels.StudentImportRow{
 		FirstName: "Doppelt", LastName: "Namenskollision", SchoolClass: "1A", DataRetentionDays: 30,
 	}
-	audit := importService.BatchAudit{EntityType: "student", Filename: "ambiguous.csv", AccountID: actor.accountID}
+	audit := importModels.BatchAudit{EntityType: "student", Filename: "ambiguous.csv", AccountID: actor.accountID}
 	request := importModels.ImportRequest[importModels.StudentImportRow]{Rows: rows, Mode: importModels.ImportModeCreate, UserID: actor.staffID, SkipInvalidRows: true}
 
 	result, err := module.Import.ImportBatches(testpkg.Ctx(t), request, audit)

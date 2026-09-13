@@ -13,6 +13,7 @@ import (
 
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	auditImports "github.com/moto-nrw/project-phoenix/modules/auditlog/imports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -31,11 +32,11 @@ func TestImportCheckpoints_CommitRollbackUniquenessAndTenantIsolation(t *testing
 	appendReceipt := func(ctx context.Context, lastRow int) error {
 		t.Helper()
 		stamp := time.Now()
-		record := &auditModels.DataImport{
+		record := &auditImports.DataImport{
 			EntityType: "student", Filename: "batch.csv", TotalRows: 200,
 			ImportedBy: account.ID, StartedAt: stamp, CompletedAt: &stamp,
 		}
-		require.NoError(t, record.AttachImportCheckpoint(auditModels.ImportCheckpoint{
+		require.NoError(t, record.AttachImportCheckpoint(auditImports.ImportCheckpoint{
 			ImportKey: key, LastRow: lastRow, TotalRows: 200, Payload: []byte(`{"created":100}`),
 		}))
 		return store.Append(ctx, record)
@@ -43,7 +44,7 @@ func TestImportCheckpoints_CommitRollbackUniquenessAndTenantIsolation(t *testing
 	require.NoError(t, testpkg.WithTenantTx(t, testpkg.Ctx(t), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return appendReceipt(ctx, 100)
 	}))
-	read := func(ctx context.Context) []auditModels.ImportCheckpoint {
+	read := func(ctx context.Context) []auditImports.ImportCheckpoint {
 		t.Helper()
 		receipts, err := store.ListImportCheckpoints(ctx, key)
 		require.NoError(t, err)

@@ -3,7 +3,7 @@ package importpkg
 import (
 	"encoding/json"
 
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 )
 
 // SnapshotImportRows retains the distinction between an absent permission

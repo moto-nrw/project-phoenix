@@ -46,6 +46,37 @@ func TestNewRequiresEveryDependency(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestListGroupsIsBoundedAndTenantScoped(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db, func(Observation) {})
+	own := testpkg.CreateTestEducationGroup(t, db, "ImportOwn")
+	second := testpkg.CreateTestEducationGroup(t, db, "ImportSecond")
+	otherTenant := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, otherTenant)
+	foreign := testpkg.CreateTestEducationGroupForTenant(t, db, otherTenant, "ImportForeign")
+
+	err := testpkg.WithTenantTx(t, context.Background(), db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
+		groups, err := module.ListGroups(ctx, 1000)
+		require.NoError(t, err)
+		ids := make([]int64, 0, len(groups))
+		for _, group := range groups {
+			ids = append(ids, group.ID)
+			assert.Equal(t, testpkg.Tenant(t), group.TenantID)
+		}
+		assert.Contains(t, ids, own.ID)
+		assert.Contains(t, ids, second.ID)
+		assert.NotContains(t, ids, foreign.ID)
+		bounded, err := module.ListGroups(ctx, 1)
+		require.NoError(t, err)
+		assert.Len(t, bounded, 1)
+		return nil
+	})
+	require.NoError(t, err)
+	_, err = module.ListGroups(context.Background(), 1000)
+	require.Error(t, err, "a listing must not run without its tenant")
+}
+
 func TestModuleReadsGroupsOnTheAmbientTenantTransaction(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

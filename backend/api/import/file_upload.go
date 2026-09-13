@@ -11,9 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
-	importService "github.com/moto-nrw/project-phoenix/services/import"
+	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 )
 
 // FileUploadResult contains the parsed CSV data and file metadata
@@ -31,11 +29,11 @@ type StaffFileUploadResult struct {
 // importModeFromRequest reads the optional "mode" form field of an upload
 // (create / update / upsert). Must run after the multipart form was parsed.
 // Writes the 400 itself and returns ok=false on an unknown value.
-func importModeFromRequest(w http.ResponseWriter, r *http.Request) (importModels.ImportMode, bool) {
+func (rs *Resource) importModeFromRequest(w http.ResponseWriter, r *http.Request) (importModels.ImportMode, bool) {
 	mode, err := importModels.ParseImportMode(r.FormValue("mode"))
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		rs.runtime.Failure(w, r, Failure{Status: http.StatusBadRequest, Cause: err})
 		return "", false
 	}
 	return mode, true
@@ -52,7 +50,7 @@ func (rs *Resource) openValidatedUploadFile(w http.ResponseWriter, r *http.Reque
 	// Parse multipart form
 	if r.ParseMultipartForm(maxFileSize) != nil {
 		render.Status(r, http.StatusBadRequest)
-		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("datei zu groß (max 10MB)")))
+		rs.runtime.Failure(w, r, Failure{Status: http.StatusBadRequest, Cause: fmt.Errorf("datei zu groß (max 10MB)")})
 		return nil, nil, false, false
 	}
 
@@ -60,7 +58,7 @@ func (rs *Resource) openValidatedUploadFile(w http.ResponseWriter, r *http.Reque
 	file, header, err := r.FormFile("file")
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
-		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("datei fehlt")))
+		rs.runtime.Failure(w, r, Failure{Status: http.StatusBadRequest, Cause: fmt.Errorf("datei fehlt")})
 		return nil, nil, false, false
 	}
 
@@ -68,7 +66,7 @@ func (rs *Resource) openValidatedUploadFile(w http.ResponseWriter, r *http.Reque
 	if !isValidImportFile(header) {
 		_ = file.Close()
 		render.Status(r, http.StatusBadRequest)
-		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("ungültiger Dateityp (nur CSV oder Excel erlaubt)")))
+		rs.runtime.Failure(w, r, Failure{Status: http.StatusBadRequest, Cause: fmt.Errorf("ungültiger Dateityp (nur CSV oder Excel erlaubt)")})
 		return nil, nil, false, false
 	}
 
@@ -77,7 +75,7 @@ func (rs *Resource) openValidatedUploadFile(w http.ResponseWriter, r *http.Reque
 	if err := verifyFileContent(file, header); err != nil {
 		_ = file.Close()
 		render.Status(r, http.StatusBadRequest)
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		rs.runtime.Failure(w, r, Failure{Status: http.StatusBadRequest, Cause: err})
 		return nil, nil, false, false
 	}
 
@@ -97,18 +95,10 @@ func (rs *Resource) validateAndParseCSVFile(w http.ResponseWriter, r *http.Reque
 		}
 	}()
 
-	// Select appropriate parser based on file extension
-	var parser importService.FileParser
-	if isExcel {
-		parser = importService.NewXLSXParser()
-	} else {
-		parser = importService.NewCSVParser()
-	}
-
-	rows, err := parser.ParseStudents(file)
+	rows, err := rs.files.Students(file, uploadFormat(isExcel))
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
-		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("Datei-Fehler: %s", err.Error())))
+		rs.runtime.Failure(w, r, Failure{Status: http.StatusBadRequest, Cause: fmt.Errorf("Datei-Fehler: %s", err.Error())})
 		return nil, false
 	}
 
@@ -131,16 +121,10 @@ func (rs *Resource) validateAndParseStaffFile(w http.ResponseWriter, r *http.Req
 		}
 	}()
 
-	var rows []importModels.StaffImportRow
-	var err error
-	if isExcel {
-		rows, err = importService.ParseStaffXLSX(file)
-	} else {
-		rows, err = importService.ParseStaffCSV(file)
-	}
+	rows, err := rs.files.Staff(file, uploadFormat(isExcel))
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
-		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("Datei-Fehler: %s", err.Error())))
+		rs.runtime.Failure(w, r, Failure{Status: http.StatusBadRequest, Cause: fmt.Errorf("Datei-Fehler: %s", err.Error())})
 		return nil, false
 	}
 
@@ -244,4 +228,11 @@ func isExcelFile(header *multipart.FileHeader) bool {
 
 	return contentType == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
 		strings.HasSuffix(filename, ".xlsx")
+}
+
+func uploadFormat(isExcel bool) importModels.FileFormat {
+	if isExcel {
+		return importModels.XLSX
+	}
+	return importModels.CSV
 }

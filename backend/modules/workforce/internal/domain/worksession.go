@@ -5,6 +5,8 @@ import (
 	"math"
 	"slices"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/workforce/openingbalance"
 )
 
 // Work session statuses and channels. They mirror the public constants; the
@@ -49,7 +51,6 @@ const (
 	maxQuotaYear    = 2100
 	minQuotaDays    = 0
 	maxQuotaDays    = 366
-	maxOpeningDays  = 999.0
 	openingDayScale = 10
 )
 
@@ -320,33 +321,10 @@ func hasOneDecimalPlace(value float64) bool {
 }
 
 func (o StaffVacationOpening) Validate() error {
-	if o.StaffID <= 0 {
-		return invalidWorkSession("staff_id is required")
-	}
-	if o.Year < minQuotaYear || o.Year > maxQuotaYear {
-		return invalidWorkSession("year out of range")
-	}
-	if o.EffectiveDate == "" {
-		return invalidWorkSession("effective_date is required")
-	}
-	effective, err := time.Parse(DateLayout, o.EffectiveDate)
-	if err != nil || effective.Format(DateLayout) != o.EffectiveDate {
-		return invalidWorkSession("effective_date must be a " + DateLayout + " date")
-	}
-	if effective.Year() != o.Year {
-		return invalidWorkSession("effective_date must lie in the opening year")
-	}
-	if o.TakenBeforeDays < -maxOpeningDays || o.TakenBeforeDays > maxOpeningDays {
-		return invalidWorkSession("taken_before_days out of range")
-	}
-	if o.EnteredRemainingDays < -maxOpeningDays || o.EnteredRemainingDays > maxOpeningDays {
-		return invalidWorkSession("entered_remaining_days out of range")
-	}
-	if !hasOneDecimalPlace(o.TakenBeforeDays) || !hasOneDecimalPlace(o.EnteredRemainingDays) {
-		return invalidWorkSession("vacation opening days must have at most one decimal place")
-	}
-	if o.DecidedBy <= 0 {
-		return invalidWorkSession("decided_by is required")
+	value := openingbalance.Vacation{StaffID: o.StaffID, Year: o.Year, EffectiveDate: o.EffectiveDate,
+		TakenBeforeDays: o.TakenBeforeDays, EnteredRemainingDays: o.EnteredRemainingDays, DecidedBy: o.DecidedBy}
+	if err := value.Validate(); err != nil {
+		return invalidWorkSession(err.Error())
 	}
 	return nil
 }

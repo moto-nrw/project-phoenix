@@ -6,6 +6,9 @@ import (
 	"reflect"
 
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	"github.com/moto-nrw/project-phoenix/modules/auditlog/classlist"
+	"github.com/moto-nrw/project-phoenix/modules/auditlog/consents"
+	auditImports "github.com/moto-nrw/project-phoenix/modules/auditlog/imports"
 	"github.com/uptrace/bun"
 )
 
@@ -89,6 +92,30 @@ func appendQuery(db bun.IDB, event any) (string, *bun.InsertQuery, error) {
 	var query *bun.InsertQuery
 	var table string
 	switch value := event.(type) {
+	case *classlist.ClassListEntryChange:
+		row := classListChangeRow(value)
+		table, query = "audit.class_list_entry_changes", db.NewInsert().Model(row).ModelTableExpr("audit.class_list_entry_changes")
+	case *auditImports.DataImport:
+		row := &auditModels.DataImport{
+			EntityType: value.EntityType, Filename: value.Filename, TotalRows: value.TotalRows,
+			CreatedCount: value.CreatedCount, UpdatedCount: value.UpdatedCount, SkippedCount: value.SkippedCount,
+			ErrorCount: value.ErrorCount, WarningCount: value.WarningCount, DryRun: value.DryRun,
+			ImportedBy: value.ImportedBy, StartedAt: value.StartedAt, CompletedAt: value.CompletedAt,
+			Metadata: auditModels.JSONBMap{},
+		}
+		row.SetTenantID(value.TenantID)
+		if value.Checkpoint != nil {
+			row.Metadata["import_checkpoint"] = value.Checkpoint
+		}
+		table, query = "audit.data_imports", db.NewInsert().Model(row).ModelTableExpr("audit.data_imports")
+	case *consents.ConsentChange:
+		row := &auditModels.StudentConsentChange{
+			Model:     auditModels.Model{CreatedAt: value.ChangedAt, UpdatedAt: value.ChangedAt},
+			StudentID: value.StudentID, ConsentKey: value.ConsentKey, Action: value.Action,
+			Source: value.Source, ActorAccountID: value.ActorAccountID,
+		}
+		row.SetTenantID(value.TenantID)
+		table, query = "audit.student_consent_changes", db.NewInsert().Model(row).ModelTableExpr("audit.student_consent_changes")
 	case *auditModels.AttendanceCorrection:
 		table, query = "audit.attendance_corrections", db.NewInsert().Model(value).ModelTableExpr("audit.attendance_corrections")
 	case *auditModels.AuthEvent:
@@ -142,6 +169,8 @@ func appendQuery(db bun.IDB, event any) (string, *bun.InsertQuery, error) {
 func validateEvent(event any) error {
 	var err error
 	switch value := event.(type) {
+	case *classlist.ClassListEntryChange:
+		err = classListChangeRow(value).Validate()
 	case *auditModels.AttendanceCorrection:
 		err = value.Validate()
 	case *auditModels.AuthEvent:
@@ -171,4 +200,12 @@ func validateEvent(event any) error {
 		return fmt.Errorf("invalid audit event %T: %w", event, err)
 	}
 	return nil
+}
+
+func classListChangeRow(value *classlist.ClassListEntryChange) *auditModels.ClassListEntryChange {
+	row := &auditModels.ClassListEntryChange{EntryID: value.EntryID, Action: value.Action,
+		OldValue: value.OldValue, NewValue: value.NewValue, MatchedStudentID: value.MatchedStudentID,
+		ChangedBy: value.ChangedBy, OccurredAt: value.OccurredAt}
+	row.SetTenantID(value.TenantID)
+	return row
 }

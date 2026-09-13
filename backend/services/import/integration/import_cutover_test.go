@@ -13,9 +13,8 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 	"github.com/moto-nrw/project-phoenix/services"
-	importService "github.com/moto-nrw/project-phoenix/services/import"
 	importPorts "github.com/moto-nrw/project-phoenix/services/import/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -496,7 +495,7 @@ func TestDataImportCutover_StaffStammdatenThroughOwners(t *testing.T) {
 		t.Helper()
 		var result *importModels.ImportResult[importModels.StaffImportRow]
 		require.NoError(t, testpkg.WithTenantTx(t, testpkg.Ctx(t), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-			ctx = importService.ContextWithImporterPermissions(ctx, []string{"admin:*"})
+			ctx = importModels.ContextWithImporterPermissions(ctx, []string{"admin:*"})
 			var err error
 			result, err = module.StaffImport.Import(ctx, importModels.ImportRequest[importModels.StaffImportRow]{
 				Rows: rows, Mode: mode, UserID: actor.staffID, SkipInvalidRows: true,

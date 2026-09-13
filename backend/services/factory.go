@@ -22,7 +22,6 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
@@ -31,6 +30,7 @@ import (
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
+	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
@@ -452,7 +452,7 @@ func NewFactoryWithModules(
 	tenantRuntime tenant.UnitOfWork,
 	organizations organizationtenancy.Capability,
 	persons peopledirectory.Capability,
-	groups schoolstructure.Query,
+	groups schoolstructure.Capability,
 	rooms facilitiesModule.Capability,
 	membership schoolmembership.Capability,
 	calendar schoolcalendar.Capability,
@@ -492,7 +492,7 @@ func newFactory(
 	tenantRuntime tenant.UnitOfWork,
 	organizations organizationtenancy.Capability,
 	persons peopledirectory.Capability,
-	groups schoolstructure.Query,
+	groups schoolstructure.Capability,
 	rooms facilitiesModule.Capability,
 	membership schoolmembership.Capability,
 	calendar schoolcalendar.Capability,
@@ -1900,26 +1900,33 @@ func newFactory(
 		return nil, err
 	}
 
+	// Enrollment acceptance grants parents portal access through the public
+	// Identity & Access capability instead of the account, mapping and role
+	// repositories (#2699).
+	guardianAccess, err := identityaccessCompose.New(identityaccessCompose.Dependencies{
+		DB: db,
+		Observe: func(observation identityaccessCompose.Observation) {
+			observeIdentityAccess(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, identityaccessModule.ErrorCode(observation.Err), observation.Err)
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
 	// Data Import (#2708): every accepted row is committed through the owner
 	// commands the composer binds. The observer records rows
 	// parsed/accepted/rejected per run without personal data.
 	dataImports := newImports(importWiring{
+		Identity:      guardianAccess,
+		Organizations: organizations,
+		Groups:        groups, Rooms: rooms,
 		Persons: persons, Membership: membership, Workforce: workTime,
 		CarePlan: repos.CarePlan(), Presence: newStudentPresence(db, logger),
 		InvitationService: invitationService,
-		Reads: importService.LegacyReads{
-			RFIDCard: repos.RFIDCard, InvitationToken: repos.InvitationToken, Account: repos.Account,
-			AccountTenant: repos.AccountTenant, Role: repos.Role, Permission: repos.Permission,
-			School: repos.School, Groups: repos.Group, Rooms: repos.Room,
-		},
 		OpeningBalance: importService.OpeningBalanceImportDeps{
-			StaffRepo:            repos.Staff,
-			AdjustmentRepo:       repos.StaffBalanceAdjust,
-			VacationOpeningRepo:  repos.StaffVacationOpening,
 			BalanceAdjustService: OpeningBalanceBookingCapability(staffBalanceAdjustService),
 			StaffAbsenceService:  VacationTakeoverCapability(staffAbsenceService),
 		},
-		ConsentHistory: studentConsentService,
+		ConsentHistory: auditService.NewConsentRecorder(auditCommand),
 		Audit:          auditCommand,
 		Observe: func(observation importService.ImportObservation) {
 			observeDataImport(observation)
@@ -2120,18 +2127,6 @@ func newFactory(
 		waker.SetGuardianWaker(pillEmitter)
 	}
 
-	// Enrollment acceptance grants parents portal access through the public
-	// Identity & Access capability instead of the account, mapping and role
-	// repositories (#2699).
-	guardianAccess, err := identityaccessCompose.New(identityaccessCompose.Dependencies{
-		DB: db,
-		Observe: func(observation identityaccessCompose.Observation) {
-			observeIdentityAccess(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, identityaccessModule.ErrorCode(observation.Err), observation.Err)
-		},
-	})
-	if err != nil {
-		return nil, err
-	}
 	enrollmentDecisionService := enrollment.NewDecisionService(enrollment.DecisionServiceConfig{
 		Bookings:                  enrollmentCareBookingCommands{owner: repos.CarePlan()},
 		Requests:                  repos.Enrollment(),

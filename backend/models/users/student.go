@@ -2,10 +2,10 @@ package users
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 	"time"
-	"unicode/utf8"
+
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/contact"
 
@@ -42,13 +42,13 @@ func (s *Student) IsAlumnus() bool {
 // MaxDepartureCompanionNoteLen caps the free-text "mit wem" companion note for
 // the accompanied departure mode (#1694). The column is TEXT; this bound keeps
 // staff and parent free-text from storing an unbounded payload.
-const MaxDepartureCompanionNoteLen = 255
+const MaxDepartureCompanionNoteLen = departure.MaxDepartureCompanionNoteLen
 
 // ErrDepartureCompanionNoteRequired is returned by Validate when a day allows
 // the accompanied ("Mit anderem Kind") departure mode but no companion note is
 // set. Exported as a sentinel so HTTP handlers can map this client-input
 // violation to a 400 instead of leaking the model error as a 500 (#1694).
-var ErrDepartureCompanionNoteRequired = errors.New("departure_companion_note is required when a day allows the accompanied departure mode")
+var ErrDepartureCompanionNoteRequired = departure.ErrDepartureCompanionNoteRequired
 
 // Student represents a student in the system
 type Student struct {
@@ -218,61 +218,10 @@ func (s *Student) Validate() error {
 		return err
 	}
 
-	// Bound the free-text "mit wem" companion note at the model boundary every
-	// write funnels through, so the cap holds even for callers that bypass the
-	// API Bind / enrollment-truncation edges (#1694). Trim and drop an empty
-	// note to nil so it never persists as "".
-	if s.DepartureCompanionNote != nil {
-		trimmed := strings.TrimSpace(*s.DepartureCompanionNote)
-		switch {
-		case trimmed == "":
-			s.DepartureCompanionNote = nil
-		case utf8.RuneCountInString(trimmed) > MaxDepartureCompanionNoteLen:
-			return fmt.Errorf("departure_companion_note must be at most %d characters", MaxDepartureCompanionNoteLen)
-		default:
-			s.DepartureCompanionNote = &trimmed
-		}
-	}
-
-	// A "Mit anderem Kind" departure (accompanied mode) is only complete with the
-	// free-text "mit wem" companion note — an accompanied plan with no "with whom"
-	// detail defeats the point and misleads staff. The React forms make the note
-	// required when accompanied is selected; enforce the same coupling here at the
-	// model boundary every write funnels through, so callers that bypass the forms
-	// (direct student API, imported rows, crafted enrollment payloads) cannot
-	// persist an accompanied day with a blank note (#1694). The note block above
-	// has already nilled a blank/whitespace note, so a nil pointer here means no
-	// usable companion detail. Note: accompanied can only enter via these two
-	// fields (the legacy bus/pickup maps cannot express it), so checking them
-	// covers every path that introduces it; the reverse coupling (a note with no
-	// accompanied day) is handled by note-clearing in the repository, which is the
-	// only layer that sees the resolved plan for partial/legacy updates.
-	//
-	// A structured companion link (users.student_companions) satisfies the same
-	// requirement and is strictly better information than typed text, so a
-	// caller that has one records its weekdays in DepartureCompanionDays. The
-	// cover is checked PER DAY: a child that walks with Mia on Monday still has
-	// no answer for a Tuesday the plan also marks accompanied, so a link on one
-	// day must not vouch for another. The set defaults to empty, which keeps
-	// every path that knows nothing about links (imports, enrollment payloads,
-	// direct API writes) on the original note requirement — this fails closed,
-	// never open.
-	if s.DepartureCompanionNote == nil {
-		// Both maps are walked by their own keys rather than through
-		// AccompaniedWeekdays, so an accompanied day under a key outside
-		// Mon..Fri — which no link can ever cover — still demands the note.
-		for day, mode := range s.DepartureDays {
-			if mode == DepartureAccompanied && !s.DepartureCompanionDays[day] {
-				return ErrDepartureCompanionNoteRequired
-			}
-		}
-		for day, modes := range s.AllowedDepartureModes {
-			for _, mode := range modes {
-				if mode == DepartureAccompanied && !s.DepartureCompanionDays[day] {
-					return ErrDepartureCompanionNoteRequired
-				}
-			}
-		}
+	note, err := departure.NormalizeCompanionNote(s.DepartureDays, s.AllowedDepartureModes, s.DepartureCompanionNote, s.DepartureCompanionDays)
+	s.DepartureCompanionNote = note
+	if err != nil {
+		return err
 	}
 
 	return nil

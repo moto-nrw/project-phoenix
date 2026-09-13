@@ -2,17 +2,12 @@ package importpkg
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/internal/strutil"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
-	authsvc "github.com/moto-nrw/project-phoenix/services/auth"
+	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 	"github.com/moto-nrw/project-phoenix/services/import/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // This file holds the owner-backed read and write paths of the staff import
@@ -24,12 +19,12 @@ import (
 // unresolved roles), the school display name (for the invitation email) and the
 // existing staff (for duplicate detection and update matching).
 func (c *StaffImportConfig) PreloadReferenceData(ctx context.Context) error {
-	roles, err := c.RoleRepo.List(ctx, map[string]interface{}{})
+	roles, err := c.Roles.ListSchoolRoles(ctx)
 	if err != nil {
 		return fmt.Errorf("preload roles: %w", err)
 	}
 	c.roleDisplayNames = make([]string, 0, len(roles))
-	c.rolesByID = make(map[int64]*authModels.Role, len(roles))
+	c.rolesByID = make(map[int64]*importModels.SchoolRole, len(roles))
 	for _, role := range roles {
 		c.roleDisplayNames = append(c.roleDisplayNames, roleDisplayName(role.Name))
 		c.rolesByID[role.ID] = role
@@ -37,9 +32,9 @@ func (c *StaffImportConfig) PreloadReferenceData(ctx context.Context) error {
 
 	// School name is best-effort: a missing name only degrades the email text,
 	// it must not abort the import.
-	if c.SchoolRepo != nil {
-		if school, err := c.SchoolRepo.FindByID(ctx, tenant.FromContext(ctx)); err == nil && school != nil {
-			c.schoolName = school.Name
+	if c.SchoolName != nil {
+		if name, err := c.SchoolName(ctx); err == nil {
+			c.schoolName = name
 		}
 	}
 
@@ -115,36 +110,25 @@ func (c *StaffImportConfig) unindexStaff(entry *indexedStaff) {
 // current tenant. Returns (nil, nil) at every "not here" step.
 func (c *StaffImportConfig) findStaffByLoginEmail(ctx context.Context, rawEmail string) (*int64, error) {
 	email, err := normalizeStaffEmail(rawEmail)
-	if err != nil || email == "" || c.AccountRepo == nil {
+	if err != nil || email == "" || c.FindSchoolAccount == nil {
 		return nil, nil
 	}
 
-	account, err := c.AccountRepo.FindByEmail(ctx, email)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return c.findStaffByPendingInvitation(ctx, email)
-		}
-		return nil, err
-	}
-	if account == nil {
-		return c.findStaffByPendingInvitation(ctx, email)
-	}
-
-	exists, err := c.AccountTenantRepo.ExistsByAccountAndTenant(ctx, account.ID, tenant.FromContext(ctx))
+	accountID, found, err := c.FindSchoolAccount(ctx, email)
 	if err != nil {
 		return nil, err
 	}
-	if !exists {
+	if !found {
 		return c.findStaffByPendingInvitation(ctx, email)
 	}
 
 	if c.Persons == nil || c.Membership == nil {
 		// Legacy wiring without the Stammdaten owners: the account itself is
 		// the duplicate marker, as before #2600.
-		id := account.ID
+		id := accountID
 		return &id, nil
 	}
-	person, err := c.Persons.FindPersonByAccount(ctx, account.ID)
+	person, err := c.Persons.FindPersonByAccount(ctx, accountID)
 	if err != nil {
 		if errors.Is(err, ports.ErrPersonNotFound) {
 			return nil, nil
@@ -175,19 +159,16 @@ func (c *StaffImportConfig) liveStaffIDByPerson(ctx context.Context, personID in
 // linked to an account. The invitation stores the imported person ID until it
 // is accepted, so e-mail remains a stable update key in that interval.
 func (c *StaffImportConfig) findStaffByPendingInvitation(ctx context.Context, email string) (*int64, error) {
-	if c.InvitationRepo == nil || c.Membership == nil {
+	if c.FindInvitedPeople == nil || c.Membership == nil {
 		return nil, nil
 	}
-	invitations, err := c.InvitationRepo.FindByEmail(ctx, email)
+	people, err := c.FindInvitedPeople(ctx, email)
 	if err != nil {
 		return nil, err
 	}
 	var match *int64
-	for _, invitation := range invitations {
-		if invitation.UsedAt != nil || invitation.PersonID == nil {
-			continue
-		}
-		id, err := c.liveStaffIDByPerson(ctx, *invitation.PersonID)
+	for _, personID := range people {
+		id, err := c.liveStaffIDByPerson(ctx, personID)
 		if err != nil {
 			return nil, err
 		}
@@ -213,7 +194,7 @@ func (c *StaffImportConfig) Create(ctx context.Context, row importModels.StaffIm
 	}
 
 	var staffID int64
-	err := tenant.WithSavepoint(ctx, func(ctx context.Context) error {
+	err := c.Transactions.Savepoint(ctx, func(ctx context.Context) error {
 		id, err := c.createRecords(ctx, row)
 		if err != nil {
 			return err
@@ -240,14 +221,14 @@ func (c *StaffImportConfig) createRecords(ctx context.Context, row importModels.
 	staff, err := c.Membership.CreateStaff(ctx, ports.CreateStaff{StaffFields: ports.StaffFields{
 		PersonID:        person.ID,
 		StaffNotes:      row.StaffNotes,
-		EmploymentType:  strutil.TrimToNil(row.EmploymentType),
-		PersonnelNumber: strutil.TrimToNil(row.PersonnelNumber),
+		EmploymentType:  importModels.OptionalCell(row.EmploymentType),
+		PersonnelNumber: importModels.OptionalCell(row.PersonnelNumber),
 	}})
 	if err != nil {
 		return 0, fmt.Errorf("Mitarbeiter anlegen: %w", err) //nolint:staticcheck // ST1005: user-facing German message
 	}
 
-	if role := c.rolesByID[row.RoleID]; role != nil && authsvc.RoleNeedsCaregiverProfile(role) {
+	if role := c.rolesByID[row.RoleID]; role != nil && c.RolePolicy.NeedsCaregiver(role) {
 		if _, err := c.Membership.CreateTeacher(ctx, ports.CreateTeacher{TeacherFields: ports.TeacherFields{StaffID: staff.ID, Role: row.Position}}); err != nil {
 			return 0, fmt.Errorf("Betreuungsprofil anlegen: %w", err) //nolint:staticcheck // ST1005: user-facing German message
 		}
@@ -260,7 +241,7 @@ func (c *StaffImportConfig) createRecords(ctx context.Context, row importModels.
 		return 0, err
 	}
 
-	if row.Email != "" && c.InvitationService != nil {
+	if row.Email != "" && c.Invitations != nil {
 		if err := c.invite(ctx, person.ID, row); err != nil {
 			return 0, err
 		}
@@ -277,21 +258,20 @@ func (c *StaffImportConfig) invite(ctx context.Context, personID int64, row impo
 		return err
 	}
 	pid := personID
-	req := authsvc.InvitationRequest{
+	req := importModels.StaffInvitation{
 		Email:            email,
 		RoleID:           row.RoleID,
-		TenantID:         tenant.FromContext(ctx),
-		FirstName:        strutil.TrimToNil(row.FirstName),
-		LastName:         strutil.TrimToNil(row.LastName),
-		Position:         strutil.TrimToNil(row.Position),
+		TenantID:         c.Transactions.TenantID(ctx),
+		FirstName:        importModels.OptionalCell(row.FirstName),
+		LastName:         importModels.OptionalCell(row.LastName),
+		Position:         importModels.OptionalCell(row.Position),
 		PersonID:         &pid,
 		CreatedBy:        ImporterIDFromContext(ctx),
 		SchoolName:       c.schoolName,
-		ActorPermissions: ImporterPermissionsFromContext(ctx),
+		ActorPermissions: importModels.ImporterPermissionsFromContext(ctx),
 	}
 	if err := ports.ObserveCommand(ctx, "identity-access", "create_invitation", func() error {
-		_, err := c.InvitationService.CreateInvitation(ctx, req)
-		return err
+		return c.Invitations.InviteStaff(ctx, req)
 	}); err != nil {
 		return fmt.Errorf("Einladung anlegen: %w", err) //nolint:staticcheck // ST1005: user-facing German message
 	}
@@ -316,7 +296,7 @@ func (c *StaffImportConfig) writeMasterData(ctx context.Context, staffID int64, 
 
 	setStr := func(dst **string, v string) {
 		if v != "" {
-			*dst = strutil.TrimToNil(v)
+			*dst = importModels.OptionalCell(v)
 		}
 	}
 	setStr(&data.Gender, row.Gender)
@@ -399,7 +379,7 @@ func (c *StaffImportConfig) Update(ctx context.Context, staffID int64, row impor
 	if c.Persons == nil || c.Membership == nil {
 		return errors.New("staff import: Stammdaten owners are not wired")
 	}
-	return tenant.WithSavepoint(ctx, func(ctx context.Context) error {
+	return c.Transactions.Savepoint(ctx, func(ctx context.Context) error {
 		return c.updateRecords(ctx, staffID, row)
 	})
 }
@@ -459,11 +439,11 @@ func (c *StaffImportConfig) updateRecords(ctx context.Context, staffID int64, ro
 		staffChanged = true
 	}
 	if row.EmploymentType != "" && !ptrEquals(staff.EmploymentType, row.EmploymentType) {
-		fields.EmploymentType = strutil.TrimToNil(row.EmploymentType)
+		fields.EmploymentType = importModels.OptionalCell(row.EmploymentType)
 		staffChanged = true
 	}
 	if row.PersonnelNumber != "" && !ptrEquals(staff.PersonnelNumber, row.PersonnelNumber) {
-		fields.PersonnelNumber = strutil.TrimToNil(row.PersonnelNumber)
+		fields.PersonnelNumber = importModels.OptionalCell(row.PersonnelNumber)
 		staffChanged = true
 	}
 	if staffChanged {

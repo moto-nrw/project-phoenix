@@ -4,20 +4,22 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
-	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
 type ImportTestModule struct {
+	PeopleDirectory      peopledirectory.Capability
+	Membership           schoolmembership.Capability
 	Import               *importService.ImportService[importModels.StudentImportRow]
 	StaffImport          *importService.ImportService[importModels.StaffImportRow]
 	ClassListImport      *importService.ImportService[importModels.ClassListEntryImportRow]
 	OpeningBalanceImport importService.OpeningBalanceImportFactory
-	Users                users.PersonService
 	// Observations collects the per-run counters the production observer
 	// receives, so tests can assert the runtime evidence contract.
 	Observations *[]importService.ImportObservation
@@ -51,15 +53,7 @@ func NewImportTestModuleWithOptions(db *bun.DB, unit tenant.UnitOfWork, options 
 	if err != nil {
 		return ImportTestModule{}, err
 	}
-	identity, err := repositories.NewAuthTestRepositories(db, command)
-	if err != nil {
-		return ImportTestModule{}, err
-	}
 	auth, err := NewAuthTestModule(db, unit)
-	if err != nil {
-		return ImportTestModule{}, err
-	}
-	people, err := NewRFIDTestModule(db)
 	if err != nil {
 		return ImportTestModule{}, err
 	}
@@ -83,26 +77,34 @@ func NewImportTestModuleWithOptions(db *bun.DB, unit tenant.UnitOfWork, options 
 	if err != nil {
 		return ImportTestModule{}, err
 	}
-	workforceReads, err := repositories.NewWorkforceTestRepositories(db, command)
-	if err != nil {
-		return ImportTestModule{}, err
-	}
 
 	observations := &[]importService.ImportObservation{}
 	persons := guardians.PeopleDirectory
+	groups, err := repositories.NewSchoolStructure(db)
+	if err != nil {
+		return ImportTestModule{}, err
+	}
+	rooms, err := repositories.NewFacilities(db)
+	if err != nil {
+		return ImportTestModule{}, err
+	}
+	organizations, err := repositories.NewOrganizationTenancy(db)
+	if err != nil {
+		return ImportTestModule{}, err
+	}
+	rfid, err := repositories.NewIdentityAccessForTests(db)
+	if err != nil {
+		return ImportTestModule{}, err
+	}
 	wiring := importWiring{
+		Identity:      rfid,
+		Organizations: organizations,
+		Groups:        groups, Rooms: rooms,
 		Persons: persons, Membership: membership, Workforce: workTime,
 		CarePlan: repos.CarePlan, Presence: repositories.NewStudentPresenceForTests(db),
 		InvitationService: auth.Invitation,
-		Reads: importService.LegacyReads{
-			RFIDCard: identity.RFIDCard, InvitationToken: identity.InvitationToken, Account: repos.Account,
-			AccountTenant: repos.AccountTenant, Role: repos.Role, Permission: identity.Permission,
-			School: repos.School, Groups: repos.Group, Rooms: repos.Room,
-		},
-		ConsentHistory: users.NewStudentConsentService(repos.StudentConsentChange),
+		ConsentHistory:    auditService.NewConsentRecorder(command),
 		OpeningBalance: importService.OpeningBalanceImportDeps{
-			StaffRepo: workforceReads.Staff, AdjustmentRepo: workforceReads.StaffBalanceAdjust,
-			VacationOpeningRepo:  workforceReads.StaffVacationOpening,
 			BalanceAdjustService: OpeningBalanceBookingCapability(workforce.StaffBalanceAdjust),
 			StaffAbsenceService:  VacationTakeoverCapability(workforce.StaffAbsence),
 		},
@@ -120,8 +122,9 @@ func NewImportTestModuleWithOptions(db *bun.DB, unit tenant.UnitOfWork, options 
 
 	dataImports := newImports(wiring)
 	return ImportTestModule{
+		PeopleDirectory: persons, Membership: membership,
 		Import: dataImports.Student, StaffImport: dataImports.Staff, ClassListImport: dataImports.ClassList,
 		OpeningBalanceImport: dataImports.OpeningBalance,
-		Users:                people.Users, Observations: observations,
+		Observations:         observations,
 	}, nil
 }
