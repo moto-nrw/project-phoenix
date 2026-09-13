@@ -971,10 +971,16 @@ export const authService = {
   replaceAccountRole: async (
     accountId: string,
     roleId: string,
+    previousRoleId?: string,
   ): Promise<void> =>
     authFetchVoid(`/auth/accounts/${accountId}/roles`, {
       method: "PUT",
-      body: { role_id: roleId },
+      body: {
+        role_id: roleId,
+        ...(previousRoleId === undefined
+          ? {}
+          : { previous_role_id: previousRoleId }),
+      },
       errorPrefix: "Replace account role",
     }),
 

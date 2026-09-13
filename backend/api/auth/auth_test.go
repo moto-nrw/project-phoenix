@@ -1459,10 +1459,15 @@ func TestAccountRoleAssignment(t *testing.T) {
 
 	t.Run("replaces roles on an account", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("replacerole%d", time.Now().UnixNano()))
+		oldRole := testpkg.CreateTestRole(t, tc.db, "ReplaceAccRoleOld")
 		role := testpkg.CreateTestRole(t, tc.db, "ReplaceAccRole")
+		assignReq := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/auth/accounts/%d/roles/%d", account.ID, oldRole.ID), nil)
+		assignResp := testutil.ExecuteWithAuthPermissions(t, router, assignReq, adminClaims, []string{"users:manage"})
+		require.Equal(t, http.StatusNoContent, assignResp.Code, "Assign failed: %s", assignResp.Body.String())
 
 		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/accounts/%d/roles", account.ID), map[string]string{
-			"role_id": fmt.Sprintf("%d", role.ID),
+			"role_id":          fmt.Sprintf("%d", role.ID),
+			"previous_role_id": fmt.Sprintf("%d", oldRole.ID),
 		})
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
 

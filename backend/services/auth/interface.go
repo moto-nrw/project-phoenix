@@ -75,7 +75,7 @@ type AuthService interface {
 	DeleteRole(ctx context.Context, id int) error
 	ListRoles(ctx context.Context, filters map[string]interface{}) ([]*auth.Role, error)
 	AssignRoleToAccount(ctx context.Context, accountID, roleID int) error
-	ReplaceAccountRole(ctx context.Context, accountID, roleID int) error
+	ReplaceAccountRole(ctx context.Context, accountID, previousRoleID, roleID int) error
 	RemoveRoleFromAccount(ctx context.Context, accountID, roleID int) error
 	GetAccountRoles(ctx context.Context, accountID int) ([]*auth.Role, error)
 	GetAccountRoleNames(ctx context.Context, accountIDs []int64) (map[int64]string, error)

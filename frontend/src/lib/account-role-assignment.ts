@@ -52,6 +52,7 @@ export async function loadAccountRoleAssignment(
 export async function replaceAccountRole(
   accountId: string,
   targetRoleId: string,
+  previousRoleId?: string,
 ): Promise<void> {
-  await authService.replaceAccountRole(accountId, targetRoleId);
+  await authService.replaceAccountRole(accountId, targetRoleId, previousRoleId);
 }

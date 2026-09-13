@@ -238,7 +238,11 @@ export default function StaffDetailContent() {
       }
       if (targetRoleId !== undefined && roleAssignment) {
         try {
-          await replaceAccountRole(accountId, targetRoleId);
+          await replaceAccountRole(
+            accountId,
+            targetRoleId,
+            roleAssignment.currentRoleIds[0],
+          );
         } catch (err) {
           logger.error("failed to update account role", {
             staff_id: staffId,

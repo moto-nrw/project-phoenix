@@ -217,33 +217,24 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 	return nil
 }
 
-// ReplaceAccountRole assigns the requested role and removes every other role
-// of the account in one transaction. The target is assigned first so the
-// account never temporarily loses all roles; a later failure rolls back the
-// complete exchange.
-func (s *Service) ReplaceAccountRole(ctx context.Context, accountID, roleID int) error {
+// ReplaceAccountRole assigns the requested role and, when supplied, replaces
+// only the role the caller selected. Other account roles remain untouched.
+// The target is assigned first so the account never temporarily loses the
+// selected role; a later failure rolls back the complete exchange.
+func (s *Service) ReplaceAccountRole(ctx context.Context, accountID, previousRoleID, roleID int) error {
 	return s.runInTx(ctx, func(txCtx context.Context) error {
-		// Take the same account lock as single-role mutations before reading the
-		// current set. Otherwise two replacements can both read an old snapshot
-		// and preserve each other's newly assigned role.
+		// Take the same account lock as single-role mutations before changing an
+		// assignment. This serializes replacements with individual assignments
+		// and removals for the same account.
 		if err := s.lockManageableAccount(txCtx, accountID, "replace account role"); err != nil {
-			return err
-		}
-
-		currentRoles, err := s.GetAccountRoles(txCtx, accountID)
-		if err != nil {
 			return err
 		}
 
 		if err := s.AssignRoleToAccount(txCtx, accountID, roleID); err != nil {
 			return err
 		}
-
-		for _, currentRole := range currentRoles {
-			if currentRole.ID == int64(roleID) {
-				continue
-			}
-			if err := s.RemoveRoleFromAccount(txCtx, accountID, int(currentRole.ID)); err != nil {
+		if previousRoleID != 0 && previousRoleID != roleID {
+			if err := s.RemoveRoleFromAccount(txCtx, accountID, previousRoleID); err != nil {
 				return err
 			}
 		}

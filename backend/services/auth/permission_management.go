@@ -252,7 +252,10 @@ func (s *Service) ReplaceRolePermissions(ctx context.Context, roleID int, permis
 				return &AuthError{Op: "replace role permissions", Err: ErrPermissionNotFound}
 			}
 			if _, err := s.repos.Permission.FindByID(txCtx, permissionID); err != nil {
-				return &AuthError{Op: "replace role permissions", Err: ErrPermissionNotFound}
+				if modelBase.IsNoRows(err) {
+					return &AuthError{Op: "replace role permissions", Err: ErrPermissionNotFound}
+				}
+				return &AuthError{Op: "replace role permissions", Err: err}
 			}
 			desired[permissionID] = struct{}{}
 		}

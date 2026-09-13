@@ -486,9 +486,9 @@ func (m *mockAuthService) DeleteRole(context.Context, int) error              { 
 func (m *mockAuthService) ListRoles(context.Context, map[string]interface{}) ([]*authModels.Role, error) {
 	return nil, nil
 }
-func (m *mockAuthService) AssignRoleToAccount(context.Context, int, int) error   { return nil }
-func (m *mockAuthService) ReplaceAccountRole(context.Context, int, int) error    { return nil }
-func (m *mockAuthService) RemoveRoleFromAccount(context.Context, int, int) error { return nil }
+func (m *mockAuthService) AssignRoleToAccount(context.Context, int, int) error     { return nil }
+func (m *mockAuthService) ReplaceAccountRole(context.Context, int, int, int) error { return nil }
+func (m *mockAuthService) RemoveRoleFromAccount(context.Context, int, int) error   { return nil }
 func (m *mockAuthService) GetAccountRoles(context.Context, int) ([]*authModels.Role, error) {
 	return nil, nil
 }

@@ -1333,18 +1333,21 @@ func TestAuthService_ReplaceAccountRole(t *testing.T) {
 	require.NoError(t, err)
 	newRole, err := service.CreateRole(ctx, fmt.Sprintf("replace-new-%d", time.Now().UnixNano()), "new role", testpkg.StrPtr("user"))
 	require.NoError(t, err)
+	preservedRole, err := service.CreateRole(ctx, fmt.Sprintf("replace-preserved-%d", time.Now().UnixNano()), "preserved role", testpkg.StrPtr("user"))
+	require.NoError(t, err)
 	require.NoError(t, service.AssignRoleToAccount(ctx, int(account.ID), int(oldRole.ID)))
+	require.NoError(t, service.AssignRoleToAccount(ctx, int(account.ID), int(preservedRole.ID)))
 
-	require.NoError(t, service.ReplaceAccountRole(ctx, int(account.ID), int(newRole.ID)))
+	require.NoError(t, service.ReplaceAccountRole(ctx, int(account.ID), int(oldRole.ID), int(newRole.ID)))
 
 	roles, err := service.GetAccountRoles(ctx, int(account.ID))
 	require.NoError(t, err)
-	require.Len(t, roles, 1)
-	assert.Equal(t, newRole.ID, roles[0].ID)
+	require.Len(t, roles, 2)
+	assert.ElementsMatch(t, []int64{newRole.ID, preservedRole.ID}, []int64{roles[0].ID, roles[1].ID})
 
 	sentinelErr := errors.New("force outer rollback")
 	err = tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
-		if err := service.ReplaceAccountRole(txCtx, int(account.ID), int(oldRole.ID)); err != nil {
+		if err := service.ReplaceAccountRole(txCtx, int(account.ID), int(newRole.ID), int(oldRole.ID)); err != nil {
 			return err
 		}
 		return sentinelErr
@@ -1353,8 +1356,8 @@ func TestAuthService_ReplaceAccountRole(t *testing.T) {
 
 	roles, err = service.GetAccountRoles(ctx, int(account.ID))
 	require.NoError(t, err)
-	require.Len(t, roles, 1)
-	assert.Equal(t, newRole.ID, roles[0].ID)
+	require.Len(t, roles, 2)
+	assert.ElementsMatch(t, []int64{newRole.ID, preservedRole.ID}, []int64{roles[0].ID, roles[1].ID})
 }
 
 func TestAuthService_RemoveRoleFromAccount(t *testing.T) {
