@@ -24,7 +24,7 @@ test('Lefthook forwards every push to the runner and CI shares its quality comma
 
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'phoenix-pre-push-'));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
+  t.after(() => rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 }));
   const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
   // Git exports these to hooks; fixture repositories must not inherit them.
   for (const key of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_COMMON_DIR', 'GIT_PREFIX']) delete env[key];
@@ -46,6 +46,9 @@ function fixture(t) {
     git('commit', '-qm', 'fixture change');
   }
   git('init', '-q');
+  // Short-lived fixtures must not race background Git maintenance at teardown.
+  git('config', 'maintenance.auto', 'false');
+  git('config', 'gc.auto', '0');
   git('config', 'user.name', 'Hook fixture');
   git('config', 'user.email', 'hook@example.invalid');
   write('.gitignore', '.devbox/\n');
