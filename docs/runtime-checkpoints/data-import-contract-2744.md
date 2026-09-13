@@ -92,11 +92,13 @@ wording now names the native lookup rather than the old service wrapper.
 
 ## Local runtime samples
 
-[Raw evidence](data-import-contract-2744.raw.json) contains two warmups and ten
+The recorded run used two warmups and ten
 measured samples per operation, ten student rows per batch, concurrency one.
 Each actual row includes the same person, student, guardian, phone, relationship,
 pickup and consent writes as the earlier #2708 fixture. Percentiles use nearest
 rank. These are workflow durations, not HTTP latency or a production SLO.
+Raw output is not stored in the repository; the runtime-evidence test above
+produces fresh samples for the current code.
 
 | Operation | Statements | Write rows | p95 | Errors |
 | --- | ---: | ---: | ---: | ---: |

@@ -82,7 +82,7 @@ CGO_ENABLED=0 scripts/run-go-toolchain.sh go test -C backend \
   ./services/import/integration -run TestDataImportRuntimeEvidence -count=1 -v
 ```
 
-[Raw samples](data-import-batches-2708.raw.json) contain two warmups and ten
+The recorded run used two warmups and ten
 measured samples per operation, at concurrency one. Each iteration previews
 and imports the same ten-row student fixture used by the
 [earlier partial cutover](data-import-2708.md). Every row has a person,
@@ -108,9 +108,10 @@ zero checkpoint lag. There are 36 committed UnitOfWork transactions:
 12 previews, 12 validations and 12 write batches. The database deadlock delta
 and measured driver pool-wait counts/durations are zero.
 
-The raw observer records 1,092 owner-command attempts, with zero failures.
-Per-command duration, owner and operation are retained, including no-op consent
-history calls. Retry fixtures separately prove failed attempts are counted.
+The observer recorded 1,092 owner-command attempts, with zero failures,
+including no-op consent history calls. Raw output is not stored in the
+repository; the command above produces fresh samples for the current code.
+Retry fixtures separately prove failed attempts are counted.
 No filename, account, tenant ID, row content or checkpoint key is a metric label.
 
 Production exports existing import row/run/duration metrics plus:
