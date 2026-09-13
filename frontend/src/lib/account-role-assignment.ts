@@ -47,12 +47,27 @@ export async function loadAccountRoleAssignment(
 }
 
 /**
- * Tauscht die Rolle eines Kontos atomar im Backend.
+ * Die Rolle, die das Feld „Systemrolle“ zeigt: die älteste Rolle des Kontos,
+ * die hier auch wählbar ist. Ein Elternteil, das später Personal wurde, hat
+ * die guardian-Rolle zuerst; sie ist keine Systemrolle und nie die Antwort.
+ * `undefined`, wenn das Konto keine wählbare Rolle hat.
+ */
+export function currentSelectableRoleId(
+  assignment: AccountRoleAssignment,
+): string | undefined {
+  return assignment.currentRoleIds.find((roleId) =>
+    assignment.options.some((option) => option.id === roleId),
+  );
+}
+
+/**
+ * Macht die Zielrolle atomar zur einzigen Systemrolle des Kontos an dieser
+ * Schule. Weitere Systemrollen entfernt das Backend; ein Elternzugang
+ * (guardian) bleibt bestehen.
  */
 export async function replaceAccountRole(
   accountId: string,
   targetRoleId: string,
-  previousRoleId?: string,
 ): Promise<void> {
-  await authService.replaceAccountRole(accountId, targetRoleId, previousRoleId);
+  await authService.replaceAccountRole(accountId, targetRoleId);
 }

@@ -401,20 +401,16 @@ func (req *ReplaceRolePermissionsRequest) Bind(_ *http.Request) error {
 	return nil
 }
 
-// ReplaceAccountRoleRequest contains the target role and, when the account
-// already has a role selected in the UI, that role to replace in the current
-// tenant. Omitting PreviousRoleID adds the target role without removing one.
+// ReplaceAccountRoleRequest names the role that becomes the account's only
+// staff role at the current tenant. Every other staff role at this school is
+// removed; guardian access is kept.
 type ReplaceAccountRoleRequest struct {
-	RoleID         *common.JSONID `json:"role_id"`
-	PreviousRoleID *common.JSONID `json:"previous_role_id,omitempty"`
+	RoleID *common.JSONID `json:"role_id"`
 }
 
 func (req *ReplaceAccountRoleRequest) Bind(_ *http.Request) error {
 	if req.RoleID == nil || req.RoleID.Int64() <= 0 {
 		return errors.New("role_id is required")
-	}
-	if req.PreviousRoleID != nil && req.PreviousRoleID.Int64() <= 0 {
-		return errors.New("previous_role_id must be a positive ID")
 	}
 	return nil
 }

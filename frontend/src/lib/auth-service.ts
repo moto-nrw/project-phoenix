@@ -968,19 +968,17 @@ export const authService = {
       errorPrefix: "Remove role from account",
     }),
 
+  /**
+   * Macht `roleId` zur einzigen Systemrolle des Kontos an dieser Schule.
+   * Andere Systemrollen entfernt das Backend; Elternzugang (guardian) bleibt.
+   */
   replaceAccountRole: async (
     accountId: string,
     roleId: string,
-    previousRoleId?: string,
   ): Promise<void> =>
     authFetchVoid(`/auth/accounts/${accountId}/roles`, {
       method: "PUT",
-      body: {
-        role_id: roleId,
-        ...(previousRoleId === undefined
-          ? {}
-          : { previous_role_id: previousRoleId }),
-      },
+      body: { role_id: roleId },
       errorPrefix: "Replace account role",
     }),
 

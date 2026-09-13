@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -217,11 +218,17 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 	return nil
 }
 
-// ReplaceAccountRole assigns the requested role and, when supplied, replaces
-// only the role the caller selected. Other account roles remain untouched.
-// The target is assigned first so the account never temporarily loses the
-// selected role; a later failure rolls back the complete exchange.
-func (s *Service) ReplaceAccountRole(ctx context.Context, accountID, previousRoleID, roleID int) error {
+// ReplaceAccountRole makes roleID the account's only staff role at the caller's
+// tenant. The Konto field "Systemrolle" is single-valued (#3116): after a
+// successful call the account holds the target role and no other staff role at
+// this school, however many an earlier half-finished swap or a direct POST left
+// behind. Guardian-tier roles are the exception and stay untouched: they carry
+// parent-portal access, which is a separate relationship and never something a
+// staff role change may revoke.
+//
+// The target is assigned first so the account never temporarily loses its
+// staff role; a later failure rolls back the complete exchange.
+func (s *Service) ReplaceAccountRole(ctx context.Context, accountID, roleID int) error {
 	return s.runInTx(ctx, func(txCtx context.Context) error {
 		// Take the same account lock as single-role mutations before changing an
 		// assignment. This serializes replacements with individual assignments
@@ -233,14 +240,32 @@ func (s *Service) ReplaceAccountRole(ctx context.Context, accountID, previousRol
 		if err := s.AssignRoleToAccount(txCtx, accountID, roleID); err != nil {
 			return err
 		}
-		if previousRoleID != 0 && previousRoleID != roleID {
-			if err := s.RemoveRoleFromAccount(txCtx, accountID, previousRoleID); err != nil {
+
+		// FindByAccountID applies the tenant filter, so roles held at other
+		// schools are never in this list and never removed here.
+		current, err := s.repos.Role.FindByAccountID(txCtx, int64(accountID))
+		if err != nil {
+			return &AuthError{Op: "replace account role", Err: err}
+		}
+		for _, role := range current {
+			if role.ID == int64(roleID) || isGuardianTierRole(role) {
+				continue
+			}
+			if err := s.RemoveRoleFromAccount(txCtx, accountID, int(role.ID)); err != nil {
 				return err
 			}
 		}
 
 		return nil
 	})
+}
+
+// isGuardianTierRole reports whether a role hands out guardian privileges. The
+// decision is by tier, not by name, for the same reason as in
+// ValidateAssignableSchoolRole: a school role labelled "Guardian" is not the
+// parent-portal role, and the parent-portal role may carry a custom label.
+func isGuardianTierRole(role *auth.Role) bool {
+	return authorize.EffectiveBaseRole(role) == auth.BaseRoleGuardian
 }
 
 // ensureIdentityForAssignedRole completes the school identity chain for a role

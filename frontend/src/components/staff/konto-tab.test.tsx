@@ -239,7 +239,10 @@ describe("KontoTab", () => {
     });
   });
 
-  it("keeps extra system roles when no replacement was selected", async () => {
+  it("treats a further role of the account as a change to the shown one", async () => {
+    // Zwei Systemrollen sind der Rest eines halb fertigen Wechsels. Das Feld
+    // zeigt die älteste; sie erneut zu wählen ändert nichts, die andere zu
+    // wählen macht sie zur einzigen.
     const editing = editingProps({
       canEditPersonFields: false,
       canEditStaffFields: false,
@@ -259,6 +262,9 @@ describe("KontoTab", () => {
     expect(screen.getByLabelText<HTMLSelectElement>("Systemrolle").value).toBe(
       "2",
     );
+    fireEvent.change(screen.getByLabelText("Systemrolle"), {
+      target: { value: "2" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     await waitFor(() => {
@@ -267,11 +273,53 @@ describe("KontoTab", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
     fireEvent.change(screen.getByLabelText("Systemrolle"), {
-      target: { value: "2" },
+      target: { value: "1" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
     await waitFor(() => {
-      expect(editing.onSave).toHaveBeenLastCalledWith({ role_id: "2" });
+      expect(editing.onSave).toHaveBeenLastCalledWith({ role_id: "1" });
+    });
+  });
+
+  it("shows the staff role of a parent who became staff and keeps it unchanged", async () => {
+    // Die guardian-Rolle ist die älteste des Kontos und nicht wählbar. Das
+    // Feld zeigt trotzdem die Systemrolle; sie zu bestätigen sendet keinen
+    // Rollenwechsel, der den Elternzugang gefährden könnte.
+    const editing = editingProps({
+      canEditPersonFields: false,
+      canEditStaffFields: false,
+      canEditRole: true,
+      roleAssignment: {
+        options: [
+          { id: "1", name: "Administration", systemName: "admin" },
+          { id: "2", name: "Betreuung", systemName: "user" },
+        ],
+        currentRoleIds: ["9", "2"],
+        currentIsLehrkraft: false,
+      },
+    });
+    render(<KontoTab teacher={teacher} editing={editing} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    expect(screen.getByLabelText<HTMLSelectElement>("Systemrolle").value).toBe(
+      "2",
+    );
+    fireEvent.change(screen.getByLabelText("Systemrolle"), {
+      target: { value: "2" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(editing.onSave).toHaveBeenCalledWith({});
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    fireEvent.change(screen.getByLabelText("Systemrolle"), {
+      target: { value: "1" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() => {
+      expect(editing.onSave).toHaveBeenLastCalledWith({ role_id: "1" });
     });
   });
 

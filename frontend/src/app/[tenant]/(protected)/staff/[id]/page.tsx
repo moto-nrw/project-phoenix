@@ -236,13 +236,9 @@ export default function StaffDetailContent() {
           });
         }
       }
-      if (targetRoleId !== undefined && roleAssignment) {
+      if (targetRoleId !== undefined) {
         try {
-          await replaceAccountRole(
-            accountId,
-            targetRoleId,
-            roleAssignment.currentRoleIds[0],
-          );
+          await replaceAccountRole(accountId, targetRoleId);
         } catch (err) {
           logger.error("failed to update account role", {
             staff_id: staffId,
@@ -265,14 +261,7 @@ export default function StaffDetailContent() {
       );
       await refreshRecord();
     },
-    [
-      accountId,
-      refreshRecord,
-      roleAssignment,
-      staffId,
-      tenantMutate,
-      toastSuccess,
-    ],
+    [accountId, refreshRecord, staffId, tenantMutate, toastSuccess],
   );
 
   const handleDeleteRecord = useCallback(async () => {

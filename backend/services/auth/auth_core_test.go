@@ -1333,21 +1333,36 @@ func TestAuthService_ReplaceAccountRole(t *testing.T) {
 	require.NoError(t, err)
 	newRole, err := service.CreateRole(ctx, fmt.Sprintf("replace-new-%d", time.Now().UnixNano()), "new role", testpkg.StrPtr("user"))
 	require.NoError(t, err)
-	preservedRole, err := service.CreateRole(ctx, fmt.Sprintf("replace-preserved-%d", time.Now().UnixNano()), "preserved role", testpkg.StrPtr("user"))
+	// A second staff role is the state a half-finished swap or a direct POST
+	// leaves behind; the Konto field is single-valued, so it must go too.
+	extraRole, err := service.CreateRole(ctx, fmt.Sprintf("replace-extra-%d", time.Now().UnixNano()), "extra role", testpkg.StrPtr("user"))
 	require.NoError(t, err)
+	// Guardian access is a parent-portal relationship, not a staff role, and
+	// survives every staff role change (parent who later became staff).
+	guardianRole, err := service.CreateRole(ctx, fmt.Sprintf("replace-guardian-%d", time.Now().UnixNano()), "guardian role", testpkg.StrPtr(authModels.BaseRoleGuardian))
+	require.NoError(t, err)
+	require.NoError(t, service.AssignRoleToAccount(ctx, int(account.ID), int(guardianRole.ID)))
 	require.NoError(t, service.AssignRoleToAccount(ctx, int(account.ID), int(oldRole.ID)))
-	require.NoError(t, service.AssignRoleToAccount(ctx, int(account.ID), int(preservedRole.ID)))
+	require.NoError(t, service.AssignRoleToAccount(ctx, int(account.ID), int(extraRole.ID)))
 
-	require.NoError(t, service.ReplaceAccountRole(ctx, int(account.ID), int(oldRole.ID), int(newRole.ID)))
+	require.NoError(t, service.ReplaceAccountRole(ctx, int(account.ID), int(newRole.ID)))
 
 	roles, err := service.GetAccountRoles(ctx, int(account.ID))
 	require.NoError(t, err)
-	require.Len(t, roles, 2)
-	assert.ElementsMatch(t, []int64{newRole.ID, preservedRole.ID}, []int64{roles[0].ID, roles[1].ID})
+	assert.ElementsMatch(t, []int64{guardianRole.ID, newRole.ID}, roleIDs(roles))
+
+	// Replacing with a role the account already holds keeps that role and
+	// still drops every other staff role.
+	require.NoError(t, service.AssignRoleToAccount(ctx, int(account.ID), int(extraRole.ID)))
+	require.NoError(t, service.ReplaceAccountRole(ctx, int(account.ID), int(newRole.ID)))
+
+	roles, err = service.GetAccountRoles(ctx, int(account.ID))
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []int64{guardianRole.ID, newRole.ID}, roleIDs(roles))
 
 	sentinelErr := errors.New("force outer rollback")
 	err = tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
-		if err := service.ReplaceAccountRole(txCtx, int(account.ID), int(newRole.ID), int(oldRole.ID)); err != nil {
+		if err := service.ReplaceAccountRole(txCtx, int(account.ID), int(oldRole.ID)); err != nil {
 			return err
 		}
 		return sentinelErr
@@ -1356,8 +1371,15 @@ func TestAuthService_ReplaceAccountRole(t *testing.T) {
 
 	roles, err = service.GetAccountRoles(ctx, int(account.ID))
 	require.NoError(t, err)
-	require.Len(t, roles, 2)
-	assert.ElementsMatch(t, []int64{newRole.ID, preservedRole.ID}, []int64{roles[0].ID, roles[1].ID})
+	assert.ElementsMatch(t, []int64{guardianRole.ID, newRole.ID}, roleIDs(roles))
+}
+
+func roleIDs(roles []*authModels.Role) []int64 {
+	ids := make([]int64, 0, len(roles))
+	for _, role := range roles {
+		ids = append(ids, role.ID)
+	}
+	return ids
 }
 
 func TestAuthService_RemoveRoleFromAccount(t *testing.T) {

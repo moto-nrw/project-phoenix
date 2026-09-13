@@ -1460,18 +1460,29 @@ func TestAccountRoleAssignment(t *testing.T) {
 	t.Run("replaces roles on an account", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("replacerole%d", time.Now().UnixNano()))
 		oldRole := testpkg.CreateTestRole(t, tc.db, "ReplaceAccRoleOld")
+		extraRole := testpkg.CreateTestRole(t, tc.db, "ReplaceAccRoleExtra")
 		role := testpkg.CreateTestRole(t, tc.db, "ReplaceAccRole")
-		assignReq := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/auth/accounts/%d/roles/%d", account.ID, oldRole.ID), nil)
-		assignResp := testutil.ExecuteWithAuthPermissions(t, router, assignReq, adminClaims, []string{"users:manage"})
-		require.Equal(t, http.StatusNoContent, assignResp.Code, "Assign failed: %s", assignResp.Body.String())
+		for _, current := range []int64{oldRole.ID, extraRole.ID} {
+			assignReq := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/auth/accounts/%d/roles/%d", account.ID, current), nil)
+			assignResp := testutil.ExecuteWithAuthPermissions(t, router, assignReq, adminClaims, []string{"users:manage"})
+			require.Equal(t, http.StatusNoContent, assignResp.Code, "Assign failed: %s", assignResp.Body.String())
+		}
 
 		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/accounts/%d/roles", account.ID), map[string]string{
-			"role_id":          fmt.Sprintf("%d", role.ID),
-			"previous_role_id": fmt.Sprintf("%d", oldRole.ID),
+			"role_id": fmt.Sprintf("%d", role.ID),
 		})
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
 
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Replace failed: %s", rr.Body.String())
+
+		// The target is the only staff role left; both previous roles are gone.
+		var remaining []int64
+		require.NoError(t, tc.db.NewSelect().
+			TableExpr("auth.account_roles").
+			Column("role_id").
+			Where("account_id = ?", account.ID).
+			Scan(context.Background(), &remaining))
+		assert.ElementsMatch(t, []int64{role.ID}, remaining)
 	})
 
 	t.Run("rejects direct assignment of guardian roles", func(t *testing.T) {

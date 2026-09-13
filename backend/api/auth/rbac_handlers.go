@@ -221,8 +221,9 @@ func (rs *Resource) assignRoleToAccount(w http.ResponseWriter, r *http.Request) 
 	common.RespondNoContent(w, r)
 }
 
-// replaceAccountRole swaps the selected account role for one approved target
-// role. The service executes the assignment and removal in the request transaction.
+// replaceAccountRole makes one approved target role the account's only staff
+// role at this school; guardian access stays. The service executes assignment
+// and removals in the request transaction.
 func (rs *Resource) replaceAccountRole(w http.ResponseWriter, r *http.Request) {
 	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
 	if !ok {
@@ -239,11 +240,7 @@ func (rs *Resource) replaceAccountRole(w http.ResponseWriter, r *http.Request) {
 	if abort {
 		return
 	}
-	previousRoleID := 0
-	if req.PreviousRoleID != nil {
-		previousRoleID = int(req.PreviousRoleID.Int64())
-	}
-	if err := rs.AuthService.ReplaceAccountRole(r.Context(), accountID, previousRoleID, int(*approvedRoleID)); err != nil {
+	if err := rs.AuthService.ReplaceAccountRole(r.Context(), accountID, int(*approvedRoleID)); err != nil {
 		rs.renderAccountRoleMutationError(w, r, err)
 		return
 	}

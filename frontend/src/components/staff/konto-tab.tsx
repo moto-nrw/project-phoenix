@@ -15,7 +15,10 @@ import { Input } from "~/components/ui/input";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { SectionCard } from "~/components/ui/section-card";
 import { Textarea } from "~/components/ui/textarea";
-import type { AccountRoleAssignment } from "~/lib/account-role-assignment";
+import {
+  currentSelectableRoleId,
+  type AccountRoleAssignment,
+} from "~/lib/account-role-assignment";
 import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { createLogger } from "~/lib/logger";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
@@ -183,12 +186,13 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
             last_name: draft.lastName.trim(),
           }
         : {}),
+      // Unverändert ist, was das Feld schon zeigt. Eine weitere Rolle des
+      // Kontos zu wählen ist eine Änderung: sie wird dann die einzige.
       ...(editing.canEditRole &&
       assignment &&
       !assignment.currentIsLehrkraft &&
       selectedRoleId !== "" &&
-      (assignment.currentRoleIds.length !== 1 ||
-        assignment.currentRoleIds[0] !== selectedRoleId)
+      currentSelectableRoleId(assignment) !== selectedRoleId
         ? { role_id: selectedRoleId }
         : {}),
     };
@@ -395,7 +399,9 @@ function KontoEditForm({
   readonly onSave: () => void;
 }) {
   const assignment = editing.roleAssignment;
-  const currentRoleId = assignment?.currentRoleIds[0];
+  const currentRoleId = assignment
+    ? currentSelectableRoleId(assignment)
+    : undefined;
   const requiredNameMissing =
     editing.canEditPersonFields &&
     (!draft.firstName.trim() || !draft.lastName.trim());
@@ -403,12 +409,7 @@ function KontoEditForm({
     editing.canEditRole &&
     assignment === undefined &&
     editing.roleAssignmentError !== true;
-  const roleValue =
-    draft.roleId !== ""
-      ? draft.roleId
-      : currentRoleId === undefined
-        ? ""
-        : String(currentRoleId);
+  const roleValue = draft.roleId !== "" ? draft.roleId : (currentRoleId ?? "");
   const showPosition = editing.canEditStaffFields && hasTeacherProfile(teacher);
   const displayRole = teacher.account_role
     ? getRoleDisplayName(teacher.account_role)
