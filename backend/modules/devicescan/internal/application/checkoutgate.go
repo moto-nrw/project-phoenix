@@ -42,12 +42,10 @@ func (s *Service) dailyCheckoutTime(ctx context.Context) (*time.Time, error) {
 }
 
 // shouldUpgradeToDailyCheckout reports whether a plain checkout is rewritten
-// to "checked_out_daily": the child went home, without being asked.
-//
-// Deliberately stricter than shouldShowDailyCheckoutWithGroup: the upgrade
-// decides FOR the child, so it only fires where leaving is unambiguous (the
-// child's own group room). PyrePortal builds its destination modal only for
-// "checked_out", so anything upgraded here shows no buttons at all.
+// to "checked_out_daily" for the own-group-room policy. This names the scan
+// outcome; it does not replace explicit attendance confirmation. PyrePortal
+// shows the destination chooser for both checkout actions and sends
+// confirm_daily_checkout when the child selects home.
 func (s *Service) shouldUpgradeToDailyCheckout(ctx context.Context, action string, student *ports.Student, currentVisit *ports.CurrentVisit) bool {
 	if action != devicescan.ScanActionCheckedOut {
 		return false
@@ -118,9 +116,9 @@ func (s *Service) isAfterGlobalCheckoutTime(ctx context.Context) bool {
 // shouldShowDailyCheckoutWithGroup reports whether the kiosk may OFFER "nach
 // Hause" after this checkout; it drives the daily_checkout_available flag.
 //
-// Cross-repo contract: PyrePortal only builds the destination modal for
-// action "checked_out", so this predicate stays independent of the upgrade
-// above. With checkout.daily_checkout_from_all_rooms_enabled every room
+// Cross-repo contract: PyrePortal renders the destination chooser for both
+// checkout actions. The already-selected daily outcome guarantees availability;
+// this predicate determines availability for an ordinary checkout. With checkout.daily_checkout_from_all_rooms_enabled every room
 // qualifies; otherwise the own-group-room plus Schulhof policy applies.
 func (s *Service) shouldShowDailyCheckoutWithGroup(ctx context.Context, student *ports.Student, currentVisit *ports.CurrentVisit) bool {
 	if !dailyCheckoutPreconditions(student, currentVisit) {

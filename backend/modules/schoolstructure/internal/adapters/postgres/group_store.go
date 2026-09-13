@@ -80,6 +80,27 @@ func groupSelect(db bun.IDB, model any) *bun.SelectQuery {
 	return db.NewSelect().Model(model).ModelTableExpr(`education.groups AS "group"`)
 }
 
+func (s *Store) List(ctx context.Context, tenantID int64, limit int) ([]domain.Group, domain.OperationStats, error) {
+	db, err := s.database(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	rows := []groupRow{}
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err = groupSelect(db, &rows).Where(`"group".tenant_id = ?`, tenantID).Limit(limit).Scan(ctx)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return nil, stats, fmt.Errorf("school structure postgres: list groups: %w", err)
+	}
+	result := make([]domain.Group, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, toDomain(row))
+	}
+	stats.Rows = int64(len(result))
+	return result, stats, nil
+}
+
 func toDomain(row groupRow) domain.Group {
 	return domain.Group{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,

@@ -49,6 +49,16 @@ func (s *Service) ListByIDs(ctx context.Context, ids []int64) (result []domain.G
 	return result, err
 }
 
+func (s *Service) List(ctx context.Context, tenantID int64, limit int) (result []domain.Group, err error) {
+	err = s.run("list_groups", func(stats *domain.OperationStats) error {
+		groups, queryStats, listErr := s.store.List(ctx, tenantID, limit)
+		stats.Add(queryStats)
+		result = groups
+		return listErr
+	})
+	return result, err
+}
+
 func (s *Service) run(operation string, fn func(*domain.OperationStats) error) (err error) {
 	started := time.Now()
 	stats := domain.OperationStats{}

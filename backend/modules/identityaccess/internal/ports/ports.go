@@ -12,6 +12,12 @@ import (
 // Store is the persistence port over the platform account table and the
 // tenant-scoped mapping and role tables.
 type Store interface {
+	ListSchoolRoles(context.Context, int64) ([]*domain.SchoolRole, domain.OperationStats, error)
+	FindSchoolRoleByName(context.Context, string, int64) (*domain.SchoolRole, domain.OperationStats, error)
+	FindRolePermissions(context.Context, int64, int64) ([]string, domain.OperationStats, error)
+	FindInvitedPersonIDs(ctx context.Context, email string, tenantID int64) ([]int64, domain.OperationStats, error)
+	HasActiveAccountTenant(ctx context.Context, accountID, tenantID int64) (bool, domain.OperationStats, error)
+	FindRFIDCard(ctx context.Context, tag string, tenantID int64) (string, bool, domain.OperationStats, error)
 	FindAccount(ctx context.Context, id int64) (domain.Account, bool, domain.OperationStats, error)
 	FindAccountByEmail(ctx context.Context, email string) (domain.Account, bool, domain.OperationStats, error)
 	// EnsureActiveTenantMapping inserts the account's mapping for the tenant or

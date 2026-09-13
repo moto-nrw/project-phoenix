@@ -8,6 +8,7 @@ import (
 )
 
 type Store interface {
+	List(context.Context, int64, int) ([]domain.Group, domain.OperationStats, error)
 	FindByID(context.Context, int64) (domain.Group, bool, domain.OperationStats, error)
 	ListByIDs(context.Context, []int64) ([]domain.Group, domain.OperationStats, error)
 }

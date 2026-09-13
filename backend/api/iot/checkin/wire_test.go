@@ -2,6 +2,7 @@ package checkin_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http/httptest"
 	"testing"
@@ -191,4 +192,29 @@ func TestWireFormat_ScanOutcomes(t *testing.T) {
 			"student_id":42,"student_name":"Staff Member","action":"supervisor_authenticated","room_name":"Kreativraum",
 			"processed_at":"2026-08-05T09:00:00Z","message":"Supervisor authenticated for Basteln","status":"success"}}`, rr.Body.String())
 	})
+}
+
+// Both checkout outcomes remain distinct on the wire. Old kiosks normalize the
+// daily action; new kiosks render it directly and consume the availability flag.
+func TestWireFormat_CheckoutActions(t *testing.T) {
+	t.Parallel()
+	for _, action := range []string{devicescan.ScanActionCheckedOut, devicescan.ScanActionCheckedOutDaily} {
+		t.Run(action, func(t *testing.T) {
+			t.Parallel()
+			rr := scanWith(t, &fakeScanner{scan: &devicescan.ScanResult{
+				Outcome: devicescan.ScanOutcomeVisit, Action: action, DailyCheckoutAvailable: true,
+			}})
+			require.Equal(t, 200, rr.Code)
+			var body struct {
+				Data map[string]any `json:"data"`
+			}
+			require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+			assert.Equal(t, action, body.Data["action"])
+			assert.Equal(t, true, body.Data["daily_checkout_available"])
+			assert.Equal(t, false, body.Data["feedback_enabled"])
+			assert.Contains(t, body.Data, "visit_id")
+			assert.Nil(t, body.Data["visit_id"])
+			assert.NotContains(t, body.Data, "active_students")
+		})
+	}
 }

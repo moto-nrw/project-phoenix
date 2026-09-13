@@ -3,39 +3,44 @@ package services
 import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	"github.com/moto-nrw/project-phoenix/modules/auditlog/consents"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
+	dataImportCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/compose"
+	"github.com/moto-nrw/project-phoenix/modules/facilities"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	authsvc "github.com/moto-nrw/project-phoenix/services/auth"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
-	"github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // importWiring is everything the Data Import needs (#2708): the owner
-// capabilities its ports are bound to, the few read-only legacy repositories
-// it still consults, and the platform collaborators. The production root and
+// capabilities its ports are bound to and the platform collaborators. The production root and
 // the test composition build the same graph from it, so the two cannot drift.
 type importWiring struct {
-	Persons    peopledirectory.Capability
-	Membership schoolmembership.Capability
-	Workforce  workforceModule.Capability
-	CarePlan   careplan.Capability
-	Presence   studentpresence.Capability
+	Identity      importIdentity
+	Organizations organizationtenancy.Capability
+	Groups        schoolstructure.GroupListing
+	Rooms         facilities.Query
+	Persons       peopledirectory.Capability
+	Membership    schoolmembership.Capability
+	Workforce     workforceModule.Capability
+	CarePlan      careplan.Capability
+	Presence      studentpresence.Capability
 
-	// Reads are the retained repositories the import still consults; none of
-	// them is written. InvitationService issues the staff invitation.
-	Reads             importService.LegacyReads
+	// InvitationService issues the staff invitation through Identity & Access.
 	InvitationService authsvc.InvitationService
 
-	// Opening balances use Workforce's preview and booking capabilities;
-	// their preload repositories are read-only.
+	// Opening balances use Workforce's preview and booking capabilities.
 	OpeningBalance importService.OpeningBalanceImportDeps
 
-	ConsentHistory users.StudentConsentChangeRecorder
+	ConsentHistory consents.ConsentTransitions
 	Audit          auditModels.Command
 	Observe        func(importService.ImportObservation)
 
@@ -44,6 +49,14 @@ type importWiring struct {
 	// mid-batch; production leaves it nil and the People Directory serves
 	// all three student ports.
 	GuardianOverride importService.GuardianPort
+}
+
+type importIdentity interface {
+	identityaccess.RFIDQuery
+	identityaccess.SchoolAccountQuery
+	identityaccess.InvitedPersonQuery
+	identityaccess.SchoolRoleQuery
+	identityaccess.RolePermissionQuery
 }
 
 // imports is the set of import services the API resource is wired with.
@@ -59,8 +72,12 @@ type imports struct {
 // Directory, School Membership, Workforce, Care Plan, Student Presence and
 // the Audit platform, including Workforce's opening-balance commands.
 func newImports(wiring importWiring) imports {
-	runtime := importService.ImportRuntime{Audit: wiring.Audit, Observe: wiring.Observe, Fingerprint: securityruntime.Fingerprint}
-	resolver := importService.NewRelationshipResolver(wiring.Reads.Groups, wiring.Reads.Rooms)
+	transactions := dataImportCompose.NewTransactions()
+	wiring.OpeningBalance.Transactions = transactions
+	wiring.OpeningBalance.References = dataImportCompose.NewOpeningReferences(wiring.Membership, wiring.Persons, wiring.Workforce)
+	runtime := importService.ImportRuntime{Transactions: transactions, Audit: wiring.Audit, Observe: wiring.Observe, Fingerprint: securityruntime.Fingerprint}
+	references := dataImportCompose.NewReferences(wiring.Groups, wiring.Rooms)
+	resolver := importService.NewRelationshipResolver(references.Groups, references.Rooms)
 	guardians := importService.GuardianPort(wiring.Persons)
 	if wiring.GuardianOverride != nil {
 		guardians = wiring.GuardianOverride
@@ -68,12 +85,13 @@ func newImports(wiring importWiring) imports {
 
 	student := importService.NewImportService(importService.NewStudentImportConfig(
 		importService.StudentImportDeps{
+			Transactions:    transactions,
 			Persons:         wiring.Persons,
 			Students:        wiring.Persons,
 			Guardians:       guardians,
 			Schedules:       wiring.CarePlan,
 			PrivacyConsents: wiring.Presence,
-			RFIDCardRepo:    wiring.Reads.RFIDCard,
+			FindRFIDCard:    wiring.Identity.FindRFIDCard,
 			Resolver:        resolver,
 			ConsentHistory:  wiring.ConsentHistory,
 		},
@@ -85,16 +103,18 @@ func newImports(wiring importWiring) imports {
 	// imported person (#2600).
 	staff := importService.NewImportService(importService.NewStaffImportConfig(
 		importService.StaffImportDeps{
-			InvitationService: wiring.InvitationService,
-			InvitationRepo:    wiring.Reads.InvitationToken,
-			AccountRepo:       wiring.Reads.Account,
-			AccountTenantRepo: wiring.Reads.AccountTenant,
-			RoleRepo:          wiring.Reads.Role,
-			PermissionRepo:    wiring.Reads.Permission,
-			SchoolRepo:        wiring.Reads.School,
-			Persons:           wiring.Persons,
-			Membership:        wiring.Membership,
-			Records:           wiring.Workforce,
+			Authorization:       dataImportCompose.NewAuthorization(),
+			Transactions:        transactions,
+			Invitations:         dataImportCompose.NewStaffInviter(wiring.InvitationService),
+			FindInvitedPeople:   wiring.Identity.FindInvitedPersonIDs,
+			FindSchoolAccount:   dataImportCompose.NewSchoolAccountLookup(wiring.Identity),
+			Roles:               wiring.Identity,
+			RolePolicy:          dataImportCompose.NewSchoolRolePolicy(),
+			FindRolePermissions: wiring.Identity.FindRolePermissions,
+			SchoolName:          dataImportCompose.NewSchoolName(wiring.Organizations),
+			Persons:             wiring.Persons,
+			Membership:          wiring.Membership,
+			Records:             wiring.Workforce,
 		},
 	), runtime)
 
@@ -102,10 +122,11 @@ func newImports(wiring importWiring) imports {
 	// the duplicate guards and the audit trail apply to imported rows too.
 	classList := importService.NewImportService(importService.NewClassListImportConfig(
 		importService.ClassListImportDeps{
-			Membership: wiring.Membership,
-			Persons:    wiring.Persons,
-			Students:   wiring.Persons,
-			Audit:      wiring.Audit,
+			Transactions: transactions,
+			Membership:   wiring.Membership,
+			Persons:      wiring.Persons,
+			Students:     wiring.Persons,
+			Audit:        wiring.Audit,
 		},
 	), runtime)
 
@@ -114,7 +135,7 @@ func newImports(wiring importWiring) imports {
 	// over the request-independent dependencies and builds one service per
 	// request.
 	openingBalance := importService.OpeningBalanceImportFactory(
-		func(effectiveDate timezone.Date, note string, decidedByStaffID int64) *importService.ImportService[importModels.OpeningBalanceImportRow] {
+		func(effectiveDate timezone.Date, note string, decidedByStaffID int64) importModels.RowImporter[importModels.OpeningBalanceImportRow] {
 			config := importService.NewOpeningBalanceImportConfig(wiring.OpeningBalance, effectiveDate, note, decidedByStaffID)
 			return importService.NewImportService(config, runtime)
 		})

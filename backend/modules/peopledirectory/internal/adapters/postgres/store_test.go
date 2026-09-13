@@ -11,13 +11,13 @@ func TestPersonRowBirthdayUsesCalendarDate(t *testing.T) {
 	t.Parallel()
 
 	var row personRow
-	assert.Equal(t, "*timezone.Date", reflect.TypeOf(row.Birthday).String())
+	assert.Equal(t, "*calendar.Date", reflect.TypeOf(row.Birthday).String())
 }
 
 func TestStudentRowCareWindowUsesCalendarDates(t *testing.T) {
 	t.Parallel()
 
 	var row studentRow
-	assert.Equal(t, "*timezone.Date", reflect.TypeOf(row.EnrolledFrom).String())
-	assert.Equal(t, "*timezone.Date", reflect.TypeOf(row.EnrolledUntil).String())
+	assert.Equal(t, "*calendar.Date", reflect.TypeOf(row.EnrolledFrom).String())
+	assert.Equal(t, "*calendar.Date", reflect.TypeOf(row.EnrolledUntil).String())
 }

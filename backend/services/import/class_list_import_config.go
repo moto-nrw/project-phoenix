@@ -6,10 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/classlist"
+	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 	"github.com/moto-nrw/project-phoenix/services/import/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // The two duplicate guards keep the German wording of the class-list
@@ -30,10 +29,11 @@ var (
 // platform records the change so imported rows leave the same trail as
 // manually created ones.
 type ClassListImportDeps struct {
-	Membership ports.ClassListMembership
-	Persons    ports.PersonDirectory
-	Students   ports.StudentDirectory
-	Audit      ports.AuditCommand
+	Transactions importModels.Transactions
+	Membership   ports.ClassListMembership
+	Persons      ports.PersonDirectory
+	Students     ports.StudentDirectory
+	Audit        ports.AuditCommand
 }
 
 // ClassListImportConfig implements ImportConfig for class-list entries.
@@ -135,11 +135,11 @@ func (c *ClassListImportConfig) FindExisting(ctx context.Context, row importMode
 // entry and its audit row share a savepoint, so a refused trail never leaves
 // an unaudited entry behind in the batch.
 func (c *ClassListImportConfig) Create(ctx context.Context, row importModels.ClassListEntryImportRow) (int64, error) {
-	if _, hasTx := tenant.TransactionFromContext(ctx); !hasTx {
+	if !c.deps.Transactions.HasTransaction(ctx) {
 		return c.createEntry(ctx, row)
 	}
 	var entryID int64
-	err := tenant.WithSavepoint(ctx, func(savepointCtx context.Context) error {
+	err := c.deps.Transactions.Savepoint(ctx, func(savepointCtx context.Context) error {
 		var err error
 		entryID, err = c.createEntry(savepointCtx, row)
 		return err

@@ -131,11 +131,22 @@ jobs:
               - 'frontend/src/test/setup.ts'
               - 'scripts/test-changed.sh'
             ci:
+              - 'lefthook.yml'
+              - 'scripts/pre-push*'
+              - 'scripts/check-quality.sh'
+              - 'scripts/check-backend-quality.sh'
+              - 'scripts/check-frontend-quality.sh'
+              - 'scripts/quality-timing.sh'
+              - 'scripts/check-secrets.sh'
+              - 'scripts/run-go-toolchain.sh'
               - '.github/**'
               - 'sonar-project.properties'
               - 'environments/**'
               - '.env.example'
               - 'package.json'
+
+      - name: Verify pre-push failure and selection behavior
+        run: node --test scripts/pre-push.test.mjs
 
   lint:
     permissions:

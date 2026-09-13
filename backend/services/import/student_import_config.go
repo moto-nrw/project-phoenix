@@ -2,7 +2,6 @@ package importpkg
 
 import (
 	"context"
-	"database/sql"
 	stdErrors "errors"
 	"fmt"
 	"regexp"
@@ -11,13 +10,10 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/auth"
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/auditlog/consents"
+	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 	"github.com/moto-nrw/project-phoenix/services/import/ports"
-	usersService "github.com/moto-nrw/project-phoenix/services/users"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 var (
@@ -80,37 +76,6 @@ func MapRelationshipType(germanType string) string {
 	return "other"
 }
 
-// guardianRoleAliases maps the German labels of the "ErzN.Rolle" column (and
-// the raw preset names) to the stored guardian_role presets.
-var guardianRoleAliases = map[string]string{
-	"hauptsorgeberechtigt": authorize.GuardianRolePrimaryGuardian, "hauptsorgeberechtigte": authorize.GuardianRolePrimaryGuardian, "hauptsorgeberechtigter": authorize.GuardianRolePrimaryGuardian,
-	"sorgeberechtigt": authorize.GuardianRoleLegalGuardian, "sorgeberechtigte": authorize.GuardianRoleLegalGuardian, "sorgeberechtigter": authorize.GuardianRoleLegalGuardian,
-	"mitsorgeberechtigt": authorize.GuardianRoleCoGuardian, "mitsorgeberechtigte": authorize.GuardianRoleCoGuardian, "mitsorgeberechtigter": authorize.GuardianRoleCoGuardian,
-	"notfallkontakt": authorize.GuardianRoleEmergency,
-	"nur abholung":   authorize.GuardianRolePickupOnly, "abholperson": authorize.GuardianRolePickupOnly, "abholung": authorize.GuardianRolePickupOnly,
-	"sozialarbeit": authorize.GuardianRoleSocialWorker, "sozialarbeiter": authorize.GuardianRoleSocialWorker, "sozialarbeiterin": authorize.GuardianRoleSocialWorker,
-	"benutzerdefiniert": authorize.GuardianRoleCustom,
-}
-
-// MapGuardianRole resolves a "ErzN.Rolle" cell to a stored preset. Returns
-// ("", false) for an unknown label so the caller can report it; an empty cell
-// maps to ("", true) meaning "derive the default".
-func MapGuardianRole(raw string) (string, bool) {
-	normalized := strings.ToLower(strings.TrimSpace(raw))
-	if normalized == "" {
-		return "", true
-	}
-	if mapped, ok := guardianRoleAliases[normalized]; ok {
-		return mapped, true
-	}
-	switch normalized {
-	case authorize.GuardianRolePrimaryGuardian, authorize.GuardianRoleLegalGuardian, authorize.GuardianRoleCoGuardian,
-		authorize.GuardianRoleEmergency, authorize.GuardianRolePickupOnly, authorize.GuardianRoleSocialWorker, authorize.GuardianRoleCustom:
-		return normalized, true
-	}
-	return "", false
-}
-
 // StudentImportConfig implements ImportConfig for student imports. Every
 // write goes through the owner commands in StudentImportDeps (#2708).
 type StudentImportConfig struct {
@@ -122,16 +87,17 @@ type StudentImportConfig struct {
 // Care Plan; PrivacyConsents is Student Presence; ConsentHistory is the
 // Audit platform recorder of the consent timestamps.
 type StudentImportDeps struct {
+	Transactions    importModels.Transactions
 	Persons         ports.PersonDirectory
 	Students        ports.StudentDirectory
 	Guardians       ports.GuardianDirectory
 	Schedules       ports.StudentSchedules
 	PrivacyConsents ports.PrivacyConsents
-	// RFIDCardRepo resolves the optional RFID column to a card of this school
+	// FindRFIDCard resolves the optional RFID column to a card of this school
 	// (#2600). nil disables RFID import (the column is then rejected).
-	RFIDCardRepo   auth.RFIDCardRepository
+	FindRFIDCard   func(context.Context, string) (string, bool, error)
 	Resolver       *RelationshipResolver
-	ConsentHistory usersService.StudentConsentChangeRecorder
+	ConsentHistory consents.ConsentTransitions
 }
 
 // NewStudentImportConfig creates a new student import configuration.
@@ -270,7 +236,7 @@ func (c *StudentImportConfig) Validate(ctx context.Context, row *importModels.St
 	// preview pass so the user sees the row error before importing, rather than
 	// having createStudentFromRow build an accompanied student the model rejects
 	// mid-import (#1694).
-	if departurePlanFromImportRow(*row).HasMode(users.DepartureAccompanied) &&
+	if departurePlanFromImportRow(*row).HasMode(ports.DepartureAccompanied) &&
 		strings.TrimSpace(row.DepartureCompanionNote) == "" {
 		errors = append(errors, importModels.ValidationError{
 			Field:    "begleitung",
@@ -342,7 +308,7 @@ func (c *StudentImportConfig) validateTag(ctx context.Context, row *importModels
 		row.TagID = ""
 		return nil
 	}
-	if c.RFIDCardRepo == nil {
+	if c.FindRFIDCard == nil {
 		row.TagID = ""
 		return []importModels.ValidationError{{
 			Field:    "tag_id",
@@ -360,11 +326,11 @@ func (c *StudentImportConfig) validateTag(ctx context.Context, row *importModels
 			Severity: importModels.ErrorSeverityError,
 		}}
 	}
-	card, err := c.RFIDCardRepo.FindByID(ctx, raw)
-	if err != nil && !stdErrors.Is(err, sql.ErrNoRows) {
+	tagID, found, err := c.FindRFIDCard(ctx, raw)
+	if err != nil {
 		return lookupFailed(err)
 	}
-	if card == nil {
+	if !found {
 		return []importModels.ValidationError{{
 			Field:       "tag_id",
 			Message:     fmt.Sprintf("RFID-Karte '%s' ist an dieser Schule nicht angelegt. Bitte die Karte zuerst in der Geräteverwaltung erfassen.", raw),
@@ -373,9 +339,9 @@ func (c *StudentImportConfig) validateTag(ctx context.Context, row *importModels
 			ActualValue: raw,
 		}}
 	}
-	row.TagID = card.ID
+	row.TagID = tagID
 
-	wearer, err := c.Persons.FindPersonByTag(ctx, card.ID)
+	wearer, err := c.Persons.FindPersonByTag(ctx, tagID)
 	if err != nil {
 		if stdErrors.Is(err, ports.ErrPersonNotFound) {
 			return nil
@@ -567,7 +533,7 @@ func (c *StudentImportConfig) validateGuardian(num int, guardian importModels.Gu
 	// Validate language preference (warning for unrecognized codes)
 	errors = append(errors, validateGuardianLanguage(num, guardian.LanguagePreference, fieldPrefix)...)
 
-	if _, ok := MapGuardianRole(guardian.GuardianRole); !ok {
+	if _, ok := importModels.MapGuardianRole(guardian.GuardianRole); !ok {
 		errors = append(errors, importModels.ValidationError{
 			Field:       fmt.Sprintf("%s_role", fieldPrefix),
 			Message:     fmt.Sprintf("Unbekannte Rolle '%s' für Erziehungsberechtigten %d. Erlaubt: Hauptsorgeberechtigt, Sorgeberechtigt, Mitsorgeberechtigt, Notfallkontakt, Nur Abholung, Sozialarbeit.", guardian.GuardianRole, num),
@@ -615,7 +581,7 @@ func validateGuardianLanguage(num int, lang, fieldPrefix string) []importModels.
 
 // validateGuardianEmail validates email format
 func validateGuardianEmail(num int, email, fieldPrefix string) []importModels.ValidationError {
-	if email != "" && !users.IsValidEmailFormat(email) {
+	if email != "" && !ports.IsValidEmailFormat(email) {
 		return []importModels.ValidationError{{
 			Field:    fmt.Sprintf("%s_email", fieldPrefix),
 			Message:  fmt.Sprintf("Ungültiges Email-Format für Erziehungsberechtigten %d: %s", num, email),
@@ -630,7 +596,7 @@ func validateGuardianEmail(num int, email, fieldPrefix string) []importModels.Va
 func validateGuardianLegacyPhones(num int, guardian importModels.GuardianImportData, fieldPrefix string) []importModels.ValidationError {
 	var errors []importModels.ValidationError
 
-	if guardian.Phone != "" && users.ValidateOptionalPhone(guardian.Phone) != nil {
+	if guardian.Phone != "" && ports.ValidateOptionalPhone(guardian.Phone) != nil {
 		errors = append(errors, importModels.ValidationError{
 			Field:    fmt.Sprintf("%s_phone", fieldPrefix),
 			Message:  fmt.Sprintf("Ungültiges Telefon-Format für Erziehungsberechtigten %d: %s", num, guardian.Phone),
@@ -639,7 +605,7 @@ func validateGuardianLegacyPhones(num int, guardian importModels.GuardianImportD
 		})
 	}
 
-	if guardian.MobilePhone != "" && users.ValidateOptionalPhone(guardian.MobilePhone) != nil {
+	if guardian.MobilePhone != "" && ports.ValidateOptionalPhone(guardian.MobilePhone) != nil {
 		errors = append(errors, importModels.ValidationError{
 			Field:    fmt.Sprintf("%s_mobile", fieldPrefix),
 			Message:  fmt.Sprintf("Ungültiges Mobiltelefon-Format für Erziehungsberechtigten %d: %s", num, guardian.MobilePhone),
@@ -656,7 +622,7 @@ func validateGuardianPhoneNumbers(num int, phones []importModels.PhoneImportData
 	var errors []importModels.ValidationError
 
 	for i, phone := range phones {
-		if phone.PhoneNumber == "" || users.ValidateOptionalPhone(phone.PhoneNumber) == nil {
+		if phone.PhoneNumber == "" || ports.ValidateOptionalPhone(phone.PhoneNumber) == nil {
 			continue
 		}
 		label := phone.Label
@@ -678,17 +644,17 @@ func validateGuardianPhoneNumbers(num int, phones []importModels.PhoneImportData
 // in create mode, match key in update mode). Keys, in order: the RFID card
 // (survives a class change), first + last name + class, and first + last name
 // + birthday (the class-change case without a card).
-func busDaysFromImportRow(row importModels.StudentImportRow) users.BusDays {
+func busDaysFromImportRow(row importModels.StudentImportRow) ports.BusDays {
 	if row.BusDays != nil {
-		days := users.BusDays{}
-		for _, key := range users.BusDayOrder {
+		days := ports.BusDays{}
+		for _, key := range ports.BusDayOrder {
 			if row.BusDays[key] {
 				days[key] = true
 			}
 		}
 		return days
 	}
-	return users.BusDaysFromLegacyFlag(row.BusPermission)
+	return ports.BusDaysFromLegacyFlag(row.BusPermission)
 }
 
 // departurePlanFromImportRow resolves the unified per-day departure plan from an
@@ -696,26 +662,26 @@ func busDaysFromImportRow(row importModels.StudentImportRow) users.BusDays {
 // precedence; otherwise the legacy Bus(.Mo..Fr) and Abholstatus columns are
 // folded into the plan so old templates keep importing. departure_days is the
 // single source of truth (#1610).
-func departurePlanFromImportRow(row importModels.StudentImportRow) users.DepartureDays {
+func departurePlanFromImportRow(row importModels.StudentImportRow) ports.DepartureDays {
 	if row.DepartureDays != nil {
-		out := users.DepartureDays{}
-		for _, key := range users.PickupDayOrder {
+		out := ports.DepartureDays{}
+		for _, key := range ports.PickupDayOrder {
 			switch row.DepartureDays[key] {
-			case string(users.DepartureAlone):
-				out[key] = users.DepartureAlone
-			case string(users.DepartureBus):
-				out[key] = users.DepartureBus
-			case string(users.DeparturePickup):
-				out[key] = users.DeparturePickup
-			case string(users.DepartureAccompanied):
-				out[key] = users.DepartureAccompanied
+			case string(ports.DepartureAlone):
+				out[key] = ports.DepartureAlone
+			case string(ports.DepartureBus):
+				out[key] = ports.DepartureBus
+			case string(ports.DeparturePickup):
+				out[key] = ports.DeparturePickup
+			case string(ports.DepartureAccompanied):
+				out[key] = ports.DepartureAccompanied
 			}
 		}
 		return out
 	}
 	bus := busDaysFromImportRow(row)
-	pickup := users.PickupDaysFromLegacyStatus(row.PickupStatus)
-	return users.DepartureDaysFromLegacy(bus, pickup)
+	pickup := ports.PickupDaysFromLegacyStatus(row.PickupStatus)
+	return ports.DepartureDaysFromLegacy(bus, pickup)
 }
 
 // createStudentFromRow creates a student from person and row
@@ -747,16 +713,16 @@ func ptrEquals(ptr *string, val string) bool {
 
 // createGuardianPhoneNumbers creates phone numbers for a guardian from import data
 // mapPhoneType converts import phone type string to users.PhoneType enum
-func mapPhoneType(importType string) users.PhoneType {
+func mapPhoneType(importType string) string {
 	switch strings.ToLower(importType) {
 	case "mobile":
-		return users.PhoneTypeMobile
+		return ports.PhoneTypeMobile
 	case "home":
-		return users.PhoneTypeHome
+		return ports.PhoneTypeHome
 	case "work":
-		return users.PhoneTypeWork
+		return ports.PhoneTypeWork
 	default:
-		return users.PhoneTypeOther
+		return ports.PhoneTypeOther
 	}
 }
 
@@ -925,8 +891,8 @@ func boundedNotePtr(s string) *string {
 	if trimmed == "" {
 		return nil
 	}
-	if utf8.RuneCountInString(trimmed) > users.MaxDepartureCompanionNoteLen {
-		trimmed = string([]rune(trimmed)[:users.MaxDepartureCompanionNoteLen])
+	if utf8.RuneCountInString(trimmed) > ports.MaxDepartureCompanionNoteLen {
+		trimmed = string([]rune(trimmed)[:ports.MaxDepartureCompanionNoteLen])
 	}
 	return &trimmed
 }

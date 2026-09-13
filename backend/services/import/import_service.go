@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/audit"
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/imports"
+	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 	"github.com/moto-nrw/project-phoenix/services/import/ports"
 )
 
@@ -35,12 +35,13 @@ func importModeFromContext(ctx context.Context) importModels.ImportMode {
 
 // ImportService handles generic import logic for any entity type
 type ImportService[T any] struct {
-	config      importModels.ImportConfig[T]
-	batchSize   int
-	audit       ports.AuditCommand
-	observe     func(ImportObservation)
-	fingerprint func([]byte) string
-	checkpoints audit.ImportCheckpointReader
+	transactions importModels.Transactions
+	config       ImportConfig[T]
+	batchSize    int
+	audit        ports.AuditCommand
+	observe      func(ImportObservation)
+	fingerprint  func([]byte) string
+	checkpoints  audit.ImportCheckpointReader
 	// config keeps request-specific reference data after PreloadReferenceData.
 	// Serialize processing while that mutable configuration is shared.
 	importMu sync.Mutex
@@ -67,7 +68,7 @@ type ImportObservation struct {
 }
 
 type requestScopedConfig[T any] interface {
-	NewRequestScoped() importModels.ImportConfig[T]
+	NewRequestScoped() ImportConfig[T]
 }
 
 type importConfigLocker interface{ ImportLock() *sync.Mutex }
@@ -84,25 +85,28 @@ type importModeAuthorizer interface {
 // audit writes moved out of api/import; #2708: the owner command replaces
 // the repository) and the runtime-evidence sink that receives one
 // ImportObservation per run. A nil Observe disables observation; a nil
-// Audit makes RecordAuditInTransaction fail.
+// Audit makes RecordAuditInTransaction fail. Transactions is required for
+// ImportBatches, which owns the transaction lifecycle.
 type ImportRuntime struct {
-	Audit       ports.AuditCommand
-	Observe     func(ImportObservation)
-	Fingerprint func([]byte) string
+	Transactions importModels.Transactions
+	Audit        ports.AuditCommand
+	Observe      func(ImportObservation)
+	Fingerprint  func([]byte) string
 }
 
 // NewImportService creates an import service bound to its platform
 // collaborators. A zero ImportRuntime is legitimate for decision tests that
-// never record an audit row or read an observation.
-func NewImportService[T any](config importModels.ImportConfig[T], runtime ImportRuntime) *ImportService[T] {
+// never record an audit row, read an observation, or execute batches.
+func NewImportService[T any](config ImportConfig[T], runtime ImportRuntime) *ImportService[T] {
 	checkpoints, _ := runtime.Audit.(audit.ImportCheckpointReader)
 	return &ImportService[T]{
-		config:      config,
-		batchSize:   100, // Default batch size
-		audit:       ports.ObserveAuditCommand(runtime.Audit),
-		observe:     runtime.Observe,
-		fingerprint: runtime.Fingerprint,
-		checkpoints: checkpoints,
+		config:       config,
+		transactions: runtime.Transactions,
+		batchSize:    100, // Default batch size
+		audit:        ports.ObserveAuditCommand(runtime.Audit),
+		observe:      runtime.Observe,
+		fingerprint:  runtime.Fingerprint,
+		checkpoints:  checkpoints,
 	}
 }
 
@@ -130,7 +134,6 @@ func (s *ImportService[T]) RecordAuditInTransaction(ctx context.Context, entityT
 		ImportedBy:   userID,
 		StartedAt:    result.StartedAt,
 		CompletedAt:  &result.CompletedAt,
-		Metadata:     audit.JSONBMap{},
 	}
 	auditRecord.SetTenantID(tenantID)
 	if err := s.audit.Append(ctx, auditRecord); err != nil {
@@ -143,10 +146,11 @@ func (s *ImportService[T]) RecordAuditInTransaction(ctx context.Context, entityT
 func (s *ImportService[T]) Import(ctx context.Context, request importModels.ImportRequest[T]) (*importModels.ImportResult[T], error) {
 	if scoped, ok := s.config.(requestScopedConfig[T]); ok {
 		clone := &ImportService[T]{
-			config:    scoped.NewRequestScoped(),
-			batchSize: s.batchSize,
-			audit:     s.audit,
-			observe:   s.observe,
+			config:       scoped.NewRequestScoped(),
+			transactions: s.transactions,
+			batchSize:    s.batchSize,
+			audit:        s.audit,
+			observe:      s.observe,
 		}
 		if locker, ok := clone.config.(importConfigLocker); ok {
 			locker.ImportLock().Lock()
@@ -204,7 +208,7 @@ func (s *ImportService[T]) importWithConfig(ctx context.Context, request importM
 }
 
 func (s *ImportService[T]) validateBatch(ctx context.Context, rows []T) map[int][]importModels.ValidationError {
-	validator, ok := s.config.(importModels.BatchValidator[T])
+	validator, ok := s.config.(BatchValidator[T])
 	if !ok {
 		return nil
 	}
@@ -238,7 +242,7 @@ func (s *ImportService[T]) processAllRows(ctx context.Context, request importMod
 		order[i] = i
 	}
 	if !request.DryRun {
-		if orderer, ok := s.config.(importModels.ProcessingOrderer[T]); ok {
+		if orderer, ok := s.config.(ProcessingOrderer[T]); ok {
 			if configuredOrder := orderer.ProcessingOrder(request.Rows); validProcessingOrder(configuredOrder, len(request.Rows)) {
 				order = configuredOrder
 			}
