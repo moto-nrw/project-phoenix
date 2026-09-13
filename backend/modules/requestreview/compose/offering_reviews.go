@@ -40,7 +40,7 @@ func NewOfferingReviews(db *bun.DB, deps OfferingReviewDependencies) (careplan.O
 	}
 	return carecompose.NewOfferingReviews(db, deps.ObserveCare, carecompose.OfferingReviewDependencies{
 		People:     offeringReviewDirectory{reviewDirectory: reviewDirectory{people: deps.People}, search: deps.People},
-		Enrollment: offeringReviewEnrollment{query: enrollmentcompose.New()}, Courses: offeringReviewCourses{query: courses},
+		Enrollment: offeringReviewEnrollment{query: enrollmentcompose.New(), bookings: carecompose.NewOfferingBookings()}, Courses: offeringReviewCourses{query: courses},
 		Scope: deps.Scope, Today: deps.Today,
 	})
 }
@@ -84,7 +84,10 @@ func (d offeringReviewDirectory) SearchStudentIDs(ctx context.Context, search st
 	return result, nil
 }
 
-type offeringReviewEnrollment struct{ query *enrollment.Module }
+type offeringReviewEnrollment struct {
+	query    *enrollment.Module
+	bookings careplan.OfferingBookingQueries
+}
 
 func (e offeringReviewEnrollment) Children(ctx context.Context, ids []int64) ([]carecompose.OfferingReviewChild, error) {
 	rows, err := e.query.ChildrenByID(ctx, ids)
@@ -130,19 +133,13 @@ func (e offeringReviewEnrollment) Phases(ctx context.Context, ids []int64) ([]ca
 	return result, nil
 }
 func (e offeringReviewEnrollment) Selections(ctx context.Context, dates map[int64]careplan.Date) ([]carecompose.OfferingReviewBooking, error) {
-	ownerDates := make(map[int64]enrollment.Date, len(dates))
-	for id, day := range dates {
-		ownerDates[id] = enrollment.Date(day)
-	}
-	rows, err := e.query.RequestChildOfferingsAtDates(ctx, ownerDates)
+	rows, err := e.bookings.CareOfferingBookingsAtDates(ctx, dates)
 	if err != nil {
 		return nil, err
 	}
 	result := make([]carecompose.OfferingReviewBooking, 0, len(rows))
 	for _, row := range rows {
-		if row != nil {
-			result = append(result, carecompose.OfferingReviewBooking{ChildID: row.RequestChildID, OfferingID: row.CareOfferingID, SelectedDays: row.SelectedDays, ManualDays: row.ManualSelectedDays, AutomaticDays: row.AutomaticSelectedDays})
-		}
+		result = append(result, carecompose.OfferingReviewBooking{ChildID: row.RequestChildID, OfferingID: row.CareOfferingID, SelectedDays: row.EffectiveSelectedDays(), ManualDays: row.ManualSelectedDays, AutomaticDays: row.AutomaticSelectedDays})
 	}
 	return result, nil
 }

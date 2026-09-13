@@ -132,6 +132,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		return StudentTestModule{}, err
 	}
 	enrollmentDecisionService := enrollment.NewDecisionService(enrollment.DecisionServiceConfig{
+		Bookings:                  enrollmentCareBookingCommands{owner: repos.CarePlan},
 		Requests:                  repos.Enrollment(),
 		Children:                  repos.Enrollment(),
 		Guardians:                 repos.Enrollment(),

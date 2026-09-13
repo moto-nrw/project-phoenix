@@ -109,7 +109,7 @@ func TestPhaseExpiryService_ApprovedRolloverWithInactiveOfferingStaysOpen(t *tes
 	assert.Equal(t, timezone.Date(rollover.Phase.ServiceStartDate), *student.EnrolledFrom,
 		"the real approval must replace the student's source enrollment window")
 
-	warnings, err := enrollmentService.NewPhaseExpiryService(enrollmentService.NewPhaseExpiryProjection(env.repos.Enrollment(), expiryDecisionStudents{env.repos.Student}, expiryDecisionOfferings{env.repos.CarePlan()})).
+	warnings, err := enrollmentService.NewPhaseExpiryService(enrollmentService.NewPhaseExpiryProjection(env.repos.Enrollment(), expiryDecisionStudents{env.repos.Student}, expiryDecisionOfferings{env.repos.CarePlan()}, env.repos.Enrollment())).
 		ListWarnings(ctx, timezone.NewDate(2027, 7, 3))
 	require.NoError(t, err)
 	require.Len(t, warnings, 1)
@@ -118,7 +118,7 @@ func TestPhaseExpiryService_ApprovedRolloverWithInactiveOfferingStaysOpen(t *tes
 
 	targetOfferings[0].IsActive = true
 	require.NoError(t, env.repos.CareOffering.Update(ctx, targetOfferings[0]))
-	warnings, err = enrollmentService.NewPhaseExpiryService(enrollmentService.NewPhaseExpiryProjection(env.repos.Enrollment(), expiryDecisionStudents{env.repos.Student}, expiryDecisionOfferings{env.repos.CarePlan()})).
+	warnings, err = enrollmentService.NewPhaseExpiryService(enrollmentService.NewPhaseExpiryProjection(env.repos.Enrollment(), expiryDecisionStudents{env.repos.Student}, expiryDecisionOfferings{env.repos.CarePlan()}, env.repos.Enrollment())).
 		ListWarnings(ctx, timezone.NewDate(2027, 7, 3))
 	require.NoError(t, err)
 	assert.Empty(t, warnings)

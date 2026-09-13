@@ -46,7 +46,7 @@ func NewScheduleReviews(db *bun.DB, deps ScheduleReviewDependencies) (careplan.C
 	}
 	return carecompose.NewScheduleReviews(db, deps.ObserveCare, carecompose.ScheduleReviewDependencies{
 		People:   scheduleReviewDirectory{reviewDirectory: reviewDirectory{people: deps.People}, departures: deps.People},
-		Bookings: scheduleReviewBookings{query: enrollmentcompose.New()}, Classes: classes,
+		Bookings: scheduleReviewBookings{query: enrollmentcompose.New(), bookings: carecompose.NewOfferingBookings()}, Classes: classes,
 		Scope: deps.Scope, BookingsAuthoritative: deps.BookingsAuthoritative, Today: deps.Today,
 		Blocks: scheduleReviewBlocks{query: blocks},
 	})
@@ -63,27 +63,40 @@ func (d scheduleReviewDirectory) DepartureModes(ctx context.Context, ids []int64
 
 type scheduleReviewBookings struct {
 	query interface {
-		ApprovedSelectionsForStudents(context.Context, []int64, enrollment.Date, enrollment.Date) ([]*enrollment.ApprovedOfferingSelection, error)
+		ApprovedOfferingChildrenForStudents(context.Context, []int64) ([]enrollment.OfferingChildFacts, error)
 	}
+	bookings careplan.OfferingBookingQueries
 }
 
 func (b scheduleReviewBookings) ApprovedForStudents(ctx context.Context, ids []int64, from, to careplan.Date) ([]carecompose.ReviewBooking, error) {
-	rows, err := b.query.ApprovedSelectionsForStudents(ctx, ids, enrollment.Date(from), enrollment.Date(to))
+	if to.Before(from) {
+		return []carecompose.ReviewBooking{}, nil
+	}
+	children, err := b.query.ApprovedOfferingChildrenForStudents(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	childIDs := make([]int64, 0, len(children))
+	students := make(map[int64]int64, len(children))
+	for _, child := range children {
+		childIDs = append(childIDs, child.ID)
+		students[child.ID] = child.StudentID()
+	}
+	rows, err := b.bookings.CareOfferingBookingHistory(ctx, childIDs)
 	if err != nil {
 		return nil, err
 	}
 	result := make([]carecompose.ReviewBooking, 0, len(rows))
 	for _, row := range rows {
-		if row == nil || row.Selection == nil {
+		if (row.ValidUntil != nil && !from.Before(*row.ValidUntil)) || (row.ValidFrom != nil && to.Before(*row.ValidFrom)) {
 			continue
 		}
-		selection := row.Selection
-		booking := carecompose.ReviewBooking{StudentID: row.StudentID, OfferingID: selection.CareOfferingID, SelectedDays: selection.SelectedDays}
-		if selection.ValidFrom != nil {
-			booking.ValidFrom = careplan.Date(*selection.ValidFrom)
+		booking := carecompose.ReviewBooking{StudentID: students[row.RequestChildID], OfferingID: row.CareOfferingID, SelectedDays: row.EffectiveSelectedDays()}
+		if row.ValidFrom != nil {
+			booking.ValidFrom = *row.ValidFrom
 		}
-		if selection.ValidUntil != nil {
-			booking.ValidUntil = careplan.Date(*selection.ValidUntil)
+		if row.ValidUntil != nil {
+			booking.ValidUntil = *row.ValidUntil
 		}
 		result = append(result, booking)
 	}

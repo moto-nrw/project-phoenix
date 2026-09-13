@@ -2,6 +2,9 @@ package enrollment_test
 
 import (
 	"context"
+
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+
 	"testing"
 	"time"
 
@@ -38,7 +41,7 @@ func sourceOffering(t *testing.T, env *rolloverTestEnv, offering *enrollmentMode
 func linkChildOffering(t *testing.T, env *rolloverTestEnv, link *capability.RequestChildOffering) *capability.RequestChildOffering {
 	t.Helper()
 	link.TenantID = testpkg.Tenant(t)
-	require.NoError(t, env.repos.Enrollment().InsertRequestChildOffering(testpkg.Ctx(t), link))
+	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequestChildOffering(testpkg.Ctx(t), link))
 	return link
 }
 
@@ -105,10 +108,12 @@ func TestRolloverService_CreatePhaseFromSource_ClonesCatalogAndRemapsBookings(t 
 	// mid-phase weekday change, and the required lunch).
 	historyEnd := timezone.NewDate(2027, 1, 1)
 	notes := "Oma holt ab"
+	laterNote := "Spätere Buchungsnotiz"
 	linkChildOffering(t, env, &capability.RequestChildOffering{
 		RequestChildID: child.ID,
 		CareOfferingID: kurz.ID,
 		SelectedDays:   []string{"mon", "wed"},
+		Notes:          &notes,
 		ValidUntil:     (*capability.Date)(&historyEnd),
 	})
 	linkChildOffering(t, env, &capability.RequestChildOffering{
@@ -117,7 +122,7 @@ func TestRolloverService_CreatePhaseFromSource_ClonesCatalogAndRemapsBookings(t 
 		SelectedDays:          []string{"tue", "thu"},
 		ManualSelectedDays:    []string{"tue"},
 		AutomaticSelectedDays: []string{"thu"},
-		Notes:                 &notes,
+		Notes:                 &laterNote,
 		ValidFrom:             (*capability.Date)(&historyEnd),
 	})
 	linkChildOffering(t, env, &capability.RequestChildOffering{
@@ -186,7 +191,7 @@ func TestRolloverService_CreatePhaseFromSource_ClonesCatalogAndRemapsBookings(t 
 	assert.Equal(t, []string{"tue"}, kurzCopy.ManualSelectedDays)
 	assert.Equal(t, []string{"thu"}, kurzCopy.AutomaticSelectedDays)
 	require.NotNil(t, kurzCopy.Notes)
-	assert.Equal(t, notes, *kurzCopy.Notes)
+	assert.Equal(t, notes, *kurzCopy.Notes, "rollover carries the immutable submission note, not a later legacy booking note")
 	// Historical source-phase intervals are NOT carried: the repository
 	// pins the copy to the target phase's service window (end exclusive).
 	require.NotNil(t, kurzCopy.ValidFrom)
@@ -409,6 +414,7 @@ func TestRolloverService_CreatePhaseFromSource_FailsWhenBookingHasNoClone(t *tes
 	// A mis-wired service (nil cloner) must fail the rollover instead of
 	// silently persisting a source-phase offering reference.
 	svcNoCloner := enrollmentService.NewRolloverService(enrollmentService.RolloverServiceConfig{
+		Bookings:       requestTestBookingCommands(),
 		Phases:         env.repos.Enrollment(),
 		Requests:       env.repos.Enrollment(),
 		Children:       env.repos.Enrollment(),
@@ -573,7 +579,7 @@ func TestRolloverService_AutoApprove_MaterializesCarriedDaysIntoLinkedTemplate(t
 		ManualSelectedDays: []string{"tue", "thu"},
 	}
 	link.TenantID = testpkg.Tenant(t)
-	require.NoError(t, env.repos.Enrollment().InsertRequestChildOffering(ctx, link))
+	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, link))
 
 	req := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true)
 	req.RolloverAutoApprove = true

@@ -712,7 +712,7 @@ func (s *offeringChangeRequestService) courseWaitlistPosition(
 		for childID, date := range dates {
 			ownerDates[childID] = enrollmentOwner.Date(date)
 		}
-		values, currentErr := s.Children.RequestChildOfferingsAtDates(ctx, ownerDates)
+		values, currentErr := s.Children.EffectiveOfferingSelectionsAtDates(ctx, ownerDates)
 		if currentErr != nil {
 			return 0, fmt.Errorf("course request: load current offerings for waitlist: %w", currentErr)
 		}

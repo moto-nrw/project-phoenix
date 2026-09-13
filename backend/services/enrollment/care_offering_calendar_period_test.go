@@ -3,6 +3,7 @@ package enrollment_test
 import (
 	"context"
 	"fmt"
+
 	"testing"
 	"time"
 
@@ -183,7 +184,7 @@ func (f *calendarPeriodValidationFixture) selectOfferingForSubmittedChild(
 		CareOfferingID: offeringID,
 		SelectedDays:   []string{"mon"},
 	}
-	require.NoError(t, repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db)).Enrollment().InsertRequestChildOffering(f.ctx, row))
+	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequestChildOffering(f.ctx, row))
 }
 
 func (f *calendarPeriodValidationFixture) validator(

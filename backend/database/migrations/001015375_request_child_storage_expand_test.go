@@ -11,7 +11,7 @@ import (
 
 func TestRequestChildStorageExpandStartsEmpty(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupRequestChildStorageBeforeCutover(t)
 	for _, table := range []string{"enrollment.request_child_offering_selections", "enrollment.care_offering_bookings"} {
 		var exists bool
 		require.NoError(t, db.NewRaw(`SELECT to_regclass(?) IS NOT NULL`, table).Scan(t.Context(), &exists))
@@ -24,7 +24,7 @@ func TestRequestChildStorageExpandStartsEmpty(t *testing.T) {
 
 func TestRequestChildStorageExpandColumnOwnership(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupRequestChildStorageBeforeCutover(t)
 	common := map[string]string{
 		"id": "bigint:NO", "tenant_id": "bigint:NO", "request_child_id": "bigint:NO",
 		"care_offering_id": "bigint:NO", "created_at": "timestamp with time zone:NO",
@@ -55,7 +55,7 @@ func TestRequestChildStorageExpandColumnOwnership(t *testing.T) {
 
 func TestRequestChildStorageExpandDoesNotCopyOldTraffic(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupRequestChildStorageBeforeCutover(t)
 	require.NoError(t, requestChildStorageExpandDown(t.Context(), db))
 	phaseID, _, childID := testpkg.CreateAuditAdjustmentChain(t, db)
 	offering := testpkg.CreateTestCareOffering(t, db, phaseID, "Expand compatibility")
@@ -93,7 +93,7 @@ func TestRequestChildStorageExpandDoesNotCopyOldTraffic(t *testing.T) {
 
 func TestRequestChildStorageExpandConstraints(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupRequestChildStorageBeforeCutover(t)
 	phaseID, _, childID := testpkg.CreateAuditAdjustmentChain(t, db)
 	offering := testpkg.CreateTestCareOffering(t, db, phaseID, "Storage constraints")
 	insertSelection := `INSERT INTO enrollment.request_child_offering_selections
@@ -135,7 +135,7 @@ func TestRequestChildStorageExpandConstraints(t *testing.T) {
 
 func TestRequestChildStorageExpandTenantIsolation(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupRequestChildStorageBeforeCutover(t)
 	type tenantFixture struct {
 		tenantID, childID, offeringID int64
 	}

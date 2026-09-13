@@ -1,4 +1,4 @@
-package integration
+package enrollment_test
 
 import (
 	"context"
@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -23,12 +24,12 @@ type careExitOfferingSchool struct {
 }
 
 // TestCareExitOfferingLinksTenantScopeRollbackAndRestore covers the offering
-// link projection, lock, snapshot, end and restore Enrollment serves to the
-// care-exit cleanup and booking consistency audit (#2695).
+// link projection, lock, snapshot, end and restore composed from Enrollment
+// identity and Care Plan's target-only bookings (#2714).
 func TestCareExitOfferingLinksTenantScopeRollbackAndRestore(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module := enrollmentCompose.New()
+	module := repositories.NewEnrollmentBookingProjection(enrollmentTest.New())
 	const validUntil = enrollment.Date("2031-02-01")
 	schools := make([]careExitOfferingSchool, 0, 2)
 	for _, school := range []string{"first", "second"} {
@@ -65,7 +66,7 @@ func TestCareExitOfferingLinksTenantScopeRollbackAndRestore(t *testing.T) {
 				}
 				ids := []*int64{&fixture.running, &fixture.future, &fixture.ended}
 				for i, row := range rows {
-					err := tx.NewRaw(`INSERT INTO enrollment.request_child_offerings (tenant_id,request_child_id,care_offering_id,selected_days,valid_from,valid_until)
+					err := tx.NewRaw(`INSERT INTO enrollment.care_offering_bookings (tenant_id,request_child_id,care_offering_id,manual_selected_days,valid_from,valid_until)
 					 VALUES (?,?,?,'["mon","wed"]'::jsonb,?::date,?::date) RETURNING id`, schoolID, fixture.requestChildID, row.offeringID, row.from, row.to).Scan(txCtx, ids[i])
 					if err != nil {
 						return err
@@ -191,20 +192,23 @@ func TestCareExitOfferingLinksTenantScopeRollbackAndRestore(t *testing.T) {
 	}
 
 	ctx := testpkg.ContextForTenant(testpkg.Ctx(t), schools[0].schoolID)
-	err := testpkg.WithTenantTx(t, ctx, db, schools[0].schoolID, func(txCtx context.Context, tx bun.Tx) error {
+	beforeFailure, err := module.CareExitOfferingSnapshots(ctx, []int64{schools[0].studentID}, validUntil, nil)
+	require.NoError(t, err)
+	require.NotEmpty(t, beforeFailure)
+	err = testpkg.WithTenantTx(t, ctx, db, schools[0].schoolID, func(txCtx context.Context, tx bun.Tx) error {
 		_, err := tx.NewRaw("SELECT 1 / 0").Exec(txCtx)
 		require.Error(t, err)
 		_, auditErr := module.ApprovedBookingOfferingLinks(txCtx)
-		require.ErrorContains(t, auditErr, "list approved booking offering links")
+		require.Error(t, auditErr)
 		_, linksErr := module.CareExitOfferingLinks(txCtx, nil)
-		require.ErrorContains(t, linksErr, "list care-exit offering links")
-		require.ErrorContains(t, module.LockCareExitOfferingLinks(txCtx, []int64{schools[0].requestChildID}, validUntil), "lock care-exit offering links")
+		require.Error(t, linksErr)
+		require.Error(t, module.LockCareExitOfferingLinks(txCtx, []int64{schools[0].requestChildID}, validUntil))
 		_, snapshotErr := module.CareExitOfferingSnapshots(txCtx, []int64{schools[0].studentID}, validUntil, nil)
-		require.ErrorContains(t, snapshotErr, "snapshot care-exit offering links")
+		require.Error(t, snapshotErr)
 		_, endErr := module.EndCareExitOfferingLinks(txCtx, []int64{schools[0].requestChildID}, nil, validUntil)
-		require.ErrorContains(t, endErr, "delete future care-exit offering links")
-		_, restoreErr := module.RestoreCareExitOfferingLinks(txCtx, []enrollment.CareExitOfferingSnapshotRestore{{SourceRowID: schools[0].running}})
-		require.ErrorContains(t, restoreErr, "restore capped care-exit offering links")
+		require.Error(t, endErr)
+		_, restoreErr := module.RestoreCareExitOfferingLinks(txCtx, []enrollment.CareExitOfferingSnapshotRestore{{SourceRowID: beforeFailure[0].SourceRowID, WasDeleted: beforeFailure[0].WasDeleted, Snapshot: beforeFailure[0].Snapshot}})
+		require.Error(t, restoreErr)
 		return err
 	})
 	require.Error(t, err)

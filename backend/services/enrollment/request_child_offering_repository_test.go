@@ -2,10 +2,15 @@ package enrollment_test
 
 import (
 	"context"
+	"fmt"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	"testing"
 
 	owner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,33 +25,32 @@ import (
 // setupChildOfferingTest gives us a tenant + phase + request + child +
 // care offering — the full chain needed to insert a request_child × care_offering
 // row.
-func setupChildOfferingTest(t *testing.T) (
+func setupChildOfferingTest(t *testing.T, db *bun.DB) (
 	*bun.DB,
-	*owner.Module,
+	repositories.EnrollmentBookingFixture,
 	int64, // tenantID
 	int64, // requestChildID
 	int64, // careOfferingID
 ) {
 	t.Helper()
-	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	phaseRepo := enrollmentCompose.New()
+	phaseRepo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 	phaseName := uniquePhaseName("childoffering")
 	phase := makeOwnerEligibilityPhase(phaseName)
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return phaseRepo.InsertPhase(ctx, phase)
 	}))
 
-	reqRepo := enrollmentCompose.New()
+	reqRepo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 	token := uniqueToken("childoffering")
 	req := makeOwnerRequest(phase.ID, token, "anna@example.test")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return reqRepo.InsertRequest(ctx, req)
 	}))
 
-	childRepo := enrollmentCompose.New()
+	childRepo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 	child := makeChild(req.ID, "Lara", "Beispiel")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return childRepo.InsertChild(ctx, child)
@@ -69,7 +73,7 @@ func setupChildOfferingTest(t *testing.T) (
 		wipePhases(db, tenantID, phaseName)
 	})
 
-	return db, enrollmentCompose.New(), tenantID, child.ID, offering.ID
+	return db, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant), tenantID, child.ID, offering.ID
 }
 
 // addGradedChild creates a sibling child under the same request with an
@@ -85,7 +89,7 @@ func addGradedChild(
 	status string,
 ) int64 {
 	t.Helper()
-	childRepo := enrollmentCompose.New()
+	childRepo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 	child := makeChild(requestID, firstName, "Beispiel")
 	child.TargetGradeLevel = grade
 	child.Status = status
@@ -110,7 +114,7 @@ func addGradedChild(
 // siblings land under the same request (and the same cleanup).
 func requestIDOf(t *testing.T, db *bun.DB, tenantID, childID int64) int64 {
 	t.Helper()
-	childRepo := enrollmentCompose.New()
+	childRepo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 	var requestID int64
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		child, err := childRepo.ChildByID(ctx, childID)
@@ -162,10 +166,10 @@ func addRolloverSuccessorHolding(
 	grade *int16,
 ) (int64, int64) {
 	t.Helper()
-	phaseRepo := enrollmentCompose.New()
-	requestRepo := enrollmentCompose.New()
-	childRepo := enrollmentCompose.New()
-	offeringRepo := enrollmentCompose.New()
+	phaseRepo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
+	requestRepo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
+	childRepo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
+	offeringRepo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 	phaseName := uniquePhaseName("rolloverleak")
 	token := uniqueToken("rolloverleak")
 
@@ -207,8 +211,8 @@ func addRolloverSuccessorHolding(
 func TestOwnerOffering_Create_PersistsAndReturnsID(t *testing.T) {
 	t.Parallel()
 
-	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t)
-	repo := enrollmentCompose.New()
+	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
+	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 
 	notes := "Bitte Mo+Mi"
 	row := &owner.RequestChildOffering{
@@ -247,8 +251,8 @@ func TestOwnerOffering_Create_PersistsAndReturnsID(t *testing.T) {
 func TestOwnerOffering_Create_BoundsPartialValidityWindow(t *testing.T) {
 	t.Parallel()
 
-	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t)
-	repo := enrollmentCompose.New()
+	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
+	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 	validFrom := timezone.NewDate(2026, 10, 1)
 	row := &owner.RequestChildOffering{
 		RequestChildID: childID,
@@ -267,8 +271,8 @@ func TestOwnerOffering_Create_BoundsPartialValidityWindow(t *testing.T) {
 func TestOwnerOffering_ListByRequestChildID_ReturnsAllForChild(t *testing.T) {
 	t.Parallel()
 
-	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t)
-	repo := enrollmentCompose.New()
+	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
+	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 
 	// Second offering so the child has two picks.
 	offering2Repo := carePlanTest.NewCareOfferingRepository(t, db)
@@ -308,8 +312,8 @@ func TestOwnerOffering_ListByRequestChildID_ReturnsAllForChild(t *testing.T) {
 func TestOwnerOffering_ListByRequestChildIDs_BatchLoad(t *testing.T) {
 	t.Parallel()
 
-	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t)
-	repo := enrollmentCompose.New()
+	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
+	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 
 	// Two offering links for the one child.
 	offering2Repo := carePlanTest.NewCareOfferingRepository(t, db)
@@ -345,8 +349,8 @@ func TestOwnerOffering_ListByRequestChildIDs_BatchLoad(t *testing.T) {
 func TestOwnerOffering_ListByRequestChildIDsAtDate_ExcludesHistoricalIntervals(t *testing.T) {
 	t.Parallel()
 
-	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t)
-	repo := enrollmentCompose.New()
+	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
+	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 	offeringRepo := carePlanTest.NewCareOfferingRepository(t, db)
 	var first *enrollmentModels.CareOffering
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -392,8 +396,8 @@ func TestOwnerOffering_ListByRequestChildIDsAtDate_ExcludesHistoricalIntervals(t
 func TestOwnerOffering_ListByRequestChildIDs_EmptyInputShortCircuits(t *testing.T) {
 	t.Parallel()
 
-	db, _, tenantID, _, _ := setupChildOfferingTest(t)
-	repo := enrollmentCompose.New()
+	db, _, tenantID, _, _ := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
+	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 	var list []*owner.RequestChildOffering
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
@@ -407,8 +411,8 @@ func TestOwnerOffering_ListByRequestChildIDs_EmptyInputShortCircuits(t *testing.
 func TestOwnerOffering_ListByRequestChildID_EmptyResultNoError(t *testing.T) {
 	t.Parallel()
 
-	db, _, tenantID, _, _ := setupChildOfferingTest(t)
-	repo := enrollmentCompose.New()
+	db, _, tenantID, _, _ := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
+	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 	var list []*owner.RequestChildOffering
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
@@ -424,8 +428,8 @@ func TestOwnerOffering_ListByRequestChildID_EmptyResultNoError(t *testing.T) {
 func TestOwnerOffering_CapacityPeak_ExcludesTerminalStatuses(t *testing.T) {
 	t.Parallel()
 
-	db, _, tenantID, _, offeringID := setupChildOfferingTest(t)
-	repo := enrollmentCompose.New()
+	db, _, tenantID, _, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
+	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 
 	// Need three additional children with different statuses so we can
 	// verify the COUNT only includes non-terminal rows. Fetch the
@@ -437,7 +441,7 @@ func TestOwnerOffering_CapacityPeak_ExcludesTerminalStatuses(t *testing.T) {
 			Scan(ctx, &requestID)
 	}))
 
-	childRepo := enrollmentCompose.New()
+	childRepo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 	statuses := []string{
 		enrollmentModels.ChildStatusSubmitted,
 		enrollmentModels.ChildStatusApproved,
@@ -477,8 +481,8 @@ func TestOwnerOffering_CapacityPeak_ExcludesTerminalStatuses(t *testing.T) {
 func TestOwnerOffering_CapacityPeak_ZeroWhenUnused(t *testing.T) {
 	t.Parallel()
 
-	db, _, tenantID, _, _ := setupChildOfferingTest(t)
-	repo := enrollmentCompose.New()
+	db, _, tenantID, _, _ := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
+	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 	var count int
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var cErr error
@@ -487,4 +491,93 @@ func TestOwnerOffering_CapacityPeak_ZeroWhenUnused(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, 0, count)
+}
+
+func uniquePhaseName(prefix string) string {
+	return fmt.Sprintf("%s-%d", prefix, testpkg.UniqueSuffix())
+}
+
+func wipePhases(db *bun.DB, tenantID int64, names ...string) {
+	bg := context.Background()
+	if len(names) == 0 {
+		// No-op when no names — protects against accidental tenant-wide
+		// wipes in shared-tenant tests.
+		return
+	}
+	_, _ = db.NewDelete().
+		TableExpr("enrollment.phases").
+		Where("tenant_id = ? AND name IN (?)", tenantID, bun.List(names)).
+		Exec(bg)
+}
+
+func uniqueToken(prefix string) string {
+	return fmt.Sprintf("%s-%d", prefix, testpkg.UniqueSuffix())
+}
+
+func makeOwnerRequest(phaseID int64, token, email string) *owner.Request {
+	return &owner.Request{
+		PhaseID: phaseID, GuardianFirstName: "Anna", GuardianLastName: "Beispiel", GuardianEmail: email,
+		ConsentFlags: []byte("{}"), CustomData: []byte("{}"), StatusToken: token, SubmittedAt: time.Now().UTC(),
+	}
+}
+
+func wipeRequests(db *bun.DB, tenantID int64, tokenPrefix string) {
+	bg := context.Background()
+	_, _ = db.NewDelete().
+		TableExpr("enrollment.request_children rc").
+		Where(`rc.tenant_id = ? AND rc.request_id IN (SELECT id FROM enrollment.requests WHERE tenant_id = ? AND status_token LIKE ?)`,
+			tenantID, tenantID, tokenPrefix+"%").
+		Exec(bg)
+	_, _ = db.NewDelete().
+		TableExpr("enrollment.requests").
+		Where("tenant_id = ? AND status_token LIKE ?", tenantID, tokenPrefix+"%").
+		Exec(bg)
+}
+
+func uniqueOfferingName(prefix string) string {
+	return fmt.Sprintf("%s-%d", prefix, testpkg.UniqueSuffix())
+}
+
+func makeOffering(phaseID int64, name string) *enrollmentModels.CareOffering {
+	return &enrollmentModels.CareOffering{
+		PhaseID:        phaseID,
+		Name:           name,
+		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
+		IsActive:       true,
+	}
+}
+
+func wipeOfferings(db *bun.DB, tenantID, phaseID int64) {
+	_, _ = db.NewDelete().
+		TableExpr("enrollment.care_offerings").
+		Where("tenant_id = ? AND phase_id = ?", tenantID, phaseID).
+		Exec(context.Background())
+}
+
+func makeChild(requestID int64, firstName, lastName string) *owner.RequestChild {
+	return &owner.RequestChild{
+		RequestID:      requestID,
+		FirstName:      firstName,
+		LastName:       lastName,
+		DateOfBirth:    owner.Date("2018-04-15"),
+		Status:         enrollmentModels.ChildStatusSubmitted,
+		ActivationMode: enrollmentModels.ChildActivationScheduled,
+		CustomData:     []byte("{}"),
+	}
+}
+
+func makeOwnerEligibilityPhase(name string) *owner.Phase {
+	return &owner.Phase{
+		Name: name, Kind: enrollmentModels.PhaseKindSchoolYear,
+		ServiceStartDate: owner.Date("2026-09-01"), ServiceEndDate: owner.Date("2027-07-31"),
+		IsActive: true, CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
+	}
+}
+
+func runInTenantTx(t *testing.T, db *bun.DB, tenantID int64, fn func(ctx context.Context) error) error {
+	t.Helper()
+	return tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return fn(ctx)
+	})
 }

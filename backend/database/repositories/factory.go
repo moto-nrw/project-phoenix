@@ -351,7 +351,7 @@ func (f *Factory) ConfigureAuditRuntime(runtime audit.Runtime) {
 	f.GuardianFinancialChange = audit.NewGuardianFinancialChangeRepository(runtime)
 	f.ClassListEntryChange = audit.NewClassListEntryChangeRepository(runtime)
 	f.TimeTrackingAuditLog = audit.NewTimeTrackingAuditLogRepository(runtime)
-	f.BookingConsistency = audit.NewBookingConsistencyRepository(runtime, enrollmentCompose.New())
+	f.BookingConsistency = audit.NewBookingConsistencyRepository(runtime, NewEnrollmentBookingProjection(enrollmentCompose.New()))
 	f.bindAuditStudentDirectory()
 	f.bindCarePlanAuditDirectory()
 	f.StudentDeletion = users.NewStudentDeletionRepository(f.db, f.StudentDeletionAudit.CountStudentReferences, f.countPrivacyConsents, enrollmentCompose.New().CountStudentReferences, f.InstanceStudent.(timetableInstanceStudentRepository).timetable, parentStore.NewStudentConversations(f.db), newStudentPresence(f.db).CountAttendanceRecords)
@@ -583,7 +583,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		RFIDCard:            auth.NewRFIDCardRepository(db),
 		Student:             studentRepo,
 		CareExit:            users.NewCareExitRepository(db),
-		CareExitCleanup:     users.NewCareExitCleanupRepository(db, enrollmentModule, careExitAssignments{capability: timetableCapability}, presenceCapability),
+		CareExitCleanup:     users.NewCareExitCleanupRepository(db, NewEnrollmentBookingProjection(enrollmentModule), careExitAssignments{capability: timetableCapability}, presenceCapability),
 		CareWithdrawal:      users.NewCareWithdrawalCompletionRepository(db),
 		Profile:             users.NewProfileRepository(db),
 		StudentGuardian:     users.NewStudentGuardianRepository(db),
@@ -716,7 +716,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		GuardianFinancialChange:      audit.NewGuardianFinancialChangeRepository(auditRepositoryRuntime),
 		ClassListEntryChange:         audit.NewClassListEntryChangeRepository(auditRepositoryRuntime),
 		TimeTrackingAuditLog:         audit.NewTimeTrackingAuditLogRepository(auditRepositoryRuntime),
-		BookingConsistency:           audit.NewBookingConsistencyRepository(auditRepositoryRuntime, enrollmentModule),
+		BookingConsistency:           audit.NewBookingConsistencyRepository(auditRepositoryRuntime, NewEnrollmentBookingProjection(enrollmentModule)),
 
 		// Platform repositories. Operators, their refresh sessions and the
 		// operator audit ledger belong to Identity & Access and Audit (#2720).
@@ -875,4 +875,6 @@ func (f *Factory) SetConfigRuntime(runtime config.Runtime) {
 	f.SettingAudit = config.NewSettingAuditRepository(runtime)
 }
 
-func (r *Factory) Enrollment() *enrollmentCapability.Module { return r.SubmissionRateLimit }
+func (r *Factory) Enrollment() EnrollmentBookingProjection {
+	return NewEnrollmentBookingProjection(r.SubmissionRateLimit)
+}

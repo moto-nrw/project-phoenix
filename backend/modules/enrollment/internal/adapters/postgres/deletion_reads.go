@@ -36,7 +36,6 @@ func (r *Store) DeletionRequestCounts(ctx context.Context, requestID int64) (*en
 			(SELECT COUNT(*) FROM target_request)::int AS requests,
 			(SELECT guardian_account_id FROM target_request LIMIT 1) AS guardian_account_id,
 			(SELECT COUNT(*) FROM target_children)::int AS request_children,
-			(SELECT COUNT(*) FROM enrollment.request_child_offerings o JOIN target_children c ON c.id = o.request_child_id WHERE o.tenant_id = ?)::int AS request_child_offerings,
 			(SELECT COUNT(*) FROM enrollment.request_guardians g WHERE g.request_id = ? AND g.tenant_id = ?)::int AS request_guardians,
 			(SELECT COUNT(*) FROM target_changes)::int AS change_requests,
 			(SELECT COUNT(*) FROM enrollment.change_request_messages m JOIN target_changes c ON c.id = m.change_request_id WHERE m.tenant_id = ?)::int AS change_request_messages,
@@ -48,7 +47,6 @@ func (r *Store) DeletionRequestCounts(ctx context.Context, requestID int64) (*en
 		requestID, tenantID,
 		requestID, tenantID,
 		requestID, tenantID,
-		tenantID,
 		requestID, tenantID,
 		tenantID,
 		requestID, tenantID,
@@ -104,12 +102,11 @@ func (r *Store) DeletionChildCounts(ctx context.Context, requestID, childID int6
 			WHERE request_id = ? AND request_child_id IN (SELECT id FROM target_child) AND tenant_id = ?
 		)
 		SELECT
-			(SELECT COUNT(*) FROM enrollment.request_child_offerings WHERE request_child_id IN (SELECT id FROM target_child) AND tenant_id = ?)::int AS offerings,
 			(SELECT COUNT(*) FROM target_changes)::int AS change_requests,
 			(SELECT COUNT(*) FROM enrollment.change_request_messages m JOIN target_changes c ON c.id = m.change_request_id WHERE m.tenant_id = ?)::int AS change_request_messages,
 			(SELECT COUNT(*) FROM enrollment.request_children WHERE rollover_source_child_id IN (SELECT id FROM target_child) AND tenant_id = ?)::int AS rollover_links,
 			0::int AS student_source_links
-	`, requestID, childID, tenantID, requestID, tenantID, tenantID, tenantID, tenantID).Scan(ctx, row)
+	`, requestID, childID, tenantID, requestID, tenantID, tenantID, tenantID).Scan(ctx, row)
 	if err != nil {
 		return nil, fmt.Errorf("preview enrollment child deletion: %w", err)
 	}

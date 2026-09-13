@@ -241,6 +241,7 @@ type rolloverChildAttributes struct {
 
 // RolloverServiceConfig is the dependency-injection bundle.
 type RolloverServiceConfig struct {
+	Bookings CareBookingCommands
 	Phases   RolloverPhases
 	Requests RolloverRequests
 	Children RolloverChildren
@@ -626,15 +627,23 @@ func rolloverAttributesForSource(input rolloverRequestInput, source *RequestChil
 // copyRolloverOfferings carries the booking effective at the END of the
 // source phase into the new child: the offering reference is remapped to
 // the target phase's clone, the effective weekday selection (parent-
-// selected, manual, and automatically derived days) plus notes travel
-// verbatim, and the validity interval is deliberately left nil — the
-// owner pins it to the NEW phase's service window on insert, so
-// historical source-phase intervals never carry over (#2249).
+// selected, manual, and automatically derived days) plus notes seed the new
+// submission. Effective bookings use the new phase's service window, never
+// the historical source intervals (#2249).
 func (s *rolloverService) copyRolloverOfferings(ctx context.Context, input rolloverRequestInput, sourceChildID, newChildID int64) error {
 	offerings, err := s.Children.RequestChildOfferingsAtDate(ctx, sourceChildID, input.sourcePhase.ServiceEndDate)
 	if err != nil {
 		return fmt.Errorf("rollover: list source offerings: %w", err)
 	}
+	if len(offerings) == 0 {
+		return nil
+	}
+	if s.Bookings == nil {
+		return fmt.Errorf("rollover requires Care Plan booking commands")
+	}
+	start, until := timezone.Date(input.newPhase.ServiceStartDate), timezone.Date(input.newPhase.ServiceEndDate).AddDays(1)
+	choices := make([]capability.SubmittedOfferingChoice, 0, len(offerings))
+	bookings := make([]CareBookingInput, 0, len(offerings))
 	for _, offering := range offerings {
 		targetOfferingID, ok := input.offeringIDMap[offering.CareOfferingID]
 		if !ok {
@@ -643,18 +652,23 @@ func (s *rolloverService) copyRolloverOfferings(ctx context.Context, input rollo
 				offering.CareOfferingID, sourceChildID,
 			)
 		}
-		copyRow := &capability.RequestChildOffering{
-			RequestChildID:        newChildID,
-			CareOfferingID:        targetOfferingID,
-			SelectedDays:          offering.SelectedDays,
-			ManualSelectedDays:    offering.ManualSelectedDays,
-			AutomaticSelectedDays: offering.AutomaticSelectedDays,
-			Notes:                 offering.Notes,
+		manual := offering.ManualSelectedDays
+		if len(manual) == 0 && len(offering.AutomaticSelectedDays) == 0 {
+			manual = offering.SelectedDays
 		}
-		copyRow.TenantID = input.tenantID
-		if err := s.Children.InsertRequestChildOffering(ctx, copyRow); err != nil {
-			return fmt.Errorf("rollover: copy offering: %w", err)
-		}
+		choices = append(choices, capability.SubmittedOfferingChoice{
+			CareOfferingID: targetOfferingID, SelectedDays: manual, Notes: offering.Notes,
+		})
+		bookings = append(bookings, CareBookingInput{
+			CareOfferingID: targetOfferingID, ManualSelectedDays: manual, AutomaticSelectedDays: offering.AutomaticSelectedDays,
+			ValidFrom: &start, ValidUntil: &until,
+		})
+	}
+	if err := s.Children.RecordSubmittedOfferingChoices(ctx, newChildID, choices); err != nil {
+		return fmt.Errorf("rollover: record submitted offerings: %w", err)
+	}
+	if err := s.Bookings.RecordCareBookings(ctx, newChildID, bookings); err != nil {
+		return fmt.Errorf("rollover: record effective bookings: %w", err)
 	}
 	return nil
 }

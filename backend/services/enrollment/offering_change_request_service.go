@@ -758,10 +758,11 @@ func (s *offeringChangeRequestService) catalogAt(
 	if err != nil {
 		return nil, fmt.Errorf("offering change: list active offerings: %w", err)
 	}
-	current, err := readOwnerOfferingSelections(ctx, s.Children, period.RequestChildID, onDate)
+	state, err := s.Children.OfferingCatalogState(ctx, phase.ID, period.RequestChildID, enrollmentOwner.Date(onDate), enrollmentOwner.Date(timezone.Date(phase.ServiceEndDate).AddDays(1)))
 	if err != nil {
 		return nil, fmt.Errorf("offering change: list current offerings: %w", err)
 	}
+	current := legacyOfferingSelections(state.Current)
 	currentByID := make(map[int64]*RequestChildOffering, len(current))
 	for _, link := range current {
 		if link != nil {
@@ -805,10 +806,7 @@ func (s *offeringChangeRequestService) catalogAt(
 		if offering == nil {
 			continue
 		}
-		item, itemErr := s.catalogItem(ctx, offering, currentByID[offering.ID], onDate, timezone.Date(phase.ServiceEndDate).AddDays(1))
-		if itemErr != nil {
-			return nil, itemErr
-		}
+		item := catalogItem(offering, currentByID[offering.ID], state.CapacityPeaks[offering.ID])
 		item.IsActive = activeByID[offering.ID] != nil
 		catalog.Items = append(catalog.Items, item)
 	}
@@ -818,12 +816,11 @@ func (s *offeringChangeRequestService) catalogAt(
 	return catalog, nil
 }
 
-func (s *offeringChangeRequestService) catalogItem(
-	ctx context.Context,
+func catalogItem(
 	offering *enrollmentModels.CareOffering,
 	current *RequestChildOffering,
-	onDate, phaseEndExclusive timezone.Date,
-) (OfferingChangeCatalogItem, error) {
+	taken int,
+) OfferingChangeCatalogItem {
 	item := OfferingChangeCatalogItem{
 		OfferingID:      offering.ID,
 		Name:            offering.Name,
@@ -848,17 +845,13 @@ func (s *offeringChangeRequestService) catalogItem(
 		item.Automatic = len(current.ManualSelectedDays) == 0 && len(current.AutomaticSelectedDays) > 0
 	}
 	if offering.Capacity == nil {
-		return item, nil
+		return item
 	}
 	capacity := *offering.Capacity
 	item.Capacity = &capacity
-	taken, err := s.Children.OfferingCapacityPeak(ctx, offering.ID, nil, enrollmentOwner.Date(onDate), enrollmentOwner.Date(phaseEndExclusive))
-	if err != nil {
-		return OfferingChangeCatalogItem{}, fmt.Errorf("offering change: count offering occupancy: %w", err)
-	}
 	free := max(capacity-taken, 0)
 	item.FreeSlots = &free
-	return item, nil
+	return item
 }
 
 func (s *offeringChangeRequestService) GetForStudent(
@@ -1547,7 +1540,7 @@ func (s *offeringChangeRequestService) pendingReviews(
 	for childID, date := range dates {
 		ownerDates[childID] = enrollmentOwner.Date(date)
 	}
-	values, err := s.Children.RequestChildOfferingsAtDates(ctx, ownerDates)
+	values, err := s.Children.EffectiveOfferingSelectionsAtDates(ctx, ownerDates)
 	current := legacyOfferingSelections(values)
 	if err != nil {
 		return nil, fmt.Errorf("load current offerings: %w", err)

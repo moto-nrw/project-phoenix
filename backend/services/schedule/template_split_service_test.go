@@ -20,6 +20,8 @@ import (
 	"testing"
 	"time"
 
+	bookingFixtures "github.com/moto-nrw/project-phoenix/services"
+
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -431,7 +433,7 @@ func TestTemplateMutations_RejectCareOfferingSeriesConflictsWithoutPersisting(t 
 			CareOfferingID: offering.ID,
 			SelectedDays:   []string{"mon"},
 		}
-		require.NoError(t, repos.Enrollment().InsertRequestChildOffering(s.ctx, selection))
+		require.NoError(t, bookingFixtures.NewEnrollmentBookingFixture().InsertRequestChildOffering(s.ctx, selection))
 		s.extraCleanups = append([]func(){func() {
 		}}, s.extraCleanups...)
 		offering.IsActive = false

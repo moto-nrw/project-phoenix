@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+
 	"log/slog"
 	"sync"
 	"testing"
@@ -149,6 +150,7 @@ func newDecisionServiceForTestWithDependencies(
 		})
 	}
 	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
+		Bookings:               requestTestBookingCommands(),
 		Requests:               repoFactory.Enrollment(),
 		Children:               repoFactory.Enrollment(),
 		Guardians:              repoFactory.Enrollment(),
@@ -3899,7 +3901,7 @@ func createChildOfferingLink(
 		ValidUntil:     (*capability.Date)(validUntil),
 	}
 	link.TenantID = testpkg.Tenant(t)
-	require.NoError(t, env.repos.Enrollment().InsertRequestChildOffering(ctx, link))
+	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, link))
 }
 
 // #2185: the staff view and the parent portal must judge "starts later" from
