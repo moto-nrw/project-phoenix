@@ -271,7 +271,7 @@ function RoleStammdatenTab({
 
   return (
     <div className="space-y-4">
-      <section className="rounded-lg border border-gray-200 bg-white p-4">
+      <section className="moto-content-surface rounded-xl border p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
           {role.isSystem ? (
             <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">

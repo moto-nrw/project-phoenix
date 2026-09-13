@@ -20,6 +20,7 @@ import {
 } from "~/lib/enrollment-submission-api";
 import { createLogger } from "~/lib/logger";
 import { Button, ButtonLink } from "~/components/ui/button";
+import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { EnrollmentChangeRequestDiff } from "~/components/enrollment/enrollment-change-request-diff";
 import type { EnrollmentChangeRequestDiffCopy } from "~/lib/enrollment-change-request-diff";
@@ -1038,43 +1039,24 @@ function GuardianSection({
 function GuardianDetails({ status }: Readonly<{ status: StatusResponse }>) {
   const t = useTranslations("enrollmentStatus");
   return (
-    <dl className="grid gap-3 text-sm text-gray-700 sm:grid-cols-3">
-      <div className="moto-content-surface rounded-xl border p-4 shadow-sm">
-        <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          {t("nameLabel")}
-        </dt>
-        <dd className="mt-1 font-semibold text-gray-900">
-          {status.guardian_first_name} {status.guardian_last_name}
-        </dd>
-      </div>
-      <div className="moto-content-surface rounded-xl border p-4 shadow-sm">
-        <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          {t("emailLabel")}
-        </dt>
-        <dd className="mt-1 font-semibold break-all text-gray-900">
-          {status.guardian_email}
-        </dd>
-      </div>
-      <div className="moto-content-surface rounded-xl border p-4 shadow-sm">
-        <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          {t("phoneLabel")}
-        </dt>
-        <dd className="mt-1 font-semibold text-gray-900">
-          {status.guardian_phone ?? t("notProvided")}
-        </dd>
-      </div>
+    <DataGrid>
+      <DataField label={t("nameLabel")}>
+        {status.guardian_first_name} {status.guardian_last_name}
+      </DataField>
+      <DataField label={t("emailLabel")}>
+        <span className="break-all">{status.guardian_email}</span>
+      </DataField>
+      <DataField label={t("phoneLabel")}>
+        {status.guardian_phone ?? t("notProvided")}
+      </DataField>
       {status.additional_guardians?.map((guardian: StatusGuardian) => (
-        <div
+        <DataField
           key={`${guardian.first_name}-${guardian.last_name}-${guardian.email ?? ""}-${guardian.phone ?? ""}`}
-          className="moto-content-surface rounded-xl border p-4 shadow-sm sm:col-span-3"
+          label={t("additionalGuardiansLabel")}
+          fullWidth
         >
-          <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            {t("additionalGuardiansLabel")}
-          </dt>
-          <dd className="mt-1 font-semibold text-gray-900">
-            {guardian.first_name} {guardian.last_name}
-          </dd>
-          <dd className="mt-1 text-sm text-gray-600">
+          {guardian.first_name} {guardian.last_name}
+          <span className="block font-normal text-gray-600">
             {guardian.email && guardian.email.trim() !== ""
               ? guardian.email
               : t("notProvided")}
@@ -1082,10 +1064,10 @@ function GuardianDetails({ status }: Readonly<{ status: StatusResponse }>) {
             {guardian.phone && guardian.phone.trim() !== ""
               ? guardian.phone
               : t("notProvided")}
-          </dd>
-        </div>
+          </span>
+        </DataField>
       ))}
-    </dl>
+    </DataGrid>
   );
 }
 
