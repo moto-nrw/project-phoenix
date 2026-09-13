@@ -484,6 +484,7 @@ func (m *mockAuthService) ListRoles(context.Context, map[string]interface{}) ([]
 	return nil, nil
 }
 func (m *mockAuthService) AssignRoleToAccount(context.Context, int, int) error   { return nil }
+func (m *mockAuthService) ReplaceAccountRole(context.Context, int, int) error    { return nil }
 func (m *mockAuthService) RemoveRoleFromAccount(context.Context, int, int) error { return nil }
 func (m *mockAuthService) GetAccountRoles(context.Context, int) ([]*authModels.Role, error) {
 	return nil, nil
@@ -520,8 +521,9 @@ func (m *mockAuthService) GetAccountPermissions(context.Context, int) ([]*authMo
 func (m *mockAuthService) GetAccountDirectPermissions(context.Context, int) ([]*authModels.Permission, error) {
 	return nil, nil
 }
-func (m *mockAuthService) AssignPermissionToRole(context.Context, int, int) error   { return nil }
-func (m *mockAuthService) RemovePermissionFromRole(context.Context, int, int) error { return nil }
+func (m *mockAuthService) AssignPermissionToRole(context.Context, int, int) error     { return nil }
+func (m *mockAuthService) ReplaceRolePermissions(context.Context, int, []int64) error { return nil }
+func (m *mockAuthService) RemovePermissionFromRole(context.Context, int, int) error   { return nil }
 func (m *mockAuthService) GetRolePermissions(context.Context, int) ([]*authModels.Permission, error) {
 	return nil, nil
 }
