@@ -107,10 +107,10 @@ create() {
     [[ "$image_ref" =~ @sha256:[a-f0-9]{64}$ ]] || fail "No immutable registry digest for $service"
     printf '%s\t%s\n' "$service" "$image_ref" >> "$bundle/images.tsv"
     printf '  %s:\n    image: %s\n' "$service" "$image_ref" >> "$bundle/images.yml"
-  done < <(compose config --services)
+  done < <(compose --profile '*' config --services)
   cp .env "$bundle/.env"
   cp .deploy-state "$bundle/deploy-state"
-  compose -f docker-compose.yml -f "$bundle/images.yml" config --no-interpolate > "$bundle/compose.yml"
+  compose --profile '*' -f docker-compose.yml -f "$bundle/images.yml" config --no-interpolate > "$bundle/compose.yml"
   rm "$bundle/images.yml"
   printf '%s\n' "$DEPLOY_DIR" > "$bundle/environment"
   date -u +%Y-%m-%dT%H:%M:%SZ > "$bundle/created-at"

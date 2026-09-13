@@ -18,13 +18,13 @@ trap 'rmdir .release-operation.lock' EXIT
 sed "s|phoenix-server:[^ ]*|phoenix-server:${DEPLOY_SHA}|; s|phoenix-frontend:[^ ]*|phoenix-frontend:${DEPLOY_SHA}|" docker-compose.yml.new > docker-compose.yml.pinned
 mv docker-compose.yml.pinned docker-compose.yml.new
 docker compose --env-file .env.new -f docker-compose.yml.new pull
+backup_root="${deployment_directory%/*}/backups/$DEPLOY_DIR"
+mkdir -p "$backup_root"
 if ! docker compose stop server frontend; then
   echo 'Application stop failed; no backup or migration attempted' >&2
   exit 1
 fi
 
-backup_root="${deployment_directory%/*}/backups/$DEPLOY_DIR"
-mkdir -p "$backup_root"
 backup_id="release-$(date -u +%Y%m%dT%H%M%SZ)-${DEPLOY_SHA}"
 bundle="$backup_root/$backup_id"
 if ! bash "$script_dir/release-backup.sh" create "$bundle"; then

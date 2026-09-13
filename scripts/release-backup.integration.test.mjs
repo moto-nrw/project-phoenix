@@ -47,6 +47,7 @@ services:
   migrate:
     image: ${image}
     entrypoint: ["true"]
+    profiles: [maintenance]
 volumes:
   database:
   uploads:
@@ -76,6 +77,7 @@ INSERT INTO platform.email_outbox VALUES (71, 'pending');`);
   docker('compose', 'stop', 'server', 'frontend');
   const bundle = join(root, 'backups/staging/release-20260914T010000Z-bbbbbbb');
   run('bash', [join(scripts, 'release-backup.sh'), 'create', bundle]);
+  assert.match(readFileSync(join(bundle, 'images.tsv'), 'utf8'), /migrate\tpostgres@sha256:/);
   const uploads = readFileSync(join(bundle, 'uploads-volume'), 'utf8').trim();
   sql(`UPDATE auth.accounts SET id=99;
 ALTER TABLE platform.email_outbox ADD COLUMN recipient jsonb;

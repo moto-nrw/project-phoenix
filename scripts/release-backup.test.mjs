@@ -92,6 +92,10 @@ test('deployment stop or backup failure never reaches migrations', t => {
     assert.doesNotMatch(f.calls(), /run --rm migrate/);
     assert.equal(readFileSync(join(f.cwd, '.env'), 'utf8'), 'MODE=old\n');
   }
+  const f = fixture(t);
+  writeFileSync(join(f.root, 'backups'), 'not a directory');
+  assert.equal(f.run('deploy-remote.sh').status, 1);
+  assert.doesNotMatch(f.calls(), /stop|run --rm migrate/);
 });
 test('migration failure invokes complete automatic rollback', t => {
   const f = fixture(t);
