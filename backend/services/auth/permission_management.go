@@ -223,6 +223,58 @@ func (s *Service) AssignPermissionToRole(ctx context.Context, roleID, permission
 	return nil
 }
 
+// ReplaceRolePermissions applies a complete permission selection to a custom
+// role in one transaction. All requested permissions are validated before the
+// current selection is changed, so an invalid request leaves it untouched.
+func (s *Service) ReplaceRolePermissions(ctx context.Context, roleID int, permissionIDs []int64) error {
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		role, err := s.repos.Role.FindByID(txCtx, int64(roleID))
+		if err != nil {
+			return &AuthError{Op: "replace role permissions", Err: ErrRoleNotFound}
+		}
+		if role.IsSystem {
+			return &AuthError{Op: "replace role permissions", Err: ErrSystemRoleImmutable}
+		}
+
+		desired := make(map[int64]struct{}, len(permissionIDs))
+		for _, permissionID := range permissionIDs {
+			if permissionID <= 0 {
+				return &AuthError{Op: "replace role permissions", Err: ErrPermissionNotFound}
+			}
+			if _, err := s.repos.Permission.FindByID(txCtx, permissionID); err != nil {
+				return &AuthError{Op: "replace role permissions", Err: ErrPermissionNotFound}
+			}
+			desired[permissionID] = struct{}{}
+		}
+
+		currentPermissions, err := s.repos.Permission.FindByRoleID(txCtx, int64(roleID))
+		if err != nil {
+			return &AuthError{Op: "replace role permissions", Err: err}
+		}
+		current := make(map[int64]struct{}, len(currentPermissions))
+		for _, permission := range currentPermissions {
+			current[permission.ID] = struct{}{}
+			if _, keep := desired[permission.ID]; keep {
+				continue
+			}
+			if err := s.repos.Permission.RemovePermissionFromRole(txCtx, int64(roleID), permission.ID); err != nil {
+				return &AuthError{Op: "replace role permissions", Err: err}
+			}
+		}
+
+		for permissionID := range desired {
+			if _, assigned := current[permissionID]; assigned {
+				continue
+			}
+			if err := s.repos.Permission.AssignPermissionToRole(txCtx, int64(roleID), permissionID); err != nil {
+				return &AuthError{Op: "replace role permissions", Err: err}
+			}
+		}
+
+		return nil
+	})
+}
+
 // RemovePermissionFromRole removes a permission from a role. System roles cannot be modified.
 func (s *Service) RemovePermissionFromRole(ctx context.Context, roleID, permissionID int) error {
 	// Verify role exists and check system role protection

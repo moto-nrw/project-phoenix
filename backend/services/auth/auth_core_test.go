@@ -1320,6 +1320,43 @@ func TestAuthService_AssignRoleToAccount(t *testing.T) {
 	})
 }
 
+func TestAuthService_ReplaceAccountRole(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service := setupAuthService(t, db)
+	ctx := testpkg.Ctx(t)
+
+	account := testpkg.CreateTestAccount(t, db, "replace-account-role")
+	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
+	oldRole, err := service.CreateRole(ctx, fmt.Sprintf("replace-old-%d", time.Now().UnixNano()), "old role", testpkg.StrPtr("user"))
+	require.NoError(t, err)
+	newRole, err := service.CreateRole(ctx, fmt.Sprintf("replace-new-%d", time.Now().UnixNano()), "new role", testpkg.StrPtr("user"))
+	require.NoError(t, err)
+	require.NoError(t, service.AssignRoleToAccount(ctx, int(account.ID), int(oldRole.ID)))
+
+	require.NoError(t, service.ReplaceAccountRole(ctx, int(account.ID), int(newRole.ID)))
+
+	roles, err := service.GetAccountRoles(ctx, int(account.ID))
+	require.NoError(t, err)
+	require.Len(t, roles, 1)
+	assert.Equal(t, newRole.ID, roles[0].ID)
+
+	sentinelErr := errors.New("force outer rollback")
+	err = tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
+		if err := service.ReplaceAccountRole(txCtx, int(account.ID), int(oldRole.ID)); err != nil {
+			return err
+		}
+		return sentinelErr
+	})
+	require.ErrorIs(t, err, sentinelErr)
+
+	roles, err = service.GetAccountRoles(ctx, int(account.ID))
+	require.NoError(t, err)
+	require.Len(t, roles, 1)
+	assert.Equal(t, newRole.ID, roles[0].ID)
+}
+
 func TestAuthService_RemoveRoleFromAccount(t *testing.T) {
 	t.Parallel()
 
@@ -1826,6 +1863,45 @@ func TestAuthService_AssignPermissionToRole(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 	})
+}
+
+func TestAuthService_ReplaceRolePermissions(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service := setupAuthService(t, db)
+	ctx := testpkg.Ctx(t)
+	uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
+	role, err := service.CreateRole(ctx, "replace-permissions-"+uniqueID, "Test role", testpkg.StrPtr("user"))
+	require.NoError(t, err)
+	oldPermission, err := service.CreatePermission(ctx, "replace-old-"+uniqueID, "Old permission", "replace-old-"+uniqueID, "read")
+	require.NoError(t, err)
+	testpkg.OwnTestPermission(t, db, oldPermission.ID)
+	newPermission, err := service.CreatePermission(ctx, "replace-new-"+uniqueID, "New permission", "replace-new-"+uniqueID, "read")
+	require.NoError(t, err)
+	testpkg.OwnTestPermission(t, db, newPermission.ID)
+	require.NoError(t, service.AssignPermissionToRole(ctx, int(role.ID), int(oldPermission.ID)))
+
+	require.NoError(t, service.ReplaceRolePermissions(ctx, int(role.ID), []int64{newPermission.ID}))
+
+	permissions, err := service.GetRolePermissions(ctx, int(role.ID))
+	require.NoError(t, err)
+	require.Len(t, permissions, 1)
+	assert.Equal(t, newPermission.ID, permissions[0].ID)
+
+	sentinelErr := errors.New("force outer rollback")
+	err = tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
+		if err := service.ReplaceRolePermissions(txCtx, int(role.ID), []int64{oldPermission.ID}); err != nil {
+			return err
+		}
+		return sentinelErr
+	})
+	require.ErrorIs(t, err, sentinelErr)
+
+	permissions, err = service.GetRolePermissions(ctx, int(role.ID))
+	require.NoError(t, err)
+	require.Len(t, permissions, 1)
+	assert.Equal(t, newPermission.ID, permissions[0].ID)
 }
 
 func TestAuthService_RemovePermissionFromRole(t *testing.T) {

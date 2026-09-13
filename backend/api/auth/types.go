@@ -377,6 +377,42 @@ type UpdateRoleRequest struct {
 	BaseRole    *string `json:"base_role,omitempty"`
 }
 
+// ReplaceRolePermissionsRequest contains the complete target set for a role.
+// An explicit empty array removes every permission; an omitted field is invalid.
+type ReplaceRolePermissionsRequest struct {
+	PermissionIDs []int64 `json:"permission_ids"`
+}
+
+func (req *ReplaceRolePermissionsRequest) Bind(_ *http.Request) error {
+	if req.PermissionIDs == nil {
+		return errors.New("permission_ids is required")
+	}
+	seen := make(map[int64]struct{}, len(req.PermissionIDs))
+	for _, permissionID := range req.PermissionIDs {
+		if permissionID <= 0 {
+			return errors.New("permission_ids must contain positive IDs")
+		}
+		if _, duplicate := seen[permissionID]; duplicate {
+			return errors.New("permission_ids must not contain duplicates")
+		}
+		seen[permissionID] = struct{}{}
+	}
+	return nil
+}
+
+// ReplaceAccountRoleRequest contains the one role an account should hold in
+// the current tenant.
+type ReplaceAccountRoleRequest struct {
+	RoleID *int64 `json:"role_id"`
+}
+
+func (req *ReplaceAccountRoleRequest) Bind(_ *http.Request) error {
+	if req.RoleID == nil || *req.RoleID <= 0 {
+		return errors.New("role_id is required")
+	}
+	return nil
+}
+
 // Bind validates the update role request.
 // BaseRole is optional on update — if omitted, the handler preserves the existing value.
 func (req *UpdateRoleRequest) Bind(_ *http.Request) error {

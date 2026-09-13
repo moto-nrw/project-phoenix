@@ -178,25 +178,13 @@ export function RolePermissionsTab({
     });
 
   const handleSave = async () => {
-    const toAssign: string[] = [];
-    const toRemove: string[] = [];
-    for (const permission of allPermissions) {
-      const before = assignedMap[permission.id] ?? false;
-      const after = draftMap[permission.id] ?? false;
-      if (!before && after) toAssign.push(permission.id);
-      if (before && !after) toRemove.push(permission.id);
-    }
+    const permissionIds = allPermissions
+      .filter((permission) => draftMap[permission.id] === true)
+      .map((permission) => permission.id);
     setSaving(true);
     setSaveError(null);
     try {
-      await Promise.all([
-        ...toAssign.map((id) =>
-          authService.assignPermissionToRole(role.id, id),
-        ),
-        ...toRemove.map((id) =>
-          authService.removePermissionFromRole(role.id, id),
-        ),
-      ]);
+      await authService.replaceRolePermissions(role.id, permissionIds);
       toastSuccess("Berechtigungen gespeichert.");
       await fetchPermissions(true);
       await onSaved();

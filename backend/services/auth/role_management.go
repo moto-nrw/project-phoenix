@@ -217,6 +217,34 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 	return nil
 }
 
+// ReplaceAccountRole assigns the requested role and removes every other role
+// of the account in one transaction. The target is assigned first so the
+// account never temporarily loses all roles; a later failure rolls back the
+// complete exchange.
+func (s *Service) ReplaceAccountRole(ctx context.Context, accountID, roleID int) error {
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		currentRoles, err := s.GetAccountRoles(txCtx, accountID)
+		if err != nil {
+			return err
+		}
+
+		if err := s.AssignRoleToAccount(txCtx, accountID, roleID); err != nil {
+			return err
+		}
+
+		for _, currentRole := range currentRoles {
+			if currentRole.ID == int64(roleID) {
+				continue
+			}
+			if err := s.RemoveRoleFromAccount(txCtx, accountID, int(currentRole.ID)); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+}
+
 // ensureIdentityForAssignedRole completes the school identity chain for a role
 // that was just assigned, inside the caller's transaction.
 //

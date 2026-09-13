@@ -74,6 +74,7 @@ function RolesPageContent() {
   });
   const canManagePermissions =
     (isAdmin(session) || hasPermission(session, "roles:manage")) &&
+    (isAdmin(session) || hasPermission(session, "roles:read")) &&
     (isAdmin(session) || hasPermission(session, "permissions:read"));
 
   const service = useMemo(() => createCrudService(rolesConfig), []);

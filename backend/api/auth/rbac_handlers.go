@@ -211,36 +211,56 @@ func (rs *Resource) assignRoleToAccount(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err := rs.AuthService.AssignRoleToAccount(r.Context(), accountID, int(*approvedRoleID)); err != nil {
-		// The role row is written before the identity step runs, and the service
-		// reuses the request's tenant transaction, which TenantTxMiddleware
-		// commits for every response below 500. Without this marker a refused
-		// assignment would be committed anyway.
-		tenant.MarkRollback(r.Context())
-
-		// Caller mistake, not a server fault: the caregiver profile and the
-		// Lehrkraft role exclude each other in both directions (#1772) —
-		// surface the German policy message instead of a 500.
-		for _, policyErr := range []error{
-			authService.ErrRoleLehrkraftCaregiverProfile,
-			authService.ErrRoleCaregiverNeedsProfile,
-		} {
-			if errors.Is(err, policyErr) {
-				common.RenderError(w, r, common.ErrorConflict(policyErr))
-				return
-			}
-		}
-		// The account is linked to a child's person record, so the staff row
-		// this assignment owes cannot be built (#2222). Also the caller's
-		// problem, and the message says what to do about it.
-		if authService.IsSchoolIdentityRequestError(err) {
-			common.RenderError(w, r, common.ErrorInvalidRequest(err))
-			return
-		}
-		common.RenderError(w, r, accountManagementErrorRenderer(err))
+		rs.renderAccountRoleMutationError(w, r, err)
 		return
 	}
 
 	common.RespondNoContent(w, r)
+}
+
+// replaceAccountRole swaps all account roles for one approved target role.
+// The service executes the assignment and removals in the request transaction.
+func (rs *Resource) replaceAccountRole(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
+	if !ok {
+		return
+	}
+	req := &ReplaceAccountRoleRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	approvedRoleID, _, abort := rs.authorizeRoleAssignment(w, r, req.RoleID)
+	if abort {
+		return
+	}
+	if err := rs.AuthService.ReplaceAccountRole(r.Context(), accountID, int(*approvedRoleID)); err != nil {
+		rs.renderAccountRoleMutationError(w, r, err)
+		return
+	}
+
+	common.RespondNoContent(w, r)
+}
+
+func (rs *Resource) renderAccountRoleMutationError(w http.ResponseWriter, r *http.Request, err error) {
+	// The mutation may have written before a later identity or removal step
+	// fails. The request transaction otherwise commits every non-5xx response.
+	tenant.MarkRollback(r.Context())
+	for _, policyErr := range []error{
+		authService.ErrRoleLehrkraftCaregiverProfile,
+		authService.ErrRoleCaregiverNeedsProfile,
+	} {
+		if errors.Is(err, policyErr) {
+			common.RenderError(w, r, common.ErrorConflict(policyErr))
+			return
+		}
+	}
+	if authService.IsSchoolIdentityRequestError(err) {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	common.RenderError(w, r, accountManagementErrorRenderer(err))
 }
 
 // createPermission handles creating a new permission
@@ -480,6 +500,26 @@ func (rs *Resource) getRolePermissions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Role permissions retrieved successfully")
+}
+
+// replaceRolePermissions applies a complete permission selection atomically.
+func (rs *Resource) replaceRolePermissions(w http.ResponseWriter, r *http.Request) {
+	roleID, ok := common.ParseIntIDWithError(w, r, "roleId", common.MsgInvalidRoleID)
+	if !ok {
+		return
+	}
+	req := &ReplaceRolePermissionsRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	if err := rs.AuthService.ReplaceRolePermissions(r.Context(), roleID, req.PermissionIDs); err != nil {
+		tenant.MarkRollback(r.Context())
+		common.RenderError(w, r, renderRoleMutationError(err))
+		return
+	}
+
+	common.RespondNoContent(w, r)
 }
 
 // Account Management Extension Endpoints

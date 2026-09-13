@@ -60,7 +60,7 @@ export function CreateAccountModal({
         const roleList = await operatorProvisioningService.listSystemRoles();
         if (cancelled) return;
         const options = roleList
-          .filter((role) => isAssignableStaffRole(role.name))
+          .filter((role) => isAssignableStaffRole(role.name, role.isSystem))
           .map<RoleOption>((role) => ({
             id: Number(role.id),
             label: role.name

@@ -75,6 +75,7 @@ type AuthService interface {
 	DeleteRole(ctx context.Context, id int) error
 	ListRoles(ctx context.Context, filters map[string]interface{}) ([]*auth.Role, error)
 	AssignRoleToAccount(ctx context.Context, accountID, roleID int) error
+	ReplaceAccountRole(ctx context.Context, accountID, roleID int) error
 	RemoveRoleFromAccount(ctx context.Context, accountID, roleID int) error
 	GetAccountRoles(ctx context.Context, accountID int) ([]*auth.Role, error)
 	GetAccountRoleNames(ctx context.Context, accountIDs []int64) (map[int64]string, error)
@@ -94,6 +95,7 @@ type AuthService interface {
 	GetAccountPermissions(ctx context.Context, accountID int) ([]*auth.Permission, error)
 	GetAccountDirectPermissions(ctx context.Context, accountID int) ([]*auth.Permission, error)
 	AssignPermissionToRole(ctx context.Context, roleID, permissionID int) error
+	ReplaceRolePermissions(ctx context.Context, roleID int, permissionIDs []int64) error
 	RemovePermissionFromRole(ctx context.Context, roleID, permissionID int) error
 	GetRolePermissions(ctx context.Context, roleID int) ([]*auth.Permission, error)
 

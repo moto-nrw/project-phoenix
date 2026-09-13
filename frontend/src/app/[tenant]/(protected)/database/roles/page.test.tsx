@@ -392,6 +392,29 @@ describe("RolesPage", () => {
     });
   });
 
+  it("does not enable permission editing without roles:read", async () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          token: "test-token",
+          permissions: ["roles:manage", "permissions:read"],
+        },
+        expires: "2099-01-01",
+      },
+      status: "authenticated",
+    });
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("roles-master-detail")).toHaveAttribute(
+        "data-can-manage-permissions",
+        "false",
+      );
+    });
+  });
+
   it("shows error message when fetch fails", async () => {
     mockGetList.mockRejectedValueOnce(new Error("Failed to fetch"));
 

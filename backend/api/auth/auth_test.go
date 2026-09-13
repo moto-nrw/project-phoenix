@@ -1319,6 +1319,18 @@ func TestRolePermissionAssignment(t *testing.T) {
 		rr = testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"roles:manage"})
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Remove failed: %s", rr.Body.String())
 	})
+
+	t.Run("replaces permissions on a role", func(t *testing.T) {
+		role := testpkg.CreateTestRole(t, tc.db, "ReplacePermRole")
+		permission := testpkg.CreateTestPermission(t, tc.db, "ReplaceRolePermission", "test", "read")
+
+		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/roles/%d/permissions", role.ID), map[string][]int64{
+			"permission_ids": {permission.ID},
+		})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"roles:manage"})
+
+		assert.Equal(t, http.StatusNoContent, rr.Code, "Replace failed: %s", rr.Body.String())
+	})
 }
 
 // ============================================================================
@@ -1429,6 +1441,18 @@ func TestAccountRoleAssignment(t *testing.T) {
 		req = testutil.NewJSONRequest(t, "DELETE", fmt.Sprintf("/auth/accounts/%d/roles/%d", account.ID, role.ID), nil)
 		rr = testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Remove failed: %s", rr.Body.String())
+	})
+
+	t.Run("replaces roles on an account", func(t *testing.T) {
+		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("replacerole%d", time.Now().UnixNano()))
+		role := testpkg.CreateTestRole(t, tc.db, "ReplaceAccRole")
+
+		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/accounts/%d/roles", account.ID), map[string]int64{
+			"role_id": role.ID,
+		})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
+
+		assert.Equal(t, http.StatusNoContent, rr.Code, "Replace failed: %s", rr.Body.String())
 	})
 
 	t.Run("rejects direct assignment of guardian roles", func(t *testing.T) {

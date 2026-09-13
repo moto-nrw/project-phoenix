@@ -46,17 +46,11 @@ export async function loadAccountRoleAssignment(
 }
 
 /**
- * Tauscht die Rolle eines Kontos. Die neue Rolle wird zuerst zugewiesen und
- * die alten danach entfernt, damit ein Abbruch mitten in der Folge das Konto
- * mit einer Rolle zu viel zurücklässt, nie ohne Rolle.
+ * Tauscht die Rolle eines Kontos atomar im Backend.
  */
 export async function replaceAccountRole(
   accountId: string,
   targetRoleId: number,
-  currentRoleIds: readonly number[],
 ): Promise<void> {
-  await authService.assignRoleToAccount(accountId, String(targetRoleId));
-  for (const oldId of currentRoleIds.filter((id) => id !== targetRoleId)) {
-    await authService.removeRoleFromAccount(accountId, String(oldId));
-  }
+  await authService.replaceAccountRole(accountId, String(targetRoleId));
 }

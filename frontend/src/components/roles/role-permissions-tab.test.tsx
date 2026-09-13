@@ -14,16 +14,14 @@ const {
   mockToastSuccess,
   mockGetPermissions,
   mockGetRolePermissions,
-  mockAssignPermission,
-  mockRemovePermission,
+  mockReplaceRolePermissions,
 } = vi.hoisted(() => ({
   mockToastSuccess: vi.fn(),
   mockGetPermissions: vi.fn((): Promise<Permission[]> => Promise.resolve([])),
   mockGetRolePermissions: vi.fn((): Promise<Permission[]> =>
     Promise.resolve([]),
   ),
-  mockAssignPermission: vi.fn(() => Promise.resolve()),
-  mockRemovePermission: vi.fn(() => Promise.resolve()),
+  mockReplaceRolePermissions: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock("~/contexts/ToastContext", () => ({
@@ -34,8 +32,7 @@ vi.mock("~/lib/auth-service", () => ({
   authService: {
     getPermissions: mockGetPermissions,
     getRolePermissions: mockGetRolePermissions,
-    assignPermissionToRole: mockAssignPermission,
-    removePermissionFromRole: mockRemovePermission,
+    replaceRolePermissions: mockReplaceRolePermissions,
   },
 }));
 
@@ -166,7 +163,7 @@ describe("RolePermissionsTab", () => {
     });
   });
 
-  it("saves only the differences with one save button", async () => {
+  it("replaces the complete selection with one save request", async () => {
     render(
       <RolePermissionsTab
         role={role}
@@ -191,11 +188,9 @@ describe("RolePermissionsTab", () => {
     fireEvent.click(save);
 
     await waitFor(() => {
-      expect(mockAssignPermission).toHaveBeenCalledWith("1", "p3");
+      expect(mockReplaceRolePermissions).toHaveBeenCalledWith("1", ["p3"]);
     });
-    expect(mockRemovePermission).toHaveBeenCalledWith("1", "p1");
-    expect(mockAssignPermission).toHaveBeenCalledTimes(1);
-    expect(mockRemovePermission).toHaveBeenCalledTimes(1);
+    expect(mockReplaceRolePermissions).toHaveBeenCalledTimes(1);
     await waitFor(() => {
       expect(onSaved).toHaveBeenCalledOnce();
     });
@@ -244,7 +239,7 @@ describe("RolePermissionsTab", () => {
   });
 
   it("shows the save error in the alert and keeps the draft", async () => {
-    mockAssignPermission.mockRejectedValueOnce(new Error("offline"));
+    mockReplaceRolePermissions.mockRejectedValueOnce(new Error("offline"));
     render(
       <RolePermissionsTab
         role={role}

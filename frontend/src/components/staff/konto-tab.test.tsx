@@ -170,6 +170,16 @@ describe("KontoTab", () => {
     expect(screen.getByLabelText("Nachname")).toBeInTheDocument();
   });
 
+  it("disables saving while the editable system role is still loading", () => {
+    const editing = editingProps({ canEditRole: true });
+    render(<KontoTab teacher={teacher} editing={editing} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+    expect(editing.onSave).not.toHaveBeenCalled();
+  });
+
   it("reports a failed save in the alert and stays in the edit state", async () => {
     const editing = editingProps({
       onSave: vi.fn(() =>

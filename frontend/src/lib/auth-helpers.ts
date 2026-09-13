@@ -281,8 +281,13 @@ const NON_ASSIGNABLE_STAFF_ROLE_NAMES = new Set(["guardian", "teacher"]);
  * role picker (invitation form, teacher-creation form, role-management modal,
  * operator account creation) so the exclusion list lives in one place.
  */
-export function isAssignableStaffRole(roleName: string): boolean {
-  return !NON_ASSIGNABLE_STAFF_ROLE_NAMES.has(roleName.toLowerCase());
+export function isAssignableStaffRole(
+  roleName: string,
+  isSystem = true,
+): boolean {
+  return (
+    !isSystem || !NON_ASSIGNABLE_STAFF_ROLE_NAMES.has(roleName.toLowerCase())
+  );
 }
 
 /**
@@ -292,7 +297,7 @@ export function isAssignableStaffRole(roleName: string): boolean {
  */
 export function toAssignableRoleOptions(roles: Role[]): RoleOption[] {
   return roles
-    .filter((role) => isAssignableStaffRole(role.name))
+    .filter((role) => isAssignableStaffRole(role.name, role.isSystem))
     .map((role) => ({
       id: Number(role.id),
       name: role.name ? getRoleDisplayName(role.name) : `Rolle ${role.id}`,
