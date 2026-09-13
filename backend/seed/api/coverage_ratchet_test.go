@@ -74,9 +74,8 @@ var seedCoverageExemptions = map[string]string{
 	"education.grade_transition_class_list_entries": "not in prod yet (migration newer than the deployed image)",
 	"education.grade_transition_class_teachers":     "empty in prod too",
 
-	"enrollment.care_offering_auto_triggers":       "empty in prod too",
-	"enrollment.care_offering_bookings":            "#2713 backfills only legacy rows present at migration time; the seeder writes afterwards and dual writes are forbidden; remove at Cutover",
-	"enrollment.request_child_offering_selections": "#2713 backfills only legacy rows present at migration time; the seeder writes afterwards and dual writes are forbidden; remove at Cutover",
+	"enrollment.care_offering_auto_triggers":    "empty in prod too",
+	"enrollment.request_child_offerings_legacy": "rollback archive retained by Cutover #2714; populated only from pre-cutover data or previous-image compatibility writes, never current seed/API traffic",
 
 	"feedback.entries": "empty in prod too",
 
