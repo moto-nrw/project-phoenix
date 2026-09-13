@@ -296,7 +296,7 @@ export function RolePermissionsTab({
         </Button>
       </div>
 
-      <div className="moto-content-surface rounded-xl border shadow-sm">
+      <SectionCard className="!p-0">
         {editGroups.length === 0 ? (
           <p className="px-4 py-8 text-center text-sm text-gray-500">
             Keine Berechtigungen gefunden.
@@ -386,7 +386,7 @@ export function RolePermissionsTab({
             );
           })
         )}
-      </div>
+      </SectionCard>
 
       <EditActions
         onCancel={onCancelEdit}

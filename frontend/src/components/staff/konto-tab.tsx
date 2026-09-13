@@ -33,18 +33,20 @@ export interface KontoDraft {
   readonly first_name?: string;
   readonly last_name?: string;
   readonly role?: string | null;
-  readonly staff_notes: string;
+  readonly staff_notes?: string;
   /** Neue Systemrolle, nur wenn sie sich von der aktuellen unterscheidet. */
   readonly role_id?: number;
 }
 
-/** Der Bearbeiten-Zustand des Reiters (staff:manage). */
+/** Der Bearbeiten-Zustand des Reiters. */
 export interface KontoEditing {
   /**
    * Vorname und Nachname liegen am Personen-Datensatz (PUT /api/users/{id},
    * users:update). Wer nur staff:manage hat, sieht sie als Anzeige (#2906).
    */
   readonly canEditPersonFields: boolean;
+  /** Position und Notizen liegen am Personal-Datensatz (staff:manage). */
+  readonly canEditStaffFields: boolean;
   /** Positionen der Schule als Vorschläge; erst geladen, wenn bearbeitet wird. */
   readonly existingPositions: readonly string[];
   /** Systemrolle (users:manage und ein verknüpftes Konto). */
@@ -61,7 +63,7 @@ export interface KontoEditing {
 
 interface KontoTabProps {
   readonly teacher: Teacher;
-  /** Ohne staff:manage gibt es keinen Bearbeiten-Zustand und keine Notizen. */
+  /** Ohne Personal- oder Kontoverwaltung gibt es keinen Bearbeiten-Zustand. */
   readonly editing?: KontoEditing;
 }
 
@@ -170,15 +172,19 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
     }
 
     const payload: KontoDraft = {
-      staff_notes: draft.notes,
+      ...(editing.canEditStaffFields
+        ? {
+            staff_notes: draft.notes,
+            ...(hasTeacherProfile(teacher)
+              ? { role: draft.position.trim() || null }
+              : {}),
+          }
+        : {}),
       ...(editing.canEditPersonFields
         ? {
             first_name: draft.firstName.trim(),
             last_name: draft.lastName.trim(),
           }
-        : {}),
-      ...(hasTeacherProfile(teacher)
-        ? { role: draft.position.trim() || null }
         : {}),
       ...(editing.canEditRole &&
       assignment &&
@@ -309,7 +315,7 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
           {/* Personalnotizen gehören zum Mitarbeiter-Datensatz und brauchen
               staff:manage (#2906). Ohne die Berechtigung liefert das Backend
               das Feld gar nicht erst aus, also entfällt der Abschnitt ganz. */}
-          {editing ? (
+          {editing?.canEditStaffFields ? (
             <InfoSection
               title="Notizen"
               icon={
@@ -401,7 +407,7 @@ function KontoEditForm({
       : currentRoleId === undefined
         ? ""
         : String(currentRoleId);
-  const showPosition = hasTeacherProfile(teacher);
+  const showPosition = editing.canEditStaffFields && hasTeacherProfile(teacher);
   const displayRole = teacher.account_role
     ? getRoleDisplayName(teacher.account_role)
     : "Keine Rolle hinterlegt";
@@ -507,27 +513,29 @@ function KontoEditForm({
         </div>
       </InfoSection>
 
-      <InfoSection
-        title="Notizen"
-        icon={
-          <MotoDuotoneIcon
-            icon={MOTO_CONCEPTS.feedback.icon}
-            tone={MOTO_CONCEPTS.feedback.tone}
-            size={18}
+      {editing.canEditStaffFields ? (
+        <InfoSection
+          title="Notizen"
+          icon={
+            <MotoDuotoneIcon
+              icon={MOTO_CONCEPTS.feedback.icon}
+              tone={MOTO_CONCEPTS.feedback.tone}
+              size={18}
+            />
+          }
+          accentColor="green"
+        >
+          <Textarea
+            name="konto-notes"
+            label="Notizen der Leitung"
+            value={draft.notes}
+            onChange={(event) => onPatch({ notes: event.target.value })}
+            rows={4}
+            placeholder="Notizen hinzufügen…"
+            disabled={saving}
           />
-        }
-        accentColor="green"
-      >
-        <Textarea
-          name="konto-notes"
-          label="Notizen der Leitung"
-          value={draft.notes}
-          onChange={(event) => onPatch({ notes: event.target.value })}
-          rows={4}
-          placeholder="Notizen hinzufügen…"
-          disabled={saving}
-        />
-      </InfoSection>
+        </InfoSection>
+      ) : null}
 
       <EditActions
         onCancel={onCancel}

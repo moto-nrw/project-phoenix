@@ -62,6 +62,7 @@ const teacher: Teacher = {
 function editingProps(overrides: Partial<KontoEditing> = {}): KontoEditing {
   return {
     canEditPersonFields: true,
+    canEditStaffFields: true,
     existingPositions: ["Betreuung", "OGS-Büro"],
     canEditRole: false,
     onEditingChange: vi.fn(),
@@ -225,6 +226,39 @@ describe("KontoTab", () => {
       expect(editing.onSave).toHaveBeenLastCalledWith(
         expect.objectContaining({ role_id: 1 }),
       );
+    });
+  });
+
+  it("changes only the system role without staff management", async () => {
+    const editing = editingProps({
+      canEditPersonFields: false,
+      canEditStaffFields: false,
+      canEditRole: true,
+      roleAssignment: {
+        options: [
+          { id: 1, name: "Administration", systemName: "admin" },
+          { id: 2, name: "Betreuung", systemName: "user" },
+        ],
+        currentRoleIds: [2],
+        currentIsLehrkraft: false,
+      },
+    });
+    render(<KontoTab teacher={teacher} editing={editing} />);
+
+    expect(screen.queryByText("Notizen")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+
+    expect(screen.queryByLabelText("Position")).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Notizen der Leitung"),
+    ).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Systemrolle"), {
+      target: { value: "1" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(editing.onSave).toHaveBeenCalledWith({ role_id: 1 });
     });
   });
 

@@ -37,6 +37,7 @@ export const Editable: Story = {
   args: {
     editing: {
       canEditPersonFields: true,
+      canEditStaffFields: true,
       existingPositions: ["Betreuung", "Gruppenleitung", "OGS-Büro"],
       canEditRole: true,
       roleAssignment: {
@@ -58,6 +59,7 @@ export const EditableWithoutPersonFields: Story = {
   args: {
     editing: {
       canEditPersonFields: false,
+      canEditStaffFields: true,
       existingPositions: [],
       canEditRole: false,
       onEditingChange: () => undefined,

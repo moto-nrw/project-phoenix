@@ -222,16 +222,19 @@ export default function StaffDetailContent() {
   const handleSaveKonto = useCallback(
     async (draft: KontoDraft) => {
       const { role_id: targetRoleId, ...recordData } = draft;
-      try {
-        await recordService.update(staffId, recordData);
-      } catch (err) {
-        logger.error("failed to update staff record", {
-          staff_id: staffId,
-          error: err instanceof Error ? err.message : String(err),
-        });
-        throw new Error("Die Änderungen konnten nicht gespeichert werden.", {
-          cause: err,
-        });
+      const hasRecordChanges = Object.keys(recordData).length > 0;
+      if (hasRecordChanges) {
+        try {
+          await recordService.update(staffId, recordData);
+        } catch (err) {
+          logger.error("failed to update staff record", {
+            staff_id: staffId,
+            error: err instanceof Error ? err.message : String(err),
+          });
+          throw new Error("Die Änderungen konnten nicht gespeichert werden.", {
+            cause: err,
+          });
+        }
       }
       if (targetRoleId !== undefined && roleAssignment) {
         try {
@@ -249,7 +252,9 @@ export default function StaffDetailContent() {
           });
           await refreshRecord();
           throw new Error(
-            "Name, Position und Notizen sind gespeichert. Die Systemrolle konnte nicht geändert werden.",
+            hasRecordChanges
+              ? "Name, Position und Notizen sind gespeichert. Die Systemrolle konnte nicht geändert werden."
+              : "Die Systemrolle konnte nicht geändert werden.",
             { cause: err },
           );
         }
@@ -625,9 +630,11 @@ export default function StaffDetailContent() {
                 key={record.id}
                 teacher={record}
                 editing={
-                  canManageStaffRecords
+                  canManageStaffRecords || canEditRole
                     ? {
-                        canEditPersonFields,
+                        canEditPersonFields:
+                          canManageStaffRecords && canEditPersonFields,
+                        canEditStaffFields: canManageStaffRecords,
                         existingPositions,
                         canEditRole,
                         roleAssignment,

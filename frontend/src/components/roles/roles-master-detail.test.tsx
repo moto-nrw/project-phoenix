@@ -220,6 +220,7 @@ describe("RolesMasterDetail", () => {
     expect(
       screen.queryByRole("button", { name: "Bearbeiten" }),
     ).not.toBeInTheDocument();
+    expect(screen.getByText("Löschen")).toBeInTheDocument();
   });
 
   it("ends the edit state when the tab changes", () => {

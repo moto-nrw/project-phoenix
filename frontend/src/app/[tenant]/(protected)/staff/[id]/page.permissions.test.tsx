@@ -76,6 +76,17 @@ vi.mock("~/lib/swr", () => ({
         error: null,
       };
     }
+    if (key?.startsWith("staff-role-assignment-")) {
+      return {
+        data: {
+          options: [{ id: 1, name: "Administration", systemName: "admin" }],
+          currentRoleIds: [1],
+          currentIsLehrkraft: false,
+        },
+        isLoading: false,
+        error: null,
+      };
+    }
     return { data: 0, isLoading: false, error: null };
   },
 }));
@@ -478,6 +489,31 @@ describe("StaffDetailContent permissions", () => {
     // Ohne users:manage und users:delete gibt es keinen Kebab.
     expect(
       screen.queryByRole("button", { name: "Weitere Aktionen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers account-role editing without staff:manage", () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "7",
+          token: "test-token",
+          roles: ["teacher"],
+          permissions: ["users:read", "users:manage"],
+        },
+        expires: "2099-01-01T00:00:00.000Z",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<StaffDetailContent />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    expect(screen.getByRole("combobox", { name: "Systemrolle" })).toBeVisible();
+    expect(screen.queryByLabelText("Position")).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Notizen der Leitung"),
     ).not.toBeInTheDocument();
   });
 
