@@ -44,11 +44,6 @@ var unmappedDateColumns = map[string]string{
 	// Expand #2715 creates empty storage with no Go reader or writer. Cutover
 	// must replace this classification with a timezone.Date owner row field.
 	"users.staff_employment_profiles.rotation_anchor_date": "empty Expand storage; no application access before Cutover (#2715)",
-	// #2712 Expand and the #2713 backfill (raw SQL copy of DATE columns) give
-	// these tables no application reader or writer. Cutover must replace these
-	// classifications with typed row fields.
-	"enrollment.care_offering_bookings.valid_from":  "backfilled Expand storage (#2712, #2713), no runtime model until Cutover",
-	"enrollment.care_offering_bookings.valid_until": "backfilled Expand storage (#2712, #2713), no runtime model until Cutover",
 	// Reminder push claims are written and deleted exclusively by the two
 	// SECURITY DEFINER functions from 001015255; the occurrence date is bound as
 	// a timezone.Date parameter there and never scanned into a struct, so the
@@ -75,6 +70,10 @@ var unmappedDateColumns = map[string]string{
 // The scanner only sees declarations; renames are direction-blind in
 // migration+rollback strings, so they are recorded explicitly.
 var renamedDateColumns = map[string]string{
+	// Cutover 1.15.385 moves effective dates to the typed Care Plan target;
+	// the old name is only the rollback view over those same date columns.
+	"enrollment.request_child_offerings.valid_from":  "enrollment.care_offering_bookings.valid_from",
+	"enrollment.request_child_offerings.valid_until": "enrollment.care_offering_bookings.valid_until",
 	// 001015034_template_extensions.go renames enrollment_date to valid_from.
 	"activities.student_enrollments.enrollment_date": "activities.student_enrollments.valid_from",
 }

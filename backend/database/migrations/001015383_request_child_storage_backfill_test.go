@@ -142,7 +142,7 @@ func selectionRows(t *testing.T, db *testpkg.DB, tenantID int64) []selectionRow 
 
 func TestRequestChildStorageBackfillCompletesWithLegacyAnmeldung(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupRequestChildStorageBeforeCutover(t)
 	fixture := createRequestChildStorageFixture(t, db)
 	report := runBackfill(t, db, RequestChildStorageBackfillOptions{})
 	require.True(t, report.Complete)
@@ -158,7 +158,7 @@ func TestRequestChildStorageBackfillCompletesWithLegacyAnmeldung(t *testing.T) {
 // booking must plan those days, or the children lose them at Cutover.
 func TestRequestChildStorageBackfillCarriesLegacyDaysIntoBookings(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupRequestChildStorageBeforeCutover(t)
 	tenant := testpkg.Tenant(t)
 	phaseID, _, child := testpkg.CreateAuditAdjustmentChain(t, db)
 	legacy := testpkg.CreateTestCareOffering(t, db, phaseID, "Legacy Tage")
@@ -201,7 +201,7 @@ func TestRequestChildStorageBackfillCarriesLegacyDaysIntoBookings(t *testing.T) 
 // change a child's plan at Cutover. That is a real difference and blocks.
 func TestRequestChildStorageBackfillBlocksPlannedDayDifferences(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupRequestChildStorageBeforeCutover(t)
 	tenant := testpkg.Tenant(t)
 	phaseID, _, child := testpkg.CreateAuditAdjustmentChain(t, db)
 	offering := testpkg.CreateTestCareOffering(t, db, phaseID, "Abweichende Tage")
@@ -220,7 +220,7 @@ func TestRequestChildStorageBackfillBlocksPlannedDayDifferences(t *testing.T) {
 
 func TestRequestChildStorageSelectionFollowsEarliestSurvivingInterval(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupRequestChildStorageBeforeCutover(t)
 	fixture := createRequestChildStorageFixture(t, db)
 	initial := runBackfill(t, db, RequestChildStorageBackfillOptions{})
 	require.True(t, initial.Complete)
@@ -263,7 +263,7 @@ func TestRequestChildStorageSelectionFollowsEarliestSurvivingInterval(t *testing
 
 func TestRequestChildStorageDoesNotTrustPartialOrForeignChangeHistory(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupRequestChildStorageBeforeCutover(t)
 	fixture := createRequestChildStorageFixture(t, db)
 	var requestID int64
 	require.NoError(t, db.NewRaw(`SELECT request_id FROM enrollment.request_children WHERE id = ?`, fixture.children[0]).Scan(t.Context(), &requestID))
@@ -299,7 +299,7 @@ func TestRequestChildStorageDoesNotTrustPartialOrForeignChangeHistory(t *testing
 
 func TestRequestChildStorageVerificationUsesOneSnapshot(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupRequestChildStorageBeforeCutover(t)
 	fixture := createRequestChildStorageFixture(t, db)
 	initial := runBackfill(t, db, RequestChildStorageBackfillOptions{})
 	report := runBackfill(t, db, RequestChildStorageBackfillOptions{VerifyOnly: true, afterVerificationCounts: func() error {
@@ -318,7 +318,7 @@ func TestRequestChildStorageVerificationUsesOneSnapshot(t *testing.T) {
 
 func TestRequestChildStorageExcludesConcurrentWriters(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupRequestChildStorageBeforeCutover(t)
 	fixture := createRequestChildStorageFixture(t, db)
 	checked := false
 	runBackfill(t, db, RequestChildStorageBackfillOptions{AfterBatch: func(int64, RequestChildStorageBatch) error {
@@ -340,7 +340,7 @@ func TestRequestChildStorageExcludesConcurrentWriters(t *testing.T) {
 
 func TestRequestChildStorageMeasuresSuccessfulLockWait(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupRequestChildStorageBeforeCutover(t)
 	fixture := createRequestChildStorageFixture(t, db)
 	runBackfill(t, db, RequestChildStorageBackfillOptions{})
 	_, err := db.NewRaw(`UPDATE enrollment.request_child_offerings SET updated_at = updated_at + interval '1 hour' WHERE id = ?`, fixture.legacyIDs[0]).Exec(t.Context())
@@ -375,7 +375,7 @@ func TestRequestChildStorageMeasuresSuccessfulLockWait(t *testing.T) {
 
 func TestRequestChildStorageBackfillCopiesOwnedFields(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupRequestChildStorageBeforeCutover(t)
 	fixture := createRequestChildStorageFixture(t, db)
 	report := runBackfill(t, db, RequestChildStorageBackfillOptions{BatchSize: 2})
 
@@ -450,7 +450,7 @@ func TestRequestChildStorageBackfillCopiesOwnedFields(t *testing.T) {
 
 func TestRequestChildStorageBackfillResumesAtEveryBatchBoundary(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupRequestChildStorageBeforeCutover(t)
 	fixture := createRequestChildStorageFixture(t, db)
 	interrupted := errors.New("operator stopped the backfill")
 	var marks []int64
@@ -481,7 +481,7 @@ func TestRequestChildStorageBackfillResumesAtEveryBatchBoundary(t *testing.T) {
 
 func TestRequestChildStorageBackfillStopsAtBatchBoundaryOnCancel(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupRequestChildStorageBeforeCutover(t)
 	fixture := createRequestChildStorageFixture(t, db)
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -512,7 +512,7 @@ func TestRequestChildStorageBackfillStopsAtBatchBoundaryOnCancel(t *testing.T) {
 
 func TestRequestChildStorageBackfillReplaysCompletedBatchesWithoutEffect(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupRequestChildStorageBeforeCutover(t)
 	fixture := createRequestChildStorageFixture(t, db)
 	first := runBackfill(t, db, RequestChildStorageBackfillOptions{BatchSize: 2})
 	before := checkpointRow(t, db, fixture.tenant)
@@ -538,7 +538,7 @@ func TestRequestChildStorageBackfillReplaysCompletedBatchesWithoutEffect(t *test
 
 func TestRequestChildStorageBackfillRetriesInjectedDeadlockAndSerializationFailures(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupRequestChildStorageBeforeCutover(t)
 	fixture := createRequestChildStorageFixture(t, db)
 	injections := map[int]string{1: "40P01", 2: "40001"}
 	var batchIndex int
@@ -586,7 +586,7 @@ func TestRequestChildStorageBackfillRetriesInjectedDeadlockAndSerializationFailu
 
 func TestRequestChildStorageBackfillWaitsOutApplicationLocks(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupRequestChildStorageBeforeCutover(t)
 	fixture := createRequestChildStorageFixture(t, db)
 	runBackfill(t, db, RequestChildStorageBackfillOptions{})
 	// A legacy change makes the copied booking and the Anmeldung selection
@@ -636,7 +636,7 @@ func TestRequestChildStorageBackfillWaitsOutApplicationLocks(t *testing.T) {
 
 func TestRequestChildStorageBackfillReconcilesChangedLegacyRows(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupRequestChildStorageBeforeCutover(t)
 	fixture := createRequestChildStorageFixture(t, db)
 	runBackfill(t, db, RequestChildStorageBackfillOptions{})
 
@@ -695,7 +695,7 @@ func TestRequestChildStorageBackfillReconcilesChangedLegacyRows(t *testing.T) {
 
 func TestRequestChildStorageBackfillIsolatesTenants(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupRequestChildStorageBeforeCutover(t)
 	fixtures := make([]requestChildStorageFixture, 2)
 	for i := range fixtures {
 		require.True(t, t.Run(fmt.Sprintf("tenant_%d", i), func(t *testing.T) {
@@ -749,7 +749,7 @@ func TestRequestChildStorageBackfillIsolatesTenants(t *testing.T) {
 
 func TestRequestChildStorageBackfillMigrationUpDownAndRestart(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupRequestChildStorageBeforeCutover(t)
 	fixture := createRequestChildStorageFixture(t, db)
 	var legacyBefore string
 	legacySnapshot := `SELECT string_agg(row_to_json(o)::text, E'\n' ORDER BY id) FROM enrollment.request_child_offerings o WHERE tenant_id = ?`
@@ -793,7 +793,7 @@ func TestRequestChildStorageBackfillMigrationUpDownAndRestart(t *testing.T) {
 
 func TestRequestChildStorageBackfillSchemaAndPlans(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupRequestChildStorageBeforeCutover(t)
 	tenant := testpkg.Tenant(t)
 	phaseID, requestID, _ := testpkg.CreateAuditAdjustmentChain(t, db)
 	var children []int64
@@ -897,7 +897,7 @@ func TestRequestChildStorageBackfillRequiresDatabase(t *testing.T) {
 // raises, not only the synthetic ones the batch tests inject.
 func TestRequestChildStorageBackfillClassifiesRealPostgresFailures(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupRequestChildStorageBeforeCutover(t)
 	fixture := createRequestChildStorageFixture(t, db)
 	runBackfill(t, db, RequestChildStorageBackfillOptions{})
 	first, second := fixture.legacyIDs[0], fixture.legacyIDs[1]

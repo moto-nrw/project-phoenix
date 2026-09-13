@@ -13,7 +13,7 @@ type ApprovedOfferingTestProjection = enrollment.ApprovedOfferingProjection
 type ApprovedSelectionTestReader = enrollment.ApprovedSelectionReader
 
 func NewOwnerApprovedOfferingTestProjection(db *bun.DB) (*ApprovedOfferingTestProjection, error) {
-	return NewApprovedOfferingTestProjection(db, enrollmentCompose.New())
+	return NewApprovedOfferingTestProjection(db, repositories.NewEnrollmentBookingProjection(enrollmentCompose.New()))
 }
 
 func NewApprovedOfferingTestProjection(db *bun.DB, selections enrollment.ApprovedSelectionReader) (*enrollment.ApprovedOfferingProjection, error) {

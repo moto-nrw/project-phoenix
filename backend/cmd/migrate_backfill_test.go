@@ -24,6 +24,17 @@ func TestMigrateBackfillRequestChildStorageCmd_Metadata(t *testing.T) {
 	}
 }
 
+func TestMigrateRequestChildCompatibilityCmdMetadata(t *testing.T) {
+	t.Parallel()
+	require.Contains(t, migrateBackfillCmd.Commands(), migrateRequestChildCompatibilityCmd)
+	require.Equal(t, "request-child-compatibility", migrateRequestChildCompatibilityCmd.Use)
+	require.NotNil(t, migrateRequestChildCompatibilityCmd.RunE)
+	for _, flag := range []string{"batch-size", "tenant", "verify-only"} {
+		require.NotNil(t, migrateRequestChildCompatibilityCmd.Flags().Lookup(flag))
+	}
+	require.Nil(t, migrateRequestChildCompatibilityCmd.Flags().Lookup("restart"), "post-cutover recovery cannot truncate owner targets")
+}
+
 func TestMigrateBackfillRequestChildStorageFlags(t *testing.T) {
 	t.Parallel()
 	cmd := &cobra.Command{Use: "request-child-storage"}
@@ -38,11 +49,25 @@ func TestMigrateBackfillRequestChildStorageFlags(t *testing.T) {
 
 func TestMigrateBackfillRequestChildStorageReportsPerTenantEvidence(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := testpkg.SetupIsolatedTestDB(t)
+	// This command contract belongs to the pre-cutover schema. A current-schema
+	// backfill must refuse to overwrite authoritative owner data from a view.
+	_, err := db.ExecContext(t.Context(), `
+		DROP VIEW enrollment.request_child_offerings;
+		DROP FUNCTION enrollment.route_request_child_offering_compatibility();
+		DROP FUNCTION enrollment.request_child_effective_days(jsonb, jsonb);
+		DROP FUNCTION enrollment.request_child_legacy_manual(jsonb, jsonb, jsonb);
+		DROP SEQUENCE enrollment.request_child_compatibility_reads, enrollment.request_child_compatibility_writes;
+		ALTER TABLE enrollment.request_child_offerings_legacy RENAME TO request_child_offerings;
+		ALTER TABLE enrollment.request_child_offerings ADD CONSTRAINT request_child_offerings_non_overlapping_validity
+			EXCLUDE USING gist (request_child_id WITH =, care_offering_id WITH =,
+				daterange(COALESCE(valid_from, '-infinity'::date), COALESCE(valid_until, 'infinity'::date), '[)') WITH &&);
+	`)
+	require.NoError(t, err)
 	tenant := testpkg.Tenant(t)
 	phaseID, _, childID := testpkg.CreateAuditAdjustmentChain(t, db)
 	offering := testpkg.CreateTestCareOffering(t, db, phaseID, "CLI backfill")
-	_, err := db.NewRaw(`INSERT INTO enrollment.request_child_offerings
+	_, err = db.NewRaw(`INSERT INTO enrollment.request_child_offerings
 		(tenant_id, request_child_id, care_offering_id, selected_days, notes, valid_from, valid_until)
 		VALUES (?, ?, ?, '["mon"]', 'cli', '2026-08-01', '2027-08-01')`, tenant, childID, offering.ID).Exec(t.Context())
 	require.NoError(t, err)

@@ -2,6 +2,10 @@ package enrollment_test
 
 import (
 	"context"
+
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,7 +13,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	owner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 )
 
 // gradeCountsByOffering flattens the repository result into a lookup keyed by
@@ -37,8 +40,8 @@ func int16Ptr(v int16) *int16 { return &v }
 func TestOwnerOffering_CountActiveGradeLevels_GroupsByGrade(t *testing.T) {
 	t.Parallel()
 
-	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t)
-	repo := enrollmentTest.New()
+	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
+	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 	from := timezone.NewDate(2026, 8, 24)
 	until := from.AddDays(90)
 
@@ -74,8 +77,8 @@ func TestOwnerOffering_CountActiveGradeLevels_GroupsByGrade(t *testing.T) {
 func TestOwnerOffering_CountActiveGradeLevels_ReportsMissingGradeSeparately(t *testing.T) {
 	t.Parallel()
 
-	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t)
-	repo := enrollmentTest.New()
+	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
+	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 	from := timezone.NewDate(2026, 8, 24)
 	until := from.AddDays(90)
 
@@ -103,8 +106,8 @@ func TestOwnerOffering_CountActiveGradeLevels_ReportsMissingGradeSeparately(t *t
 func TestOwnerOffering_CountActiveGradeLevels_CountsAChildOncePerOffering(t *testing.T) {
 	t.Parallel()
 
-	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t)
-	repo := enrollmentTest.New()
+	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
+	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 	from := timezone.NewDate(2026, 8, 24)
 	until := from.AddDays(90)
 	laterFrom := from.AddDays(30)
@@ -139,8 +142,8 @@ func TestOwnerOffering_CountActiveGradeLevels_CountsAChildOncePerOffering(t *tes
 func TestOwnerOffering_CountActiveGradeLevels_ExcludesTerminalChildren(t *testing.T) {
 	t.Parallel()
 
-	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t)
-	repo := enrollmentTest.New()
+	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
+	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 	from := timezone.NewDate(2026, 8, 24)
 	until := from.AddDays(90)
 
@@ -166,8 +169,8 @@ func TestOwnerOffering_CountActiveGradeLevels_ExcludesTerminalChildren(t *testin
 func TestOwnerOffering_CountActiveGradeLevels_ExcludesIntervalsOutsideTheWindow(t *testing.T) {
 	t.Parallel()
 
-	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t)
-	repo := enrollmentTest.New()
+	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
+	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 	from := timezone.NewDate(2026, 8, 24)
 	endedAt := from.AddDays(-10)
 	startedAt := from.AddDays(-40)
@@ -194,8 +197,8 @@ func TestOwnerOffering_CountActiveGradeLevels_ExcludesIntervalsOutsideTheWindow(
 func TestOwnerOffering_CountActiveGradeLevels_RejectsAnEmptyWindow(t *testing.T) {
 	t.Parallel()
 
-	db, _, tenantID, _, offeringID := setupChildOfferingTest(t)
-	repo := enrollmentTest.New()
+	db, _, tenantID, _, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
+	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 	today := timezone.NewDate(2026, 8, 24)
 
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -210,8 +213,8 @@ func TestOwnerOffering_CountActiveGradeLevels_RejectsAnEmptyWindow(t *testing.T)
 func TestOwnerOffering_CountActiveGradeLevels_EmptyInputSkipsTheQuery(t *testing.T) {
 	t.Parallel()
 
-	db, _, tenantID, _, _ := setupChildOfferingTest(t)
-	repo := enrollmentTest.New()
+	db, _, tenantID, _, _ := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
+	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 	today := timezone.NewDate(2026, 8, 24)
 
 	var rows []*owner.OfferingGradeCount
@@ -232,8 +235,8 @@ func TestOwnerOffering_CountActiveGradeLevels_EmptyInputSkipsTheQuery(t *testing
 func TestOwnerOffering_CountMaxActiveByIDsInRange_MatchesTheSingleOfferingVariant(t *testing.T) {
 	t.Parallel()
 
-	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t)
-	repo := enrollmentTest.New()
+	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
+	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 	from := timezone.NewDate(2026, 8, 24)
 	until := from.AddDays(90)
 	requestID := requestIDOf(t, db, tenantID, childID)
@@ -269,8 +272,8 @@ func TestOwnerOffering_CountMaxActiveByIDsInRange_MatchesTheSingleOfferingVarian
 func TestOwnerOffering_CountMaxActiveByIDsInRange_SeparatesOfferings(t *testing.T) {
 	t.Parallel()
 
-	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t)
-	repo := enrollmentTest.New()
+	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
+	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 	phaseID := phaseIDOfOffering(t, db, tenantID, offeringID)
 	from := timezone.NewDate(2026, 8, 24)
 	until := from.AddDays(90)
@@ -298,8 +301,8 @@ func TestOwnerOffering_CountMaxActiveByIDsInRange_SeparatesOfferings(t *testing.
 func TestOwnerOffering_CountMaxActiveByIDsInRange_GuardsItsInput(t *testing.T) {
 	t.Parallel()
 
-	db, _, tenantID, _, offeringID := setupChildOfferingTest(t)
-	repo := enrollmentTest.New()
+	db, _, tenantID, _, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
+	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 	today := timezone.NewDate(2026, 8, 24)
 
 	var empty map[int64]int
@@ -327,8 +330,8 @@ func TestOwnerOffering_CountMaxActiveByIDsInRange_GuardsItsInput(t *testing.T) {
 func TestOwnerOffering_Aggregates_CountEveryPhaseLikeTheGate(t *testing.T) {
 	t.Parallel()
 
-	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t)
-	repo := enrollmentTest.New()
+	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
+	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 	from := timezone.NewDate(2026, 8, 24)
 	until := from.AddDays(90)
 

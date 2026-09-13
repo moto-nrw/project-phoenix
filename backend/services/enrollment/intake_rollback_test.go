@@ -285,13 +285,15 @@ type failingIntakeOfferingLinks struct {
 	failure   error
 }
 
-func (r *failingIntakeOfferingLinks) InsertRequestChildOffering(ctx context.Context, link *capability.RequestChildOffering) error {
-	if err := r.IntakeChildren.InsertRequestChildOffering(ctx, link); err != nil {
-		return err
-	}
-	r.writes++
-	if r.writes == r.failAfter {
-		return r.failure
+func (r *failingIntakeOfferingLinks) RecordSubmittedOfferingChoices(ctx context.Context, childID int64, choices []capability.SubmittedOfferingChoice) error {
+	for _, choice := range choices {
+		if err := r.IntakeChildren.RecordSubmittedOfferingChoices(ctx, childID, []capability.SubmittedOfferingChoice{choice}); err != nil {
+			return err
+		}
+		r.writes++
+		if r.writes == r.failAfter {
+			return r.failure
+		}
 	}
 	return nil
 }
@@ -341,12 +343,56 @@ func TestPublicIntakeRollsBackAfterEachOfferingLinkWrite(t *testing.T) {
 	}
 }
 
+func TestPublicIntakeRollsBackAfterCarePlanBookingCommand(t *testing.T) {
+	t.Parallel()
+	testpkg.OwnTenant(t)
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.Ctx(t)
+	offering := &enrollmentModels.CareOffering{PhaseID: env.phaseID, Name: "Care", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"}, IsActive: true}
+	require.NoError(t, env.config.CareOfferingRepo.Create(ctx, offering))
+	failure := errors.New("injected after Care Plan booking command")
+	config := env.config
+	calls := 0
+	fail := true
+	config.Bookings = recordCareBookingsFunc(func(ctx context.Context, childID int64, bookings []enrollmentService.CareBookingInput) error {
+		if err := env.config.Bookings.RecordCareBookings(ctx, childID, bookings); err != nil {
+			return err
+		}
+		calls++
+		if fail {
+			return failure
+		}
+		return nil
+	})
+	service := enrollmentService.NewRequestService(config)
+	input := validSubmission(t, env.phaseID)
+	input.SuppressSubmissionEmails = true
+	input.Children[0].OfferingIDs = []int64{offering.ID}
+	input.AdditionalGuardians = []enrollmentService.SubmitGuardian{{FirstName: "Second", LastName: "Guardian"}}
+	result, err := service.Submit(ctx, input)
+	require.ErrorIs(t, err, failure)
+	require.Nil(t, result)
+	require.Equal(t, 1, calls)
+	assertIntakeCounts(t, env.db, env.phaseID, 0, 0)
+	assertIntakeOfferingLinkCount(t, env.db, []int64{offering.ID}, 0)
+	fail = false
+	result, err = service.Submit(ctx, input)
+	require.NoError(t, err)
+	require.Len(t, result.Children, 1)
+	require.Equal(t, 2, calls)
+	assertIntakeCounts(t, env.db, env.phaseID, 1, 1)
+	assertIntakeOfferingLinkCount(t, env.db, []int64{offering.ID}, 1)
+}
+
 func assertIntakeOfferingLinkCount(t *testing.T, db *bun.DB, offeringIDs []int64, expected int) {
 	t.Helper()
 	require.NoError(t, testpkg.WithTenantTx(t, testpkg.Ctx(t), db, testpkg.Tenant(t), func(ctx context.Context, tx bun.Tx) error {
-		var count int
-		require.NoError(t, tx.NewRaw("SELECT COUNT(*) FROM enrollment.request_child_offerings WHERE care_offering_id IN (?)", bun.List(offeringIDs)).Scan(ctx, &count))
-		require.Equal(t, expected, count)
+		var submitted, effective int
+		require.NoError(t, tx.NewRaw("SELECT COUNT(*) FROM enrollment.request_child_offering_selections WHERE care_offering_id IN (?)", bun.List(offeringIDs)).Scan(ctx, &submitted))
+		require.NoError(t, tx.NewRaw("SELECT COUNT(*) FROM enrollment.care_offering_bookings WHERE care_offering_id IN (?)", bun.List(offeringIDs)).Scan(ctx, &effective))
+		require.Equal(t, expected, submitted, "submitted choices roll back with the request")
+		require.Equal(t, expected, effective, "effective bookings roll back with the request")
 		return nil
 	}))
 }

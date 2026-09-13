@@ -17,6 +17,11 @@ type TB interface {
 	Fatalf(string, ...any)
 }
 
+// NewOfferingBookings composes the effective-booking owner for workflow tests.
+func NewOfferingBookings() *careplan.OfferingBookings {
+	return carePlanCompose.NewOfferingBookings()
+}
+
 // NewCarePlan composes the owner capability for integration tests.
 func NewCarePlan(tb TB, db *bun.DB) careplan.Capability {
 	tb.Helper()

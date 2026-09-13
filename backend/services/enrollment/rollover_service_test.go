@@ -79,6 +79,7 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 
 	outbox := &recordingOutbox{}
 	requestSvc := enrollmentService.NewRequestService(enrollmentService.RequestServiceConfig{
+		Bookings:         requestTestBookingCommands(),
 		Requests:         repoFactory.Enrollment(),
 		Children:         repoFactory.Enrollment(),
 		CareOfferingRepo: repoFactory.CareOffering,
@@ -109,6 +110,7 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 	require.True(t, ok, "care offering service must implement RolloverOfferingCatalogCloner")
 
 	rolloverSvc := enrollmentService.NewRolloverService(enrollmentService.RolloverServiceConfig{
+		Bookings:              requestTestBookingCommands(),
 		Phases:                repoFactory.Enrollment(),
 		Requests:              repoFactory.Enrollment(),
 		Children:              repoFactory.Enrollment(),
@@ -271,6 +273,7 @@ func rolloverServiceWithSettings(
 	settings enrollmentService.RequestSettingsResolver,
 ) enrollmentService.RolloverService {
 	return enrollmentService.NewRolloverService(enrollmentService.RolloverServiceConfig{
+		Bookings:              requestTestBookingCommands(),
 		Phases:                env.repos.Enrollment(),
 		Requests:              env.repos.Enrollment(),
 		Children:              env.repos.Enrollment(),
@@ -926,6 +929,7 @@ func TestRolloverService_RunDeadlineWorker_AutoApprovePromotesToApproved(t *test
 	// Student repos and the full chain).
 	stubDecision := &fakeApproveDecisionService{repo: env.repos.Enrollment()}
 	autoApproveSvc := enrollmentService.NewRolloverService(enrollmentService.RolloverServiceConfig{
+		Bookings:        requestTestBookingCommands(),
 		Phases:          env.repos.Enrollment(),
 		Requests:        env.repos.Enrollment(),
 		Children:        env.repos.Enrollment(),
