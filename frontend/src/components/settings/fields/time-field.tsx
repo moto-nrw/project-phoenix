@@ -1,8 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { Pencil } from "lucide-react";
+import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
+import { normalizeTimeInput } from "~/components/ui/time-field";
 
-interface TimeFieldProps {
+interface SettingsTimeFieldProps {
   readonly ariaLabel?: string;
   readonly value: string;
   readonly onChange: (value: string) => void;
@@ -12,19 +16,31 @@ interface TimeFieldProps {
   readonly emptyLabel?: string;
 }
 
+const COMPLETE_TIME_RE = /^\d{2}:\d{2}$/;
+
+function isValidTime(display: string): boolean {
+  if (!COMPLETE_TIME_RE.test(display)) return false;
+  const [h, m] = display.split(":").map(Number);
+  return h !== undefined && m !== undefined && h <= 23 && m <= 59;
+}
+
 /**
- * Masked time input that accepts HH:MM format.
- * When emptyLabel is set and value is empty, shows a styled pill button.
- * When editing, auto-inserts the colon separator and validates on blur.
+ * Uhrzeitfeld der Einstellungen (Bauart 4). Es teilt sich Ziffernmaske und
+ * Doppelpunkt mit dem Kit-`TimeField`, verhält sich aber anders: es meldet
+ * nur vollständige, gültige Zeiten nach außen, setzt bei Blur auf den
+ * letzten gespeicherten Wert zurück und zeigt eine leere Einstellung als
+ * Pille („Jederzeit“). Das Kit-`TimeField` ist ein Formularfeld mit Label
+ * und Formathinweis, das jeden Tastendruck durchreicht; darum heißt dieses
+ * hier anders (#3117).
  */
-export function TimeField({
+export function SettingsTimeField({
   ariaLabel = "Einstellung",
   value,
   onChange,
   onBlur,
   disabled = false,
   emptyLabel,
-}: TimeFieldProps) {
+}: SettingsTimeFieldProps) {
   const [display, setDisplay] = useState(value);
   const [isEditing, setIsEditing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -36,40 +52,22 @@ export function TimeField({
     }
   }, [value]);
 
-  const formatTimeInput = useCallback((raw: string): string => {
-    const digits = raw.replace(/\D/g, "").slice(0, 4);
-    if (digits.length <= 2) return digits;
-    return `${digits.slice(0, 2)}:${digits.slice(2)}`;
-  }, []);
-
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const formatted = formatTimeInput(e.target.value);
+      const formatted = normalizeTimeInput(e.target.value);
       setDisplay(formatted);
-
-      if (/^\d{2}:\d{2}$/.test(formatted)) {
-        const [h, m] = formatted.split(":").map(Number);
-        if (h !== undefined && m !== undefined && h <= 23 && m <= 59) {
-          onChange(formatted);
-        }
+      if (isValidTime(formatted)) {
+        onChange(formatted);
       }
     },
-    [formatTimeInput, onChange],
+    [onChange],
   );
 
   const handleBlur = useCallback(() => {
-    if (!/^\d{2}:\d{2}$/.test(display)) {
+    if (!isValidTime(display)) {
       setDisplay(value);
       if (value === "") {
         setIsEditing(false);
-      }
-    } else {
-      const [h, m] = display.split(":").map(Number);
-      if (h === undefined || m === undefined || h > 23 || m > 59) {
-        setDisplay(value);
-        if (value === "") {
-          setIsEditing(false);
-        }
       }
     }
     onBlur?.();
@@ -80,40 +78,28 @@ export function TimeField({
     setTimeout(() => inputRef.current?.focus(), 0);
   }, []);
 
-  // Empty value with emptyLabel, not editing — show styled pill
+  // Empty value with emptyLabel, not editing — the pill is a kit button.
   if (!value && !isEditing && emptyLabel) {
     return (
-      <button
+      <Button
         aria-label={`${ariaLabel}: ${emptyLabel}`}
         type="button"
+        variant="surface"
+        size="md"
         onClick={handleStartEditing}
         disabled={disabled}
-        className="inline-flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+        className="gap-1.5"
       >
         {emptyLabel}
-        {!disabled && (
-          <svg
-            className="h-3.5 w-3.5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-            />
-          </svg>
-        )}
-      </button>
+        {!disabled && <Pencil className="h-3.5 w-3.5" aria-hidden="true" />}
+      </Button>
     );
   }
 
   // Has value or editing — show input
   return (
-    <div className="flex items-center gap-2">
-      <input
+    <div className="w-24">
+      <Input
         aria-label={ariaLabel}
         ref={inputRef}
         type="text"
@@ -129,7 +115,8 @@ export function TimeField({
         }}
         disabled={disabled}
         maxLength={5}
-        className="block w-24 rounded-lg border-0 bg-white px-3 py-2.5 text-center text-sm text-gray-900 tabular-nums shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
+        controlSize="compact"
+        className="text-center tabular-nums"
       />
     </div>
   );
