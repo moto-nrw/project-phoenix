@@ -11,20 +11,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type replacePermissionsRoleRepo struct {
+type mockReplacePermissionsRoleRepo struct {
 	noopRoleRepository
 }
 
-func (replacePermissionsRoleRepo) FindByIDForUpdate(context.Context, int64) (*authModel.Role, error) {
+func (mockReplacePermissionsRoleRepo) FindByIDForUpdate(context.Context, int64) (*authModel.Role, error) {
 	return &authModel.Role{}, nil
 }
 
-type failingPermissionLookupRepo struct {
+type mockPermissionLookupRepo struct {
 	authModel.PermissionRepository
 	err error
 }
 
-func (r failingPermissionLookupRepo) FindByID(context.Context, interface{}) (*authModel.Permission, error) {
+func (r mockPermissionLookupRepo) FindByID(context.Context, interface{}) (*authModel.Permission, error) {
 	return nil, r.err
 }
 
@@ -34,8 +34,8 @@ func TestReplaceRolePermissions_PropagatesPermissionLookupFailure(t *testing.T) 
 	expectedErr := errors.New("permission database unavailable")
 	service := &Service{
 		repos: &repositories.Factory{
-			Role:       replacePermissionsRoleRepo{},
-			Permission: failingPermissionLookupRepo{err: expectedErr},
+			Role:       mockReplacePermissionsRoleRepo{},
+			Permission: mockPermissionLookupRepo{err: expectedErr},
 		},
 	}
 
