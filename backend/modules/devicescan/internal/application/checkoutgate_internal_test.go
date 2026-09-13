@@ -280,3 +280,17 @@ func TestIsAfterCheckoutTimeGate(t *testing.T) {
 		assert.True(t, s.isAfterCheckoutTimeGate(ctx, student))
 	})
 }
+
+// Once the scan has selected daily checkout, clients must not reevaluate its
+// availability. A later settings failure must not change the kiosk choices.
+func TestDailyCheckoutFlagsPreserveSelectedOutcome(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	h.settings.dailyCheckoutErr = errBoom
+	s := h.service()
+	for _, action := range []string{devicescan.ScanActionCheckedOutDaily, devicescan.ScanActionCheckedOut} {
+		result := &devicescan.ScanResult{Action: action}
+		s.applyCheckoutFlags(context.Background(), result, studentInGroup(), visitIn(1))
+		assert.Equal(t, action == devicescan.ScanActionCheckedOutDaily, result.DailyCheckoutAvailable, action)
+	}
+}
