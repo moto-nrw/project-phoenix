@@ -22,7 +22,6 @@ import type { Role } from "@/lib/auth-helpers";
 import { getRoleDisplayName } from "@/lib/auth-helpers";
 import { RolesMasterDetail } from "@/components/roles/roles-master-detail";
 import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
-import { RolePermissionManagementModal } from "@/components/auth/role-permission-management-modal";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { useToast } from "~/contexts/ToastContext";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
@@ -52,7 +51,6 @@ function RolesPageContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [selectedRoleDetail, setSelectedRoleDetail] = useState<Role | null>(
     null,
   );
@@ -208,10 +206,14 @@ function RolesPageContent() {
     };
   }, [selectedId, selectedRoleSummary, service]);
 
-  const handleManagePermissions = useCallback(
-    () => setShowPermissionModal(true),
-    [],
-  );
+  // Nach dem Speichern der Berechtigungen im Reiter (#3116): die Zahl in der
+  // Liste und das Detail neu laden.
+  const handlePermissionsSaved = useCallback(async () => {
+    if (!selectedRole) return;
+    await fetchRoles();
+    const refreshed = await service.getOne(selectedRole.id);
+    setSelectedRoleDetail(refreshed);
+  }, [fetchRoles, selectedRole, service]);
 
   const handleCreateRole = useCallback(
     async (data: Partial<Role>) => {
@@ -380,19 +382,6 @@ function RolesPageContent() {
               error=""
             />
           )}
-
-          {selectedRole && (
-            <RolePermissionManagementModal
-              isOpen={showPermissionModal}
-              onClose={() => setShowPermissionModal(false)}
-              role={selectedRole}
-              onUpdate={async () => {
-                await fetchRoles();
-                const refreshed = await service.getOne(selectedRole.id);
-                setSelectedRoleDetail(refreshed);
-              }}
-            />
-          )}
         </>
       }
       className="flex w-full flex-col"
@@ -459,7 +448,7 @@ function RolesPageContent() {
             onSelect={handleSelectRole}
             onSaveRole={handleUpdateRole}
             onDeleteClick={handleDeleteClick}
-            onManagePermissions={handleManagePermissions}
+            onPermissionsSaved={handlePermissionsSaved}
           />
         </div>
       ) : null}

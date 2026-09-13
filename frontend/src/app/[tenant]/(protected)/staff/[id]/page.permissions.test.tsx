@@ -433,16 +433,52 @@ describe("StaffDetailContent permissions", () => {
 
     render(<StaffDetailContent />);
 
+    // Bearbeitet wird im Reiter „Konto" (#3116), nicht aus dem Kebab heraus.
+    expect(screen.getByRole("button", { name: "Bearbeiten" })).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
     expect(
-      screen.getByRole("menuitem", { name: "Bearbeiten" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("menuitem", { name: "Bearbeiten" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole("menuitem", { name: "Löschen" }),
     ).toBeInTheDocument();
+    // Die Kontoaktionen mit eigenem Ablauf stehen im Kebab des Kopfes.
     expect(
-      screen.getByRole("button", { name: "Rolle verwalten" }),
+      screen.getByRole("menuitem", {
+        name: "Zwei-Faktor-Authentifizierung verwalten",
+      }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: "Betreuung verwalten" }),
+    ).toBeInTheDocument();
+    // Die Systemrolle ist ein Feld des Bearbeiten-Zustands, kein Dialog.
+    expect(
+      screen.queryByRole("button", { name: "Rolle verwalten" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers the edit state of the account tab without account actions to staff:manage alone", () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "7",
+          token: "test-token",
+          roles: ["teacher"],
+          permissions: ["staff:manage"],
+        },
+        expires: "2099-01-01T00:00:00.000Z",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<StaffDetailContent />);
+
+    expect(screen.getByRole("button", { name: "Bearbeiten" })).toBeVisible();
+    // Ohne users:manage und users:delete gibt es keinen Kebab.
+    expect(
+      screen.queryByRole("button", { name: "Weitere Aktionen" }),
+    ).not.toBeInTheDocument();
   });
 
   it("redirects a role without any staff permission back to the referrer", () => {

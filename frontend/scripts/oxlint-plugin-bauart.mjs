@@ -1525,6 +1525,164 @@ const oneDetailPerType = {
   },
 };
 
+// --- bauart/no-edit-overlay --------------------------------------------------
+
+// Overlays that carry their own title: `title` prop on the modals, the
+// `<SlideOverTitle>` / `<DrawerTitle>` element in the slide-over family.
+const EDIT_OVERLAY_TITLE_PROP_ELEMENTS = new Set([
+  "Modal",
+  "FormModal",
+  "ChoiceModal",
+]);
+const EDIT_OVERLAY_TITLE_CHILD_ELEMENTS = new Set([
+  "SlideOverTitle",
+  "DrawerTitle",
+]);
+// `DatabaseFormModal mode="edit"` titles itself „… bearbeiten“ inside the kit.
+const DATABASE_FORM_MODAL = "DatabaseFormModal";
+// Word-bounded on unicode letters (see DELETE_LABEL_RE): „Personal
+// bearbeiten“, „Rolle verwalten: Mila“ match, „Bearbeitung“ does not.
+const EDIT_TITLE_RE = /(?:^|\P{L})(?:bearbeiten|verwalten)(?:\P{L}|$)/iu;
+
+// Shrink-only per-match tolerance, keyed like ROW_ACTION_BASELINE: the static
+// title text at its exact line, so a moved or reworded overlay cannot inherit
+// the tolerance. Keys are repo-relative posix paths under src/. Line 0
+// tolerates the title anywhere in its file — for titles assembled from
+// several branches, whose line shifts with every edit above them.
+const EDIT_OVERLAY_BASELINE = new Map(
+  Object.entries({
+    // Feldgruppe oder ganzes Objekt an einer Objektansicht, noch umzuziehen
+    // (#3116, Folge-PRs über #3119): der Reiter selbst muss in den
+    // Bearbeiten-Zustand wechseln.
+    "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
+      "Umfrage bearbeiten Neue Umfrage Elternbrief bearbeiten Neuer Elternbrief Elternmitteilung bearbeiten Neue Elternmitteilung@1098",
+    ],
+    "src/components/enrollment/admin-enrollment-detail.tsx": [
+      "Betreuungsangebote bearbeiten@1562",
+    ],
+    "src/components/staff/abwesenheiten-tab.tsx": [
+      "Urlaubsanspruch bearbeiten@1315",
+    ],
+    "src/components/staff/arbeitszeitmodell-tab.tsx": [
+      "Arbeitszeitmodell bearbeiten@626",
+    ],
+    "src/components/students/care-weekly-plan-modal.tsx": [
+      "Wochenplan bearbeiten@225",
+    ],
+    // Einträge ohne eigene Objektansicht (Termin, Schließtag,
+    // Kalenderzeitraum, Jahrgangswechsel, Klassenlisteneintrag,
+    // Anmeldephase, Betreuungsangebot, Ordner, Tagesinformation): die Spec
+    // kennt für sie noch keine Bauart. Bis sie eine bekommen, bleibt der
+    // Bestand stehen und wächst nicht.
+    "src/app/[tenant]/(protected)/calendar/page.tsx": [
+      "Termin bearbeiten Termin erstellen@918",
+    ],
+    "src/app/[tenant]/(protected)/database/students/class-list/page.tsx": [
+      "edit Eintrag bearbeiten Klassenlisteneintrag anlegen@529",
+    ],
+    "src/components/database/grade-transitions/transition-editor.tsx": [
+      "Jahrgangswechsel bearbeiten Neuer Jahrgangswechsel@243",
+    ],
+    "src/components/enrollment/care-offerings-editor.tsx": [
+      "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@936",
+    ],
+    "src/components/enrollment/phases-editor.tsx": [
+      "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@853",
+    ],
+    "src/components/files/folder-modal.tsx": [
+      "Ordner bearbeiten Neuer Ordner@131",
+    ],
+    "src/components/planning/closing-day-modal.tsx": [
+      "Schließtag bearbeiten Schließtag anlegen@89",
+    ],
+    "src/components/staff-notices/staff-notice-modal.tsx": [
+      "Tagesinformation bearbeiten Neue Tagesinformation@182",
+    ],
+    "src/components/timetable/calendar-period-modal.tsx": [
+      "Kalenderzeitraum bearbeiten Kalenderzeitraum anlegen@380",
+    ],
+    // Kontoaktionen mit eigenem Ablauf (Begründung und Rückfrage bei der
+    // Zwei-Faktor-Authentifizierung, Auflösen offener Zuordnungen bei der
+    // Betreuung): keine Feldgruppe des Datensatzes, aus dem Kebab der
+    // Personalakte geöffnet (#3116).
+    "src/components/auth/mfa-admin-override-modal.tsx": [
+      "Zwei-Faktor-Authentifizierung verwalten@314",
+    ],
+    "src/components/teachers/caregiver-capability-modal.tsx": [
+      "resolve Zuordnungen auflösen: Betreuung verwalten:@268",
+    ],
+  }),
+);
+
+function normalizeTitle(chunks) {
+  return chunks.join(" ").replaceAll(/\s+/g, " ").trim();
+}
+
+/** Static text of an attribute, or null when the element has none. */
+function staticAttributeText(openingElement, name) {
+  const attribute = jsxAttribute(openingElement, name);
+  if (!attribute?.value) return null;
+  const chunks = [];
+  collectStaticStrings(attribute.value, chunks);
+  return normalizeTitle(chunks);
+}
+
+const noEditOverlay = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "An object is edited in place: a tab switches into its edit state and back. No modal or slide-over titled „… bearbeiten“ / „… verwalten“ next to the object view.",
+    },
+    messages: {
+      editOverlay:
+        "Overlay „{{title}}“ ist ein Modal je Feldgruppe: Bearbeitet wird am Objekt, ein Reiter wechselt in den Bearbeiten-Zustand mit `EditActions` unten (BAUARTEN-SPEC Bauart 2 Regeln 3 und 4, #3116). Kontoaktionen mit eigenem Ablauf stehen im Kebab des Kopfes. Die Baseline in scripts/oxlint-plugin-bauart.mjs ist shrink-only.",
+      editFormModal:
+        "`DatabaseFormModal mode=\"edit\"` ist ein Modal für das ganze Objekt: Bearbeitet wird am Objekt, im Bearbeiten-Zustand des Reiters (BAUARTEN-SPEC Bauart 2 Regel 3, #3116). Die Baseline in scripts/oxlint-plugin-bauart.mjs ist shrink-only.",
+    },
+    schema: [],
+  },
+  create(context) {
+    if (isExempt(context)) return {};
+    const key = fileKey(context);
+    if (OTHER_PORTAL_RE.test(key)) return {};
+    const tolerated = new Set(EDIT_OVERLAY_BASELINE.get(key) ?? []);
+
+    function report(node, title, messageId) {
+      if (tolerated.delete(`${title}@${node.loc.start.line}`)) return;
+      context.report({ node, messageId, data: { title } });
+    }
+
+    return {
+      JSXOpeningElement(node) {
+        const name = jsxName(node.name);
+        if (name === DATABASE_FORM_MODAL) {
+          const mode = jsxAttribute(node, "mode");
+          const chunks = [];
+          if (mode?.value) collectStaticStrings(mode.value, chunks);
+          if (chunks.includes("edit")) {
+            report(node, "mode=edit", "editFormModal");
+          }
+          return;
+        }
+        if (EDIT_OVERLAY_TITLE_PROP_ELEMENTS.has(name)) {
+          const title = staticAttributeText(node, "title");
+          if (title && EDIT_TITLE_RE.test(title)) {
+            report(node, title, "editOverlay");
+          }
+          return;
+        }
+        if (EDIT_OVERLAY_TITLE_CHILD_ELEMENTS.has(name)) {
+          const chunks = [];
+          collectChildText(node.parent, chunks);
+          const title = normalizeTitle(chunks);
+          if (EDIT_TITLE_RE.test(title)) report(node, title, "editOverlay");
+        }
+      },
+    };
+  },
+};
+
 export default {
   meta: { name: "bauart" },
   rules: {
@@ -1535,5 +1693,6 @@ export default {
     "no-toast-form-error": noToastFormError,
     "no-manage-surface-in-overlay": noManageSurfaceInOverlay,
     "one-detail-per-type": oneDetailPerType,
+    "no-edit-overlay": noEditOverlay,
   },
 };

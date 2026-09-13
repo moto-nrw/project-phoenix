@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, redirect, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Pencil, Trash2 } from "lucide-react";
+import { KeyRound, Trash2, Users } from "lucide-react";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { resolveDetailReferrer } from "~/lib/tenant-path";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -22,6 +22,11 @@ import {
 } from "~/lib/staff-helpers";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
+import {
+  loadAccountRoleAssignment,
+  replaceAccountRole,
+  type AccountRoleAssignment,
+} from "~/lib/account-role-assignment";
 import { Avatar } from "~/components/ui/avatar";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
@@ -32,10 +37,8 @@ import { AbwesenheitenTab } from "~/components/staff/abwesenheiten-tab";
 import { ArbeitszeitmodellTab } from "~/components/staff/arbeitszeitmodell-tab";
 import { DokumenteTab } from "~/components/staff/dokumente-tab";
 import { KlassenTab } from "~/components/staff/klassen-tab";
-import { KontoTab } from "~/components/staff/konto-tab";
+import { KontoTab, type KontoDraft } from "~/components/staff/konto-tab";
 import { CaregiverCapabilityModal } from "~/components/teachers/caregiver-capability-modal";
-import { RoleManagementModal } from "~/components/teachers/role-management-modal";
-import { TeacherEditModal } from "~/components/teachers/teacher-edit-modal";
 import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-modal";
 import { StammdatenTab } from "~/components/staff/stammdaten-tab";
 import { UebersichtTab } from "~/components/staff/uebersicht-tab";
@@ -50,6 +53,11 @@ const logger = createLogger({ component: "StaffDetailPage" });
 /** SWR-Schlüssel des Personal-Datensatzes (Konto-Reiter, Bearbeiten). */
 function staffRecordKey(staffId: string): string {
   return `staff-record-${staffId}`;
+}
+
+/** SWR-Schlüssel der Systemrolle des Kontos (Konto-Bearbeiten, #3116). */
+function roleAssignmentKey(accountId: string): string {
+  return `staff-role-assignment-${accountId}`;
 }
 
 // ─── Main Page ───────────────────────────────────────────────────────────────
@@ -126,9 +134,9 @@ export default function StaffDetailContent() {
     canEditStammdaten ||
     hasPermission(session, "users:read") ||
     hasPermission(session, "staff:manage");
-  // Bearbeiten (Name, RFID-Karte, Position) geht über PUT /api/staff/{id}
-  // und braucht staff:manage; Vorname, Nachname und Karte zusätzlich
-  // users:update am Personen-Datensatz (#2906).
+  // Bearbeiten (Name, Position, Notizen) geht über PUT /api/staff/{id} und
+  // braucht staff:manage; Vorname und Nachname zusätzlich users:update am
+  // Personen-Datensatz (#2906).
   const canManageStaffRecords = hasPermission(session, "staff:manage");
   const canEditPersonFields = hasPermission(session, "users:update");
   // Löschen und die Kontoaktionen hängen am Konto, nicht am Datensatz.
@@ -168,11 +176,15 @@ export default function StaffDetailContent() {
     canViewRecord ? staffRecordKey(staffId) : null,
     () => recordService.getOne(staffId),
   );
-  // Positionen der Schule als Vorschläge im Bearbeiten-Dialog; erst laden,
-  // wenn der Dialog offen ist.
-  const [showEditModal, setShowEditModal] = useState(false);
+  const accountId = record?.account_id?.toString() ?? "";
+  const hasAccount = accountId !== "";
+  const canEditRole = canManageUsers && hasAccount;
+  // Der Bearbeiten-Zustand des Konto-Reiters (#3116): Positionen der Schule
+  // als Vorschläge und die Systemrolle des Kontos laden erst, wenn jemand
+  // bearbeitet.
+  const [kontoEditing, setKontoEditing] = useState(false);
   const { data: staffDirectory } = useSWRAuth<Teacher[]>(
-    showEditModal ? "database-teachers-list" : null,
+    kontoEditing && canManageStaffRecords ? "database-teachers-list" : null,
     async () => {
       const data = await recordService.getList({ page: 1, pageSize: 1000 });
       return Array.isArray(data.data) ? data.data : [];
@@ -185,12 +197,15 @@ export default function StaffDetailContent() {
     }
     return [...positions].sort((a, b) => a.localeCompare(b, "de"));
   }, [staffDirectory]);
+  const { data: roleAssignment, error: roleAssignmentError } =
+    useSWRAuth<AccountRoleAssignment>(
+      kontoEditing && canEditRole ? roleAssignmentKey(accountId) : null,
+      () => loadAccountRoleAssignment(accountId),
+    );
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [savingRecord, setSavingRecord] = useState(false);
   const [caregiverModalOpen, setCaregiverModalOpen] = useState(false);
   const [mfaModalOpen, setMfaModalOpen] = useState(false);
-  const [roleModalOpen, setRoleModalOpen] = useState(false);
   const accessToken = session?.user?.token ?? "";
 
   const refreshRecord = useCallback(async () => {
@@ -201,35 +216,59 @@ export default function StaffDetailContent() {
     ]);
   }, [staffId, tenantMutate]);
 
-  const handleEditRecord = useCallback(
-    async (data: Partial<Teacher> & { password?: string }) => {
+  // EIN Speichern für Name, Position, Notizen und Systemrolle (Bauart 2
+  // Regel 4). Der Datensatz geht zuerst; scheitert danach der Rollenwechsel,
+  // sagt die Meldung, was schon gespeichert ist.
+  const handleSaveKonto = useCallback(
+    async (draft: KontoDraft) => {
+      const { role_id: targetRoleId, ...recordData } = draft;
       try {
-        setSavingRecord(true);
-        await recordService.update(staffId, data);
-        setShowEditModal(false);
-        toastSuccess(
-          getDbOperationMessage("update", teachersConfig.name.singular),
-        );
-        await refreshRecord();
+        await recordService.update(staffId, recordData);
       } catch (err) {
         logger.error("failed to update staff record", {
           staff_id: staffId,
           error: err instanceof Error ? err.message : String(err),
         });
-        throw err;
-      } finally {
-        setSavingRecord(false);
+        throw new Error("Die Änderungen konnten nicht gespeichert werden.", {
+          cause: err,
+        });
       }
-    },
-    [recordService, refreshRecord, staffId, toastSuccess],
-  );
-
-  const handleUpdateNotes = useCallback(
-    async (notes: string) => {
-      await recordService.update(staffId, { staff_notes: notes });
+      if (targetRoleId !== undefined && roleAssignment) {
+        try {
+          await replaceAccountRole(
+            accountId,
+            targetRoleId,
+            roleAssignment.currentRoleIds,
+          );
+        } catch (err) {
+          logger.error("failed to update account role", {
+            staff_id: staffId,
+            account_id: accountId,
+            target_role_id: targetRoleId,
+            error: err instanceof Error ? err.message : String(err),
+          });
+          await refreshRecord();
+          throw new Error(
+            "Name, Position und Notizen sind gespeichert. Die Systemrolle konnte nicht geändert werden.",
+            { cause: err },
+          );
+        }
+        await tenantMutate(roleAssignmentKey(accountId));
+      }
+      toastSuccess(
+        getDbOperationMessage("update", teachersConfig.name.singular),
+      );
       await refreshRecord();
     },
-    [recordService, refreshRecord, staffId],
+    [
+      accountId,
+      recordService,
+      refreshRecord,
+      roleAssignment,
+      staffId,
+      tenantMutate,
+      toastSuccess,
+    ],
   );
 
   const handleDeleteRecord = useCallback(async () => {
@@ -395,14 +434,28 @@ export default function StaffDetailContent() {
                   : "abwesenheiten";
   const activeTab = selectedTab ?? defaultTab;
 
-  // Aktionen am Datensatz im Kebab der Kopfkarte (Bauart 2 Regel 1).
+  // Aktionen im Kebab der Kopfkarte (Bauart 2 Regel 1): die Kontoaktionen
+  // mit eigenem Ablauf (#3116) und das Löschen. Bearbeitet wird im Reiter
+  // „Konto", nicht von hier aus.
+  const recordLabel = record
+    ? `${record.first_name} ${record.last_name}`.trim()
+    : "";
   const recordMenuItems: OverflowMenuItem[] = [
-    ...(canManageStaffRecords && record
+    ...(canManageUsers && hasAccount && accessToken
       ? [
           {
-            label: "Bearbeiten",
-            icon: <Pencil className="size-4" aria-hidden />,
-            onClick: () => setShowEditModal(true),
+            label: "Zwei-Faktor-Authentifizierung verwalten",
+            icon: <KeyRound className="size-4" aria-hidden />,
+            onClick: () => setMfaModalOpen(true),
+          },
+        ]
+      : []),
+    ...(canManageUsers && hasAccount
+      ? [
+          {
+            label: "Betreuung verwalten",
+            icon: <Users className="size-4" aria-hidden />,
+            onClick: () => setCaregiverModalOpen(true),
           },
         ]
       : []),
@@ -417,10 +470,6 @@ export default function StaffDetailContent() {
         ]
       : []),
   ];
-  const recordLabel = record
-    ? `${record.first_name} ${record.last_name}`.trim()
-    : "";
-  const hasAccount = Boolean(record?.account_id);
 
   return (
     <TenantPage
@@ -472,15 +521,6 @@ export default function StaffDetailContent() {
       overlays={
         record ? (
           <>
-            <TeacherEditModal
-              isOpen={showEditModal}
-              onClose={() => setShowEditModal(false)}
-              teacher={record}
-              onSave={handleEditRecord}
-              loading={savingRecord}
-              existingPositions={existingPositions}
-              canEditPersonFields={canEditPersonFields}
-            />
             <ConfirmDeleteModal
               isOpen={showDeleteModal}
               onClose={() => setShowDeleteModal(false)}
@@ -511,7 +551,7 @@ export default function StaffDetailContent() {
                   isOpen={caregiverModalOpen}
                   onClose={() => setCaregiverModalOpen(false)}
                   scope="tenant"
-                  accountId={record.account_id?.toString() ?? ""}
+                  accountId={accountId}
                   accountLabel={recordLabel}
                   onUpdated={refreshRecord}
                 />
@@ -520,17 +560,10 @@ export default function StaffDetailContent() {
                     isOpen={mfaModalOpen}
                     onClose={() => setMfaModalOpen(false)}
                     bearerToken={accessToken}
-                    accountId={record.account_id?.toString() ?? ""}
+                    accountId={accountId}
                     accountLabel={recordLabel}
                   />
                 ) : null}
-                <RoleManagementModal
-                  isOpen={roleModalOpen}
-                  onClose={() => setRoleModalOpen(false)}
-                  accountId={record.account_id?.toString() ?? ""}
-                  accountLabel={recordLabel}
-                  onUpdated={refreshRecord}
-                />
               </>
             ) : null}
           </>
@@ -589,23 +622,19 @@ export default function StaffDetailContent() {
           {activeTab === "konto" && canViewRecord ? (
             record ? (
               <KontoTab
+                key={record.id}
                 teacher={record}
-                onUpdateNotes={
-                  canManageStaffRecords ? handleUpdateNotes : undefined
-                }
-                onManageRole={
-                  canManageUsers && hasAccount
-                    ? () => setRoleModalOpen(true)
-                    : undefined
-                }
-                onManageMFA={
-                  canManageUsers && hasAccount && accessToken
-                    ? () => setMfaModalOpen(true)
-                    : undefined
-                }
-                onManageCaregiver={
-                  canManageUsers && hasAccount
-                    ? () => setCaregiverModalOpen(true)
+                editing={
+                  canManageStaffRecords
+                    ? {
+                        canEditPersonFields,
+                        existingPositions,
+                        canEditRole,
+                        roleAssignment,
+                        roleAssignmentError: Boolean(roleAssignmentError),
+                        onEditingChange: setKontoEditing,
+                        onSave: handleSaveKonto,
+                      }
                     : undefined
                 }
               />

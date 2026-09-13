@@ -323,6 +323,20 @@ bekommt eine shrink-only Baseline analog zum bestehenden
     entfernt; dafür gilt `bauart/no-row-action-buttons`. Die ortsgebundenen
     Ausnahmen sind Einträge des Objekts, das der Dialog bearbeitet.
     Operator-, Eltern- und Schul-Portal sind nicht im Scope.
+13. `bauart/no-edit-overlay` — kein Modal je Feldgruppe und keines für das
+    ganze Objekt (Bauart 2 Regel 3). **Umgesetzt**
+    (`scripts/oxlint-plugin-bauart.mjs`, #3116): ein `Modal`, `FormModal`
+    oder `ChoiceModal`, dessen `title` „bearbeiten" oder „verwalten" enthält,
+    ein `SlideOverTitle`/`DrawerTitle` mit diesem Text und ein
+    `DatabaseFormModal` mit `mode="edit"` fallen durch, auch wenn das Wort
+    nur in einem Zweig eines bedingten Titels steht. Bearbeitet wird im
+    Reiter der Objektansicht mit `EditActions` unten; Kontoaktionen mit
+    eigenem Ablauf (Begründung, Rückfrage, Auflösen von Zuordnungen) stehen
+    im Kebab des Kopfes und behalten ihren Dialog. Shrink-only Baseline je
+    Datei für den Bestand, den #3119 auf Folge-PRs verteilt, darunter die
+    Einträge ohne eigene Objektansicht (Termin, Schließtag, Ordner,
+    Tagesinformation), für die die Spec noch keine Bauart kennt. Operator-,
+    Eltern- und Schul-Portal sind nicht im Scope.
 
 ## Reihenfolge der Umsetzung
 

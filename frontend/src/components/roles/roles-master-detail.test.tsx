@@ -14,6 +14,26 @@ class MockResizeObserver {
 
 vi.stubGlobal("ResizeObserver", MockResizeObserver);
 
+// Der Reiter lädt über authService; hier zählt nur, dass der Detailbereich
+// ihn mit dem Bearbeiten-Zustand des offenen Reiters versorgt.
+vi.mock("~/components/roles/role-permissions-tab", () => ({
+  RolePermissionsTab: ({
+    editing,
+    onCancelEdit,
+  }: {
+    editing: boolean;
+    onCancelEdit: () => void;
+  }) => (
+    <div data-testid="role-permissions-tab" data-editing={editing}>
+      {editing ? (
+        <button type="button" onClick={onCancelEdit}>
+          Abbrechen
+        </button>
+      ) : null}
+    </div>
+  ),
+}));
+
 import { RolesMasterDetail } from "./roles-master-detail";
 import type { Role } from "@/lib/auth-helpers";
 
@@ -61,7 +81,7 @@ describe("RolesMasterDetail", () => {
   const onSelect = vi.fn();
   const onSaveRole = vi.fn(async () => undefined);
   const onDeleteClick = vi.fn();
-  const onManagePermissions = vi.fn();
+  const onPermissionsSaved = vi.fn(async () => undefined);
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -77,7 +97,7 @@ describe("RolesMasterDetail", () => {
         onSelect={onSelect}
         onSaveRole={onSaveRole}
         onDeleteClick={onDeleteClick}
-        onManagePermissions={onManagePermissions}
+        onPermissionsSaved={onPermissionsSaved}
       />,
     );
 
@@ -95,7 +115,7 @@ describe("RolesMasterDetail", () => {
         onSelect={onSelect}
         onSaveRole={onSaveRole}
         onDeleteClick={onDeleteClick}
-        onManagePermissions={onManagePermissions}
+        onPermissionsSaved={onPermissionsSaved}
       />,
     );
 
@@ -105,7 +125,7 @@ describe("RolesMasterDetail", () => {
     expect(screen.getByText("1 Berechtigungen")).toBeInTheDocument();
   });
 
-  it("opens the inline edit form and triggers delete and manage-permissions for non-system roles", () => {
+  it("opens the inline edit form and triggers delete for non-system roles", () => {
     render(
       <RolesMasterDetail
         roles={[customRole]}
@@ -115,15 +135,20 @@ describe("RolesMasterDetail", () => {
         onSelect={onSelect}
         onSaveRole={onSaveRole}
         onDeleteClick={onDeleteClick}
-        onManagePermissions={onManagePermissions}
+        onPermissionsSaved={onPermissionsSaved}
       />,
     );
 
     fireEvent.click(screen.getByText("Löschen"));
     expect(onDeleteClick).toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: /^Berechtigungen$/ }));
-    expect(onManagePermissions).toHaveBeenCalled();
+    // Berechtigungen sind ein zweiter Reiter, kein Knopf im Kopf (#3116).
+    expect(
+      screen.queryByRole("button", { name: /^Berechtigungen$/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("tab", { name: "Berechtigungen" }),
+    ).toBeInTheDocument();
 
     // Bearbeitet wird im Detailbereich, nicht in einem Modal daneben: der
     // Knopf schaltet das Formular ein, mit Speichern und Abbrechen unten.
@@ -136,6 +161,72 @@ describe("RolesMasterDetail", () => {
     ).toBeInTheDocument();
   });
 
+  it("switches the permissions tab into its own edit state", () => {
+    render(
+      <RolesMasterDetail
+        roles={[customRole]}
+        selectedId="1"
+        selectedRole={customRole}
+        detailLoading={false}
+        onSelect={onSelect}
+        onSaveRole={onSaveRole}
+        onDeleteClick={onDeleteClick}
+        onPermissionsSaved={onPermissionsSaved}
+      />,
+    );
+
+    // Radix Tabs aktivieren auf mousedown, nicht auf click.
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Berechtigungen" }), {
+      button: 0,
+    });
+    const tab = screen.getByTestId("role-permissions-tab");
+    expect(tab).toHaveAttribute("data-editing", "false");
+
+    fireEvent.click(screen.getByText("Bearbeiten"));
+    expect(screen.getByTestId("role-permissions-tab")).toHaveAttribute(
+      "data-editing",
+      "true",
+    );
+    // Der Kopf zeigt im Bearbeiten-Zustand weder Bearbeiten noch Löschen.
+    expect(screen.queryByText("Löschen")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+    expect(screen.getByTestId("role-permissions-tab")).toHaveAttribute(
+      "data-editing",
+      "false",
+    );
+    expect(screen.getByText("Bearbeiten")).toBeInTheDocument();
+  });
+
+  it("ends the edit state when the tab changes", () => {
+    render(
+      <RolesMasterDetail
+        roles={[customRole]}
+        selectedId="1"
+        selectedRole={customRole}
+        detailLoading={false}
+        onSelect={onSelect}
+        onSaveRole={onSaveRole}
+        onDeleteClick={onDeleteClick}
+        onPermissionsSaved={onPermissionsSaved}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Bearbeiten"));
+    expect(
+      screen.getByRole("button", { name: "Speichern" }),
+    ).toBeInTheDocument();
+
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Berechtigungen" }), {
+      button: 0,
+    });
+    expect(screen.getByTestId("role-permissions-tab")).toHaveAttribute(
+      "data-editing",
+      "false",
+    );
+    expect(screen.getByText("Bearbeiten")).toBeInTheDocument();
+  });
+
   it("hides edit, delete, and permission actions for system roles", () => {
     render(
       <RolesMasterDetail
@@ -146,15 +237,16 @@ describe("RolesMasterDetail", () => {
         onSelect={onSelect}
         onSaveRole={onSaveRole}
         onDeleteClick={onDeleteClick}
-        onManagePermissions={onManagePermissions}
+        onPermissionsSaved={onPermissionsSaved}
       />,
     );
 
     expect(screen.queryByText("Bearbeiten")).not.toBeInTheDocument();
     expect(screen.queryByText("Löschen")).not.toBeInTheDocument();
+    // Die Berechtigungen einer Systemrolle bleiben ansehbar.
     expect(
-      screen.queryByRole("button", { name: /Berechtigungen/ }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("tab", { name: "Berechtigungen" }),
+    ).toBeInTheDocument();
     expect(
       screen.getByText(
         "System-Rollen können nicht bearbeitet oder gelöscht werden.",
@@ -172,7 +264,7 @@ describe("RolesMasterDetail", () => {
         onSelect={onSelect}
         onSaveRole={onSaveRole}
         onDeleteClick={onDeleteClick}
-        onManagePermissions={onManagePermissions}
+        onPermissionsSaved={onPermissionsSaved}
       />,
     );
 
@@ -189,7 +281,7 @@ describe("RolesMasterDetail", () => {
         onSelect={onSelect}
         onSaveRole={onSaveRole}
         onDeleteClick={onDeleteClick}
-        onManagePermissions={onManagePermissions}
+        onPermissionsSaved={onPermissionsSaved}
       />,
     );
 
@@ -207,7 +299,7 @@ describe("RolesMasterDetail", () => {
         onSelect={onSelect}
         onSaveRole={onSaveRole}
         onDeleteClick={onDeleteClick}
-        onManagePermissions={onManagePermissions}
+        onPermissionsSaved={onPermissionsSaved}
       />,
     );
 
