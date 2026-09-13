@@ -1372,9 +1372,9 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success",
 				"data": []map[string]any{
-					{"id": 1, "name": "admin"},
-					{"id": 2, "name": "user"},
-					{"id": 3, "name": "guest"},
+					{"id": "1", "name": "admin"},
+					{"id": "2", "name": "user"},
+					{"id": "3", "name": "guest"},
 				},
 			})
 
