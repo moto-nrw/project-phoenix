@@ -168,7 +168,7 @@ func TestSubstitutionCapabilityPreservesOperationErrors(t *testing.T) {
 	for _, pair := range [][2]error{{education.ErrNotFound, workforce.ErrSubstitutionNotFound}, {education.ErrForbidden, workforce.ErrSubstitutionForbidden}, {education.ErrInvalidTarget, workforce.ErrSubstitutionInvalidTarget}, {education.ErrInvalidPeriod, workforce.ErrSubstitutionInvalidPeriod}, {education.ErrNotRunning, workforce.ErrSubstitutionNotRunning}, {education.ErrAlreadyAssigned, workforce.ErrSubstitutionAlreadyAssigned}, {education.ErrConflict, workforce.ErrSubstitutionConflict}, {education.ErrSelfAssignment, workforce.ErrSubstitutionSelfAssignment}} {
 		for _, structured := range []bool{false, true} {
 			cause := errors.New("storage failed")
-			var failure error = fmt.Errorf("operation: %w", pair[0])
+			failure := fmt.Errorf("operation: %w", pair[0])
 			if structured {
 				failure = &education.OperationError{Target: pair[0], Code: "detail", Message: "operation failed", Cause: cause}
 			}
