@@ -21,7 +21,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -133,18 +132,10 @@ func newDailyCheckoutService(t *testing.T, db *bun.DB) (active.Service, *testpkg
 		ActivityCatRepo:    services.NewAttendanceActivityCategories(repos.ActivityCategory),
 		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student),
 		DeviceRepo:         services.NewSessionDeviceDirectory(repos.Device, nil, nil),
-		StaffNames: services.NewAttendanceStaffNames(repos.Staff, usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
-			PersonRepo:  repos.Person,
-			RFIDRepo:    repos.RFIDCard,
-			AccountRepo: repos.Account,
-			StudentRepo: repos.Student,
-			StaffRepo:   repos.Staff,
-			TeacherRepo: repos.Teacher,
-			DB:          db,
-		})),
-		DB:          db,
-		Broadcaster: broadcaster,
-		Logger:      slog.Default(),
+		StaffNames:         services.AttendanceStaffNamesForTests(db, repos),
+		DB:                 db,
+		Broadcaster:        broadcaster,
+		Logger:             slog.Default(),
 	})
 
 	svc.SetSettingsService(&configtest.Mock{ResolveStringFn: func(_ context.Context, key string) (string, error) {

@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/sessionend"
 	sessionEndCompose "github.com/moto-nrw/project-phoenix/workflows/sessionend/compose"
@@ -170,4 +171,20 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	return ActiveTestModule{GroupsTestModule: groups, IoTDataTestModule: data, Settings: settings.Settings, Schulhof: activeTestYard{SchulhofService: yard, Yard: supervisiondashboardlegacy.NewYard(yard)},
 		PickupSchedule: pickups, ArrivalSchedule: arrivals, TimetableOperations: operations, SupervisionDashboard: dashboard, CareDay: careDay, Instance: tt.Instance,
 		SessionEnd: sessionEnd, SessionLifecycle: devicescanCompose.NewSessionLifecycle(presence, devicescanCompose.NewSupervisionQuery(newStudentPresence(db, logger)), data.Users, data.IoT, nil, logger)}, nil
+}
+
+// AttendanceStaffNamesForTests wires the attendance name lookup exactly as the
+// factory does, for a test that assembles a presence service by hand instead
+// of taking the whole module. It exists so such a test does not have to name
+// the users service to build one dependency it never asserts on.
+func AttendanceStaffNamesForTests(db *bun.DB, r *repositories.Factory) active.AttendanceStaffNames {
+	return NewAttendanceStaffNames(r.Staff, users.NewPersonService(users.PersonServiceDependencies{
+		PersonRepo:  r.Person,
+		RFIDRepo:    r.RFIDCard,
+		AccountRepo: r.Account,
+		StudentRepo: r.Student,
+		StaffRepo:   r.Staff,
+		TeacherRepo: r.Teacher,
+		DB:          db,
+	}))
 }

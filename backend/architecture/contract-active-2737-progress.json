@@ -31,7 +31,6 @@
     "external_test|services/active -> services/active",
     "external_test|services/active -> services/config",
     "external_test|services/active -> services/schedule",
-    "external_test|services/active -> services/users",
     "external_test|services/active -> tenant",
     "internal_test|api/active -> api/common",
     "internal_test|api/active -> auth/jwt",
@@ -86,7 +85,7 @@
   "latest_verification": {
     "full_backend_suite": "full backend suite via scripts/test-backend.sh: 26278 tests, 2 skipped, 126s; the single failure (PyrePortal error string guard) was fixed by adding the relocated sentinel file to the guard corpus and api/active plus api/iot were rerun green",
     "architecture": {
-      "legacy_keys": 1479,
+      "legacy_keys": 1478,
       "composition_field_setter_targets": 779
     },
     "lint": {
