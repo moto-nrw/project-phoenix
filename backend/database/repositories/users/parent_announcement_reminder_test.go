@@ -147,11 +147,13 @@ func TestParentAnnouncementReminderDueScanAndClaim(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, reloaded.ReminderSentAt)
 
-	// A correction starts a new publication cycle. Its prior reminder must not
-	// leave a stale sent marker that blocks a newly planned reminder.
+	// A correction starts a new publication cycle. Its former reminder belonged
+	// to the withdrawn version, so no part of it may be retained or resent.
 	require.NoError(t, repo.SetPublished(ctx, due.ID, nil))
 	reloaded, err = repo.FindByID(ctx, due.ID)
 	require.NoError(t, err)
+	assert.Nil(t, reloaded.ReminderAt)
+	assert.Nil(t, reloaded.ReminderText)
 	assert.Nil(t, reloaded.ReminderSentAt)
 	replanned := now.Add(time.Hour)
 	applied, err = repo.SetReminder(ctx, due.ID, &replanned, nil)

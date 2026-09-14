@@ -153,6 +153,23 @@ func TestAnnouncementRoutesPreserveAuthoringAndResponseContracts(t *testing.T) {
 	require.Equal(t, []string{"Ja"}, s.input.Options)
 }
 
+func TestReminderRouteRequiresReminderAtButAcceptsExplicitRemoval(t *testing.T) {
+	t.Parallel()
+	s, r, token := announcementRoute(t)
+	id := strconv.FormatInt(s.id, 10)
+
+	for _, body := range []any{map[string]any{}, map[string]any{"reminder_text": "Morgen"}} {
+		status, out := announcementRequest(t, r, token, "PUT", "/"+id+"/reminder", body)
+		require.Equal(t, 400, status, out)
+		require.Empty(t, s.calls)
+	}
+
+	status, out := announcementRequest(t, r, token, "PUT", "/"+id+"/reminder", map[string]any{"reminder_at": nil})
+	require.Equal(t, 200, status, out)
+	require.Equal(t, []string{"reminder"}, s.calls)
+	require.Nil(t, s.reminder.ReminderAt)
+}
+
 func TestAnnouncementRoutesRejectUnauthorisedAndMalformedRequests(t *testing.T) {
 	t.Parallel()
 	s, r, token := announcementRoute(t)
@@ -202,7 +219,11 @@ func TestAnnouncementRoutesKeepServiceFailuresAndSystemImmutability(t *testing.T
 	}
 	s.failure = communication.ErrParentAnnouncementNotFound
 	for _, tc := range []struct{ method, path string }{{"GET", "/?include_inactive=true"}, {"GET", "/" + id}, {"POST", "/"}, {"PUT", "/" + id}, {"POST", "/" + id + "/publish"}, {"POST", "/" + id + "/unpublish"}, {"GET", "/" + id + "/stats"}, {"GET", "/" + id + "/recipients"}, {"GET", "/" + id + "/poll-results"}, {"GET", "/" + id + "/poll-children"}, {"GET", "/" + id + "/letter-status"}, {"POST", "/" + id + "/remind"}, {"POST", "/" + id + "/resend-failed"}, {"PUT", "/" + id + "/reminder"}} {
-		status, body := announcementRequest(t, r, token, tc.method, tc.path, map[string]any{"title": "Info", "body": "Text"})
-		require.Equal(t, 404, status, body)
+		body := map[string]any{"title": "Info", "body": "Text"}
+		if tc.path == "/"+id+"/reminder" {
+			body = map[string]any{"reminder_at": nil}
+		}
+		status, out := announcementRequest(t, r, token, tc.method, tc.path, body)
+		require.Equal(t, 404, status, out)
 	}
 }

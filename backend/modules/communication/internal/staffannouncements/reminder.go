@@ -45,6 +45,11 @@ const (
 // history and cannot be changed or removed any more.
 var ErrReminderAlreadySent = errors.New("announcement: the reminder has already been sent")
 
+// errReminderDeliverySuppressed rolls back the scheduler tenant transaction
+// after a claim when neither channel accepted the reminder. Keeping the scan
+// boundary unchanged lets the next tick retry it once the delivery gate opens.
+var errReminderDeliverySuppressed = errors.New("announcement: reminder delivery was suppressed")
+
 // ReminderInput is the narrow post-publish edit: move the reminder, reword it,
 // or remove it (nil ReminderAt). Title, text, audience and channels of a
 // published announcement stay immutable.
@@ -89,9 +94,9 @@ func normalizeReminderText(text *string) *string {
 }
 
 // validateReminder is the moment rule shared by save, publish and the
-// post-publish edit: a reminder lies in the future and never after the
-// announcement's expiry, because it would then point at an announcement the
-// portal no longer shows.
+// post-publish edit: a reminder lies in the future and strictly before the
+// announcement's expiry, because at the expiry instant the portal no longer
+// shows the announcement.
 func validateReminder(reminderAt, expiresAt *time.Time, now time.Time) error {
 	if reminderAt == nil {
 		return nil
@@ -99,8 +104,8 @@ func validateReminder(reminderAt, expiresAt *time.Time, now time.Time) error {
 	if !reminderAt.After(now) {
 		return fmt.Errorf("%w: reminder_at must be in the future", ErrValidation)
 	}
-	if expiresAt != nil && reminderAt.After(*expiresAt) {
-		return fmt.Errorf("%w: reminder_at must not be after expires_at", ErrValidation)
+	if expiresAt != nil && !reminderAt.Before(*expiresAt) {
+		return fmt.Errorf("%w: reminder_at must be before expires_at", ErrValidation)
 	}
 	return nil
 }
@@ -188,10 +193,22 @@ func (s *service) SendDueReminders(ctx context.Context, notBefore, dueBefore tim
 			// expired since the scan. Nothing to send.
 			continue
 		}
-		sentAt := dueBefore
-		a.ReminderSentAt = &sentAt
-		if err := s.deliverReminder(ctx, a); err != nil {
+		// ClaimReminder serializes the post-publish edit. Re-read after its
+		// guarded UPDATE so a text or time moved just before the claim cannot be
+		// delivered from the stale due-scan snapshot.
+		fresh, err := s.repo.FindByID(ctx, a.ID)
+		if err != nil {
+			return sent, fmt.Errorf("announcement: reload claimed reminder: %w", err)
+		}
+		if fresh == nil {
+			return sent, fmt.Errorf("announcement: reload claimed reminder: row not found")
+		}
+		delivered, err := s.deliverReminder(ctx, fresh)
+		if err != nil {
 			return sent, err
+		}
+		if !delivered {
+			return sent, errReminderDeliverySuppressed
 		}
 		sent++
 	}
@@ -202,25 +219,34 @@ func (s *service) SendDueReminders(ctx context.Context, notBefore, dueBefore tim
 // channels: push always, e-mail only when the announcement opted in, with the
 // audience rules of the publication (portal audience, or the wider letter
 // audience) applied unchanged.
-func (s *service) deliverReminder(ctx context.Context, a *usersModels.ParentAnnouncement) error {
-	if err := s.notifyAnnouncementGuardiansAs(ctx, a, reminderPushShape(a)); err != nil {
-		return fmt.Errorf("announcement: reminder push notifications: %w", err)
+func (s *service) deliverReminder(ctx context.Context, a *usersModels.ParentAnnouncement) (bool, error) {
+	pushAccepted, err := s.notifyAnnouncementGuardiansAs(ctx, a, reminderPushShape(a))
+	if err != nil {
+		return false, fmt.Errorf("announcement: reminder push notifications: %w", err)
 	}
+	emailAccepted := 0
 	if a.SendEmail {
 		if needsDeliveryTracking(a) {
-			if err := s.enqueueTrackedReminderEmails(ctx, a); err != nil {
-				return err
+			emailAccepted, err = s.enqueueTrackedReminderEmails(ctx, a)
+			if err != nil {
+				return false, err
 			}
-		} else if err := s.enqueueAnnouncementEmailsAs(ctx, a, reminderMailSpec(a)); err != nil {
-			return err
+		} else {
+			emailAccepted, err = s.enqueueAnnouncementEmailsAs(ctx, a, reminderMailSpec(a))
+			if err != nil {
+				return false, err
+			}
 		}
+	}
+	if pushAccepted == 0 && emailAccepted == 0 {
+		return false, nil
 	}
 	s.logger.Info("parent announcement reminder sent",
 		slog.Int64("announcement_id", a.ID),
 		slog.String("delivery_mode", a.DeliveryMode),
 		slog.Bool("email", a.SendEmail),
 	)
-	return nil
+	return true, nil
 }
 
 // reminderPushShape keeps the push generic like every other parent push (no
@@ -305,13 +331,13 @@ func reminderLetterMailSpec(a *usersModels.ParentAnnouncement) mailSpec {
 // reminder: the same people, the same reachability decision, the same opt-out
 // rule. It does NOT rewrite the delivery matrix — the matrix documents the
 // publication, and a reminder must not make a failed publish mail look sent.
-func (s *service) enqueueTrackedReminderEmails(ctx context.Context, a *usersModels.ParentAnnouncement) error {
+func (s *service) enqueueTrackedReminderEmails(ctx context.Context, a *usersModels.ParentAnnouncement) (int, error) {
 	resolved, err := s.repo.ResolveDeliveryRecipients(ctx, a.GetTenantID(), a.ID)
 	if err != nil {
-		return fmt.Errorf("announcement: resolve reminder recipients: %w", err)
+		return 0, fmt.Errorf("announcement: resolve reminder recipients: %w", err)
 	}
 	if len(resolved) == 0 {
-		return nil
+		return 0, nil
 	}
 	recipients := make([]*letterRecipient, 0, len(resolved))
 	for _, r := range resolved {

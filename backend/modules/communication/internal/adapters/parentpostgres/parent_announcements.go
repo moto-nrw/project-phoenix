@@ -365,10 +365,12 @@ func (s *AnnouncementStore) SetPublished(ctx context.Context, id int64, publishe
 		Set("published_at = ?", publishedAt).
 		Where(`"parent_announcement".id = ?`, id)
 	if publishedAt == nil {
-		// Unpublishing starts a new publication cycle. Its former reminder was
-		// already delivered for the withdrawn version and must not block the
-		// corrected announcement from scheduling a new one.
-		query.Set("reminder_sent_at = NULL")
+		// Unpublishing starts a new publication cycle. A reminder belonged to
+		// the withdrawn version, so its time, wording and sent marker must all
+		// disappear before staff can schedule a reminder for the correction.
+		query.Set("reminder_at = NULL").
+			Set("reminder_text = NULL").
+			Set("reminder_sent_at = NULL")
 	}
 	query = withTenant(query, parentAnnouncementAlias, tenantID)
 	if _, err := query.Exec(ctx); err != nil {

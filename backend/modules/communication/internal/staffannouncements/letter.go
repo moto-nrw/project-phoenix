@@ -199,7 +199,8 @@ func (s *service) applyEmailOptOuts(ctx context.Context, a *usersModels.ParentAn
 // as "versendet", because that one mail informed both. Hence the address-keyed
 // dedupe with a shared outbox id rather than a per-person send.
 func (s *service) queueLetterMails(ctx context.Context, a *usersModels.ParentAnnouncement, recipients []*letterRecipient) error {
-	return s.queueLetterMailsAs(ctx, a, recipients, publishLetterMailSpec(a))
+	_, err := s.queueLetterMailsAs(ctx, a, recipients, publishLetterMailSpec(a))
+	return err
 }
 
 // publishLetterMailSpec is the tracked publish mail: an Elternbrief carries
@@ -222,16 +223,16 @@ func publishLetterMailSpec(a *usersModels.ParentAnnouncement) mailSpec {
 	return spec
 }
 
-func (s *service) queueLetterMailsAs(ctx context.Context, a *usersModels.ParentAnnouncement, recipients []*letterRecipient, spec mailSpec) error {
+func (s *service) queueLetterMailsAs(ctx context.Context, a *usersModels.ParentAnnouncement, recipients []*letterRecipient, spec mailSpec) (int, error) {
 	if s.outbox == nil {
 		s.logger.Warn("announcement needs e-mail but no outbox is wired",
 			slog.Int64("announcement_id", a.ID))
-		return nil
+		return 0, nil
 	}
 	tenantID := a.GetTenantID()
 	schoolName, err := s.repo.SchoolName(ctx, tenantID)
 	if err != nil {
-		return fmt.Errorf("announcement: resolve school name: %w", err)
+		return 0, fmt.Errorf("announcement: resolve school name: %w", err)
 	}
 	logoURL := s.resolveSchoolLogoURL(ctx, tenantID)
 	motoLogoURL := emailbranding.MotoLogoURL(s.parentsURL)
@@ -252,6 +253,7 @@ func (s *service) queueLetterMailsAs(ctx context.Context, a *usersModels.ParentA
 		portalAccessByAddress[address] = portalAccessByAddress[address] || r.src.HasPortalAccess
 	}
 	queued := 0
+	accepted := 0
 	for _, r := range recipients {
 		if !canQueueLetterMail(r, a) || r.reachability == reachabilityExcluded {
 			continue
@@ -289,8 +291,9 @@ func (s *service) queueLetterMailsAs(ctx context.Context, a *usersModels.ParentA
 			IdempotencyKey:    spec.idempotencyKey(address),
 		})
 		if err != nil {
-			return fmt.Errorf("announcement: enqueue e-mail: %w", err)
+			return accepted, fmt.Errorf("announcement: enqueue e-mail: %w", err)
 		}
+		accepted++
 		// A duplicate key is swallowed by the outbox (ON CONFLICT DO NOTHING) and
 		// comes back without an id. That is a success, not a failure: the mail is
 		// already queued from an earlier attempt.
@@ -308,7 +311,7 @@ func (s *service) queueLetterMailsAs(ctx context.Context, a *usersModels.ParentA
 		slog.Int("recipients", len(recipients)),
 		slog.Int("queued", queued),
 	)
-	return nil
+	return accepted, nil
 }
 
 // letterPortalURL deep-links into the announcement rather than the portal root.

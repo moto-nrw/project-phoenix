@@ -107,6 +107,13 @@ describe("reminderError", () => {
         new Date("2026-09-24T08:00:00.000Z"),
       ),
     ).toMatch(/Ablaufdatum/);
+    expect(
+      reminderError(
+        new Date(2026, 8, 24),
+        "08:00",
+        new Date("2026-09-24T06:00:00.000Z"),
+      ),
+    ).toMatch(/Ablaufdatum/);
   });
 });
 

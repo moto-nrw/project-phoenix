@@ -56,8 +56,8 @@ export function reminderError(
   if (moment <= now) {
     return "Die Erinnerung muss in der Zukunft liegen.";
   }
-  if (expiresAt && moment > expiresAt) {
-    return "Die Erinnerung darf nicht nach dem Ablaufdatum liegen, sonst sehen Eltern die Mitteilung nicht mehr.";
+  if (expiresAt && moment >= expiresAt) {
+    return "Die Erinnerung muss vor dem Ablaufdatum liegen, sonst sehen Eltern die Mitteilung nicht mehr.";
   }
   return null;
 }

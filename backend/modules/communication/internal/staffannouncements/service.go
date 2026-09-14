@@ -584,15 +584,16 @@ func publishPushShape(a *usersModels.ParentAnnouncement) pushShape {
 }
 
 func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *usersModels.ParentAnnouncement) error {
-	return s.notifyAnnouncementGuardiansAs(ctx, a, publishPushShape(a))
+	_, err := s.notifyAnnouncementGuardiansAs(ctx, a, publishPushShape(a))
+	return err
 }
 
 // notifyAnnouncementGuardiansAs pushes to the announcement's current audience.
 // The publication and the scheduled reminder share this resolution, so the
 // reminder can never reach anyone the announcement itself would not.
-func (s *service) notifyAnnouncementGuardiansAs(ctx context.Context, a *usersModels.ParentAnnouncement, shape pushShape) error {
+func (s *service) notifyAnnouncementGuardiansAs(ctx context.Context, a *usersModels.ParentAnnouncement, shape pushShape) (int, error) {
 	if s.notifier == nil {
-		return nil
+		return 0, nil
 	}
 	var err error
 	priority := notifications.PriorityNormal
@@ -603,7 +604,7 @@ func (s *service) notifyAnnouncementGuardiansAs(ctx context.Context, a *usersMod
 	seen := make(map[int64]struct{})
 	recipients, err := s.repo.AudienceRecipients(ctx, a.GetTenantID(), a.ID)
 	if err != nil {
-		return fmt.Errorf("resolve guardian recipients: %w", err)
+		return 0, fmt.Errorf("resolve guardian recipients: %w", err)
 	}
 	accountIDs = make([]int64, 0, len(recipients))
 	localeByAccount := make(map[int64]string, len(recipients))
@@ -619,7 +620,7 @@ func (s *service) notifyAnnouncementGuardiansAs(ctx context.Context, a *usersMod
 		localeByAccount[recipient.AccountID] = localization.NormalizeLocale(recipient.PortalLocale)
 	}
 	if len(accountIDs) == 0 {
-		return nil
+		return 0, nil
 	}
 	candidateCount := len(accountIDs)
 
@@ -632,7 +633,7 @@ func (s *service) notifyAnnouncementGuardiansAs(ctx context.Context, a *usersMod
 	if s.preferences != nil {
 		accountIDs, err = s.preferences.FilterOptedIn(ctx, notificationType, accountIDs)
 		if err != nil {
-			return fmt.Errorf("filter opted-in guardians: %w", err)
+			return 0, fmt.Errorf("filter opted-in guardians: %w", err)
 		}
 		if len(accountIDs) < candidateCount {
 			s.logger.Info("parent announcement push narrowed by consent",
@@ -642,7 +643,7 @@ func (s *service) notifyAnnouncementGuardiansAs(ctx context.Context, a *usersMod
 			)
 		}
 		if len(accountIDs) == 0 {
-			return nil
+			return 0, nil
 		}
 	}
 
@@ -650,6 +651,7 @@ func (s *service) notifyAnnouncementGuardiansAs(ctx context.Context, a *usersMod
 	for _, accountID := range accountIDs {
 		groups[localeByAccount[accountID]] = append(groups[localeByAccount[accountID]], accountID)
 	}
+	accepted := 0
 	for locale, group := range groups {
 		title, body := notifications.ParentAnnouncementCopy(locale, copyKind)
 		err = s.notifier.Notify(ctx, notifications.Event{
@@ -674,13 +676,14 @@ func (s *service) notifyAnnouncementGuardiansAs(ctx context.Context, a *usersMod
 				slog.Int("recipient_count", len(accountIDs)),
 				slog.String("reason", err.Error()),
 			)
-			return nil
+			return accepted, nil
 		}
 		if err != nil {
-			return fmt.Errorf("notify guardian audience: %w", err)
+			return accepted, fmt.Errorf("notify guardian audience: %w", err)
 		}
+		accepted++
 	}
-	return nil
+	return accepted, nil
 }
 
 // enqueueAnnouncementEmails queues one outbox e-mail per targeted guardian with
@@ -695,7 +698,8 @@ func (s *service) notifyAnnouncementGuardiansAs(ctx context.Context, a *usersMod
 // (that part remains fire-and-forget). A missing outbox binding or an empty
 // audience are not DB errors and stay non-fatal.
 func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.ParentAnnouncement) error {
-	return s.enqueueAnnouncementEmailsAs(ctx, a, publishMailSpec(a))
+	_, err := s.enqueueAnnouncementEmailsAs(ctx, a, publishMailSpec(a))
+	return err
 }
 
 // mailSpec is what differs between the publish mail and the scheduled-reminder
@@ -736,21 +740,21 @@ func publishMailSpec(a *usersModels.ParentAnnouncement) mailSpec {
 	return spec
 }
 
-func (s *service) enqueueAnnouncementEmailsAs(ctx context.Context, a *usersModels.ParentAnnouncement, spec mailSpec) error {
+func (s *service) enqueueAnnouncementEmailsAs(ctx context.Context, a *usersModels.ParentAnnouncement, spec mailSpec) (int, error) {
 	if s.outbox == nil {
 		s.logger.Warn("parent announcement opted into e-mail but no outbox is wired",
 			slog.Int64("announcement_id", a.ID))
-		return nil
+		return 0, nil
 	}
 	tenantID := a.GetTenantID()
 	var recipients []*usersModels.AnnouncementRecipient
 	var err error
 	recipients, err = s.repo.ResolveAudienceEmails(ctx, tenantID, a.ID)
 	if err != nil {
-		return fmt.Errorf("announcement: resolve audience e-mails: %w", err)
+		return 0, fmt.Errorf("announcement: resolve audience e-mails: %w", err)
 	}
 	if len(recipients) == 0 {
-		return nil
+		return 0, nil
 	}
 	if s.preferences != nil {
 		accountIDs := make([]int64, 0, len(recipients))
@@ -772,7 +776,7 @@ func (s *service) enqueueAnnouncementEmailsAs(ctx context.Context, a *usersModel
 		notificationType, _, _ := pushShapeFor(a)
 		remaining, err := s.preferences.FilterNotOptedOut(ctx, notificationType, accountIDs)
 		if err != nil {
-			return fmt.Errorf("announcement: filter opted-out e-mail recipients: %w", err)
+			return 0, fmt.Errorf("announcement: filter opted-out e-mail recipients: %w", err)
 		}
 		allowed := make(map[int64]struct{}, len(remaining))
 		for _, accountID := range remaining {
@@ -793,7 +797,7 @@ func (s *service) enqueueAnnouncementEmailsAs(ctx context.Context, a *usersModel
 		}
 		recipients = filtered
 		if len(recipients) == 0 {
-			return nil
+			return 0, nil
 		}
 	}
 	uniqueRecipients := make([]*usersModels.AnnouncementRecipient, 0, len(recipients))
@@ -813,11 +817,11 @@ func (s *service) enqueueAnnouncementEmailsAs(ctx context.Context, a *usersModel
 	}
 	recipients = uniqueRecipients
 	if len(recipients) == 0 {
-		return nil
+		return 0, nil
 	}
 	schoolName, err := s.repo.SchoolName(ctx, tenantID)
 	if err != nil {
-		return fmt.Errorf("announcement: resolve school name: %w", err)
+		return 0, fmt.Errorf("announcement: resolve school name: %w", err)
 	}
 	// Header/footer branding, resolved once for the whole batch. The same logo
 	// URLs the enrollment mails use, so the announcement mail renders the school
@@ -857,7 +861,7 @@ func (s *service) enqueueAnnouncementEmailsAs(ctx context.Context, a *usersModel
 			request.IdempotencyKey = spec.idempotencyKey(rcpt.Email)
 		}
 		if _, err := s.outbox.Enqueue(ctx, request); err != nil {
-			return fmt.Errorf("announcement: enqueue e-mail: %w", err)
+			return queued, fmt.Errorf("announcement: enqueue e-mail: %w", err)
 		}
 		queued++
 	}
@@ -865,7 +869,7 @@ func (s *service) enqueueAnnouncementEmailsAs(ctx context.Context, a *usersModel
 		slog.Int64("announcement_id", a.ID),
 		slog.Int("queued", queued),
 	)
-	return nil
+	return queued, nil
 }
 
 // resolveSchoolLogoURL returns the absolute school-logo URL for the e-mail

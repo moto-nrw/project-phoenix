@@ -120,6 +120,7 @@ func TestNormalizeReminder_Rules(t *testing.T) {
 		{name: "a moment in the past is rejected", in: Input{ReminderAt: &past}, wantErr: true},
 		{name: "a moment equal to now is rejected", in: Input{ReminderAt: &now}, wantErr: true},
 		{name: "a moment after the expiry is rejected", in: Input{ReminderAt: &future, ExpiresAt: &expiry}, wantErr: true},
+		{name: "a moment equal to the expiry is rejected", in: Input{ReminderAt: &expiry, ExpiresAt: &expiry}, wantErr: true},
 		{name: "a moment before the expiry passes", in: Input{ReminderAt: &future, ExpiresAt: ptrTime(future.Add(time.Hour))}},
 		{name: "a poll never carries a scheduled reminder", in: Input{ReminderAt: &future, ResponseType: usersModels.ParentAnnouncementResponseSingleChoice}, wantErr: true},
 		{name: "a letter may carry one", in: Input{ReminderAt: &future, DeliveryMode: usersModels.ParentAnnouncementDeliveryLetter}},
@@ -322,6 +323,53 @@ func TestSendDueReminders_WithoutEmailOptInSendsPushOnly(t *testing.T) {
 	assert.Equal(t, 1, sent)
 	assert.Len(t, h.notifier.events, 1)
 	assert.Empty(t, h.outbox.requests, "e-mail only when the announcement itself opted in")
+}
+
+func TestSendDueReminders_SuppressedPushWithoutEmailRollsTheTickBack(t *testing.T) {
+	t.Parallel()
+
+	a := publishedWithReminder(false)
+	repo := &reminderRepo{
+		fakeAnnouncementRepo: fakeAnnouncementRepo{
+			announcement: a,
+			recipients:   []*usersModels.AnnouncementRecipient{{AccountID: 101}},
+		},
+		due:   []*usersModels.ParentAnnouncement{a},
+		claim: map[int64]bool{a.ID: true},
+	}
+	h := newReminderHarness(repo)
+	h.notifier.err = notifications.ErrDisabled
+
+	sent, err := h.svc.SendDueReminders(context.Background(), time.Now().Add(-time.Hour), time.Now())
+	require.Error(t, err, "the caller's tenant transaction must roll back a claim without an accepted delivery")
+	assert.Zero(t, sent)
+	assert.Empty(t, h.outbox.requests)
+}
+
+func TestSendDueReminders_ReloadsTheClaimedReminderBeforeDelivery(t *testing.T) {
+	t.Parallel()
+
+	stale := publishedWithReminder(true)
+	stale.DeliveryMode = usersModels.ParentAnnouncementDeliveryLetter
+	staleText := "Alter Erinnerungstext"
+	stale.ReminderText = &staleText
+	fresh := *stale
+	freshText := "Aktueller Erinnerungstext"
+	fresh.ReminderText = &freshText
+	repo := &reminderRepo{
+		fakeAnnouncementRepo: fakeAnnouncementRepo{
+			announcement: &fresh,
+		},
+		due:                []*usersModels.ParentAnnouncement{stale},
+		claim:              map[int64]bool{stale.ID: true},
+		deliveryRecipients: []*usersModels.AnnouncementDeliveryRecipient{{GuardianProfileID: 1, Email: "anna@example.test", HasPortalAccess: true}},
+	}
+	h := newReminderHarness(repo)
+
+	_, err := h.svc.SendDueReminders(context.Background(), time.Now().Add(-time.Hour), time.Now())
+	require.NoError(t, err)
+	require.Len(t, h.outbox.requests, 1)
+	assert.Equal(t, freshText, h.outbox.requests[0].Payload[emailPayloadBody])
 }
 
 func TestSendDueReminders_SeparatesLocaleSpecificPushIntents(t *testing.T) {
