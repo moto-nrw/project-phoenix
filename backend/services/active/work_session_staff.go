@@ -2,8 +2,6 @@ package active
 
 import (
 	"context"
-
-	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 type WorkSessionStaffName struct {
@@ -14,6 +12,7 @@ type WorkSessionStaffName struct {
 type WorkSessionStaff interface {
 	StaffScheduleQuery
 	StaffNames(context.Context, []int64) (map[int64]WorkSessionStaffName, error)
-	// Update retains the existing staff write while schedule commands migrate.
-	Update(context.Context, *users.Staff) error
+	// BindSchedule persists the work time model and rotation anchor of the
+	// staff member.
+	BindSchedule(context.Context, StaffScheduleBinding) error
 }

@@ -375,7 +375,7 @@ func (c workSessionCapability) UpdateStaffSchedule(ctx context.Context, staffID 
 			legacyInput.Entries = append(legacyInput.Entries, active.ScheduleEntry(entry))
 		}
 	}
-	return mapTimeTrackingFailure(c.sessions.UpdateSchedule(ctx, staff, legacyInput))
+	return mapTimeTrackingFailure(c.sessions.UpdateSchedule(ctx, &active.StaffScheduleBinding{ID: staff.ID, WorkTimeModelID: staff.WorkTimeModelID, RotationAnchorDate: staff.RotationAnchorDate}, legacyInput))
 }
 
 // --- absences ---------------------------------------------------------------

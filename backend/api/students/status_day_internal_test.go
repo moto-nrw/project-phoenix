@@ -20,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -162,7 +161,7 @@ func TestApplyAndClearLiveStatusForToday(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 5, 25, 9, 30, 0, 0, time.UTC)
-	student := &users.Student{}
+	student := &activeService.StudentRecord{}
 
 	activeService.ApplyLiveStatusForToday(student, active.StudentStatusDaySick, now)
 	require.NotNil(t, student.Sick)

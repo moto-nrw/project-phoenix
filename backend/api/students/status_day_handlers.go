@@ -228,13 +228,12 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 func (rs *Resource) newStatusDayWriteContext(r *http.Request, userPermissions []string) activeService.StatusDayWriteContext {
 	tenantID := tenant.FromContext(r.Context())
 	return activeService.StatusDayWriteContext{
-		DB:             rs.DB,
-		TenantID:       tenantID,
-		StudentService: rs.StudentService,
-		Authorize: func(ctx context.Context, student *users.Student, status string) bool {
+		DB:       rs.DB,
+		TenantID: tenantID,
+		StudentService: newStatusDayStudents(rs.StudentService, func(ctx context.Context, student *users.Student, status string) bool {
 			ok, _ := rs.canManageStudentStatus(ctx, userPermissions, student, status)
 			return ok
-		},
+		}),
 		AfterCommit: func(studentID int64) {
 			rs.broadcastStudentUpdated(tenantID, studentID)
 			// Also wake the child's guardians so an open parents-app tab reflects

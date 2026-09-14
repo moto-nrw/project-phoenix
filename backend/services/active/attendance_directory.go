@@ -2,8 +2,6 @@ package active
 
 import (
 	"context"
-
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // AttendanceEducationGroups supplies the group-to-room directory for dashboards.
@@ -21,11 +19,4 @@ type EducationGroupRoom struct {
 // AttendanceStaffNames supplies the names attached to attendance records.
 type AttendanceStaffNames interface {
 	StaffName(context.Context, int64) (string, error)
-}
-
-// StatusDayStudents supports locked reauthorization and live-status updates
-// within the status-day write transaction.
-type StatusDayStudents interface {
-	GetByIDForUpdate(context.Context, int64) (*userModels.Student, error)
-	Update(context.Context, *userModels.Student) error
 }

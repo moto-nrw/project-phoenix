@@ -21,6 +21,7 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	"github.com/moto-nrw/project-phoenix/services"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
@@ -453,8 +454,7 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 		staffResult <- statusSvc.CreateForDates(testpkg.TenantContext(chain.TenantID), activeService.StatusDayWriteContext{
 			DB:             db,
 			TenantID:       chain.TenantID,
-			StudentService: staffStudentSvc,
-			Authorize:      func(context.Context, *userModels.Student, string) bool { return true },
+			StudentService: services.StatusDayStudents(staffStudentSvc, nil),
 			AfterCommit:    func(int64) {},
 		}, chain.StudentID, activeModels.StudentStatusDayExcused, "Termin", []timezone.Date{date})
 	}()

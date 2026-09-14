@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // Period values for the dashboard summary (#1417).
@@ -558,9 +557,9 @@ func compareOverviewRows(a, b TimeTrackingOverviewRow, key string) int {
 
 func validEmploymentTypes() []string {
 	return []string{
-		userModels.EmploymentTypeFullTime,
-		userModels.EmploymentTypePartTime,
-		userModels.EmploymentTypeMinijob,
+		EmploymentTypeFullTime,
+		EmploymentTypePartTime,
+		EmploymentTypeMinijob,
 	}
 }
 

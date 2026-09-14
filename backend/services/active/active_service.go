@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -89,7 +88,7 @@ type ServiceDependencies struct {
 	Schools         SchoolQuery
 
 	// User domain repositories
-	StudentRepo userModels.StudentRepository
+	StudentRepo PresenceStudents
 	StaffRepo   AttendanceStaff
 
 	// Supporting domain repositories
@@ -635,7 +634,7 @@ func (s *service) ensureStudentCheckinAllowed(ctx context.Context, studentID int
 		}
 		return err
 	}
-	if student.Status == userModels.StudentStatusAlumnus {
+	if student.IsAlumnus() {
 		return ErrStudentGraduated
 	}
 	// A child whose care ended yesterday cannot start a new day here (#2487).

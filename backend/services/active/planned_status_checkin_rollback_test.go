@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
@@ -53,7 +52,7 @@ func (r *plannedStatusFault) MarkClearedByID(ctx context.Context, id int64, at t
 }
 
 type plannedStudentFault struct {
-	userModels.StudentRepository
+	activeService.PresenceStudents
 	writeErr error
 	writes   int
 }
@@ -70,8 +69,8 @@ func (r *checkinAttributionFault) FindActiveByDeviceID(ctx context.Context, id i
 	return r.GroupRepository.FindActiveByDeviceID(ctx, id)
 }
 
-func (r *plannedStudentFault) Update(ctx context.Context, student *userModels.Student) error {
-	if err := r.StudentRepository.Update(ctx, student); err != nil {
+func (r *plannedStudentFault) UpdateLiveStatus(ctx context.Context, student *activeService.StudentRecord) error {
+	if err := r.PresenceStudents.UpdateLiveStatus(ctx, student); err != nil {
 		return err
 	}
 	r.writes++
@@ -119,7 +118,7 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 	groupFault := &checkinAttributionFault{GroupRepository: repos.ActiveGroup}
 	presence := testSchoolPresence(t, db)
 	statuses := &plannedStatusFault{StudentStatusDayRepository: repos.StudentStatusDay}
-	students := &plannedStudentFault{StudentRepository: repos.Student}
+	students := &plannedStudentFault{PresenceStudents: services.PresenceStudents(repos.Student)}
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := activeService.NewService(activeService.ServiceDependencies{PrincipalReader: services.AttendancePrincipal,
 		SchoolPresence: presence, StudentRepo: students, StudentStatusRepo: statuses,

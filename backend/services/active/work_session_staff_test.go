@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,15 +15,15 @@ import (
 type wsStaffAccessMock struct {
 	WorkSessionStaff
 	ScheduleFn func(context.Context, int64) (*StaffScheduleAssignment, error)
-	UpdateFn   func(context.Context, *users.Staff) error
+	BindFn     func(context.Context, StaffScheduleBinding) error
 }
 
 func (m *wsStaffAccessMock) ScheduleAssignment(ctx context.Context, id int64) (*StaffScheduleAssignment, error) {
 	return m.ScheduleFn(ctx, id)
 }
 
-func (m *wsStaffAccessMock) Update(ctx context.Context, staff *users.Staff) error {
-	return m.UpdateFn(ctx, staff)
+func (m *wsStaffAccessMock) BindSchedule(ctx context.Context, staff StaffScheduleBinding) error {
+	return m.BindFn(ctx, staff)
 }
 
 func TestWorkSessionStaffNamesPreserveDisplayContracts(t *testing.T) {

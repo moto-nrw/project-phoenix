@@ -10,9 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,7 +38,7 @@ func TestLiveStatusHistoryFailuresDoNotClearFlags(t *testing.T) {
 		for _, stage := range []string{"upsert", "clear"} {
 			t.Run(flag+"/"+stage, func(t *testing.T) {
 				set := true
-				student := &userModels.Student{Model: base.Model{ID: 42}, Sick: &set, Excused: &set}
+				student := &StudentRecord{ID: 42, Sick: &set, Excused: &set}
 				students := &mockStudentRepoForClear{}
 				statuses := &failingPlannedStatusRead{}
 				if stage == "upsert" {
@@ -82,11 +80,11 @@ func TestPlannedStatusClearFailuresPropagate(t *testing.T) {
 	for _, stage := range []string{"status write", "student read", "student write"} {
 		t.Run(stage, func(t *testing.T) {
 			statuses := &failingPlannedStatusRead{}
-			students := &mockStudentRepoForClear{findByIDFunc: func(context.Context, interface{}) (*userModels.Student, error) {
+			students := &mockStudentRepoForClear{findByIDFunc: func(context.Context, int64) (*StudentRecord, error) {
 				if stage == "student read" {
 					return nil, injected
 				}
-				return &userModels.Student{Model: base.Model{ID: 42}}, nil
+				return &StudentRecord{ID: 42}, nil
 			}}
 			if stage == "status write" {
 				statuses.clearErr = injected
@@ -172,19 +170,17 @@ func TestResolveClearModeUsesResolvedValueAndPropagatesErrors(t *testing.T) {
 // userModels.StudentRepository panics if invoked, which keeps the test
 // surface small and catches accidental extra calls.
 type mockStudentRepoForClear struct {
-	userModels.StudentRepository
-
-	findByIDFunc func(ctx context.Context, id interface{}) (*userModels.Student, error)
+	findByIDFunc func(ctx context.Context, id int64) (*StudentRecord, error)
 	updateErr    error
 	updateCalls  int
-	lastUpdate   *userModels.Student
+	lastUpdate   *StudentRecord
 }
 
-func (m *mockStudentRepoForClear) FindByID(ctx context.Context, id interface{}) (*userModels.Student, error) {
+func (m *mockStudentRepoForClear) FindByID(ctx context.Context, id int64) (*StudentRecord, error) {
 	return m.findByIDFunc(ctx, id)
 }
 
-func (m *mockStudentRepoForClear) Update(_ context.Context, s *userModels.Student) error {
+func (m *mockStudentRepoForClear) UpdateLiveStatus(_ context.Context, s *StudentRecord) error {
 	m.updateCalls++
 	m.lastUpdate = s
 	return m.updateErr
@@ -193,7 +189,7 @@ func (m *mockStudentRepoForClear) Update(_ context.Context, s *userModels.Studen
 // newTestServiceWithLogger returns a minimal *service wired up to a discard
 // logger and the given settings + student-repo stubs. Only the fields that
 // auto-clear exercises are populated.
-func newTestServiceWithLogger(s SettingsResolver, repo userModels.StudentRepository) *service {
+func newTestServiceWithLogger(s SettingsResolver, repo PresenceStudents) *service {
 	if s == nil {
 		s = &configtest.Mock{ResolveStringFn: func(_ context.Context, key string) (string, error) {
 			return configModel.GetDefinition(key).Default.(string), nil
@@ -208,7 +204,7 @@ func TestAutoClearStudentSickness_SkipsWhenModeNotNextCheckin(t *testing.T) {
 	t.Parallel()
 
 	repo := &mockStudentRepoForClear{
-		findByIDFunc: func(_ context.Context, _ interface{}) (*userModels.Student, error) {
+		findByIDFunc: func(_ context.Context, _ int64) (*StudentRecord, error) {
 			t.Fatal("repo should not be called when mode != next_checkin")
 			return nil, nil
 		},
@@ -226,7 +222,7 @@ func TestAutoClearStudentSickness_FindByIDError(t *testing.T) {
 	t.Parallel()
 
 	repo := &mockStudentRepoForClear{
-		findByIDFunc: func(_ context.Context, _ interface{}) (*userModels.Student, error) {
+		findByIDFunc: func(_ context.Context, _ int64) (*StudentRecord, error) {
 			return nil, errors.New("db down")
 		},
 	}
@@ -244,9 +240,9 @@ func TestAutoClearStudentSickness_AlreadyHealthy(t *testing.T) {
 	t.Parallel()
 
 	falseVal := false
-	healthy := &userModels.Student{Model: base.Model{ID: 1}, Sick: &falseVal}
+	healthy := &StudentRecord{ID: 1, Sick: &falseVal}
 	repo := &mockStudentRepoForClear{
-		findByIDFunc: func(_ context.Context, _ interface{}) (*userModels.Student, error) {
+		findByIDFunc: func(_ context.Context, _ int64) (*StudentRecord, error) {
 			return healthy, nil
 		},
 	}
@@ -261,9 +257,9 @@ func TestAutoClearStudentSickness_UpdateErrorPropagates(t *testing.T) {
 	t.Parallel()
 
 	trueVal := true
-	sickStudent := &userModels.Student{Model: base.Model{ID: 2}, Sick: &trueVal}
+	sickStudent := &StudentRecord{ID: 2, Sick: &trueVal}
 	repo := &mockStudentRepoForClear{
-		findByIDFunc: func(_ context.Context, _ interface{}) (*userModels.Student, error) {
+		findByIDFunc: func(_ context.Context, _ int64) (*StudentRecord, error) {
 			return sickStudent, nil
 		},
 		updateErr: errors.New("update failed"),
@@ -280,7 +276,7 @@ func TestAutoClearStudentExcused_SkipsWhenModeNotNextCheckin(t *testing.T) {
 	t.Parallel()
 
 	repo := &mockStudentRepoForClear{
-		findByIDFunc: func(_ context.Context, _ interface{}) (*userModels.Student, error) {
+		findByIDFunc: func(_ context.Context, _ int64) (*StudentRecord, error) {
 			t.Fatal("repo should not be called under default end_of_day mode")
 			return nil, nil
 		},
@@ -297,7 +293,7 @@ func TestAutoClearStudentExcused_FindByIDError(t *testing.T) {
 	t.Parallel()
 
 	repo := &mockStudentRepoForClear{
-		findByIDFunc: func(_ context.Context, _ interface{}) (*userModels.Student, error) {
+		findByIDFunc: func(_ context.Context, _ int64) (*StudentRecord, error) {
 			return nil, errors.New("db down")
 		},
 	}
@@ -313,9 +309,9 @@ func TestAutoClearStudentExcused_AlreadyNotExcused(t *testing.T) {
 	t.Parallel()
 
 	falseVal := false
-	notExcused := &userModels.Student{Model: base.Model{ID: 1}, Excused: &falseVal}
+	notExcused := &StudentRecord{ID: 1, Excused: &falseVal}
 	repo := &mockStudentRepoForClear{
-		findByIDFunc: func(_ context.Context, _ interface{}) (*userModels.Student, error) {
+		findByIDFunc: func(_ context.Context, _ int64) (*StudentRecord, error) {
 			return notExcused, nil
 		},
 	}
@@ -332,9 +328,9 @@ func TestAutoClearStudentExcused_Clears(t *testing.T) {
 	t.Parallel()
 
 	trueVal := true
-	excStudent := &userModels.Student{Model: base.Model{ID: 3}, Excused: &trueVal}
+	excStudent := &StudentRecord{ID: 3, Excused: &trueVal}
 	repo := &mockStudentRepoForClear{
-		findByIDFunc: func(_ context.Context, _ interface{}) (*userModels.Student, error) {
+		findByIDFunc: func(_ context.Context, _ int64) (*StudentRecord, error) {
 			return excStudent, nil
 		},
 	}
@@ -354,9 +350,9 @@ func TestAutoClearStudentExcused_UpdateError(t *testing.T) {
 	t.Parallel()
 
 	trueVal := true
-	excStudent := &userModels.Student{Model: base.Model{ID: 4}, Excused: &trueVal}
+	excStudent := &StudentRecord{ID: 4, Excused: &trueVal}
 	repo := &mockStudentRepoForClear{
-		findByIDFunc: func(_ context.Context, _ interface{}) (*userModels.Student, error) {
+		findByIDFunc: func(_ context.Context, _ int64) (*StudentRecord, error) {
 			return excStudent, nil
 		},
 		updateErr: errors.New("update failed"),
@@ -366,4 +362,12 @@ func TestAutoClearStudentExcused_UpdateError(t *testing.T) {
 
 	require.ErrorContains(t, s.autoClearStudentExcused(context.Background(), 4), "update failed")
 	require.Equal(t, 1, repo.updateCalls)
+}
+
+func (m *mockStudentRepoForClear) FindByIDForUpdate(ctx context.Context, id int64) (*StudentRecord, error) {
+	return m.findByIDFunc(ctx, id)
+}
+
+func (m *mockStudentRepoForClear) FindByIDsForUpdate(context.Context, []int64) (map[int64]*StudentRecord, error) {
+	panic("FindByIDsForUpdate is not part of the auto-clear surface")
 }

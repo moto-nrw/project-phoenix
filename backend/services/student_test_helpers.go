@@ -391,3 +391,9 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		MasterDataReview: masterDataReviewService, ParentRequests: parentRequestCoordinator, FamilyProtection: familyProtectionService, OGSGroupLive: ogsGroupLiveService,
 	}, nil
 }
+
+// StatusDayOverviewPeople serves the absence overview's people reads from the
+// module's users service.
+func (m StudentTestModule) StatusDayOverviewPeople() active.StatusDayOverviewPeople {
+	return StatusDayOverviewPeople(m.Users)
+}

@@ -11,7 +11,6 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -3478,13 +3477,13 @@ func TestWSUpdateScheduleBroadcastsTimeTrackingChangeAfterCommit(t *testing.T) {
 	svc.SetBroadcaster(broadcaster)
 	svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{}
 	svc.staffRepo = &wsStaffAccessMock{
-		UpdateFn: func(_ context.Context, _ *userModels.Staff) error { return nil },
+		BindFn: func(context.Context, StaffScheduleBinding) error { return nil },
 	}
 	ctx, commit := tenant.WithAfterCommitHooksForTest(
 		tenant.WithTenantID(context.Background(), 42),
 	)
 
-	err := svc.UpdateSchedule(ctx, &userModels.Staff{Model: base.Model{ID: 100}}, ScheduleUpdateInput{
+	err := svc.UpdateSchedule(ctx, &StaffScheduleBinding{ID: 100}, ScheduleUpdateInput{
 		Mode:           "custom",
 		RotationLength: 1,
 		Entries: []ScheduleEntry{{
@@ -3513,7 +3512,7 @@ func TestWSApplyCustomScheduleRows_StampsAnchorForFirstRotation(t *testing.T) {
 	t.Parallel()
 	svc, _, _, _, _ := wsCreateTestService()
 	svc.nowFunc = func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC) }
-	staff := &userModels.Staff{Model: base.Model{ID: 100}}
+	staff := &StaffScheduleBinding{ID: 100}
 
 	var written configModels.CalendarDate
 	svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
@@ -3523,7 +3522,7 @@ func TestWSApplyCustomScheduleRows_StampsAnchorForFirstRotation(t *testing.T) {
 		},
 	}
 	svc.staffRepo = &wsStaffAccessMock{
-		UpdateFn: func(_ context.Context, _ *userModels.Staff) error { return nil },
+		BindFn: func(context.Context, StaffScheduleBinding) error { return nil },
 	}
 
 	entries := []*configModels.StaffWorkSchedule{
@@ -3541,7 +3540,7 @@ func TestWSApplyCustomScheduleRows_StampsAnchorForFirstRotation(t *testing.T) {
 func TestWSApplyCustomScheduleRows_SingleWeekKeepsAnchorUnset(t *testing.T) {
 	t.Parallel()
 	svc, _, _, _, _ := wsCreateTestService()
-	staff := &userModels.Staff{Model: base.Model{ID: 100}}
+	staff := &StaffScheduleBinding{ID: 100}
 
 	var written configModels.CalendarDate
 	svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
@@ -3551,7 +3550,7 @@ func TestWSApplyCustomScheduleRows_SingleWeekKeepsAnchorUnset(t *testing.T) {
 		},
 	}
 	svc.staffRepo = &wsStaffAccessMock{
-		UpdateFn: func(_ context.Context, _ *userModels.Staff) error { return nil },
+		BindFn: func(context.Context, StaffScheduleBinding) error { return nil },
 	}
 
 	entries := []*configModels.StaffWorkSchedule{
@@ -3569,7 +3568,7 @@ func TestWSApplyCustomScheduleRows_ExistingStaffAnchorWins(t *testing.T) {
 	t.Parallel()
 	svc, _, _, _, _ := wsCreateTestService()
 	existing := timezone.NewDate(2026, 6, 1)
-	staff := &userModels.Staff{Model: base.Model{ID: 100}, RotationAnchorDate: &existing}
+	staff := &StaffScheduleBinding{ID: 100, RotationAnchorDate: &existing}
 
 	var written configModels.CalendarDate
 	svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
@@ -3579,7 +3578,7 @@ func TestWSApplyCustomScheduleRows_ExistingStaffAnchorWins(t *testing.T) {
 		},
 	}
 	svc.staffRepo = &wsStaffAccessMock{
-		UpdateFn: func(_ context.Context, _ *userModels.Staff) error { return nil },
+		BindFn: func(context.Context, StaffScheduleBinding) error { return nil },
 	}
 
 	entries := []*configModels.StaffWorkSchedule{

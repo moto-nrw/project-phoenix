@@ -5400,7 +5400,7 @@
       "declaration": "TestBulkCreateForDates_RejectsConflictWithoutPartialWrites",
       "target": "database/repositories.NewFactory",
       "lines": [
-        78
+        67
       ],
       "tables": []
     },
@@ -5410,7 +5410,7 @@
       "declaration": "TestBulkCreateForDates_RejectsUnauthorizedWithoutPartialWrites",
       "target": "database/repositories.NewFactory",
       "lines": [
-        150
+        138
       ],
       "tables": []
     },
@@ -5420,7 +5420,7 @@
       "declaration": "TestCreateForDates_RejectsConflictWithoutPartialWrites",
       "target": "database/repositories.NewFactory",
       "lines": [
-        33
+        23
       ],
       "tables": []
     },
@@ -8099,7 +8099,7 @@
       "declaration": "TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck",
       "target": "database/repositories.NewFactory",
       "lines": [
-        402
+        403
       ],
       "tables": []
     },
@@ -8119,7 +8119,7 @@
       "declaration": "TestSubmitSickNote_RefusesPartialAbsenceConflict",
       "target": "database/repositories.NewFactory",
       "lines": [
-        364
+        365
       ],
       "tables": []
     },
@@ -8129,7 +8129,7 @@
       "declaration": "buildMessagingWriteService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        120
+        121
       ],
       "tables": []
     },
@@ -8139,7 +8139,7 @@
       "declaration": "buildWriteService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        96
+        97
       ],
       "tables": []
     },

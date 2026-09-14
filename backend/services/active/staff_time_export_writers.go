@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // Writers for the cross-staff export (#1417 2b). They serialize MonthExportRow
@@ -24,9 +23,9 @@ const (
 // exportEmploymentTypeLabels mirrors the frontend's employmentTypeLabels — the
 // file is read by people, not by code.
 var exportEmploymentTypeLabels = map[string]string{
-	userModels.EmploymentTypeFullTime: "Vollzeit",
-	userModels.EmploymentTypePartTime: "Teilzeit",
-	userModels.EmploymentTypeMinijob:  "Minijob",
+	EmploymentTypeFullTime: "Vollzeit",
+	EmploymentTypePartTime: "Teilzeit",
+	EmploymentTypeMinijob:  "Minijob",
 }
 
 var monthExportHeaders = []string{

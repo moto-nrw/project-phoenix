@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -192,7 +191,7 @@ func (s *service) autoClearStudentSickness(ctx context.Context, studentID int64)
 // clearSickFlagOnCheckin is the write core of autoClearStudentSickness,
 // operating on an already-loaded student so batch callers holding the row
 // lock don't re-read per child (review #2372). No-op when the flag is unset.
-func (s *service) clearSickFlagOnCheckin(ctx context.Context, student *userModels.Student, now time.Time) error {
+func (s *service) clearSickFlagOnCheckin(ctx context.Context, student *StudentRecord, now time.Time) error {
 	if student.Sick == nil || !*student.Sick {
 		return nil
 	}
@@ -205,7 +204,7 @@ func (s *service) clearSickFlagOnCheckin(ctx context.Context, student *userModel
 	student.Sick = &falseVal
 	student.SickSince = nil
 
-	if err := s.StudentRepo.Update(ctx, student); err != nil {
+	if err := s.StudentRepo.UpdateLiveStatus(ctx, student); err != nil {
 		return fmt.Errorf("clear student status: %w", err)
 	}
 
@@ -239,7 +238,7 @@ func (s *service) autoClearStudentExcused(ctx context.Context, studentID int64) 
 
 // clearExcusedFlagOnCheckin is the write core of autoClearStudentExcused —
 // same already-loaded-student contract as clearSickFlagOnCheckin.
-func (s *service) clearExcusedFlagOnCheckin(ctx context.Context, student *userModels.Student, now time.Time) error {
+func (s *service) clearExcusedFlagOnCheckin(ctx context.Context, student *StudentRecord, now time.Time) error {
 	if student.Excused == nil || !*student.Excused {
 		return nil
 	}
@@ -252,7 +251,7 @@ func (s *service) clearExcusedFlagOnCheckin(ctx context.Context, student *userMo
 	student.Excused = &falseVal
 	student.ExcusedSince = nil
 
-	if err := s.StudentRepo.Update(ctx, student); err != nil {
+	if err := s.StudentRepo.UpdateLiveStatus(ctx, student); err != nil {
 		return fmt.Errorf("clear student status: %w", err)
 	}
 
@@ -309,7 +308,7 @@ func (s *service) autoClearPlannedStudentStatuses(ctx context.Context, studentID
 func (s *service) clearPlannedStatusRows(
 	ctx context.Context,
 	studentID int64,
-	student *userModels.Student,
+	student *StudentRecord,
 	rows []*active.StudentStatusDay,
 	now time.Time,
 ) error {
@@ -359,7 +358,7 @@ func (s *service) clearPlannedStatusRows(
 		student.Excused = &falseVal
 		student.ExcusedSince = nil
 	}
-	if err := s.StudentRepo.Update(ctx, student); err != nil {
+	if err := s.StudentRepo.UpdateLiveStatus(ctx, student); err != nil {
 		return fmt.Errorf("clear planned student flags: %w", err)
 	}
 	return nil

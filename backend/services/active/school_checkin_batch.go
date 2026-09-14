@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -141,7 +140,7 @@ func (s *service) processSchoolCheckinBatch(
 
 	outcomes := make(map[int64]SchoolCheckinBatchItem, len(writeOrder))
 	actionable := make([]int64, 0, len(writeOrder))
-	actionableStudents := make([]*userModels.Student, 0, len(writeOrder))
+	actionableStudents := make([]*StudentRecord, 0, len(writeOrder))
 	today := timezone.TodayDate()
 	for _, studentID := range writeOrder {
 		student := locked[studentID]
@@ -258,7 +257,7 @@ func (s *service) processSchoolCheckinBatch(
 func (s *service) applyBatchCheckIn(
 	ctx context.Context,
 	actionable []int64,
-	actionableStudents []*userModels.Student,
+	actionableStudents []*StudentRecord,
 	staffID int64,
 	now time.Time,
 	day timezone.Date,
@@ -393,7 +392,7 @@ func (s *service) applyBatchCheckOut(
 func (s *service) autoClearOnBatchCheckin(
 	ctx context.Context,
 	actionable []int64,
-	actionableStudents []*userModels.Student,
+	actionableStudents []*StudentRecord,
 	now time.Time,
 	day timezone.Date,
 ) error {
@@ -462,7 +461,7 @@ func (s *service) autoClearOnBatchCheckin(
 func (s *service) registerSchoolCheckinBatchBroadcast(
 	ctx context.Context,
 	action string,
-	students map[int64]*userModels.Student,
+	students map[int64]*StudentRecord,
 	changed map[int64]bool,
 	endedVisits []*studentpresence.Visit,
 ) {

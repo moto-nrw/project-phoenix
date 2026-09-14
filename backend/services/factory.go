@@ -1142,7 +1142,7 @@ func newFactory(
 		StudentStatusRepo:        repos.StudentStatusDay,
 		CrossTenantRepo:          repos.CrossTenant,
 		Schools:                  newActiveSchoolQuery(organizations),
-		StudentRepo:              repos.Student,
+		StudentRepo:              PresenceStudents(repos.Student),
 		StaffRepo:                NewAttendanceStaffDirectory(repos.Staff),
 		RoomRepo:                 NewAttendanceRooms(repos.Room),
 		YardRoomColor:            yardRoomColorQuery(rooms),
@@ -2846,7 +2846,7 @@ func newFactory(
 		repos.CarePlan().LockExceptionDay,
 		now,
 	)
-	studentStatusDayOverviewService := active.NewStudentStatusDayOverviewService(repos.StudentStatusDay, usersService)
+	studentStatusDayOverviewService := active.NewStudentStatusDayOverviewService(repos.StudentStatusDay, StatusDayOverviewPeople(usersService))
 	ogsGroupLiveService, err := grouplivelegacy.New(grouplivelegacy.Sources{
 		Presence:          newStudentPresence(db, logger),
 		People:            usersService,

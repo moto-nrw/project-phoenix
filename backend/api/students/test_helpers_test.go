@@ -199,7 +199,7 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		CareDayService:          svc.CareDay,
 		CareLifecycleService:    svc.CareLifecycle,
 		StudentStatusDayService: activeSvc.NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, svc.ManualPartialAbsences(repoFactory.CarePlan), db, repoFactory.CarePlan.LockExceptionDay),
-		AbsenceOverview:         activeSvc.NewStudentStatusDayOverviewService(repoFactory.StudentStatusDay, svc.Users),
+		AbsenceOverview:         activeSvc.NewStudentStatusDayOverviewService(repoFactory.StudentStatusDay, svc.StatusDayOverviewPeople()),
 		ExcusedRequestService:   svc.ExcusedRequests,
 		StudentAuditService:     svc.StudentAudit,
 		EnrollmentDecision:      svc.EnrollmentDecision,

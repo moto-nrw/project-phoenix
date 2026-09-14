@@ -18,7 +18,6 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -314,17 +313,17 @@ type WorkSessionService interface {
 	GetCurrentScheduleRows(ctx context.Context, staffID int64) ([]*configModels.StaffWorkSchedule, error)
 	// AssignScheduleTemplate snapshots the template's entries as the staff
 	// member's schedule and binds the template (model id + rotation anchor).
-	AssignScheduleTemplate(ctx context.Context, staff *userModels.Staff, modelID int64) error
+	AssignScheduleTemplate(ctx context.Context, staff *StaffScheduleBinding, modelID int64) error
 	// ApplyCustomScheduleRows replaces the schedule with custom rows and
 	// unbinds any assigned template.
-	ApplyCustomScheduleRows(ctx context.Context, staff *userModels.Staff, entries []*configModels.StaffWorkSchedule, anchor timezone.Date) error
+	ApplyCustomScheduleRows(ctx context.Context, staff *StaffScheduleBinding, entries []*configModels.StaffWorkSchedule, anchor timezone.Date) error
 	// SaveCustomScheduleAsTemplate persists the rows as a new reusable work
 	// time model and binds it to the staff member.
-	SaveCustomScheduleAsTemplate(ctx context.Context, staff *userModels.Staff, name string, rotation int, anchor timezone.Date, entries []*configModels.WorkTimeModelEntry) error
+	SaveCustomScheduleAsTemplate(ctx context.Context, staff *StaffScheduleBinding, name string, rotation int, anchor timezone.Date, entries []*configModels.WorkTimeModelEntry) error
 	// UpdateSchedule resolves the requested mode (template vs custom, with the
 	// legacy empty-mode fallback), validates and applies the change. Validation
 	// failures wrap ErrScheduleValidation so callers can map them to 400.
-	UpdateSchedule(ctx context.Context, staff *userModels.Staff, in ScheduleUpdateInput) error
+	UpdateSchedule(ctx context.Context, staff *StaffScheduleBinding, in ScheduleUpdateInput) error
 }
 
 // scheduleEntryMaxTargetMinutes caps a single schedule day at 12 hours.
@@ -2874,7 +2873,7 @@ func (s *workSessionService) GetCurrentScheduleRows(ctx context.Context, staffID
 
 // AssignScheduleTemplate snapshots the template's entries as the staff
 // member's schedule and binds the template to the staff row.
-func (s *workSessionService) AssignScheduleTemplate(ctx context.Context, staff *userModels.Staff, modelID int64) error {
+func (s *workSessionService) AssignScheduleTemplate(ctx context.Context, staff *StaffScheduleBinding, modelID int64) error {
 	model, err := s.workModelRepo.FindByID(ctx, modelID)
 	if err != nil {
 		return fmt.Errorf("template not found: %w", err)
@@ -2889,7 +2888,7 @@ func (s *workSessionService) AssignScheduleTemplate(ctx context.Context, staff *
 	staff.WorkTimeModelID = &model.ID
 	staffAnchor := calendarDate(anchor)
 	staff.RotationAnchorDate = &staffAnchor
-	if err := s.staffRepo.Update(ctx, staff); err != nil {
+	if err := s.staffRepo.BindSchedule(ctx, *staff); err != nil {
 		return fmt.Errorf("bind template to staff: %w", err)
 	}
 	return nil
@@ -2897,7 +2896,7 @@ func (s *workSessionService) AssignScheduleTemplate(ctx context.Context, staff *
 
 // ApplyCustomScheduleRows replaces the schedule with custom rows and unbinds
 // any assigned template.
-func (s *workSessionService) ApplyCustomScheduleRows(ctx context.Context, staff *userModels.Staff, entries []*configModels.StaffWorkSchedule, anchor timezone.Date) error {
+func (s *workSessionService) ApplyCustomScheduleRows(ctx context.Context, staff *StaffScheduleBinding, entries []*configModels.StaffWorkSchedule, anchor timezone.Date) error {
 	// An omitted anchor keeps the staff-level one; the new version must be
 	// stamped with that same effective anchor, or it would silently re-parity
 	// once the staff anchor moves.
@@ -2921,7 +2920,7 @@ func (s *workSessionService) ApplyCustomScheduleRows(ctx context.Context, staff 
 	if !effective.IsZero() {
 		staff.RotationAnchorDate = &effective
 	}
-	if err := s.staffRepo.Update(ctx, staff); err != nil {
+	if err := s.staffRepo.BindSchedule(ctx, *staff); err != nil {
 		return fmt.Errorf("unbind template: %w", err)
 	}
 
@@ -2930,7 +2929,7 @@ func (s *workSessionService) ApplyCustomScheduleRows(ctx context.Context, staff 
 
 // SaveCustomScheduleAsTemplate persists the rows as a new reusable work time
 // model and binds it to the staff member.
-func (s *workSessionService) SaveCustomScheduleAsTemplate(ctx context.Context, staff *userModels.Staff, name string, rotation int, anchor timezone.Date, entries []*configModels.WorkTimeModelEntry) error {
+func (s *workSessionService) SaveCustomScheduleAsTemplate(ctx context.Context, staff *StaffScheduleBinding, name string, rotation int, anchor timezone.Date, entries []*configModels.WorkTimeModelEntry) error {
 	if anchor.IsZero() {
 		anchor = timezone.DateFromTime(s.now())
 	}
@@ -2949,14 +2948,14 @@ func (s *workSessionService) SaveCustomScheduleAsTemplate(ctx context.Context, s
 
 	staff.WorkTimeModelID = &model.ID
 	staff.RotationAnchorDate = &anchor
-	if err := s.staffRepo.Update(ctx, staff); err != nil {
+	if err := s.staffRepo.BindSchedule(ctx, *staff); err != nil {
 		return fmt.Errorf("bind freshly created template: %w", err)
 	}
 	return nil
 }
 
 // UpdateSchedule resolves the requested mode and applies the schedule change.
-func (s *workSessionService) UpdateSchedule(ctx context.Context, staff *userModels.Staff, in ScheduleUpdateInput) error {
+func (s *workSessionService) UpdateSchedule(ctx context.Context, staff *StaffScheduleBinding, in ScheduleUpdateInput) error {
 	mode := in.Mode
 	if mode == "" {
 		// Backwards compatibility: missing mode + flat entries means the
@@ -2986,7 +2985,7 @@ func (s *workSessionService) UpdateSchedule(ctx context.Context, staff *userMode
 	return nil
 }
 
-func (s *workSessionService) applyCustomSchedule(ctx context.Context, staff *userModels.Staff, in ScheduleUpdateInput) error {
+func (s *workSessionService) applyCustomSchedule(ctx context.Context, staff *StaffScheduleBinding, in ScheduleUpdateInput) error {
 	rotation := in.RotationLength
 	if rotation == 0 {
 		rotation = 1

@@ -13,7 +13,6 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -139,17 +138,17 @@ func (w *workSessionServiceForSessionUnitTest) GetWorkTimeModelByID(context.Cont
 func (w *workSessionServiceForSessionUnitTest) GetCurrentScheduleRows(context.Context, int64) ([]*configModels.StaffWorkSchedule, error) {
 	return nil, nil
 }
-func (w *workSessionServiceForSessionUnitTest) AssignScheduleTemplate(context.Context, *userModels.Staff, int64) error {
+func (w *workSessionServiceForSessionUnitTest) AssignScheduleTemplate(context.Context, *StaffScheduleBinding, int64) error {
 	return nil
 }
-func (w *workSessionServiceForSessionUnitTest) ApplyCustomScheduleRows(context.Context, *userModels.Staff, []*configModels.StaffWorkSchedule, timezone.Date) error {
+func (w *workSessionServiceForSessionUnitTest) ApplyCustomScheduleRows(context.Context, *StaffScheduleBinding, []*configModels.StaffWorkSchedule, timezone.Date) error {
 	return nil
 }
-func (w *workSessionServiceForSessionUnitTest) SaveCustomScheduleAsTemplate(context.Context, *userModels.Staff, string, int, timezone.Date, []*configModels.WorkTimeModelEntry) error {
+func (w *workSessionServiceForSessionUnitTest) SaveCustomScheduleAsTemplate(context.Context, *StaffScheduleBinding, string, int, timezone.Date, []*configModels.WorkTimeModelEntry) error {
 	return nil
 }
 
-func (w *workSessionServiceForSessionUnitTest) UpdateSchedule(context.Context, *userModels.Staff, ScheduleUpdateInput) error {
+func (w *workSessionServiceForSessionUnitTest) UpdateSchedule(context.Context, *StaffScheduleBinding, ScheduleUpdateInput) error {
 	return nil
 }
 

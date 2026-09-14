@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/active"
@@ -37,6 +38,18 @@ func (q workSessionStaff) StaffNames(ctx context.Context, ids []int64) (map[int6
 	return names, nil
 }
 
-func (q workSessionStaff) Update(ctx context.Context, staff *users.Staff) error {
+// BindSchedule writes the schedule binding onto the staff row through the
+// owner's update path: the row is re-read so the write carries the current
+// master data and only the binding columns change.
+func (q workSessionStaff) BindSchedule(ctx context.Context, binding active.StaffScheduleBinding) error {
+	staff, err := q.source.FindByID(ctx, binding.ID)
+	if err != nil {
+		return err
+	}
+	if staff == nil {
+		return fmt.Errorf("bind schedule: staff %d not found", binding.ID)
+	}
+	staff.WorkTimeModelID = binding.WorkTimeModelID
+	staff.RotationAnchorDate = binding.RotationAnchorDate
 	return q.source.Update(ctx, staff)
 }
