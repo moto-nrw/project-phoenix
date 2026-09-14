@@ -245,13 +245,18 @@ export function PendingInvitationsList({
                         <OverflowMenu
                           ariaLabel={`Aktionen für ${invitation.email}`}
                           items={[
-                            {
-                              label: "Erneut senden",
-                              icon: <Send className="h-4 w-4" aria-hidden />,
-                              disabled:
-                                isExpired || actionLoading === invitation.id,
-                              onClick: () => handleResend(invitation.id),
-                            },
+                            ...(isExpired
+                              ? []
+                              : [
+                                  {
+                                    label: "Erneut senden",
+                                    icon: (
+                                      <Send className="h-4 w-4" aria-hidden />
+                                    ),
+                                    disabled: actionLoading === invitation.id,
+                                    onClick: () => handleResend(invitation.id),
+                                  },
+                                ]),
                             {
                               label: "Löschen",
                               icon: <Trash2 className="h-4 w-4" aria-hidden />,

@@ -150,7 +150,7 @@ describe("PendingInvitationsList", () => {
     fireEvent.keyDown(document, { key: "Escape" });
   }
 
-  it("renders resend buttons", async () => {
+  it("renders resend only for active invitations", async () => {
     render(<PendingInvitationsList refreshKey={0} />);
 
     await waitFor(() => {
@@ -158,13 +158,17 @@ describe("PendingInvitationsList", () => {
         screen.getAllByRole("button", { name: /^Aktionen für/ }),
       ).toHaveLength(2);
     });
-    for (const index of [0, 1]) {
-      await openRowMenu(index);
-      expect(
-        screen.getByRole("menuitem", { name: "Erneut senden" }),
-      ).toBeInTheDocument();
-      closeRowMenu();
-    }
+    // ID 2 is expired and sorted first, so only the second menu offers resend.
+    await openRowMenu(0);
+    expect(
+      screen.queryByRole("menuitem", { name: "Erneut senden" }),
+    ).not.toBeInTheDocument();
+    closeRowMenu();
+
+    await openRowMenu(1);
+    expect(
+      screen.getByRole("menuitem", { name: "Erneut senden" }),
+    ).toBeInTheDocument();
   });
 
   it("renders delete buttons", async () => {
@@ -257,16 +261,6 @@ describe("PendingInvitationsList", () => {
     await waitFor(() => {
       expect(mockListPendingInvitations).toHaveBeenCalledTimes(2);
     });
-  });
-
-  it("disables resend for expired invitations", async () => {
-    render(<PendingInvitationsList refreshKey={0} />);
-
-    // ID 2 (expired) is sorted first, so it's at index 0
-    await openRowMenu(0);
-    expect(
-      screen.getByRole("menuitem", { name: "Erneut senden" }),
-    ).toBeDisabled();
   });
 
   it("sorts invitations by expiration date", async () => {

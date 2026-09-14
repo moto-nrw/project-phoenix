@@ -224,27 +224,31 @@ export function CaregiverBlockerResolutionPanel({
   // Zeilenaktionen nur im Kebab der Zeile (BAUARTEN-SPEC Bauart 1 Regel 4).
   // Übertragen braucht eine gewählte Ersatzkraft, Entfernen setzt „Ohne
   // Ersatz entfernen" in der Auswahl voraus: die Handler lesen die Auswahl,
-  // deshalb ist je nach Auswahl genau ein Eintrag aktiv. Entfernen fragt
+  // deshalb ist je nach Auswahl genau ein Eintrag verfügbar. Entfernen fragt
   // weiter im ConfirmDeleteModal nach.
   const buildResolutionMenu = (
     hasReplacement: boolean,
     busy: boolean,
     resolve: () => void,
-  ): OverflowMenuEntry[] => [
-    {
-      label: "Übertragen",
-      icon: <ArrowRightLeft className="h-4 w-4" aria-hidden />,
-      disabled: !hasReplacement || busy,
-      onClick: resolve,
-    },
-    {
-      label: "Entfernen",
-      icon: <Trash2 className="h-4 w-4" aria-hidden />,
-      destructive: true,
-      disabled: hasReplacement || busy,
-      onClick: resolve,
-    },
-  ];
+  ): OverflowMenuEntry[] =>
+    hasReplacement
+      ? [
+          {
+            label: "Übertragen",
+            icon: <ArrowRightLeft className="h-4 w-4" aria-hidden />,
+            disabled: busy,
+            onClick: resolve,
+          },
+        ]
+      : [
+          {
+            label: "Entfernen",
+            icon: <Trash2 className="h-4 w-4" aria-hidden />,
+            destructive: true,
+            disabled: busy,
+            onClick: resolve,
+          },
+        ];
 
   const resolveGroup = (item: BlockerGroup) => {
     if (groupReplacements[item.id]) {

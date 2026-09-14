@@ -153,6 +153,7 @@ function collectWeeklyRemovals(
 
 export function toWeeklySubmit(
   rows: readonly WeeklyRow[],
+  pickupNeedsCareDay = false,
 ): CarePlanWeeklySubmit {
   return {
     arrivalSchedules: rows
@@ -166,7 +167,11 @@ export function toWeeklySubmit(
         notes: row.arrivalNotes.trim() ? row.arrivalNotes : null,
       })),
     pickupSchedules: rows
-      .filter((row) => row.pickupTime.trim() !== "")
+      .filter(
+        (row) =>
+          row.pickupTime.trim() !== "" &&
+          (!pickupNeedsCareDay || row.arrivalInCare),
+      )
       .map((row) => ({
         weekday: row.weekday,
         pickupTime: row.pickupTime,
@@ -519,6 +524,7 @@ export function CareWeeklyPlanEditForm({
 }: CareWeeklyPlanEditFormProps) {
   const toast = useToast();
   const draft = useWeeklyPlanDraft(weeklyArrival, weeklyPickup);
+  const pickupNeedsCareDay = careDaysSource === "bookings";
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useFormError();
   const [showRemovalConfirm, setShowRemovalConfirm] = useState(false);
@@ -580,7 +586,9 @@ export function CareWeeklyPlanEditForm({
     setError(null);
     setIsSubmitting(true);
     try {
-      const adjustment = await onSubmitWeekly(toWeeklySubmit(draft.rows));
+      const adjustment = await onSubmitWeekly(
+        toWeeklySubmit(draft.rows, pickupNeedsCareDay),
+      );
       if (adjustment) {
         weeklyExceptionPreview.current = adjustment;
         setWeeklyAdjustment(adjustment);
@@ -615,7 +623,7 @@ export function CareWeeklyPlanEditForm({
     setError(null);
     setIsSubmitting(true);
     try {
-      await onSubmitWeekly(toWeeklySubmit(draft.rows), {
+      await onSubmitWeekly(toWeeklySubmit(draft.rows, pickupNeedsCareDay), {
         resolution: "exception",
         preview,
         reason: offeringReason,
@@ -656,14 +664,17 @@ export function CareWeeklyPlanEditForm({
     setError(null);
     setIsSubmitting(true);
     try {
-      const preview = await onSubmitWeekly(toWeeklySubmit(draft.rows), {
-        resolution: "offering",
-        preview: weeklyAdjustment,
-        selections,
-        effectiveFrom,
-        reason: offeringReason,
-        confirm: false,
-      });
+      const preview = await onSubmitWeekly(
+        toWeeklySubmit(draft.rows, pickupNeedsCareDay),
+        {
+          resolution: "offering",
+          preview: weeklyAdjustment,
+          selections,
+          effectiveFrom,
+          reason: offeringReason,
+          confirm: false,
+        },
+      );
       if (!preview) {
         throw new Error("Die Angebotsänderung konnte nicht geprüft werden.");
       }
@@ -711,7 +722,7 @@ export function CareWeeklyPlanEditForm({
     setError(null);
     setIsSubmitting(true);
     try {
-      await onSubmitWeekly(toWeeklySubmit(draft.rows), {
+      await onSubmitWeekly(toWeeklySubmit(draft.rows, pickupNeedsCareDay), {
         resolution: "offering",
         preview: weeklyAdjustment,
         selections: offeringSelections,
@@ -769,6 +780,7 @@ export function CareWeeklyPlanEditForm({
           careDaysSource={careDaysSource}
           removals={weeklyRemovals}
           disabled={isSubmitting}
+          pickupNeedsCareDay
         />
         <EditActions onCancel={onCancel} saving={isSubmitting} />
       </form>

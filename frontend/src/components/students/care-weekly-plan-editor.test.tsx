@@ -643,6 +643,9 @@ describe("CareWeeklyPlanEditForm", () => {
     expect(
       screen.getByLabelText("Ankunft", { selector: "#weekly-arrival-3" }),
     ).toBeDisabled();
+    expect(
+      screen.getByLabelText("Abholung", { selector: "#weekly-pickup-3" }),
+    ).toBeDisabled();
 
     fireEvent.change(
       screen.getByLabelText("Ankunft", { selector: "#weekly-arrival-1" }),
@@ -666,6 +669,34 @@ describe("CareWeeklyPlanEditForm", () => {
           { weekday: 2, pickupTime: "16:00", notes: undefined },
         ],
       });
+    });
+  });
+
+  it("excludes pickup times on unbooked days from a bookings update", async () => {
+    const { onSubmitWeekly } = renderForm({
+      careDaysSource: "bookings",
+      weeklyPickup: weeklyPickup.map((entry) =>
+        entry.weekday === 3
+          ? { ...entry, pickupTime: "15:30", notes: "Bus" }
+          : entry,
+      ),
+    });
+
+    expect(
+      screen.getByLabelText("Abholung", { selector: "#weekly-pickup-3" }),
+    ).toBeDisabled();
+
+    save();
+
+    await waitFor(() => {
+      expect(onSubmitWeekly).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pickupSchedules: [
+            { weekday: 1, pickupTime: "15:00", notes: "Bus" },
+            { weekday: 2, pickupTime: "16:00", notes: undefined },
+          ],
+        }),
+      );
     });
   });
 

@@ -967,7 +967,12 @@ export function StaffSessionTable({
                                 holidayName={undefined}
                               />
                               {canEdit && (
-                                <div className="flex shrink-0 items-center">
+                                <div
+                                  className="flex shrink-0 items-center"
+                                  onClick={(e) => e.stopPropagation()}
+                                  onKeyDown={(e) => e.stopPropagation()}
+                                  role="presentation"
+                                >
                                   <OverflowMenu
                                     ariaLabel={`Aktionen für Block ${blockIndex + 1}`}
                                     triggerSize="sm"
@@ -1191,7 +1196,7 @@ function PlannedShiftCell({
             <span className="line-through">
               {shift.startTime}–{shift.endTime}
             </span>{" "}
-            <span className="text-[11px]">entfällt</span>
+            <span className="text-xs">entfällt</span>
           </div>
         ) : (
           <div key={shift.id} className="text-gray-600">
