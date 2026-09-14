@@ -81,7 +81,7 @@ func TestVisitCheckInRollsBackAfterEachSlotWriteAndRetries(t *testing.T) {
 				testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID, scheduleModels.AttendanceStatusExpected)
 			}
 			ctx := context.WithValue(testpkg.Ctx(t), deviceAuth.CtxDevice, devicePrincipal(device.ID, device.TenantID))
-			ctx = context.WithValue(ctx, deviceAuth.CtxStaff, staffPrincipal(staff))
+			ctx = context.WithValue(ctx, deviceAuth.CtxStaff, staffPrincipal(staff.ID, staff.TenantID))
 			visit := &studentpresence.Visit{StudentID: student.ID, ActiveGroupID: group.ID, EntryTime: time.Now().Add(-time.Hour)}
 			if tc.failAt == "checkout" {
 				exit := visit.EntryTime.Add(time.Minute)

@@ -86,18 +86,18 @@ func (f *overviewFixture) setPersonnelNumber(t *testing.T, staffID int64, number
 // staff[0] also has data for every booking category.
 func newDatevFixture(t *testing.T) *overviewFixture {
 	f := newOverviewFixture(t, 2)
-	f.setPersonnelNumber(t, f.staff[0].ID, "1001")
-	f.setPersonnelNumber(t, f.staff[1].ID, "1002")
+	f.setPersonnelNumber(t, f.staff[0], "1001")
+	f.setPersonnelNumber(t, f.staff[1], "1002")
 
 	// June 2026 bookings for staff[0]: 2×8h work, 1 sick day, 2 vacation
 	// days, 1 training day, one payout and one comp-time booking.
-	f.addSession(t, f.staff[0].ID, timezone.NewDate(2026, time.June, 1), 8*time.Hour)
-	f.addSession(t, f.staff[0].ID, timezone.NewDate(2026, time.June, 2), 8*time.Hour)
-	f.addAbsence(t, f.staff[0].ID, activeModels.AbsenceTypeSick, activeModels.AbsenceStatusReported,
+	f.addSession(t, f.staff[0], timezone.NewDate(2026, time.June, 1), 8*time.Hour)
+	f.addSession(t, f.staff[0], timezone.NewDate(2026, time.June, 2), 8*time.Hour)
+	f.addAbsence(t, f.staff[0], activeModels.AbsenceTypeSick, activeModels.AbsenceStatusReported,
 		timezone.NewDate(2026, time.June, 3), timezone.NewDate(2026, time.June, 3))
-	f.addAbsence(t, f.staff[0].ID, activeModels.AbsenceTypeVacation, activeModels.AbsenceStatusApproved,
+	f.addAbsence(t, f.staff[0], activeModels.AbsenceTypeVacation, activeModels.AbsenceStatusApproved,
 		timezone.NewDate(2026, time.June, 4), timezone.NewDate(2026, time.June, 5))
-	f.addAbsence(t, f.staff[0].ID, activeModels.AbsenceTypeTraining, activeModels.AbsenceStatusApproved,
+	f.addAbsence(t, f.staff[0], activeModels.AbsenceTypeTraining, activeModels.AbsenceStatusApproved,
 		timezone.NewDate(2026, time.June, 8), timezone.NewDate(2026, time.June, 8))
 	for _, adj := range []struct {
 		typ   string
@@ -107,12 +107,12 @@ func newDatevFixture(t *testing.T) *overviewFixture {
 		{activeModels.BalanceAdjustmentTypeCompTime, -120},
 	} {
 		adjustment := &activeModels.StaffBalanceAdjustment{
-			StaffID:       f.staff[0].ID,
+			StaffID:       f.staff[0],
 			Type:          adj.typ,
 			MinutesDelta:  adj.delta,
 			EffectiveDate: timezone.NewDate(2026, time.June, 10),
 			Note:          "Buchung",
-			DecidedBy:     f.staff[0].ID,
+			DecidedBy:     f.staff[0],
 			DecidedAt:     time.Now(),
 		}
 		adjustment.SetTenantID(f.tenantID)
@@ -178,7 +178,7 @@ func TestDatevExport_PinsAgainstMonthSummary(t *testing.T) {
 	f.cleanupAccessLogs(t)
 	svc := f.newDatevExportService(datevFullConfig())
 
-	summary, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff[0].ID, 2026, 6)
+	summary, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff[0], 2026, 6)
 	require.NoError(t, err)
 
 	file, err := svc.Export(f.ctx, datevRequest(active.ExportFormatDatevLug), actorID, "admin")
@@ -226,7 +226,7 @@ func TestDatevExport_RefusesStaffWithoutPersonnelNumber(t *testing.T) {
 	t.Parallel()
 
 	f := newDatevFixture(t)
-	f.setPersonnelNumber(t, f.staff[1].ID, "")
+	f.setPersonnelNumber(t, f.staff[1], "")
 	actorID := f.newActorAccount(t)
 	f.cleanupAccessLogs(t)
 	svc := f.newDatevExportService(datevFullConfig())

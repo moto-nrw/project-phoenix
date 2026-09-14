@@ -43,7 +43,7 @@ func TestCreateVisit_WithDevice(t *testing.T) {
 		rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-TEST-001")
 
 		// Create context with both staff and device (simulates RFID check-in)
-		staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
+		staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff.ID, staff.TenantID))
 		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(rfidDevice.ID, rfidDevice.TenantID))
 
 		visit := &studentpresence.Visit{
@@ -81,7 +81,7 @@ func TestCreateVisit_CompletedVisitCreatesClosedAttendance(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Completed", "Staff")
 	rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-COMPLETED-001")
 
-	staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
+	staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff.ID, staff.TenantID))
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(rfidDevice.ID, rfidDevice.TenantID))
 	entryTime := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC).Add(-2 * time.Hour)
 	exitTime := entryTime.Add(time.Hour)
@@ -113,7 +113,7 @@ func TestUpdateVisit_ReconcilesMatchingAttendanceSession(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Revised", "Staff")
 	rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-REVISED-001")
 
-	staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
+	staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff.ID, staff.TenantID))
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(rfidDevice.ID, rfidDevice.TenantID))
 	entryTime := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC).Add(-2 * time.Hour)
 	visit := &studentpresence.Visit{StudentID: student.ID, ActiveGroupID: activeGroup.ID, EntryTime: entryTime}
@@ -151,7 +151,7 @@ func TestUpdateVisit_GroupMoveWithCheckoutClosesAttendanceSession(t *testing.T) 
 	staff := testpkg.CreateTestStaff(t, db, "Moved", "Staff")
 	rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-MOVED-VISIT-001")
 
-	staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
+	staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff.ID, staff.TenantID))
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(rfidDevice.ID, rfidDevice.TenantID))
 	entryTime := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC).Add(-2 * time.Hour)
 	visit := &studentpresence.Visit{
@@ -197,7 +197,7 @@ func TestCreateVisit_ReEntry(t *testing.T) {
 		existingAttendance := createAttendanceWithCheckout(t, db, student.ID, staff.ID, rfidDevice.ID, checkoutTime)
 
 		// Create context with staff and device
-		staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
+		staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff.ID, staff.TenantID))
 		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(rfidDevice.ID, rfidDevice.TenantID))
 
 		visit := &studentpresence.Visit{
@@ -260,7 +260,7 @@ func TestCreateVisit_AutoClearsSick(t *testing.T) {
 	_, err := db.NewUpdate().Model(student).Column("sick", "sick_since").Where("id = ?", student.ID).Exec(ctx)
 	require.NoError(t, err)
 
-	staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
+	staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff.ID, staff.TenantID))
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(rfidDevice.ID, rfidDevice.TenantID))
 
 	visit := &studentpresence.Visit{
@@ -325,7 +325,7 @@ func TestCreateVisit_AutoClearsExcused_WhenSettingNextCheckin(t *testing.T) {
 	_, err = db.NewUpdate().Model(student).Column("excused", "excused_since").Where("id = ?", student.ID).Exec(ctx)
 	require.NoError(t, err)
 
-	staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
+	staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff.ID, staff.TenantID))
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(rfidDevice.ID, rfidDevice.TenantID))
 
 	visit := &studentpresence.Visit{
@@ -373,7 +373,7 @@ func TestCreateVisit_DoesNotClearExcused_WhenDefaultMode(t *testing.T) {
 	_, err := db.NewUpdate().Model(student).Column("excused", "excused_since").Where("id = ?", student.ID).Exec(ctx)
 	require.NoError(t, err)
 
-	staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
+	staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff.ID, staff.TenantID))
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(rfidDevice.ID, rfidDevice.TenantID))
 
 	visit := &studentpresence.Visit{
@@ -438,7 +438,7 @@ func TestCreateVisit_ClearsPlannedStatusForToday(t *testing.T) {
 		Source:     activeModels.StudentStatusSourcePlanned,
 	}))
 
-	staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
+	staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff.ID, staff.TenantID))
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(rfidDevice.ID, rfidDevice.TenantID))
 	visit := &studentpresence.Visit{
 		StudentID:     student.ID,
@@ -502,7 +502,7 @@ func TestCreateVisit_ClearsParentStatusForToday(t *testing.T) {
 		Source:     activeModels.StudentStatusSourceParent,
 	}))
 
-	staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
+	staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff.ID, staff.TenantID))
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(rfidDevice.ID, rfidDevice.TenantID))
 	visit := &studentpresence.Visit{
 		StudentID:     student.ID,

@@ -939,7 +939,7 @@ func TestCheckOutStudentFromDevice_PrefersAuthenticatedStaff(t *testing.T) {
 	checkInStaff := testpkg.CreateTestStaff(t, db, "Device", "InitialStaff")
 	authenticatedStaff := testpkg.CreateTestStaff(t, db, "Device", "AuthenticatedStaff")
 	open := testpkg.CreateTestAttendance(t, db, student.ID, checkInStaff.ID, deviceRec.ID, time.Now().Add(-time.Hour), nil)
-	ctx = context.WithValue(ctx, device.CtxStaff, staffPrincipal(authenticatedStaff))
+	ctx = context.WithValue(ctx, device.CtxStaff, staffPrincipal(authenticatedStaff.ID, authenticatedStaff.TenantID))
 
 	result, err := service.CheckOutStudentFromDevice(ctx, student.ID, deviceRec.ID)
 

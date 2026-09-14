@@ -153,7 +153,7 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 	device := testpkg.EnsureWebManualDevice(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Planned", "Rollback")
 	ctx = context.WithValue(ctx, deviceAuth.CtxDevice, devicePrincipal(device.ID, device.TenantID))
-	ctx = context.WithValue(ctx, deviceAuth.CtxStaff, staffPrincipal(staff))
+	ctx = context.WithValue(ctx, deviceAuth.CtxStaff, staffPrincipal(staff.ID, staff.TenantID))
 	student := testpkg.CreateTestStudent(t, db, "Planned", "Rollback", "3a")
 	var groupID int64
 	if mode == "visit" {
@@ -190,7 +190,7 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 		checkinCtx, deviceID := ctx, device.ID
 		if stage == "device lookup" {
 			deviceID = 0
-			checkinCtx = context.WithValue(testpkg.Ctx(t), deviceAuth.CtxStaff, staffPrincipal(staff))
+			checkinCtx = context.WithValue(testpkg.Ctx(t), deviceAuth.CtxStaff, staffPrincipal(staff.ID, staff.TenantID))
 		}
 		if stage == "staff attribution" {
 			checkinCtx = context.WithValue(testpkg.Ctx(t), deviceAuth.CtxDevice, devicePrincipal(device.ID, device.TenantID))

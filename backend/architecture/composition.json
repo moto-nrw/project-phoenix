@@ -5190,7 +5190,7 @@
       "declaration": "newDailyCheckoutService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        123
+        122
       ],
       "tables": []
     },
@@ -5367,7 +5367,7 @@
       "declaration": "newOverviewFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        58
+        57
       ],
       "tables": [
         "active.staff_absences",
@@ -5385,7 +5385,7 @@
       "declaration": "newVacationOpeningFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        52
+        51
       ],
       "tables": [
         "active.staff_absences",
@@ -5430,7 +5430,7 @@
       "declaration": "newAuditLogFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        66
+        58
       ],
       "tables": [
         "active.staff_absence_audit",
@@ -5439,9 +5439,7 @@
         "active.staff_month_balance_snapshots",
         "active.work_sessions",
         "audit.time_tracking_deletions",
-        "audit.work_session_edits",
-        "users.persons",
-        "users.staff"
+        "audit.work_session_edits"
       ]
     },
     {
@@ -5578,7 +5576,7 @@
       "declaration": "newSnapshotFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        77
+        76
       ],
       "tables": [
         "active.staff_absences",

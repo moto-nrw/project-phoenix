@@ -76,10 +76,10 @@ func TestMonthExportRows_MatchMonthSummary(t *testing.T) {
 	f := newOverviewFixture(t, 3)
 
 	// Differentiate: part-time contract, sick day, payout + comp-time bookings.
-	f.addSchedule(t, f.staff[1].ID, 240)
+	f.addSchedule(t, f.staff[1], 240)
 	yesterday := f.today.AddDays(-1)
 	if monthOfDate(yesterday) == monthOfDate(f.today) {
-		f.addAbsence(t, f.staff[1].ID, activeModels.AbsenceTypeSick, activeModels.AbsenceStatusReported, yesterday, yesterday)
+		f.addAbsence(t, f.staff[1], activeModels.AbsenceTypeSick, activeModels.AbsenceStatusReported, yesterday, yesterday)
 	}
 	for _, adj := range []struct {
 		typ   string
@@ -89,12 +89,12 @@ func TestMonthExportRows_MatchMonthSummary(t *testing.T) {
 		{activeModels.BalanceAdjustmentTypeCompTime, -60},
 	} {
 		adjustment := &activeModels.StaffBalanceAdjustment{
-			StaffID:       f.staff[2].ID,
+			StaffID:       f.staff[2],
 			Type:          adj.typ,
 			MinutesDelta:  adj.delta,
 			EffectiveDate: f.today,
 			Note:          "Buchung",
-			DecidedBy:     f.staff[0].ID,
+			DecidedBy:     f.staff[0],
 			DecidedAt:     time.Now(),
 		}
 		adjustment.SetTenantID(f.tenantID)
@@ -109,11 +109,11 @@ func TestMonthExportRows_MatchMonthSummary(t *testing.T) {
 	for _, row := range rows {
 		byStaff[row.StaffID] = row
 	}
-	for _, staff := range f.staff {
-		summary, err := f.monthSvc.GetMonthSummary(f.ctx, staff.ID, f.today.Year(), int(f.today.Month()))
+	for _, staffID := range f.staff {
+		summary, err := f.monthSvc.GetMonthSummary(f.ctx, staffID, f.today.Year(), int(f.today.Month()))
 		require.NoError(t, err)
-		row, ok := byStaff[staff.ID]
-		require.True(t, ok, "missing export row for staff %d", staff.ID)
+		row, ok := byStaff[staffID]
+		require.True(t, ok, "missing export row for staff %d", staffID)
 
 		assert.Equal(t, summary.CarryInMinutes, row.CarryInMinutes)
 		assert.Equal(t, summary.TargetMinutesToDate, row.TargetMinutes)
@@ -154,7 +154,7 @@ func TestMonthExportRows_ClosedMonthCarriesFrozenValue(t *testing.T) {
 	t.Parallel()
 
 	f := newOverviewFixture(t, 1)
-	staffID := f.staff[0].ID
+	staffID := f.staff[0]
 	closedMonth := timezone.NewDate(f.today.Year(), f.today.Month(), 1).AddDays(-1)
 	settings := wtmIntSettings{
 		accountStart: timezone.NewDate(closedMonth.Year(), closedMonth.Month(), 1).String(),
@@ -312,7 +312,7 @@ func TestStaffTimeExport_DayRowsMatchSingleExport(t *testing.T) {
 	require.NoError(t, err)
 
 	monthStart := timezone.NewDate(f.today.Year(), f.today.Month(), 1)
-	singleRows, err := sessionSvc.DayExportRows(f.ctx, f.staff[0].ID, monthStart, monthOfLastDay(f.today))
+	singleRows, err := sessionSvc.DayExportRows(f.ctx, f.staff[0], monthStart, monthOfLastDay(f.today))
 	require.NoError(t, err)
 	require.NotEmpty(t, singleRows)
 
@@ -334,7 +334,7 @@ func TestStaffTimeExport_RejectsUnknownParameters(t *testing.T) {
 		{Year: f.today.Year(), Month: 13},
 		{Year: 1999, Month: 1},
 	} {
-		_, err := exportSvc.Export(f.ctx, req, f.staff[0].ID, "admin")
+		_, err := exportSvc.Export(f.ctx, req, f.staff[0], "admin")
 		assert.ErrorIs(t, err, active.ErrTimeExportInvalid)
 	}
 }

@@ -121,7 +121,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	require.NoError(t, isRepo.Create(ctx, row))
 
 	// ACT: drive a check-in through the service.
-	staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
+	staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff.ID, staff.TenantID))
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(iotDevice.ID, iotDevice.TenantID))
 
 	visit := &studentpresence.Visit{
@@ -253,7 +253,7 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 	iotDevice := testpkg.CreateTestDevice(t, db, fmt.Sprintf("e2e-walk-%d", suffix))
 
 	ctx := testpkg.Ctx(t)
-	staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
+	staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff.ID, staff.TenantID))
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(iotDevice.ID, iotDevice.TenantID))
 
 	visit := &studentpresence.Visit{

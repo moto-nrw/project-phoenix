@@ -2,7 +2,6 @@ package active_test
 
 import (
 	"github.com/moto-nrw/project-phoenix/auth/device"
-	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // devicePrincipal binds a device to a context the way the kiosk device
@@ -12,11 +11,13 @@ func devicePrincipal(id, tenantID int64) *device.AuthenticatedDevice {
 	return &device.AuthenticatedDevice{ID: id, TenantID: tenantID, Status: "active"}
 }
 
-// staffPrincipal binds a staff row to a context the way the kiosk device
-// middleware does after a verified account PIN.
-func staffPrincipal(s *users.Staff) *device.AuthenticatedStaff {
-	if s == nil {
+// staffPrincipal binds a staff identity to a context the way the kiosk device
+// middleware does after a verified account PIN. It takes the two fields the
+// principal carries rather than a staff row, so callers that only know the id
+// do not have to build one.
+func staffPrincipal(id, tenantID int64) *device.AuthenticatedStaff {
+	if id == 0 {
 		return nil
 	}
-	return &device.AuthenticatedStaff{ID: s.ID, TenantID: s.TenantID}
+	return &device.AuthenticatedStaff{ID: id, TenantID: tenantID}
 }

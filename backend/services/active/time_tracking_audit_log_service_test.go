@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	active "github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -25,9 +24,9 @@ import (
 
 type auditLogFixture struct {
 	tenantID int64
-	staffA   *userModels.Staff
-	staffB   *userModels.Staff
-	admin    *userModels.Staff
+	staffA   int64
+	staffB   int64
+	admin    int64
 	repos    *repositories.Factory
 	db       *bun.DB
 	ctx      context.Context
@@ -53,15 +52,8 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 
 	// The admin needs the account → person → staff chain IN this tenant: the
 	// absence trail stores the actor as an account id and the feed must
-	// resolve it. Built inline because no fixture creates the full chain for
-	// an explicit tenant.
-	adminAccount := testpkg.CreateTestAccount(t, db, "audit.leitung")
-	adminPerson := &userModels.Person{FirstName: "Audit", LastName: "Leitung", AccountID: &adminAccount.ID}
-	adminPerson.SetTenantID(tenantID)
-	require.NoError(t, db.NewInsert().Model(adminPerson).ModelTableExpr("users.persons").Scan(context.Background()))
-	admin := &userModels.Staff{PersonID: adminPerson.ID}
-	admin.SetTenantID(tenantID)
-	require.NoError(t, db.NewInsert().Model(admin).ModelTableExpr("users.staff").Scan(context.Background()))
+	// resolve it.
+	admin, adminAccount := testpkg.CreateTestStaffWithAccountForTenant(t, db, tenantID, "Audit", "Leitung")
 
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.TenantContext(tenantID)
@@ -170,7 +162,7 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 	require.NoError(t, adjustSvc.DeleteAdjustment(ctx, staffB.ID, doomed.ID, admin.ID))
 
 	return &auditLogFixture{
-		tenantID: tenantID, staffA: staffA, staffB: staffB, admin: admin,
+		tenantID: tenantID, staffA: staffA.ID, staffB: staffB.ID, admin: admin.ID,
 		repos: repos, db: db, ctx: ctx,
 		svc: active.NewTimeTrackingAuditLogService(services.NewTimeTrackingAuditReader(repos.TimeTrackingAuditLog), services.StaffDisplayNames(repos.Staff), nil),
 	}
@@ -214,7 +206,7 @@ func TestTimeTrackingAuditLog_MergedFeed(t *testing.T) {
 
 	edit := bySource[auditModels.AuditLogSourceSessionEdit][0]
 	require.NotNil(t, edit.Staff)
-	assert.Equal(t, f.staffA.ID, edit.Staff.ID)
+	assert.Equal(t, f.staffA, edit.Staff.ID)
 	assert.Equal(t, "Audit Leitung", edit.Actor.Name)
 	assert.False(t, edit.Actor.IsSelf)
 	assert.Equal(t, "Korrektur nach Rücksprache", edit.Reason)
@@ -234,7 +226,7 @@ func TestTimeTrackingAuditLog_MergedFeed(t *testing.T) {
 	// Absence actor arrives as an account id and must resolve to the admin.
 	absence := bySource[auditModels.AuditLogSourceAbsence][0]
 	require.NotNil(t, absence.Actor.StaffID)
-	assert.Equal(t, f.admin.ID, *absence.Actor.StaffID)
+	assert.Equal(t, f.admin, *absence.Actor.StaffID)
 	assert.Equal(t, "Attest liegt vor", absence.Reason)
 
 	closeEvent := bySource[auditModels.AuditLogSourceMonthClose][0]
@@ -249,9 +241,9 @@ func TestTimeTrackingAuditLog_MergedFeed(t *testing.T) {
 
 	deletion := bySource[auditModels.AuditLogSourceDeletion][0]
 	require.NotNil(t, deletion.Staff)
-	assert.Equal(t, f.staffB.ID, deletion.Staff.ID)
+	assert.Equal(t, f.staffB, deletion.Staff.ID)
 	require.NotNil(t, deletion.Actor.StaffID)
-	assert.Equal(t, f.admin.ID, *deletion.Actor.StaffID)
+	assert.Equal(t, f.admin, *deletion.Actor.StaffID)
 	var deletionDetail struct {
 		DeletedSource string          `json:"deleted_source"`
 		Payload       json.RawMessage `json:"payload"`
@@ -267,7 +259,7 @@ func TestTimeTrackingAuditLog_Filters(t *testing.T) {
 	f := newAuditLogFixture(t)
 
 	t.Run("staff filter keeps grouped events the person is part of", func(t *testing.T) {
-		page, err := f.svc.ListAuditLog(f.ctx, active.AuditLogListRequest{StaffID: f.staffA.ID})
+		page, err := f.svc.ListAuditLog(f.ctx, active.AuditLogListRequest{StaffID: f.staffA})
 		require.NoError(t, err)
 		bySource := eventsBySource(page.Events)
 		assert.Len(t, bySource[auditModels.AuditLogSourceSessionEdit], 1)
@@ -276,12 +268,12 @@ func TestTimeTrackingAuditLog_Filters(t *testing.T) {
 	})
 
 	t.Run("actor filter", func(t *testing.T) {
-		page, err := f.svc.ListAuditLog(f.ctx, active.AuditLogListRequest{ActorStaffID: f.admin.ID})
+		page, err := f.svc.ListAuditLog(f.ctx, active.AuditLogListRequest{ActorStaffID: f.admin})
 		require.NoError(t, err)
 		require.NotEmpty(t, page.Events)
 		for _, e := range page.Events {
 			require.NotNil(t, e.Actor.StaffID)
-			assert.Equal(t, f.admin.ID, *e.Actor.StaffID)
+			assert.Equal(t, f.admin, *e.Actor.StaffID)
 		}
 		// Every fixture event was acted by the admin, so nothing is lost.
 		assert.Len(t, page.Events, 6)
@@ -314,10 +306,10 @@ func TestTimeTrackingAuditLog_Filters(t *testing.T) {
 			9002: nextMidnight,
 		} {
 			require.NoError(t, f.repos.TimeTrackingDeletion.Create(f.ctx, &auditModels.TimeTrackingDeletion{
-				StaffID:    f.staffA.ID,
+				StaffID:    f.staffA,
 				Source:     auditModels.TimeTrackingDeletionSourceAbsence,
 				SourceID:   sourceID,
-				DeletedBy:  f.admin.ID,
+				DeletedBy:  f.admin,
 				Payload:    json.RawMessage(`{"test":true}`),
 				Note:       "Datumsgrenze",
 				OccurredAt: occurredAt,

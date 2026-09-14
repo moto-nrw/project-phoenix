@@ -19,9 +19,9 @@ func TestWorkSessionHistoryQueryBudget(t *testing.T) {
 			day := snapshotSessionDay + i + 1
 			checkIn := time.Date(snapshotYear, time.August, day, 8, 0, 0, 0, time.UTC)
 			checkOut := checkIn.Add(8 * time.Hour)
-			session := &activeModels.WorkSession{StaffID: f.staff.ID, Date: timezone.NewDate(snapshotYear, time.August, day),
+			session := &activeModels.WorkSession{StaffID: f.staff, Date: timezone.NewDate(snapshotYear, time.August, day),
 				Status: activeModels.WorkSessionStatusPresent, Source: activeModels.WorkSessionSourceApp,
-				CheckInTime: checkIn, CheckOutTime: &checkOut, CreatedBy: f.staff.ID}
+				CheckInTime: checkIn, CheckOutTime: &checkOut, CreatedBy: f.staff}
 			session.SetTenantID(f.tenantID)
 			require.NoError(t, f.repos.WorkSession.Create(f.ctx, session))
 			ended := checkIn.Add(30 * time.Minute)
@@ -36,7 +36,7 @@ func TestWorkSessionHistoryQueryBudget(t *testing.T) {
 	ctx := counter.Context(f.ctx)
 	run := func() []string {
 		counter.Reset()
-		_, err := service.GetHistory(ctx, f.staff.ID, timezone.NewDate(snapshotYear, time.August, 1), timezone.NewDate(snapshotYear, time.August, 31))
+		_, err := service.GetHistory(ctx, f.staff, timezone.NewDate(snapshotYear, time.August, 1), timezone.NewDate(snapshotYear, time.August, 31))
 		require.NoError(t, err)
 		return counter.Operation("SELECT")
 	}

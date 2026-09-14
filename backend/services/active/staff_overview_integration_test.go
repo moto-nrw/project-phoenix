@@ -12,7 +12,6 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	active "github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -40,7 +39,7 @@ type overviewFixture struct {
 	db       *bun.DB
 	repos    *repositories.Factory
 	ctx      context.Context
-	staff    []*userModels.Staff
+	staff    []int64
 	svc      active.StaffOverviewService
 	monthSvc active.WorkTimeMonthService
 	today    timezone.Date
@@ -79,7 +78,7 @@ func newOverviewFixture(t *testing.T, count int) *overviewFixture {
 
 	for i := range count {
 		staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Ueber", "Sicht")
-		f.staff = append(f.staff, staff)
+		f.staff = append(f.staff, staff.ID)
 		f.addSchedule(t, staff.ID, 480)
 		f.addSession(t, staff.ID, today, 4*time.Hour)
 		if i == 0 {
@@ -210,18 +209,18 @@ func TestTimeTrackingOverview_MatchesMonthSummary(t *testing.T) {
 
 	// Make the three staff members genuinely different: a part-time contract,
 	// a sick day, a payout booking, and one with no schedule at all.
-	f.addSchedule(t, f.staff[1].ID, 240)
+	f.addSchedule(t, f.staff[1], 240)
 	yesterday := f.today.AddDays(-1)
 	if monthOfDate(yesterday) == monthOfDate(f.today) {
-		f.addAbsence(t, f.staff[1].ID, activeModels.AbsenceTypeSick, activeModels.AbsenceStatusReported, yesterday, yesterday)
+		f.addAbsence(t, f.staff[1], activeModels.AbsenceTypeSick, activeModels.AbsenceStatusReported, yesterday, yesterday)
 	}
 	adjustment := &activeModels.StaffBalanceAdjustment{
-		StaffID:       f.staff[2].ID,
+		StaffID:       f.staff[2],
 		Type:          activeModels.BalanceAdjustmentTypePayout,
 		MinutesDelta:  -30,
 		EffectiveDate: f.today,
 		Note:          "Auszahlung",
-		DecidedBy:     f.staff[0].ID,
+		DecidedBy:     f.staff[0],
 		DecidedAt:     time.Now(),
 	}
 	adjustment.SetTenantID(f.tenantID)
@@ -235,15 +234,15 @@ func TestTimeTrackingOverview_MatchesMonthSummary(t *testing.T) {
 	for _, row := range overview.Rows {
 		byStaff[row.StaffID] = row
 	}
-	for _, staff := range f.staff {
-		row, ok := byStaff[staff.ID]
-		require.True(t, ok, "staff %d missing from the overview", staff.ID)
+	for _, staffID := range f.staff {
+		row, ok := byStaff[staffID]
+		require.True(t, ok, "staff %d missing from the overview", staffID)
 
-		expected, err := f.monthSvc.GetMonthSummary(f.ctx, staff.ID, f.today.Year(), int(f.today.Month()))
+		expected, err := f.monthSvc.GetMonthSummary(f.ctx, staffID, f.today.Year(), int(f.today.Month()))
 		require.NoError(t, err)
-		assert.Equal(t, expected.TargetMinutesToDate, row.SollMinutes, "soll for staff %d", staff.ID)
-		assert.Equal(t, expected.ActualMinutes, row.IstMinutes, "ist for staff %d", staff.ID)
-		assert.Equal(t, expected.ClosingBalanceMinutes, row.BalanceMinutes, "saldo for staff %d", staff.ID)
+		assert.Equal(t, expected.TargetMinutesToDate, row.SollMinutes, "soll for staff %d", staffID)
+		assert.Equal(t, expected.ActualMinutes, row.IstMinutes, "ist for staff %d", staffID)
+		assert.Equal(t, expected.ClosingBalanceMinutes, row.BalanceMinutes, "saldo for staff %d", staffID)
 	}
 }
 
@@ -256,7 +255,7 @@ func TestTimeTrackingOverview_AccountStartAfterRequestedMonthMatchesDetail(t *te
 	// Berlin. The account starts in the following month, preserving the
 	// standalone pre-account-month case this test covers.
 	requestedDate := timezone.NewDate(f.today.Year(), f.today.Month(), 1).AddDays(-1)
-	f.addSession(t, f.staff[0].ID, requestedDate, 4*time.Hour)
+	f.addSession(t, f.staff[0], requestedDate, 4*time.Hour)
 	settings := wtmIntSettings{
 		accountStart: timezone.NewDate(f.today.Year(), f.today.Month(), 1).String(),
 	}
@@ -275,7 +274,7 @@ func TestTimeTrackingOverview_AccountStartAfterRequestedMonthMatchesDetail(t *te
 	})
 	require.NoError(t, err)
 	require.Len(t, overview.Rows, 1)
-	expected, err := monthSvc.GetMonthSummary(f.ctx, f.staff[0].ID, requestedDate.Year(), int(requestedDate.Month()))
+	expected, err := monthSvc.GetMonthSummary(f.ctx, f.staff[0], requestedDate.Year(), int(requestedDate.Month()))
 	require.NoError(t, err)
 
 	assert.Equal(t, expected.TargetMinutesToDate, overview.Rows[0].SollMinutes)
@@ -294,9 +293,9 @@ func TestTimeTrackingOverview_VacationMatchesQuotaEndpoint(t *testing.T) {
 	// An approved vacation day earlier this year plus a still-requested one:
 	// the requested days must be reserved, not counted as taken.
 	yearStart := timezone.NewDate(f.today.Year(), time.January, 5)
-	f.addAbsence(t, f.staff[0].ID, activeModels.AbsenceTypeVacation, activeModels.AbsenceStatusApproved, yearStart, yearStart.AddDays(2))
+	f.addAbsence(t, f.staff[0], activeModels.AbsenceTypeVacation, activeModels.AbsenceStatusApproved, yearStart, yearStart.AddDays(2))
 	future := timezone.NewDate(f.today.Year(), time.December, 1)
-	f.addAbsence(t, f.staff[0].ID, activeModels.AbsenceTypeVacation, activeModels.AbsenceStatusRequested, future, future)
+	f.addAbsence(t, f.staff[0], activeModels.AbsenceTypeVacation, activeModels.AbsenceStatusRequested, future, future)
 
 	absenceSvc := active.NewStaffAbsenceService(
 		f.repos.StaffAbsence, f.repos.WorkSession, f.repos.StaffVacationQuota,
@@ -324,7 +323,7 @@ func TestTimeTrackingOverview_HistoricalVacationStopsAtMonthEnd(t *testing.T) {
 	// spends the February vacation, but must not subtract the November range.
 	f.addAbsence(
 		t,
-		f.staff[0].ID,
+		f.staff[0],
 		activeModels.AbsenceTypeVacation,
 		activeModels.AbsenceStatusApproved,
 		timezone.NewDate(historicalYear, time.February, 1),
@@ -332,7 +331,7 @@ func TestTimeTrackingOverview_HistoricalVacationStopsAtMonthEnd(t *testing.T) {
 	)
 	f.addAbsence(
 		t,
-		f.staff[0].ID,
+		f.staff[0],
 		activeModels.AbsenceTypeVacation,
 		activeModels.AbsenceStatusApproved,
 		timezone.NewDate(historicalYear, time.November, 1),
@@ -378,14 +377,14 @@ func TestDashboardSummary_KPIs(t *testing.T) {
 
 	f := newOverviewFixture(t, 4)
 
-	f.reopenSession(t, f.staff[0].ID, f.today)
-	f.addAbsence(t, f.staff[1].ID, activeModels.AbsenceTypeSick, activeModels.AbsenceStatusReported, f.today, f.today)
-	f.addAbsence(t, f.staff[2].ID, activeModels.AbsenceTypeVacation, activeModels.AbsenceStatusApproved, f.today, f.today)
+	f.reopenSession(t, f.staff[0], f.today)
+	f.addAbsence(t, f.staff[1], activeModels.AbsenceTypeSick, activeModels.AbsenceStatusReported, f.today, f.today)
+	f.addAbsence(t, f.staff[2], activeModels.AbsenceTypeVacation, activeModels.AbsenceStatusApproved, f.today, f.today)
 	// Overlapping sick + vacation on the same person: counts as sick only.
-	f.addAbsence(t, f.staff[3].ID, activeModels.AbsenceTypeSick, activeModels.AbsenceStatusReported, f.today, f.today)
-	f.addAbsence(t, f.staff[3].ID, activeModels.AbsenceTypeVacation, activeModels.AbsenceStatusApproved, f.today, f.today)
+	f.addAbsence(t, f.staff[3], activeModels.AbsenceTypeSick, activeModels.AbsenceStatusReported, f.today, f.today)
+	f.addAbsence(t, f.staff[3], activeModels.AbsenceTypeVacation, activeModels.AbsenceStatusApproved, f.today, f.today)
 	// A pending request must be counted but must not affect sick/vacation.
-	f.addAbsence(t, f.staff[2].ID, activeModels.AbsenceTypeVacation, activeModels.AbsenceStatusRequested,
+	f.addAbsence(t, f.staff[2], activeModels.AbsenceTypeVacation, activeModels.AbsenceStatusRequested,
 		f.today.AddDays(30), f.today.AddDays(31))
 
 	summary, err := f.svc.GetDashboardSummary(f.ctx, active.OverviewPeriodMonth)
@@ -463,12 +462,12 @@ func TestDashboardSummary_WeekExcludesAdjustmentsOutsideRange(t *testing.T) {
 		"fixture adjustment must lie outside the requested week")
 
 	adjustment := &activeModels.StaffBalanceAdjustment{
-		StaffID:       f.staff[0].ID,
+		StaffID:       f.staff[0],
 		Type:          activeModels.BalanceAdjustmentTypePayout,
 		MinutesDelta:  -60,
 		EffectiveDate: effectiveDate,
 		Note:          "Außerhalb der Woche",
-		DecidedBy:     f.staff[0].ID,
+		DecidedBy:     f.staff[0],
 		DecidedAt:     time.Now(),
 	}
 	adjustment.SetTenantID(f.tenantID)
@@ -497,8 +496,8 @@ func TestTimeTrackingOverview_Filters(t *testing.T) {
 	t.Parallel()
 
 	f := newOverviewFixture(t, 3)
-	f.setEmploymentType(t, f.staff[0].ID, userModels.EmploymentTypeFullTime)
-	f.setEmploymentType(t, f.staff[1].ID, userModels.EmploymentTypePartTime)
+	f.setEmploymentType(t, f.staff[0], active.EmploymentTypeFullTime)
+	f.setEmploymentType(t, f.staff[1], active.EmploymentTypePartTime)
 
 	all, err := f.svc.GetTimeTrackingOverview(f.ctx, active.OverviewFilters{})
 	require.NoError(t, err)
@@ -509,12 +508,12 @@ func TestTimeTrackingOverview_Filters(t *testing.T) {
 	}
 
 	fullTime, err := f.svc.GetTimeTrackingOverview(f.ctx, active.OverviewFilters{
-		EmploymentType: userModels.EmploymentTypeFullTime,
+		EmploymentType: active.EmploymentTypeFullTime,
 	})
 	require.NoError(t, err)
 	require.Len(t, fullTime.Rows, 1)
-	assert.Equal(t, f.staff[0].ID, fullTime.Rows[0].StaffID)
-	assert.Equal(t, unfiltered[f.staff[0].ID], fullTime.Rows[0].BalanceMinutes,
+	assert.Equal(t, f.staff[0], fullTime.Rows[0].StaffID)
+	assert.Equal(t, unfiltered[f.staff[0]], fullTime.Rows[0].BalanceMinutes,
 		"filtering must not change the computed values")
 
 	// Every fixture staff member worked less than their Soll, so the balance is
@@ -564,7 +563,7 @@ func TestTimeTrackingOverview_ExplicitMonth(t *testing.T) {
 	assert.Equal(t, int(previous.Month()), overview.Month)
 	require.Len(t, overview.Rows, 1)
 
-	expected, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff[0].ID, previous.Year(), int(previous.Month()))
+	expected, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff[0], previous.Year(), int(previous.Month()))
 	require.NoError(t, err)
 	assert.Equal(t, expected.TargetMinutesToDate, overview.Rows[0].SollMinutes)
 	assert.Equal(t, expected.ActualMinutes, overview.Rows[0].IstMinutes)
@@ -641,7 +640,7 @@ func TestTimeTrackingOverview_EmptyAndDegenerate(t *testing.T) {
 	// A staff member with neither a schedule nor a work-time model: Soll 0,
 	// Ist 0, no error.
 	bare := testpkg.CreateTestStaffForTenant(t, f.db, f.tenantID, "Ohne", "Plan")
-	f.staff = append(f.staff, bare)
+	f.staff = append(f.staff, bare.ID)
 	overview, err = f.svc.GetTimeTrackingOverview(f.ctx, active.OverviewFilters{})
 	require.NoError(t, err)
 	require.Len(t, overview.Rows, 1)
@@ -657,7 +656,7 @@ func TestTimeTrackingOverview_RespectsFrozenMonths(t *testing.T) {
 	t.Parallel()
 
 	f := newOverviewFixture(t, 1)
-	staffID := f.staff[0].ID
+	staffID := f.staff[0]
 
 	// Account start in the previous month so there is something to freeze.
 	prevMonth := timezone.NewDate(f.today.Year(), f.today.Month(), 1).AddDays(-1)
@@ -690,7 +689,7 @@ func TestTimeTrackingOverview_ClosedMonthUsesFrozenBalance(t *testing.T) {
 	t.Parallel()
 
 	f := newOverviewFixture(t, 1)
-	staffID := f.staff[0].ID
+	staffID := f.staff[0]
 	closedMonth := timezone.NewDate(f.today.Year(), f.today.Month(), 1).AddDays(-1)
 	settings := wtmIntSettings{
 		accountStart: timezone.NewDate(closedMonth.Year(), closedMonth.Month(), 1).String(),

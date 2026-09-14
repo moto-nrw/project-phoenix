@@ -18,7 +18,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
@@ -553,9 +552,7 @@ func TestCheckin_RoomCheckinBroadcastsOnce(t *testing.T) {
 	f, cleanup := setupAbsentStudent(t, db, "RoomCheckin")
 	defer cleanup()
 
-	staff := &usersModels.Staff{}
-	staff.ID = f.staffID
-	ctx := context.WithValue(testpkg.Ctx(t), device.CtxStaff, staffPrincipal(staff))
+	ctx := context.WithValue(testpkg.Ctx(t), device.CtxStaff, staffPrincipal(f.staffID, 0))
 	broadcaster.Reset()
 
 	visit := &studentpresence.Visit{
