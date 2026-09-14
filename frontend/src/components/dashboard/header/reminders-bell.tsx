@@ -87,7 +87,7 @@ export function RemindersBell() {
         aria-label={count > 0 ? `Erinnerungen (${count})` : "Erinnerungen"}
         aria-expanded={isOpen}
         title="Erinnerungen"
-        className="relative flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 transition-colors duration-200 hover:bg-gray-100 hover:text-gray-700"
+        className="relative flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition-colors duration-200 hover:bg-gray-100 hover:text-gray-700"
       >
         <Bell className="h-5 w-5" />
         {count > 0 && (
@@ -104,7 +104,7 @@ export function RemindersBell() {
         the bell.
       */}
       <div
-        className={`moto-popover-surface fixed top-14 right-3 left-3 z-50 overflow-hidden rounded-2xl border transition-all duration-150 ease-out sm:absolute sm:top-full sm:right-0 sm:left-auto sm:mt-2 sm:w-80 ${
+        className={`moto-popover-surface fixed top-12 right-3 left-3 z-50 overflow-hidden rounded-2xl border transition-all duration-150 ease-out sm:absolute sm:top-full sm:right-0 sm:left-auto sm:mt-2 sm:w-80 ${
           isOpen
             ? "visible translate-y-0 opacity-100"
             : "invisible -translate-y-2 opacity-0"

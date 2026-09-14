@@ -125,15 +125,17 @@ export const ProfileTrigger = forwardRef<
       aria-haspopup="dialog"
       aria-expanded={isOpen}
       aria-controls={menuId}
-      className="flex touch-manipulation items-center space-x-2 rounded-lg p-1.5 transition-colors duration-200 hover:bg-gray-100 active:bg-gray-200"
+      className="flex touch-manipulation items-center space-x-2 rounded-lg px-1.5 py-1 transition-colors duration-200 hover:bg-gray-100 active:bg-gray-200"
     >
       <UserAvatar avatarUrl={displayAvatar} userName={displayName} size="sm" />
 
       <div
         className={`hidden text-left ${compactOnTablet ? "lg:block" : "md:block"}`}
       >
-        <div className="text-sm font-medium text-gray-900">{displayName}</div>
-        <div className="text-xs text-gray-500">{userRole}</div>
+        <div className="text-sm leading-tight font-medium text-gray-900">
+          {displayName}
+        </div>
+        <div className="text-xs leading-tight text-gray-500">{userRole}</div>
       </div>
 
       <ChevronDownIcon isOpen={isOpen} />

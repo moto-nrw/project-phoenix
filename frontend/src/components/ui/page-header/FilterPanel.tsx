@@ -143,8 +143,8 @@ export function FilterPanel({
   }, [isOpen, onClose]);
 
   // Track the trigger: re-measure on scroll (rAF-throttled) and resize, plus
-  // when the topbar animates its height (mobile h-14↔h-12) which shifts the
-  // trigger in document flow after the scroll settles.
+  // whenever the topbar changes size (e.g. the session warning appearing),
+  // which shifts the trigger in document flow.
   useEffect(() => {
     const trigger = anchorRef?.current;
     if (!isOpen || !trigger) return;
