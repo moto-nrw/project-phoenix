@@ -80,7 +80,7 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.0.5",
-    "@vitest/coverage-v8": "^4.1.10",
+    "@vitest/coverage-v8": "^4.1.11",
     "dependency-cruiser": "^18.2.0",
     "happy-dom": "^20.11.2",
     "knip": "^6.32.1",
@@ -96,7 +96,7 @@
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
     "vite": "^8.2.1",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   },
   "ct3aMetadata": {
     "initVersion": "7.39.3"
