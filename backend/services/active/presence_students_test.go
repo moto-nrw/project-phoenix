@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/services"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -35,6 +36,28 @@ func TestPresenceStudents_UpdateLiveStatusFailsOnUnknownStudent(t *testing.T) {
 
 	require.Error(t, err, "a live-status write against a missing student must not pass silently")
 	assert.Contains(t, err.Error(), "999000111")
+}
+
+// The locked-row re-authorization is the status-day write's access control, so
+// an adapter built without one must refuse every write rather than wave them
+// through. A caller that genuinely has no identity to check says so with
+// services.AllowAllStatusDayWrites.
+func TestStatusDayStudents_MissingAuthorizeFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	student := testpkg.CreateTestStudent(t, db, "FailClosed", "Student", "FC1")
+	ctx := testpkg.Ctx(t)
+
+	unguarded := services.StatusDayStudentsFromRepository(repoFactory.Student, nil)
+	_, err := unguarded.LockForStatusWrite(ctx, student.ID, activeModels.StudentStatusDaySick)
+	require.Error(t, err, "a status-day adapter without an authorization callback must refuse the write")
+
+	guarded := services.StatusDayStudentsFromRepository(repoFactory.Student, services.AllowAllStatusDayWrites)
+	record, err := guarded.LockForStatusWrite(ctx, student.ID, activeModels.StudentStatusDaySick)
+	require.NoError(t, err)
+	assert.Equal(t, student.ID, record.ID)
 }
 
 // The happy path proves the four flag columns actually land, so the guard

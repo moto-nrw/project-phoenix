@@ -20,8 +20,19 @@ type presenceStudentSource interface {
 type presenceStudents struct{ source presenceStudentSource }
 
 // PresenceStudents serves active.PresenceStudents from the users repository.
-// The live-flag write touches only the four flag columns, so the departure
-// plan and master data of the row stay untouched.
+//
+// The live-flag write touches only the four flag columns. That is a deliberate
+// departure from the owner's full-row Update, which the presence services used
+// to call: the presence record carries no departure plan, so a full-row write
+// built from it would wipe one. Writing the named columns instead keeps the
+// plan intact without the caller having to re-read it.
+//
+// The trade is that the owner's write-path side effects do not run here: no
+// companion-edge reconciliation, no plan validation, and no
+// student_companions_changed audit entry. Those repair a plan this write never
+// touches, and every writer that does touch the plan still performs them.
+// A pre-existing edge the stored plan forbids therefore survives a sick or
+// excused auto-clear where it previously would have been trimmed.
 func PresenceStudents(source presenceStudentSource) active.PresenceStudents {
 	return presenceStudents{source: source}
 }
@@ -75,9 +86,9 @@ func (p presenceStudents) UpdateLiveStatus(ctx context.Context, record *active.S
 	return nil
 }
 
-// StudentLiveStatusUpdate copies the presence flags onto the owner's row so a
+// applyStudentLiveStatus copies the presence flags onto the owner's row so a
 // caller holding the full row can persist them through the owner's write path.
-func StudentLiveStatusUpdate(row *users.Student, record *active.StudentRecord) {
+func applyStudentLiveStatus(row *users.Student, record *active.StudentRecord) {
 	if row == nil || record == nil {
 		return
 	}
@@ -124,12 +135,6 @@ func studentRecord(row *users.Student) *active.StudentRecord {
 		Excused:       row.Excused,
 		ExcusedSince:  row.ExcusedSince,
 	}
-}
-
-// StudentRecord projects an owner row into the presence view. Inbound
-// adapters that already hold the locked row use it for the status-day port.
-func StudentRecord(row *users.Student) *active.StudentRecord {
-	return studentRecord(row)
 }
 
 // statusDayOverviewSource is the slice of the person service the absence

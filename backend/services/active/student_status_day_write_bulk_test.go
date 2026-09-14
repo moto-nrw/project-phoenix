@@ -22,7 +22,7 @@ func TestCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	service := activeService.NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil, repoFactory.CarePlan().LockExceptionDay)
-	studentService := services.StatusDayStudentsFromRepository(repoFactory.Student, nil)
+	studentService := services.StatusDayStudentsFromRepository(repoFactory.Student, services.AllowAllStatusDayWrites)
 	student := testpkg.CreateTestStudent(t, db, "StatusConflict", "Student", "SCS1")
 
 	ctx := testpkg.Ctx(t)
@@ -66,7 +66,7 @@ func TestBulkCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	service := activeService.NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil, repoFactory.CarePlan().LockExceptionDay)
-	studentService := services.StatusDayStudentsFromRepository(repoFactory.Student, nil)
+	studentService := services.StatusDayStudentsFromRepository(repoFactory.Student, services.AllowAllStatusDayWrites)
 
 	withConflict := testpkg.CreateTestStudent(t, db, "BulkStatusConflict", "Student", "BSC1")
 	clear := testpkg.CreateTestStudent(t, db, "BulkStatusClear", "Student", "BSC2")

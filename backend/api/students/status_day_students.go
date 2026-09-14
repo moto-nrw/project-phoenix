@@ -2,6 +2,7 @@ package students
 
 import (
 	"context"
+	"errors"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
@@ -12,6 +13,12 @@ import (
 // locked read re-authorizes the caller on the fresh owner row, and the
 // live-flag write goes back through the owner's full-row update on exactly
 // that row. The JWT-permission decision stays at the HTTP boundary.
+//
+// The services composition root carries a twin of this adapter. Neither can
+// host a shared helper: the conversion needs the owner's row type and the
+// presence record together, and the policy forbids this package from importing
+// that composition root. Keep the two in step, including the fail-closed
+// behaviour when no authorization callback is supplied.
 type statusDayStudents struct {
 	students  userService.StudentService
 	authorize func(ctx context.Context, student *users.Student, status string) bool
@@ -23,6 +30,9 @@ func newStatusDayStudents(students userService.StudentService, authorize func(ct
 }
 
 func (s *statusDayStudents) LockForStatusWrite(ctx context.Context, studentID int64, status string) (*activeService.StudentRecord, error) {
+	if s.authorize == nil {
+		return nil, errors.New("status day students: authorization callback is required")
+	}
 	fresh, err := s.students.GetByIDForUpdate(ctx, studentID)
 	if err != nil {
 		return nil, err

@@ -5322,7 +5322,7 @@
       "declaration": "TestPresenceStudents_UpdateLiveStatusFailsOnUnknownStudent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        24
+        25
       ],
       "tables": []
     },
@@ -5332,7 +5332,17 @@
       "declaration": "TestPresenceStudents_UpdateLiveStatusPersistsFlags",
       "target": "database/repositories.NewFactory",
       "lines": [
-        46
+        69
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/active/presence_students_test.go",
+      "declaration": "TestStatusDayStudents_MissingAuthorizeFailsClosed",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        49
       ],
       "tables": []
     },

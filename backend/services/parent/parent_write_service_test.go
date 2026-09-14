@@ -454,7 +454,7 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 		staffResult <- statusSvc.CreateForDates(testpkg.TenantContext(chain.TenantID), activeService.StatusDayWriteContext{
 			DB:             db,
 			TenantID:       chain.TenantID,
-			StudentService: services.StatusDayStudents(staffStudentSvc, nil),
+			StudentService: services.StatusDayStudents(staffStudentSvc, services.AllowAllStatusDayWrites),
 			AfterCommit:    func(int64) {},
 		}, chain.StudentID, activeModels.StudentStatusDayExcused, "Termin", []timezone.Date{date})
 	}()

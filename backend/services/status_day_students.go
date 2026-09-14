@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/active"
@@ -15,10 +16,21 @@ type statusDayStudentSource interface {
 }
 
 // StatusDayAuthorize decides on the freshly locked row whether the caller may
-// write the given status for the student. A nil callback allows every write,
-// which is what non-HTTP entry points (scheduler, imports) need: they carry no
-// JWT to re-check.
+// write the given status for the student.
+//
+// There is no nil default. The callback is the locked-row re-authorization the
+// status-day write depends on, so a missing one fails every write closed
+// rather than quietly waving them through; see errStatusDayAuthorizeMissing.
+// A caller that genuinely has no caller identity to check passes
+// AllowAllStatusDayWrites and says so at the call site.
 type StatusDayAuthorize func(ctx context.Context, student *active.StudentRecord, status string) bool
+
+// AllowAllStatusDayWrites authorizes every status-day write. It exists so a
+// non-HTTP entry point, which carries no JWT to re-check, has to name that
+// intent instead of expressing it as an omitted argument.
+func AllowAllStatusDayWrites(context.Context, *active.StudentRecord, string) bool { return true }
+
+var errStatusDayAuthorizeMissing = errors.New("status day students: authorization callback is required")
 
 type statusDayStudents struct {
 	source    statusDayStudentSource
@@ -30,6 +42,11 @@ type statusDayStudents struct {
 // rows locked through LockForStatusWrite are kept so UpdateLiveStatus writes
 // the flags back through the owner's full-row path on exactly that row. One
 // adapter belongs to one request; do not share it.
+//
+// api/students carries its own copy of this adapter. That is not an oversight:
+// the policy forbids api/students from importing this composition root, and
+// the conversion needs both the owner's row type and the presence record, so
+// neither side can host a shared helper. Keep the two in step.
 func StatusDayStudents(source statusDayStudentSource, authorize StatusDayAuthorize) active.StatusDayStudents {
 	return &statusDayStudents{source: source, authorize: authorize, locked: map[int64]*users.Student{}}
 }
@@ -58,12 +75,15 @@ func StatusDayStudentsFromRepository(source statusDayStudentRepoSource, authoriz
 }
 
 func (s *statusDayStudents) LockForStatusWrite(ctx context.Context, studentID int64, status string) (*active.StudentRecord, error) {
+	if s.authorize == nil {
+		return nil, errStatusDayAuthorizeMissing
+	}
 	fresh, err := s.source.GetByIDForUpdate(ctx, studentID)
 	if err != nil {
 		return nil, err
 	}
-	record := StudentRecord(fresh)
-	if s.authorize != nil && !s.authorize(ctx, record, status) {
+	record := studentRecord(fresh)
+	if !s.authorize(ctx, record, status) {
 		return nil, active.ErrStudentStatusDayReassigned
 	}
 	s.locked[studentID] = fresh
@@ -82,6 +102,6 @@ func (s *statusDayStudents) UpdateLiveStatus(ctx context.Context, record *active
 		}
 		row = fresh
 	}
-	StudentLiveStatusUpdate(row, record)
+	applyStudentLiveStatus(row, record)
 	return s.source.Update(ctx, row)
 }
