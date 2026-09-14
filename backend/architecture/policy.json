@@ -442,6 +442,13 @@
   ],
   "packages": [
     {
+      "path": "modules/workforce/contracttest",
+      "owner": "workforce",
+      "role": "test-support",
+      "internal_test_role": "e2e-test",
+      "external_test_role": "e2e-test"
+    },
+    {
       "path": "modules/peopledirectory/departure",
       "owner": "people-directory",
       "role": "contract",
@@ -4612,6 +4619,94 @@
     }
   ],
   "rules": [
+    {
+      "id": "workforce.contracttest.legacy-shared.domain",
+      "description": "The new test-only Workforce contract root exercises retained adapter inputs and outputs; it grants no runtime or existing test package new imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "e2e-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.contracttest.timetable-activities.domain",
+      "description": "The new test-only Workforce contract root exercises retained adapter inputs and outputs; it grants no runtime or existing test package new imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "e2e-test",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.contracttest.timetable-activities.application",
+      "description": "The new test-only Workforce contract root exercises retained adapter inputs and outputs; it grants no runtime or existing test package new imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "e2e-test",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "workforce.contracttest.school-structure.application",
+      "description": "The new test-only Workforce contract root exercises retained adapter inputs and outputs; it grants no runtime or existing test package new imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "e2e-test",
+      "target_owner": "school-structure",
+      "target_role": "application"
+    },
+    {
+      "id": "workforce.contracttest.document-rendering.public",
+      "description": "The new test-only Workforce contract root exercises retained adapter inputs and outputs; it grants no runtime or existing test package new imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "e2e-test",
+      "target_owner": "document-rendering",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.contracttest.document-rendering.application",
+      "description": "The new test-only Workforce contract root exercises retained adapter inputs and outputs; it grants no runtime or existing test package new imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "e2e-test",
+      "target_owner": "document-rendering",
+      "target_role": "application"
+    },
+    {
+      "id": "workforce.contracttest.workforce.public",
+      "description": "The new test-only Workforce contract root exercises retained adapter inputs and outputs; it grants no runtime or existing test package new imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "e2e-test",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.contracttest.workforce.http",
+      "description": "The new test-only Workforce contract root exercises retained adapter inputs and outputs; it grants no runtime or existing test package new imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "e2e-test",
+      "target_owner": "workforce",
+      "target_role": "http"
+    },
     {
       "id": "workforce.domain.vacation-opening-contract",
       "description": "Validate import and native ledger takeovers with the same Workforce value contract (#2744).",

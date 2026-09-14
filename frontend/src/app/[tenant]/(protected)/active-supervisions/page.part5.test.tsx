@@ -609,7 +609,9 @@ describe("MeinRaumPage (Active Supervisions) (4/5)", () => {
       expect(
         screen.queryByRole("searchbox", { name: "Kind ungeplant suchen" }),
       ).not.toBeInTheDocument();
-      fireEvent.click(screen.getByRole("button", { name: "Kind hinzufügen" }));
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Kind hinzufügen" }));
+    await waitFor(() => {
       expect(
         screen.getByRole("searchbox", { name: "Kind ungeplant suchen" }),
       ).toHaveAttribute("name", "unplanned-student-search");
