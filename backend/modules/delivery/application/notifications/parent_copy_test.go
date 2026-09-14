@@ -40,7 +40,7 @@ func TestParentRequestDecisionCopyUsesPortalLocale(t *testing.T) {
 
 // parentLocales are the portal locales every push copy must answer in. An
 // unknown locale is not an error: it falls back to German.
-var parentLocales = []string{"de", "en", "ru", "sq"}
+var parentLocales = []string{"de", "en", "ru", "sq", "pl", "tr", "uk"}
 
 // assertDistinctPerLocale is the check that catches the copy-paste slip a
 // spot-check misses: a locale branch that silently returns another language's

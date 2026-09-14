@@ -872,14 +872,17 @@ describe("EnrollmentForm", () => {
       careRequired: false,
     });
 
-    renderForm();
+    renderForm({
+      initialDraft: editDraft([
+        { id: "c-1", first_name: "Anton", last_name: "Alster" },
+      ]),
+    });
     await waitForLoaded();
 
     expect(
       screen.queryByText("Zustimmungen & Hinweise"),
     ).not.toBeInTheDocument();
 
-    await fillRequiredFields();
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
 
     await waitFor(() => {
@@ -3631,7 +3634,7 @@ describe("EnrollmentForm restrictToOfferings (#2251)", () => {
 
     // Add the flexible offering and pick a day.
     fireEvent.click(screen.getByText("Flexible Betreuung"));
-    fireEvent.click(screen.getByRole("button", { name: "Mo" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Mo" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
 

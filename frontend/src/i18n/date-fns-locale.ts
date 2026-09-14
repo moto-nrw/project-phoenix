@@ -1,5 +1,5 @@
 import type { Locale } from "date-fns";
-import { de, enUS, ru, sq } from "date-fns/locale";
+import { de, enUS, pl, ru, sq, tr, uk } from "date-fns/locale";
 
 import { normalizeLocale, type AppLocale } from "./locales";
 
@@ -12,6 +12,9 @@ const DATE_FNS_LOCALES: Record<AppLocale, Locale> = {
   en: enUS,
   ru,
   sq,
+  pl,
+  tr,
+  uk,
 };
 
 /**

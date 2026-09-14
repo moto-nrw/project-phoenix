@@ -11,7 +11,7 @@ import { dateFnsLocaleFor } from "~/i18n/date-fns-locale";
  * surface (parent portal, public enrollment form).
  *
  * The kit defaults to German because the staff and operator portals are
- * German-only. Anything a guardian sees runs in de/en/ru/sq, so it has to pass
+ * German-only. Anything a guardian sees runs in one of the parent locales, so it has to pass
  * its resolved locale — spread the result onto the picker:
  *
  *   const datePicker = useLocalizedDatePicker();

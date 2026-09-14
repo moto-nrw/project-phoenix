@@ -219,6 +219,39 @@ func messageEmailCopy(locale, firstName, lastName, schoolName, childName string)
 			PoweredByLabel: "Mundësuar nga", SchoolLogoAlt: "Logoja e shkollës",
 			DefaultBrandKicker: "Portali i prindërve", DefaultSchoolName: "OGS-ja juaj",
 		}
+	case "pl":
+		return parentMessageEmailCopy{
+			Subject: "Nowa wiadomość od OGS", Kicker: "Nowa wiadomość",
+			Greeting: localizedGreeting("Dzień dobry", name, ","),
+			Intro:    localizedMessageIntro("OGS", school, "napisała do Państwa wiadomość", "w sprawie", child),
+			Reply:    "Odpowiedz", FallbackHint: "Jeśli przycisk nie działa, proszę skopiować ten link:",
+			PreferenceHint: "Otrzymują Państwo ten e-mail, ponieważ są Państwo zapisani w moto jako opiekun. W aplikacji, w sekcji „Powiadomienia”, mogą Państwo wybrać, o czym chcą być informowani.",
+			FooterText:     localizedEmailFooter("Ten e-mail został wysłany w imieniu", school, "Ten e-mail został wysłany automatycznie."),
+			PoweredByLabel: "Obsługiwane przez", SchoolLogoAlt: "Logo szkoły",
+			DefaultBrandKicker: "Portal dla rodziców", DefaultSchoolName: "Państwa OGS",
+		}
+	case "tr":
+		return parentMessageEmailCopy{
+			Subject: "OGS'den yeni mesaj", Kicker: "Yeni mesaj",
+			Greeting: localizedGreeting("Merhaba", name, ","),
+			Intro:    localizedMessageIntro("OGS", school, "size bir mesaj gönderdi", "hakkında", child),
+			Reply:    "Yanıtla", FallbackHint: "Düğme çalışmazsa lütfen bu bağlantıyı kopyalayın:",
+			PreferenceHint: "Bu e-postayı, moto'da veli olarak kayıtlı olduğunuz için alıyorsunuz. Uygulamada “Bildirimler” bölümünden hangi konularda bilgilendirilmek istediğinizi seçebilirsiniz.",
+			FooterText:     localizedEmailFooter("Bu e-posta şu kurum adına gönderildi:", school, "Bu e-posta otomatik olarak gönderildi."),
+			PoweredByLabel: "Destekleyen", SchoolLogoAlt: "Okul logosu",
+			DefaultBrandKicker: "Veli portalı", DefaultSchoolName: "OGS'niz",
+		}
+	case "uk":
+		return parentMessageEmailCopy{
+			Subject: "Нове повідомлення від OGS", Kicker: "Нове повідомлення",
+			Greeting: localizedGreeting("Добрий день", name, "!"),
+			Intro:    localizedMessageIntro("OGS", school, "надіслала вам повідомлення", "про", child),
+			Reply:    "Відповісти", FallbackHint: "Якщо кнопка не працює, скопіюйте це посилання:",
+			PreferenceHint: "Ви отримали цей лист, тому що зазначені в moto як законний представник. У розділі «Сповіщення» в застосунку можна вибрати, про що ми вас повідомлятимемо.",
+			FooterText:     localizedEmailFooter("Цей лист надіслано від імені", school, "Цей лист надіслано автоматично."),
+			PoweredByLabel: "За підтримки", SchoolLogoAlt: "Логотип школи",
+			DefaultBrandKicker: "Батьківський портал", DefaultSchoolName: "Ваша OGS",
+		}
 	default:
 		return parentMessageEmailCopy{
 			Subject: "Neue Nachricht von der OGS", Kicker: "Neue Nachricht",
