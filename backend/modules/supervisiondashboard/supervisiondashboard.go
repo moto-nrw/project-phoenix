@@ -264,6 +264,9 @@ type OpenRoom struct {
 type OpenRoomStudent struct {
 	Visit
 	ActivityName string `json:"activity_name,omitempty"`
+	// Independent marks a child who stays in the room without taking part in
+	// an activity (#3066); such a child never carries an activity name.
+	Independent bool `json:"independent"`
 }
 
 type TrackingIndicators struct {

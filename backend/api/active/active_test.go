@@ -58,7 +58,7 @@ func setupActiveRoute(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupActiveModule(t)
-	resource := activeAPI.NewResource(svc.Active, svc.Users, svc.Education, svc.Schulhof, svc.UserContext, svc.Settings, db, slog.Default(), testPresenceQueries(t, db))
+	resource := activeAPI.NewResource(svc.Active, svc.Users, svc.Education, svc.Schulhof, svc.UserContext, svc.Settings, db, slog.Default(), testPresenceQueries(t, db), nil)
 	resource.SupervisionDashboardService = svc.SupervisionDashboard
 
 	return &testContext{
@@ -281,6 +281,7 @@ func TestEndActiveGroup(t *testing.T) {
 			tc.db,
 			slog.Default(),
 			tc.resource.Presence,
+			nil,
 		)
 		disabledRouter := chi.NewRouter()
 		disabledRouter.Mount("/active", disabledResource.Router())

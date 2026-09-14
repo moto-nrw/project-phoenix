@@ -44,6 +44,42 @@ func GroupNames(ctx context.Context, db bun.IDB, tenantID int64, ids []int64) (m
 	return result, nil
 }
 
+// GroupSummary is the name of an activity and whether it is a system activity
+// (Schulhof, WC, the shared open-room activity).
+type GroupSummary struct {
+	Name     string
+	IsSystem bool
+}
+
+// GroupSummaries reads the name and system flag of the given activities in one
+// statement, so a caller that needs both does not pay a second read.
+func GroupSummaries(ctx context.Context, db bun.IDB, tenantID int64, ids []int64) (map[int64]GroupSummary, error) {
+	if tenantID <= 0 {
+		return nil, ErrInvalidTenantID
+	}
+	result := make(map[int64]GroupSummary, len(ids))
+	if len(ids) == 0 {
+		return result, nil
+	}
+	var rows []struct {
+		ID       int64  `bun:"id"`
+		Name     string `bun:"name"`
+		IsSystem bool   `bun:"is_system"`
+	}
+	query := db.NewSelect().
+		TableExpr(`activities.groups AS "group"`).
+		ColumnExpr(`"group".id, "group".name, "group".is_system`).
+		Where(`"group".id IN (?)`, bun.List(ids)).
+		Where(`"group".tenant_id = ?`, tenantID)
+	if err := query.Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("timetable projection: list group summaries: %w", err)
+	}
+	for _, row := range rows {
+		result[row.ID] = GroupSummary{Name: row.Name, IsSystem: row.IsSystem}
+	}
+	return result, nil
+}
+
 func ActivityGroupsByID(ctx context.Context, db bun.IDB, tenantID int64, ids []int64) ([]*activitiesModels.Group, error) {
 	if tenantID <= 0 {
 		return nil, ErrInvalidTenantID

@@ -121,10 +121,17 @@ func (s *service) assembleOpenRooms(in openRoomInputs, attendance map[int64]Atte
 		rows := in.visitsByRoom[room.ID]
 		students := make([]OpenRoomStudent, 0, len(rows))
 		for _, row := range rows {
-			students = append(students, OpenRoomStudent{
-				Visit:        s.buildVisit(row, attendance, fullAccess, photosEnabled),
-				ActivityName: in.sessionByID[row.ActiveGroupID].ActivityName,
-			})
+			session := in.sessionByID[row.ActiveGroupID]
+			student := OpenRoomStudent{
+				Visit:       s.buildVisit(row, attendance, fullAccess, photosEnabled),
+				Independent: session.IndependentStays,
+			}
+			// The room's own session runs under a system activity; naming it
+			// would present an independent stay as activity participation.
+			if !session.IndependentStays {
+				student.ActivityName = session.ActivityName
+			}
+			students = append(students, student)
 		}
 		result = append(result, OpenRoom{
 			RoomID: room.ID, Name: room.Name, IsUserSupervising: supervising,

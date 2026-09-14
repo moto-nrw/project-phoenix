@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	userSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/workflows/openroommove"
 	"github.com/uptrace/bun"
 )
 
@@ -27,6 +28,9 @@ type Resource struct {
 	SchulhofService    facilities.SchulhofService
 	UserContextService usercontext.UserContextService
 	SettingsService    configSvc.SettingsService
+	// OpenRoomMove records a move into a released room (#3066). Nil in
+	// resources that do not serve the move-to-room route.
+	OpenRoomMove openroommove.Command
 	// SupervisionDashboardService backs the aggregated supervision dashboard
 	// endpoint (#2096); assigned after construction to keep the positional
 	// constructor's existing call sites unchanged.
@@ -41,7 +45,7 @@ func (rs *Resource) getLogger() *slog.Logger {
 }
 
 // NewResource creates a new active resource
-func NewResource(activeService activeSvc.Service, personService userSvc.PersonService, educationService educationSvc.Service, schulhofService facilities.SchulhofService, userContextService usercontext.UserContextService, settingsService configSvc.SettingsService, db *bun.DB, logger *slog.Logger, presence PresenceQueries) *Resource {
+func NewResource(activeService activeSvc.Service, personService userSvc.PersonService, educationService educationSvc.Service, schulhofService facilities.SchulhofService, userContextService usercontext.UserContextService, settingsService configSvc.SettingsService, db *bun.DB, logger *slog.Logger, presence PresenceQueries, openRoomMove openroommove.Command) *Resource {
 	if presence == nil {
 		panic("active API: student presence queries are required")
 	}
@@ -53,6 +57,7 @@ func NewResource(activeService activeSvc.Service, personService userSvc.PersonSe
 		SchulhofService:    schulhofService,
 		UserContextService: userContextService,
 		SettingsService:    settingsService,
+		OpenRoomMove:       openRoomMove,
 		db:                 db,
 		logger:             logger,
 	}
@@ -111,6 +116,9 @@ func (rs *Resource) Router() chi.Router {
 			// Bulk assign checked-in students without a room visit to an active room session.
 			r.With(common.RequiresPermission(permissions.VisitsUpdate), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).Post("/transit/assign", rs.assignTransitStudents)
 			r.With(common.RequiresPermission(permissions.VisitsUpdate), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).Post("/move-to-group", rs.moveStudentsToActiveGroup)
+			// Independent move into a released room (#3066): same permission,
+			// transaction and web-channel gate as the ordinary move.
+			r.With(common.RequiresPermission(permissions.VisitsUpdate), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).Post("/move-to-room", rs.moveStudentsToOpenRoom)
 			r.With(common.RequiresPermission(permissions.VisitsUpdate), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).Post("/move-to-transit", rs.moveStudentsToTransit)
 		})
 

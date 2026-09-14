@@ -449,6 +449,50 @@ func (s *service) FindActiveGroupsByRoomID(ctx context.Context, roomID int64) ([
 	return groups, nil
 }
 
+// EnsureOpenRoomSession returns the room session of a released room: the open,
+// device-less session of the room's system activity. Independent room stays
+// (#3066) live in it, apart from any activity session in the same room, so
+// ending that activity leaves them untouched.
+//
+// It deliberately skips CreateActiveGroup's one-session-per-room conflict: a
+// room session coexists with activity sessions by design. The room's session
+// write lock serializes concurrent first moves, so the room never gets a
+// second room session; the lock is held until the caller's transaction ends.
+func (s *service) EnsureOpenRoomSession(ctx context.Context, roomID, activityID int64) (*active.Group, error) {
+	const op = "EnsureOpenRoomSession"
+	if roomID <= 0 || activityID <= 0 {
+		return nil, &ActiveError{Op: op, Err: ErrInvalidData}
+	}
+	var session *active.Group
+	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		if err := s.GroupRepo.LockRoomSessionWrites(txCtx, roomID); err != nil {
+			return &ActiveError{Op: op, Err: ErrDatabaseOperation}
+		}
+		groups, err := s.GroupRepo.FindActiveByRoomID(txCtx, roomID)
+		if err != nil {
+			return &ActiveError{Op: op, Err: fmt.Errorf("find room sessions: %w", err)}
+		}
+		for _, group := range groups {
+			if group != nil && group.DeviceID == nil && group.GroupID != nil && *group.GroupID == activityID {
+				session = group
+				return nil
+			}
+		}
+		now := time.Now()
+		created := &active.Group{StartTime: now, LastActivity: now, GroupID: &activityID, RoomID: roomID}
+		created.SetTenantID(tenant.FromContext(txCtx))
+		if err := s.GroupRepo.Create(txCtx, created); err != nil {
+			return &ActiveError{Op: op, Err: fmt.Errorf("create room session: %w", err)}
+		}
+		session = created
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return session, nil
+}
+
 func (s *service) FindDeviceActiveGroupInRoom(ctx context.Context, roomID int64, deviceID int64) (*active.Group, error) {
 	group, err := s.GroupRepo.FindActiveByRoomIDAndDeviceID(ctx, roomID, deviceID)
 	if err != nil {

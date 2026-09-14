@@ -395,6 +395,55 @@ func (middayActivityAction) Run(_ context.Context, rt *Runtime) error {
 	return nil
 }
 
+// independentRoomStayCount is how many children the demo moves into the
+// released Sporthalle beside the football children.
+const independentRoomStayCount = 3
+
+type independentRoomStaysAction struct{}
+
+func (independentRoomStaysAction) Name() string { return "record independent room stays" }
+
+// Run moves a few checked-in children from other rooms into the released
+// Sporthalle through the staff move-to-room endpoint (#3066), so the shared
+// room view shows independent children next to the football children.
+func (independentRoomStaysAction) Run(_ context.Context, rt *Runtime) error {
+	fmt.Println("\nPhase 5b: Independent stays in a released room...")
+
+	sporthalle := rt.State.Rooms["Sporthalle"]
+	if sporthalle == 0 || len(rt.ActiveRoomIDs) == 0 {
+		fmt.Println("  Skipped: no Sporthalle or no checked-in children in this profile")
+		return nil
+	}
+
+	// Children below the midday checkout range stay checked in; the first ones
+	// placed outside the Sporthalle are moved.
+	studentIDs := make([]int64, 0, independentRoomStayCount)
+	for i := 0; i < 75 && i < fullDayCheckinLimit && i < len(rt.State.Students); i++ {
+		if rt.ActiveRoomIDs[i%len(rt.ActiveRoomIDs)] == sporthalle {
+			continue
+		}
+		studentIDs = append(studentIDs, rt.State.Students[i].ID)
+		if len(studentIDs) == independentRoomStayCount {
+			break
+		}
+	}
+	if len(studentIDs) == 0 {
+		fmt.Println("  Skipped: every checked-in child is already in the Sporthalle")
+		return nil
+	}
+
+	if _, err := rt.Client.Post("/api/active/visits/move-to-room", map[string]any{
+		"student_ids":    studentIDs,
+		"target_room_id": sporthalle,
+	}); err != nil {
+		return fmt.Errorf("move children into the released Sporthalle: %w", err)
+	}
+	rt.Counts.IndependentStays += len(studentIDs)
+
+	fmt.Printf("  %d children stay in the Sporthalle without joining football\n", rt.Counts.IndependentStays)
+	return nil
+}
+
 type endOfDayAction struct{}
 
 func (endOfDayAction) Name() string { return "run end-of-day flow" }
@@ -488,6 +537,7 @@ func (printSummaryAction) Run(_ context.Context, rt *Runtime) error {
 	fmt.Printf("  Students checked in: %d\n", rt.Counts.StudentsCheckedIn)
 	fmt.Printf("  Students sick:       %d\n", rt.Counts.StudentsSick)
 	fmt.Printf("  Students checked out:%d\n", rt.Counts.StudentsCheckedOut)
+	fmt.Printf("  Independent stays:  %d\n", rt.Counts.IndependentStays)
 	if rt.Options.Close {
 		fmt.Printf("  Feedback submitted:  %d\n", rt.Counts.FeedbackSubmitted)
 		fmt.Println("  End-of-day:          completed")
@@ -505,6 +555,7 @@ func fullDayScenario(close bool) Scenario {
 		seedStaffFeedTombstoneAction{},
 		recordAttendanceAction{},
 		middayActivityAction{},
+		independentRoomStaysAction{},
 	}
 	if close {
 		actions = append(actions, endOfDayAction{})

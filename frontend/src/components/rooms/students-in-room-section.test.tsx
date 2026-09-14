@@ -32,11 +32,15 @@ const {
   mockGetStudentCurrentVisit,
   mockUpdateVisit,
   mockMoveStudentsToActiveGroup,
+  mockMoveStudentsToOpenRoom,
+  mockRefreshMoveRooms,
   mockGetActiveGroups,
   mockGetStaffActiveSupervisions,
   mockToastSuccess,
   mockUseSession,
 } = vi.hoisted(() => ({
+  mockMoveStudentsToOpenRoom: vi.fn(),
+  mockRefreshMoveRooms: vi.fn(),
   mockPush: vi.fn(),
   mockUseSearchParams: vi.fn(() => ({
     get: vi.fn(() => null),
@@ -82,6 +86,8 @@ vi.mock("~/lib/active-service", async (importOriginal) => {
       updateVisit: (...args: unknown[]) => mockUpdateVisit(...args),
       moveStudentsToActiveGroup: (...args: unknown[]) =>
         mockMoveStudentsToActiveGroup(...args),
+      moveStudentsToOpenRoom: (...args: unknown[]) =>
+        mockMoveStudentsToOpenRoom(...args),
       getStaffActiveSupervisions: (...args: unknown[]) =>
         mockGetStaffActiveSupervisions(...args),
     },
@@ -183,6 +189,7 @@ interface MockActiveGroup {
 interface MockRoom {
   id: string;
   name: string;
+  isOpenRoom?: boolean;
 }
 
 interface MockSupervisor {
@@ -271,6 +278,9 @@ beforeEach(() => {
   mockGetStudentCurrentVisit.mockReset();
   mockUpdateVisit.mockReset();
   mockMoveStudentsToActiveGroup.mockReset();
+  mockMoveStudentsToOpenRoom.mockReset();
+  mockRefreshMoveRooms.mockReset();
+  mockRefreshMoveRooms.mockResolvedValue(undefined);
   mockGetActiveGroups.mockReset();
   mockGetStaffActiveSupervisions.mockReset();
   mockToastSuccess.mockReset();
@@ -353,6 +363,7 @@ beforeEach(() => {
         data: roomsState.data,
         error: null,
         isLoading: false,
+        mutate: mockRefreshMoveRooms,
       };
     }
     return { data: undefined, error: null, isLoading: false };
@@ -820,7 +831,10 @@ describe("StudentsInRoomSection", () => {
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
 
       expect(
-        screen.getByText("Zur Auswahl stehen Räume mit laufender Aufsicht."),
+        // #3066 adds released rooms to this scope, so the hint names both.
+        screen.getByText(
+          "Zur Auswahl stehen Räume mit laufender Aufsicht und offene Räume.",
+        ),
       ).toBeInTheDocument();
       fireEvent.click(screen.getByLabelText("Zielraum"));
       expect(screen.queryByRole("option", { name: "Aula" })).toBeNull();
@@ -1252,6 +1266,140 @@ describe("StudentsInRoomSection", () => {
       // a space and a hyphen and would break a naive concatenation.
       expect(target).toContain("room_id=42");
       expect(target).toContain("room_name=OGS-Raum+1");
+    });
+  });
+
+  // Released rooms are shared destinations (#3066): choosing one records an
+  // independent stay through the move-to-room endpoint, never a move into a
+  // session that happens to run there.
+  describe("moving into a released room", () => {
+    const releasedGym = { id: "9002", name: "Turnhalle", isOpenRoom: true };
+
+    it("offers a released room as the room itself, not as its session", () => {
+      setSWR({ data: { students: [makeStudent({ id: "7" })] } });
+      setBulkData({
+        activeGroups: [
+          { id: "842", roomId: "42", isActive: true },
+          // Football runs in the released gym and is supervised by the caller.
+          { id: "902", roomId: "9002", isActive: true, supervisorCount: 1 },
+        ],
+        rooms: [releasedGym],
+      });
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+      fireEvent.click(screen.getByLabelText("Zielraum"));
+
+      expect(
+        screen.getByRole("option", { name: "Turnhalle (offener Raum)" }),
+      ).toBeTruthy();
+      expect(screen.queryByRole("option", { name: "Turnhalle" })).toBeNull();
+      expect(
+        screen.getByText(
+          "Zur Auswahl stehen Räume mit laufender Aufsicht und offene Räume.",
+        ),
+      ).toBeTruthy();
+    });
+
+    it("offers a released room even when nobody supervises it", () => {
+      setSWR({ data: { students: [makeStudent({ id: "7" })] } });
+      setBulkData({
+        activeGroups: [{ id: "842", roomId: "42", isActive: true }],
+        rooms: [releasedGym],
+      });
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+      fireEvent.click(screen.getByLabelText("Zielraum"));
+
+      expect(
+        screen.getByRole("option", { name: "Turnhalle (offener Raum)" }),
+      ).toBeTruthy();
+    });
+
+    it("does not offer a released room to staff who only pull into their own room", () => {
+      setSWR({ data: { students: [makeStudent({ id: "7" })] } });
+      // The caller supervises only their own target room, not this room.
+      const ownTarget = { id: "900", roomId: "9000", isActive: true };
+      setBulkData({
+        activeGroups: [{ id: "842", roomId: "42", isActive: true }, ownTarget],
+        rooms: [{ id: "9000", name: "Raum 6" }, releasedGym],
+        activeSupervisions: makeSupervisions([ownTarget]),
+      });
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+      fireEvent.click(screen.getByLabelText("Zielraum"));
+
+      expect(screen.getByRole("option", { name: "Raum 6" })).toBeTruthy();
+      expect(
+        screen.queryByRole("option", { name: "Turnhalle (offener Raum)" }),
+      ).toBeNull();
+    });
+
+    it("moves the selected children with the move-to-room call", async () => {
+      const refreshCaches = vi.fn().mockResolvedValue(undefined);
+      mockUseTenantMutateMatching.mockReturnValue(refreshCaches);
+      setSWR({ data: { students: [makeStudent({ id: "7" })] } });
+      setBulkData({
+        activeGroups: [{ id: "842", roomId: "42", isActive: true }],
+        rooms: [releasedGym],
+      });
+      mockMoveStudentsToOpenRoom.mockResolvedValue({
+        moved: [7],
+        unchanged: [],
+        skipped: [],
+        active_group_id: 555,
+        room_id: 9002,
+      });
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: /Anna Müller auswählen/ }),
+      );
+      fireEvent.click(screen.getByLabelText("Zielraum"));
+      fireEvent.click(
+        screen.getByRole("option", { name: "Turnhalle (offener Raum)" }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "In Raum setzen" }));
+
+      await waitFor(() => {
+        expect(mockMoveStudentsToOpenRoom).toHaveBeenCalledWith(["7"], "9002");
+      });
+      expect(mockMoveStudentsToActiveGroup).not.toHaveBeenCalled();
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        "1 Kind nach Turnhalle bewegt.",
+      );
+      expect(refreshCaches).toHaveBeenCalledTimes(1);
+    });
+
+    it("explains a release that was removed meanwhile and reloads the rooms", async () => {
+      setSWR({ data: { students: [makeStudent({ id: "7" })] } });
+      setBulkData({
+        activeGroups: [{ id: "842", roomId: "42", isActive: true }],
+        rooms: [releasedGym],
+      });
+      mockMoveStudentsToOpenRoom.mockRejectedValue(
+        Object.assign(new Error("Move students to open room failed: 409"), {
+          status: 409,
+          code: "room_not_released",
+        }),
+      );
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: /Anna Müller auswählen/ }),
+      );
+      fireEvent.click(screen.getByLabelText("Zielraum"));
+      fireEvent.click(
+        screen.getByRole("option", { name: "Turnhalle (offener Raum)" }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "In Raum setzen" }));
+
+      expect(
+        await screen.findByText(
+          "Dieser Raum ist nicht mehr freigegeben. Bitte wählen Sie einen anderen Raum.",
+        ),
+      ).toBeTruthy();
+      expect(mockRefreshMoveRooms).toHaveBeenCalledTimes(1);
+      expect(mockToastSuccess).not.toHaveBeenCalled();
     });
   });
 });

@@ -150,9 +150,12 @@ type ReleasedRoom struct {
 // RunningSession contains the facts one shared-room entry needs for a live
 // session. An empty ActivityName is a room-only session, not a placeholder.
 type RunningSession struct {
-	ActiveGroupID      int64
-	RoomID             int64
-	ActivityName       string
+	ActiveGroupID int64
+	RoomID        int64
+	ActivityName  string
+	// IndependentStays marks the room's own session (#3066): the children in
+	// it stay in the room without taking part in an activity.
+	IndependentStays   bool
 	StartTime          time.Time
 	SupervisorStaffIDs []int64
 }

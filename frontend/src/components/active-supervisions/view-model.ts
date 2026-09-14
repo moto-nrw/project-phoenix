@@ -11,6 +11,8 @@ export interface ActiveSupervisionStudent extends Student {
   activeGroupId: string;
   checkInTime: Date;
   activity_name?: string;
+  /** Stays in a released room without taking part in an activity (#3066). */
+  independent?: boolean;
 }
 
 export interface ActiveSupervisionRoom {
@@ -263,6 +265,7 @@ export interface VisitDisplayLike {
   schoolClass?: string;
   groupName?: string;
   activityName?: string;
+  independent?: boolean;
   activeGroupId: string;
   checkInTime: string | Date;
   actualArrivalTime?: string;
@@ -410,6 +413,7 @@ function mapVisitToSupervisionStudent(
     group_name: visit.groupName,
     group_id: groupId,
     activity_name: visit.activityName,
+    independent: visit.independent,
     sick: visit.sick,
     sick_since: visit.sickSince,
     excused: visit.excused,

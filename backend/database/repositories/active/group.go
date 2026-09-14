@@ -114,7 +114,7 @@ func (r *GroupRepository) FindOpenSessionsInRooms(ctx context.Context, roomIDs [
 			activityGroupIDs = append(activityGroupIDs, *row.ActivityGroupID)
 		}
 	}
-	activityNames, err := timetableprojection.GroupNames(ctx, base.GetDB(ctx, r.db), tenant.FromContext(ctx), activityGroupIDs)
+	activities, err := timetableprojection.GroupSummaries(ctx, base.GetDB(ctx, r.db), tenant.FromContext(ctx), activityGroupIDs)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find open session offerings", Err: err}
 	}
@@ -139,7 +139,9 @@ func (r *GroupRepository) FindOpenSessionsInRooms(ctx context.Context, roomIDs [
 	for _, row := range rows {
 		session := active.RoomSession{ActiveGroupID: row.ActiveGroupID, RoomID: row.RoomID, StartTime: row.StartTime, SupervisorStaffIDs: staffBySession[row.ActiveGroupID]}
 		if row.ActivityGroupID != nil {
-			session.ActivityName = activityNames[*row.ActivityGroupID]
+			summary := activities[*row.ActivityGroupID]
+			session.ActivityName = summary.Name
+			session.SystemActivity = summary.IsSystem
 		}
 		sessions = append(sessions, session)
 	}

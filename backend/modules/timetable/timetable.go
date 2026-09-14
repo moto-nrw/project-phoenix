@@ -12,11 +12,20 @@ import (
 )
 
 const (
-	DefaultCategoryColor         = "#CCCCCC"
-	SchulhofCategoryName         = "Schulhof"
-	WCCategoryName               = "WC"
-	SchulhofActivityName         = "Schulhof Freispiel"
-	WCActivityName               = "WC"
+	DefaultCategoryColor = "#CCCCCC"
+	SchulhofCategoryName = "Schulhof"
+	WCCategoryName       = "WC"
+	SchulhofActivityName = "Schulhof Freispiel"
+	WCActivityName       = "WC"
+	// The shared system activity and category of released rooms other than
+	// the Schulhof (#3066). A room session under this activity holds the
+	// independent room stays of one released room; it is not an activity
+	// children participate in.
+	OpenRoomCategoryName         = "Offene Räume"
+	OpenRoomCategoryDescription  = "Aufenthalte in freigegebenen Räumen ohne Angebot"
+	OpenRoomCategoryColor        = "#5080D8"
+	OpenRoomActivityName         = "Offener Raum"
+	OpenRoomMaxParticipants      = 300
 	categoryNameMaxLength        = 60
 	categoryDescriptionMaxLength = 255
 )
@@ -1418,11 +1427,12 @@ func normalizeCategory(name, description, color *string) error {
 }
 
 func reservedCategoryName(name string) bool {
-	return strings.EqualFold(name, WCCategoryName) || strings.EqualFold(name, SchulhofCategoryName)
+	return strings.EqualFold(name, WCCategoryName) || strings.EqualFold(name, SchulhofCategoryName) ||
+		strings.EqualFold(name, OpenRoomCategoryName)
 }
 
 func IsSystemActivityName(name string) bool {
-	return name == SchulhofActivityName || name == WCActivityName
+	return name == SchulhofActivityName || name == WCActivityName || name == OpenRoomActivityName
 }
 
 func hasInvalidID(ids []int64) bool {

@@ -34,9 +34,12 @@ type Group struct {
 
 // RoomSession is a read projection for a running session in a released room.
 type RoomSession struct {
-	ActiveGroupID      int64
-	RoomID             int64
-	ActivityName       string
+	ActiveGroupID int64
+	RoomID        int64
+	ActivityName  string
+	// SystemActivity marks the room's own session (#3066): its visits are
+	// independent room stays, not participation in an activity.
+	SystemActivity     bool
 	StartTime          time.Time
 	SupervisorStaffIDs []int64
 }

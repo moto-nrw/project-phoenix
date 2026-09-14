@@ -211,6 +211,7 @@ func (s sessions) InRooms(ctx context.Context, roomIDs []int64) ([]supervisionda
 			ActiveGroupID:      group.ActiveGroupID,
 			RoomID:             group.RoomID,
 			ActivityName:       group.ActivityName,
+			IndependentStays:   group.SystemActivity,
 			StartTime:          group.StartTime,
 			SupervisorStaffIDs: group.SupervisorStaffIDs,
 		})
