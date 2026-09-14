@@ -1,6 +1,7 @@
 "use client";
 
 import { EmptyState } from "~/components/ui/empty-state";
+import { Skeleton } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { formatDate } from "~/lib/date-helpers";
 import type { BirthdayCelebration } from "~/lib/birthdays-api";
@@ -34,7 +35,7 @@ export function BirthdayList({
     return (
       <div className="space-y-2">
         {[1, 2].map((i) => (
-          <div key={i} className="h-12 animate-pulse rounded-xl bg-gray-100" />
+          <Skeleton key={i} className="h-12 rounded-xl" />
         ))}
       </div>
     );

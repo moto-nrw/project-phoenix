@@ -69,6 +69,7 @@ import { getSettingValue } from "~/lib/settings-api";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { NotificationBadge } from "~/components/ui/notification-badge";
+import { Skeleton } from "~/components/ui/skeleton";
 import {
   getActivePlanningSubPageHref,
   isPlanningPageHref,
@@ -1900,11 +1901,9 @@ export function Sidebar({ className = "" }: SidebarProps) {
             <nav className={SIDEBAR_NAV_GAP}>
               {["w-24", "w-28", "w-20", "w-24"].map((widthClass, index) => (
                 <div key={index} className="flex h-10 items-center px-3">
-                  <div className="h-5 w-5 shrink-0 animate-pulse rounded bg-gray-200" />
+                  <Skeleton className="h-5 w-5 shrink-0 rounded" />
                   {!collapsed && (
-                    <div
-                      className={`ml-3 h-4 ${widthClass} animate-pulse rounded bg-gray-200`}
-                    />
+                    <Skeleton className={`ml-3 h-4 ${widthClass} rounded`} />
                   )}
                 </div>
               ))}

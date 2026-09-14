@@ -16,6 +16,7 @@ import { BuildingsIcon, StackSimpleIcon, TagIcon } from "@phosphor-icons/react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { Alert } from "~/components/ui/alert";
 import { SectionCard } from "~/components/ui/section-card";
+import { Skeleton } from "~/components/ui/skeleton";
 import {
   DataField,
   DataFieldSkeleton,
@@ -442,10 +443,6 @@ export function RoomDetailContent({
 // shells of the loaded layout (Rauminformationen / Kinder im Raum /
 // Belegungshistorie) so the page doesn't visibly resize when real data
 // arrives.
-function SkeletonLine({ className = "" }: { readonly className?: string }) {
-  return <div className={`animate-pulse rounded bg-gray-200 ${className}`} />;
-}
-
 function SkeletonStudentRow({ withAvatar }: { withAvatar: boolean }) {
   // Mirrors CompactStudentCard: full-width pill with name + meta line.
   // When the per-tenant photo feature is on, also reserve the avatar
@@ -454,11 +451,11 @@ function SkeletonStudentRow({ withAvatar }: { withAvatar: boolean }) {
   return (
     <div className="moto-content-surface flex items-center gap-3 rounded-xl border px-4 py-3">
       {withAvatar ? (
-        <div className="h-8 w-8 flex-shrink-0 animate-pulse rounded-full bg-gray-200" />
+        <Skeleton className="h-8 w-8 flex-shrink-0 rounded-full" />
       ) : null}
       <div className="min-w-0 flex-1">
-        <SkeletonLine className="h-4 w-40" />
-        <SkeletonLine className="mt-2 h-3 w-24" />
+        <Skeleton className="h-4 w-40 rounded" />
+        <Skeleton className="mt-2 h-3 w-24 rounded" />
       </div>
     </div>
   );
@@ -488,8 +485,8 @@ export function RoomDetailSkeleton() {
       <SectionCard title="Kinder im Raum">
         {/* Subline (count + Kindersuche button) and three child rows. */}
         <div className="flex items-end justify-between gap-3">
-          <SkeletonLine className="h-3 w-40" />
-          <SkeletonLine className="h-7 w-32 rounded-lg" />
+          <Skeleton className="h-3 w-40 rounded" />
+          <Skeleton className="h-7 w-32 rounded-lg" />
         </div>
         <div className="mt-4 flex flex-col gap-2">
           <SkeletonStudentRow withAvatar={photosEnabled} />
@@ -501,14 +498,14 @@ export function RoomDetailSkeleton() {
       <SectionCard title="Belegungshistorie">
         <div className="space-y-3">
           <div className="rounded-lg border border-gray-100 bg-white p-4">
-            <SkeletonLine className="h-1 w-full -translate-y-2 rounded-full" />
-            <SkeletonLine className="h-4 w-32" />
-            <SkeletonLine className="mt-2 h-3 w-48" />
+            <Skeleton className="h-1 w-full -translate-y-2 rounded-full" />
+            <Skeleton className="h-4 w-32 rounded" />
+            <Skeleton className="mt-2 h-3 w-48 rounded" />
           </div>
           <div className="rounded-lg border border-gray-100 bg-white p-4">
-            <SkeletonLine className="h-1 w-full -translate-y-2 rounded-full" />
-            <SkeletonLine className="h-4 w-40" />
-            <SkeletonLine className="mt-2 h-3 w-36" />
+            <Skeleton className="h-1 w-full -translate-y-2 rounded-full" />
+            <Skeleton className="h-4 w-40 rounded" />
+            <Skeleton className="mt-2 h-3 w-36 rounded" />
           </div>
         </div>
       </SectionCard>
