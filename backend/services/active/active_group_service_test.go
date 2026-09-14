@@ -10,7 +10,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
-	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -1091,8 +1090,8 @@ func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
 		require.NotNil(t, session)
 
 		// Create visits for students using context with device/staff
-		staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff.ID, staff.TenantID))
-		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(iotDevice.ID, iotDevice.TenantID))
+		staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+		deviceCtx := services.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
 
 		visit1 := &studentpresence.Visit{
 			StudentID:     student1.ID,
@@ -1264,8 +1263,8 @@ func TestActiveService_EndDailySessions_WithActiveData(t *testing.T) {
 		require.NoError(t, err)
 
 		// Add a visit to session1
-		staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff.ID, staff.TenantID))
-		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(device1.ID, device1.TenantID))
+		staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+		deviceCtx := services.WithAttendanceDevice(staffCtx, device1.ID, device1.TenantID)
 		visit := &studentpresence.Visit{
 			StudentID:     student.ID,
 			ActiveGroupID: session1.ID,

@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services/active"
@@ -551,7 +550,7 @@ func TestCheckin_RoomCheckinBroadcastsOnce(t *testing.T) {
 	f, cleanup := setupAbsentStudent(t, db, "RoomCheckin")
 	defer cleanup()
 
-	ctx := context.WithValue(testpkg.Ctx(t), device.CtxStaff, staffPrincipal(f.staffID, 0))
+	ctx := services.WithAttendanceStaff(testpkg.Ctx(t), f.staffID, 0)
 	broadcaster.Reset()
 
 	visit := &studentpresence.Visit{

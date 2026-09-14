@@ -24,7 +24,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
-	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -120,8 +119,8 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	require.NoError(t, isRepo.Create(ctx, row))
 
 	// ACT: drive a check-in through the service.
-	staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff.ID, staff.TenantID))
-	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(iotDevice.ID, iotDevice.TenantID))
+	staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+	deviceCtx := services.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
 
 	visit := &studentpresence.Visit{
 		StudentID:     student.ID,
@@ -252,8 +251,8 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 	iotDevice := testpkg.CreateTestDevice(t, db, fmt.Sprintf("e2e-walk-%d", suffix))
 
 	ctx := testpkg.Ctx(t)
-	staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff.ID, staff.TenantID))
-	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(iotDevice.ID, iotDevice.TenantID))
+	staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+	deviceCtx := services.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
 
 	visit := &studentpresence.Visit{
 		StudentID:     student.ID,

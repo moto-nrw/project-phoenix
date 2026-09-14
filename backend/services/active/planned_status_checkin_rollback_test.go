@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/services"
 
-	deviceAuth "github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -152,8 +151,8 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 	}))
 	device := testpkg.EnsureWebManualDevice(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Planned", "Rollback")
-	ctx = context.WithValue(ctx, deviceAuth.CtxDevice, devicePrincipal(device.ID, device.TenantID))
-	ctx = context.WithValue(ctx, deviceAuth.CtxStaff, staffPrincipal(staff.ID, staff.TenantID))
+	ctx = services.WithAttendanceDevice(ctx, device.ID, device.TenantID)
+	ctx = services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
 	student := testpkg.CreateTestStudent(t, db, "Planned", "Rollback", "3a")
 	var groupID int64
 	if mode == "visit" {
@@ -190,10 +189,10 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 		checkinCtx, deviceID := ctx, device.ID
 		if stage == "device lookup" {
 			deviceID = 0
-			checkinCtx = context.WithValue(testpkg.Ctx(t), deviceAuth.CtxStaff, staffPrincipal(staff.ID, staff.TenantID))
+			checkinCtx = services.WithAttendanceStaff(testpkg.Ctx(t), staff.ID, staff.TenantID)
 		}
 		if stage == "staff attribution" {
-			checkinCtx = context.WithValue(testpkg.Ctx(t), deviceAuth.CtxDevice, devicePrincipal(device.ID, device.TenantID))
+			checkinCtx = services.WithAttendanceDevice(testpkg.Ctx(t), device.ID, device.TenantID)
 		}
 		if mode == "visit" {
 			return svc.CreateVisit(checkinCtx, &studentpresence.Visit{StudentID: student.ID, ActiveGroupID: groupID, EntryTime: time.Now()})

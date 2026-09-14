@@ -11,7 +11,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
-	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	active "github.com/moto-nrw/project-phoenix/services/active"
@@ -98,8 +97,8 @@ func TestBroadcast_CreateVisitSendsOnePreciseRefresh(t *testing.T) {
 	// Students before their education group (FK ON DELETE SET NULL nulls
 	// students.tenant_id otherwise — see the edu-batch test below).
 
-	staffCtx := context.WithValue(testpkg.Ctx(t), device.CtxStaff, staffPrincipal(staff.ID, staff.TenantID))
-	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(iotDevice.ID, iotDevice.TenantID))
+	staffCtx := services.WithAttendanceStaff(testpkg.Ctx(t), staff.ID, staff.TenantID)
+	deviceCtx := services.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
 
 	visit := &studentpresence.Visit{
 		StudentID:     student.ID,

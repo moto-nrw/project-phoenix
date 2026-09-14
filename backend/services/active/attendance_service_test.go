@@ -23,7 +23,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
@@ -656,8 +657,8 @@ func TestToggleStudentAttendance_IoTDevice(t *testing.T) {
 		testpkg.CreateTestGroupSupervisor(t, db, staff.ID, activeGroup.ID, "supervisor")
 
 		// Create IoT device context using device package constants
-		ctx := context.WithValue(testpkg.Ctx(t), device.CtxIsIoTDevice, true)
-		ctx = context.WithValue(ctx, device.CtxDevice, devicePrincipal(testDevice.ID, testDevice.TenantID))
+		ctx := services.WithIoTAttendanceRequest(testpkg.Ctx(t))
+		ctx = services.WithAttendanceDevice(ctx, testDevice.ID, testDevice.TenantID)
 
 		// ACT: Toggle attendance (check-in)
 		result, err := service.ToggleStudentAttendance(ctx, student.ID, 0, testDevice.ID, false)
@@ -674,8 +675,8 @@ func TestToggleStudentAttendance_IoTDevice(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "IoTNoGroup", "Student", "12b")
 
 		// Create IoT device context using device package constants
-		ctx := context.WithValue(testpkg.Ctx(t), device.CtxIsIoTDevice, true)
-		ctx = context.WithValue(ctx, device.CtxDevice, devicePrincipal(testDevice.ID, testDevice.TenantID))
+		ctx := services.WithIoTAttendanceRequest(testpkg.Ctx(t))
+		ctx = services.WithAttendanceDevice(ctx, testDevice.ID, testDevice.TenantID)
 
 		// ACT: Toggle attendance
 		_, err := service.ToggleStudentAttendance(ctx, student.ID, 0, testDevice.ID, false)
@@ -939,7 +940,7 @@ func TestCheckOutStudentFromDevice_PrefersAuthenticatedStaff(t *testing.T) {
 	checkInStaff := testpkg.CreateTestStaff(t, db, "Device", "InitialStaff")
 	authenticatedStaff := testpkg.CreateTestStaff(t, db, "Device", "AuthenticatedStaff")
 	open := testpkg.CreateTestAttendance(t, db, student.ID, checkInStaff.ID, deviceRec.ID, time.Now().Add(-time.Hour), nil)
-	ctx = context.WithValue(ctx, device.CtxStaff, staffPrincipal(authenticatedStaff.ID, authenticatedStaff.TenantID))
+	ctx = services.WithAttendanceStaff(ctx, authenticatedStaff.ID, authenticatedStaff.TenantID)
 
 	result, err := service.CheckOutStudentFromDevice(ctx, student.ID, deviceRec.ID)
 

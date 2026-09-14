@@ -5167,7 +5167,7 @@
       "declaration": "createActiveService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        27
+        26
       ],
       "tables": []
     },
@@ -5190,7 +5190,7 @@
       "declaration": "newDailyCheckoutService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        121
+        120
       ],
       "tables": []
     },
@@ -5200,7 +5200,7 @@
       "declaration": "TestCreateVisit_EnrichesCheckInEventWithAttendance",
       "target": "database/repositories.NewFactory",
       "lines": [
-        55
+        54
       ],
       "tables": [
         "schedule.activity_instances"
@@ -5212,7 +5212,7 @@
       "declaration": "TestCreateVisit_WalkInLeavesAttendanceFieldsUnset",
       "target": "database/repositories.NewFactory",
       "lines": [
-        217
+        216
       ],
       "tables": []
     },
@@ -5222,7 +5222,7 @@
       "declaration": "TestBroadcast_UpdateVisitMoveSendsMovementEvents",
       "target": "database/repositories.NewFactory",
       "lines": [
-        226
+        225
       ],
       "tables": []
     },
@@ -5232,7 +5232,7 @@
       "declaration": "newServiceWithPresenceSync",
       "target": "database/repositories.NewFactory",
       "lines": [
-        53
+        52
       ],
       "tables": []
     },
@@ -5312,7 +5312,7 @@
       "declaration": "TestVisitRevisionRollsBackAfterSlotWriteAndRetries",
       "target": "database/repositories.NewFactory",
       "lines": [
-        47
+        48
       ],
       "tables": []
     },
@@ -5548,7 +5548,7 @@
       "declaration": "TestCreateVisit_ClearsParentStatusForToday",
       "target": "database/repositories.NewFactory",
       "lines": [
-        483
+        482
       ],
       "tables": []
     },
@@ -5558,7 +5558,7 @@
       "declaration": "TestCreateVisit_ClearsPlannedStatusForToday",
       "target": "database/repositories.NewFactory",
       "lines": [
-        406
+        405
       ],
       "tables": [
         "users.students"
@@ -5570,7 +5570,7 @@
       "declaration": "setupVisitHelperService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        524
+        523
       ],
       "tables": []
     },
