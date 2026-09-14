@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -59,7 +58,7 @@ func foreignActiveGroup(t *testing.T, tc *testContext, label string) int64 {
 	return testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID).ID
 }
 
-func getWithClaims(t *testing.T, router chi.Router, path string, claims testutil.Claims) int {
+func getWithClaims(t *testing.T, router testutil.Router, path string, claims testutil.Claims) int {
 	t.Helper()
 
 	req := testutil.NewJSONRequest(t, "GET", path, nil)

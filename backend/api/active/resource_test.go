@@ -5,7 +5,8 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/go-chi/chi/v5"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -51,7 +52,7 @@ func TestResourceUsesInjectedLogger(t *testing.T) {
 	t.Parallel()
 	logger := slog.New(slog.DiscardHandler)
 	resource := NewResource(nil, nil, nil, nil, nil, nil,
-		func(chi.Router, func(chi.Router, common.Middleware)) {}, logger, mappingReadQueries{},
+		func(testutil.Router, func(testutil.Router, common.Middleware)) {}, logger, mappingReadQueries{},
 		requestRuntimeForTest(func(ctx context.Context, _, _ int64) context.Context { return ctx }), authorizationForTest())
 	assert.Same(t, logger, resource.getLogger())
 }
@@ -60,7 +61,7 @@ func TestResourceRequiresVisitAuthorization(t *testing.T) {
 	t.Parallel()
 	require.PanicsWithValue(t, "active API: visit authorization is required", func() {
 		NewResource(nil, nil, nil, nil, nil, nil,
-			func(chi.Router, func(chi.Router, common.Middleware)) {}, slog.Default(), mappingReadQueries{},
+			func(testutil.Router, func(testutil.Router, common.Middleware)) {}, slog.Default(), mappingReadQueries{},
 			requestRuntimeForTest(func(ctx context.Context, _, _ int64) context.Context { return ctx }), Authorization{})
 	})
 }
@@ -69,7 +70,7 @@ func TestResourceRequiresOverviewAuthorization(t *testing.T) {
 	t.Parallel()
 	require.PanicsWithValue(t, "active API: overview authorization is required", func() {
 		NewResource(nil, nil, nil, nil, nil, nil,
-			func(chi.Router, func(chi.Router, common.Middleware)) {}, slog.Default(), mappingReadQueries{},
+			func(testutil.Router, func(testutil.Router, common.Middleware)) {}, slog.Default(), mappingReadQueries{},
 			requestRuntimeForTest(func(ctx context.Context, _, _ int64) context.Context { return ctx }), Authorization{Visit: authorizeVisitForTest})
 	})
 }
@@ -87,7 +88,7 @@ func TestResourceRequiresTenantRequestRuntime(t *testing.T) {
 			}
 			require.PanicsWithValue(t, "active API: tenant request runtime is required", func() {
 				NewResource(nil, nil, nil, nil, nil, nil,
-					func(chi.Router, func(chi.Router, common.Middleware)) {}, slog.Default(), mappingReadQueries{},
+					func(testutil.Router, func(testutil.Router, common.Middleware)) {}, slog.Default(), mappingReadQueries{},
 					runtime, authorizationForTest())
 			})
 		})

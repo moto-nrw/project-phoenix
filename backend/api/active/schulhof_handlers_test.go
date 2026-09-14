@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
@@ -50,13 +49,13 @@ func (m *mockUserContextService) HasCurrentStaff(ctx context.Context) (bool, err
 // Test Setup
 // =============================================================================
 
-func setupSchulhofTestRouter(resource *SchulhofResource) chi.Router {
+func setupSchulhofTestRouter(resource *SchulhofResource) testutil.Router {
 	router := testutil.NewJSONRouter()
 	router.Get("/status", resource.getSchulhofStatus)
 	return router
 }
 
-func executeSchulhofRequest(router chi.Router, req *http.Request, claims testutil.Claims, permissions []string) *httptest.ResponseRecorder {
+func executeSchulhofRequest(router testutil.Router, req *http.Request, claims testutil.Claims, permissions []string) *httptest.ResponseRecorder {
 	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, permissions)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()

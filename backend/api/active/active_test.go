@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -81,15 +80,15 @@ func setupActiveRoute(t *testing.T) *testContext {
 // mounts it router-wide. Without it here, a handler that resolves the caller
 // more than once looks more expensive in a query-budget test than it is in
 // production — which is the wrong number to hold a budget against.
-func mountActiveRouter(tc *testContext) chi.Router {
-	r := chi.NewRouter()
+func mountActiveRouter(tc *testContext) testutil.Router {
+	r := testutil.NewRouter()
 	r.Use(common.RequestIdentityCacheMiddleware)
 	r.Mount("/active", tc.resource.Router())
 	return r
 }
 
 // setupProtectedRouter builds the production router mounted at /active.
-func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
+func setupProtectedRouter(t *testing.T) (*testContext, testutil.Router) {
 	t.Helper()
 	tc := setupActiveRoute(t)
 	return tc, mountActiveRouter(tc)
@@ -98,7 +97,7 @@ func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 // setupExtendedProtectedRouter is an alias for setupProtectedRouter kept for the
 // tests written against a larger hand-wired router; the production Router()
 // already exposes every one of those endpoints.
-func setupExtendedProtectedRouter(t *testing.T) (*testContext, chi.Router) {
+func setupExtendedProtectedRouter(t *testing.T) (*testContext, testutil.Router) {
 	t.Helper()
 	tc := setupActiveRoute(t)
 	return tc, mountActiveRouter(tc)
@@ -289,7 +288,7 @@ func TestEndActiveGroup(t *testing.T) {
 			requestRuntimeForTest(func(context.Context, int64, int64) context.Context { panic("disabled attendance must not bind staff") }),
 			authorizationForTest(),
 		)
-		disabledRouter := chi.NewRouter()
+		disabledRouter := testutil.NewRouter()
 		disabledRouter.Mount("/active", disabledResource.Router())
 		settingCtx := testpkg.Ctx(t)
 
@@ -1649,7 +1648,7 @@ func TestRouter_ReturnsValidRouter(t *testing.T) {
 	t.Parallel()
 	tc := setupActiveRoute(t)
 	router := tc.resource.Router()
-	require.NotNil(t, router, "Router should return a valid chi.Router")
+	require.NotNil(t, router, "Router should return a valid testutil.Router")
 }
 
 // =============================================================================
@@ -1906,7 +1905,7 @@ func TestCreateVisitAdditional(t *testing.T) {
 
 // setupCheckoutRouter builds the production router mounted at /active (the
 // checkout endpoint lives under /active/visits/student/{studentId}/checkout).
-func setupCheckoutRouter(t *testing.T) (*testContext, chi.Router) {
+func setupCheckoutRouter(t *testing.T) (*testContext, testutil.Router) {
 	t.Helper()
 	tc := setupActiveRoute(t)
 	return tc, mountActiveRouter(tc)
@@ -2121,7 +2120,7 @@ func TestCheckoutStudent_AnyStaffCanCheckout(t *testing.T) {
 // setupFullCoverageRouter builds the production router mounted at /active; it
 // previously hand-wired the endpoints that had 0% coverage, all of which the
 // production Router() exposes.
-func setupFullCoverageRouter(t *testing.T) (*testContext, chi.Router) {
+func setupFullCoverageRouter(t *testing.T) (*testContext, testutil.Router) {
 	t.Helper()
 	tc := setupActiveRoute(t)
 	return tc, mountActiveRouter(tc)

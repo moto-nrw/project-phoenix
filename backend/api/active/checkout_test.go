@@ -8,7 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-chi/chi/v5"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/stretchr/testify/assert"
@@ -49,9 +50,7 @@ func TestParseStudentIDFromRequest_Valid(t *testing.T) {
 	req := httptest.NewRequest("GET", "/students/123/checkout", nil)
 
 	// Setup chi context with URL param
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("studentId", "123")
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	req = testutil.WithURLParams(req, "studentId", "123")
 
 	id, err := parseStudentIDFromRequest(req)
 	assert.NoError(t, err)
@@ -63,9 +62,7 @@ func TestParseStudentIDFromRequest_InvalidID(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/students/invalid/checkout", nil)
 
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("studentId", "invalid")
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	req = testutil.WithURLParams(req, "studentId", "invalid")
 
 	_, err := parseStudentIDFromRequest(req)
 	assert.Error(t, err)
@@ -76,9 +73,7 @@ func TestParseStudentIDFromRequest_EmptyID(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/students//checkout", nil)
 
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("studentId", "")
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	req = testutil.WithURLParams(req, "studentId", "")
 
 	_, err := parseStudentIDFromRequest(req)
 	assert.Error(t, err)
@@ -89,9 +84,7 @@ func TestParseStudentIDFromRequest_NegativeID(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/students/-1/checkout", nil)
 
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("studentId", "-1")
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	req = testutil.WithURLParams(req, "studentId", "-1")
 
 	// ParseInt accepts negative numbers
 	id, err := parseStudentIDFromRequest(req)
@@ -104,9 +97,7 @@ func TestParseStudentIDFromRequest_LargeID(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/students/9999999999/checkout", nil)
 
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("studentId", "9999999999")
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	req = testutil.WithURLParams(req, "studentId", "9999999999")
 
 	id, err := parseStudentIDFromRequest(req)
 	assert.NoError(t, err)
@@ -131,7 +122,7 @@ func TestCheckoutStudent_RejectsNonStaffBeforeReadingAttendance(t *testing.T) {
 		},
 	})
 
-	router := chi.NewRouter()
+	router := testutil.NewRouter()
 	router.Post("/student/{studentId}/checkout", rs.checkoutStudent)
 	claims := staffClaims()
 	claims.ID = 11

@@ -8,7 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-chi/chi/v5"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
@@ -31,9 +32,7 @@ func TestRequireVisitViewUsesPrincipalAndPreservesDenialContract(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			req := httptest.NewRequest(http.MethodGet, "/active/visits/"+tt.param, nil)
-			route := chi.NewRouteContext()
-			route.URLParams.Add("id", tt.param)
-			ctx := context.WithValue(req.Context(), chi.RouteCtxKey, route)
+			ctx := testutil.WithURLParams(req, "id", tt.param).Context()
 			if tt.principal != nil {
 				ctx = permissions.WithPrincipal(ctx, *tt.principal)
 			}
@@ -136,9 +135,7 @@ func visitResource(fixture visitFixture) *Resource {
 func executeVisitView(t *testing.T, resource *Resource, principal permissions.Principal, param string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, "/active/visits/"+param, nil)
-	route := chi.NewRouteContext()
-	route.URLParams.Add("id", param)
-	ctx := permissions.WithPrincipal(context.WithValue(req.Context(), chi.RouteCtxKey, route), principal)
+	ctx := permissions.WithPrincipal(testutil.WithURLParams(req, "id", param).Context(), principal)
 	recorder := httptest.NewRecorder()
 	resource.requireVisitView(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)

@@ -8,7 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/go-chi/chi/v5"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -50,7 +51,7 @@ func TestMappingReadRoutesUseNativeProjection(t *testing.T) {
 						return []studentpresence.GroupMapping{{ID: 17, ActiveGroupID: 42, ActiveCombinedGroupID: 42}}, nil
 					}
 				}}})
-				router := chi.NewRouter()
+				router := testutil.NewRouter()
 				if combined {
 					router.Get("/{combinedId}", resource.getCombinedGroupMappings)
 				} else {

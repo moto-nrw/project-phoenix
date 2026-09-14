@@ -14,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -47,7 +46,7 @@ type openRoomEnvelope struct {
 
 // openRooms reads the shared view off the real endpoint, keyed by room name so
 // a test can name the room it means without carrying ids around.
-func openRooms(t *testing.T, router chi.Router, accountID int64) map[string]wireOpenRoom {
+func openRooms(t *testing.T, router testutil.Router, accountID int64) map[string]wireOpenRoom {
 	t.Helper()
 
 	req := testutil.NewRequest("GET", "/active/supervision-dashboard", nil)

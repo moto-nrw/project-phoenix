@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -1038,55 +1037,55 @@ func TestSupervisors_Integration(t *testing.T) {
 // mountActiveRouter (defined in active_test.go) mounts the production Router()
 // under /active; these helpers delegate to it so every integration test runs
 // through the real middleware chain at production paths.
-func setupCombinedGroupRouter(t *testing.T) (*testContext, chi.Router) {
+func setupCombinedGroupRouter(t *testing.T) (*testContext, testutil.Router) {
 	t.Helper()
 	tc := setupActiveRoute(t)
 	return tc, mountActiveRouter(tc)
 }
 
-func setupMappingsRouter(t *testing.T) (*testContext, chi.Router) {
+func setupMappingsRouter(t *testing.T) (*testContext, testutil.Router) {
 	t.Helper()
 	tc := setupActiveRoute(t)
 	return tc, mountActiveRouter(tc)
 }
 
-func setupUnclaimedRouter(t *testing.T) (*testContext, chi.Router) {
+func setupUnclaimedRouter(t *testing.T) (*testContext, testutil.Router) {
 	t.Helper()
 	tc := setupActiveRoute(t)
 	return tc, mountActiveRouter(tc)
 }
 
-func setupSupervisorRouter(t *testing.T) (*testContext, chi.Router) {
+func setupSupervisorRouter(t *testing.T) (*testContext, testutil.Router) {
 	t.Helper()
 	tc := setupActiveRoute(t)
 	return tc, mountActiveRouter(tc)
 }
 
-func setupVisitsRouter(t *testing.T) (*testContext, chi.Router) {
+func setupVisitsRouter(t *testing.T) (*testContext, testutil.Router) {
 	t.Helper()
 	tc := setupActiveRoute(t)
 	return tc, mountActiveRouter(tc)
 }
 
-func setupAnalyticsRouter(t *testing.T) (*testContext, chi.Router) {
+func setupAnalyticsRouter(t *testing.T) (*testContext, testutil.Router) {
 	t.Helper()
 	tc := setupActiveRoute(t)
 	return tc, mountActiveRouter(tc)
 }
 
-func setupActiveGroupsRouter(t *testing.T) (*testContext, chi.Router) {
+func setupActiveGroupsRouter(t *testing.T) (*testContext, testutil.Router) {
 	t.Helper()
 	tc := setupActiveRoute(t)
 	return tc, mountActiveRouter(tc)
 }
 
-func setupVisitsCRUDRouter(t *testing.T) (*testContext, chi.Router) {
+func setupVisitsCRUDRouter(t *testing.T) (*testContext, testutil.Router) {
 	t.Helper()
 	tc := setupActiveRoute(t)
 	return tc, mountActiveRouter(tc)
 }
 
-func setupSupervisorsCRUDRouter(t *testing.T) (*testContext, chi.Router) {
+func setupSupervisorsCRUDRouter(t *testing.T) (*testContext, testutil.Router) {
 	t.Helper()
 	tc := setupActiveRoute(t)
 	return tc, mountActiveRouter(tc)

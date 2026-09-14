@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
@@ -27,7 +26,7 @@ func TestSupervisionDashboardInputsEnforceRLS(t *testing.T) {
 		ctx                                   context.Context
 		tenantID, accountID, groupID, student int64
 		tc                                    *testContext
-		router                                chi.Router
+		router                                testutil.Router
 		rows                                  map[string]int64
 	}
 	var fixtures []fixture

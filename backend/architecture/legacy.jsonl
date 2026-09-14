@@ -1,4 +1,3 @@
-{"scope":"external_test","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/api/active","target":"github.com/go-chi/chi/v5","issue":"https://github.com/moto-nrw/project-phoenix/issues/2737"}
 {"scope":"external_test","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/api/active","target":"github.com/moto-nrw/project-phoenix/api/common","issue":"https://github.com/moto-nrw/project-phoenix/issues/2737"}
 {"scope":"external_test","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/api/active","target":"github.com/moto-nrw/project-phoenix/internal/timezone","issue":"https://github.com/moto-nrw/project-phoenix/issues/2737"}
 {"scope":"external_test","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/api/active","target":"github.com/moto-nrw/project-phoenix/models/config","issue":"https://github.com/moto-nrw/project-phoenix/issues/2737"}
@@ -382,7 +381,6 @@
 {"scope":"external_test","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/test/e2e/calendar","target":"github.com/moto-nrw/project-phoenix/tenant","issue":"https://github.com/moto-nrw/project-phoenix/issues/2748"}
 {"scope":"external_test","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/test/e2e/calendar","target":"github.com/uptrace/bun","issue":"https://github.com/moto-nrw/project-phoenix/issues/2748"}
 {"scope":"external_test","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/test/e2e/calendar","target":"net/http","issue":"https://github.com/moto-nrw/project-phoenix/issues/2748"}
-{"scope":"internal_test","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/api/active","target":"github.com/go-chi/chi/v5","issue":"https://github.com/moto-nrw/project-phoenix/issues/2737"}
 {"scope":"internal_test","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/api/active","target":"github.com/moto-nrw/project-phoenix/api/common","issue":"https://github.com/moto-nrw/project-phoenix/issues/2737"}
 {"scope":"internal_test","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/api/active","target":"github.com/moto-nrw/project-phoenix/internal/timezone","issue":"https://github.com/moto-nrw/project-phoenix/issues/2737"}
 {"scope":"internal_test","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/api/active","target":"github.com/moto-nrw/project-phoenix/models/config","issue":"https://github.com/moto-nrw/project-phoenix/issues/2737"}

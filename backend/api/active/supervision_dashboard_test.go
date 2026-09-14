@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -89,20 +88,20 @@ func decodeDashboard(t *testing.T, body []byte) *dashboardEnvelope {
 // setupDashboardContext wires the production active router with the real
 // supervision dashboard service (assigned post-construction, as api/base.go
 // does).
-func setupDashboardContext(t *testing.T) (*testContext, chi.Router) {
+func setupDashboardContext(t *testing.T) (*testContext, testutil.Router) {
 	t.Helper()
 	tc := setupActiveRoute(t)
 	return tc, mountActiveRouter(tc)
 }
 
-func dashboardExec(t *testing.T, router chi.Router, path string, accountID int64, perms []string) *dashboardEnvelope {
+func dashboardExec(t *testing.T, router testutil.Router, path string, accountID int64, perms []string) *dashboardEnvelope {
 	t.Helper()
 	rr := dashboardExecRaw(t, router, path, accountID, perms)
 	require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
 	return decodeDashboard(t, rr.Body.Bytes())
 }
 
-func dashboardExecRaw(t *testing.T, router chi.Router, path string, accountID int64, perms []string) *httptest.ResponseRecorder {
+func dashboardExecRaw(t *testing.T, router testutil.Router, path string, accountID int64, perms []string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := testutil.NewRequest("GET", path, nil)
 	return testutil.ExecuteWithAuthPermissions(t, router, req, testutil.TeacherTestClaims(int(accountID)), perms)
