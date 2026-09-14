@@ -28,9 +28,10 @@
 //                               („nach oben“) are list actions and pass; an
 //                               icon-only „… entfernen“ button is the chip
 //                               remover of a form value list and passes.
-//                               Shrink-only location baseline
-//                               (ROW_ACTION_BASELINE) for the remainder the
-//                               issue defers to follow-up PRs. Scope is the
+//                               Location-bound exception list
+//                               (ROW_ACTION_BASELINE) for form-internal
+//                               remove buttons only; the #3111 remainder is
+//                               gone since #3119. Scope is the
 //                               tenant portal: operator, parents and school
 //                               portal files are exempt (the spec does not
 //                               cover them).
@@ -94,10 +95,9 @@
 //                               written `<dt>` outside the kit: the `<dt>` is
 //                               the label cell of a local field grid, and it
 //                               cannot be confused with a kit call, so the
-//                               check stays a plain element count. Shrink-only
-//                               per-file baseline (FIELD_GRID_BASELINE) for the
-//                               remainder the issue distributes over follow-up
-//                               PRs; tenant portal only.
+//                               check stays a plain element count. Hard-zero
+//                               since #3119 (the #3117 remainder is gone);
+//                               tenant portal only.
 //
 //   bauart/no-own-skeleton — loading comes from `TenantPage.loading` with
 //                               the kit skeletons (ui/skeleton,
@@ -108,9 +108,8 @@
 //                               together with a neutral `bg-gray-*` fill —
 //                               the silhouette of a placeholder. A pulsing
 //                               live dot (occupied room, „nähert sich“) has
-//                               no gray fill and passes. Shrink-only per-file
-//                               baseline (OWN_SKELETON_BASELINE); tenant
-//                               portal only.
+//                               no gray fill and passes. Hard-zero since
+//                               #3119; tenant portal only.
 //
 //   bauart/no-raw-status-hex — status and planning colors come from
 //                               LOCATION_COLORS / MOTO_COLOR_PALETTE or a
@@ -122,9 +121,8 @@
 //                               The token source itself, the web manifest
 //                               and global-error.tsx (no stylesheet at that
 //                               boundary) are exempt by name
-//                               (HEX_TOKEN_SOURCES). Shrink-only per-file
-//                               baseline (RAW_HEX_BASELINE); tenant portal
-//                               only, src/test/ excluded.
+//                               (HEX_TOKEN_SOURCES). Hard-zero since #3119;
+//                               tenant portal only, src/test/ excluded.
 //
 //   bauart/no-disabled-menu-item — an action that does not exist is not in
 //                               the menu (Bauart 2 Regel 7, issue #3118).
@@ -305,35 +303,8 @@ const CHIP_REMOVE_RE = /(?:^|\P{L})entfernen(?:\P{L}|$)/iu;
 // tolerance accidentally. Keys are repo-relative posix paths under src/.
 const ROW_ACTION_BASELINE = new Map(
   Object.entries({
-    // Noch umzuziehen (#3111, Folge-PRs): Objektaktionen je Zeile.
-    "src/app/[tenant]/(protected)/database/students/class-list/page.tsx": [
-      "Bearbeiten@466",
-      "Löschen@476",
-    ],
-    "src/app/[tenant]/(protected)/database/students/ended-care/page.tsx": [
-      "Endgültig löschen@157",
-    ],
-    "src/components/admin/pending-invitations-list.tsx": ["Löschen@251"],
-    "src/components/database/grade-transitions/grade-transitions-manager.tsx": [
-      "Bearbeiten@416",
-      "Löschen@436",
-    ],
-    "src/components/guardians/guardian-list.tsx": ["Bearbeiten@165"],
-    "src/components/planning/calendar-periods-editor.tsx": ["Bearbeiten@225"],
-    "src/components/settings/trusted-devices-section.tsx": ["Entfernen@158"],
-    "src/components/staff/staff-session-table.tsx": [
-      "Eintrag nachtragen Block nachtragen Eintrag bearbeiten@850",
-      "Block bearbeiten@960",
-    ],
-    "src/components/staff/stundenkonto-panel.tsx": ["Buchung vom löschen@188"],
-    "src/components/students/class-arrival-exception-panel.tsx": [
-      "Entfernen@529",
-    ],
-    "src/components/teachers/caregiver-blocker-resolution-panel.tsx": [
-      "Übertragen Entfernen@566",
-      "Übertragen Entfernen@630",
-    ],
-    "src/components/timetable/period-switcher-dropdown.tsx": ["bearbeiten@310"],
+    // Der Bestand aus #3111 ist mit #3119 in den Kebab umgezogen; es gibt
+    // keine tolerierte Objektaktion je Zeile mehr.
     // Formular-intern (Eintrag eines Formularwerts, kein gespeichertes
     // Objekt): fest an die bestehende Stelle gebunden, damit keine neue
     // Zeilenaktion dieselbe Ausnahme nutzen kann.
@@ -1598,34 +1569,25 @@ const EDIT_TITLE_RE = /(?:^|\P{L})(?:bearbeiten|verwalten)(?:\P{L}|$)/iu;
 // several branches, whose line shifts with every edit above them.
 const EDIT_OVERLAY_BASELINE = new Map(
   Object.entries({
-    // Feldgruppe oder ganzes Objekt an einer Objektansicht, noch umzuziehen
-    // (#3116, Folge-PRs über #3119): der Reiter selbst muss in den
-    // Bearbeiten-Zustand wechseln.
+    // Die Feldgruppen an Objektansichten (Urlaubsanspruch, Arbeitszeitmodell,
+    // Wochenplan, Betreuungsangebote der Anmeldung) bearbeiten seit #3119 im
+    // Reiter. Benannte Ausnahme: der Assistent der Elternmitteilung hat zwei
+    // Abschlüsse („Als Entwurf speichern“ und „Veröffentlichen“) und behält
+    // seinen eigenen Fuß (BAUARTEN-SPEC Bauart 2 Regel 4, #3115); die Anzeige
+    // liegt auf der Route `parent-announcements/[id]`.
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
       "Umfrage bearbeiten Neue Umfrage Elternbrief bearbeiten Neuer Elternbrief Elternmitteilung bearbeiten Neue Elternmitteilung@1098",
-    ],
-    "src/components/enrollment/admin-enrollment-detail.tsx": [
-      "Betreuungsangebote bearbeiten@1562",
-    ],
-    "src/components/staff/abwesenheiten-tab.tsx": [
-      "Urlaubsanspruch bearbeiten@1315",
-    ],
-    "src/components/staff/arbeitszeitmodell-tab.tsx": [
-      "Arbeitszeitmodell bearbeiten@626",
-    ],
-    "src/components/students/care-weekly-plan-modal.tsx": [
-      "Wochenplan bearbeiten@225",
     ],
     // Einträge ohne eigene Objektansicht (Termin, Schließtag,
     // Kalenderzeitraum, Jahrgangswechsel, Klassenlisteneintrag,
     // Anmeldephase, Betreuungsangebot, Ordner, Tagesinformation): die Spec
-    // kennt für sie noch keine Bauart. Bis sie eine bekommen, bleibt der
-    // Bestand stehen und wächst nicht.
+    // kennt für sie noch keine Bauart (Entscheidung in #3119 offen gelassen).
+    // Bis sie eine bekommen, bleibt der Bestand stehen und wächst nicht.
     "src/app/[tenant]/(protected)/calendar/page.tsx": [
       "Termin bearbeiten Termin erstellen@918",
     ],
     "src/app/[tenant]/(protected)/database/students/class-list/page.tsx": [
-      "edit Eintrag bearbeiten Klassenlisteneintrag anlegen@529",
+      "edit Eintrag bearbeiten Klassenlisteneintrag anlegen@538",
     ],
     "src/components/database/grade-transitions/transition-editor.tsx": [
       "Jahrgangswechsel bearbeiten Neuer Jahrgangswechsel@243",
@@ -1685,7 +1647,7 @@ const noEditOverlay = {
       editOverlay:
         "Overlay „{{title}}“ ist ein Modal je Feldgruppe: Bearbeitet wird am Objekt, ein Reiter wechselt in den Bearbeiten-Zustand mit `EditActions` unten (BAUARTEN-SPEC Bauart 2 Regeln 3 und 4, #3116). Kontoaktionen mit eigenem Ablauf stehen im Kebab des Kopfes. Die Baseline in scripts/oxlint-plugin-bauart.mjs ist shrink-only.",
       editFormModal:
-        "`DatabaseFormModal mode=\"edit\"` ist ein Modal für das ganze Objekt: Bearbeitet wird am Objekt, im Bearbeiten-Zustand des Reiters (BAUARTEN-SPEC Bauart 2 Regel 3, #3116). Die Baseline in scripts/oxlint-plugin-bauart.mjs ist shrink-only.",
+        '`DatabaseFormModal mode="edit"` ist ein Modal für das ganze Objekt: Bearbeitet wird am Objekt, im Bearbeiten-Zustand des Reiters (BAUARTEN-SPEC Bauart 2 Regel 3, #3116). Die Baseline in scripts/oxlint-plugin-bauart.mjs ist shrink-only.',
     },
     schema: [],
   },
@@ -1732,33 +1694,6 @@ const noEditOverlay = {
 
 // --- bauart/no-local-field-grid ----------------------------------------------
 
-// Shrink-only per-file tolerance: the number of hand-written `<dt>` elements a
-// file may still carry. Keys are repo-relative posix paths under src/. A file
-// that drops below its count lowers the entry; a file that is not listed has
-// none to spare (#3117).
-const FIELD_GRID_BASELINE = new Map(
-  Object.entries({
-    // Feldgitter an Objektansichten und Dialogen, noch auf DataField/DataGrid
-    // umzuziehen (#3117, Folge-PRs über #3119).
-    "src/app/[tenant]/(protected)/database/personal/opening-balances/page.tsx": 1,
-    "src/app/[tenant]/(protected)/time-tracking/page.tsx": 3,
-    "src/components/enrollment/admin-enrollment-change-requests.tsx": 1,
-    "src/components/enrollment/enrollment-change-request-diff.tsx": 1,
-    "src/components/staff/abwesenheiten-tab.tsx": 3,
-    "src/components/staff/custom-allowance-editor.tsx": 1,
-    "src/components/staff/sick-report-modal.tsx": 5,
-    // Kennzahlen- und Statuslisten als <dl>: kein Feldgitter im engen Sinn,
-    // aber dieselbe handgebaute Beschriftungszeile. Die Spec kennt dafür
-    // noch kein Bauteil (StatCard trägt eine Zahl, nicht fünf Zeilen).
-    "src/app/[tenant]/(protected)/statistics/page.tsx": 1,
-    "src/components/announcements/letter-status-panel.tsx": 5,
-    "src/components/settings/push-notification-section.tsx": 2,
-    // Öffentliche Anmeldeseite (unter app/[tenant], darum im Scope): Phasen-
-    // Infos für Eltern, kein Objekt des Portals.
-    "src/app/[tenant]/(public)/anmeldung/[phaseId]/page.tsx": 2,
-  }),
-);
-
 const noLocalFieldGrid = {
   meta: {
     type: "problem",
@@ -1768,7 +1703,7 @@ const noLocalFieldGrid = {
     },
     messages: {
       fieldGrid:
-        "Handgebautes Feldgitter (`<dt>`): Felder kommen aus `DataField`/`DataGrid` in ui/detail-modal-components (BAUARTEN-SPEC Bauart 2 Regel 2, #3117). Die Baseline in scripts/oxlint-plugin-bauart.mjs ist shrink-only.",
+        "Handgebautes Feldgitter (`<dt>`): Felder kommen aus `DataField`/`DataGrid` in ui/detail-modal-components (BAUARTEN-SPEC Bauart 2 Regel 2, #3117).",
     },
     schema: [],
   },
@@ -1776,15 +1711,10 @@ const noLocalFieldGrid = {
     if (isExempt(context)) return {};
     const key = fileKey(context);
     if (OTHER_PORTAL_RE.test(key)) return {};
-    let tolerated = FIELD_GRID_BASELINE.get(key) ?? 0;
 
     return {
       JSXOpeningElement(node) {
         if (jsxName(node.name) !== "dt") return;
-        if (tolerated > 0) {
-          tolerated -= 1;
-          return;
-        }
         context.report({ node, messageId: "fieldGrid" });
       },
     };
@@ -1801,30 +1731,6 @@ const PULSE_CLASS_RE = /(?:^|\s)animate-pulse(?:\s|$)/;
 const PLACEHOLDER_FILL_RE =
   /(?:^|\s)(?:[^\s:]+:)*bg-gray-\d{2,3}(?:\/[^\s]+)?(?=\s|$)/;
 
-// Shrink-only per-file tolerance: the number of hand-written pulse blocks a
-// file may still carry. Keys are repo-relative posix paths under src/ (#3118).
-const OWN_SKELETON_BASELINE = new Map(
-  Object.entries({
-    // Eigene Seiten-Skelette neben TenantPage.loading, noch auf
-    // ui/page-skeletons (SkeletonRegion, CardGridSkeleton, ListSkeleton)
-    // oder das Kit-`Skeleton` umzuziehen (#3118, Folge-PRs über #3119).
-    "src/app/[tenant]/(protected)/database/page.tsx": 1,
-    "src/app/[tenant]/(protected)/rooms/page-skeleton.tsx": 6,
-    "src/components/rooms/room-detail-content.tsx": 2,
-    // Startseiten-Bausteine (#2180): jeder Block pulst seine eigenen Zeilen.
-    "src/components/home/day-flow-block.tsx": 2,
-    "src/components/home/home-block-content.tsx": 2,
-    "src/components/home/my-day-block.tsx": 2,
-    "src/components/home/my-group-block.tsx": 3,
-    "src/components/home/reminders-block.tsx": 2,
-    "src/components/home/staff-notices-block.tsx": 3,
-    // Seitenleiste und Geburtstagsliste: Platzhalter außerhalb einer Seite.
-    "src/components/dashboard/birthday-list.tsx": 1,
-    "src/components/dashboard/sidebar-accordion-section.tsx": 3,
-    "src/components/dashboard/sidebar.tsx": 2,
-  }),
-);
-
 const noOwnSkeleton = {
   meta: {
     type: "problem",
@@ -1834,7 +1740,7 @@ const noOwnSkeleton = {
     },
     messages: {
       ownSkeleton:
-        "Eigenes Ladeskelett (`animate-pulse` auf grauer Fläche): Laden kommt aus `TenantPage.loading` mit `Skeleton`/`SkeletonRegion` aus ui/page-skeletons (BAUARTEN-SPEC Bauart 1 Regel 7, Bauart 3 Regel 5, #3118). Die Baseline in scripts/oxlint-plugin-bauart.mjs ist shrink-only.",
+        "Eigenes Ladeskelett (`animate-pulse` auf grauer Fläche): Laden kommt aus `TenantPage.loading` mit `Skeleton`/`SkeletonRegion` aus ui/page-skeletons (BAUARTEN-SPEC Bauart 1 Regel 7, Bauart 3 Regel 5, #3118).",
     },
     schema: [],
   },
@@ -1842,7 +1748,6 @@ const noOwnSkeleton = {
     if (isExempt(context)) return {};
     const key = fileKey(context);
     if (OTHER_PORTAL_RE.test(key)) return {};
-    let tolerated = OWN_SKELETON_BASELINE.get(key) ?? 0;
 
     return {
       JSXAttribute(node) {
@@ -1858,10 +1763,6 @@ const noOwnSkeleton = {
         const classes = chunks.join(" ");
         if (!PULSE_CLASS_RE.test(classes) || !PLACEHOLDER_FILL_RE.test(classes))
           return;
-        if (tolerated > 0) {
-          tolerated -= 1;
-          return;
-        }
         context.report({ node, messageId: "ownSkeleton" });
       },
     };
@@ -1907,41 +1808,6 @@ const HEX_TOKEN_SOURCES = new Set([
 ]);
 const TEST_SUPPORT_DIR_RE = /(?:^|\/)src\/test\//;
 
-// Shrink-only per-file tolerance: the number of hex color strings a file may
-// still carry. Keys are repo-relative posix paths under src/ (#3118).
-const RAW_HEX_BASELINE = new Map(
-  Object.entries({
-    // Status- und Planungsfarben als Klassenliteral oder Konstante, noch auf
-    // LOCATION_COLORS / MOTO_COLOR_PALETTE / moto-*-Klassen umzuziehen
-    // (#3118, Folge-PRs über #3119).
-    // Ein Eintrag zählt je String-Literal: `border-[#83CD2D] bg-[#83CD2D]/5`
-    // ist ein Treffer, nicht zwei.
-    "src/components/auth/auth-shell.tsx": 1,
-    "src/components/auth/mfa-admin-override-modal.tsx": 2,
-    "src/components/auth/reset-password-page-content.tsx": 2,
-    "src/components/enrollment/admin-enrollment-detail.tsx": 2,
-    "src/components/enrollment/enrollment-status-view.tsx": 1,
-    "src/components/guardians/guardian-contact-actions.tsx": 1,
-    "src/components/staff/abwesenheiten-tab.tsx": 2,
-    "src/components/staff/arbeitszeitmodell-tab.tsx": 1,
-    "src/components/staff/dokumente-tab.tsx": 2,
-    "src/components/staff/staff-session-table.tsx": 1,
-    "src/components/students/dokumente-tab.tsx": 2,
-    "src/components/timetable/instance-detail-modal.tsx": 1,
-    "src/components/timetable/tagesplan-view.tsx": 1,
-    "src/components/timetable/timetable-style.ts": 1,
-    "src/contexts/ToastContext.tsx": 2,
-    // Farbtabellen neben LOCATION_COLORS: Raumkategorien und die hellen
-    // Planungsflächen gehören in MOTO_COLOR_PALETTE.
-    "src/lib/room-helpers.ts": 5,
-    "src/lib/timetable-helpers.ts": 3,
-    // Hilfe-Seiten (unter app/help, darum im Scope): eigene Farbwelt der
-    // NFC-Anleitung und der Anleitungs-Bauteile.
-    "src/app/help/nfc/erste-schritte/page.tsx": 4,
-    "src/components/help/guide-components.tsx": 3,
-  }),
-);
-
 const noRawStatusHex = {
   meta: {
     type: "problem",
@@ -1951,7 +1817,7 @@ const noRawStatusHex = {
     },
     messages: {
       rawHex:
-        "Roher Hexwert „{{value}}“: Farbe bedeutet Status und kommt aus `LOCATION_COLORS`/`MOTO_COLOR_PALETTE` oder einer `moto-*`-Klasse, auch als Fallback (BAUARTEN-SPEC Querregel Farbe, #3118). Die Baseline in scripts/oxlint-plugin-bauart.mjs ist shrink-only.",
+        "Roher Hexwert „{{value}}“: Farbe bedeutet Status und kommt aus `LOCATION_COLORS`/`MOTO_COLOR_PALETTE` oder einer `moto-*`-Klasse, auch als Fallback (BAUARTEN-SPEC Querregel Farbe, #3118).",
     },
     schema: [],
   },
@@ -1960,15 +1826,10 @@ const noRawStatusHex = {
     const key = fileKey(context);
     if (OTHER_PORTAL_RE.test(key) || TEST_SUPPORT_DIR_RE.test(key)) return {};
     if (HEX_TOKEN_SOURCES.has(key)) return {};
-    let tolerated = RAW_HEX_BASELINE.get(key) ?? 0;
 
     function check(node, text) {
       const match = HEX_COLOR_RE.exec(text)?.[0] ?? findShortHexColor(text);
       if (!match) return;
-      if (tolerated > 0) {
-        tolerated -= 1;
-        return;
-      }
       context.report({ node, messageId: "rawHex", data: { value: match } });
     }
 

@@ -255,8 +255,11 @@ bekommt eine shrink-only Baseline analog zum bestehenden
    außerhalb `ui/detail-modal-components`. **Umgesetzt**
    (`scripts/oxlint-plugin-bauart.mjs`, #3117): jedes handgeschriebene
    `<dt>` außerhalb des Kits fällt durch; `DataField` rendert die einzige
-   erlaubte Beschriftungszelle. Shrink-only Baseline je Datei für den
-   Bestand, den #3117 auf Folge-PRs verteilt; Operator-, Eltern- und
+   erlaubte Beschriftungszelle. Hard-zero seit #3119: der Bestand aus #3117
+   ist umgezogen, auch Kennzahl- und Statuslisten (Statistik,
+   Elternbrief-Status, Push-Einstellungen) laufen über `DataGrid`
+   (`columns={1 | 2 | 4}`) und `DataField` (`inline` für Label links, Wert
+   rechts) statt über ein eigenes Bauteil. Operator-, Eltern- und
    Schul-Portal sind nicht im Scope. Beschriftungspaare aus `<p>`/`<span>`
    erkennt die Ratsche nicht — die gehören ins Review.
 3. `bauart/one-delete-confirm` — nur `ConfirmDeleteModal`; kein
@@ -273,9 +276,11 @@ bekommt eine shrink-only Baseline analog zum bestehenden
    Kit-`Skeleton` bzw. die Bausteine aus `ui/page-skeletons`, eingehängt über
    `TenantPage.loading`. Ein
    pulsierender Live-Punkt (belegter Raum, „nähert sich“) hat keine graue
-   Fläche und passiert. Shrink-only Baseline je Datei für den Bestand
-   (Startseiten-Bausteine, Seitenleiste, Räume); Operator-, Eltern- und
-   Schul-Portal sind nicht im Scope. Ein Skelett, das aus Kit-Bausteinen
+   Fläche und passiert. Hard-zero seit #3119 (Startseiten-Bausteine,
+   Seitenleiste und Räume sind auf das Kit-`Skeleton` umgezogen; ein
+   Seiten-Skelett wie `rooms/page-skeleton.tsx` darf bestehen, solange es
+   nur Kit-Bausteine komponiert); Operator-, Eltern- und Schul-Portal sind
+   nicht im Scope. Ein Skelett, das aus Kit-Bausteinen
    zusammengesetzt, aber neben `TenantPage` statt in `loading` gerendert
    wird, erkennt die Ratsche nicht — das gehört ins Review.
 5. `bauart/no-raw-status-hex` — keine rohen Hexwerte für Status- und
@@ -285,10 +290,13 @@ bekommt eine shrink-only Baseline analog zum bestehenden
    `#abcd`) fällt durch; ein Literal zählt einmal. Ausgenommen sind die
    Quelle der Token selbst (`lib/location-helper.ts`), das Web-App-Manifest
    (`lib/favicon-variants.ts`) und `app/global-error.tsx`, das ohne
-   Stylesheet rendert. Shrink-only Baseline je Datei für den Bestand
-   (Raumkategorien und Planungsflächen in `lib/`, Hilfe-Seiten, einzelne
-   Klassenliterale); Operator-, Eltern- und Schul-Portal sowie `src/test/`
-   sind nicht im Scope.
+   Stylesheet rendert. Hard-zero seit #3119: die Raumkategorie-Farben
+   liegen als `MOTO_COLOR_PALETTE.roomCategory`, die neutrale Blockkante
+   der Planung als `MOTO_COLOR_PALETTE.neutral.muted`, alles andere läuft
+   über `moto-*`-Klassen oder Tailwind-Grau. Operator-, Eltern- und
+   Schul-Portal sowie `src/test/` sind nicht im Scope; die Hex- und
+   Skelett-Reste des Eltern-Portals sind mit #3119 trotzdem umgezogen, der
+   Scope der Ratsche bleibt.
 6. `bauart/no-disabled-menu-item` — keine dauerhaft deaktivierten
    Menüeinträge. **Umgesetzt** (`scripts/oxlint-plugin-bauart.mjs`,
    hard-zero, #3118): ein Menüeintrag (`label` plus `onClick` oder `href`)
