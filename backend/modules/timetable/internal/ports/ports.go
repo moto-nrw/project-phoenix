@@ -9,7 +9,7 @@ import (
 
 type Store interface {
 	PreviewStaffOffboarding(context.Context, int64, string) (domain.OffboardingSnapshot, domain.OperationStats, error)
-	CountPlannedSupervisorsByCalendarPeriod(context.Context) (map[int64]int, domain.OperationStats, error)
+	CountCalendarPeriodReferences(context.Context) (map[int64]domain.CalendarPeriodReferences, domain.OperationStats, error)
 	LockInstanceStudentAssignments(context.Context, int64) (domain.OperationStats, error)
 	RestoreInstanceStudentAttendanceRow(context.Context, int64, domain.CompletionAttendance) (domain.OperationStats, error)
 	CourseInstances(context.Context, string, string, string) ([]domain.CourseInstanceRow, domain.OperationStats, error)
