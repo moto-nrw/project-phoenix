@@ -149,6 +149,7 @@ export function AnnouncementReminderDialog({
               <Button
                 type="button"
                 variant="secondary"
+                size="md"
                 onClick={() => setConfirmRemove(true)}
                 disabled={pending !== null}
                 className="mr-auto"
@@ -161,6 +162,7 @@ export function AnnouncementReminderDialog({
             <Button
               type="button"
               variant="secondary"
+              size="md"
               onClick={onClose}
               disabled={pending !== null}
             >
@@ -168,6 +170,7 @@ export function AnnouncementReminderDialog({
             </Button>
             <Button
               type="button"
+              size="md"
               onClick={() => void submit(false)}
               disabled={pending !== null}
             >

@@ -47,6 +47,7 @@ import type {
 } from "~/lib/parent-announcements-api";
 import {
   describeReminder,
+  reminderStateOf,
   RESPONSE_TYPE_LABEL,
   targetChips,
 } from "./announcement-meta";
@@ -598,8 +599,9 @@ function reminderLine(announcement: Announcement) {
       <span className="block">
         {description}
         <span className="block text-xs text-gray-500">
-          Geht an alle Empfänger der Mitteilung, auch wenn sie schon gelesen
-          oder bestätigt haben.
+          {reminderStateOf(announcement) === "sent"
+            ? "Ging an alle Empfänger der Mitteilung, auch an die, die schon gelesen oder bestätigt hatten."
+            : "Geht an alle Empfänger der Mitteilung, auch wenn sie schon gelesen oder bestätigt haben."}
         </span>
       </span>
       {announcement.reminder_text ? (
