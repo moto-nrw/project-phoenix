@@ -26,7 +26,6 @@ import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
-import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import { isValidISODate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useClosingDaysState } from "~/lib/hooks/use-closing-days";
@@ -118,10 +117,8 @@ function DienstplanContent() {
   const [modal, setModal] = useState<ModalState | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [sickModal, setSickModal] = useState<StaffScheduleStaff | null>(null);
+  // Anlegen eines Kalenderzeitraums; bearbeitet wird auf /calendar-periods.
   const [periodModalOpen, setPeriodModalOpen] = useState(false);
-  const [editingPeriod, setEditingPeriod] = useState<CalendarPeriod | null>(
-    null,
-  );
 
   // Montag der Woche, die `d` enthält.
   const weekAnchor = useMemo(() => startOfWeek(parseISODate(dayISO)), [dayISO]);
@@ -471,14 +468,7 @@ function DienstplanContent() {
             periods={periods ?? []}
             weekDays={weekDayDates}
             isLoading={showSkeleton || periodsLoading}
-            onCreate={() => {
-              setEditingPeriod(null);
-              setPeriodModalOpen(true);
-            }}
-            onEdit={(period) => {
-              setEditingPeriod(period);
-              setPeriodModalOpen(true);
-            }}
+            onCreate={() => setPeriodModalOpen(true)}
             onSelect={(period) =>
               updateUrlParams({
                 d: firstSchoolDayInPeriod(
@@ -513,7 +503,7 @@ function DienstplanContent() {
       {periodModalOpen && (
         <CalendarPeriodModal
           isOpen
-          initial={editingPeriod}
+          initial={null}
           onClose={() => setPeriodModalOpen(false)}
           onSaved={() => {
             setPeriodModalOpen(false);

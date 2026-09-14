@@ -6,7 +6,7 @@ import { useSWRConfig } from "swr";
 
 import { EditHistoryAccordion } from "~/components/time-tracking/edit-history-accordion";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import {
   StatusBadge,
   type StatusBadgeTone,
@@ -701,7 +701,7 @@ export function StaffSessionTable({
                         isExpanded
                           ? "bg-gray-50"
                           : isToday
-                            ? "bg-[#F78C10]/5"
+                            ? "bg-moto-orange/5"
                             : isWeekend
                               ? "bg-gray-50/60"
                               : ""
@@ -847,55 +847,65 @@ export function StaffSessionTable({
                             holidayName={holidayName}
                           />
                           {canEdit && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                // On a multi-block day the pencil adds a
-                                // further block; each existing block has its
-                                // own pencil in its sub-row.
-                                const targetSession = hasMultipleBlocks
-                                  ? null
-                                  : (originalSession ?? null);
-                                if (onEditDay) {
-                                  onEditDay(
-                                    targetSession ? originalSessionDate : day,
-                                    targetSession,
-                                    absence ?? null,
-                                  );
-                                } else {
-                                  setEditModal({
-                                    mode:
-                                      targetSession == null
-                                        ? "nachtragen"
-                                        : "edit",
-                                    date: targetSession
-                                      ? originalSessionDate
-                                      : day,
-                                    session: targetSession,
-                                  });
-                                }
-                              }}
-                              aria-label={
-                                session == null
-                                  ? "Eintrag nachtragen"
-                                  : hasMultipleBlocks
-                                    ? "Block nachtragen"
-                                    : "Eintrag bearbeiten"
-                              }
-                              title={
-                                session == null
-                                  ? "Eintrag nachtragen"
-                                  : hasMultipleBlocks
-                                    ? "Block nachtragen"
-                                    : "Eintrag bearbeiten"
-                              }
-                              className="h-7 w-7 shrink-0 text-gray-400 hover:text-gray-700"
+                            // Zeilenaktion nur im Kebab der Zeile (BAUARTEN-
+                            // SPEC Bauart 1 Regel 4). stopPropagation hält
+                            // den Menüklick vom Zeilenklick fern, der die
+                            // Änderungshistorie auf- und zuklappt.
+                            <div
+                              className="flex shrink-0 items-center"
+                              onClick={(e) => e.stopPropagation()}
+                              onKeyDown={(e) => e.stopPropagation()}
+                              role="presentation"
                             >
-                              <SquarePen className="h-4 w-4" />
-                            </Button>
+                              <OverflowMenu
+                                ariaLabel={`Aktionen für ${formatShortDate(day)}`}
+                                triggerSize="sm"
+                                items={[
+                                  {
+                                    label:
+                                      session == null
+                                        ? "Eintrag nachtragen"
+                                        : hasMultipleBlocks
+                                          ? "Block nachtragen"
+                                          : "Eintrag bearbeiten",
+                                    icon: (
+                                      <SquarePen
+                                        className="h-4 w-4"
+                                        aria-hidden
+                                      />
+                                    ),
+                                    onClick: () => {
+                                      // On a multi-block day the entry adds a
+                                      // further block; each existing block has
+                                      // its own menu in its sub-row.
+                                      const targetSession = hasMultipleBlocks
+                                        ? null
+                                        : (originalSession ?? null);
+                                      if (onEditDay) {
+                                        onEditDay(
+                                          targetSession
+                                            ? originalSessionDate
+                                            : day,
+                                          targetSession,
+                                          absence ?? null,
+                                        );
+                                      } else {
+                                        setEditModal({
+                                          mode:
+                                            targetSession == null
+                                              ? "nachtragen"
+                                              : "edit",
+                                          date: targetSession
+                                            ? originalSessionDate
+                                            : day,
+                                          session: targetSession,
+                                        });
+                                      }
+                                    },
+                                  },
+                                ]}
+                              />
+                            </div>
                           )}
                         </div>
                       </td>
@@ -957,39 +967,45 @@ export function StaffSessionTable({
                                 holidayName={undefined}
                               />
                               {canEdit && (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const originalBlock = block.id
-                                      ? (originalSessionsByID.get(block.id) ??
-                                        block)
-                                      : block;
-                                    const originalBlockDate = parseISODate(
-                                      originalBlock.date,
-                                    );
-                                    if (onEditDay) {
-                                      onEditDay(
-                                        originalBlockDate,
-                                        originalBlock,
-                                        absence ?? null,
-                                      );
-                                    } else {
-                                      setEditModal({
-                                        mode: "edit",
-                                        date: originalBlockDate,
-                                        session: originalBlock,
-                                      });
-                                    }
-                                  }}
-                                  aria-label={`Block ${blockIndex + 1} bearbeiten`}
-                                  title={`Block ${blockIndex + 1} bearbeiten`}
-                                  className="h-6 w-6 shrink-0 text-gray-400 hover:text-gray-700"
-                                >
-                                  <SquarePen className="h-3.5 w-3.5" />
-                                </Button>
+                                <div className="flex shrink-0 items-center">
+                                  <OverflowMenu
+                                    ariaLabel={`Aktionen für Block ${blockIndex + 1}`}
+                                    triggerSize="sm"
+                                    items={[
+                                      {
+                                        label: `Block ${blockIndex + 1} bearbeiten`,
+                                        icon: (
+                                          <SquarePen
+                                            className="h-4 w-4"
+                                            aria-hidden
+                                          />
+                                        ),
+                                        onClick: () => {
+                                          const originalBlock = block.id
+                                            ? (originalSessionsByID.get(
+                                                block.id,
+                                              ) ?? block)
+                                            : block;
+                                          const originalBlockDate =
+                                            parseISODate(originalBlock.date);
+                                          if (onEditDay) {
+                                            onEditDay(
+                                              originalBlockDate,
+                                              originalBlock,
+                                              absence ?? null,
+                                            );
+                                          } else {
+                                            setEditModal({
+                                              mode: "edit",
+                                              date: originalBlockDate,
+                                              session: originalBlock,
+                                            });
+                                          }
+                                        },
+                                      },
+                                    ]}
+                                  />
+                                </div>
                               )}
                             </div>
                           </td>

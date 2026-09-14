@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import type {
@@ -77,6 +77,17 @@ function renderTable(props: {
   );
 }
 
+// Zeilenaktionen liegen im Kebab der Zeile (Bauart 1 Regel 4): das Menü der
+// Tageszeile öffnen und den Eintrag liefern; ohne Bearbeitungsrecht gibt es
+// kein Menü in der Zeile.
+function dayMenuItem(row: HTMLElement, name: string) {
+  fireEvent.click(within(row).getByRole("button", { name: /^Aktionen für/ }));
+  return screen.getByRole("menuitem", { name });
+}
+function queryDayMenu(row: HTMLElement) {
+  return within(row).queryByRole("button", { name: /^Aktionen für/ });
+}
+
 // Der Stift darf auf Tagen mit Abwesenheit nicht fehlen (#2361): eine halbe
 // Krankmeldung schließt Arbeitszeit am selben Tag nicht aus, und Nachtragen
 // muss auch dort erreichbar sein.
@@ -86,9 +97,7 @@ describe("StaffSessionTable Stift-Verfügbarkeit", () => {
 
     const row = screen.getByText("05.01.").closest("tr");
     expect(row).not.toBeNull();
-    expect(
-      within(row!).getByRole("button", { name: "Eintrag nachtragen" }),
-    ).toBeInTheDocument();
+    expect(dayMenuItem(row!, "Eintrag nachtragen")).toBeInTheDocument();
   });
 
   it("zeigt den Bearbeiten-Stift auf einem Tag mit Buchung und Abwesenheit", () => {
@@ -99,9 +108,7 @@ describe("StaffSessionTable Stift-Verfügbarkeit", () => {
 
     const row = screen.getByText("05.01.").closest("tr");
     expect(row).not.toBeNull();
-    expect(
-      within(row!).getByRole("button", { name: "Eintrag bearbeiten" }),
-    ).toBeInTheDocument();
+    expect(dayMenuItem(row!, "Eintrag bearbeiten")).toBeInTheDocument();
   });
 
   it.each([
@@ -122,9 +129,7 @@ describe("StaffSessionTable Stift-Verfügbarkeit", () => {
 
       const row = screen.getByText("05.01.").closest("tr");
       expect(row).not.toBeNull();
-      expect(
-        within(row!).queryByRole("button", { name: "Eintrag nachtragen" }),
-      ).not.toBeInTheDocument();
+      expect(queryDayMenu(row!)).not.toBeInTheDocument();
     },
   );
 
@@ -133,9 +138,7 @@ describe("StaffSessionTable Stift-Verfügbarkeit", () => {
 
     const row = screen.getByText("05.01.").closest("tr");
     expect(row).not.toBeNull();
-    expect(
-      within(row!).queryByRole("button", { name: "Eintrag nachtragen" }),
-    ).not.toBeInTheDocument();
+    expect(queryDayMenu(row!)).not.toBeInTheDocument();
   });
 
   it.each(["requested", "question", "declined", "canceled"])(
@@ -147,9 +150,7 @@ describe("StaffSessionTable Stift-Verfügbarkeit", () => {
 
       const row = screen.getByText("05.01.").closest("tr");
       expect(row).not.toBeNull();
-      expect(
-        within(row!).getByRole("button", { name: "Eintrag nachtragen" }),
-      ).toBeInTheDocument();
+      expect(dayMenuItem(row!, "Eintrag nachtragen")).toBeInTheDocument();
     },
   );
 
@@ -158,8 +159,6 @@ describe("StaffSessionTable Stift-Verfügbarkeit", () => {
 
     const row = screen.getByText("05.01.").closest("tr");
     expect(row).not.toBeNull();
-    expect(
-      within(row!).getByRole("button", { name: "Eintrag bearbeiten" }),
-    ).toBeInTheDocument();
+    expect(dayMenuItem(row!, "Eintrag bearbeiten")).toBeInTheDocument();
   });
 });

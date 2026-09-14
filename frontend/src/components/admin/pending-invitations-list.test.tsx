@@ -137,29 +137,60 @@ describe("PendingInvitationsList", () => {
     });
   });
 
+  // Zeilenaktionen liegen im Kebab der Zeile (Bauart 1 Regel 4): Menü der
+  // n-ten Zeile öffnen und den Eintrag zurückgeben. Escape schließt es.
+  async function openRowMenu(index: number) {
+    const triggers = await screen.findAllByRole("button", {
+      name: /^Aktionen für/,
+    });
+    fireEvent.click(triggers[index]!);
+    return triggers[index]!;
+  }
+  function closeRowMenu() {
+    fireEvent.keyDown(document, { key: "Escape" });
+  }
+
   it("renders resend buttons", async () => {
     render(<PendingInvitationsList refreshKey={0} />);
 
     await waitFor(() => {
-      expect(screen.getAllByText("Erneut")).toHaveLength(2);
+      expect(
+        screen.getAllByRole("button", { name: /^Aktionen für/ }),
+      ).toHaveLength(2);
     });
+    for (const index of [0, 1]) {
+      await openRowMenu(index);
+      expect(
+        screen.getByRole("menuitem", { name: "Erneut senden" }),
+      ).toBeInTheDocument();
+      closeRowMenu();
+    }
   });
 
   it("renders delete buttons", async () => {
     render(<PendingInvitationsList refreshKey={0} />);
 
     await waitFor(() => {
-      expect(screen.getAllByText("Löschen")).toHaveLength(2);
+      expect(
+        screen.getAllByRole("button", { name: /^Aktionen für/ }),
+      ).toHaveLength(2);
     });
+    for (const index of [0, 1]) {
+      await openRowMenu(index);
+      expect(
+        screen.getByRole("menuitem", { name: "Löschen" }),
+      ).toBeInTheDocument();
+      closeRowMenu();
+    }
   });
 
   it("calls resendInvitation when resend button clicked", async () => {
     render(<PendingInvitationsList refreshKey={0} />);
 
     // Invitations are sorted by expiration date (earliest first)
-    // ID 2 (expired) comes first, so click the second button for ID 1 (not expired)
-    const resendButtons = await screen.findAllByText("Erneut");
-    fireEvent.click(resendButtons[1]!);
+    // ID 2 (expired) comes first, so open the second row's menu for ID 1 (not expired)
+    await openRowMenu(1);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Erneut senden" }));
 
     await waitFor(() => {
       expect(mockResendInvitation).toHaveBeenCalledWith(1);
@@ -169,8 +200,8 @@ describe("PendingInvitationsList", () => {
   it("opens confirmation modal when delete button clicked", async () => {
     render(<PendingInvitationsList refreshKey={0} />);
 
-    const deleteButtons = await screen.findAllByText("Löschen");
-    fireEvent.click(deleteButtons[0]!);
+    await openRowMenu(0);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Löschen" }));
 
     await waitFor(() => {
       expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
@@ -181,9 +212,9 @@ describe("PendingInvitationsList", () => {
   it("calls revokeInvitation when confirm button clicked", async () => {
     render(<PendingInvitationsList refreshKey={0} />);
 
-    // Click the second delete button (ID 1, non-expired)
-    const deleteButtons = await screen.findAllByText("Löschen");
-    fireEvent.click(deleteButtons[1]!);
+    // Open the second row's menu (ID 1, non-expired)
+    await openRowMenu(1);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Löschen" }));
 
     const confirmButton = await screen.findByTestId("confirm-button");
     fireEvent.click(confirmButton);
@@ -231,11 +262,11 @@ describe("PendingInvitationsList", () => {
   it("disables resend for expired invitations", async () => {
     render(<PendingInvitationsList refreshKey={0} />);
 
-    await waitFor(() => {
-      const resendButtons = screen.getAllByText("Erneut");
-      // ID 2 (expired) is sorted first, so it's at index 0
-      expect(resendButtons[0]).toBeDisabled();
-    });
+    // ID 2 (expired) is sorted first, so it's at index 0
+    await openRowMenu(0);
+    expect(
+      screen.getByRole("menuitem", { name: "Erneut senden" }),
+    ).toBeDisabled();
   });
 
   it("sorts invitations by expiration date", async () => {

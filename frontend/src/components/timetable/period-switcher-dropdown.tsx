@@ -49,8 +49,6 @@ interface PeriodSwitcherDropdownProps {
   isLoading?: boolean;
   /** Open the create modal. */
   onCreate: () => void;
-  /** Open the edit modal for an existing period. */
-  onEdit: (period: CalendarPeriod) => void;
   /** Jump the calendar view to the given period's start. */
   onSelect: (period: CalendarPeriod) => void;
   /**
@@ -72,7 +70,6 @@ export function PeriodSwitcherDropdown({
   selectedPeriodId = null,
   isLoading = false,
   onCreate,
-  onEdit,
   onSelect,
   canManage = true,
 }: PeriodSwitcherDropdownProps) {
@@ -275,7 +272,7 @@ export function PeriodSwitcherDropdown({
                     ? p.id === selectedPeriodId
                     : false;
                   return (
-                    <div key={p.id} className="flex items-center gap-1 px-2">
+                    <div key={p.id} className="flex items-center px-2">
                       <button
                         type="button"
                         onClick={() => {
@@ -306,20 +303,11 @@ export function PeriodSwitcherDropdown({
                           />
                         )}
                       </button>
-                      {canManage && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="compact"
-                          onClick={() => {
-                            setOpen(false);
-                            onEdit(p);
-                          }}
-                          aria-label={`${p.name} bearbeiten`}
-                        >
-                          Bearbeiten
-                        </Button>
-                      )}
+                      {/* Kein Bearbeiten je Zeitraum in der Auswahl:
+                          Kalenderzeiträume sind Stammdaten und werden auf
+                          ihrer Route verwaltet (BAUARTEN-SPEC Bauart 1
+                          Regel 9); der Link „Zeiträume verwalten" unten
+                          führt dorthin. */}
                     </div>
                   );
                 })}

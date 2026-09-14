@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { ArrowRightLeft, Trash2 } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -8,6 +9,10 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { InfoSection } from "~/components/ui/detail-modal-components";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import {
+  OverflowMenu,
+  type OverflowMenuEntry,
+} from "~/components/ui/page-header/OverflowMenu";
 import { useToast } from "~/contexts/ToastContext";
 import type {
   BlockerActivity,
@@ -215,6 +220,31 @@ export function CaregiverBlockerResolutionPanel({
     }
     openConfirmation({ kind: "activity", item });
   };
+
+  // Zeilenaktionen nur im Kebab der Zeile (BAUARTEN-SPEC Bauart 1 Regel 4).
+  // Übertragen braucht eine gewählte Ersatzkraft, Entfernen setzt „Ohne
+  // Ersatz entfernen" in der Auswahl voraus: die Handler lesen die Auswahl,
+  // deshalb ist je nach Auswahl genau ein Eintrag aktiv. Entfernen fragt
+  // weiter im ConfirmDeleteModal nach.
+  const buildResolutionMenu = (
+    hasReplacement: boolean,
+    busy: boolean,
+    resolve: () => void,
+  ): OverflowMenuEntry[] => [
+    {
+      label: "Übertragen",
+      icon: <ArrowRightLeft className="h-4 w-4" aria-hidden />,
+      disabled: !hasReplacement || busy,
+      onClick: resolve,
+    },
+    {
+      label: "Entfernen",
+      icon: <Trash2 className="h-4 w-4" aria-hidden />,
+      destructive: true,
+      disabled: hasReplacement || busy,
+      onClick: resolve,
+    },
+  ];
 
   const resolveGroup = (item: BlockerGroup) => {
     if (groupReplacements[item.id]) {
@@ -563,19 +593,14 @@ export function CaregiverBlockerResolutionPanel({
                       ]}
                       disabled={loadingStaff || processing[key]}
                     />
-                    <Button
-                      type="button"
-                      variant="outline_danger"
-                      size="compact"
-                      className="whitespace-nowrap"
-                      onClick={() => resolveActivity(item)}
-                      isLoading={processing[key]}
-                      loadingText="Wird gespeichert…"
-                    >
-                      {activityReplacements[item.id]
-                        ? "Übertragen"
-                        : "Entfernen"}
-                    </Button>
+                    <OverflowMenu
+                      ariaLabel={`Aktionen für ${item.activityName}`}
+                      items={buildResolutionMenu(
+                        Boolean(activityReplacements[item.id]),
+                        processing[key] === true,
+                        () => resolveActivity(item),
+                      )}
+                    />
                   </div>
                 </div>
               );
@@ -627,17 +652,14 @@ export function CaregiverBlockerResolutionPanel({
                       ]}
                       disabled={loadingStaff || processing[key]}
                     />
-                    <Button
-                      type="button"
-                      variant="outline_danger"
-                      size="compact"
-                      className="whitespace-nowrap"
-                      onClick={() => resolveGroup(item)}
-                      isLoading={processing[key]}
-                      loadingText="Wird gespeichert…"
-                    >
-                      {groupReplacements[item.id] ? "Übertragen" : "Entfernen"}
-                    </Button>
+                    <OverflowMenu
+                      ariaLabel={`Aktionen für ${item.groupName}`}
+                      items={buildResolutionMenu(
+                        Boolean(groupReplacements[item.id]),
+                        processing[key] === true,
+                        () => resolveGroup(item),
+                      )}
+                    />
                   </div>
                 </div>
               );
