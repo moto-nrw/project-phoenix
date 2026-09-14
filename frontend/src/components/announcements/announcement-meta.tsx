@@ -122,7 +122,7 @@ export function describeReminder(
 }
 
 /** „24.09.2026, 08:00 Uhr" in der Schulzeitzone. */
-export function formatBerlinDateTime(iso: string): string {
+function formatBerlinDateTime(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
   return `${date.toLocaleDateString("de-DE", {
