@@ -102,7 +102,7 @@
     "Run the final required checks after the last implementation edit, including before-push test-changed when pushing.",
     "Complete code review and commit the implementation on the current branch."
   ],
-  "next_boundary": "services/active -> models/config (workforce schedule types, shared with services/schedule, services root, modules/workforce, api/operator) and services/active -> tenant (24 symbols incl. transaction control across 16 files); both exceed a behaviour-preserving import cut and need owner-scoped sub-tickets",
+  "next_boundary": "services/active -> models/config is down to two files: work_session_service.go and workforce_dates.go. Both hold the legacy work-schedule row types (StaffWorkSchedule, WorkTimeModel, WorkTimeModelEntry, CalendarDate) and the ~10 pure date helpers in models/config/weekly_targets.go and work_time_model.go. Those helpers are also called by services/schedule, the services root and api/operator, so the cut needs them relocated to modules/workforce first, which is a package move this ticket does not authorise. The settings half of this key is done.",
   "reassessment": {
     "reason": "User requested a credible completion estimate after prolonged incremental work.",
     "remaining_key_count": 58,
@@ -172,6 +172,8 @@
     "services/active no longer imports bun: the retained services keep a DatabaseHandle presence marker and the status-day writes use the generic tenant transaction entry point",
     "services/active no longer imports realtime: every presence broadcast goes through named producers in the Delivery realtimeevents application package and the retained services hold an EventPublisher port that embeds the Delivery publisher contract",
     "services/active -> models/users removed in all three scopes: StudentRecord, StudentLifecycle, PersonName and StaffScheduleBinding are presence-owned; adapters live in services/student_records.go, services/status_day_students.go and api/students/status_day_students.go",
-    "internal_test services/active -> database/repositories removed by moving the bulk status-day test to the external test package"
+    "internal_test services/active -> database/repositories removed by moving the bulk status-day test to the external test package",
+    "settings: all five presence settings ports now name their questions; the registry keys live in services/presence_settings.go, clearing 9 of the 11 models/config files",
+    "work session contract: five zero-caller schedule methods removed from the public interface"
   ]
 }
