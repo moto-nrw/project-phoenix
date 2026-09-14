@@ -15,7 +15,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -241,7 +240,7 @@ func TestUnclaimedGroups_Integration(t *testing.T) {
 		_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Claim", "Staff")
 
 		// Create claims with the account ID
-		staffClaims := jwt.AppClaims{
+		staffClaims := testutil.Claims{
 			ID:          int(account.ID),
 			TenantID:    testpkg.Tenant(t),
 			Sub:         fmt.Sprintf("%d", account.ID),
@@ -518,7 +517,7 @@ func TestActiveGroups_Integration(t *testing.T) {
 		_ = testpkg.CreateTestGroupSupervisor(t, tc.db, staff.ID, activeGroup.ID, "supervisor")
 
 		// Create claims with the account ID
-		staffClaims := jwt.AppClaims{
+		staffClaims := testutil.Claims{
 			ID:          int(account.ID),
 			TenantID:    testpkg.Tenant(t),
 			Sub:         fmt.Sprintf("%d", account.ID),

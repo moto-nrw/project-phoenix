@@ -18,7 +18,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -38,11 +37,11 @@ func setOverviewScopeForTest(t *testing.T, tc *testContext, scope string) {
 
 // caregiverClaims builds a plain staff caller: no admin role, no wildcard
 // permission — the Betreuungskraft the issue is about.
-func caregiverClaims(t *testing.T, tc *testContext, name string) jwt.AppClaims {
+func caregiverClaims(t *testing.T, tc *testContext, name string) testutil.Claims {
 	t.Helper()
 
 	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Overview", name)
-	return jwt.AppClaims{
+	return testutil.Claims{
 		ID:          int(account.ID),
 		TenantID:    testpkg.Tenant(t),
 		Sub:         fmt.Sprintf("%d", account.ID),
@@ -60,7 +59,7 @@ func foreignActiveGroup(t *testing.T, tc *testContext, label string) int64 {
 	return testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID).ID
 }
 
-func getWithClaims(t *testing.T, router chi.Router, path string, claims jwt.AppClaims) int {
+func getWithClaims(t *testing.T, router chi.Router, path string, claims testutil.Claims) int {
 	t.Helper()
 
 	req := testutil.NewJSONRequest(t, "GET", path, nil)

@@ -9,10 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/stretchr/testify/assert"
@@ -65,17 +66,17 @@ func verifiedStaffContext() *stubUserContext {
 // HELPER: build request with JWT claims in context
 // =============================================================================
 
-func newRequestWithClaims(method, path string, claims jwt.AppClaims) *http.Request {
+func newRequestWithClaims(method, path string, claims testutil.Claims) *http.Request {
 	req := httptest.NewRequest(method, path, nil)
 	return req.WithContext(claimsCtx(claims))
 }
 
-func claimsCtx(claims jwt.AppClaims) context.Context {
+func claimsCtx(claims testutil.Claims) context.Context {
 	return claimsCtxWithParent(context.Background(), claims)
 }
 
-func claimsCtxWithParent(parent context.Context, claims jwt.AppClaims) context.Context {
-	ctx := context.WithValue(parent, jwt.CtxClaims, claims)
+func claimsCtxWithParent(parent context.Context, claims testutil.Claims) context.Context {
+	ctx := testutil.WithAuthenticatedContext(parent, claims, nil)
 	principal, err := permissions.NewPrincipal(permissions.PrincipalInput{
 		AccountID: int64(claims.ID), TenantID: claims.TenantID, OrganizationID: claims.OrgID, Scope: claims.Scope,
 		Roles: claims.Roles, Permissions: claims.Permissions, Admin: claims.IsAdmin,
@@ -86,8 +87,8 @@ func claimsCtxWithParent(parent context.Context, claims jwt.AppClaims) context.C
 	return permissions.WithPrincipal(ctx, principal)
 }
 
-func adminClaims() jwt.AppClaims {
-	return jwt.AppClaims{
+func adminClaims() testutil.Claims {
+	return testutil.Claims{
 		ID:       42,
 		IsAdmin:  true,
 		Roles:    []string{"admin"},
@@ -95,8 +96,8 @@ func adminClaims() jwt.AppClaims {
 	}
 }
 
-func staffClaims() jwt.AppClaims {
-	return jwt.AppClaims{
+func staffClaims() testutil.Claims {
+	return testutil.Claims{
 		ID:       99,
 		IsAdmin:  false,
 		Roles:    []string{"user"},

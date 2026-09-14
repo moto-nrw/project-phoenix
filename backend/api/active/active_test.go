@@ -21,7 +21,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -1967,7 +1966,7 @@ func TestCheckoutStudent_Unauthorized(t *testing.T) {
 
 	t.Run("unauthorized without valid JWT", func(t *testing.T) {
 		// Request with claims but ID = 0 (invalid token)
-		invalidClaims := jwt.AppClaims{
+		invalidClaims := testutil.Claims{
 			ID: 0, // Invalid
 		}
 
@@ -2020,7 +2019,7 @@ func TestCheckoutStudent_AuthorizedAsRoomSupervisor(t *testing.T) {
 	// Create visit (student is in the room)
 	_ = testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, time.Now(), nil)
 
-	supervisorClaims := jwt.AppClaims{
+	supervisorClaims := testutil.Claims{
 		ID:          int(supervisorAccount.ID),
 		TenantID:    testpkg.Tenant(t),
 		Sub:         "supervisor@example.com",
@@ -2062,7 +2061,7 @@ func TestCheckoutStudent_AuthorizedAsGroupTeacher(t *testing.T) {
 
 	_ = testpkg.CreateTestAttendance(t, tc.db, student.ID, otherStaff.ID, device.ID, time.Now(), nil)
 
-	teacherClaims := jwt.AppClaims{
+	teacherClaims := testutil.Claims{
 		ID:          int(teacherAccount.ID),
 		TenantID:    testpkg.Tenant(t),
 		Sub:         "teacher@example.com",
@@ -2097,7 +2096,7 @@ func TestCheckoutStudent_AnyStaffCanCheckout(t *testing.T) {
 
 	_ = testpkg.CreateTestAttendance(t, tc.db, student.ID, otherStaff.ID, device.ID, time.Now(), nil)
 
-	staffClaims := jwt.AppClaims{
+	staffClaims := testutil.Claims{
 		ID:          int(staffAccount.ID),
 		TenantID:    testpkg.Tenant(t),
 		Sub:         "unrelated@example.com",
@@ -2178,7 +2177,7 @@ func TestClaimGroup(t *testing.T) {
 	// Create staff with account for claims
 	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Claim", "Staff")
 
-	staffClaims := jwt.AppClaims{
+	staffClaims := testutil.Claims{
 		ID:          int(staffAccount.ID),
 		TenantID:    testpkg.Tenant(t),
 		Sub:         "claim@example.com",
@@ -2235,7 +2234,7 @@ func TestGetActiveGroupVisitsWithDisplay(t *testing.T) {
 	// Create staff with account for claims
 	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Display", "Staff")
 
-	staffClaims := jwt.AppClaims{
+	staffClaims := testutil.Claims{
 		ID:          int(staffAccount.ID),
 		TenantID:    testpkg.Tenant(t),
 		Sub:         "display@example.com",

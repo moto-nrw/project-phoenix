@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 )
 
@@ -57,9 +56,8 @@ func setupSchulhofTestRouter(resource *SchulhofResource) chi.Router {
 	return router
 }
 
-func executeSchulhofRequest(router chi.Router, req *http.Request, claims jwt.AppClaims, permissions []string) *httptest.ResponseRecorder {
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
-	ctx = context.WithValue(ctx, jwt.CtxPermissions, permissions)
+func executeSchulhofRequest(router chi.Router, req *http.Request, claims testutil.Claims, permissions []string) *httptest.ResponseRecorder {
+	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, permissions)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
