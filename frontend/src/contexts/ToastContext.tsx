@@ -11,6 +11,7 @@ import React, {
 } from "react";
 import { Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
+import { normalizeLocale, type AppLocale } from "~/i18n/locales";
 import { createLogger } from "~/lib/logger";
 import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
 
@@ -67,7 +68,25 @@ const mobileToastModalLabels = {
     close: "Mbyll",
     backdrop: "Mbyll njoftimin",
   },
-} as const;
+  pl: {
+    title: "Powiadomienia",
+    close: "Zamknij",
+    backdrop: "Zamknij powiadomienie",
+  },
+  tr: {
+    title: "Bildirimler",
+    close: "Kapat",
+    backdrop: "Bildirimi kapat",
+  },
+  uk: {
+    title: "Сповіщення",
+    close: "Закрити",
+    backdrop: "Закрити сповіщення",
+  },
+} as const satisfies Record<
+  AppLocale,
+  { readonly title: string; readonly close: string; readonly backdrop: string }
+>;
 
 export function useToast() {
   const ctx = useContext(ToastContext);
@@ -366,9 +385,7 @@ export function ToastProvider({
   const isMobile = useMediaQuery(BELOW_MD);
   const locale =
     typeof document === "undefined" ? "de" : document.documentElement.lang;
-  const modalLabels =
-    mobileToastModalLabels[locale as keyof typeof mobileToastModalLabels] ??
-    mobileToastModalLabels.de;
+  const modalLabels = mobileToastModalLabels[normalizeLocale(locale)];
 
   // Track last shown timestamps for simple de-duplication
   const lastShownRef = useRef<Map<string, number>>(new Map());
