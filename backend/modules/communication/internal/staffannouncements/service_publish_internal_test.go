@@ -670,6 +670,37 @@ func TestPublish_ConcurrentEditExpires_RollsBack(t *testing.T) {
 	}
 }
 
+// TestPublish_ConcurrentEditInvalidatesReminder_RollsBack proves that the
+// fresh row is validated again after the atomic publish flip. Otherwise an
+// edit that moves a valid reminder into the past while Publish waits would
+// leave an unsendable reminder on a published announcement.
+func TestPublish_ConcurrentEditInvalidatesReminder_RollsBack(t *testing.T) {
+	t.Parallel()
+
+	future := time.Now().Add(time.Hour)
+	past := time.Now().Add(-time.Hour)
+	initial := draftAnnouncement(true)
+	initial.ReminderAt = &future
+	edited := draftAnnouncement(true)
+	edited.ReminderAt = &past
+	repo := &fakeAnnouncementRepo{
+		announcement:  initial,
+		editOnPublish: edited,
+		recipients: []*usersModels.AnnouncementRecipient{
+			{Email: "a@example.test", FirstName: "Anna", LastName: "A"},
+		},
+	}
+	outbox := &fakeOutbox{}
+	svc := newTestService(repo, outbox)
+
+	if _, err := svc.Publish(context.Background(), initial.ID); !errors.Is(err, ErrValidation) {
+		t.Fatalf("Publish() error = %v, want reminder validation error", err)
+	}
+	if len(outbox.requests) != 0 {
+		t.Fatalf("expected no e-mails for a reminder invalidated during publish, got %d", len(outbox.requests))
+	}
+}
+
 // failingOutbox always fails Enqueue, standing in for a DB error on the outbox
 // insert (which, inside the publish tenant tx, aborts the whole transaction).
 type failingOutbox struct{}

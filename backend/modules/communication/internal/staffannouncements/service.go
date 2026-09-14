@@ -522,15 +522,19 @@ func (s *service) Publish(ctx context.Context, id int64) (*usersModels.ParentAnn
 			if fresh == nil {
 				return nil, fmt.Errorf("announcement: reload after publish: row not found")
 			}
+			freshNow := time.Now()
 			// A concurrent edit may have moved expires_at into the past between the
 			// pre-publish check and the atomic flip. Publishing an already-expired
 			// announcement is invalid (invisible to parents, immutable), so fail
 			// with a 5xx: the tenant tx rolls back the flip and staff can retry.
-			if fresh.ExpiresAt != nil && !fresh.ExpiresAt.After(now) {
+			if fresh.ExpiresAt != nil && !fresh.ExpiresAt.After(freshNow) {
 				return nil, fmt.Errorf("announcement: draft expired concurrently during publish; rolled back")
 			}
-			if fresh.ResponseDeadline != nil && !fresh.ResponseDeadline.After(now) {
+			if fresh.ResponseDeadline != nil && !fresh.ResponseDeadline.After(freshNow) {
 				return nil, fmt.Errorf("announcement: draft response deadline elapsed concurrently during publish; rolled back")
+			}
+			if err := validateReminder(fresh.ReminderAt, fresh.ExpiresAt, freshNow); err != nil {
+				return nil, err
 			}
 			s.logger.Info("parent announcement published", slog.Int64("announcement_id", id))
 			if err := s.notifyAnnouncementGuardians(ctx, fresh); err != nil {

@@ -94,20 +94,22 @@ export type ReminderState = "planned" | "sent" | "missed";
 export function reminderStateOf(
   announcement: Pick<
     Announcement,
-    "reminder_at" | "reminder_sent_at" | "status"
+    "active" | "reminder_at" | "reminder_sent_at" | "status"
   >,
   now: Date = new Date(),
 ): ReminderState | null {
   if (!announcement.reminder_at) return null;
   if (announcement.reminder_sent_at) return "sent";
   if (announcement.status === "draft") return "planned";
+  if (!announcement.active || announcement.status === "expired")
+    return "missed";
   return new Date(announcement.reminder_at) <= now ? "missed" : "planned";
 }
 
 export function describeReminder(
   announcement: Pick<
     Announcement,
-    "reminder_at" | "reminder_sent_at" | "status"
+    "active" | "reminder_at" | "reminder_sent_at" | "status"
   >,
   now: Date = new Date(),
 ): string | null {

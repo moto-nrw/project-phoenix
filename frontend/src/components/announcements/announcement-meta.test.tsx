@@ -143,6 +143,26 @@ describe("describeReminder (#3162)", () => {
     expect(describeReminder(draft)).toBe("Erinnerung am 08.09.2026, 08:00 Uhr");
   });
 
+  it("marks reminders suppressed for inactive or expired publications as missed", () => {
+    const inactive = {
+      ...base,
+      active: false,
+      reminder_at: "2026-09-24T06:00:00Z",
+      status: "published" as const,
+    };
+    const expired = {
+      ...base,
+      reminder_at: "2026-09-24T06:00:00Z",
+      status: "expired" as const,
+    };
+
+    expect(reminderStateOf(inactive)).toBe("missed");
+    expect(describeReminder(inactive)).toBe(
+      "Erinnerung am 24.09.2026, 08:00 Uhr nicht versendet",
+    );
+    expect(reminderStateOf(expired)).toBe("missed");
+  });
+
   it("flags a reminder whose moment passed without a send", () => {
     const missed = {
       ...base,
