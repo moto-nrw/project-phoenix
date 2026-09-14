@@ -872,14 +872,17 @@ describe("EnrollmentForm", () => {
       careRequired: false,
     });
 
-    renderForm();
+    renderForm({
+      initialDraft: editDraft([
+        { id: "c-1", first_name: "Anton", last_name: "Alster" },
+      ]),
+    });
     await waitForLoaded();
 
     expect(
       screen.queryByText("Zustimmungen & Hinweise"),
     ).not.toBeInTheDocument();
 
-    await fillRequiredFields();
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
 
     await waitFor(() => {
