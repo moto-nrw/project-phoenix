@@ -4,412 +4,60 @@
   "evidence_date": "2026-09-14",
   "evidence_scope": "Current worktree after the api/active cut: the active routes consume a consumer-owned presence operations port bound to the retained active service in the services composition root, presence sentinels live in the owner public package, and the two retained read providers with zero callers are deleted.",
   "remaining_keys": [
-    {
-      "scope": "external_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/api/active",
-      "target": "github.com/go-chi/chi/v5",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "external_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/api/active",
-      "target": "github.com/moto-nrw/project-phoenix/api/common",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "external_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/api/active",
-      "target": "github.com/moto-nrw/project-phoenix/auth/jwt",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "external_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/api/active",
-      "target": "github.com/moto-nrw/project-phoenix/internal/timezone",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "external_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/api/active",
-      "target": "github.com/moto-nrw/project-phoenix/models/config",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "external_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/api/active",
-      "target": "github.com/uptrace/bun",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "external_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/api/active",
-      "target": "net/http",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "external_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/database/repositories/active",
-      "target": "github.com/moto-nrw/project-phoenix/database/repositories",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "external_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/database/repositories/active",
-      "target": "github.com/moto-nrw/project-phoenix/database/repositories/active",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "external_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/database/repositories/active",
-      "target": "github.com/moto-nrw/project-phoenix/internal/timezone",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "external_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/database/repositories/active",
-      "target": "github.com/moto-nrw/project-phoenix/models/active",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "external_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/database/repositories/active",
-      "target": "github.com/moto-nrw/project-phoenix/models/base",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "external_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/database/repositories/active",
-      "target": "github.com/uptrace/bun",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "external_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/services/active",
-      "target": "github.com/moto-nrw/project-phoenix/auth/device",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "external_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/services/active",
-      "target": "github.com/moto-nrw/project-phoenix/database/repositories",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "external_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/services/active",
-      "target": "github.com/moto-nrw/project-phoenix/internal/timezone",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "external_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/services/active",
-      "target": "github.com/moto-nrw/project-phoenix/models/active",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "external_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/services/active",
-      "target": "github.com/moto-nrw/project-phoenix/models/audit",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "external_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/services/active",
-      "target": "github.com/moto-nrw/project-phoenix/models/base",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "external_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/services/active",
-      "target": "github.com/moto-nrw/project-phoenix/models/config",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "external_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/services/active",
-      "target": "github.com/moto-nrw/project-phoenix/models/schedule",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "external_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/services/active",
-      "target": "github.com/moto-nrw/project-phoenix/models/users",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "external_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/services/active",
-      "target": "github.com/moto-nrw/project-phoenix/realtime",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "external_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/services/active",
-      "target": "github.com/moto-nrw/project-phoenix/services",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "external_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/services/active",
-      "target": "github.com/moto-nrw/project-phoenix/services/active",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "external_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/services/active",
-      "target": "github.com/moto-nrw/project-phoenix/services/config",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "external_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/services/active",
-      "target": "github.com/moto-nrw/project-phoenix/services/schedule",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "external_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/services/active",
-      "target": "github.com/moto-nrw/project-phoenix/services/users",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "external_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/services/active",
-      "target": "github.com/moto-nrw/project-phoenix/tenant",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "external_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/services/active",
-      "target": "github.com/uptrace/bun",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "internal_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/api/active",
-      "target": "github.com/go-chi/chi/v5",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "internal_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/api/active",
-      "target": "github.com/moto-nrw/project-phoenix/api/common",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "internal_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/api/active",
-      "target": "github.com/moto-nrw/project-phoenix/auth/jwt",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "internal_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/api/active",
-      "target": "github.com/moto-nrw/project-phoenix/internal/timezone",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "internal_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/api/active",
-      "target": "github.com/moto-nrw/project-phoenix/models/config",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "internal_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/api/active",
-      "target": "github.com/moto-nrw/project-phoenix/services/usercontext",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "internal_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/api/active",
-      "target": "net/http",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "internal_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/models/active",
-      "target": "github.com/moto-nrw/project-phoenix/internal/timezone",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "internal_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/services/active",
-      "target": "github.com/moto-nrw/project-phoenix/database/repositories",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "internal_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/services/active",
-      "target": "github.com/moto-nrw/project-phoenix/internal/timezone",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "internal_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/services/active",
-      "target": "github.com/moto-nrw/project-phoenix/models/base",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "internal_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/services/active",
-      "target": "github.com/moto-nrw/project-phoenix/models/config",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "internal_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/services/active",
-      "target": "github.com/moto-nrw/project-phoenix/models/users",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "internal_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/services/active",
-      "target": "github.com/moto-nrw/project-phoenix/realtime",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "internal_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/services/active",
-      "target": "github.com/moto-nrw/project-phoenix/tenant",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "internal_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/services/active",
-      "target": "github.com/uptrace/bun",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "internal_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/services/statistics",
-      "target": "github.com/moto-nrw/project-phoenix/internal/timezone",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "production",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/api/active",
-      "target": "github.com/moto-nrw/project-phoenix/api/common",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "production",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/api/active",
-      "target": "github.com/moto-nrw/project-phoenix/internal/timezone",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "production",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/database/repositories/active",
-      "target": "github.com/moto-nrw/project-phoenix/internal/timezone",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "production",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/models/active",
-      "target": "github.com/moto-nrw/project-phoenix/internal/timezone",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "production",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/models/active",
-      "target": "github.com/moto-nrw/project-phoenix/models/base",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "production",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/services/active",
-      "target": "github.com/moto-nrw/project-phoenix/internal/timezone",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "production",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/services/active",
-      "target": "github.com/moto-nrw/project-phoenix/models/base",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "production",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/services/active",
-      "target": "github.com/moto-nrw/project-phoenix/models/config",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "production",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/services/active",
-      "target": "github.com/moto-nrw/project-phoenix/models/users",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "production",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/services/active",
-      "target": "github.com/moto-nrw/project-phoenix/tenant",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "production",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/services/statistics",
-      "target": "github.com/moto-nrw/project-phoenix/internal/timezone",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    }
+    "external_test|api/active -> api/common",
+    "external_test|api/active -> auth/jwt",
+    "external_test|api/active -> github.com/go-chi/chi/v5",
+    "external_test|api/active -> github.com/uptrace/bun",
+    "external_test|api/active -> internal/timezone",
+    "external_test|api/active -> models/config",
+    "external_test|api/active -> net/http",
+    "external_test|database/repositories/active -> database/repositories",
+    "external_test|database/repositories/active -> database/repositories/active",
+    "external_test|database/repositories/active -> github.com/uptrace/bun",
+    "external_test|database/repositories/active -> internal/timezone",
+    "external_test|database/repositories/active -> models/active",
+    "external_test|database/repositories/active -> models/base",
+    "external_test|services/active -> auth/device",
+    "external_test|services/active -> database/repositories",
+    "external_test|services/active -> github.com/uptrace/bun",
+    "external_test|services/active -> internal/timezone",
+    "external_test|services/active -> models/active",
+    "external_test|services/active -> models/audit",
+    "external_test|services/active -> models/base",
+    "external_test|services/active -> models/config",
+    "external_test|services/active -> models/schedule",
+    "external_test|services/active -> realtime",
+    "external_test|services/active -> services",
+    "external_test|services/active -> services/active",
+    "external_test|services/active -> services/config",
+    "external_test|services/active -> services/schedule",
+    "external_test|services/active -> services/users",
+    "external_test|services/active -> tenant",
+    "internal_test|api/active -> api/common",
+    "internal_test|api/active -> auth/jwt",
+    "internal_test|api/active -> github.com/go-chi/chi/v5",
+    "internal_test|api/active -> internal/timezone",
+    "internal_test|api/active -> models/config",
+    "internal_test|api/active -> net/http",
+    "internal_test|api/active -> services/usercontext",
+    "internal_test|models/active -> internal/timezone",
+    "internal_test|services/active -> github.com/uptrace/bun",
+    "internal_test|services/active -> internal/timezone",
+    "internal_test|services/active -> models/base",
+    "internal_test|services/active -> models/config",
+    "internal_test|services/active -> realtime",
+    "internal_test|services/active -> tenant",
+    "internal_test|services/statistics -> internal/timezone",
+    "production|api/active -> api/common",
+    "production|api/active -> internal/timezone",
+    "production|database/repositories/active -> internal/timezone",
+    "production|models/active -> internal/timezone",
+    "production|models/active -> models/base",
+    "production|services/active -> internal/timezone",
+    "production|services/active -> models/base",
+    "production|services/active -> models/config",
+    "production|services/active -> tenant",
+    "production|services/statistics -> internal/timezone"
   ],
   "retired_service_methods": {
     "names": [
@@ -438,7 +86,7 @@
   "latest_verification": {
     "full_backend_suite": "full backend suite via scripts/test-backend.sh: 26278 tests, 2 skipped, 126s; the single failure (PyrePortal error string guard) was fixed by adding the relocated sentinel file to the guard corpus and api/active plus api/iot were rerun green",
     "architecture": {
-      "legacy_keys": 1483,
+      "legacy_keys": 1479,
       "composition_field_setter_targets": 779
     },
     "lint": {
@@ -454,19 +102,7 @@
     "Run the final required checks after the last implementation edit, including before-push test-changed when pushing.",
     "Complete code review and commit the implementation on the current branch."
   ],
-  "next_boundary": {
-    "source": "services/active",
-    "target": "internal/timezone, models/base, models/config, models/users, realtime, tenant, bun",
-    "status": "Incomplete",
-    "required_facts": [
-      "Every remaining production key needs the retained implementation to move behind presence ports or to the timetable and workforce owners; the loosening ratchet rejects new rules for existing packages.",
-      "api/active -> api/common and internal/timezone can only go by replacing the inbound-active http package with a candidate-created package (the documented workforce pattern) or by removing those imports."
-    ],
-    "constraints": [
-      "Keep authorization, calendar-date semantics, tenant transactions and exact error mapping.",
-      "Do not change ownership policy or hide dependencies behind aliases or copied implementations."
-    ]
-  },
+  "next_boundary": "services/active -> models/config (workforce schedule types, shared with services/schedule, services root, modules/workforce, api/operator) and services/active -> tenant (24 symbols incl. transaction control across 16 files); both exceed a behaviour-preserving import cut and need owner-scoped sub-tickets",
   "reassessment": {
     "reason": "User requested a credible completion estimate after prolonged incremental work.",
     "remaining_key_count": 58,
@@ -534,6 +170,8 @@
     "api/active no longer imports services/active or models/active: a consumer-owned PresenceOperations port (studentpresence public values and sentinels) is bound to the retained service by services.NewPresenceOperations; single-session, supervision-row and combination-group reads are native presence queries",
     "services/active sentinel errors alias the studentpresence public sentinels; RoomCapacityError lives in the owner package; services/active no longer imports cmp",
     "services/active no longer imports bun: the retained services keep a DatabaseHandle presence marker and the status-day writes use the generic tenant transaction entry point",
-    "services/active no longer imports realtime: every presence broadcast goes through named producers in the Delivery realtimeevents application package and the retained services hold an EventPublisher port that embeds the Delivery publisher contract"
+    "services/active no longer imports realtime: every presence broadcast goes through named producers in the Delivery realtimeevents application package and the retained services hold an EventPublisher port that embeds the Delivery publisher contract",
+    "services/active -> models/users removed in all three scopes: StudentRecord, StudentLifecycle, PersonName and StaffScheduleBinding are presence-owned; adapters live in services/student_records.go, services/status_day_students.go and api/students/status_day_students.go",
+    "internal_test services/active -> database/repositories removed by moving the bulk status-day test to the external test package"
   ]
 }
