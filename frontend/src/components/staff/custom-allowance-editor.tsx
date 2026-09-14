@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { Button } from "~/components/ui/button";
+import { DataField } from "~/components/ui/detail-modal-components";
 import { useFormError, type FormErrorInput } from "~/components/ui/form-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
@@ -34,12 +35,9 @@ export function AllowanceValue({
   value: number;
 }) {
   return (
-    <div className="rounded-lg bg-gray-50 px-3 py-2">
-      <dt className="text-xs text-gray-500">{label}</dt>
-      <dd className="font-semibold text-gray-900 tabular-nums">
-        {formatDayCount(value)}
-      </dd>
-    </div>
+    <DataField label={label}>
+      <span className="tabular-nums">{formatDayCount(value)}</span>
+    </DataField>
   );
 }
 

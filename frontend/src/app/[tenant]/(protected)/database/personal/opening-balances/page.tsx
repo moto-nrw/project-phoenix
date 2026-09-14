@@ -16,6 +16,7 @@ import { Alert } from "~/components/ui/alert";
 
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
@@ -189,18 +190,15 @@ function PreviewRowCard({ row }: { readonly row: DisplayRow }) {
             )}
           </div>
           {row.values.length > 0 && (
-            <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
-              {row.values.map((value) => (
-                <div key={value.label}>
-                  <dt className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-                    {value.label}
-                  </dt>
-                  <dd className="text-sm text-gray-900 tabular-nums">
-                    {value.value}
-                  </dd>
-                </div>
-              ))}
-            </dl>
+            <div className="mt-2">
+              <DataGrid columns={4}>
+                {row.values.map((value) => (
+                  <DataField key={value.label} label={value.label}>
+                    <span className="tabular-nums">{value.value}</span>
+                  </DataField>
+                ))}
+              </DataGrid>
+            </div>
           )}
           {row.messages.length > 0 && (
             <ul className="mt-2 space-y-0.5">

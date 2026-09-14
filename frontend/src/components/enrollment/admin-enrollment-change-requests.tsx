@@ -1,14 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import {
-  ArrowRight,
-  Check,
-  Mail,
-  type LucideIcon,
-  UserRound,
-  X,
-} from "lucide-react";
+import { ArrowRight, Check, Mail, UserRound, X } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   approveEnrollmentChangeRequest,
@@ -23,6 +16,7 @@ import { createLogger } from "~/lib/logger";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EnrollmentChangeRequestDiff } from "~/components/enrollment/enrollment-change-request-diff";
 import { ENROLLMENT_CHANGE_REQUEST_STATUS_META } from "~/components/enrollment/enrollment-change-request-status";
 import { Alert } from "~/components/ui/alert";
@@ -215,18 +209,22 @@ export function AdminEnrollmentChangeRequestDetail({
                     <p className="mt-1 text-sm font-semibold text-gray-900">
                       {request.guardian_first_name} {request.guardian_last_name}
                     </p>
-                    <dl className="mt-4 space-y-3 text-sm">
-                      <InfoRow
-                        icon={Mail}
-                        label="E-Mail"
-                        value={request.guardian_email}
-                      />
-                      <InfoRow
-                        icon={UserRound}
-                        label="Kinder"
-                        value={String(request.children.length)}
-                      />
-                    </dl>
+                    <div className="mt-4">
+                      <DataGrid columns={1}>
+                        <DataField
+                          label="E-Mail"
+                          icon={<Mail className="h-3.5 w-3.5" />}
+                        >
+                          {request.guardian_email}
+                        </DataField>
+                        <DataField
+                          label="Kinder"
+                          icon={<UserRound className="h-3.5 w-3.5" />}
+                        >
+                          {String(request.children.length)}
+                        </DataField>
+                      </DataGrid>
+                    </div>
                   </>
                 ) : (
                   <p className="mt-2 text-sm text-gray-600">
@@ -414,26 +412,6 @@ function MessageThread({
         </div>
       ) : null}
     </section>
-  );
-}
-
-function InfoRow({
-  icon: Icon,
-  label,
-  value,
-}: {
-  readonly icon: LucideIcon;
-  readonly label: string;
-  readonly value: string;
-}) {
-  return (
-    <div>
-      <dt className="flex items-center gap-2 text-xs font-medium text-gray-500 uppercase">
-        <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-        {label}
-      </dt>
-      <dd className="mt-0.5 break-words text-gray-900">{value}</dd>
-    </div>
   );
 }
 

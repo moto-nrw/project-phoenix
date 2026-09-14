@@ -7,6 +7,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { DatePicker } from "~/components/ui/date-picker";
+import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
 import {
@@ -343,60 +344,50 @@ export function SickReportModal({
                 </p>
               ) : (
                 <>
-                  <dl className="space-y-1 text-sm">
-                    <div className="flex items-center justify-between gap-4">
-                      <dt className="text-gray-600">Stundenkonto aktuell</dt>
-                      <dd className="font-medium text-gray-900 tabular-nums">
+                  <DataGrid columns={1}>
+                    <DataField inline label="Stundenkonto aktuell">
+                      <span className="tabular-nums">
                         {formatSignedDuration(preview.currentBalanceMinutes)}
-                      </dd>
-                    </div>
+                      </span>
+                    </DataField>
                     {preview.futureCommitmentMinutes > 0 && (
-                      <div className="flex items-center justify-between gap-4">
-                        <dt className="text-gray-600">
-                          Bereits geplanter Freizeitausgleich
-                        </dt>
-                        <dd className="font-medium text-gray-900 tabular-nums">
+                      <DataField
+                        inline
+                        label="Bereits geplanter Freizeitausgleich"
+                      >
+                        <span className="tabular-nums">
                           {formatSignedDuration(
                             -preview.futureCommitmentMinutes,
                           )}
-                        </dd>
-                      </div>
+                        </span>
+                      </DataField>
                     )}
                     {preview.futureAdjustmentMinutes !== 0 && (
-                      <div className="flex items-center justify-between gap-4">
-                        <dt className="text-gray-600">
-                          Bereits geplante Buchungen
-                        </dt>
-                        <dd className="font-medium text-gray-900 tabular-nums">
+                      <DataField inline label="Bereits geplante Buchungen">
+                        <span className="tabular-nums">
                           {formatSignedDuration(
                             preview.futureAdjustmentMinutes,
                           )}
-                        </dd>
-                      </div>
+                        </span>
+                      </DataField>
                     )}
-                    <div className="flex items-center justify-between gap-4">
-                      <dt className="text-gray-600">
-                        Abzug für diesen Eintrag
-                      </dt>
-                      <dd className="font-medium text-gray-900 tabular-nums">
+                    <DataField inline label="Abzug für diesen Eintrag">
+                      <span className="tabular-nums">
                         {formatSignedDuration(-preview.deductionMinutes)}
-                      </dd>
-                    </div>
-                    <div className="flex items-center justify-between gap-4 border-t border-gray-200 pt-1.5">
-                      <dt className="font-medium text-gray-900">
-                        Stundenkonto danach
-                      </dt>
-                      <dd
+                      </span>
+                    </DataField>
+                    <DataField inline label="Stundenkonto danach">
+                      <span
                         className={`font-semibold tabular-nums ${
                           preview.projectedBalanceMinutes < 0
                             ? "text-moto-red-strong"
-                            : "text-gray-900"
+                            : ""
                         }`}
                       >
                         {formatSignedDuration(preview.projectedBalanceMinutes)}
-                      </dd>
-                    </div>
-                  </dl>
+                      </span>
+                    </DataField>
+                  </DataGrid>
                   {preview.realizedDeductionMinutes > 0 && (
                     <p className="mt-2 text-xs text-gray-500">
                       Tage bis heute sind im aktuellen Stand schon enthalten.

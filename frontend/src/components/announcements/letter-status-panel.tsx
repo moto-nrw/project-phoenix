@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, BellRing, CheckCircle2, RefreshCw } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
+import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { InfoCard } from "~/components/ui/info-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import type { StatusBadgeTone } from "~/components/ui/status-badge";
@@ -207,36 +208,33 @@ export function LetterStatusPanel({
           </p>
         )}
 
-        <dl className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm">
-          <div>
-            <dt className="text-xs text-gray-500">E-Mails versendet</dt>
-            <dd className="text-gray-900 tabular-nums">{s.emails_sent}</dd>
-          </div>
-          {s.emails_pending > 0 && (
-            <div>
-              <dt className="text-xs text-gray-500">Wird gesendet</dt>
-              <dd className="text-gray-900 tabular-nums">{s.emails_pending}</dd>
-            </div>
-          )}
-          {hasFailures && (
-            <div>
-              <dt className="text-xs text-gray-500">Fehlgeschlagen</dt>
-              <dd className="text-gray-900 tabular-nums">{s.emails_failed}</dd>
-            </div>
-          )}
-          {s.without_email > 0 && (
-            <div>
-              <dt className="text-xs text-gray-500">Ohne E-Mail-Adresse</dt>
-              <dd className="text-gray-900 tabular-nums">{s.without_email}</dd>
-            </div>
-          )}
-          {s.without_portal > 0 && (
-            <div>
-              <dt className="text-xs text-gray-500">Ohne Portalzugang</dt>
-              <dd className="text-gray-900 tabular-nums">{s.without_portal}</dd>
-            </div>
-          )}
-        </dl>
+        <div className="mt-4">
+          <DataGrid columns={4}>
+            <DataField label="E-Mails versendet">
+              <span className="tabular-nums">{s.emails_sent}</span>
+            </DataField>
+            {s.emails_pending > 0 && (
+              <DataField label="Wird gesendet">
+                <span className="tabular-nums">{s.emails_pending}</span>
+              </DataField>
+            )}
+            {hasFailures && (
+              <DataField label="Fehlgeschlagen">
+                <span className="tabular-nums">{s.emails_failed}</span>
+              </DataField>
+            )}
+            {s.without_email > 0 && (
+              <DataField label="Ohne E-Mail-Adresse">
+                <span className="tabular-nums">{s.without_email}</span>
+              </DataField>
+            )}
+            {s.without_portal > 0 && (
+              <DataField label="Ohne Portalzugang">
+                <span className="tabular-nums">{s.without_portal}</span>
+              </DataField>
+            )}
+          </DataGrid>
+        </div>
 
         {(s.without_email > 0 || s.without_portal > 0) && (
           <p className="mt-3 flex items-start gap-2 text-xs text-gray-600">
