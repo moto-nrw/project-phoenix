@@ -39,7 +39,7 @@ func (d *absenceEmailStaffStub) ListAbsenceApprovers(ctx context.Context) ([]*Ab
 	return d.ApproversFn(ctx)
 }
 
-func (failingAbsenceEmailSettings) ResolveBool(context.Context, string) (bool, error) {
+func (failingAbsenceEmailSettings) AbsenceApprovalEmailEnabled(context.Context) (bool, error) {
 	return false, errors.New("settings unavailable")
 }
 

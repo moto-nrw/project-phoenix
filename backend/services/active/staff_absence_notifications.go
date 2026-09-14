@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -18,8 +17,11 @@ const absenceEmailDateLayout = "02.01.2006"
 // absenceEmailSettingResolver is the subset of config.SettingsService the absence
 // notifications need. Narrow local interface so services/active does not
 // depend on services/config.
+// absenceEmailSettingResolver answers the one tenant setting the absence
+// notifications consult. It names the question rather than taking a registry
+// key, so this package does not carry the settings vocabulary of another owner.
 type absenceEmailSettingResolver interface {
-	ResolveBool(ctx context.Context, key string) (bool, error)
+	AbsenceApprovalEmailEnabled(ctx context.Context) (bool, error)
 }
 
 type absenceEmailSchoolFinder interface {
@@ -73,10 +75,10 @@ func (s *staffAbsenceService) absenceEmailsEnabled(ctx context.Context) bool {
 		s.emailDeps.SchoolRepo == nil {
 		return false
 	}
-	enabled, err := s.emailDeps.Settings.ResolveBool(ctx, configModels.KeyNotificationsAbsenceApprovalEmail)
+	enabled, err := s.emailDeps.Settings.AbsenceApprovalEmailEnabled(ctx)
 	if err != nil {
 		s.emailLogger().Warn("failed to resolve absence email setting, skipping notification",
-			"setting_key", configModels.KeyNotificationsAbsenceApprovalEmail,
+			"setting", "absence_approval_email",
 			"error", err.Error(),
 		)
 		return false

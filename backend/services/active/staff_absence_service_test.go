@@ -3000,7 +3000,7 @@ func TestAbsListPendingRequests_IncludesQuestionRows(t *testing.T) {
 
 type absSettingsMock struct{ enabled bool }
 
-func (m absSettingsMock) ResolveBool(context.Context, string) (bool, error) {
+func (m absSettingsMock) AbsenceApprovalEmailEnabled(context.Context) (bool, error) {
 	return m.enabled, nil
 }
 

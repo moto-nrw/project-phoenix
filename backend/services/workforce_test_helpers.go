@@ -80,7 +80,7 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		NewWorkScheduleTargets(repos.StaffWorkSchedule),
 		NewWorkTimeTargetModels(repos.WorkTimeModel),
 		NewTimeTrackingShifts(repos.StaffShift),
-		settingsService,
+		PresenceSettings(settingsService),
 		activeLogger,
 	)
 
@@ -103,7 +103,7 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		typeAware.SetAbsenceTypeService(staffAbsenceTypeService)
 	}
 
-	staffAbsenceService := active.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession, repos.StaffVacationQuota, repos.StaffAbsenceAudit, settingsService, workTimeMonthService, timezone.CalendarDateClock(optionalClock(clocks)))
+	staffAbsenceService := active.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession, repos.StaffVacationQuota, repos.StaffAbsenceAudit, PresenceSettings(settingsService), workTimeMonthService, timezone.CalendarDateClock(optionalClock(clocks)))
 	if typeAware, ok := staffAbsenceService.(interface {
 		SetAbsenceTypeService(active.AbsenceTypeReader)
 	}); ok {
@@ -120,7 +120,7 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		loggerAware.SetLogger(activeLogger)
 	}
 
-	staffBalanceAdjustService := active.NewStaffBalanceAdjustmentService(repos.StaffBalanceAdjust, workTimeMonthService, settingsService, activeLogger, timezone.CalendarDateClock(optionalClock(clocks)))
+	staffBalanceAdjustService := active.NewStaffBalanceAdjustmentService(repos.StaffBalanceAdjust, workTimeMonthService, PresenceSettings(settingsService), activeLogger, timezone.CalendarDateClock(optionalClock(clocks)))
 	if broadcastAware, ok := staffBalanceAdjustService.(interface {
 		SetBroadcaster(active.EventPublisher)
 	}); ok {
@@ -147,7 +147,7 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		MonthSnapshotCapability(repos.StaffMonthSnapshot),
 		workTimeMonthService,
 		MonthCloseStaff(repos.Staff),
-		settingsService,
+		PresenceSettings(settingsService),
 		activeLogger,
 	)
 	if broadcastAware, ok := staffMonthCloseService.(interface {
@@ -167,7 +167,7 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		NewWorkScheduleTargets(repos.StaffWorkSchedule),
 		NewWorkTimeTargetModels(repos.WorkTimeModel),
 		NewTimeTrackingShifts(repos.StaffShift),
-		settingsService,
+		PresenceSettings(settingsService),
 		activeLogger,
 	)
 	staffOverviewService.SetHolidayReader(nonWorkingDayService)

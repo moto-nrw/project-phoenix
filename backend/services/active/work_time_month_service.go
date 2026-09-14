@@ -10,7 +10,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 )
 
 // MonthSummary is the Monatskarte aggregate for one staff member and month
@@ -190,9 +189,13 @@ type DailyTarget struct {
 // needs; the full repositories satisfy them, and unit tests mock them
 // without dragging in the complete repository interfaces.
 
-// monthSettingsResolver is implemented by config.SettingsService.
+// monthSettingsResolver answers the one tenant setting the monthly time
+// accounts consult. It names the question rather than taking a registry key,
+// so this package does not carry another owner's settings vocabulary.
 type monthSettingsResolver interface {
-	ResolveString(ctx context.Context, key string) (string, error)
+	// AccountStartDate is the day the tenant's time accounts begin, as a
+	// YYYY-MM-DD string, or empty when the tenant has not set one.
+	AccountStartDate(ctx context.Context) (string, error)
 }
 
 // monthShiftReader is implemented by TimeTrackingShiftRepository.
@@ -882,7 +885,7 @@ func resolveAccountAnchor(ctx context.Context, settings monthSettingsResolver, l
 	if settings == nil {
 		return fallback, nil
 	}
-	value, err := settings.ResolveString(ctx, configModels.KeyTimeTrackingAccountStartDate)
+	value, err := settings.AccountStartDate(ctx)
 	if err != nil {
 		return timezone.Date(""), fmt.Errorf("failed to resolve account start date setting: %w", err)
 	}

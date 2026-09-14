@@ -51,30 +51,27 @@ type memoSettingsResolver struct {
 	inner monthSettingsResolver
 
 	mu     sync.Mutex
-	values map[string]string
-	errs   map[string]error
+	loaded bool
+	value  string
+	err    error
 }
 
 func newMemoSettingsResolver(inner monthSettingsResolver) *memoSettingsResolver {
-	return &memoSettingsResolver{
-		inner:  inner,
-		values: make(map[string]string),
-		errs:   make(map[string]error),
-	}
+	return &memoSettingsResolver{inner: inner}
 }
 
-func (m *memoSettingsResolver) ResolveString(ctx context.Context, key string) (string, error) {
+func (m *memoSettingsResolver) AccountStartDate(ctx context.Context) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if value, ok := m.values[key]; ok {
-		return value, m.errs[key]
+	if m.loaded {
+		return m.value, m.err
 	}
 	if m.inner == nil {
 		return "", nil
 	}
-	value, err := m.inner.ResolveString(ctx, key)
-	m.values[key], m.errs[key] = value, err
-	return value, err
+	m.value, m.err = m.inner.AccountStartDate(ctx)
+	m.loaded = true
+	return m.value, m.err
 }
 
 // These are programming errors, not data conditions: the prefetch is built

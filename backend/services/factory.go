@@ -899,7 +899,7 @@ func newFactory(
 		NewWorkScheduleTargets(repos.StaffWorkSchedule),
 		NewWorkTimeTargetModels(repos.WorkTimeModel),
 		NewTimeTrackingShifts(repos.StaffShift),
-		settingsService,
+		PresenceSettings(settingsService),
 		activeLogger,
 	)
 
@@ -938,7 +938,7 @@ func newFactory(
 	}
 
 	// Initialize staff absence service
-	staffAbsenceService := active.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession, repos.StaffVacationQuota, repos.StaffAbsenceAudit, settingsService, workTimeMonthService)
+	staffAbsenceService := active.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession, repos.StaffVacationQuota, repos.StaffAbsenceAudit, PresenceSettings(settingsService), workTimeMonthService)
 	if typeAware, ok := staffAbsenceService.(interface {
 		SetAbsenceTypeService(active.AbsenceTypeReader)
 	}); ok {
@@ -957,7 +957,7 @@ func newFactory(
 
 	// Stundenkonto lifecycle transactions (#1420): payout, comp-time grants,
 	// school-year reset. Reads the live balance through the month service.
-	staffBalanceAdjustService := active.NewStaffBalanceAdjustmentService(repos.StaffBalanceAdjust, workTimeMonthService, settingsService, activeLogger)
+	staffBalanceAdjustService := active.NewStaffBalanceAdjustmentService(repos.StaffBalanceAdjust, workTimeMonthService, PresenceSettings(settingsService), activeLogger)
 	if broadcastAware, ok := staffBalanceAdjustService.(interface {
 		SetBroadcaster(active.EventPublisher)
 	}); ok {
@@ -992,7 +992,7 @@ func newFactory(
 		MonthSnapshotCapability(repos.StaffMonthSnapshot),
 		workTimeMonthService,
 		MonthCloseStaff(repos.Staff),
-		settingsService,
+		PresenceSettings(settingsService),
 		activeLogger,
 	)
 	if broadcastAware, ok := staffMonthCloseService.(interface {
@@ -1015,7 +1015,7 @@ func newFactory(
 		NewWorkScheduleTargets(repos.StaffWorkSchedule),
 		NewWorkTimeTargetModels(repos.WorkTimeModel),
 		NewTimeTrackingShifts(repos.StaffShift),
-		settingsService,
+		PresenceSettings(settingsService),
 		activeLogger,
 	)
 	staffOverviewService.SetHolidayReader(nonWorkingDayService)
@@ -1067,7 +1067,7 @@ func newFactory(
 		SetAbsenceEmailDeps(active.AbsenceEmailDeps)
 	}); ok {
 		emailAware.SetAbsenceEmailDeps(active.AbsenceEmailDeps{
-			Settings:    settingsService,
+			Settings:    PresenceSettings(settingsService),
 			Dispatcher:  absenceEmailDispatcher{dispatcher: dispatcher, from: defaultFrom, identity: tenantMailIdentity, logger: activeLogger},
 			StaffRepo:   absenceEmailStaffDirectory{source: repos.Staff},
 			SchoolRepo:  absenceEmailSchoolDirectory{schools: repos.School},

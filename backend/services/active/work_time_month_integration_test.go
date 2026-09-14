@@ -20,7 +20,7 @@ import (
 // account start date.
 type wtmIntSettings struct{ accountStart string }
 
-func (s wtmIntSettings) ResolveString(context.Context, string) (string, error) {
+func (s wtmIntSettings) AccountStartDate(context.Context) (string, error) {
 	return s.accountStart, nil
 }
 

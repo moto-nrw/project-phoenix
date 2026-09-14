@@ -159,7 +159,7 @@ type wtmMockSettings struct {
 	err          error
 }
 
-func (m *wtmMockSettings) ResolveString(_ context.Context, _ string) (string, error) {
+func (m *wtmMockSettings) AccountStartDate(context.Context) (string, error) {
 	if m.err != nil {
 		return "", m.err
 	}
