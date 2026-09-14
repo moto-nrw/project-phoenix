@@ -118,21 +118,6 @@ export function getActivityColor(type: ActivityType): string {
 }
 
 /**
- * Light tint for card backgrounds. Hardcoded to maintain contrast with the
- * coloured left-bar; computing them at runtime would invite drift.
- */
-export function getActivityLightTint(type: ActivityType): string {
-  switch (type) {
-    case "care":
-      return "#EBF0FB";
-    case "activity":
-      return "#ECF7DA";
-    case "external":
-      return "#FCEFD9";
-  }
-}
-
-/**
  * German label for the activity type, surfaced as a small badge on cards
  * when the type is non-default.
  */

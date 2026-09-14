@@ -287,7 +287,7 @@ export function StudentDokumenteTab({
           <div
             className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors ${
               dragActive
-                ? "border-[#83CD2D] bg-[#83CD2D]/5"
+                ? "border-moto-green bg-moto-green/5"
                 : "border-gray-200 bg-gray-50/50"
             }`}
             onDragOver={(e) => {
@@ -308,7 +308,7 @@ export function StudentDokumenteTab({
                 type="button"
                 variant="ghost"
                 size="compact"
-                className="text-[#5080D8]"
+                className="text-moto-blue"
                 disabled={uploading || !effectiveUploadCategory}
                 onClick={() => fileInputRef.current?.click()}
               >
