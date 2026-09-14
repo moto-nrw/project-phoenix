@@ -61,6 +61,39 @@ func ParentAnnouncementCopy(locale, kind string) (string, string) {
 		default:
 			return "Njoftim i ri për prindërit", "Një njoftim i ri është i disponueshëm në portalin e prindërve."
 		}
+	case "pl":
+		switch kind {
+		case ParentPollPublished:
+			return "Nowa ankieta", "Szkoła prosi o Państwa odpowiedź w portalu dla rodziców."
+		case ParentPollReminder:
+			return "Przypomnienie: ankieta otwarta", "W portalu dla rodziców brakuje jeszcze odpowiedzi za Państwa dziecko."
+		case ParentCareCancelled:
+			return "Opieka odwołana", "OGS odwołała jeden z terminów opieki Państwa dziecka."
+		default:
+			return "Nowe ogłoszenie dla rodziców", "W portalu dla rodziców jest nowe ogłoszenie."
+		}
+	case "tr":
+		switch kind {
+		case ParentPollPublished:
+			return "Yeni anket", "Bir okul veli portalında yanıtınızı bekliyor."
+		case ParentPollReminder:
+			return "Hatırlatma: anket açık", "Veli portalında çocuğunuz için bir yanıt hâlâ eksik."
+		case ParentCareCancelled:
+			return "Bakım iptal edildi", "OGS, çocuğunuzun bakım günlerinden birini iptal etti."
+		default:
+			return "Veliler için yeni duyuru", "Veli portalında yeni bir duyuru var."
+		}
+	case "uk":
+		switch kind {
+		case ParentPollPublished:
+			return "Нове опитування", "Школа просить вас відповісти в батьківському порталі."
+		case ParentPollReminder:
+			return "Нагадування: опитування відкрите", "У батьківському порталі ще немає відповіді за вашу дитину."
+		case ParentCareCancelled:
+			return "Догляд скасовано", "OGS скасувала один із днів догляду вашої дитини."
+		default:
+			return "Нове оголошення для батьків", "У батьківському порталі є нове оголошення."
+		}
 	default:
 		switch kind {
 		case ParentPollPublished:
@@ -97,6 +130,26 @@ func ParentRequestDecisionCopy(locale, requestType, requestStatus string) (strin
 			return "Kërkesa u refuzua", subject + " u refuzua."
 		}
 		return "Kërkesa u miratua", subject + " u miratua."
+	case "pl":
+		// The subject is in the accusative: "OGS odrzuciła Państwa prośbę".
+		// That keeps the verb form independent of the subject's gender.
+		subject := parentRequestSubjectPL(requestType)
+		if requestStatus == "abgelehnt" {
+			return "Prośba odrzucona", "OGS odrzuciła " + subject + "."
+		}
+		return "Prośba zaakceptowana", "OGS zaakceptowała " + subject + "."
+	case "tr":
+		subject := parentRequestSubjectTR(requestType)
+		if requestStatus == "abgelehnt" {
+			return "Talep reddedildi", subject + " reddedildi."
+		}
+		return "Talep onaylandı", subject + " onaylandı."
+	case "uk":
+		subject := parentRequestSubjectUK(requestType)
+		if requestStatus == "abgelehnt" {
+			return "Запит відхилено", subject + " відхилено."
+		}
+		return "Запит схвалено", subject + " схвалено."
 	default:
 		subject := parentRequestSubjectDE(requestType)
 		if requestStatus == "abgelehnt" {
@@ -174,6 +227,57 @@ func parentRequestSubjectSQ(requestType string) string {
 	}
 }
 
+func parentRequestSubjectPL(requestType string) string {
+	switch requestType {
+	case "care_schedule":
+		return "Państwa prośbę o zmianę godzin opieki"
+	case "pickup_change":
+		return "Państwa prośbę o zmianę godziny odbioru"
+	case "master_data":
+		return "Państwa prośbę o zmianę danych podstawowych"
+	case "excused_absence":
+		return "Państwa zgłoszenie nieobecności"
+	case "sick_absence":
+		return "Państwa zgłoszenie choroby"
+	default:
+		return "Państwa prośbę"
+	}
+}
+
+func parentRequestSubjectTR(requestType string) string {
+	switch requestType {
+	case "care_schedule":
+		return "Bakım saatleri talebiniz"
+	case "pickup_change":
+		return "Teslim alma saati talebiniz"
+	case "master_data":
+		return "Temel bilgiler talebiniz"
+	case "excused_absence":
+		return "Mazeret bildiriminiz"
+	case "sick_absence":
+		return "Hastalık bildiriminiz"
+	default:
+		return "Talebiniz"
+	}
+}
+
+func parentRequestSubjectUK(requestType string) string {
+	switch requestType {
+	case "care_schedule":
+		return "Ваш запит щодо годин догляду"
+	case "pickup_change":
+		return "Ваш запит щодо часу, коли забирають дитину"
+	case "master_data":
+		return "Ваш запит щодо основних даних"
+	case "excused_absence":
+		return "Ваше повідомлення про відсутність"
+	case "sick_absence":
+		return "Ваше повідомлення про хворобу"
+	default:
+		return "Ваш запит"
+	}
+}
+
 func ParentMessageCopy(locale string) (string, string) {
 	switch localization.NormalizeLocale(locale) {
 	case "en":
@@ -182,6 +286,12 @@ func ParentMessageCopy(locale string) (string, string) {
 		return "Новое сообщение от продлёнки", "У вас новое сообщение в родительском портале."
 	case "sq":
 		return "Mesazh i ri nga OGS-ja", "Keni një mesazh të ri në portalin e prindërve."
+	case "pl":
+		return "Nowa wiadomość od OGS", "Mają Państwo nową wiadomość w portalu dla rodziców."
+	case "tr":
+		return "OGS'den yeni mesaj", "Veli portalında yeni bir mesajınız var."
+	case "uk":
+		return "Нове повідомлення від OGS", "У вас нове повідомлення в батьківському порталі."
 	default:
 		return "Neue Nachricht der OGS", "Sie haben eine neue Nachricht im Elternportal."
 	}
@@ -195,8 +305,53 @@ func ParentAppointmentCopy(locale, kind string) (string, string) {
 		return parentAppointmentCopyRU(kind)
 	case "sq":
 		return parentAppointmentCopySQ(kind)
+	case "pl":
+		return parentAppointmentCopyPL(kind)
+	case "tr":
+		return parentAppointmentCopyTR(kind)
+	case "uk":
+		return parentAppointmentCopyUK(kind)
 	default:
 		return parentAppointmentCopyDE(kind)
+	}
+}
+
+func parentAppointmentCopyPL(kind string) (string, string) {
+	switch kind {
+	case ParentAppointmentUpdated:
+		return "Termin zmieniony", "Termin dla Państwa został zmieniony."
+	case ParentAppointmentCancelled:
+		return "Termin odwołany", "Termin dla Państwa został odwołany."
+	case ParentAppointmentReminder:
+		return "Przypomnienie o terminie", "Wkrótce mają Państwo termin."
+	default:
+		return "Nowy termin", "Wpisano dla Państwa nowy termin."
+	}
+}
+
+func parentAppointmentCopyTR(kind string) (string, string) {
+	switch kind {
+	case ParentAppointmentUpdated:
+		return "Randevu değişti", "Sizin için bir randevu değiştirildi."
+	case ParentAppointmentCancelled:
+		return "Randevu iptal edildi", "Sizin için bir randevu iptal edildi."
+	case ParentAppointmentReminder:
+		return "Randevu hatırlatması", "Yakında bir randevunuz var."
+	default:
+		return "Yeni randevu", "Sizin için yeni bir randevu eklendi."
+	}
+}
+
+func parentAppointmentCopyUK(kind string) (string, string) {
+	switch kind {
+	case ParentAppointmentUpdated:
+		return "Подію змінено", "Подію для вас змінено."
+	case ParentAppointmentCancelled:
+		return "Подію скасовано", "Подію для вас скасовано."
+	case ParentAppointmentReminder:
+		return "Нагадування про подію", "Незабаром відбудеться подія для вас."
+	default:
+		return "Нова подія", "Для вас додано нову подію."
 	}
 }
 

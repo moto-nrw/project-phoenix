@@ -157,9 +157,10 @@ function RolesPageContent() {
         : null,
     [filteredRoles, selectedId],
   );
+  const selectedRoleId = selectedRoleSummary?.id;
 
   const selectedRole =
-    selectedRoleDetail?.id === selectedRoleSummary?.id
+    selectedRoleDetail?.id === selectedRoleId
       ? selectedRoleDetail
       : selectedRoleSummary;
 
@@ -171,21 +172,17 @@ function RolesPageContent() {
   );
 
   useEffect(() => {
-    if (!selectedId || !selectedRoleSummary) {
+    if (!selectedRoleId) {
       setSelectedRoleDetail(null);
       setDetailLoading(false);
       return;
     }
 
-    setSelectedRoleDetail((current) =>
-      current?.id === selectedRoleSummary.id ? current : selectedRoleSummary,
-    );
-
     let cancelled = false;
     setDetailLoading(true);
 
     void service
-      .getOne(selectedRoleSummary.id)
+      .getOne(selectedRoleId)
       .then((fresh) => {
         if (!cancelled) {
           setSelectedRoleDetail(fresh);
@@ -193,7 +190,7 @@ function RolesPageContent() {
       })
       .catch((fetchError: unknown) => {
         logger.error("failed to fetch role detail", {
-          role_id: selectedRoleSummary.id,
+          role_id: selectedRoleId,
           error:
             fetchError instanceof Error
               ? fetchError.message
@@ -209,7 +206,7 @@ function RolesPageContent() {
     return () => {
       cancelled = true;
     };
-  }, [selectedId, selectedRoleSummary, service]);
+  }, [selectedRoleId, service]);
 
   // Nach dem Speichern der Berechtigungen im Reiter (#3116): die Zahl in der
   // Liste und das Detail neu laden.
