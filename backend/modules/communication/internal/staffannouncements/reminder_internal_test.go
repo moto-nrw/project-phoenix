@@ -126,10 +126,10 @@ func TestNormalizeReminder_Rules(t *testing.T) {
 		{name: "text is trimmed", in: Input{ReminderAt: &future, ReminderText: strPtr("  Kurz  ")},
 			check: func(t *testing.T, in Input) { assert.Equal(t, "Kurz", *in.ReminderText) }},
 		{name: "overlong text is rejected", in: Input{ReminderAt: &future, ReminderText: strPtr(strings.Repeat("x", maxReminderTextLen+1))}, wantErr: true},
-		{name: "a moment in the past is rejected", in: Input{ReminderAt: &past}, wantErr: true},
-		{name: "a moment equal to now is rejected", in: Input{ReminderAt: &now}, wantErr: true},
-		{name: "a moment after the expiry is rejected", in: Input{ReminderAt: &future, ExpiresAt: &expiry}, wantErr: true},
-		{name: "a moment equal to the expiry is rejected", in: Input{ReminderAt: &expiry, ExpiresAt: &expiry}, wantErr: true},
+		{name: "a moment in the past is retained for a draft", in: Input{ReminderAt: &past}},
+		{name: "a moment equal to now is retained for a draft", in: Input{ReminderAt: &now}},
+		{name: "a moment after the expiry is retained for a draft", in: Input{ReminderAt: &future, ExpiresAt: &expiry}},
+		{name: "a moment equal to the expiry is retained for a draft", in: Input{ReminderAt: &expiry, ExpiresAt: &expiry}},
 		{name: "a moment before the expiry passes", in: Input{ReminderAt: &future, ExpiresAt: ptrTime(future.Add(time.Hour))}},
 		{name: "a poll never carries a scheduled reminder", in: Input{ReminderAt: &future, ResponseType: usersModels.ParentAnnouncementResponseSingleChoice}, wantErr: true},
 		{name: "a letter may carry one", in: Input{ReminderAt: &future, DeliveryMode: usersModels.ParentAnnouncementDeliveryLetter}},
@@ -137,7 +137,7 @@ func TestNormalizeReminder_Rules(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			in := tc.in
-			err := normalizeReminder(&in, now)
+			err := normalizeReminder(&in)
 			if tc.wantErr {
 				require.ErrorIs(t, err, ErrValidation)
 				return
@@ -178,6 +178,19 @@ func TestUpdateReminder_RefusesOnceSent(t *testing.T) {
 	future := time.Now().Add(time.Hour)
 	_, err := h.svc.UpdateReminder(context.Background(), a.ID, ReminderInput{ReminderAt: &future})
 	require.ErrorIs(t, err, ErrReminderAlreadySent)
+	assert.Empty(t, repo.setReminderCalls)
+}
+
+func TestUpdateReminder_RefusesUnpublishedAnnouncement(t *testing.T) {
+	t.Parallel()
+
+	draft := draftAnnouncement(false)
+	repo := &reminderRepo{fakeAnnouncementRepo: fakeAnnouncementRepo{announcement: draft}}
+	h := newReminderHarness(repo)
+	future := time.Now().Add(time.Hour)
+
+	_, err := h.svc.UpdateReminder(context.Background(), draft.ID, ReminderInput{ReminderAt: &future})
+	require.ErrorIs(t, err, ErrNotPublished)
 	assert.Empty(t, repo.setReminderCalls)
 }
 

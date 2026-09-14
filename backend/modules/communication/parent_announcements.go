@@ -252,7 +252,7 @@ type ParentAnnouncementCapability interface {
 	ParentAnnouncementLetterStatus(context.Context, int64) (*ParentAnnouncementLetterStatus, error)
 	ResendParentAnnouncementEmails(context.Context, int64) (int, error)
 	// UpdateParentAnnouncementReminder moves, rewords or removes the scheduled
-	// reminder of an announcement, published or not, while it is unsent.
+	// reminder of a published announcement while it is unsent.
 	UpdateParentAnnouncementReminder(context.Context, int64, ParentAnnouncementReminderInput) (*ParentAnnouncement, error)
 	// SendDueParentAnnouncementReminders delivers the current tenant's
 	// reminders that fell due in (notBefore, dueBefore] and reports how many

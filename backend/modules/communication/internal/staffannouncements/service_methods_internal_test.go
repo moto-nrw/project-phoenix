@@ -437,6 +437,30 @@ func TestService_Update(t *testing.T) {
 	}
 }
 
+func TestService_Update_AllowsPastReminderOnUnpublishedAnnouncement(t *testing.T) {
+	t.Parallel()
+
+	past := time.Now().Add(-time.Hour)
+	updated := false
+	announcement := draft()
+	announcement.ReminderAt = &past
+	repo := &mockRepo{
+		findByIDFn:     func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return announcement, nil },
+		updateFn:       func(_ context.Context, _ *usersModels.ParentAnnouncement) error { updated = true; return nil },
+		replaceTargets: func(_ context.Context, _, _ int64, _ []*usersModels.ParentAnnouncementTarget) error { return nil },
+	}
+	svc := NewService(ServiceConfig{Repo: repo})
+	in := validInputM()
+	in.ReminderAt = &past
+
+	if _, err := svc.Update(context.Background(), testAnnID, in); err != nil {
+		t.Fatalf("Update() error = %v, want draft update to retain its elapsed reminder", err)
+	}
+	if !updated {
+		t.Fatal("Update() did not persist the unrelated draft edit")
+	}
+}
+
 func TestService_Update_NotFound(t *testing.T) {
 	t.Parallel()
 

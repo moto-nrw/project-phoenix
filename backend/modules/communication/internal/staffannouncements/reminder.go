@@ -53,11 +53,14 @@ type ReminderInput struct {
 	ReminderText *string    `json:"reminder_text,omitempty"`
 }
 
-// normalizeReminder trims the reminder wording and validates the reminder
-// against the rest of the input. A poll never carries a scheduled reminder:
-// its manual "Eltern ohne Antwort erinnern" is the reminder a poll has, and a
-// second automatic one to everybody would make the two indistinguishable.
-func normalizeReminder(in *Input, now time.Time) error {
+// normalizeReminder trims and validates a draft-safe reminder representation.
+// Its time is deliberately not checked here: a draft may retain an elapsed
+// reminder while staff corrects unrelated content. The temporal rule is
+// enforced immediately before publication and by the published-only reminder
+// edit endpoint. A poll never carries a scheduled reminder: its manual
+// "Eltern ohne Antwort erinnern" is the reminder a poll has, and a second
+// automatic one to everybody would make the two indistinguishable.
+func normalizeReminder(in *Input) error {
 	in.ReminderText = normalizeReminderText(in.ReminderText)
 	if in.ReminderAt == nil {
 		if in.ReminderText != nil {
@@ -72,7 +75,7 @@ func normalizeReminder(in *Input, now time.Time) error {
 		in.ResponseType == usersModels.ParentAnnouncementResponseMultiChoice {
 		return fmt.Errorf("%w: polls do not support a scheduled reminder", ErrValidation)
 	}
-	return validateReminder(in.ReminderAt, in.ExpiresAt, now)
+	return nil
 }
 
 // normalizeReminderText trims the wording, folds blank to nil and bounds the
@@ -118,6 +121,9 @@ func (s *service) UpdateReminder(ctx context.Context, id int64, in ReminderInput
 	}
 	if a == nil {
 		return nil, ErrNotFound
+	}
+	if !a.IsPublished() {
+		return nil, ErrNotPublished
 	}
 	if a.IsSystem() {
 		return nil, ErrSystemAnnouncementImmutable

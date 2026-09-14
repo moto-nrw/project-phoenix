@@ -169,8 +169,8 @@ type Service interface {
 	ResendFailedEmails(ctx context.Context, id int64) (int, error)
 
 	// --- scheduled reminder (#3162) ---
-	// UpdateReminder moves, rewords or removes the scheduled reminder of an
-	// announcement, published or not, as long as it has not been sent.
+	// UpdateReminder moves, rewords or removes the scheduled reminder of a live
+	// announcement as long as it has not been sent.
 	UpdateReminder(ctx context.Context, id int64, in ReminderInput) (*usersModels.ParentAnnouncement, error)
 	// SendDueReminders delivers every reminder of the current tenant that fell
 	// due in (notBefore, dueBefore] and reports how many announcements were
@@ -323,7 +323,7 @@ func (s *service) Create(ctx context.Context, createdBy int64, in Input) (*users
 	if err != nil {
 		return nil, err
 	}
-	if err := normalizeReminder(&in, time.Now()); err != nil {
+	if err := normalizeReminder(&in); err != nil {
 		return nil, err
 	}
 
@@ -389,7 +389,7 @@ func (s *service) Update(ctx context.Context, id int64, in Input) (*usersModels.
 	if err != nil {
 		return nil, err
 	}
-	if err := normalizeReminder(&in, time.Now()); err != nil {
+	if err := normalizeReminder(&in); err != nil {
 		return nil, err
 	}
 
