@@ -31,11 +31,10 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // setupCleanupService creates a cleanup service with real database connection
-func setupCleanupService(t *testing.T, db *bun.DB, clocks ...func() time.Time) active.CleanupService {
+func setupCleanupService(t *testing.T, db *testpkg.DB, clocks ...func() time.Time) active.CleanupService {
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default(), clocks...)
 	require.NoError(t, err, "Failed to create service factory")

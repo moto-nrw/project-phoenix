@@ -147,7 +147,7 @@
       "declaration": "TestActiveGroupRepository_FindActiveByDeviceIDWithNamesInAdminTransaction",
       "target": "database/repositories.NewFactory",
       "lines": [
-        21
+        20
       ],
       "tables": []
     },
@@ -351,7 +351,7 @@
       "declaration": "TestGroupSupervisorRepository_Create",
       "target": "database/repositories.NewFactory",
       "lines": [
-        73
+        72
       ],
       "tables": []
     },
@@ -361,7 +361,7 @@
       "declaration": "TestGroupSupervisorRepository_Create_ValidationFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        785
+        784
       ],
       "tables": []
     },
@@ -371,7 +371,7 @@
       "declaration": "TestGroupSupervisorRepository_Delete",
       "target": "database/repositories.NewFactory",
       "lines": [
-        190
+        189
       ],
       "tables": []
     },
@@ -381,7 +381,7 @@
       "declaration": "TestGroupSupervisorRepository_EndAllActiveByStaffID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        891
+        890
       ],
       "tables": []
     },
@@ -391,7 +391,7 @@
       "declaration": "TestGroupSupervisorRepository_EndByActiveGroupAndStaffID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1032
+        1031
       ],
       "tables": []
     },
@@ -401,7 +401,7 @@
       "declaration": "TestGroupSupervisorRepository_EndSupervision",
       "target": "database/repositories.NewFactory",
       "lines": [
-        482
+        481
       ],
       "tables": []
     },
@@ -411,7 +411,7 @@
       "declaration": "TestGroupSupervisorRepository_EndSupervision_AlreadyEnded",
       "target": "database/repositories.NewFactory",
       "lines": [
-        844
+        843
       ],
       "tables": []
     },
@@ -421,7 +421,7 @@
       "declaration": "TestGroupSupervisorRepository_EndSupervision_NonExistent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        872
+        871
       ],
       "tables": []
     },
@@ -431,7 +431,7 @@
       "declaration": "TestGroupSupervisorRepository_FindActiveByStaffID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        295
+        294
       ],
       "tables": []
     },
@@ -441,7 +441,7 @@
       "declaration": "TestGroupSupervisorRepository_FindByActiveGroupID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        352
+        351
       ],
       "tables": []
     },
@@ -451,8 +451,8 @@
       "declaration": "TestGroupSupervisorRepository_FindByActiveGroupIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        422,
-        423
+        421,
+        422
       ],
       "tables": []
     },
@@ -462,7 +462,7 @@
       "declaration": "TestGroupSupervisorRepository_FindByID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        123
+        122
       ],
       "tables": []
     },
@@ -472,7 +472,7 @@
       "declaration": "TestGroupSupervisorRepository_FindStaleOpen",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1130
+        1129
       ],
       "tables": []
     },
@@ -482,7 +482,7 @@
       "declaration": "TestGroupSupervisorRepository_GetStaffIDsWithSupervisionToday",
       "target": "database/repositories.NewFactory",
       "lines": [
-        600
+        599
       ],
       "tables": []
     },
@@ -492,7 +492,7 @@
       "declaration": "TestGroupSupervisorRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        156
+        155
       ],
       "tables": []
     },
@@ -502,7 +502,7 @@
       "declaration": "TestGroupSupervisorRepository_Update_NilSupervision",
       "target": "database/repositories.NewFactory",
       "lines": [
-        742
+        741
       ],
       "tables": []
     },
@@ -512,7 +512,7 @@
       "declaration": "TestGroupSupervisorRepository_Update_ValidationFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        757
+        756
       ],
       "tables": []
     },
@@ -522,7 +522,7 @@
       "declaration": "TestPresence_QuerySupervisionsAfterLegacyCreate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        222
+        221
       ],
       "tables": []
     },
@@ -532,7 +532,7 @@
       "declaration": "TestPresence_QuerySupervisionsIncludesCreatedRole",
       "target": "database/repositories.NewFactory",
       "lines": [
-        817
+        816
       ],
       "tables": []
     },
@@ -542,7 +542,7 @@
       "declaration": "createSupervisorTestData",
       "target": "database/repositories.NewFactory",
       "lines": [
-        42
+        41
       ],
       "tables": []
     },
@@ -5167,7 +5167,7 @@
       "declaration": "createActiveService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        26
+        25
       ],
       "tables": []
     },
@@ -5190,7 +5190,7 @@
       "declaration": "newDailyCheckoutService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        120
+        119
       ],
       "tables": []
     },
@@ -5222,7 +5222,7 @@
       "declaration": "TestBroadcast_UpdateVisitMoveSendsMovementEvents",
       "target": "database/repositories.NewFactory",
       "lines": [
-        225
+        224
       ],
       "tables": []
     },
@@ -5232,7 +5232,7 @@
       "declaration": "newServiceWithPresenceSync",
       "target": "database/repositories.NewFactory",
       "lines": [
-        52
+        51
       ],
       "tables": []
     },
@@ -5242,7 +5242,7 @@
       "declaration": "setupCleanupService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        39
+        38
       ],
       "tables": []
     },
@@ -5252,7 +5252,7 @@
       "declaration": "buildCombinedGroupService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        25
+        24
       ],
       "tables": []
     },
@@ -5262,7 +5262,7 @@
       "declaration": "createActiveServiceWithCrossTenant",
       "target": "database/repositories.NewFactory",
       "lines": [
-        20
+        19
       ],
       "tables": []
     },
@@ -5292,7 +5292,7 @@
       "declaration": "TestDeviceLocation_UpdatedOnSessionStart",
       "target": "database/repositories.NewFactory",
       "lines": [
-        32
+        31
       ],
       "tables": []
     },
@@ -5302,7 +5302,7 @@
       "declaration": "buildDeviceLocationService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        20
+        19
       ],
       "tables": []
     },
@@ -5352,10 +5352,10 @@
       "declaration": "TestForceStartActivitySessionWithSupervisors",
       "target": "database/repositories.NewFactory",
       "lines": [
-        514,
-        538,
-        547,
-        601
+        513,
+        537,
+        546,
+        600
       ],
       "tables": [
         "active.group_supervisors"
@@ -5367,7 +5367,7 @@
       "declaration": "setupActiveService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        109
+        108
       ],
       "tables": []
     },
@@ -5377,7 +5377,7 @@
       "declaration": "buildSessionEdgeCaseService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        20
+        19
       ],
       "tables": []
     },
@@ -5387,7 +5387,7 @@
       "declaration": "setupSessionService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        21
+        20
       ],
       "tables": []
     },
@@ -5397,7 +5397,7 @@
       "declaration": "newOverviewFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        57
+        56
       ],
       "tables": [
         "active.staff_absences",
@@ -5415,7 +5415,7 @@
       "declaration": "newVacationOpeningFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        51
+        50
       ],
       "tables": [
         "active.staff_absences",
@@ -5460,7 +5460,7 @@
       "declaration": "newAuditLogFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        58
+        57
       ],
       "tables": [
         "active.staff_absence_audit",
@@ -5478,7 +5478,7 @@
       "declaration": "TestTimeTrackingCleanup_AuditRequired",
       "target": "database/repositories.NewFactory",
       "lines": [
-        196
+        195
       ],
       "tables": []
     },
@@ -5488,7 +5488,7 @@
       "declaration": "TestTimeTrackingCleanup_DeletesOldAbsences",
       "target": "database/repositories.NewFactory",
       "lines": [
-        85
+        84
       ],
       "tables": []
     },
@@ -5498,7 +5498,7 @@
       "declaration": "TestTimeTrackingCleanup_DeletesOldSessions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        42
+        41
       ],
       "tables": []
     },
@@ -5508,7 +5508,7 @@
       "declaration": "TestTimeTrackingCleanup_NoOpWhenNothingExpired",
       "target": "database/repositories.NewFactory",
       "lines": [
-        172
+        171
       ],
       "tables": []
     },
@@ -5518,7 +5518,7 @@
       "declaration": "TestTimeTrackingCleanup_PreviewLeavesDataIntact",
       "target": "database/repositories.NewFactory",
       "lines": [
-        114
+        113
       ],
       "tables": []
     },
@@ -5528,7 +5528,7 @@
       "declaration": "TestTimeTrackingCleanup_PreviewOldestOnlyShowsExpiredRows",
       "target": "database/repositories.NewFactory",
       "lines": [
-        142
+        141
       ],
       "tables": []
     },
@@ -5538,7 +5538,7 @@
       "declaration": "TestTimeTrackingCleanup_UsesBusinessDatesNotCreatedAt",
       "target": "database/repositories.NewFactory",
       "lines": [
-        216
+        215
       ],
       "tables": []
     },
@@ -5548,7 +5548,7 @@
       "declaration": "TestCreateVisit_ClearsParentStatusForToday",
       "target": "database/repositories.NewFactory",
       "lines": [
-        482
+        481
       ],
       "tables": []
     },
@@ -5558,7 +5558,7 @@
       "declaration": "TestCreateVisit_ClearsPlannedStatusForToday",
       "target": "database/repositories.NewFactory",
       "lines": [
-        405
+        404
       ],
       "tables": [
         "users.students"
@@ -5570,7 +5570,7 @@
       "declaration": "setupVisitHelperService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        523
+        522
       ],
       "tables": []
     },
@@ -5606,7 +5606,7 @@
       "declaration": "newSnapshotFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        80
+        79
       ],
       "tables": [
         "active.staff_absences",

@@ -15,7 +15,6 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // snapshotFixture is the shared arrangement for the Monatsabschluss tests:
@@ -32,7 +31,7 @@ type snapshotFixture struct {
 	session   *activeModels.WorkSession
 	schedule  *configModels.StaffWorkSchedule
 	repos     *repositories.Factory
-	db        *bun.DB
+	db        *testpkg.DB
 	ctx       context.Context
 	monthSvc  active.WorkTimeMonthService
 	closeSvc  active.StaffMonthCloseService

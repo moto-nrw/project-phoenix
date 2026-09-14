@@ -18,11 +18,10 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // createActiveService creates an Active Service with real database connection
-func createActiveService(t *testing.T, db *bun.DB) active.Service {
+func createActiveService(t *testing.T, db *testpkg.DB) active.Service {
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")

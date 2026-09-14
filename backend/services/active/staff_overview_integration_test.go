@@ -16,7 +16,6 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 type recordingAbsenceRepository struct {
@@ -36,7 +35,7 @@ func (r *recordingAbsenceRepository) GetAbsenceMapForDate(
 // on every weekday, a worked session today, and (optionally) a planned shift.
 type overviewFixture struct {
 	tenantID int64
-	db       *bun.DB
+	db       *testpkg.DB
 	repos    *repositories.Factory
 	ctx      context.Context
 	staff    []int64

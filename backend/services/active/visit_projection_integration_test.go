@@ -8,7 +8,6 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 type visitProjectionFixture struct {
@@ -16,7 +15,7 @@ type visitProjectionFixture struct {
 	GroupID, Room      int64
 }
 
-func newVisitProjectionFixture(t *testing.T, db *bun.DB) visitProjectionFixture {
+func newVisitProjectionFixture(t *testing.T, db *testpkg.DB) visitProjectionFixture {
 	t.Helper()
 	first := testpkg.CreateTestStudent(t, db, "Visit", "Student1", "1a")
 	second := testpkg.CreateTestStudent(t, db, "Visit", "Student2", "1b")

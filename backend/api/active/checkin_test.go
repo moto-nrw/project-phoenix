@@ -21,7 +21,6 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // Test JWT secret - must match the secret used in test fixtures
@@ -112,7 +111,7 @@ func TestCheckinRequest_JSONDecoding(t *testing.T) {
 // =============================================================================
 
 // setupCheckinRoute creates the check-in route with real services.
-func setupCheckinRoute(t *testing.T, db *bun.DB) *active.Resource {
+func setupCheckinRoute(t *testing.T, db *testpkg.DB) *active.Resource {
 	t.Helper()
 
 	_, serviceFactory := testutil.SetupActiveModule(t)
@@ -413,7 +412,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 	})
 }
 
-func testPresenceQueries(t *testing.T, db *bun.DB) *studentpresence.Module {
+func testPresenceQueries(t *testing.T, db *testpkg.DB) *studentpresence.Module {
 	t.Helper()
 	module, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)

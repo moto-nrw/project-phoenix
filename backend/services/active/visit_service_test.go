@@ -14,7 +14,6 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // =============================================================================
@@ -802,7 +801,7 @@ func TestActiveService_CheckIn_RejectsAlumnus(t *testing.T) {
 	})
 }
 
-func testSchoolPresence(t *testing.T, db *bun.DB) *studentpresence.Module {
+func testSchoolPresence(t *testing.T, db *testpkg.DB) *studentpresence.Module {
 	t.Helper()
 	module, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)

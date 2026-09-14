@@ -17,7 +17,6 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // =============================================================================
@@ -519,14 +518,14 @@ func TestCreateVisit_ClearsParentStatusForToday(t *testing.T) {
 // Helper Functions
 // =============================================================================
 
-func setupVisitHelperService(t *testing.T, db *bun.DB, clocks ...func() time.Time) active.Service {
+func setupVisitHelperService(t *testing.T, db *testpkg.DB, clocks ...func() time.Time) active.Service {
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default(), clocks...)
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.Active
 }
 
-func getAttendanceForStudent(t *testing.T, db *bun.DB, studentID int64, date timezone.Date) *studentpresence.Attendance {
+func getAttendanceForStudent(t *testing.T, db *testpkg.DB, studentID int64, date timezone.Date) *studentpresence.Attendance {
 	t.Helper()
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
@@ -541,7 +540,7 @@ func getAttendanceForStudent(t *testing.T, db *bun.DB, studentID int64, date tim
 	return &rows[0]
 }
 
-func createAttendanceWithCheckout(t *testing.T, db *bun.DB, studentID, staffID, deviceID int64, checkoutTime time.Time) *studentpresence.Attendance {
+func createAttendanceWithCheckout(t *testing.T, db *testpkg.DB, studentID, staffID, deviceID int64, checkoutTime time.Time) *studentpresence.Attendance {
 	t.Helper()
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)

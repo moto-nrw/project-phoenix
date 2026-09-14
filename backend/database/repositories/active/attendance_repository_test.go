@@ -10,7 +10,6 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // attendanceTestData holds test entity IDs created via hermetic fixtures
@@ -23,7 +22,7 @@ type attendanceTestData struct {
 }
 
 // createAttendanceTestData creates test fixtures using the hermetic pattern
-func createAttendanceTestData(t *testing.T, db *bun.DB) *attendanceTestData {
+func createAttendanceTestData(t *testing.T, db *testpkg.DB) *attendanceTestData {
 	return &attendanceTestData{
 		Student1ID: testpkg.CreateTestStudent(t, db, "Attendance", "Student1", "1a").ID,
 		Student2ID: testpkg.CreateTestStudent(t, db, "Attendance", "Student2", "1b").ID,
@@ -1420,7 +1419,7 @@ func TestPresenceAttendance_CloseOpenForTodayUsesCallerDate(t *testing.T) {
 	assert.Equal(t, open.ID, closed[0].ID)
 }
 
-func newPresence(t *testing.T, db *bun.DB) *studentpresence.Module {
+func newPresence(t *testing.T, db *testpkg.DB) *studentpresence.Module {
 	t.Helper()
 	module, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)

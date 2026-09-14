@@ -13,12 +13,11 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // storedSupervision reads a supervision row back through the owner query so
 // write tests verify persistence without a retained read method.
-func storedSupervision(t *testing.T, db *bun.DB, ctx context.Context, id int64) (studentpresence.GroupSupervision, bool) {
+func storedSupervision(t *testing.T, db *testpkg.DB, ctx context.Context, id int64) (studentpresence.GroupSupervision, bool) {
 	t.Helper()
 	rows, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{IDs: []int64{id}})
 	require.NoError(t, err)

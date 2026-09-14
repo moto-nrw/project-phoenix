@@ -9,7 +9,6 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // ============================================================================
@@ -27,7 +26,7 @@ type visitTestData struct {
 }
 
 // createVisitTestData creates test fixtures for visit tests
-func createVisitTestData(t *testing.T, db *bun.DB) *visitTestData {
+func createVisitTestData(t *testing.T, db *testpkg.DB) *visitTestData {
 	student1 := testpkg.CreateTestStudent(t, db, "Visit", "Student1", "1a")
 	student2 := testpkg.CreateTestStudent(t, db, "Visit", "Student2", "1b")
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "VisitActivity")
@@ -1292,7 +1291,7 @@ func TestVisitRepository_ListActiveStudentIDsByRoomID(t *testing.T) {
 
 // createAcceptedConsentForTenant inserts an accepted privacy consent with the
 // given retention window under the supplied tenant.
-func createAcceptedConsentForTenant(t *testing.T, db *bun.DB, tenantID, studentID int64, policyVersion string, retentionDays int) {
+func createAcceptedConsentForTenant(t *testing.T, db *testpkg.DB, tenantID, studentID int64, policyVersion string, retentionDays int) {
 	t.Helper()
 	_, err := db.NewRaw(`
 		INSERT INTO users.privacy_consents (student_id, policy_version, accepted, renewal_required, data_retention_days, tenant_id, created_at, updated_at)
@@ -1304,7 +1303,7 @@ func createAcceptedConsentForTenant(t *testing.T, db *bun.DB, tenantID, studentI
 // createCompletedVisitForTenant inserts a completed visit with an explicit
 // created_at so retention-window tests can backdate it past the consent's
 // data_retention_days.
-func createCompletedVisitForTenant(t *testing.T, db *bun.DB, tenantID, studentID, activeGroupID int64, createdAt time.Time) {
+func createCompletedVisitForTenant(t *testing.T, db *testpkg.DB, tenantID, studentID, activeGroupID int64, createdAt time.Time) {
 	t.Helper()
 	var visitID int64
 	err := db.NewRaw(`

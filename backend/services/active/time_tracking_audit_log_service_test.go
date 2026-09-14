@@ -19,7 +19,6 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 type auditLogFixture struct {
@@ -28,7 +27,7 @@ type auditLogFixture struct {
 	staffB   int64
 	admin    int64
 	repos    *repositories.Factory
-	db       *bun.DB
+	db       *testpkg.DB
 	ctx      context.Context
 	svc      active.TimeTrackingAuditLogService
 }

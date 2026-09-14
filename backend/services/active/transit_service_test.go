@@ -17,7 +17,6 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // activeSvcBypassAuth mirrors the old unauthenticated move path: the
@@ -924,7 +923,7 @@ type moveAuthFixture struct {
 	targetGroup *activeModel.Group
 }
 
-func newMoveAuthFixture(t *testing.T, db *bun.DB, tag string) moveAuthFixture {
+func newMoveAuthFixture(t *testing.T, db *testpkg.DB, tag string) moveAuthFixture {
 	t.Helper()
 	now := time.Now()
 

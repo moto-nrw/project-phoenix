@@ -11,7 +11,6 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 func TestActiveGroupRepository_FindActiveByDeviceIDWithNamesInAdminTransaction(t *testing.T) {
@@ -29,7 +28,7 @@ func TestActiveGroupRepository_FindActiveByDeviceIDWithNamesInAdminTransaction(t
 		GroupID: ptrtest.Ptr(activityGroup.ID), DeviceID: &device.ID, RoomID: room.ID,
 	}))
 
-	require.NoError(t, testpkg.WithAdminTx(t, context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, testpkg.WithAdminTx(t, context.Background(), db, func(adminCtx context.Context, _ testpkg.Tx) error {
 		found, err := repo.FindActiveByDeviceIDWithNames(testpkg.ContextForTenant(adminCtx, testpkg.Tenant(t)), device.ID)
 		require.NoError(t, err)
 		require.NotNil(t, found)

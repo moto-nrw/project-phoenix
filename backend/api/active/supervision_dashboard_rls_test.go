@@ -10,7 +10,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -65,7 +64,7 @@ func TestSupervisionDashboardInputsEnforceRLS(t *testing.T) {
 	for table, ownID := range fixtures[0].rows {
 		t.Run(table, func(t *testing.T) {
 			for _, fixture := range fixtures {
-				require.NoError(t, testpkg.WithTenantTx(t, fixture.ctx, db, fixture.tenantID, func(txCtx context.Context, tx bun.Tx) error {
+				require.NoError(t, testpkg.WithTenantTx(t, fixture.ctx, db, fixture.tenantID, func(txCtx context.Context, tx testpkg.Tx) error {
 					var bypass bool
 					require.NoError(t, tx.NewRaw("SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user").Scan(txCtx, &bypass))
 					require.False(t, bypass, "the tenant transaction must run under the least-privilege role")

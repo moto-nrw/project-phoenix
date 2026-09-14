@@ -13,7 +13,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -58,7 +57,7 @@ func (f attendanceFixtures) eduTopic() string {
 
 // setupAbsentStudent builds the base fixtures without any attendance row and
 // returns the cleanup to defer.
-func setupAbsentStudent(t *testing.T, db *bun.DB, label string) (attendanceFixtures, func()) {
+func setupAbsentStudent(t *testing.T, db *testpkg.DB, label string) (attendanceFixtures, func()) {
 	t.Helper()
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "attendance-"+label)
@@ -88,7 +87,7 @@ func setupAbsentStudent(t *testing.T, db *bun.DB, label string) (attendanceFixtu
 // setupCheckedInStudent is setupAbsentStudent plus an open attendance row.
 // withVisit=false leaves the child checked in without a room visit — the
 // binary-mode shape, where the tenant keeps no visit rows.
-func setupCheckedInStudent(t *testing.T, db *bun.DB, label string, withVisit bool) (attendanceFixtures, func()) {
+func setupCheckedInStudent(t *testing.T, db *testpkg.DB, label string, withVisit bool) (attendanceFixtures, func()) {
 	t.Helper()
 
 	f, cleanup := setupAbsentStudent(t, db, label)
@@ -114,7 +113,7 @@ func checkinEventsOnTopic(b *testpkg.RecordingBroadcaster, topic string) []activ
 // the daily-checkout entry point needs: ConfirmDailyCheckout reads the
 // attendance status first, and resolving its staff names goes through
 // staff-name query.
-func newDailyCheckoutService(t *testing.T, db *bun.DB) (active.Service, *testpkg.RecordingBroadcaster) {
+func newDailyCheckoutService(t *testing.T, db *testpkg.DB) (active.Service, *testpkg.RecordingBroadcaster) {
 	t.Helper()
 
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
@@ -319,7 +318,7 @@ func TestCheckout_BroadcastRunsAfterCommit(t *testing.T) {
 	defer cleanup()
 	broadcaster.Reset()
 
-	err := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, testpkg.Tenant(t), func(txCtx context.Context, _ testpkg.Tx) error {
 		if _, err := svc.CheckOutStudent(txCtx, f.studentID, f.staffID, true); err != nil {
 			return err
 		}
@@ -516,7 +515,7 @@ func TestCheckin_BroadcastRunsAfterCommit(t *testing.T) {
 	defer cleanup()
 	broadcaster.Reset()
 
-	err := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, testpkg.Tenant(t), func(txCtx context.Context, _ testpkg.Tx) error {
 		if _, err := svc.CheckInStudent(txCtx, f.studentID, f.staffID, 0, true); err != nil {
 			return err
 		}

@@ -12,7 +12,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
@@ -1095,7 +1094,7 @@ func setupSupervisorsCRUDRouter(t *testing.T) (*testContext, chi.Router) {
 }
 
 // createTestCombinedGroup creates a combined group directly in the database
-func createTestCombinedGroup(t *testing.T, db *bun.DB) *studentpresence.CombinedGroup {
+func createTestCombinedGroup(t *testing.T, db *testpkg.DB) *studentpresence.CombinedGroup {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
@@ -1108,7 +1107,7 @@ func createTestCombinedGroup(t *testing.T, db *bun.DB) *studentpresence.Combined
 }
 
 // createTestGroupMapping creates a group mapping directly in the database
-func createTestGroupMapping(t *testing.T, db *bun.DB, activeGroupID, combinedGroupID int64) *studentpresence.GroupMapping {
+func createTestGroupMapping(t *testing.T, db *testpkg.DB, activeGroupID, combinedGroupID int64) *studentpresence.GroupMapping {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)

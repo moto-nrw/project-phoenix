@@ -16,7 +16,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
 	activeAPI "github.com/moto-nrw/project-phoenix/api/active"
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -30,7 +29,7 @@ import (
 
 // testContext holds shared test resources
 type testContext struct {
-	db       *bun.DB
+	db       *testpkg.DB
 	resource *activeAPI.Resource
 	settings testSettingsWriter
 }

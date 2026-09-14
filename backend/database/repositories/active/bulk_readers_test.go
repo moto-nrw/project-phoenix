@@ -14,7 +14,6 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // TestGroupSupervisorRepository_ListActiveSupervisedRooms pins the whole-tenant
@@ -108,7 +107,7 @@ func TestGroupSupervisorRepository_ListActiveSupervisedRooms(t *testing.T) {
 	})
 
 	t.Run("uses the Berlin date independently of the database timezone", func(t *testing.T) {
-		err := testpkg.WithTenantTx(t, context.Background(), db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
+		err := testpkg.WithTenantTx(t, context.Background(), db, testpkg.Tenant(t), func(txCtx context.Context, tx testpkg.Tx) error {
 			var databaseDate string
 			for _, zone := range []string{"Pacific/Kiritimati", "Etc/GMT+12"} {
 				var configuredZone string

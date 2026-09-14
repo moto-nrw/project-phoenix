@@ -18,7 +18,6 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 type deviceRepoForSessionUnitTest struct {
@@ -136,7 +135,7 @@ func (w *workSessionServiceForSessionUnitTest) UpdateSchedule(context.Context, *
 	return nil
 }
 
-func newSessionSQLMockDB(t *testing.T) (*bun.DB, sqlmock.Sqlmock) {
+func newSessionSQLMockDB(t *testing.T) (*testpkg.DB, sqlmock.Sqlmock) {
 	t.Helper()
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -167,7 +166,7 @@ func TestGetActivityEndNameKeepsTransactionUsableAfterDatabaseFailure(t *testing
 		name, err := svc.getActivityEndName(txCtx, func(lookupCtx context.Context) (string, error) {
 			rawTx, ok := tenant.TransactionFromContext(lookupCtx)
 			require.True(t, ok)
-			tx, ok := rawTx.(bun.Tx)
+			tx, ok := rawTx.(testpkg.Tx)
 			require.True(t, ok)
 			_, lookupErr = tx.ExecContext(lookupCtx, "SELECT 1 / 0")
 			return "", lookupErr
@@ -177,7 +176,7 @@ func TestGetActivityEndNameKeepsTransactionUsableAfterDatabaseFailure(t *testing
 
 		rawTx, ok := tenant.TransactionFromContext(txCtx)
 		require.True(t, ok)
-		tx, ok := rawTx.(bun.Tx)
+		tx, ok := rawTx.(testpkg.Tx)
 		require.True(t, ok)
 		_, err = tx.ExecContext(txCtx, "SELECT 1")
 		return err
@@ -222,11 +221,11 @@ func (sessionTestSavepoints) exec(ctx context.Context, statement string) error {
 	if !ok {
 		return tenant.ErrRuntimeRequired
 	}
-	var tx bun.Tx
+	var tx testpkg.Tx
 	switch value := raw.(type) {
-	case bun.Tx:
+	case testpkg.Tx:
 		tx = value
-	case *bun.Tx:
+	case *testpkg.Tx:
 		if value == nil {
 			return tenant.ErrRuntimeRequired
 		}
@@ -248,11 +247,11 @@ func (s sessionTestSavepoints) ReleaseSavepoint(ctx context.Context) error {
 	return s.exec(ctx, "RELEASE SAVEPOINT phoenix_operation")
 }
 
-func withSessionTestRuntime(t *testing.T, ctx context.Context, db *bun.DB) context.Context {
+func withSessionTestRuntime(t *testing.T, ctx context.Context, db *testpkg.DB) context.Context {
 	t.Helper()
 	tenantID := testpkg.Tenant(t)
 	within := func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
-		return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error { return fn(ctx, tx) })
+		return db.RunInTx(ctx, nil, func(ctx context.Context, tx testpkg.Tx) error { return fn(ctx, tx) })
 	}
 	admin := func(ctx context.Context, fn func(context.Context, any) error) error {
 		return within(ctx, tenantID, fn)
@@ -444,7 +443,7 @@ func TestProcessSessionTimeoutByID_IsAtomic(t *testing.T) {
 	ctx := context.Background()
 	activeGroup := &activeModels.Group{Model: modelBase.Model{ID: 100}}
 
-	newService := func(db *bun.DB, endSessionErr error) *service {
+	newService := func(db *testpkg.DB, endSessionErr error) *service {
 		return &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal,
 			Logger: slog.Default(),
 			DB:     db,

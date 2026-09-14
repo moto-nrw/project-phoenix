@@ -14,11 +14,10 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // todayWorkSession loads today's work session row for the staff member, or nil.
-func todayWorkSession(t *testing.T, db *bun.DB, staffID int64) *active.WorkSession {
+func todayWorkSession(t *testing.T, db *testpkg.DB, staffID int64) *active.WorkSession {
 	t.Helper()
 	session := new(active.WorkSession)
 	err := db.NewSelect().

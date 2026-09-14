@@ -14,7 +14,6 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // ============================================================================
@@ -32,7 +31,7 @@ type supervisorTestData struct {
 }
 
 // createSupervisorTestData creates test fixtures for supervisor tests
-func createSupervisorTestData(t *testing.T, db *bun.DB) *supervisorTestData {
+func createSupervisorTestData(t *testing.T, db *testpkg.DB) *supervisorTestData {
 	staff1 := testpkg.CreateTestStaff(t, db, "Supervisor", "One")
 	staff2 := testpkg.CreateTestStaff(t, db, "Supervisor", "Two")
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "SupervisorActivity")
@@ -1110,7 +1109,7 @@ func TestGroupSupervisorRepository_EndByActiveGroupAndStaffID(t *testing.T) {
 
 // createSupervisorRowForTenant inserts a supervisor row with explicit start
 // and end dates under the supplied tenant.
-func createSupervisorRowForTenant(t *testing.T, db *bun.DB, tenantID, staffID, groupID int64, startDate timezone.Date, endDate *timezone.Date) int64 {
+func createSupervisorRowForTenant(t *testing.T, db *testpkg.DB, tenantID, staffID, groupID int64, startDate timezone.Date, endDate *timezone.Date) int64 {
 	t.Helper()
 	var id int64
 	err := db.NewRaw(`

@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/uptrace/bun"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,14 +38,14 @@ func setupServiceWithBroadcaster(t *testing.T) (active.Service, *testpkg.Recordi
 
 func newServiceWithBroadcaster(
 	t *testing.T,
-	db *bun.DB,
+	db *testpkg.DB,
 	presence active.StudentPresence,
 ) (active.Service, *testpkg.RecordingBroadcaster) {
 	t.Helper()
 	return newServiceWithPresenceSync(t, db, presence, nil)
 }
 
-func newServiceWithPresenceSync(t *testing.T, db *bun.DB, presence active.StudentPresence, syncer active.AttendanceSyncer, now ...func() time.Time) (active.Service, *testpkg.RecordingBroadcaster) {
+func newServiceWithPresenceSync(t *testing.T, db *testpkg.DB, presence active.StudentPresence, syncer active.AttendanceSyncer, now ...func() time.Time) (active.Service, *testpkg.RecordingBroadcaster) {
 	t.Helper()
 
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
@@ -206,7 +205,7 @@ func TestBroadcast_EndVisitRunsAfterCommit(t *testing.T) {
 	visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
 	broadcaster.Reset()
 
-	err := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, testpkg.Tenant(t), func(txCtx context.Context, _ testpkg.Tx) error {
 		if err := svc.EndVisit(txCtx, visit.ID); err != nil {
 			return err
 		}
@@ -537,7 +536,7 @@ func TestBroadcast_EndActivitySessionBatchesPerEducationGroup(t *testing.T) {
 // assignStudentToEducationGroup sets a student's OGS group_id in the DB so the
 // SSE collection step (which reads student.GroupID) routes the student to its
 // edu:{groupID} topic. Mirrors the assignment used in attendance_service_test.go.
-func assignStudentToEducationGroup(tb testing.TB, db *bun.DB, ctx context.Context, studentID, groupID int64) {
+func assignStudentToEducationGroup(tb testing.TB, db *testpkg.DB, ctx context.Context, studentID, groupID int64) {
 	tb.Helper()
 	_, err := db.NewUpdate().
 		Table("users.students").
@@ -550,7 +549,7 @@ func assignStudentToEducationGroup(tb testing.TB, db *bun.DB, ctx context.Contex
 // checkOutFixturedStudent opens an attendance row for the student and closes it
 // through the real checkout path, so the roomless broadcast under test is the
 // one production emits. The package clone owns the fixture rows.
-func checkOutFixturedStudent(t *testing.T, db *bun.DB, svc active.Service, studentID int64, label string) {
+func checkOutFixturedStudent(t *testing.T, db *testpkg.DB, svc active.Service, studentID int64, label string) {
 	t.Helper()
 
 	staff := testpkg.CreateTestStaff(t, db, "Broadcast", "Staff"+label)

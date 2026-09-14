@@ -17,11 +17,10 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // buildCombinedGroupService creates an Active Service for combined group tests
-func buildCombinedGroupService(t *testing.T, db *bun.DB) active.Service {
+func buildCombinedGroupService(t *testing.T, db *testpkg.DB) active.Service {
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
