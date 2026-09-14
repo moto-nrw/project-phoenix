@@ -5,8 +5,10 @@ import type { Announcement } from "~/lib/parent-announcements-api";
 import {
   announcementCollectionPath,
   AnnouncementStatusBadge,
+  describeReminder,
   kindFromParam,
   kindOf,
+  reminderStateOf,
   summarizeTargets,
   targetChips,
 } from "./announcement-meta";
@@ -107,5 +109,39 @@ describe("AnnouncementStatusBadge", () => {
   it("renders the German status label", () => {
     render(<AnnouncementStatusBadge status="published" />);
     expect(screen.getByText("Veröffentlicht")).toBeInTheDocument();
+  });
+});
+
+describe("describeReminder (#3162)", () => {
+  // The test clock is 2026-09-09 12:00 Berlin.
+  it("says nothing without a reminder", () => {
+    expect(reminderStateOf(base)).toBeNull();
+    expect(describeReminder(base)).toBeNull();
+  });
+
+  it("announces a planned reminder with its Berlin day and clock", () => {
+    const planned = { ...base, reminder_at: "2026-09-24T06:00:00Z" };
+    expect(reminderStateOf(planned)).toBe("planned");
+    expect(describeReminder(planned)).toBe(
+      "Erinnerung am 24.09.2026, 08:00 Uhr",
+    );
+  });
+
+  it("reports the moment the reminder actually went out", () => {
+    const sent = {
+      ...base,
+      reminder_at: "2026-09-08T06:00:00Z",
+      reminder_sent_at: "2026-09-08T06:03:00Z",
+    };
+    expect(reminderStateOf(sent)).toBe("sent");
+    expect(describeReminder(sent)).toBe("Erinnert am 08.09.2026, 08:03 Uhr");
+  });
+
+  it("flags a reminder whose moment passed without a send", () => {
+    const missed = { ...base, reminder_at: "2026-09-08T06:00:00Z" };
+    expect(reminderStateOf(missed)).toBe("missed");
+    expect(describeReminder(missed)).toBe(
+      "Erinnerung am 08.09.2026, 08:00 Uhr nicht versendet",
+    );
   });
 });

@@ -455,6 +455,7 @@ const feedSQL = pendingApplicantsFeedCTE + `
 			SELECT a.id, a.tenant_id, a.title, a.body, a.priority, a.link_url,
 				a.requires_acknowledgement, a.published_at, a.expires_at,
 				a.response_type, a.response_deadline, a.delivery_mode, a.system_kind,
+				a.reminder_sent_at, a.reminder_text,
 				par.read_at AS read_at,
 				par.acknowledged_at AS acknowledged_at
 			FROM users.parent_announcements a
@@ -462,7 +463,7 @@ const feedSQL = pendingApplicantsFeedCTE + `
 				ON par.announcement_id = a.id AND par.account_id = ?
 			WHERE ` + feedScopePredicate + liveAnnouncementPredicate + `
 				AND ` + reachedAccountFeed + `
-			ORDER BY a.published_at DESC, a.id DESC`
+			ORDER BY GREATEST(a.published_at, a.reminder_sent_at) DESC, a.id DESC`
 
 type feedRow struct {
 	ID                      int64      `bun:"id"`
@@ -478,6 +479,8 @@ type feedRow struct {
 	ResponseDeadline        *time.Time `bun:"response_deadline"`
 	DeliveryMode            string     `bun:"delivery_mode"`
 	SystemKind              *string    `bun:"system_kind"`
+	ReminderSentAt          *time.Time `bun:"reminder_sent_at"`
+	ReminderText            *string    `bun:"reminder_text"`
 	ReadAt                  *time.Time `bun:"read_at"`
 	AcknowledgedAt          *time.Time `bun:"acknowledged_at"`
 }
@@ -512,6 +515,7 @@ func (p *Projection) ListFeedForAccount(ctx context.Context, accountID int64, sc
 			LinkURL: row.LinkURL, RequiresAcknowledgement: row.RequiresAcknowledgement,
 			PublishedAt: row.PublishedAt, ExpiresAt: row.ExpiresAt, ResponseType: row.ResponseType,
 			ResponseDeadline: row.ResponseDeadline, DeliveryMode: row.DeliveryMode, SystemKind: row.SystemKind,
+			ReminderSentAt: row.ReminderSentAt, ReminderText: row.ReminderText,
 			ReadAt: row.ReadAt, AcknowledgedAt: row.AcknowledgedAt,
 		})
 	}

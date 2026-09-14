@@ -122,6 +122,12 @@ type Input struct {
 	// address but no portal access. Both default when empty.
 	DeliveryMode  string `json:"delivery_mode,omitempty"`
 	EmailAudience string `json:"email_audience,omitempty"`
+
+	// Scheduled reminder (#3162): the instant the announcement goes out a second
+	// time to its whole audience, and the optional short wording of that second
+	// delivery. Both nil = no reminder.
+	ReminderAt   *time.Time `json:"reminder_at,omitempty"`
+	ReminderText *string    `json:"reminder_text,omitempty"`
 }
 
 // Service is the staff-facing parent-announcement contract.
@@ -154,6 +160,15 @@ type Service interface {
 	RemindOutstanding(ctx context.Context, id int64) (int, error)
 	// ResendFailedEmails re-queues only the mails that ended up failed.
 	ResendFailedEmails(ctx context.Context, id int64) (int, error)
+
+	// --- scheduled reminder (#3162) ---
+	// UpdateReminder moves, rewords or removes the scheduled reminder of an
+	// announcement, published or not, as long as it has not been sent.
+	UpdateReminder(ctx context.Context, id int64, in ReminderInput) (*usersModels.ParentAnnouncement, error)
+	// SendDueReminders delivers every reminder of the current tenant that fell
+	// due in (notBefore, dueBefore] and reports how many announcements were
+	// reminded. Runs inside the scheduler's tenant transaction.
+	SendDueReminders(ctx context.Context, notBefore, dueBefore time.Time) (int, error)
 
 	// --- cancellation notice (#2601) ---
 	CareCancellationPublisher
@@ -292,6 +307,9 @@ func (s *service) Create(ctx context.Context, createdBy int64, in Input) (*users
 	if err != nil {
 		return nil, err
 	}
+	if err := normalizeReminder(&in, time.Now()); err != nil {
+		return nil, err
+	}
 
 	a := &usersModels.ParentAnnouncement{
 		Title:                   in.Title,
@@ -305,6 +323,8 @@ func (s *service) Create(ctx context.Context, createdBy int64, in Input) (*users
 		ResponseDeadline:        in.ResponseDeadline,
 		DeliveryMode:            in.DeliveryMode,
 		EmailAudience:           in.EmailAudience,
+		ReminderAt:              in.ReminderAt,
+		ReminderText:            in.ReminderText,
 		Active:                  true,
 		CreatedBy:               createdBy,
 	}
@@ -353,6 +373,9 @@ func (s *service) Update(ctx context.Context, id int64, in Input) (*usersModels.
 	if err != nil {
 		return nil, err
 	}
+	if err := normalizeReminder(&in, time.Now()); err != nil {
+		return nil, err
+	}
 
 	a.Title = in.Title
 	a.Body = in.Body
@@ -365,6 +388,8 @@ func (s *service) Update(ctx context.Context, id int64, in Input) (*usersModels.
 	a.ResponseDeadline = in.ResponseDeadline
 	a.DeliveryMode = in.DeliveryMode
 	a.EmailAudience = in.EmailAudience
+	a.ReminderAt = in.ReminderAt
+	a.ReminderText = in.ReminderText
 	if err := s.repo.Update(ctx, a); err != nil {
 		// The write is guarded by published_at IS NULL: if the draft was
 		// published between the load above and here, no row matched. Surface the
@@ -468,6 +493,13 @@ func (s *service) Publish(ctx context.Context, id int64) (*usersModels.ParentAnn
 		if a.ResponseDeadline != nil && !a.ResponseDeadline.After(now) {
 			return nil, fmt.Errorf("%w: response_deadline is already in the past", ErrValidation)
 		}
+		// A reminder that already lies in the past would never fire (the due
+		// scan only looks back a bounded window), so the draft would go live
+		// with a reminder that silently never happens. Refuse it; staff moves
+		// or removes the reminder and publishes again.
+		if err := validateReminder(a.ReminderAt, a.ExpiresAt, now); err != nil {
+			return nil, err
+		}
 		// Atomic publish: PublishIfDraft's UPDATE is guarded by
 		// published_at IS NULL, so only ONE of two concurrent publishes flips the
 		// row. Enqueue the opt-in e-mails only for that winner — a double-click or
@@ -528,7 +560,37 @@ func (s *service) Publish(ctx context.Context, id int64) (*usersModels.ParentAnn
 	return s.Get(ctx, id)
 }
 
+// pushShape is everything that differs between the publish push and the
+// scheduled-reminder push of the same announcement: the consent type, the
+// locale-copy kind, the deep link, the idempotency key, and the related type
+// that ties the intent to its cause.
+type pushShape struct {
+	notificationType string
+	copyKind         string
+	deepLink         string
+	idempotencyKey   string
+	relatedType      string
+}
+
+func publishPushShape(a *usersModels.ParentAnnouncement) pushShape {
+	notificationType, copyKind, deepLink := pushShapeFor(a)
+	return pushShape{
+		notificationType: notificationType,
+		copyKind:         copyKind,
+		deepLink:         deepLink,
+		idempotencyKey:   fmt.Sprintf("parent-announcement:%d:%d:%s", a.ID, a.UpdatedAt.UTC().UnixNano(), copyKind),
+		relatedType:      relatedEntityTypeAnnouncement,
+	}
+}
+
 func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *usersModels.ParentAnnouncement) error {
+	return s.notifyAnnouncementGuardiansAs(ctx, a, publishPushShape(a))
+}
+
+// notifyAnnouncementGuardiansAs pushes to the announcement's current audience.
+// The publication and the scheduled reminder share this resolution, so the
+// reminder can never reach anyone the announcement itself would not.
+func (s *service) notifyAnnouncementGuardiansAs(ctx context.Context, a *usersModels.ParentAnnouncement, shape pushShape) error {
 	if s.notifier == nil {
 		return nil
 	}
@@ -566,7 +628,7 @@ func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *usersModel
 	// factory always does — the pre-consent behaviour is kept for that case so
 	// a partially constructed service does not silently stop notifying. When a
 	// service IS present, its answer is final: no consent, no push.
-	notificationType, copyKind, deepLink := pushShapeFor(a)
+	notificationType, copyKind, deepLink := shape.notificationType, shape.copyKind, shape.deepLink
 	if s.preferences != nil {
 		accountIDs, err = s.preferences.FilterOptedIn(ctx, notificationType, accountIDs)
 		if err != nil {
@@ -592,8 +654,8 @@ func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *usersModel
 		title, body := notifications.ParentAnnouncementCopy(locale, copyKind)
 		err = s.notifier.Notify(ctx, notifications.Event{
 			Type:           notificationType,
-			IdempotencyKey: fmt.Sprintf("parent-announcement:%d:%d:%s", a.ID, a.UpdatedAt.UTC().UnixNano(), copyKind),
-			RelatedType:    relatedEntityTypeAnnouncement, RelatedID: a.ID,
+			IdempotencyKey: shape.idempotencyKey,
+			RelatedType:    shape.relatedType, RelatedID: a.ID,
 			Title:    title,
 			Body:     body,
 			DeepLink: deepLink,
@@ -631,6 +693,48 @@ func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *usersModel
 // (that part remains fire-and-forget). A missing outbox binding or an empty
 // audience are not DB errors and stay non-fatal.
 func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.ParentAnnouncement) error {
+	return s.enqueueAnnouncementEmailsAs(ctx, a, publishMailSpec(a))
+}
+
+// mailSpec is what differs between the publish mail and the scheduled-reminder
+// mail of the same announcement. The recipient resolution, the consent rule
+// and the address dedupe are shared and must stay shared.
+type mailSpec struct {
+	title  string
+	kicker string
+	// intro receives the school name; the publish intro ignores it and lets the
+	// template phrase the default line.
+	intro       func(schoolName string) string
+	body        string
+	ackRequired bool
+	relatedType string
+	// idempotencyKey ties one queued mail to one address; nil = no key (the
+	// original publish path never had one and keeps that behaviour).
+	idempotencyKey func(address string) string
+}
+
+func publishMailSpec(a *usersModels.ParentAnnouncement) mailSpec {
+	spec := mailSpec{
+		title:       a.Title,
+		kicker:      defaultEmailKicker,
+		intro:       func(string) string { return "" },
+		relatedType: relatedEntityTypeAnnouncement,
+	}
+	// A poll says so in the mail: the kicker and intro differ, the rest of the
+	// template (and the deliberate absence of the body) is identical.
+	if a.IsPoll() {
+		spec.kicker = pollEmailKicker
+		intro := "wir bitten Sie um eine kurze Rückmeldung. Die Umfrage finden Sie im Eltern-Portal."
+		if a.ResponseDeadline != nil {
+			intro = fmt.Sprintf("wir bitten Sie um eine kurze Rückmeldung bis zum %s. Die Umfrage finden Sie im Eltern-Portal.",
+				a.ResponseDeadline.Format("02.01.2006"))
+		}
+		spec.intro = func(string) string { return intro }
+	}
+	return spec
+}
+
+func (s *service) enqueueAnnouncementEmailsAs(ctx context.Context, a *usersModels.ParentAnnouncement, spec mailSpec) error {
 	if s.outbox == nil {
 		s.logger.Warn("parent announcement opted into e-mail but no outbox is wired",
 			slog.Int64("announcement_id", a.ID))
@@ -718,18 +822,8 @@ func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.
 	// logo (header) and the moto logo (footer) instead of the plain fallbacks.
 	logoURL := s.resolveSchoolLogoURL(ctx, tenantID)
 	motoLogoURL := emailbranding.MotoLogoURL(s.parentsURL)
-	// A poll says so in the mail: the kicker and intro differ, the rest of the
-	// template (and the deliberate absence of the body) is identical.
-	kicker := defaultEmailKicker
-	intro := ""
-	if a.IsPoll() {
-		kicker = pollEmailKicker
-		intro = "wir bitten Sie um eine kurze Rückmeldung. Die Umfrage finden Sie im Eltern-Portal."
-		if a.ResponseDeadline != nil {
-			intro = fmt.Sprintf("wir bitten Sie um eine kurze Rückmeldung bis zum %s. Die Umfrage finden Sie im Eltern-Portal.",
-				a.ResponseDeadline.Format("02.01.2006"))
-		}
-	}
+	kicker := spec.kicker
+	intro := spec.intro(schoolName)
 	// Every recipient of this path has portal access by construction
 	// (ResolveAudienceEmails is portal-audience only), so the attachment hint
 	// always points somewhere the reader can go.
@@ -739,13 +833,13 @@ func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.
 		// Deliberately NO announcement body here: e-mail is the least trusted
 		// channel, so the mail carries only the title plus a link into the
 		// parent portal, where reading also counts for the read stats.
-		if _, err := s.outbox.Enqueue(ctx, platformService.EnqueueRequest{
+		request := platformService.EnqueueRequest{
 			Kind: platformModels.EmailKindParentAnnouncement,
 			Payload: map[string]any{
 				emailPayloadRecipient:     rcpt.Email,
 				emailPayloadFirstName:     rcpt.FirstName,
 				emailPayloadLastName:      rcpt.LastName,
-				emailPayloadTitle:         a.Title,
+				emailPayloadTitle:         spec.title,
 				emailPayloadSchoolName:    schoolName,
 				emailPayloadPortalURL:     s.parentsURL,
 				emailPayloadLogoURL:       logoURL,
@@ -754,9 +848,13 @@ func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.
 				emailPayloadIntro:         intro,
 				emailPayloadHasAttachment: hasAttachment,
 			},
-			RelatedEntityType: relatedEntityTypeAnnouncement,
+			RelatedEntityType: spec.relatedType,
 			RelatedEntityID:   a.ID,
-		}); err != nil {
+		}
+		if spec.idempotencyKey != nil {
+			request.IdempotencyKey = spec.idempotencyKey(rcpt.Email)
+		}
+		if _, err := s.outbox.Enqueue(ctx, request); err != nil {
 			return fmt.Errorf("announcement: enqueue e-mail: %w", err)
 		}
 		queued++
@@ -804,7 +902,7 @@ func (s *service) cancelPendingEmails(ctx context.Context, id int64) error {
 		return nil
 	}
 	cancelled := int64(0)
-	for _, relatedType := range []string{relatedEntityTypeAnnouncement, relatedEntityTypePollReminder} {
+	for _, relatedType := range []string{relatedEntityTypeAnnouncement, relatedEntityTypePollReminder, relatedEntityTypeReminder} {
 		n, err := s.outbox.CancelPendingByRelatedEntity(ctx, relatedType, id, "announcement no longer available")
 		if err != nil {
 			return fmt.Errorf("announcement: cancel pending e-mails: %w", err)

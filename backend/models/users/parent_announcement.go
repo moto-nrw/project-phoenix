@@ -165,6 +165,18 @@ type ParentAnnouncement struct {
 	// everything staff wrote by hand. See ParentAnnouncementSystemKind*.
 	SystemKind *string `bun:"system_kind" json:"system_kind,omitempty"`
 
+	// Scheduled one-off reminder (#3162). ReminderAt is the instant the
+	// announcement is delivered a second time to its whole audience; the school
+	// enters a Berlin calendar day plus a clock time, the service stores the
+	// resulting instant. ReminderText is the optional short wording of that
+	// second delivery (nil = the announcement text). ReminderSentAt is stamped
+	// exactly once by the tick that claimed the reminder and is the idempotency
+	// mark against double sends. All three nil = no reminder, pre-#3162
+	// behaviour.
+	ReminderAt     *time.Time `bun:"reminder_at" json:"reminder_at,omitempty"`
+	ReminderText   *string    `bun:"reminder_text" json:"reminder_text,omitempty"`
+	ReminderSentAt *time.Time `bun:"reminder_sent_at" json:"reminder_sent_at,omitempty"`
+
 	// Targets is attached by the repository (ListTargets), never a bun relation:
 	// the parent feed resolves audience in a cross-tenant admin tx where explicit
 	// joins are clearer than relation magic. bun:"-" so it is never persisted.
@@ -200,6 +212,25 @@ func (a *ParentAnnouncement) IsSystem() bool {
 func (a *ParentAnnouncement) IsPoll() bool {
 	return a.ResponseType == ParentAnnouncementResponseSingleChoice ||
 		a.ResponseType == ParentAnnouncementResponseMultiChoice
+}
+
+// HasReminder reports whether a scheduled reminder is set (sent or not).
+func (a *ParentAnnouncement) HasReminder() bool {
+	return a.ReminderAt != nil
+}
+
+// ReminderSent reports whether the scheduled reminder already went out.
+func (a *ParentAnnouncement) ReminderSent() bool {
+	return a.ReminderSentAt != nil
+}
+
+// ReminderBody is the wording the reminder carries: the school's own short
+// text when it wrote one, otherwise the announcement text.
+func (a *ParentAnnouncement) ReminderBody() string {
+	if a.ReminderText != nil && *a.ReminderText != "" {
+		return *a.ReminderText
+	}
+	return a.Body
 }
 
 // AcceptsResponsesAt reports whether the poll still accepts answers at t: it
@@ -368,6 +399,11 @@ type AnnouncementFeedItem struct {
 	SchoolName       string     `bun:"school_name" json:"school_name"`
 	ReadAt           *time.Time `bun:"read_at" json:"read_at,omitempty"`
 	AcknowledgedAt   *time.Time `bun:"acknowledged_at" json:"acknowledged_at,omitempty"`
+	// ReminderSentAt / ReminderText (#3162): set once the scheduled reminder
+	// went out, so the portal can show the announcement as reminded (and sort
+	// it back to the top) without touching the guardian's read/ack state.
+	ReminderSentAt *time.Time `bun:"reminder_sent_at" json:"reminder_sent_at,omitempty"`
+	ReminderText   *string    `bun:"reminder_text" json:"reminder_text,omitempty"`
 
 	// Options and Children are attached by the service for poll items (bun:"-":
 	// they come from separate batched queries, not this row's columns).
@@ -504,6 +540,25 @@ type ParentAnnouncementRepository interface {
 	// row was already published (a concurrent publish won the race), so the
 	// caller enqueues the opt-in e-mails only once.
 	PublishIfDraft(ctx context.Context, id int64, publishedAt time.Time) (bool, error)
+
+	// --- scheduled reminder (#3162, tenant tx) ---
+	// SetReminder writes the reminder moment and text of one announcement,
+	// published or not, and reports whether the write applied. It is guarded
+	// by reminder_sent_at IS NULL: once the reminder went out, nothing about
+	// it may change any more, so a late edit returns false instead of
+	// rewriting history. nil reminderAt removes the reminder (and its text).
+	SetReminder(ctx context.Context, id int64, reminderAt *time.Time, reminderText *string) (bool, error)
+	// ListDueReminders returns the announcements of the current tenant whose
+	// reminder fell due in (notBefore, dueBefore] and was not sent yet — only
+	// live ones (published, active, not expired at dueBefore). The lower bound
+	// keeps a reminder that is discovered far too late (long downtime) from
+	// being sent stale; such rows stay unsent and visible as missed.
+	ListDueReminders(ctx context.Context, notBefore, dueBefore time.Time) ([]*ParentAnnouncement, error)
+	// ClaimReminder stamps reminder_sent_at atomically and reports whether
+	// THIS call made the change. The UPDATE is guarded by reminder_sent_at IS
+	// NULL plus the same liveness predicate as ListDueReminders, so two
+	// overlapping ticks (or a tick racing an unpublish) send at most once.
+	ClaimReminder(ctx context.Context, id int64, sentAt time.Time) (bool, error)
 
 	// --- targets (tenant tx) ---
 	ReplaceTargets(ctx context.Context, tenantID, announcementID int64, targets []*ParentAnnouncementTarget) error

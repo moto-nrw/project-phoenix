@@ -109,6 +109,14 @@ const letter: Announcement = {
   delivery_mode: "letter",
 };
 
+const draftPoll: Announcement = {
+  ...poll,
+  id: "4",
+  title: "Kommt Ihr Kind am Montag?",
+  status: "draft",
+  published_at: undefined,
+};
+
 describe("ParentAnnouncementsPage (#3115)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -191,5 +199,53 @@ describe("ParentAnnouncementsPage (#3115)", () => {
       expect(updateUrlParamsMock).toHaveBeenCalledWith({ bearbeiten: null }),
     );
     expect(screen.queryByText("Umfrage bearbeiten")).not.toBeInTheDocument();
+  });
+});
+
+describe("ParentAnnouncementsPage: scheduled reminder (#3162)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    searchParams.delete("art");
+    searchParams.delete("bearbeiten");
+    listState.isLoading = false;
+    listState.error = null;
+  });
+
+  it("shows the reminder state in the list", async () => {
+    listState.data = [
+      {
+        ...base,
+        status: "published",
+        published_at: "2026-09-02T10:00:00Z",
+        reminder_at: "2026-09-24T06:00:00Z",
+      },
+    ];
+    render(<ParentAnnouncementsPage />);
+
+    expect(
+      (await screen.findAllByText("Erinnerung am 24.09.2026, 08:00 Uhr"))
+        .length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("offers the reminder in the Mitteilung wizard but not in the Umfrage wizard", async () => {
+    listState.data = [base, draftPoll];
+    searchParams.set("bearbeiten", "1");
+    const { unmount } = render(<ParentAnnouncementsPage />);
+
+    expect(
+      await screen.findByText("Elternmitteilung bearbeiten"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Erinnern am (optional)")).toBeInTheDocument();
+    unmount();
+
+    searchParams.set("art", "umfragen");
+    searchParams.set("bearbeiten", "4");
+    render(<ParentAnnouncementsPage />);
+
+    expect(await screen.findByText("Umfrage bearbeiten")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Erinnern am (optional)"),
+    ).not.toBeInTheDocument();
   });
 });

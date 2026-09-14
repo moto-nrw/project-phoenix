@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Pencil, Send, Trash2, Undo2 } from "lucide-react";
+import { BellRing, Pencil, Send, Trash2, Undo2 } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -202,6 +202,12 @@ interface MenuHandlers {
   readonly onEdit: () => void;
   readonly onUnpublish: () => void;
   readonly onDelete: () => void;
+  /**
+   * Die geplante Erinnerung (#3162) einer VERÖFFENTLICHTEN Mitteilung planen
+   * oder ändern. Entwürfe tragen die Erinnerung im Assistenten; Umfragen
+   * haben nur ihre manuelle Erinnerung an offene Antworten.
+   */
+  readonly onReminder?: () => void;
 }
 
 /**
@@ -236,6 +242,21 @@ export function buildAnnouncementMenuItems(
       label: "Bearbeiten",
       icon: <Pencil className="size-4" aria-hidden />,
       onClick: handlers.onEdit,
+    });
+  }
+  if (
+    handlers.onReminder &&
+    !announcement.system_kind &&
+    announcement.status === "published" &&
+    announcement.response_type === "none" &&
+    !announcement.reminder_sent_at
+  ) {
+    items.push({
+      label: announcement.reminder_at
+        ? "Erinnerung ändern"
+        : "Erinnerung planen",
+      icon: <BellRing className="size-4" aria-hidden />,
+      onClick: handlers.onReminder,
     });
   }
   if (!announcement.system_kind && announcement.status === "published") {

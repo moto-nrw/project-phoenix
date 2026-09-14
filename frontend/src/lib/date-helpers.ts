@@ -187,6 +187,55 @@ export function endOfBerlinDayISO(date: Date): string {
 }
 
 /**
+ * Serializes a calendar day plus a wall-clock time ("08:00") as that moment in
+ * the school's Europe/Berlin timezone. Same construction as
+ * `endOfBerlinDayISO`: the Date carries the picker's calendar fields, only the
+ * resulting instant is pinned to Berlin, so a person scheduling from another
+ * timezone still gets "08:00 in Berlin".
+ */
+export function berlinDateTimeISO(date: Date, time: string): string {
+  const [hourRaw, minuteRaw] = time.split(":");
+  const hour = Number(hourRaw ?? "0");
+  const minute = Number(minuteRaw ?? "0");
+  const nominalUtc = new Date(
+    Date.UTC(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate(),
+      hour,
+      minute,
+      0,
+    ),
+  );
+  const parts = BERLIN_DATE_TIME_PARTS_FORMATTER.formatToParts(nominalUtc);
+  const get = (type: string) =>
+    Number(parts.find((part) => part.type === type)?.value ?? "0");
+  const berlinWallClockAsUtc = Date.UTC(
+    get("year"),
+    get("month") - 1,
+    get("day"),
+    get("hour"),
+    get("minute"),
+    get("second"),
+  );
+  const berlinOffsetMs = berlinWallClockAsUtc - nominalUtc.getTime();
+  return new Date(nominalUtc.getTime() - berlinOffsetMs).toISOString();
+}
+
+/**
+ * The Berlin wall-clock time ("08:00") of an instant, for seeding a time field
+ * from a moment written by `berlinDateTimeISO`. Returns "" for an unparseable
+ * value so a malformed timestamp renders as an empty field, not a crash.
+ */
+export function berlinClockFromISO(value: string): string {
+  const instant = new Date(value);
+  if (Number.isNaN(instant.getTime())) return "";
+  const parts = BERLIN_DATE_TIME_PARTS_FORMATTER.formatToParts(instant);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${get("hour")}:${get("minute")}`;
+}
+
+/**
  * Groups items by date, sorted in descending order (newest first)
  * @param items Array of items with timestamp properties
  * @param timestampKey The key to access the timestamp property

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/email"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
@@ -264,6 +265,16 @@ func (p *parentAnnouncements) ResendParentAnnouncementEmails(ctx context.Context
 	return count, mapParentAnnouncementError(err)
 }
 
+func (p *parentAnnouncements) UpdateParentAnnouncementReminder(ctx context.Context, id int64, input communication.ParentAnnouncementReminderInput) (*communication.ParentAnnouncement, error) {
+	row, err := p.service.UpdateReminder(ctx, id, staff.ReminderInput{ReminderAt: input.ReminderAt, ReminderText: input.ReminderText})
+	return mapParentAnnouncement(row), mapParentAnnouncementError(err)
+}
+
+func (p *parentAnnouncements) SendDueParentAnnouncementReminders(ctx context.Context, notBefore, dueBefore time.Time) (int, error) {
+	count, err := p.service.SendDueReminders(ctx, notBefore, dueBefore)
+	return count, mapParentAnnouncementError(err)
+}
+
 func (p *parentAnnouncements) PublishCareCancellation(ctx context.Context, input communication.CareCancellationInput) (*communication.CareCancellationResult, error) {
 	result, err := p.service.PublishCareCancellation(ctx, staff.CareCancellationInput{
 		StudentIDs: input.StudentIDs, Title: input.Title, Body: input.Body, CreatedBy: input.CreatedBy,
@@ -318,6 +329,7 @@ func mapParentAnnouncementInput(input communication.ParentAnnouncementInput) sta
 		ExpiresAt: input.ExpiresAt, Targets: targets, ResponseType: input.ResponseType,
 		ResponseDeadline: input.ResponseDeadline, Options: input.Options,
 		DeliveryMode: input.DeliveryMode, EmailAudience: input.EmailAudience,
+		ReminderAt: input.ReminderAt, ReminderText: input.ReminderText,
 	}
 }
 
@@ -342,6 +354,7 @@ func mapParentAnnouncement(row *usersModels.ParentAnnouncement) *communication.P
 		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, Targets: targets,
 		ResponseType: row.ResponseType, ResponseDeadline: row.ResponseDeadline, Options: options,
 		DeliveryMode: row.DeliveryMode, EmailAudience: row.EmailAudience, SystemKind: row.SystemKind,
+		ReminderAt: row.ReminderAt, ReminderText: row.ReminderText, ReminderSentAt: row.ReminderSentAt,
 	}
 }
 
@@ -370,6 +383,7 @@ func mapParentAnnouncementError(err error) error {
 		{staff.ErrNotAPoll, communication.ErrParentAnnouncementNotPoll},
 		{staff.ErrPollNotOpen, communication.ErrParentAnnouncementPollClosed},
 		{staff.ErrCareCancellationDisabled, communication.ErrCareCancellationDisabled},
+		{staff.ErrReminderAlreadySent, communication.ErrParentAnnouncementReminderSent},
 	} {
 		if errors.Is(err, pair.internal) {
 			return &mappedParentAnnouncementError{public: pair.public, original: err}

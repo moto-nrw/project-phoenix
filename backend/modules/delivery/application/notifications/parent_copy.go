@@ -10,6 +10,10 @@ const (
 	ParentAnnouncementPublished = "announcement"
 	ParentPollPublished         = "poll"
 	ParentPollReminder          = "poll_reminder"
+	// ParentAnnouncementReminder is the scheduled second delivery of an
+	// announcement (#3162). Generic like every parent push: the wording waits
+	// in the portal.
+	ParentAnnouncementReminder = "announcement_reminder"
 	// ParentCareCancelled is the push for a system-authored cancellation
 	// notice (#2601). Deliberately names the event: a family should know a
 	// block fell out before opening the app.
@@ -24,6 +28,8 @@ func ParentAnnouncementCopy(locale, kind string) (string, string) {
 			return "New poll", "A school is asking for your response in the parent portal."
 		case ParentPollReminder:
 			return "Reminder: poll open", "A response for your child is still missing in the parent portal."
+		case ParentAnnouncementReminder:
+			return "Reminder: parent announcement", "Your after-school care reminds you of an announcement in the parent portal."
 		case ParentCareCancelled:
 			return "Care cancelled", "The after-school care has cancelled one of your child's sessions."
 		default:
@@ -35,6 +41,8 @@ func ParentAnnouncementCopy(locale, kind string) (string, string) {
 			return "Новый опрос", "Школа просит вас ответить в родительском портале."
 		case ParentPollReminder:
 			return "Напоминание: опрос открыт", "В родительском портале ещё нет ответа за вашего ребёнка."
+		case ParentAnnouncementReminder:
+			return "Напоминание: объявление", "Продлёнка напоминает вам об объявлении в родительском портале."
 		case ParentCareCancelled:
 			return "Занятие отменено", "Группа продлённого дня отменила одно из занятий вашего ребёнка."
 		default:
@@ -46,6 +54,8 @@ func ParentAnnouncementCopy(locale, kind string) (string, string) {
 			return "Anketë e re", "Një shkollë kërkon përgjigjen tuaj në portalin e prindërve."
 		case ParentPollReminder:
 			return "Kujtesë: anketa është e hapur", "Në portalin e prindërve mungon ende një përgjigje për fëmijën tuaj."
+		case ParentAnnouncementReminder:
+			return "Kujtesë: njoftim për prindërit", "Kujdesi pas shkollës ju kujton një njoftim në portalin e prindërve."
 		case ParentCareCancelled:
 			return "Kujdesi anulohet", "Kujdesi pas shkollës ka anuluar një nga takimet e fëmijës suaj."
 		default:
@@ -57,6 +67,8 @@ func ParentAnnouncementCopy(locale, kind string) (string, string) {
 			return "Neue Umfrage", "Eine Schule bittet um Ihre Rückmeldung im Elternportal."
 		case ParentPollReminder:
 			return "Erinnerung: Umfrage offen", "Für Ihr Kind fehlt noch eine Rückmeldung im Elternportal."
+		case ParentAnnouncementReminder:
+			return "Erinnerung: Elternmitteilung", "Ihre OGS erinnert Sie an eine Mitteilung im Elternportal."
 		case ParentCareCancelled:
 			return "Betreuung fällt aus", "Die OGS hat einen Betreuungstermin Ihres Kindes abgesagt."
 		default:

@@ -256,7 +256,7 @@ func TestUnpublish_CancelsPendingEmails(t *testing.T) {
 	if _, err := svc.Unpublish(context.Background(), published.ID); err != nil {
 		t.Fatalf("unpublish failed: %v", err)
 	}
-	if got, want := outbox.cancelRelatedTypes, []string{relatedEntityTypeAnnouncement, relatedEntityTypePollReminder}; !slices.Equal(got, want) {
+	if got, want := outbox.cancelRelatedTypes, []string{relatedEntityTypeAnnouncement, relatedEntityTypePollReminder, relatedEntityTypeReminder}; !slices.Equal(got, want) {
 		t.Fatalf("unpublish cancelled related types %v, want %v", got, want)
 	}
 }
@@ -274,7 +274,7 @@ func TestDelete_CancelsPendingEmails(t *testing.T) {
 	if err := svc.Delete(context.Background(), published.ID); err != nil {
 		t.Fatalf("delete failed: %v", err)
 	}
-	if got, want := outbox.cancelRelatedTypes, []string{relatedEntityTypeAnnouncement, relatedEntityTypePollReminder}; !slices.Equal(got, want) {
+	if got, want := outbox.cancelRelatedTypes, []string{relatedEntityTypeAnnouncement, relatedEntityTypePollReminder, relatedEntityTypeReminder}; !slices.Equal(got, want) {
 		t.Fatalf("delete cancelled related types %v, want %v", got, want)
 	}
 	if repo.deleteCalls != 1 {

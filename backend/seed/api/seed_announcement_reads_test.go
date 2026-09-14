@@ -57,9 +57,13 @@ func TestSeedParentLetterMarksLetterReadByParent(t *testing.T) {
 	// (#2890): a published announcement is immutable, so an upload after the
 	// publish call would be refused with 409 and the demo letter would ship
 	// without its file.
+	// The step ends with the announcement that carries a scheduled reminder
+	// (#3162): created and published, nothing else — the reminder is a field
+	// of the announcement, not a further call.
 	assert.Equal(t, []string{
 		"/api/parent-announcements/", "/api/announcement-attachments/71",
 		"/api/parent-announcements/71/publish",
 		"/parent/auth/login", "/parent/me/news/71/read",
+		"/api/parent-announcements/", "/api/parent-announcements/71/publish",
 	}, paths)
 }

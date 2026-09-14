@@ -265,6 +265,12 @@ type Scheduler struct {
 	appointmentReminders         reminder.Command
 	appointmentReminderScannedAt map[int64]time.Time
 	appointmentReminderScanMu    sync.Mutex
+
+	// Scheduled parent-announcement reminders (#3162). Same bookkeeping as the
+	// appointment reminders: one successful-scan boundary per tenant.
+	announcementReminders         AnnouncementReminderSender
+	announcementReminderScannedAt map[int64]time.Time
+	announcementReminderScanMu    sync.Mutex
 }
 
 // OutboxWorkerRunner is the narrow contract the scheduler needs from the
@@ -303,6 +309,11 @@ func newScheduler(deps WorkerDependencies) *Scheduler {
 		lifecycleCtx:                 lifecycleCtx,
 		stopLifecycle:                stopLifecycle,
 		appointmentReminderScannedAt: make(map[int64]time.Time),
+		// Construction, not a setter: the composition ratchet counts mutable
+		// wiring, and the scheduled announcement reminder (#3162) must not grow
+		// that surface.
+		announcementReminders:         deps.AnnouncementReminders,
+		announcementReminderScannedAt: make(map[int64]time.Time),
 	}
 	addCleanupDependencies(scheduler, deps)
 	addScheduleDependencies(scheduler, deps)

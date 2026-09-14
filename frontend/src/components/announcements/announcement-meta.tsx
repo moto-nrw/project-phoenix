@@ -79,6 +79,64 @@ export function AnnouncementStatusBadge({
   );
 }
 
+/**
+ * Der Zustand der geplanten Erinnerung (#3162) in einem Satz, für Liste und
+ * Objektseite. `null` heißt: keine Erinnerung gesetzt.
+ *
+ *   - geplant: der Termin liegt noch vor uns (oder die Mitteilung ist noch
+ *     ein Entwurf, dann zählt der Termin ab dem Veröffentlichen)
+ *   - versendet: die Erinnerung ist raus
+ *   - verpasst: der Termin ist vorbei, ohne dass gesendet wurde (etwa weil
+ *     die Mitteilung zu dem Zeitpunkt zurückgezogen oder abgeschaltet war)
+ */
+export type ReminderState = "planned" | "sent" | "missed";
+
+export function reminderStateOf(
+  announcement: Pick<Announcement, "reminder_at" | "reminder_sent_at">,
+  now: Date = new Date(),
+): ReminderState | null {
+  if (!announcement.reminder_at) return null;
+  if (announcement.reminder_sent_at) return "sent";
+  return new Date(announcement.reminder_at) <= now ? "missed" : "planned";
+}
+
+export function describeReminder(
+  announcement: Pick<Announcement, "reminder_at" | "reminder_sent_at">,
+  now: Date = new Date(),
+): string | null {
+  const state = reminderStateOf(announcement, now);
+  if (!state) return null;
+  const when = formatBerlinDateTime(
+    state === "sent"
+      ? announcement.reminder_sent_at!
+      : announcement.reminder_at!,
+  );
+  switch (state) {
+    case "sent":
+      return `Erinnert am ${when}`;
+    case "missed":
+      return `Erinnerung am ${when} nicht versendet`;
+    default:
+      return `Erinnerung am ${when}`;
+  }
+}
+
+/** „24.09.2026, 08:00 Uhr" in der Schulzeitzone. */
+export function formatBerlinDateTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return `${date.toLocaleDateString("de-DE", {
+    timeZone: "Europe/Berlin",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  })}, ${date.toLocaleTimeString("de-DE", {
+    timeZone: "Europe/Berlin",
+    hour: "2-digit",
+    minute: "2-digit",
+  })} Uhr`;
+}
+
 export const RESPONSE_TYPE_LABEL: Record<AnnouncementResponseType, string> = {
   none: "Keine Rückmeldung",
   single_choice: "Eine Antwort",

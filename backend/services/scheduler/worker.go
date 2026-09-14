@@ -71,6 +71,9 @@ type WorkerDependencies struct {
 	RolloverDeadlineRunner    RolloverDeadlineRunner
 	ReminderNotifications     ReminderNotificationDeps
 	AppointmentReminders      reminder.Command
+	// AnnouncementReminders delivers scheduled parent-announcement reminders
+	// (#3162). Nil leaves the tick unregistered.
+	AnnouncementReminders AnnouncementReminderSender
 }
 
 // NewWorker constructs and validates the complete embedded worker before the
@@ -140,6 +143,7 @@ func requiredWorkerJobIDs() []JobID {
 		"email-outbox",
 		"rollover-deadline",
 		"appointment-reminders",
+		"announcement-reminders",
 	}
 }
 
@@ -175,6 +179,7 @@ func (s *Scheduler) jobDefinitions() []Job {
 	add(!isNilDependency(s.outboxWorker), "email-outbox", s.scheduleOutboxWorkerTask)
 	add(!isNilDependency(s.rolloverDeadlineRunner), "rollover-deadline", s.scheduleRolloverDeadlineTask)
 	add(!isNilDependency(s.appointmentReminders), "appointment-reminders", s.scheduleAppointmentReminderTask)
+	add(!isNilDependency(s.announcementReminders), "announcement-reminders", s.scheduleAnnouncementReminderTask)
 	return jobs
 }
 

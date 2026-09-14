@@ -27,6 +27,7 @@ type mockRepo struct {
 	listForTenantFn func(ctx context.Context, includeInactive bool) ([]*usersModels.ParentAnnouncement, error)
 	setPublishedFn  func(ctx context.Context, id int64, publishedAt *time.Time) error
 	publishIfDraft  func(ctx context.Context, id int64, publishedAt time.Time) (bool, error)
+	setReminderFn   func(ctx context.Context, id int64, reminderAt *time.Time, reminderText *string) (bool, error)
 	replaceTargets  func(ctx context.Context, tenantID, announcementID int64, targets []*usersModels.ParentAnnouncementTarget) error
 	listTargetsFn   func(ctx context.Context, announcementID int64) ([]*usersModels.ParentAnnouncementTarget, error)
 	resolveEmailsFn func(ctx context.Context, tenantID, announcementID int64) ([]*usersModels.AnnouncementRecipient, error)
@@ -117,6 +118,16 @@ func (m *mockRepo) ClearEngagement(ctx context.Context, announcementID int64) er
 	m.clearedEngagement = append(m.clearedEngagement, announcementID)
 	return m.clearEngagementErr
 }
+func (m *mockRepo) SetReminder(ctx context.Context, id int64, reminderAt *time.Time, reminderText *string) (bool, error) {
+	if m.setReminderFn != nil {
+		return m.setReminderFn(ctx, id, reminderAt, reminderText)
+	}
+	return true, nil
+}
+func (m *mockRepo) ListDueReminders(context.Context, time.Time, time.Time) ([]*usersModels.ParentAnnouncement, error) {
+	return nil, nil
+}
+func (m *mockRepo) ClaimReminder(context.Context, int64, time.Time) (bool, error) { return true, nil }
 func (m *mockRepo) PublishIfDraft(ctx context.Context, id int64, publishedAt time.Time) (bool, error) {
 	return m.publishIfDraft(ctx, id, publishedAt)
 }
