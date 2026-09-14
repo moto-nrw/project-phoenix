@@ -83,6 +83,13 @@ var queryBudgets = map[string]queryBudget{
 	// api/timetable — GET /instances over a week, 8 instances on 3 days:
 	// instances + room + staff batch + student batch + one cutoff read per day.
 	"api.timetable.instances.list": {max: 7},
+	// api/timetable — GET /periods (#3124): tenant transaction (BEGIN, SET
+	// LOCAL ROLE, set_config, COMMIT) + period list + one usage read per
+	// owner (Enrollment phases, Timetable planning tables). The two owner
+	// round trips are the accepted #2580 boundary cost; the count is flat in
+	// the number of periods. Pinned exact so an owner-boundary move fails
+	// here instead of at a runtime checkpoint (#3020).
+	"api.timetable.periods.list": {max: 7, exact: true},
 	// services/schedule — GET /planned-now backing list, 8 eligible instances:
 	// instance list + rooms + staff batch + student batch (#2941).
 	"services.schedule.planned_now": {max: 4},

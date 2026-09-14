@@ -31,7 +31,7 @@ type recordingEngine struct {
 
 func (e *recordingEngine) BindCarePlan(timetable.CarePlanDirectory) { e.calls++ }
 
-func (e *recordingEngine) CountPlannedSupervisorsByCalendarPeriod(context.Context) (map[int64]int, error) {
+func (e *recordingEngine) CountCalendarPeriodReferences(context.Context) (map[int64]timetable.CalendarPeriodReferences, error) {
 	e.calls++
 	return nil, nil
 }
