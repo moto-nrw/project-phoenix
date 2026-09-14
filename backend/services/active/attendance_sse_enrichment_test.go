@@ -29,7 +29,6 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
-	"github.com/moto-nrw/project-phoenix/realtime"
 	active "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -40,7 +39,7 @@ import (
 
 // firstOfType returns the first event of the given type seen across every
 // recorded broadcast call, in call order, or nil if none matches.
-func firstOfType(b *testpkg.RecordingBroadcaster, t realtime.EventType) *realtime.Event {
+func firstOfType(b *testpkg.RecordingBroadcaster, t active.BroadcastEventType) *active.BroadcastEvent {
 	events := b.EventsOfType(t)
 	if len(events) == 0 {
 		return nil
@@ -134,7 +133,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	// ASSERT: student_checkin event carries attendance_status=present.
 	// This is the load-bearing assertion — it's what protects against
 	// someone silently removing applyAttendanceSnapshot from visit_helpers.go.
-	ev := firstOfType(broadcaster, realtime.EventStudentCheckIn)
+	ev := firstOfType(broadcaster, active.EventStudentCheckIn)
 	require.NotNil(t, ev, "expected student_checkin event to be broadcast")
 	require.NotNil(t, ev.Data.AttendanceStatus,
 		"attendance_status must be populated when the visit bridges to an instance_students row")
@@ -263,7 +262,7 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 	}
 	require.NoError(t, svc.CreateVisit(deviceCtx, visit))
 
-	ev := firstOfType(broadcaster, realtime.EventStudentCheckIn)
+	ev := firstOfType(broadcaster, active.EventStudentCheckIn)
 	require.NotNil(t, ev, "expected student_checkin event to be broadcast")
 	assert.Nil(t, ev.Data.AttendanceStatus, "walk-in must not stamp attendance_status")
 	assert.Nil(t, ev.Data.AttendanceSubstatus)

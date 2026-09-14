@@ -11,7 +11,6 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -790,7 +789,7 @@ func TestWSCheckInBroadcastsTimeTrackingChangeAfterCommit(t *testing.T) {
 
 	commit()
 
-	events := broadcaster.EventsOfType(realtime.EventStaffTimeTrackingChanged)
+	events := broadcaster.EventsOfType(EventStaffTimeTrackingChanged)
 	require.Len(t, events, 1)
 	calls := broadcaster.CallsByMethod("tenant")
 	require.Len(t, calls, 1)
@@ -2679,7 +2678,7 @@ func TestWSUpdateSession_CheckInTimeChange(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.NotNil(t, session)
-	require.Len(t, broadcaster.EventsOfType(realtime.EventStaffTimeTrackingChanged), 1)
+	require.Len(t, broadcaster.EventsOfType(EventStaffTimeTrackingChanged), 1)
 }
 
 func TestWSUpdateSession_OwnershipFails(t *testing.T) {
@@ -3515,7 +3514,7 @@ func TestWSUpdateScheduleBroadcastsTimeTrackingChangeAfterCommit(t *testing.T) {
 
 	commit()
 
-	events := broadcaster.EventsOfType(realtime.EventStaffTimeTrackingChanged)
+	events := broadcaster.EventsOfType(EventStaffTimeTrackingChanged)
 	require.Len(t, events, 1)
 	calls := broadcaster.CallsByMethod("tenant")
 	require.Len(t, calls, 1)

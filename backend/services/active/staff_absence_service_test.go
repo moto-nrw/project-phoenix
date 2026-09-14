@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -1732,7 +1731,7 @@ func TestAbsApproveAbsence_WritesAudit(t *testing.T) {
 
 	commit()
 
-	events := broadcaster.EventsOfType(realtime.EventStaffTimeTrackingChanged)
+	events := broadcaster.EventsOfType(EventStaffTimeTrackingChanged)
 	require.Len(t, events, 1)
 	calls := broadcaster.CallsByMethod("tenant")
 	require.Len(t, calls, 1)

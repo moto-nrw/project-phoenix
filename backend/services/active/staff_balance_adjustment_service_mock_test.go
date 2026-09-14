@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -143,7 +142,7 @@ func TestStaffBalanceAdjustmentService_BroadcastsAfterCommit(t *testing.T) {
 
 	commit()
 
-	broadcastEvents := broadcaster.EventsOfType(realtime.EventStaffTimeTrackingChanged)
+	broadcastEvents := broadcaster.EventsOfType(EventStaffTimeTrackingChanged)
 	require.Len(t, broadcastEvents, 1)
 	calls := broadcaster.CallsByMethod("tenant")
 	require.Len(t, calls, 1)

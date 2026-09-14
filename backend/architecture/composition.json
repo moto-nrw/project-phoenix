@@ -5190,7 +5190,7 @@
       "declaration": "newDailyCheckoutService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        122
+        121
       ],
       "tables": []
     },
@@ -5200,7 +5200,7 @@
       "declaration": "TestCreateVisit_EnrichesCheckInEventWithAttendance",
       "target": "database/repositories.NewFactory",
       "lines": [
-        56
+        55
       ],
       "tables": [
         "schedule.activity_instances"
@@ -5212,7 +5212,7 @@
       "declaration": "TestCreateVisit_WalkInLeavesAttendanceFieldsUnset",
       "target": "database/repositories.NewFactory",
       "lines": [
-        218
+        217
       ],
       "tables": []
     },
@@ -5222,7 +5222,7 @@
       "declaration": "TestBroadcast_UpdateVisitMoveSendsMovementEvents",
       "target": "database/repositories.NewFactory",
       "lines": [
-        227
+        226
       ],
       "tables": []
     },
@@ -5232,7 +5232,7 @@
       "declaration": "newServiceWithPresenceSync",
       "target": "database/repositories.NewFactory",
       "lines": [
-        54
+        53
       ],
       "tables": []
     },

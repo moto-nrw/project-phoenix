@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -120,7 +119,7 @@ func (r *broadcastMonthCloseSnapshotRepo) ReopenMonthSnapshot(context.Context, i
 
 func newBroadcastMonthCloseService(
 	repo *broadcastMonthCloseSnapshotRepo,
-	broadcaster realtime.Broadcaster,
+	broadcaster EventPublisher,
 ) StaffMonthCloseService {
 	events := []string{}
 	service := NewStaffMonthCloseService(
@@ -146,7 +145,7 @@ func assertMonthCloseBroadcastAfterCommit(
 
 	commit()
 
-	require.Len(t, broadcaster.EventsOfType(realtime.EventStaffTimeTrackingChanged), 1)
+	require.Len(t, broadcaster.EventsOfType(EventStaffTimeTrackingChanged), 1)
 	calls := broadcaster.CallsByMethod("tenant")
 	require.Len(t, calls, 1)
 	assert.Equal(t, int64(42), calls[0].TenantID)
