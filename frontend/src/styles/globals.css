@@ -387,14 +387,16 @@
   inset: 0;
 }
 
+/* Beginnt unter der 48px hohen Kopfzeile (#2827), die das Schul-Portal auf
+   jeder Breite zeigt. */
 .moto-dotted-background--app-fixed {
   position: fixed;
-  inset: 3.5rem 0 0;
+  inset: 3rem 0 0;
 }
 
 /* Vollhöhe für Portale ohne mobile Kopfzeile (Eltern-App und seit dem
    Kopfzeilen-Aus auch das Personal-Portal): ohne die Überschreibung stünde
-   über dem Muster ein 56-px-weißer-Balken, wo früher die Kopfzeile saß. */
+   über dem Muster ein 48-px-weißer-Balken, wo früher die Kopfzeile saß. */
 .moto-dotted-background--parent,
 .moto-dotted-background--full {
   inset: 0;
