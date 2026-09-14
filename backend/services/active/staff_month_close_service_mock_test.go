@@ -131,7 +131,7 @@ func newBroadcastMonthCloseService(
 		slog.New(slog.DiscardHandler),
 	)
 	service.(interface {
-		SetBroadcaster(realtime.Broadcaster)
+		SetBroadcaster(EventPublisher)
 	}).SetBroadcaster(broadcaster)
 	return service
 }

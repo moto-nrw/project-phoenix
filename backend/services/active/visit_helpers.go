@@ -11,8 +11,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -394,44 +394,18 @@ func (s *service) emitVisitCreated(ctx context.Context, visit *studentpresence.V
 	}
 
 	activeGroupID := fmt.Sprintf("%d", visit.ActiveGroupID)
-	studentID := fmt.Sprintf("%d", visit.StudentID)
-
 	eduGroupIDs := eduGroupIDsOf(educationGroupID)
 
-	data := realtime.EventData{
-		StudentID: &studentID,
-	}
-	if len(eduGroupIDs) > 0 {
-		data.GroupIDs = &eduGroupIDs
-	}
-	applyAttendanceSnapshot(&data, snapshot)
-
-	event := realtime.NewEvent(
-		realtime.EventStudentCheckIn,
-		activeGroupID,
-		data,
-	)
-
-	if err := s.broadcastVisitEvent(ctx, activeGroupID, educationGroupID, event); err != nil {
-		s.getLogger().Error("SSE broadcast failed",
-			slog.String("error", err.Error()),
-			slog.String("event_type", "student_checkin"),
-			slog.String("active_group_id", activeGroupID),
-			slog.String("student_id", studentID),
-		)
-	}
+	realtimeevents.PublishVisitCheckIn(ctx, s.Broadcaster, s.getLogger(), realtimeevents.VisitChange{
+		ActiveGroupID:    activeGroupID,
+		StudentID:        fmt.Sprintf("%d", visit.StudentID),
+		EducationGroupID: educationGroupID,
+		Attendance:       attendanceDetail(snapshot),
+	})
 
 	// One precise tenant event replaces the old dashboard_counts_changed +
 	// active_supervision_changed pair.
 	s.broadcastSupervisionRefresh(ctx, activeGroupID, activeSupervisionReasonStudentMoved, eduGroupIDs)
-}
-
-func (s *service) broadcastVisitEvent(ctx context.Context, activeGroupID string, educationGroupID *int64, event realtime.Event) error {
-	topics := []string{activeGroupID}
-	if educationGroupID != nil {
-		topics = append(topics, fmt.Sprintf("edu:%d", *educationGroupID))
-	}
-	return s.Broadcaster.BroadcastToGroups(tenant.FromContext(ctx), topics, event)
 }
 
 // getEducationGroupForSSE resolves only routing data. Names are never consumed by SSE

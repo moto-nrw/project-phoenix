@@ -12,8 +12,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -485,10 +485,7 @@ func (s *service) registerSchoolCheckinBatchBroadcast(
 		return
 	}
 
-	eventType := realtime.EventBulkStudentCheckIn
-	if action == SchoolCheckinActionOut {
-		eventType = realtime.EventBulkStudentCheckOut
-	}
+	checkIn := action != SchoolCheckinActionOut
 
 	// Bucket the notified students by educational group.
 	eduGroups := make(map[int64][]string)
@@ -519,27 +516,15 @@ func (s *service) registerSchoolCheckinBatchBroadcast(
 	tenant.RegisterAfterCommit(ctx, func() {
 		// One event per active group whose roster changed.
 		for groupID, ids := range activeGroups {
-			studentIDs := ids
 			groupIDStr := strconv.FormatInt(groupID, 10)
-			data := realtime.EventData{StudentIDs: &studentIDs}
-			if len(allEduGroupIDs) > 0 {
-				data.GroupIDs = &allEduGroupIDs
-			}
-			event := realtime.NewEvent(eventType, groupIDStr, data)
-			s.broadcastWithLogging(ctx, groupIDStr, "", event, string(eventType))
+			realtimeevents.PublishBulkStudentChange(ctx, s.Broadcaster, s.getLogger(), checkIn, groupIDStr, ids, allEduGroupIDs)
 		}
 
 		// One event per distinct educational group, carrying only that
 		// group's students so each client invalidates the right caches.
+		// No active group: this is a roomless attendance change.
 		for gid, ids := range eduGroups {
-			studentIDs := ids
-			eduGroupID := []string{strconv.FormatInt(gid, 10)}
-			event := realtime.NewEvent(
-				eventType,
-				"", // no active group — roomless attendance change
-				realtime.EventData{StudentIDs: &studentIDs, GroupIDs: &eduGroupID},
-			)
-			s.broadcastToEducationalGroup(ctx, &gid, event)
+			realtimeevents.PublishBulkStudentChangeToEducationGroup(ctx, s.Broadcaster, s.getLogger(), checkIn, "", gid, ids)
 		}
 
 		// Single tenant-wide refresh for the entire batch. The group-specific

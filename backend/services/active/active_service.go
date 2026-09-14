@@ -14,22 +14,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// Broadcaster exposes only the tenant-scoped delivery used by attendance.
-type Broadcaster interface {
-	BroadcastToGroup(tenantID int64, groupID string, event realtime.Event) error
-	BroadcastToGroups(tenantID int64, groupIDs []string, event realtime.Event) error
-	BroadcastToTenant(tenantID int64, event realtime.Event) error
-}
-
 const (
-	// sseErrorMessage is the standard error message for SSE broadcast failures
-	sseErrorMessage = "SSE broadcast failed"
-
 	activeSupervisionReasonActivityStarted = "activity_started"
 	activeSupervisionReasonActivityEnded   = "activity_ended"
 	activeSupervisionReasonStudentMoved    = "student_moved"
@@ -115,7 +105,7 @@ type ServiceDependencies struct {
 
 	// Infrastructure
 	DB          DatabaseHandle
-	Broadcaster Broadcaster // SSE event broadcaster (optional - can be nil for testing)
+	Broadcaster EventPublisher // SSE event broadcaster (optional - can be nil for testing)
 
 	// Optional: Product analytics tracker (nil-safe, no student PII)
 	Tracker productEventTracker
@@ -1026,34 +1016,15 @@ func (s *service) emitVisitCheckout(
 	}
 
 	activeGroupID := fmt.Sprintf("%d", endedVisit.ActiveGroupID)
-	studentID := fmt.Sprintf("%d", endedVisit.StudentID)
 	eduGroupIDs := eduGroupIDsOf(educationGroupID)
 
-	data := realtime.EventData{
-		StudentID: &studentID,
-	}
-	if source != "" {
-		data.Source = &source
-	}
-	if len(eduGroupIDs) > 0 {
-		data.GroupIDs = &eduGroupIDs
-	}
-	applyAttendanceSnapshot(&data, snapshot)
-
-	event := realtime.NewEvent(
-		realtime.EventStudentCheckOut,
-		activeGroupID,
-		data,
-	)
-
-	if err := s.broadcastVisitEvent(ctx, activeGroupID, educationGroupID, event); err != nil {
-		s.getLogger().Error("SSE broadcast failed",
-			slog.String("error", err.Error()),
-			slog.String("event_type", "student_checkout"),
-			slog.String("active_group_id", activeGroupID),
-			slog.String("student_id", studentID),
-		)
-	}
+	realtimeevents.PublishVisitCheckOut(ctx, s.Broadcaster, s.getLogger(), realtimeevents.VisitChange{
+		ActiveGroupID:    activeGroupID,
+		StudentID:        fmt.Sprintf("%d", endedVisit.StudentID),
+		EducationGroupID: educationGroupID,
+		Source:           source,
+		Attendance:       attendanceDetail(snapshot),
+	})
 
 	// Notify every client of the tenant so dashboard counts refresh, scoped to
 	// the affected educational group when known (#2057).
@@ -1081,26 +1052,6 @@ func (s *service) broadcastVisitMoved(
 	educationGroupID := s.getEducationGroupForSSE(ctx, movedVisit.StudentID)
 	s.emitVisitCheckout(ctx, previousVisit, sourceSnapshot, educationGroupID, "")
 	s.emitVisitCreated(ctx, movedVisit, targetSnapshot, educationGroupID)
-}
-
-// broadcastToEducationalGroup mirrors active-group broadcasts to the student's OGS group topic
-func (s *service) broadcastToEducationalGroup(ctx context.Context, educationGroupID *int64, event realtime.Event) {
-	if s.Broadcaster == nil || educationGroupID == nil {
-		return
-	}
-	groupID := fmt.Sprintf("edu:%d", *educationGroupID)
-	if err := s.Broadcaster.BroadcastToGroup(tenant.FromContext(ctx), groupID, event); err != nil {
-		studentID := ""
-		if event.Data.StudentID != nil {
-			studentID = *event.Data.StudentID
-		}
-		s.getLogger().Error(sseErrorMessage+" for educational topic",
-			slog.String("error", err.Error()),
-			slog.String("event_type", string(event.Type)),
-			slog.String("education_group_topic", groupID),
-			slog.String("student_id", studentID),
-		)
-	}
 }
 
 // broadcastStudentCheckoutEvents sends a batched checkout SSE notification when
@@ -1142,35 +1093,17 @@ func (s *service) broadcastStudentCheckoutEvents(ctx context.Context, sessionIDS
 
 	// One event to the active-group topic carrying every checked-out student
 	// and every affected educational group.
-	activeData := realtime.EventData{StudentIDs: &allStudentIDs}
-	if len(allEduGroupIDs) > 0 {
-		activeData.GroupIDs = &allEduGroupIDs
-	}
-	activeEvent := realtime.NewEvent(
-		realtime.EventBulkStudentCheckOut,
-		sessionIDStr,
-		activeData,
-	)
-	s.broadcastWithLogging(ctx, sessionIDStr, "", activeEvent, "bulk_student_checkout")
+	realtimeevents.PublishBulkStudentChange(ctx, s.Broadcaster, s.getLogger(), false, sessionIDStr, allStudentIDs, allEduGroupIDs)
 
 	// One event per distinct educational group, carrying only that group's
 	// students so each subscribed client invalidates the right detail caches.
 	for gid, ids := range eduGroups {
-		groupIDs := ids
-		eduGroupID := []string{strconv.FormatInt(gid, 10)}
-		eduEvent := realtime.NewEvent(
-			realtime.EventBulkStudentCheckOut,
-			sessionIDStr,
-			realtime.EventData{StudentIDs: &groupIDs, GroupIDs: &eduGroupID},
-		)
-		s.broadcastToEducationalGroup(ctx, &gid, eduEvent)
+		realtimeevents.PublishBulkStudentChangeToEducationGroup(ctx, s.Broadcaster, s.getLogger(), false, sessionIDStr, gid, ids)
 	}
 
 	// Single tenant-wide broadcast for the entire batch, scoped to the
 	// affected educational groups (#2057).
-	if s.Broadcaster != nil {
-		s.broadcastSupervisionRefresh(ctx, sessionIDStr, activeSupervisionReasonStudentMoved, allEduGroupIDs)
-	}
+	s.broadcastSupervisionRefresh(ctx, sessionIDStr, activeSupervisionReasonStudentMoved, allEduGroupIDs)
 }
 
 // broadcastActivityEndEvent sends the activity_end SSE event for a completed
@@ -1178,41 +1111,17 @@ func (s *service) broadcastStudentCheckoutEvents(ctx context.Context, sessionIDS
 // ending transaction, because this runs from an after-commit hook where no
 // tenant role is set (#2951).
 func (s *service) broadcastActivityEndEvent(ctx context.Context, sessionIDStr string, data activityEndSSEData) {
-	roomIDStr := fmt.Sprintf("%d", data.RoomID)
-	activityName := data.ActivityName
-	roomName := data.RoomName
-
-	event := realtime.NewEvent(
-		realtime.EventActivityEnd,
-		sessionIDStr,
-		realtime.EventData{
-			ActivityName: &activityName,
-			RoomID:       &roomIDStr,
-			RoomName:     &roomName,
-		},
-	)
-
-	s.broadcastWithLogging(ctx, sessionIDStr, "", event, "activity_end")
+	realtimeevents.PublishActivityEnd(ctx, s.Broadcaster, s.getLogger(), realtimeevents.ActivitySession{
+		ActiveGroupID: sessionIDStr,
+		ActivityName:  data.ActivityName,
+		RoomID:        fmt.Sprintf("%d", data.RoomID),
+		RoomName:      data.RoomName,
+	})
 
 	// Notify every client of the tenant (including zero-topic) so dashboards
 	// refresh. No group scope: a session end affects room occupancy across
 	// groups, so clients fall back to a broad refresh (#2057).
 	s.broadcastSupervisionRefresh(ctx, sessionIDStr, activeSupervisionReasonActivityEnded, nil)
-}
-
-// broadcastWithLogging broadcasts an event and logs any errors.
-func (s *service) broadcastWithLogging(ctx context.Context, activeGroupID, studentID string, event realtime.Event, eventType string) {
-	if err := s.Broadcaster.BroadcastToGroup(tenant.FromContext(ctx), activeGroupID, event); err != nil {
-		attrs := []slog.Attr{
-			slog.String("error", err.Error()),
-			slog.String("event_type", eventType),
-			slog.String("active_group_id", activeGroupID),
-		}
-		if studentID != "" {
-			attrs = append(attrs, slog.String("student_id", studentID))
-		}
-		s.getLogger().LogAttrs(context.Background(), slog.LevelError, sseErrorMessage, attrs...)
-	}
 }
 
 func (s *service) findActivityName(ctx context.Context, groupID *int64) (string, error) {

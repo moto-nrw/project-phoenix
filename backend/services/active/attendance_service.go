@@ -11,8 +11,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -750,7 +750,7 @@ func (s *service) emitRoomlessCheckout(
 	educationGroupID *int64,
 	source string,
 ) {
-	s.emitRoomlessAttendanceChange(ctx, realtime.EventStudentCheckOut, studentID, educationGroupID, source)
+	s.emitRoomlessAttendanceChange(ctx, false, studentID, educationGroupID, source)
 }
 
 // emitRoomlessCheckin publishes a check-in that has no room context: attendance
@@ -765,7 +765,7 @@ func (s *service) emitRoomlessCheckin(
 	educationGroupID *int64,
 	source string,
 ) {
-	s.emitRoomlessAttendanceChange(ctx, realtime.EventStudentCheckIn, studentID, educationGroupID, source)
+	s.emitRoomlessAttendanceChange(ctx, true, studentID, educationGroupID, source)
 }
 
 // emitRoomlessAttendanceChange publishes an attendance change with no room
@@ -777,7 +777,7 @@ func (s *service) emitRoomlessCheckin(
 // emitVisitCheckout — see its doc comment.
 func (s *service) emitRoomlessAttendanceChange(
 	ctx context.Context,
-	eventType realtime.EventType,
+	checkIn bool,
 	studentID int64,
 	educationGroupID *int64,
 	source string,
@@ -786,24 +786,15 @@ func (s *service) emitRoomlessAttendanceChange(
 		return
 	}
 
-	studentIDStr := fmt.Sprintf("%d", studentID)
 	eduGroupIDs := eduGroupIDsOf(educationGroupID)
 
-	data := realtime.EventData{
-		StudentID: &studentIDStr,
-		Source:    &source,
-	}
-	if len(eduGroupIDs) > 0 {
-		data.GroupIDs = &eduGroupIDs
-	}
-	event := realtime.NewEvent(
-		eventType,
-		"", // no active group — the child is not in a room
-		data,
-	)
-
-	// Broadcast to educational (OGS) group topic so the "Meine Gruppe" page updates
-	s.broadcastToEducationalGroup(ctx, educationGroupID, event)
+	// Broadcast to educational (OGS) group topic so the "Meine Gruppe" page
+	// updates. The source is always carried, even when empty.
+	realtimeevents.PublishRoomlessAttendanceChange(ctx, s.Broadcaster, s.getLogger(), checkIn, realtimeevents.VisitChange{
+		StudentID:        fmt.Sprintf("%d", studentID),
+		EducationGroupID: educationGroupID,
+		Source:           source,
+	})
 
 	// Notify every client of the tenant so dashboard counts and the search
 	// page refresh — the educational group broadcast only reaches staff in

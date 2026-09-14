@@ -13,8 +13,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -39,21 +39,13 @@ func (s *service) broadcastActivityStartEvent(ctx context.Context, group *active
 		supervisorIDStrs[i] = fmt.Sprintf("%d", id)
 	}
 
-	activityName := s.getActivityName(ctx, group.GroupID)
-	roomName := s.getRoomName(ctx, group.RoomID)
-
-	event := realtime.NewEvent(
-		realtime.EventActivityStart,
-		activeGroupID,
-		realtime.EventData{
-			ActivityName:  &activityName,
-			RoomID:        &roomIDStr,
-			RoomName:      &roomName,
-			SupervisorIDs: &supervisorIDStrs,
-		},
-	)
-
-	s.broadcastWithLogging(ctx, activeGroupID, "", event, "activity_start")
+	realtimeevents.PublishActivityStart(ctx, s.Broadcaster, s.getLogger(), realtimeevents.ActivitySession{
+		ActiveGroupID: activeGroupID,
+		ActivityName:  s.getActivityName(ctx, group.GroupID),
+		RoomID:        roomIDStr,
+		RoomName:      s.getRoomName(ctx, group.RoomID),
+		SupervisorIDs: supervisorIDStrs,
+	})
 
 	// Notify every client of the tenant (including zero-topic) so dashboards
 	// refresh. No group scope: a session start affects room occupancy across

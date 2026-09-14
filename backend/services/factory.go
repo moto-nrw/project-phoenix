@@ -883,7 +883,7 @@ func newFactory(
 	// Planned-shift lookups for the auto-checkout job (#1798).
 	workSessionService.SetStaffShiftRepo(NewTimeTrackingShifts(repos.StaffShift))
 	if broadcastAware, ok := workSessionService.(interface {
-		SetBroadcaster(realtime.Broadcaster)
+		SetBroadcaster(active.EventPublisher)
 	}); ok {
 		broadcastAware.SetBroadcaster(realtimeHub)
 	}
@@ -945,7 +945,7 @@ func newFactory(
 		typeAware.SetAbsenceTypeService(staffAbsenceTypeService)
 	}
 	if broadcastAware, ok := staffAbsenceService.(interface {
-		SetBroadcaster(realtime.Broadcaster)
+		SetBroadcaster(active.EventPublisher)
 	}); ok {
 		broadcastAware.SetBroadcaster(realtimeHub)
 	}
@@ -959,7 +959,7 @@ func newFactory(
 	// school-year reset. Reads the live balance through the month service.
 	staffBalanceAdjustService := active.NewStaffBalanceAdjustmentService(repos.StaffBalanceAdjust, workTimeMonthService, settingsService, activeLogger)
 	if broadcastAware, ok := staffBalanceAdjustService.(interface {
-		SetBroadcaster(realtime.Broadcaster)
+		SetBroadcaster(active.EventPublisher)
 	}); ok {
 		broadcastAware.SetBroadcaster(realtimeHub)
 	}
@@ -996,7 +996,7 @@ func newFactory(
 		activeLogger,
 	)
 	if broadcastAware, ok := staffMonthCloseService.(interface {
-		SetBroadcaster(realtime.Broadcaster)
+		SetBroadcaster(active.EventPublisher)
 	}); ok {
 		broadcastAware.SetBroadcaster(realtimeHub)
 	}

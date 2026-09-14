@@ -19,7 +19,6 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -390,7 +389,7 @@ type workSessionService struct {
 	settings       settingsResolver
 	staffShiftRepo WorkSessionShifts
 	holidayReader  HolidayDatesReader
-	broadcaster    realtime.Broadcaster
+	broadcaster    EventPublisher
 	logger         *slog.Logger
 	nowFunc        func() time.Time
 	renderPDF      TimeTrackingPDFRenderer
@@ -415,7 +414,7 @@ func (s *workSessionService) SetHolidayReader(reader HolidayDatesReader) {
 
 // SetBroadcaster injects the tenant-wide SSE broadcaster. It stays outside
 // WorkSessionService so existing API-layer mocks do not need a no-op setter.
-func (s *workSessionService) SetBroadcaster(broadcaster realtime.Broadcaster) {
+func (s *workSessionService) SetBroadcaster(broadcaster EventPublisher) {
 	s.broadcaster = broadcaster
 }
 

@@ -10,7 +10,7 @@ import (
 
 // QueueStaffTimeTrackingChanged emits a tenant-wide invalidation after the
 // surrounding transaction commits.
-func QueueStaffTimeTrackingChanged(ctx context.Context, broadcaster realtime.Broadcaster, logger *slog.Logger) {
+func QueueStaffTimeTrackingChanged(ctx context.Context, broadcaster Publisher, logger *slog.Logger) {
 	if broadcaster == nil {
 		return
 	}

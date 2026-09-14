@@ -126,7 +126,7 @@ func TestStaffBalanceAdjustmentService_BroadcastsAfterCommit(t *testing.T) {
 	service := newRecordingBalanceAdjustmentService(&events, repo, monthService)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	service.(interface {
-		SetBroadcaster(realtime.Broadcaster)
+		SetBroadcaster(EventPublisher)
 	}).SetBroadcaster(broadcaster)
 	ctx, commit := tenant.WithAfterCommitHooksForTest(
 		tenant.WithTenantID(context.Background(), 42),

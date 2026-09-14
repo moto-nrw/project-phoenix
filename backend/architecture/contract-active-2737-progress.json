@@ -400,13 +400,6 @@
       "scope": "production",
       "rule": "imports.forbidden",
       "source": "github.com/moto-nrw/project-phoenix/services/active",
-      "target": "github.com/moto-nrw/project-phoenix/realtime",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "production",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/services/active",
       "target": "github.com/moto-nrw/project-phoenix/tenant",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
     },
@@ -445,7 +438,7 @@
   "latest_verification": {
     "full_backend_suite": "full backend suite via scripts/test-backend.sh: 26278 tests, 2 skipped, 126s; the single failure (PyrePortal error string guard) was fixed by adding the relocated sentinel file to the guard corpus and api/active plus api/iot were rerun green",
     "architecture": {
-      "legacy_keys": 1484,
+      "legacy_keys": 1483,
       "composition_field_setter_targets": 779
     },
     "lint": {
@@ -476,8 +469,8 @@
   },
   "reassessment": {
     "reason": "User requested a credible completion estimate after prolonged incremental work.",
-    "remaining_key_count": 59,
-    "production_keys": 12,
+    "remaining_key_count": 58,
+    "production_keys": 11,
     "test_keys": 47,
     "import_locations": 650,
     "affected_files": 249,
@@ -540,6 +533,7 @@
     "Dashboard staff-group projection uses native IDs; user-context test module no longer constructs an active service for SSE",
     "api/active no longer imports services/active or models/active: a consumer-owned PresenceOperations port (studentpresence public values and sentinels) is bound to the retained service by services.NewPresenceOperations; single-session, supervision-row and combination-group reads are native presence queries",
     "services/active sentinel errors alias the studentpresence public sentinels; RoomCapacityError lives in the owner package; services/active no longer imports cmp",
-    "services/active no longer imports bun: the retained services keep a DatabaseHandle presence marker and the status-day writes use the generic tenant transaction entry point"
+    "services/active no longer imports bun: the retained services keep a DatabaseHandle presence marker and the status-day writes use the generic tenant transaction entry point",
+    "services/active no longer imports realtime: every presence broadcast goes through named producers in the Delivery realtimeevents application package and the retained services hold an EventPublisher port that embeds the Delivery publisher contract"
   ]
 }

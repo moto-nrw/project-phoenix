@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -316,7 +315,7 @@ type staffAbsenceService struct {
 	// emailDeps is nil unless SetAbsenceEmailDeps wired it (factory only);
 	// nil means no absence emails are sent (#1419 4d).
 	emailDeps   *AbsenceEmailDeps
-	broadcaster realtime.Broadcaster
+	broadcaster EventPublisher
 	// deletionRepo writes append-only tombstones for deleted absences
 	// (#1417): the absence's own audit trail is ON DELETE CASCADE, so
 	// without the tombstone a delete erases its whole history. Setter
@@ -413,7 +412,7 @@ func (s *staffAbsenceService) SetShiftPlanSyncer(syncer ShiftPlanSyncer) {
 
 // SetBroadcaster injects the tenant-wide SSE broadcaster. It stays outside
 // StaffAbsenceService so existing API-layer mocks do not need a no-op setter.
-func (s *staffAbsenceService) SetBroadcaster(broadcaster realtime.Broadcaster) {
+func (s *staffAbsenceService) SetBroadcaster(broadcaster EventPublisher) {
 	s.broadcaster = broadcaster
 }
 

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
 // Sentinel errors for handler mapping (#1417).
@@ -75,7 +74,7 @@ type staffMonthCloseService struct {
 	monthService WorkTimeMonthService
 	staffLister  MonthCloseStaffQuery
 	settings     monthSettingsResolver
-	broadcaster  realtime.Broadcaster
+	broadcaster  EventPublisher
 	logger       *slog.Logger
 }
 
@@ -101,7 +100,7 @@ func (s *staffMonthCloseService) getLogger() *slog.Logger {
 
 // SetBroadcaster injects the tenant-wide SSE broadcaster. It stays outside
 // StaffMonthCloseService so existing API-layer mocks stay unchanged.
-func (s *staffMonthCloseService) SetBroadcaster(broadcaster realtime.Broadcaster) {
+func (s *staffMonthCloseService) SetBroadcaster(broadcaster EventPublisher) {
 	s.broadcaster = broadcaster
 }
 

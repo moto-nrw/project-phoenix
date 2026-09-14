@@ -68,7 +68,7 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	workSessionService := active.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, NewWorkSessionAudit(repos.WorkSessionEdit), repos.StaffAbsence, repos.GroupSupervisor, repos.ActiveGroup, WorkSessionStaff(repos.Staff), repos.StaffWorkSchedule, repos.WorkTimeModel, settingsService, activeLogger, db, RenderTimeTrackingPDF, RenderTimeTrackingWorkbook)
 	workSessionService.SetStaffShiftRepo(NewTimeTrackingShifts(repos.StaffShift))
 	if broadcastAware, ok := workSessionService.(interface {
-		SetBroadcaster(realtime.Broadcaster)
+		SetBroadcaster(active.EventPublisher)
 	}); ok {
 		broadcastAware.SetBroadcaster(realtimeHub)
 	}
@@ -110,7 +110,7 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		typeAware.SetAbsenceTypeService(staffAbsenceTypeService)
 	}
 	if broadcastAware, ok := staffAbsenceService.(interface {
-		SetBroadcaster(realtime.Broadcaster)
+		SetBroadcaster(active.EventPublisher)
 	}); ok {
 		broadcastAware.SetBroadcaster(realtimeHub)
 	}
@@ -122,7 +122,7 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 
 	staffBalanceAdjustService := active.NewStaffBalanceAdjustmentService(repos.StaffBalanceAdjust, workTimeMonthService, settingsService, activeLogger, timezone.CalendarDateClock(optionalClock(clocks)))
 	if broadcastAware, ok := staffBalanceAdjustService.(interface {
-		SetBroadcaster(realtime.Broadcaster)
+		SetBroadcaster(active.EventPublisher)
 	}); ok {
 		broadcastAware.SetBroadcaster(realtimeHub)
 	}
@@ -151,7 +151,7 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		activeLogger,
 	)
 	if broadcastAware, ok := staffMonthCloseService.(interface {
-		SetBroadcaster(realtime.Broadcaster)
+		SetBroadcaster(active.EventPublisher)
 	}); ok {
 		broadcastAware.SetBroadcaster(realtimeHub)
 	}

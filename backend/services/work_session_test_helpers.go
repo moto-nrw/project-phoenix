@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/iot/staffclock"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -38,6 +37,6 @@ func NewWorkSessionTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func
 	service := active.NewWorkSessionService(r.WorkSession, r.WorkSessionBreak, NewWorkSessionAudit(r.WorkSessionEdit),
 		r.StaffAbsence, r.GroupSupervisor, r.ActiveGroup, WorkSessionStaff(r.Staff), r.StaffWorkSchedule, r.WorkTimeModel, settings.Settings, slog.Default(), db, RenderTimeTrackingPDF, RenderTimeTrackingWorkbook)
 	service.SetStaffShiftRepo(NewTimeTrackingShifts(r.StaffShift))
-	service.(interface{ SetBroadcaster(realtime.Broadcaster) }).SetBroadcaster(deliveryCompose.NewRealtimeHub(slog.Default()))
+	service.(interface{ SetBroadcaster(active.EventPublisher) }).SetBroadcaster(deliveryCompose.NewRealtimeHub(slog.Default()))
 	return WorkSessionTestModule{WorkSession: service, StaffClock: newStaffClockService(identity.Users, rfid.RFID.FindByID, service)}, nil
 }

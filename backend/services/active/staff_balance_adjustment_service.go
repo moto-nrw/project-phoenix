@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
 // Sentinel errors for handler mapping (#1420).
@@ -123,7 +122,7 @@ type staffBalanceAdjustmentService struct {
 	settings       monthSettingsResolver
 	snapshotRepo   adjustmentFreezeReader
 	deletionRepo   TimeTrackingDeletionAudit
-	broadcaster    realtime.Broadcaster
+	broadcaster    EventPublisher
 	logger         *slog.Logger
 }
 
@@ -144,7 +143,7 @@ func (s *staffBalanceAdjustmentService) SetDeletionAudit(repo TimeTrackingDeleti
 
 // SetBroadcaster injects the tenant-wide SSE broadcaster. It stays outside
 // StaffBalanceAdjustmentService so existing API-layer mocks stay unchanged.
-func (s *staffBalanceAdjustmentService) SetBroadcaster(broadcaster realtime.Broadcaster) {
+func (s *staffBalanceAdjustmentService) SetBroadcaster(broadcaster EventPublisher) {
 	s.broadcaster = broadcaster
 }
 
