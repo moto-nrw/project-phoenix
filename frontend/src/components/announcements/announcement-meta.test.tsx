@@ -137,8 +137,18 @@ describe("describeReminder (#3162)", () => {
     expect(describeReminder(sent)).toBe("Erinnert am 08.09.2026, 08:03 Uhr");
   });
 
+  it("keeps an elapsed reminder planned on an unpublished draft", () => {
+    const draft = { ...base, reminder_at: "2026-09-08T06:00:00Z" };
+    expect(reminderStateOf(draft)).toBe("planned");
+    expect(describeReminder(draft)).toBe("Erinnerung am 08.09.2026, 08:00 Uhr");
+  });
+
   it("flags a reminder whose moment passed without a send", () => {
-    const missed = { ...base, reminder_at: "2026-09-08T06:00:00Z" };
+    const missed = {
+      ...base,
+      status: "published" as const,
+      reminder_at: "2026-09-08T06:00:00Z",
+    };
     expect(reminderStateOf(missed)).toBe("missed");
     expect(describeReminder(missed)).toBe(
       "Erinnerung am 08.09.2026, 08:00 Uhr nicht versendet",
