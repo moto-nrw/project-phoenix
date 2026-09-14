@@ -840,7 +840,7 @@ function AnnouncementFormModal({
   );
   const [formError, setFormError] = useFormError();
 
-  const validateContent = (): boolean => {
+  const validateContent = (forPublication: boolean): boolean => {
     if (!title.trim()) {
       setFormError("Bitte einen Titel eingeben.");
       return false;
@@ -875,21 +875,23 @@ function AnnouncementFormModal({
         return false;
       }
     }
-    const reminderProblem = reminderError(
-      isPollForm ? null : reminderDay,
-      reminderTime,
-      expiresAt ? new Date(endOfBerlinDayISO(expiresAt)) : null,
-    );
-    if (reminderProblem) {
-      setFormError(reminderProblem);
-      return false;
+    if (forPublication) {
+      const reminderProblem = reminderError(
+        isPollForm ? null : reminderDay,
+        reminderTime,
+        expiresAt ? new Date(endOfBerlinDayISO(expiresAt)) : null,
+      );
+      if (reminderProblem) {
+        setFormError(reminderProblem);
+        return false;
+      }
     }
     setFormError("");
     return true;
   };
 
   const goNext = () => {
-    if (validateContent()) setStep(1);
+    if (validateContent(false)) setStep(1);
   };
 
   const attachmentCount = existingAttachments.length + pendingFiles.length;
@@ -952,7 +954,7 @@ function AnnouncementFormModal({
   };
 
   const handleSubmit = async (publish: boolean) => {
-    if (!validateContent()) {
+    if (!validateContent(publish)) {
       setStep(0);
       return;
     }

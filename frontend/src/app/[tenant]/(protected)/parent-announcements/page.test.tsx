@@ -1,7 +1,10 @@
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Announcement } from "~/lib/parent-announcements-api";
+import {
+  updateAnnouncement,
+  type Announcement,
+} from "~/lib/parent-announcements-api";
 import ParentAnnouncementsPage from "./page";
 
 const { searchParams, pushMock, updateUrlParamsMock, listState } = vi.hoisted(
@@ -50,6 +53,7 @@ vi.mock("~/lib/parent-announcements-api", async (importOriginal) => {
   return {
     ...actual,
     fetchAnnouncements: vi.fn(() => Promise.resolve([])),
+    updateAnnouncement: vi.fn(() => Promise.resolve({ id: "1" })),
     fetchAnnouncementAttachments: vi.fn(() =>
       Promise.resolve({
         attachments: [],
@@ -247,5 +251,23 @@ describe("ParentAnnouncementsPage: scheduled reminder (#3162)", () => {
     expect(
       screen.queryByText("Erinnern am (optional)"),
     ).not.toBeInTheDocument();
+  });
+
+  it("saves a draft with an elapsed reminder", async () => {
+    listState.data = [
+      {
+        ...base,
+        reminder_at: "2026-09-08T06:00:00Z",
+      },
+    ];
+    searchParams.set("bearbeiten", "1");
+    render(<ParentAnnouncementsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Weiter" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Als Entwurf speichern" }),
+    );
+
+    await waitFor(() => expect(updateAnnouncement).toHaveBeenCalledTimes(1));
   });
 });

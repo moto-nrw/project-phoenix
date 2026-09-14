@@ -174,8 +174,10 @@ type Service interface {
 	UpdateReminder(ctx context.Context, id int64, in ReminderInput) (*usersModels.ParentAnnouncement, error)
 	// SendDueReminders delivers every reminder of the current tenant that fell
 	// due in (notBefore, dueBefore] and reports how many announcements were
-	// reminded. Runs inside the scheduler's tenant transaction.
-	SendDueReminders(ctx context.Context, notBefore, dueBefore time.Time) (int, error)
+	// reminded. retryFrom is set when a temporary delivery suppression needs
+	// the scheduler to retain part of its scan window. Runs inside the
+	// scheduler's tenant transaction.
+	SendDueReminders(ctx context.Context, notBefore, dueBefore time.Time) (sent int, retryFrom *time.Time, err error)
 
 	// --- cancellation notice (#2601) ---
 	CareCancellationPublisher
@@ -618,9 +620,13 @@ func (s *service) notifyAnnouncementGuardiansAs(ctx context.Context, a *usersMod
 	if s.notifier == nil {
 		return 0, nil
 	}
-	return s.notifyAnnouncementGuardiansWith(ctx, a, shape, func(ctx context.Context, event notifications.Event) (int, error) {
+	accepted, err := s.notifyAnnouncementGuardiansWith(ctx, a, shape, func(ctx context.Context, event notifications.Event) (int, error) {
 		return 1, s.notifier.Notify(ctx, event)
 	})
+	if errors.Is(err, notifications.ErrDisabled) || errors.Is(err, notifications.ErrOutsideActiveWindow) {
+		return accepted, nil
+	}
+	return accepted, err
 }
 
 // notifyReminderGuardians uses the durable receipt path. The reminder claim
@@ -717,7 +723,7 @@ func (s *service) notifyAnnouncementGuardiansWith(ctx context.Context, a *usersM
 				slog.Int("recipient_count", len(accountIDs)),
 				slog.String("reason", err.Error()),
 			)
-			return accepted, nil
+			return accepted, err
 		}
 		if err != nil {
 			return accepted, fmt.Errorf("notify guardian audience: %w", err)

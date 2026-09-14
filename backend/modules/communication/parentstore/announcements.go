@@ -131,6 +131,10 @@ func (r *announcementRepository) ClaimReminder(ctx context.Context, id int64, se
 	return r.store.ClaimReminder(ctx, id, sentAt)
 }
 
+func (r *announcementRepository) ReleaseReminderClaim(ctx context.Context, id int64, sentAt time.Time) (bool, error) {
+	return r.store.ReleaseReminderClaim(ctx, id, sentAt)
+}
+
 func (r *announcementRepository) ReplaceTargets(ctx context.Context, tenantID, announcementID int64, targets []*usersModels.ParentAnnouncementTarget) error {
 	values := make([]*domain.ParentAnnouncementTarget, 0, len(targets))
 	for _, target := range targets {

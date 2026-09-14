@@ -519,6 +519,33 @@ func (s *AnnouncementStore) ClaimReminder(ctx context.Context, id int64, sentAt 
 	return affected > 0, nil
 }
 
+// ReleaseReminderClaim restores an unsent reminder only when this scheduler
+// run made the matching claim. It is used for a temporary notification-window
+// suppression, which queued no delivery and must be retried after the window
+// opens without rolling back later reminders in the tenant batch.
+func (s *AnnouncementStore) ReleaseReminderClaim(ctx context.Context, id int64, sentAt time.Time) (bool, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return false, err
+	}
+	query := db.NewUpdate().
+		Model((*parentAnnouncementRow)(nil)).
+		ModelTableExpr(parentAnnouncementTableExpr).
+		Set("reminder_sent_at = NULL").
+		Where(`"parent_announcement".id = ?`, id).
+		Where(`"parent_announcement".reminder_sent_at = ?`, sentAt)
+	query = withTenant(query, parentAnnouncementAlias, tenantID)
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return false, fmt.Errorf("release parent announcement reminder claim: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("release parent announcement reminder claim rows affected: %w", err)
+	}
+	return affected > 0, nil
+}
+
 // lockDraft locks the announcement row and reports whether it is still a
 // draft. Target and option swaps must only ever land on a draft: a publish
 // that slipped in between the content update and the swap would otherwise

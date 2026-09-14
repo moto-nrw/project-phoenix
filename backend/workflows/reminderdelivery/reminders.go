@@ -20,7 +20,7 @@ type Command interface {
 // existing scheduler reminder binding. It stays a consumer-owned port so this
 // workflow does not import Communication.
 type ParentAnnouncementCommand interface {
-	SendDueParentAnnouncementReminders(ctx context.Context, notBefore, dueBefore time.Time) (int, error)
+	SendDueParentAnnouncementReminders(ctx context.Context, notBefore, dueBefore time.Time) (sent int, retryFrom *time.Time, err error)
 }
 
 // Capability is the single owner facade used by inbound and worker composition.

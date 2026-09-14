@@ -128,6 +128,9 @@ func (m *mockRepo) ListDueReminders(context.Context, time.Time, time.Time) ([]*u
 	return nil, nil
 }
 func (m *mockRepo) ClaimReminder(context.Context, int64, time.Time) (bool, error) { return true, nil }
+func (m *mockRepo) ReleaseReminderClaim(context.Context, int64, time.Time) (bool, error) {
+	return true, nil
+}
 func (m *mockRepo) PublishIfDraft(ctx context.Context, id int64, publishedAt time.Time) (bool, error) {
 	return m.publishIfDraft(ctx, id, publishedAt)
 }

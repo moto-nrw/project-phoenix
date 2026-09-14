@@ -313,8 +313,8 @@ const ROW_ACTION_BASELINE = new Map(
       "Gericht entfernen@738",
     ],
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
-      "Antwort entfernen@1237",
-      "Entfernen@1569",
+      "Antwort entfernen@1239",
+      "Entfernen@1571",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
       "Bedingung löschen@1974",
@@ -1576,7 +1576,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
     // seinen eigenen Fuß (BAUARTEN-SPEC Bauart 2 Regel 4, #3115); die Anzeige
     // liegt auf der Route `parent-announcements/[id]`.
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
-      "Umfrage bearbeiten Neue Umfrage Elternbrief bearbeiten Neuer Elternbrief Elternmitteilung bearbeiten Neue Elternmitteilung@1142",
+      "Umfrage bearbeiten Neue Umfrage Elternbrief bearbeiten Neuer Elternbrief Elternmitteilung bearbeiten Neue Elternmitteilung@1144",
     ],
     // Einträge ohne eigene Objektansicht (Termin, Schließtag,
     // Kalenderzeitraum, Jahrgangswechsel, Klassenlisteneintrag,

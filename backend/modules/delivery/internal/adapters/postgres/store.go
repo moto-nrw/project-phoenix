@@ -88,7 +88,7 @@ const emailClaimSQL = `
 	WHERE id IN (
 		SELECT id FROM platform.email_outbox
 		WHERE (status = 'pending' AND next_retry_at <= ?)
-			OR (status = 'claimed' AND lease_expires_at <= ?)
+			OR (status = 'claimed' AND lease_expires_at <= ? AND lease_token NOT LIKE 'dispatch:%')
 		ORDER BY next_retry_at, id FOR UPDATE SKIP LOCKED LIMIT ?
 	) RETURNING *`
 
@@ -99,7 +99,7 @@ const pushClaimSQL = `
 	WHERE id IN (
 		SELECT id FROM platform.push_outbox
 		WHERE (status = 'pending' AND next_retry_at <= ?)
-			OR (status = 'claimed' AND lease_expires_at <= ?)
+			OR (status = 'claimed' AND lease_expires_at <= ? AND lease_token NOT LIKE 'dispatch:%')
 		ORDER BY next_retry_at, id FOR UPDATE SKIP LOCKED LIMIT ?
 	) RETURNING *`
 

@@ -72,10 +72,11 @@ func (s *Scheduler) checkAndRunAnnouncementReminders(ctx context.Context, task *
 	scanToByTenant := make(map[int64]time.Time)
 	completed := s.forEachTenantSettings(ctx, "announcement-reminders", func(tenantCtx context.Context, tenantID int64) error {
 		scanFrom, scanTo := s.announcementReminderWindow(tenantID, now)
-		if err := s.runAnnouncementRemindersForTenant(tenantCtx, tenantID, scanFrom, scanTo); err != nil {
+		scannedAt, err := s.runAnnouncementRemindersForTenant(tenantCtx, tenantID, scanFrom, scanTo)
+		if err != nil {
 			return err
 		}
-		scanToByTenant[tenantID] = scanTo
+		scanToByTenant[tenantID] = scannedAt
 		return nil
 	})
 	for _, tenantID := range completed {
@@ -105,14 +106,14 @@ func (s *Scheduler) markAnnouncementReminderScanned(tenantID int64, scannedAt ti
 	s.announcementReminderScannedAt[tenantID] = scannedAt
 }
 
-func (s *Scheduler) runAnnouncementRemindersForTenant(ctx context.Context, tenantID int64, scanFrom, scanTo time.Time) error {
-	sent, err := s.announcementReminders.SendDueParentAnnouncementReminders(ctx, scanFrom, scanTo)
+func (s *Scheduler) runAnnouncementRemindersForTenant(ctx context.Context, tenantID int64, scanFrom, scanTo time.Time) (time.Time, error) {
+	sent, retryFrom, err := s.announcementReminders.SendDueParentAnnouncementReminders(ctx, scanFrom, scanTo)
 	if err != nil {
 		s.getLogger().Error("announcement reminder tick failed",
 			slog.Int64("tenant_id", tenantID),
 			slog.String("error", err.Error()),
 		)
-		return err
+		return time.Time{}, err
 	}
 	if sent > 0 {
 		s.getLogger().Info("announcement reminders sent",
@@ -120,5 +121,11 @@ func (s *Scheduler) runAnnouncementRemindersForTenant(ctx context.Context, tenan
 			slog.Int("sent", sent),
 		)
 	}
-	return nil
+	if retryFrom == nil || !retryFrom.Before(scanTo) {
+		return scanTo, nil
+	}
+	// PostgreSQL stores timestamps with microsecond precision and ListDueReminders
+	// scans (notBefore, dueBefore]. Keep the deferred reminder just inside the
+	// next window without moving the boundary back farther than necessary.
+	return retryFrom.Add(-time.Microsecond), nil
 }

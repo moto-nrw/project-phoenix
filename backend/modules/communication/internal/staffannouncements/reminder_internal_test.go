@@ -26,6 +26,7 @@ type reminderRepo struct {
 	byID               map[int64]*usersModels.ParentAnnouncement
 	claim              map[int64]bool
 	claimCalls         []int64
+	releaseClaimCalls  []int64
 	setReminderCalls   []setReminderCall
 	setReminderApplied bool
 	deliveryRecipients []*usersModels.AnnouncementDeliveryRecipient
@@ -52,6 +53,11 @@ func (r *reminderRepo) ClaimReminder(_ context.Context, id int64, _ time.Time) (
 	r.claimCalls = append(r.claimCalls, id)
 	claimed, ok := r.claim[id]
 	return ok && claimed, nil
+}
+
+func (r *reminderRepo) ReleaseReminderClaim(_ context.Context, id int64, _ time.Time) (bool, error) {
+	r.releaseClaimCalls = append(r.releaseClaimCalls, id)
+	return true, nil
 }
 
 func (r *reminderRepo) SetReminder(_ context.Context, id int64, at *time.Time, text *string) (bool, error) {
@@ -302,7 +308,7 @@ func TestSendDueReminders_ReachesTheWholeAudienceOnceOverBothChannels(t *testing
 	}
 	h := newReminderHarness(repo)
 
-	sent, err := h.svc.SendDueReminders(context.Background(), time.Now().Add(-time.Hour), time.Now())
+	sent, _, err := h.svc.SendDueReminders(context.Background(), time.Now().Add(-time.Hour), time.Now())
 	require.NoError(t, err)
 	assert.Equal(t, 1, sent)
 	assert.Equal(t, []int64{a.ID}, repo.claimCalls)
@@ -340,14 +346,14 @@ func TestSendDueReminders_WithoutEmailOptInSendsPushOnly(t *testing.T) {
 	}
 	h := newReminderHarness(repo)
 
-	sent, err := h.svc.SendDueReminders(context.Background(), time.Now().Add(-time.Hour), time.Now())
+	sent, _, err := h.svc.SendDueReminders(context.Background(), time.Now().Add(-time.Hour), time.Now())
 	require.NoError(t, err)
 	assert.Equal(t, 1, sent)
 	assert.Len(t, h.notifier.events, 1)
 	assert.Empty(t, h.outbox.requests, "e-mail only when the announcement itself opted in")
 }
 
-func TestSendDueReminders_SuppressedPushWithoutEmailIsSkipped(t *testing.T) {
+func TestSendDueReminders_PushOutsideWindowReleasesClaimForRetry(t *testing.T) {
 	t.Parallel()
 
 	a := publishedWithReminder(false)
@@ -360,12 +366,15 @@ func TestSendDueReminders_SuppressedPushWithoutEmailIsSkipped(t *testing.T) {
 		claim: map[int64]bool{a.ID: true},
 	}
 	h := newReminderHarness(repo)
-	h.notifier.err = notifications.ErrDisabled
+	h.notifier.err = notifications.ErrOutsideActiveWindow
 
-	sent, err := h.svc.SendDueReminders(context.Background(), time.Now().Add(-time.Hour), time.Now())
+	sent, retryFrom, err := h.svc.SendDueReminders(context.Background(), time.Now().Add(-time.Hour), time.Now())
 	require.NoError(t, err)
 	assert.Zero(t, sent)
 	assert.Empty(t, h.outbox.requests)
+	assert.Equal(t, []int64{a.ID}, repo.releaseClaimCalls)
+	require.NotNil(t, retryFrom)
+	assert.Equal(t, *a.ReminderAt, *retryFrom)
 }
 
 func TestSendDueReminders_SkipsUndeliverableReminderAndContinues(t *testing.T) {
@@ -386,7 +395,7 @@ func TestSendDueReminders_SkipsUndeliverableReminderAndContinues(t *testing.T) {
 	h := newReminderHarness(repo)
 	h.notifier.durableAcceptedSet = true // VAPID is unavailable or nobody subscribed.
 
-	sent, err := h.svc.SendDueReminders(context.Background(), time.Now().Add(-time.Hour), time.Now())
+	sent, _, err := h.svc.SendDueReminders(context.Background(), time.Now().Add(-time.Hour), time.Now())
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, sent)
@@ -416,7 +425,7 @@ func TestSendDueReminders_ReloadsTheClaimedReminderBeforeDelivery(t *testing.T) 
 	}
 	h := newReminderHarness(repo)
 
-	_, err := h.svc.SendDueReminders(context.Background(), time.Now().Add(-time.Hour), time.Now())
+	_, _, err := h.svc.SendDueReminders(context.Background(), time.Now().Add(-time.Hour), time.Now())
 	require.NoError(t, err)
 	require.Len(t, h.outbox.requests, 1)
 	assert.Equal(t, freshText, h.outbox.requests[0].Payload[emailPayloadBody])
@@ -439,7 +448,7 @@ func TestSendDueReminders_SeparatesLocaleSpecificPushIntents(t *testing.T) {
 	}
 	h := newReminderHarness(repo)
 
-	_, err := h.svc.SendDueReminders(context.Background(), time.Now().Add(-time.Hour), time.Now())
+	_, _, err := h.svc.SendDueReminders(context.Background(), time.Now().Add(-time.Hour), time.Now())
 	require.NoError(t, err)
 	require.Len(t, h.notifier.events, 2)
 	assert.NotEqual(t, h.notifier.events[0].IdempotencyKey, h.notifier.events[1].IdempotencyKey)
@@ -463,7 +472,7 @@ func TestSendDueReminders_LostClaimSendsNothing(t *testing.T) {
 	}
 	h := newReminderHarness(repo)
 
-	sent, err := h.svc.SendDueReminders(context.Background(), time.Now().Add(-time.Hour), time.Now())
+	sent, _, err := h.svc.SendDueReminders(context.Background(), time.Now().Add(-time.Hour), time.Now())
 	require.NoError(t, err)
 	assert.Equal(t, 0, sent)
 	assert.Empty(t, h.notifier.events, "an overlapping tick already sent this reminder")
@@ -482,7 +491,7 @@ func TestSendDueReminders_NewsDisabledSendsNothing(t *testing.T) {
 	h := newReminderHarness(repo)
 	h.settings.enabled = false
 
-	sent, err := h.svc.SendDueReminders(context.Background(), time.Now().Add(-time.Hour), time.Now())
+	sent, _, err := h.svc.SendDueReminders(context.Background(), time.Now().Add(-time.Hour), time.Now())
 	require.NoError(t, err)
 	assert.Equal(t, 0, sent)
 	assert.Empty(t, repo.claimCalls, "nothing is claimed while the school has the feature off")
@@ -514,7 +523,7 @@ func TestSendDueReminders_LetterCarriesTheReminderTextToItsWideAudience(t *testi
 	}
 	h := newReminderHarness(repo)
 
-	sent, err := h.svc.SendDueReminders(context.Background(), time.Now().Add(-time.Hour), time.Now())
+	sent, _, err := h.svc.SendDueReminders(context.Background(), time.Now().Add(-time.Hour), time.Now())
 	require.NoError(t, err)
 	assert.Equal(t, 1, sent)
 
@@ -553,7 +562,7 @@ func TestSendDueReminders_LetterWithoutOwnTextRepeatsTheBody(t *testing.T) {
 	}
 	h := newReminderHarness(repo)
 
-	_, err := h.svc.SendDueReminders(context.Background(), time.Now().Add(-time.Hour), time.Now())
+	_, _, err := h.svc.SendDueReminders(context.Background(), time.Now().Add(-time.Hour), time.Now())
 	require.NoError(t, err)
 	require.Len(t, h.outbox.requests, 1)
 	assert.Equal(t, a.Body, h.outbox.requests[0].Payload[emailPayloadBody])
@@ -574,7 +583,7 @@ func TestSendDueReminders_DeliveryFailureRollsTheTickBack(t *testing.T) {
 	h := newReminderHarness(repo)
 	h.outbox.enqueueErr = errors.New("outbox unavailable")
 
-	_, err := h.svc.SendDueReminders(context.Background(), time.Now().Add(-time.Hour), time.Now())
+	_, _, err := h.svc.SendDueReminders(context.Background(), time.Now().Add(-time.Hour), time.Now())
 	require.Error(t, err, "the caller's tenant transaction must roll back the claim with the failed delivery")
 }
 

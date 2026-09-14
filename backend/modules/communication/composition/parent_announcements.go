@@ -277,9 +277,9 @@ func (p *parentAnnouncements) UpdateParentAnnouncementReminder(ctx context.Conte
 	return mapParentAnnouncement(row), mapParentAnnouncementError(err)
 }
 
-func (p *parentAnnouncements) SendDueParentAnnouncementReminders(ctx context.Context, notBefore, dueBefore time.Time) (int, error) {
-	count, err := p.service.SendDueReminders(ctx, notBefore, dueBefore)
-	return count, mapParentAnnouncementError(err)
+func (p *parentAnnouncements) SendDueParentAnnouncementReminders(ctx context.Context, notBefore, dueBefore time.Time) (int, *time.Time, error) {
+	count, retryFrom, err := p.service.SendDueReminders(ctx, notBefore, dueBefore)
+	return count, retryFrom, mapParentAnnouncementError(err)
 }
 
 func (p *parentAnnouncements) PublishCareCancellation(ctx context.Context, input communication.CareCancellationInput) (*communication.CareCancellationResult, error) {

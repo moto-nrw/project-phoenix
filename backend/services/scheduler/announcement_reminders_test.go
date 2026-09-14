@@ -16,14 +16,15 @@ import (
 )
 
 type fakeAnnouncementReminderSender struct {
-	calls []reminderCall
-	sent  int
-	err   error
+	calls     []reminderCall
+	sent      int
+	retryFrom *time.Time
+	err       error
 }
 
-func (f *fakeAnnouncementReminderSender) SendDueParentAnnouncementReminders(_ context.Context, notBefore, dueBefore time.Time) (int, error) {
+func (f *fakeAnnouncementReminderSender) SendDueParentAnnouncementReminders(_ context.Context, notBefore, dueBefore time.Time) (int, *time.Time, error) {
 	f.calls = append(f.calls, reminderCall{from: notBefore, to: dueBefore})
-	return f.sent, f.err
+	return f.sent, f.retryFrom, f.err
 }
 
 func TestAnnouncementReminderWindow(t *testing.T) {
@@ -96,7 +97,8 @@ func TestRunAnnouncementRemindersForTenant(t *testing.T) {
 		sender := &fakeAnnouncementReminderSender{sent: 2}
 		s := unitScheduler(&Scheduler{logger: slog.Default(), announcementReminders: sender})
 
-		require.NoError(t, s.runAnnouncementRemindersForTenant(context.Background(), 7, scanFrom, scanTo))
+		_, err := s.runAnnouncementRemindersForTenant(context.Background(), 7, scanFrom, scanTo)
+		require.NoError(t, err)
 		require.Len(t, sender.calls, 1)
 		assert.Equal(t, scanFrom, sender.calls[0].from)
 		assert.Equal(t, scanTo, sender.calls[0].to)
@@ -106,7 +108,19 @@ func TestRunAnnouncementRemindersForTenant(t *testing.T) {
 		sender := &fakeAnnouncementReminderSender{err: errors.New("outbox unavailable")}
 		s := unitScheduler(&Scheduler{logger: slog.Default(), announcementReminders: sender})
 
-		require.Error(t, s.runAnnouncementRemindersForTenant(context.Background(), 7, scanFrom, scanTo))
+		_, err := s.runAnnouncementRemindersForTenant(context.Background(), 7, scanFrom, scanTo)
+		require.Error(t, err)
+	})
+
+	t.Run("a temporary suppression retains the reminder in the next window", func(t *testing.T) {
+		retryAt := scanFrom.Add(2 * time.Minute)
+		sender := &fakeAnnouncementReminderSender{retryFrom: &retryAt}
+		s := unitScheduler(&Scheduler{logger: slog.Default(), announcementReminders: sender})
+
+		scannedAt, err := s.runAnnouncementRemindersForTenant(context.Background(), 7, scanFrom, scanTo)
+
+		require.NoError(t, err)
+		assert.Equal(t, retryAt.Add(-time.Microsecond), scannedAt)
 	})
 }
 

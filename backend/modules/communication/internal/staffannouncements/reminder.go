@@ -45,6 +45,14 @@ const (
 // history and cannot be changed or removed any more.
 var ErrReminderAlreadySent = errors.New("announcement: the reminder has already been sent")
 
+type reminderDeliveryResult uint8
+
+const (
+	reminderDeliverySkipped reminderDeliveryResult = iota
+	reminderDeliveryDelivered
+	reminderDeliveryDeferred
+)
+
 // ReminderInput is the narrow post-publish edit: move the reminder, reword it,
 // or remove it (nil ReminderAt). Title, text, audience and channels of a
 // published announcement stay immutable.
@@ -167,27 +175,29 @@ func (s *service) UpdateReminder(ctx context.Context, id int64, in ReminderInput
 // (push intents, outbox rows) are written in the same tenant transaction, so
 // either the reminder is marked sent AND queued, or neither — a crash between
 // the two cannot double-send on the next tick, and a rollback cannot leave a
-// sent mark behind an unsent reminder.
-func (s *service) SendDueReminders(ctx context.Context, notBefore, dueBefore time.Time) (int, error) {
+// sent mark behind an unsent reminder. retryFrom is set for a temporary push
+// suppression, so the scheduler retains that reminder in its next window.
+func (s *service) SendDueReminders(ctx context.Context, notBefore, dueBefore time.Time) (int, *time.Time, error) {
 	enabled, err := s.newsEnabled(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("announcement: resolve news flag: %w", err)
+		return 0, nil, fmt.Errorf("announcement: resolve news flag: %w", err)
 	}
 	if !enabled {
 		// The school switched the feature off after scheduling: nothing is
 		// live for parents, so nothing is reminded. The row keeps its unsent
 		// reminder and staff sees it as missed.
-		return 0, nil
+		return 0, nil, nil
 	}
 	due, err := s.repo.ListDueReminders(ctx, notBefore, dueBefore)
 	if err != nil {
-		return 0, fmt.Errorf("announcement: list due reminders: %w", err)
+		return 0, nil, fmt.Errorf("announcement: list due reminders: %w", err)
 	}
 	sent := 0
+	var retryFrom *time.Time
 	for _, a := range due {
 		claimed, err := s.repo.ClaimReminder(ctx, a.ID, dueBefore)
 		if err != nil {
-			return sent, fmt.Errorf("announcement: claim reminder: %w", err)
+			return sent, retryFrom, fmt.Errorf("announcement: claim reminder: %w", err)
 		}
 		if !claimed {
 			// An overlapping tick won, or the announcement was retracted or
@@ -199,16 +209,32 @@ func (s *service) SendDueReminders(ctx context.Context, notBefore, dueBefore tim
 		// delivered from the stale due-scan snapshot.
 		fresh, err := s.repo.FindByID(ctx, a.ID)
 		if err != nil {
-			return sent, fmt.Errorf("announcement: reload claimed reminder: %w", err)
+			return sent, retryFrom, fmt.Errorf("announcement: reload claimed reminder: %w", err)
 		}
 		if fresh == nil {
-			return sent, fmt.Errorf("announcement: reload claimed reminder: row not found")
+			return sent, retryFrom, fmt.Errorf("announcement: reload claimed reminder: row not found")
 		}
-		delivered, err := s.deliverReminder(ctx, fresh)
+		delivery, err := s.deliverReminder(ctx, fresh)
 		if err != nil {
-			return sent, err
+			return sent, retryFrom, err
 		}
-		if !delivered {
+		if delivery == reminderDeliveryDeferred {
+			released, err := s.repo.ReleaseReminderClaim(ctx, fresh.ID, dueBefore)
+			if err != nil {
+				return sent, retryFrom, fmt.Errorf("announcement: release suppressed reminder claim: %w", err)
+			}
+			if !released {
+				s.logger.Info("parent announcement reminder claim was no longer current",
+					slog.Int64("announcement_id", fresh.ID),
+				)
+			}
+			if fresh.ReminderAt != nil && (retryFrom == nil || fresh.ReminderAt.Before(*retryFrom)) {
+				retryAt := *fresh.ReminderAt
+				retryFrom = &retryAt
+			}
+			continue
+		}
+		if delivery == reminderDeliverySkipped {
 			// ClaimReminder is the terminal marker for this one fixed reminder
 			// moment. A live announcement can lose every current recipient or
 			// delivery channel after publication; retrying that unchanged state
@@ -221,41 +247,45 @@ func (s *service) SendDueReminders(ctx context.Context, notBefore, dueBefore tim
 		}
 		sent++
 	}
-	return sent, nil
+	return sent, retryFrom, nil
 }
 
 // deliverReminder sends the second delivery over the announcement's own
 // channels: push always, e-mail only when the announcement opted in, with the
 // audience rules of the publication (portal audience, or the wider letter
 // audience) applied unchanged.
-func (s *service) deliverReminder(ctx context.Context, a *usersModels.ParentAnnouncement) (bool, error) {
+func (s *service) deliverReminder(ctx context.Context, a *usersModels.ParentAnnouncement) (reminderDeliveryResult, error) {
 	pushAccepted, err := s.notifyReminderGuardians(ctx, a, reminderPushShape(a))
-	if err != nil {
-		return false, fmt.Errorf("announcement: reminder push notifications: %w", err)
+	pushDeferred := errors.Is(err, notifications.ErrOutsideActiveWindow)
+	if err != nil && !pushDeferred && !errors.Is(err, notifications.ErrDisabled) {
+		return reminderDeliverySkipped, fmt.Errorf("announcement: reminder push notifications: %w", err)
 	}
 	emailAccepted := 0
 	if a.SendEmail {
 		if needsDeliveryTracking(a) {
 			emailAccepted, err = s.enqueueTrackedReminderEmails(ctx, a)
 			if err != nil {
-				return false, err
+				return reminderDeliverySkipped, err
 			}
 		} else {
 			emailAccepted, err = s.enqueueAnnouncementEmailsAs(ctx, a, reminderMailSpec(a))
 			if err != nil {
-				return false, err
+				return reminderDeliverySkipped, err
 			}
 		}
 	}
+	if pushDeferred && emailAccepted == 0 {
+		return reminderDeliveryDeferred, nil
+	}
 	if pushAccepted == 0 && emailAccepted == 0 {
-		return false, nil
+		return reminderDeliverySkipped, nil
 	}
 	s.logger.Info("parent announcement reminder sent",
 		slog.Int64("announcement_id", a.ID),
 		slog.String("delivery_mode", a.DeliveryMode),
 		slog.Bool("email", a.SendEmail),
 	)
-	return true, nil
+	return reminderDeliveryDelivered, nil
 }
 
 // reminderPushShape keeps the push generic like every other parent push (no

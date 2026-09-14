@@ -201,6 +201,29 @@ func TestStoreCancellationInvalidatesClaimedIntent(t *testing.T) {
 	}
 }
 
+func TestStoreDoesNotReclaimExpiredDispatchFence(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	store, ctx := testStore(t, db)
+	enqueued := enqueueEmail(t, db, store, ctx, "dispatch-fence")
+	now := time.Now()
+	claimed, err := store.Claim(ctx, domain.TransportEmail, 1, now, now.Add(time.Minute))
+	require.NoError(t, err)
+	require.Len(t, claimed, 1)
+
+	dispatchToken, active, err := store.StartDelivery(ctx, domain.TransportEmail, enqueued.ID, *claimed[0].LeaseToken, now.Add(-time.Minute))
+	require.NoError(t, err)
+	require.True(t, active)
+
+	reclaimed, err := store.Claim(ctx, domain.TransportEmail, 1, now, now.Add(time.Minute))
+	require.NoError(t, err)
+	assert.Empty(t, reclaimed, "an expired dispatch fence belongs to the running provider call")
+
+	finalized, err := store.FinalizeSent(ctx, domain.TransportEmail, enqueued.ID, dispatchToken, json.RawMessage(`{}`), now)
+	require.NoError(t, err)
+	assert.True(t, finalized)
+}
+
 func TestStoreRejectsCrossTenantEmailOutboxAttachment(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)

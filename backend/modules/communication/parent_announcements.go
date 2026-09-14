@@ -256,9 +256,10 @@ type ParentAnnouncementCapability interface {
 	UpdateParentAnnouncementReminder(context.Context, int64, ParentAnnouncementReminderInput) (*ParentAnnouncement, error)
 	// SendDueParentAnnouncementReminders delivers the current tenant's
 	// reminders that fell due in (notBefore, dueBefore] and reports how many
-	// announcements were reminded. The scheduler owns the window and the tenant
-	// transaction; the capability owns audience and delivery.
-	SendDueParentAnnouncementReminders(ctx context.Context, notBefore, dueBefore time.Time) (int, error)
+	// announcements were reminded. retryFrom retains temporarily suppressed
+	// reminders in the scheduler window. The scheduler owns the window and the
+	// tenant transaction; the capability owns audience and delivery.
+	SendDueParentAnnouncementReminders(ctx context.Context, notBefore, dueBefore time.Time) (sent int, retryFrom *time.Time, err error)
 	CareCancellationPublisher
 	ParentAnnouncementAttachmentSupport
 }

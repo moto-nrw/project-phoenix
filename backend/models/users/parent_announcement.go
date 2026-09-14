@@ -559,6 +559,10 @@ type ParentAnnouncementRepository interface {
 	// NULL plus the same liveness predicate as ListDueReminders, so two
 	// overlapping ticks (or a tick racing an unpublish) send at most once.
 	ClaimReminder(ctx context.Context, id int64, sentAt time.Time) (bool, error)
+	// ReleaseReminderClaim clears the claim made at sentAt when a transient
+	// delivery gate prevented the reminder from being queued. The timestamp
+	// guard never clears a claim made by another scheduler run.
+	ReleaseReminderClaim(ctx context.Context, id int64, sentAt time.Time) (bool, error)
 
 	// --- targets (tenant tx) ---
 	ReplaceTargets(ctx context.Context, tenantID, announcementID int64, targets []*ParentAnnouncementTarget) error
