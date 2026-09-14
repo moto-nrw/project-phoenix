@@ -758,6 +758,7 @@ describe("RolesPage", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("role-detail-panel")).toBeInTheDocument();
+      expect(mockGetOne).toHaveBeenCalledTimes(1);
     });
     const listCallsBefore = mockGetList.mock.calls.length;
     const detailCallsBefore = mockGetOne.mock.calls.length;
