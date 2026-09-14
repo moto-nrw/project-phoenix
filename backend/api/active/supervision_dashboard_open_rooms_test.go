@@ -9,7 +9,6 @@ package active_test
 
 import (
 	"encoding/json"
-	"net/http"
 	"strconv"
 	"testing"
 	"time"
@@ -53,7 +52,7 @@ func openRooms(t *testing.T, router testutil.Router, accountID int64) map[string
 	rr := testutil.ExecuteWithAuthPermissions(
 		t, router, req, testutil.TeacherTestClaims(int(accountID)), dashboardPerms,
 	)
-	require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+	require.Equal(t, testutil.StatusOK, rr.Code, "body: %s", rr.Body.String())
 
 	var envelope openRoomEnvelope
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &envelope))

@@ -9,7 +9,6 @@ package active_test
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -78,10 +77,10 @@ func TestOperationalOverviewScope_OwnKeepsCaregiverOnOwnSupervisions(t *testing.
 	claims := caregiverClaims(t, tc, "Own")
 	groupID := foreignActiveGroup(t, tc, "own")
 
-	assert.Equal(t, http.StatusForbidden,
+	assert.Equal(t, testutil.StatusForbidden,
 		getWithClaims(t, router, "/active/supervisors/all", claims),
 		"the school-wide list must stay closed on the own scope")
-	assert.Equal(t, http.StatusForbidden,
+	assert.Equal(t, testutil.StatusForbidden,
 		getWithClaims(t, router, fmt.Sprintf("/active/groups/%d/visits/display", groupID), claims),
 		"a foreign module's detail must stay closed on the own scope")
 }
@@ -98,10 +97,10 @@ func TestOperationalOverviewScope_AllStaffOpensListAndDetail(t *testing.T) {
 	claims := caregiverClaims(t, tc, "AllStaff")
 	groupID := foreignActiveGroup(t, tc, "allstaff")
 
-	assert.Equal(t, http.StatusOK,
+	assert.Equal(t, testutil.StatusOK,
 		getWithClaims(t, router, "/active/supervisors/all", claims),
 		"the school-wide list must open for verified staff")
-	assert.Equal(t, http.StatusOK,
+	assert.Equal(t, testutil.StatusOK,
 		getWithClaims(t, router, fmt.Sprintf("/active/groups/%d/visits/display", groupID), claims),
 		"every module the list shows must also answer its detail route")
 }
@@ -121,10 +120,10 @@ func TestOperationalOverviewScope_SchoolPortalCannotReachTenantRoutes(t *testing
 	claims.Roles = []string{"admin"}
 	groupID := foreignActiveGroup(t, tc, "school-portal")
 
-	assert.Equal(t, http.StatusUnauthorized,
+	assert.Equal(t, testutil.StatusUnauthorized,
 		getWithClaims(t, router, "/active/supervisors/all", claims),
 		"the tenant middleware must reject a school-portal token")
-	assert.Equal(t, http.StatusUnauthorized,
+	assert.Equal(t, testutil.StatusUnauthorized,
 		getWithClaims(t, router, fmt.Sprintf("/active/groups/%d/visits/display", groupID), claims),
 		"the school portal must not expose a tenant operational detail")
 }
@@ -145,9 +144,9 @@ func TestOperationalOverviewScope_GroupModeIsNotAnAccessRule(t *testing.T) {
 	claims := caregiverClaims(t, tc, "GroupMode")
 	groupID := foreignActiveGroup(t, tc, "groupmode")
 
-	assert.Equal(t, http.StatusForbidden,
+	assert.Equal(t, testutil.StatusForbidden,
 		getWithClaims(t, router, "/active/supervisors/all", claims),
 		"open care is an organisational decision, not a freigabe")
-	assert.Equal(t, http.StatusForbidden,
+	assert.Equal(t, testutil.StatusForbidden,
 		getWithClaims(t, router, fmt.Sprintf("/active/groups/%d/visits/display", groupID), claims))
 }

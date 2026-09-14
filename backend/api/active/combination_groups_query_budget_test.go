@@ -2,7 +2,6 @@ package active_test
 
 import (
 	"fmt"
-	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -43,7 +42,7 @@ func TestCombinationGroupsQueryBudget(t *testing.T) {
 		counter.Reset()
 		req := testutil.NewRequest("GET", fmt.Sprintf("/active/combined/%d/groups", combined.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+		require.Equal(t, testutil.StatusOK, rr.Code, "body: %s", rr.Body.String())
 		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 		data, _ := response["data"].([]any)
 		require.Len(t, data, want)

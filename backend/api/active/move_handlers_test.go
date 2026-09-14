@@ -5,9 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
@@ -31,13 +32,13 @@ func (s moveAuthPersonService) GetStaffByPersonID(_ context.Context, _ int64) (*
 	return s.staff, nil
 }
 
-func withAdminMoveContext(req *http.Request) *http.Request {
+func withAdminMoveContext(req *testutil.Request) *testutil.Request {
 	claims := adminClaims()
 	claims.ID, claims.Permissions = 1, []string{"admin:*"}
 	return req.WithContext(claimsCtxWithParent(req.Context(), claims))
 }
 
-func withStaffMoveContext(req *http.Request) *http.Request {
+func withStaffMoveContext(req *testutil.Request) *testutil.Request {
 	claims := staffClaims()
 	claims.ID, claims.Permissions = 2, []string{"visits:update"}
 	return req.WithContext(claimsCtxWithParent(req.Context(), claims))
@@ -48,10 +49,10 @@ func TestBulkMoveBypassRequiresValidatedAdminPrincipal(t *testing.T) {
 	for _, granted := range [][]string{{"admin:*"}, {"*:*"}} {
 		claims := staffClaims()
 		claims.Permissions = granted
-		req := newRequestWithClaims(http.MethodPost, "/visits/move-to-group", claims)
+		req := newRequestWithClaims(testutil.MethodPost, "/visits/move-to-group", claims)
 		require.True(t, canBypassBulkMoveResourceChecks(req))
 	}
-	req := withStaffMoveContext(httptest.NewRequest(http.MethodPost, "/visits/move-to-group", nil))
+	req := withStaffMoveContext(httptest.NewRequest(testutil.MethodPost, "/visits/move-to-group", nil))
 	require.False(t, canBypassBulkMoveResourceChecks(req))
 	// Raw claims alone cannot bypass the validated principal boundary.
 	raw := testpkg.IdentityContext(context.Background(), 2, 42, "", []string{"admin:*"})
@@ -94,11 +95,11 @@ func TestMoveHandlerOnlyPassesSchoolWideEligibilityForTenantStaff(t *testing.T) 
 			claims := staffClaims()
 			claims.ID, claims.TenantID, claims.Scope, claims.Permissions = 2, tc.claimTenant, tc.scope, tc.permissions
 			ctx = claimsCtxWithParent(ctx, claims)
-			req := httptest.NewRequest(http.MethodPost, "/visits/move-to-group", bytes.NewBufferString(`{"student_ids":[123],"target_active_group_id":99}`)).WithContext(ctx)
+			req := httptest.NewRequest(testutil.MethodPost, "/visits/move-to-group", bytes.NewBufferString(`{"student_ids":[123],"target_active_group_id":99}`)).WithContext(ctx)
 			rr := httptest.NewRecorder()
 			rs.moveStudentsToActiveGroup(rr, req)
 			require.True(t, called)
-			require.Equal(t, http.StatusForbidden, rr.Code)
+			require.Equal(t, testutil.StatusForbidden, rr.Code)
 		})
 	}
 }
@@ -128,7 +129,7 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 		})
 
 		req := httptest.NewRequest(
-			http.MethodPost,
+			testutil.MethodPost,
 			"/api/active/visits/move-to-group",
 			bytes.NewBufferString(`{"student_ids":[42,84],"target_active_group_id":99}`),
 		)
@@ -137,7 +138,7 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 
 		rs.moveStudentsToActiveGroup(w, req)
 
-		require.Equal(t, http.StatusOK, w.Code)
+		require.Equal(t, testutil.StatusOK, w.Code)
 		assert.Equal(t, []int64{42, 84}, capturedStudentIDs)
 		assert.Equal(t, int64(99), capturedActiveGroupID)
 		var body map[string]any
@@ -148,7 +149,7 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 	t.Run("rejects missing required fields", func(t *testing.T) {
 		rs := resourceForTest(Resource{Operations: &stubPresenceOperations{}})
 		req := httptest.NewRequest(
-			http.MethodPost,
+			testutil.MethodPost,
 			"/api/active/visits/move-to-group",
 			bytes.NewBufferString(`{"student_ids":[],"target_active_group_id":99}`),
 		)
@@ -156,7 +157,7 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 
 		rs.moveStudentsToActiveGroup(w, req)
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Equal(t, testutil.StatusBadRequest, w.Code)
 	})
 
 	t.Run("rejects all-not-present moves as conflict", func(t *testing.T) {
@@ -168,7 +169,7 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 			},
 		})
 		req := httptest.NewRequest(
-			http.MethodPost,
+			testutil.MethodPost,
 			"/api/active/visits/move-to-group",
 			bytes.NewBufferString(`{"student_ids":[42],"target_active_group_id":99}`),
 		)
@@ -177,7 +178,7 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 
 		rs.moveStudentsToActiveGroup(w, req)
 
-		require.Equal(t, http.StatusConflict, w.Code)
+		require.Equal(t, testutil.StatusConflict, w.Code)
 		var body map[string]any
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
 		assert.Equal(t, "Students Not Present", body["status"])
@@ -204,7 +205,7 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 			},
 		})
 		req := httptest.NewRequest(
-			http.MethodPost,
+			testutil.MethodPost,
 			"/api/active/visits/move-to-group",
 			bytes.NewBufferString(`{"student_ids":[42],"target_active_group_id":99}`),
 		)
@@ -213,7 +214,7 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 
 		rs.moveStudentsToActiveGroup(w, req)
 
-		require.Equal(t, http.StatusForbidden, w.Code)
+		require.Equal(t, testutil.StatusForbidden, w.Code)
 		assert.True(t, calledMove)
 	})
 
@@ -225,7 +226,7 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 				staff:  &StaffIdentity{ID: 20},
 			},
 		})
-		req := withStaffMoveContext(httptest.NewRequest(http.MethodPost, "/api/active/visits/move-to-group", nil))
+		req := withStaffMoveContext(httptest.NewRequest(testutil.MethodPost, "/api/active/visits/move-to-group", nil))
 		w := httptest.NewRecorder()
 
 		auth, ok := rs.bulkStudentMoveAuthorization(w, req)
@@ -258,7 +259,7 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 			},
 		})
 		req := httptest.NewRequest(
-			http.MethodPost,
+			testutil.MethodPost,
 			"/api/active/visits/move-to-group",
 			bytes.NewBufferString(`{"student_ids":[42],"target_active_group_id":99}`),
 		)
@@ -267,7 +268,7 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 
 		rs.moveStudentsToActiveGroup(w, req)
 
-		require.Equal(t, http.StatusOK, w.Code)
+		require.Equal(t, testutil.StatusOK, w.Code)
 		assert.True(t, calledMove)
 	})
 
@@ -286,7 +287,7 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 			},
 		})
 		req := httptest.NewRequest(
-			http.MethodPost,
+			testutil.MethodPost,
 			"/api/active/visits/move-to-group",
 			bytes.NewBufferString(`{"student_ids":[42],"target_active_group_id":99}`),
 		)
@@ -295,7 +296,7 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 
 		rs.moveStudentsToActiveGroup(w, req)
 
-		require.Equal(t, http.StatusInternalServerError, w.Code)
+		require.Equal(t, testutil.StatusInternalServerError, w.Code)
 		assert.True(t, calledMove)
 	})
 }
@@ -319,7 +320,7 @@ func TestMoveStudentsToTransit(t *testing.T) {
 		})
 
 		req := httptest.NewRequest(
-			http.MethodPost,
+			testutil.MethodPost,
 			"/api/active/visits/move-to-transit",
 			bytes.NewBufferString(`{"student_ids":[42,84]}`),
 		)
@@ -328,7 +329,7 @@ func TestMoveStudentsToTransit(t *testing.T) {
 
 		rs.moveStudentsToTransit(w, req)
 
-		require.Equal(t, http.StatusOK, w.Code)
+		require.Equal(t, testutil.StatusOK, w.Code)
 		assert.Equal(t, []int64{42, 84}, capturedStudentIDs)
 		var body map[string]any
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
@@ -338,7 +339,7 @@ func TestMoveStudentsToTransit(t *testing.T) {
 	t.Run("rejects malformed json", func(t *testing.T) {
 		rs := resourceForTest(Resource{Operations: &stubPresenceOperations{}})
 		req := httptest.NewRequest(
-			http.MethodPost,
+			testutil.MethodPost,
 			"/api/active/visits/move-to-transit",
 			bytes.NewBufferString(`{"student_ids":[42]`),
 		)
@@ -346,7 +347,7 @@ func TestMoveStudentsToTransit(t *testing.T) {
 
 		rs.moveStudentsToTransit(w, req)
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Equal(t, testutil.StatusBadRequest, w.Code)
 	})
 
 	t.Run("rejects all-not-present moves as conflict", func(t *testing.T) {
@@ -358,7 +359,7 @@ func TestMoveStudentsToTransit(t *testing.T) {
 			},
 		})
 		req := httptest.NewRequest(
-			http.MethodPost,
+			testutil.MethodPost,
 			"/api/active/visits/move-to-transit",
 			bytes.NewBufferString(`{"student_ids":[42]}`),
 		)
@@ -367,7 +368,7 @@ func TestMoveStudentsToTransit(t *testing.T) {
 
 		rs.moveStudentsToTransit(w, req)
 
-		require.Equal(t, http.StatusConflict, w.Code)
+		require.Equal(t, testutil.StatusConflict, w.Code)
 		var body map[string]any
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
 		assert.Equal(t, "Students Not Present", body["status"])

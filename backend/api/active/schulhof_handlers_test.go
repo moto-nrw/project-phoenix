@@ -3,7 +3,6 @@ package active
 import (
 	"context"
 	"errors"
-	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -55,7 +54,7 @@ func setupSchulhofTestRouter(resource *SchulhofResource) testutil.Router {
 	return router
 }
 
-func executeSchulhofRequest(router testutil.Router, req *http.Request, claims testutil.Claims, permissions []string) *httptest.ResponseRecorder {
+func executeSchulhofRequest(router testutil.Router, req *testutil.Request, claims testutil.Claims, permissions []string) *httptest.ResponseRecorder {
 	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, permissions)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
@@ -117,7 +116,7 @@ func TestGetSchulhofStatus_Success(t *testing.T) {
 
 	rr := executeSchulhofRequest(router, req, testutil.AdminTestClaims(1), []string{"schulhof:read"})
 
-	assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+	assert.Equal(t, testutil.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 	assert.Contains(t, rr.Body.String(), `"exists":true`)
 	assert.Contains(t, rr.Body.String(), `"room_name":"Schulhof"`)
 	assert.Contains(t, rr.Body.String(), `"is_user_supervising":true`)
@@ -155,7 +154,7 @@ func TestGetSchulhofStatus_SchulhofDoesNotExist(t *testing.T) {
 
 	rr := executeSchulhofRequest(router, req, testutil.AdminTestClaims(1), []string{"schulhof:read"})
 
-	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, testutil.StatusOK, rr.Code)
 	assert.Contains(t, rr.Body.String(), `"exists":false`)
 	assert.Contains(t, rr.Body.String(), `"supervisor_count":0`)
 }
@@ -202,6 +201,6 @@ func TestGetSchulhofStatus_ServiceError(t *testing.T) {
 
 	rr := executeSchulhofRequest(router, req, testutil.AdminTestClaims(1), []string{"schulhof:read"})
 
-	testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+	testutil.AssertErrorResponse(t, rr, testutil.StatusInternalServerError)
 	assert.Contains(t, rr.Body.String(), "failed to get Schulhof status")
 }

@@ -8,10 +8,11 @@ package active_test
 
 import (
 	"encoding/json"
-	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 
 	"github.com/moto-nrw/project-phoenix/api/active"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
@@ -63,7 +64,7 @@ func TestCheckinStudent_SelfHealsOrphanVisit(t *testing.T) {
 		router.ServeHTTP(rr, req)
 
 		// Pre-fix this was a 409 deadlock; now the orphan is healed.
-		require.Equal(t, http.StatusOK, rr.Code, "Response body: %s", rr.Body.String())
+		require.Equal(t, testutil.StatusOK, rr.Code, "Response body: %s", rr.Body.String())
 
 		var response map[string]interface{}
 		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
@@ -120,7 +121,7 @@ func TestCheckinStudent_SelfHealsOrphanVisit(t *testing.T) {
 		rr := httptest.NewRecorder()
 		handler.Router().ServeHTTP(rr, req)
 
-		require.Equal(t, http.StatusConflict, rr.Code, "Response body: %s", rr.Body.String())
+		require.Equal(t, testutil.StatusConflict, rr.Code, "Response body: %s", rr.Body.String())
 		persisted, err := testPresenceQueries(t, db).FindVisit(testpkg.Ctx(t), orphanVisit.ID)
 		require.NoError(t, err)
 		require.NotNil(t, persisted)
@@ -154,7 +155,7 @@ func TestCheckinStudent_SelfHealsOrphanVisit(t *testing.T) {
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 
-		assert.Equal(t, http.StatusConflict, rr.Code, "Response body: %s", rr.Body.String())
+		assert.Equal(t, testutil.StatusConflict, rr.Code, "Response body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "Student is already checked in")
 	})
 
@@ -189,7 +190,7 @@ func TestCheckinStudent_SelfHealsOrphanVisit(t *testing.T) {
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 
-		assert.Equal(t, http.StatusConflict, rr.Code, "Response body: %s", rr.Body.String())
+		assert.Equal(t, testutil.StatusConflict, rr.Code, "Response body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "Student already has an active visit in another room")
 
 		// The genuine visit must remain open — no healing here.

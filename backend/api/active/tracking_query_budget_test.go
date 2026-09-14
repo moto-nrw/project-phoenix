@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
-	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -69,7 +68,7 @@ func TestTrackingIndicatorsIssuesOneSettingValuesQuery(t *testing.T) {
 	rr := testutil.ExecuteWithAuth(t, router, req, testutil.AdminTestClaimsForTenant(1, tenantID))
 	queries := counter.Selects("config.setting_values")
 
-	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+	require.Equal(t, testutil.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 
 	var resp struct {
 		Data struct {

@@ -2,7 +2,6 @@ package active_test
 
 import (
 	"fmt"
-	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -39,7 +38,7 @@ func TestListActiveGroupsQueryBudget(t *testing.T) {
 		counter.Reset()
 		req := testutil.NewRequest("GET", "/active/groups?active=true", nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+		require.Equal(t, testutil.StatusOK, rr.Code, "body: %s", rr.Body.String())
 		return counter.Total()
 	}
 

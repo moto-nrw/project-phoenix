@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -66,7 +65,7 @@ func verifiedStaffContext() *stubUserContext {
 // HELPER: build request with JWT claims in context
 // =============================================================================
 
-func newRequestWithClaims(method, path string, claims testutil.Claims) *http.Request {
+func newRequestWithClaims(method, path string, claims testutil.Claims) *testutil.Request {
 	req := httptest.NewRequest(method, path, nil)
 	return req.WithContext(claimsCtx(claims))
 }
@@ -205,7 +204,7 @@ func TestGetAllActiveSupervisions_ForbiddenForNonAdmin(t *testing.T) {
 
 	rs.getAllActiveSupervisions(w, r)
 
-	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Equal(t, testutil.StatusForbidden, w.Code)
 }
 
 func TestGetAllActiveSupervisions_AllStaffScopeAllowsPermissionBearingStaff(t *testing.T) {
@@ -221,7 +220,7 @@ func TestGetAllActiveSupervisions_AllStaffScopeAllowsPermissionBearingStaff(t *t
 
 	rs.getAllActiveSupervisions(w, r)
 
-	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, testutil.StatusOK, w.Code)
 }
 
 // The organisational group mode must no longer decide operational access
@@ -251,7 +250,7 @@ func TestGetAllActiveSupervisions_GroupModeAloneGrantsNothing(t *testing.T) {
 
 	rs.getAllActiveSupervisions(w, r)
 
-	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Equal(t, testutil.StatusForbidden, w.Code)
 }
 
 func TestGetAllActiveSupervisions_ForbiddenWhenSettingsNil(t *testing.T) {
@@ -263,7 +262,7 @@ func TestGetAllActiveSupervisions_ForbiddenWhenSettingsNil(t *testing.T) {
 
 	rs.getAllActiveSupervisions(w, r)
 
-	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Equal(t, testutil.StatusForbidden, w.Code)
 }
 
 func TestGetAllActiveSupervisions_OwnScopeStillAllowsAdmin(t *testing.T) {
@@ -279,7 +278,7 @@ func TestGetAllActiveSupervisions_OwnScopeStillAllowsAdmin(t *testing.T) {
 
 	rs.getAllActiveSupervisions(w, r)
 
-	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, testutil.StatusOK, w.Code)
 }
 
 func TestGetAllActiveSupervisions_ForbiddenOnSettingError(t *testing.T) {
@@ -294,7 +293,7 @@ func TestGetAllActiveSupervisions_ForbiddenOnSettingError(t *testing.T) {
 
 	rs.getAllActiveSupervisions(w, r)
 
-	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Equal(t, testutil.StatusForbidden, w.Code)
 }
 
 func TestGetAllActiveSupervisions_SuccessEmptyGroups(t *testing.T) {
@@ -310,7 +309,7 @@ func TestGetAllActiveSupervisions_SuccessEmptyGroups(t *testing.T) {
 
 	rs.getAllActiveSupervisions(w, r)
 
-	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, testutil.StatusOK, w.Code)
 
 	var resp map[string]any
 	err := json.Unmarshal(w.Body.Bytes(), &resp)
@@ -352,7 +351,7 @@ func TestGetAllActiveSupervisions_SuccessWithActiveGroups(t *testing.T) {
 
 	rs.getAllActiveSupervisions(w, r)
 
-	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, testutil.StatusOK, w.Code)
 
 	var resp map[string]any
 	err := json.Unmarshal(w.Body.Bytes(), &resp)
@@ -383,5 +382,5 @@ func TestGetAllActiveSupervisions_ServiceError(t *testing.T) {
 
 	rs.getAllActiveSupervisions(w, r)
 
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Equal(t, testutil.StatusInternalServerError, w.Code)
 }

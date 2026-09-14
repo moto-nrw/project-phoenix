@@ -3,7 +3,6 @@ package active
 import (
 	"context"
 	"errors"
-	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -23,22 +22,22 @@ func TestRequireVisitViewUsesPrincipalAndPreservesDenialContract(t *testing.T) {
 		param     string
 		want      int
 	}{
-		{name: "missing principal", param: "1", want: http.StatusUnauthorized},
-		{name: "malformed visit ID", principal: visitTestPrincipal(t), param: "bad", want: http.StatusForbidden},
-		{name: "admin role bypass", principal: visitAdminRolePrincipal(t), param: "1", want: http.StatusNoContent},
+		{name: "missing principal", param: "1", want: testutil.StatusUnauthorized},
+		{name: "malformed visit ID", principal: visitTestPrincipal(t), param: "bad", want: testutil.StatusForbidden},
+		{name: "admin role bypass", principal: visitAdminRolePrincipal(t), param: "1", want: testutil.StatusNoContent},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			req := httptest.NewRequest(http.MethodGet, "/active/visits/"+tt.param, nil)
+			req := httptest.NewRequest(testutil.MethodGet, "/active/visits/"+tt.param, nil)
 			ctx := testutil.WithURLParams(req, "id", tt.param).Context()
 			if tt.principal != nil {
 				ctx = permissions.WithPrincipal(ctx, *tt.principal)
 			}
 			recorder := httptest.NewRecorder()
-			(resourceForTest(Resource{})).requireVisitView(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				w.WriteHeader(http.StatusNoContent)
+			(resourceForTest(Resource{})).requireVisitView(testutil.HandlerFunc(func(w testutil.ResponseWriter, _ *testutil.Request) {
+				w.WriteHeader(testutil.StatusNoContent)
 			})).ServeHTTP(recorder, req.WithContext(ctx))
 			if recorder.Code != tt.want {
 				t.Fatalf("status = %d, want %d", recorder.Code, tt.want)
@@ -55,9 +54,9 @@ func TestRequireVisitViewMapsRelationshipsAndErrors(t *testing.T) {
 		resource *Resource
 		want     int
 	}{
-		{name: "student owns visit", resource: visitResource(visitFixture{studentForPerson: 10}), want: http.StatusNoContent},
-		{name: "unrelated caller", resource: visitResource(visitFixture{}), want: http.StatusForbidden},
-		{name: "visit lookup fails", resource: visitResource(visitFixture{visitErr: internalErr}), want: http.StatusInternalServerError},
+		{name: "student owns visit", resource: visitResource(visitFixture{studentForPerson: 10}), want: testutil.StatusNoContent},
+		{name: "unrelated caller", resource: visitResource(visitFixture{}), want: testutil.StatusForbidden},
+		{name: "visit lookup fails", resource: visitResource(visitFixture{visitErr: internalErr}), want: testutil.StatusInternalServerError},
 	}
 
 	for _, tt := range tests {
@@ -134,11 +133,11 @@ func visitResource(fixture visitFixture) *Resource {
 
 func executeVisitView(t *testing.T, resource *Resource, principal permissions.Principal, param string) *httptest.ResponseRecorder {
 	t.Helper()
-	req := httptest.NewRequest(http.MethodGet, "/active/visits/"+param, nil)
+	req := httptest.NewRequest(testutil.MethodGet, "/active/visits/"+param, nil)
 	ctx := permissions.WithPrincipal(testutil.WithURLParams(req, "id", param).Context(), principal)
 	recorder := httptest.NewRecorder()
-	resource.requireVisitView(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusNoContent)
+	resource.requireVisitView(testutil.HandlerFunc(func(w testutil.ResponseWriter, _ *testutil.Request) {
+		w.WriteHeader(testutil.StatusNoContent)
 	})).ServeHTTP(recorder, req.WithContext(ctx))
 	return recorder
 }

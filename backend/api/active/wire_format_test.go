@@ -20,9 +20,10 @@ package active_test
 
 import (
 	"errors"
-	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 
 	"github.com/moto-nrw/project-phoenix/api/active"
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -30,7 +31,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func renderWire(t *testing.T, handler http.HandlerFunc) (int, string) {
+func renderWire(t *testing.T, handler testutil.HandlerFunc) (int, string) {
 	t.Helper()
 	r := httptest.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
@@ -81,7 +82,7 @@ func TestWireFormat_Active_ErrorRenderer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotStatus, gotBody := renderWire(t, func(w http.ResponseWriter, r *http.Request) {
+			gotStatus, gotBody := renderWire(t, func(w testutil.ResponseWriter, r *testutil.Request) {
 				common.RenderError(w, r, active.ErrorRenderer(tt.err))
 			})
 			assert.Equal(t, tt.wantStatus, gotStatus)
@@ -95,13 +96,13 @@ func TestWireFormat_Active_ErrorHelpers(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		handler    http.HandlerFunc
+		handler    testutil.HandlerFunc
 		wantStatus int
 		wantBody   string
 	}{
 		{
 			name: "ErrorInvalidRequest",
-			handler: func(w http.ResponseWriter, r *http.Request) {
+			handler: func(w testutil.ResponseWriter, r *testutil.Request) {
 				common.RenderError(w, r, active.ErrorInvalidRequest(errors.New("bad")))
 			},
 			wantStatus: 400,
@@ -109,7 +110,7 @@ func TestWireFormat_Active_ErrorHelpers(t *testing.T) {
 		},
 		{
 			name: "ErrorForbidden",
-			handler: func(w http.ResponseWriter, r *http.Request) {
+			handler: func(w testutil.ResponseWriter, r *testutil.Request) {
 				common.RenderError(w, r, active.ErrorForbidden(errors.New("nope")))
 			},
 			wantStatus: 403,
@@ -117,7 +118,7 @@ func TestWireFormat_Active_ErrorHelpers(t *testing.T) {
 		},
 		{
 			name: "ErrorUnauthorized",
-			handler: func(w http.ResponseWriter, r *http.Request) {
+			handler: func(w testutil.ResponseWriter, r *testutil.Request) {
 				common.RenderError(w, r, active.ErrorUnauthorized(errors.New("nope")))
 			},
 			wantStatus: 401,
@@ -125,7 +126,7 @@ func TestWireFormat_Active_ErrorHelpers(t *testing.T) {
 		},
 		{
 			name: "ErrorInternalServer",
-			handler: func(w http.ResponseWriter, r *http.Request) {
+			handler: func(w testutil.ResponseWriter, r *testutil.Request) {
 				common.RenderError(w, r, active.ErrorInternalServer(errors.New("boom2")))
 			},
 			wantStatus: 500,

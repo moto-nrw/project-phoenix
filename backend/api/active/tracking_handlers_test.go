@@ -5,9 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 
 	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
@@ -45,11 +46,11 @@ func newTrackingMockSettingsService(resolveBoolFunc func(ctx context.Context, ke
 
 // --- Test Helpers ---
 
-func createTrackingRequest(t *testing.T, body TrackingIndicatorsRequest) *http.Request {
+func createTrackingRequest(t *testing.T, body TrackingIndicatorsRequest) *testutil.Request {
 	t.Helper()
 	b, err := json.Marshal(body)
 	require.NoError(t, err)
-	return httptest.NewRequest(http.MethodPost, "/tracking-indicators", bytes.NewReader(b))
+	return httptest.NewRequest(testutil.MethodPost, "/tracking-indicators", bytes.NewReader(b))
 }
 
 // --- Tests ---
@@ -59,12 +60,12 @@ func TestGetTrackingIndicators_InvalidBody(t *testing.T) {
 
 	rs := resourceForTest(Resource{})
 
-	req := httptest.NewRequest(http.MethodPost, "/tracking-indicators", bytes.NewReader([]byte("not json")))
+	req := httptest.NewRequest(testutil.MethodPost, "/tracking-indicators", bytes.NewReader([]byte("not json")))
 	rr := httptest.NewRecorder()
 
 	rs.getTrackingIndicators(rr, req)
 
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	assert.Equal(t, testutil.StatusBadRequest, rr.Code)
 }
 
 func TestGetTrackingIndicators_EmptyStudentIDs(t *testing.T) {
@@ -77,7 +78,7 @@ func TestGetTrackingIndicators_EmptyStudentIDs(t *testing.T) {
 
 	rs.getTrackingIndicators(rr, req)
 
-	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, testutil.StatusOK, rr.Code)
 
 	var resp struct {
 		Data TrackingIndicatorsResponse `json:"data"`
@@ -97,7 +98,7 @@ func TestGetTrackingIndicators_InvalidStudentID(t *testing.T) {
 
 	rs.getTrackingIndicators(rr, req)
 
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	assert.Equal(t, testutil.StatusBadRequest, rr.Code)
 }
 
 func TestGetTrackingIndicators_NegativeStudentID(t *testing.T) {
@@ -110,7 +111,7 @@ func TestGetTrackingIndicators_NegativeStudentID(t *testing.T) {
 
 	rs.getTrackingIndicators(rr, req)
 
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	assert.Equal(t, testutil.StatusBadRequest, rr.Code)
 }
 
 func TestGetTrackingIndicators_SettingsError(t *testing.T) {
@@ -128,7 +129,7 @@ func TestGetTrackingIndicators_SettingsError(t *testing.T) {
 	rs.getTrackingIndicators(rr, req)
 
 	// Returns 200 with empty data on settings error (graceful degradation)
-	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, testutil.StatusOK, rr.Code)
 	var resp struct {
 		Data TrackingIndicatorsResponse `json:"data"`
 	}
@@ -150,7 +151,7 @@ func TestGetTrackingIndicators_Disabled(t *testing.T) {
 
 	rs.getTrackingIndicators(rr, req)
 
-	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, testutil.StatusOK, rr.Code)
 	var resp struct {
 		Data TrackingIndicatorsResponse `json:"data"`
 	}
@@ -177,7 +178,7 @@ func TestGetTrackingIndicators_NoLabelsConfigured(t *testing.T) {
 
 	rs.getTrackingIndicators(rr, req)
 
-	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, testutil.StatusOK, rr.Code)
 	var resp struct {
 		Data TrackingIndicatorsResponse `json:"data"`
 	}
@@ -204,7 +205,7 @@ func TestGetTrackingIndicators_LabelResolutionError(t *testing.T) {
 
 	rs.getTrackingIndicators(rr, req)
 
-	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, testutil.StatusOK, rr.Code)
 	var resp struct {
 		Data TrackingIndicatorsResponse `json:"data"`
 	}
@@ -251,7 +252,7 @@ func TestGetTrackingIndicators_Success(t *testing.T) {
 
 	rs.getTrackingIndicators(rr, req)
 
-	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, testutil.StatusOK, rr.Code)
 
 	var resp struct {
 		Data TrackingIndicatorsResponse `json:"data"`
@@ -289,7 +290,7 @@ func TestGetTrackingIndicators_ServiceError(t *testing.T) {
 
 	rs.getTrackingIndicators(rr, req)
 
-	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	assert.Equal(t, testutil.StatusInternalServerError, rr.Code)
 }
 
 func TestGetTrackingIndicators_WhitespaceOnlyLabels(t *testing.T) {
@@ -311,7 +312,7 @@ func TestGetTrackingIndicators_WhitespaceOnlyLabels(t *testing.T) {
 
 	rs.getTrackingIndicators(rr, req)
 
-	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, testutil.StatusOK, rr.Code)
 	var resp struct {
 		Data TrackingIndicatorsResponse `json:"data"`
 	}
@@ -354,5 +355,5 @@ func TestGetTrackingIndicators_PartialLabelsConfigured(t *testing.T) {
 
 	rs.getTrackingIndicators(rr, req)
 
-	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, testutil.StatusOK, rr.Code)
 }

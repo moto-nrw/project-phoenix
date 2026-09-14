@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"testing"
 	"time"
 
@@ -34,7 +33,7 @@ func TestVisitCreateReadbackFailureRollsBackAndCanBeRetried(t *testing.T) {
 	tc.resource.Presence = failingVisitReadback{PresenceQueries: queries}
 	request := func() int {
 		t.Helper()
-		req := testutil.NewJSONRequest(t, http.MethodPost, "/active/visits", map[string]any{
+		req := testutil.NewJSONRequest(t, testutil.MethodPost, "/active/visits", map[string]any{
 			"student_id": student.ID, "active_group_id": group.ID, "check_in_time": time.Now(),
 		})
 		testutil.WithDeviceContext(device)(req)
@@ -43,7 +42,7 @@ func TestVisitCreateReadbackFailureRollsBackAndCanBeRetried(t *testing.T) {
 		assert.NotContains(t, rr.Body.String(), "private readback failure")
 		return rr.Code
 	}
-	require.Equal(t, http.StatusInternalServerError, request())
+	require.Equal(t, testutil.StatusInternalServerError, request())
 	visits, err := queries.ListVisits(testpkg.Ctx(t), studentpresence.VisitFilter{StudentIDs: []int64{student.ID}})
 	require.NoError(t, err)
 	assert.Empty(t, visits, "failed readback must roll back the visit")
@@ -51,7 +50,7 @@ func TestVisitCreateReadbackFailureRollsBackAndCanBeRetried(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "not_checked_in", status.Status, "failed readback must roll back attendance too")
 	tc.resource.Presence = queries
-	require.Equal(t, http.StatusCreated, request())
+	require.Equal(t, testutil.StatusCreated, request())
 	visits, err = queries.ListVisits(testpkg.Ctx(t), studentpresence.VisitFilter{StudentIDs: []int64{student.ID}})
 	require.NoError(t, err)
 	require.Len(t, visits, 1)
@@ -69,17 +68,17 @@ func TestVisitEndReadbackFailureRollsBackAndCanBeRetried(t *testing.T) {
 	tc.resource.Presence = failingVisitReadback{PresenceQueries: queries}
 	request := func() int {
 		t.Helper()
-		req := testutil.NewJSONRequest(t, http.MethodPost, fmt.Sprintf("/active/visits/%d/end", visit.ID), nil)
+		req := testutil.NewJSONRequest(t, testutil.MethodPost, fmt.Sprintf("/active/visits/%d/end", visit.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, testutil.AdminTestClaims(1), []string{permissions.GroupsUpdate})
 		assert.NotContains(t, rr.Body.String(), "private readback failure")
 		return rr.Code
 	}
-	require.Equal(t, http.StatusInternalServerError, request())
+	require.Equal(t, testutil.StatusInternalServerError, request())
 	stored, err := queries.FindVisit(testpkg.Ctx(t), visit.ID)
 	require.NoError(t, err)
 	assert.Nil(t, stored.ExitTime, "the failed response must roll back the authoritative visit write")
 	tc.resource.Presence = queries
-	require.Equal(t, http.StatusOK, request())
+	require.Equal(t, testutil.StatusOK, request())
 	stored, err = queries.FindVisit(testpkg.Ctx(t), visit.ID)
 	require.NoError(t, err)
 	assert.NotNil(t, stored.ExitTime)

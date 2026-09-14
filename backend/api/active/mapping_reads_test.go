@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -58,12 +57,12 @@ func TestMappingReadRoutesUseNativeProjection(t *testing.T) {
 					router.Get("/{groupId}", resource.getGroupMappings)
 				}
 				response := httptest.NewRecorder()
-				router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/42", nil).WithContext(ctx))
+				router.ServeHTTP(response, httptest.NewRequest(testutil.MethodGet, "/42", nil).WithContext(ctx))
 				if outcome == "error" {
-					assert.Equal(t, http.StatusInternalServerError, response.Code)
+					assert.Equal(t, testutil.StatusInternalServerError, response.Code)
 					return
 				}
-				require.Equal(t, http.StatusOK, response.Code)
+				require.Equal(t, testutil.StatusOK, response.Code)
 				var body struct {
 					Data []GroupMappingResponse `json:"data"`
 				}

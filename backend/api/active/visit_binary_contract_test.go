@@ -2,7 +2,6 @@ package active_test
 
 import (
 	"encoding/json"
-	"net/http"
 	"testing"
 	"time"
 
@@ -29,11 +28,11 @@ func TestBinaryCreateVisitPreservesSuccessfulNoOp(t *testing.T) {
 	// A successful no-op must not attempt any visit readback.
 	tc.resource.Presence = failingVisitReadback{PresenceQueries: queries}
 	at := time.Now().Truncate(time.Second)
-	req := testutil.NewJSONRequest(t, http.MethodPost, "/active/visits", map[string]any{
+	req := testutil.NewJSONRequest(t, testutil.MethodPost, "/active/visits", map[string]any{
 		"student_id": student.ID, "active_group_id": group.ID, "check_in_time": at,
 	})
 	rr := testutil.ExecuteWithAuthPermissions(t, router, req, testutil.AdminTestClaims(1), []string{permissions.GroupsCreate})
-	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+	require.Equal(t, testutil.StatusCreated, rr.Code, rr.Body.String())
 	var response struct {
 		Data    activeAPI.VisitResponse `json:"data"`
 		Message string                  `json:"message"`

@@ -3,10 +3,11 @@
 package active
 
 import (
-	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,7 +25,7 @@ func TestErrResponse_Render(t *testing.T) {
 	t.Parallel()
 
 	errResp := &common.ErrResponse{
-		HTTPStatusCode: http.StatusNotFound,
+		HTTPStatusCode: testutil.StatusNotFound,
 		Status:         "Not Found",
 	}
 
@@ -75,7 +76,7 @@ func TestErrorRenderer_AllNotFoundErrors(t *testing.T) {
 			renderer := ErrorRenderer(tt.err)
 			errResp, ok := renderer.(*common.ErrResponse)
 			require.True(t, ok)
-			assert.Equal(t, http.StatusNotFound, errResp.HTTPStatusCode)
+			assert.Equal(t, testutil.StatusNotFound, errResp.HTTPStatusCode)
 			assert.Equal(t, tt.expectedText, errResp.Status)
 		})
 	}
@@ -145,7 +146,7 @@ func TestErrorRenderer_AllBadRequestErrors(t *testing.T) {
 			renderer := ErrorRenderer(tt.err)
 			errResp, ok := renderer.(*common.ErrResponse)
 			require.True(t, ok)
-			assert.Equal(t, http.StatusBadRequest, errResp.HTTPStatusCode)
+			assert.Equal(t, testutil.StatusBadRequest, errResp.HTTPStatusCode)
 			assert.Equal(t, tt.expectedText, errResp.Status)
 		})
 	}
@@ -164,7 +165,7 @@ func TestErrorInvalidRequest(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 
-	assert.Equal(t, http.StatusBadRequest, errResp.HTTPStatusCode)
+	assert.Equal(t, testutil.StatusBadRequest, errResp.HTTPStatusCode)
 	assert.Equal(t, "Invalid Request", errResp.Status)
 	assert.Equal(t, testErr.Error(), errResp.ErrorText)
 	assert.Equal(t, testErr, errResp.Err)
@@ -179,7 +180,7 @@ func TestErrorInternalServer(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 
-	assert.Equal(t, http.StatusInternalServerError, errResp.HTTPStatusCode)
+	assert.Equal(t, testutil.StatusInternalServerError, errResp.HTTPStatusCode)
 	assert.Equal(t, "Internal Server Error", errResp.Status)
 	assert.Equal(t, testErr.Error(), errResp.ErrorText)
 	assert.Equal(t, testErr, errResp.Err)
@@ -194,7 +195,7 @@ func TestErrorForbidden(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 
-	assert.Equal(t, http.StatusForbidden, errResp.HTTPStatusCode)
+	assert.Equal(t, testutil.StatusForbidden, errResp.HTTPStatusCode)
 	assert.Equal(t, "Forbidden", errResp.Status)
 	assert.Equal(t, testErr.Error(), errResp.ErrorText)
 	assert.Equal(t, testErr, errResp.Err)
@@ -209,7 +210,7 @@ func TestErrorUnauthorized(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 
-	assert.Equal(t, http.StatusUnauthorized, errResp.HTTPStatusCode)
+	assert.Equal(t, testutil.StatusUnauthorized, errResp.HTTPStatusCode)
 	assert.Equal(t, "Unauthorized", errResp.Status)
 	assert.Equal(t, testErr.Error(), errResp.ErrorText)
 	assert.Equal(t, testErr, errResp.Err)
@@ -226,7 +227,7 @@ func TestCheckinError_Respond(t *testing.T) {
 	t.Parallel()
 
 	err := &checkinError{
-		statusCode: http.StatusBadRequest,
+		statusCode: testutil.StatusBadRequest,
 		message:    "Test error message",
 	}
 
@@ -235,7 +236,7 @@ func TestCheckinError_Respond(t *testing.T) {
 
 	err.respond(w, req)
 
-	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, testutil.StatusBadRequest, w.Code)
 }
 
 // =============================================================================
@@ -339,11 +340,11 @@ func TestCheckinError_Fields(t *testing.T) {
 	t.Parallel()
 
 	err := &checkinError{
-		statusCode: http.StatusNotFound,
+		statusCode: testutil.StatusNotFound,
 		message:    "Test message",
 	}
 
-	assert.Equal(t, http.StatusNotFound, err.statusCode)
+	assert.Equal(t, testutil.StatusNotFound, err.statusCode)
 	assert.Equal(t, "Test message", err.message)
 }
 
@@ -351,7 +352,7 @@ func TestCheckinError_Respond_NotFound(t *testing.T) {
 	t.Parallel()
 
 	err := &checkinError{
-		statusCode: http.StatusNotFound,
+		statusCode: testutil.StatusNotFound,
 		message:    "Not found",
 	}
 
@@ -360,14 +361,14 @@ func TestCheckinError_Respond_NotFound(t *testing.T) {
 
 	err.respond(w, req)
 
-	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Equal(t, testutil.StatusNotFound, w.Code)
 }
 
 func TestCheckinError_Respond_Conflict(t *testing.T) {
 	t.Parallel()
 
 	err := &checkinError{
-		statusCode: http.StatusConflict,
+		statusCode: testutil.StatusConflict,
 		message:    "Conflict",
 	}
 
@@ -376,14 +377,14 @@ func TestCheckinError_Respond_Conflict(t *testing.T) {
 
 	err.respond(w, req)
 
-	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.Equal(t, testutil.StatusConflict, w.Code)
 }
 
 func TestCheckinError_Respond_Forbidden(t *testing.T) {
 	t.Parallel()
 
 	err := &checkinError{
-		statusCode: http.StatusForbidden,
+		statusCode: testutil.StatusForbidden,
 		message:    "Not authorized",
 	}
 
@@ -392,14 +393,14 @@ func TestCheckinError_Respond_Forbidden(t *testing.T) {
 
 	err.respond(w, req)
 
-	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Equal(t, testutil.StatusForbidden, w.Code)
 }
 
 func TestCheckinError_Respond_Unauthorized(t *testing.T) {
 	t.Parallel()
 
 	err := &checkinError{
-		statusCode: http.StatusUnauthorized,
+		statusCode: testutil.StatusUnauthorized,
 		message:    "Invalid token",
 	}
 
@@ -408,14 +409,14 @@ func TestCheckinError_Respond_Unauthorized(t *testing.T) {
 
 	err.respond(w, req)
 
-	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.Equal(t, testutil.StatusUnauthorized, w.Code)
 }
 
 func TestCheckinError_Respond_InternalServerError(t *testing.T) {
 	t.Parallel()
 
 	err := &checkinError{
-		statusCode: http.StatusInternalServerError,
+		statusCode: testutil.StatusInternalServerError,
 		message:    "Internal error",
 	}
 
@@ -424,7 +425,7 @@ func TestCheckinError_Respond_InternalServerError(t *testing.T) {
 
 	err.respond(w, req)
 
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Equal(t, testutil.StatusInternalServerError, w.Code)
 }
 
 // NOTE: Common error tests are in checkout_test.go

@@ -3,7 +3,6 @@ package active
 import (
 	"context"
 	"errors"
-	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -126,11 +125,11 @@ func TestCheckoutStudent_RejectsNonStaffBeforeReadingAttendance(t *testing.T) {
 	router.Post("/student/{studentId}/checkout", rs.checkoutStudent)
 	claims := staffClaims()
 	claims.ID = 11
-	req := newRequestWithClaims(http.MethodPost, "/student/123/checkout", claims)
+	req := newRequestWithClaims(testutil.MethodPost, "/student/123/checkout", claims)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 
-	assert.Equal(t, http.StatusForbidden, rr.Code)
+	assert.Equal(t, testutil.StatusForbidden, rr.Code)
 	assert.Zero(t, attendanceCalls)
 }
 
@@ -232,7 +231,7 @@ func TestHandleCheckoutContextError_NotCheckedIn(t *testing.T) {
 
 	rs.handleCheckoutContextError(w, r, ErrNotCheckedIn)
 
-	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Equal(t, testutil.StatusNotFound, w.Code)
 }
 
 func TestHandleCheckoutContextError_OtherError(t *testing.T) {
@@ -244,7 +243,7 @@ func TestHandleCheckoutContextError_OtherError(t *testing.T) {
 
 	rs.handleCheckoutContextError(w, r, assert.AnError)
 
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Equal(t, testutil.StatusInternalServerError, w.Code)
 }
 
 // =============================================================================
@@ -260,7 +259,7 @@ func TestHandleAuthorizationError_NotAuthorized(t *testing.T) {
 
 	rs.handleAuthorizationError(w, r, ErrNotAuthorized)
 
-	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Equal(t, testutil.StatusForbidden, w.Code)
 }
 
 func TestHandleAuthorizationError_OtherError(t *testing.T) {
@@ -272,5 +271,5 @@ func TestHandleAuthorizationError_OtherError(t *testing.T) {
 
 	rs.handleAuthorizationError(w, r, assert.AnError)
 
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Equal(t, testutil.StatusInternalServerError, w.Code)
 }

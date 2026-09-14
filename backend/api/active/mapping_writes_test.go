@@ -3,10 +3,11 @@ package active
 import (
 	"context"
 	"errors"
-	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/stretchr/testify/assert"
@@ -32,12 +33,12 @@ func TestMappingAddRoutePreservesPreflightAndVerification(t *testing.T) {
 		name           string
 		status, writes int
 	}{
-		{"success", http.StatusOK, 1},
-		{"duplicate", http.StatusBadRequest, 0},
-		{"read failure", http.StatusInternalServerError, 0},
-		{"write failure", http.StatusInternalServerError, 1},
-		{"verification failure", http.StatusOK, 1},
-		{"verification missing", http.StatusOK, 1},
+		{"success", testutil.StatusOK, 1},
+		{"duplicate", testutil.StatusBadRequest, 0},
+		{"read failure", testutil.StatusInternalServerError, 0},
+		{"write failure", testutil.StatusInternalServerError, 1},
+		{"verification failure", testutil.StatusOK, 1},
+		{"verification missing", testutil.StatusOK, 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			reads, writes := 0, 0
@@ -64,13 +65,13 @@ func TestMappingAddRoutePreservesPreflightAndVerification(t *testing.T) {
 					return nil
 				},
 			}})
-			request := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"active_group_id":42,"combined_group_id":23}`))
+			request := httptest.NewRequest(testutil.MethodPost, "/", strings.NewReader(`{"active_group_id":42,"combined_group_id":23}`))
 			request.Header.Set("Content-Type", "application/json")
 			response := httptest.NewRecorder()
 			resource.addGroupToCombination(response, request)
 			assert.Equal(t, tc.status, response.Code)
 			assert.Equal(t, tc.writes, writes)
-			if tc.status == http.StatusOK {
+			if tc.status == testutil.StatusOK {
 				assert.Equal(t, 2, reads)
 				assert.Contains(t, response.Body.String(), msgGroupAddedToCombination)
 			}
@@ -91,15 +92,15 @@ func TestMappingRemoveRouteUsesNativeWrite(t *testing.T) {
 			}
 			return nil
 		}}})
-		request := httptest.NewRequest(http.MethodDelete, "/", strings.NewReader(`{"active_group_id":42,"combined_group_id":23}`))
+		request := httptest.NewRequest(testutil.MethodDelete, "/", strings.NewReader(`{"active_group_id":42,"combined_group_id":23}`))
 		request.Header.Set("Content-Type", "application/json")
 		response := httptest.NewRecorder()
 		resource.removeGroupFromCombination(response, request)
 		assert.True(t, called)
 		if fail {
-			assert.Equal(t, http.StatusInternalServerError, response.Code)
+			assert.Equal(t, testutil.StatusInternalServerError, response.Code)
 		} else {
-			assert.Equal(t, http.StatusOK, response.Code)
+			assert.Equal(t, testutil.StatusOK, response.Code)
 		}
 	}
 }

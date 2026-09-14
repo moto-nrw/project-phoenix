@@ -5,9 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/stretchr/testify/assert"
@@ -36,7 +37,7 @@ func TestAssignTransitStudents(t *testing.T) {
 		})
 
 		req := httptest.NewRequest(
-			http.MethodPost,
+			testutil.MethodPost,
 			"/api/active/visits/transit/assign",
 			bytes.NewBufferString(`{"student_ids":[42,84],"active_group_id":99}`),
 		)
@@ -45,7 +46,7 @@ func TestAssignTransitStudents(t *testing.T) {
 
 		rs.assignTransitStudents(w, req)
 
-		require.Equal(t, http.StatusOK, w.Code)
+		require.Equal(t, testutil.StatusOK, w.Code)
 		assert.Equal(t, []int64{42, 84}, capturedStudentIDs)
 		assert.Equal(t, int64(99), capturedActiveGroupID)
 		var body map[string]any
@@ -56,7 +57,7 @@ func TestAssignTransitStudents(t *testing.T) {
 	t.Run("rejects malformed json", func(t *testing.T) {
 		rs := resourceForTest(Resource{Operations: &stubPresenceOperations{}})
 		req := httptest.NewRequest(
-			http.MethodPost,
+			testutil.MethodPost,
 			"/api/active/visits/transit/assign",
 			bytes.NewBufferString(`{"student_ids":[42]`),
 		)
@@ -64,13 +65,13 @@ func TestAssignTransitStudents(t *testing.T) {
 
 		rs.assignTransitStudents(w, req)
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Equal(t, testutil.StatusBadRequest, w.Code)
 	})
 
 	t.Run("rejects missing required fields", func(t *testing.T) {
 		rs := resourceForTest(Resource{Operations: &stubPresenceOperations{}})
 		req := httptest.NewRequest(
-			http.MethodPost,
+			testutil.MethodPost,
 			"/api/active/visits/transit/assign",
 			bytes.NewBufferString(`{"student_ids":[],"active_group_id":99}`),
 		)
@@ -78,7 +79,7 @@ func TestAssignTransitStudents(t *testing.T) {
 
 		rs.assignTransitStudents(w, req)
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Equal(t, testutil.StatusBadRequest, w.Code)
 	})
 
 	t.Run("renders service errors", func(t *testing.T) {
@@ -90,7 +91,7 @@ func TestAssignTransitStudents(t *testing.T) {
 			},
 		})
 		req := httptest.NewRequest(
-			http.MethodPost,
+			testutil.MethodPost,
 			"/api/active/visits/transit/assign",
 			bytes.NewBufferString(`{"student_ids":[42],"active_group_id":99}`),
 		)
@@ -99,7 +100,7 @@ func TestAssignTransitStudents(t *testing.T) {
 
 		rs.assignTransitStudents(w, req)
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Equal(t, testutil.StatusBadRequest, w.Code)
 	})
 
 	t.Run("renders the service refusal outside target room scope", func(t *testing.T) {
@@ -119,7 +120,7 @@ func TestAssignTransitStudents(t *testing.T) {
 			},
 		})
 		req := httptest.NewRequest(
-			http.MethodPost,
+			testutil.MethodPost,
 			"/api/active/visits/transit/assign",
 			bytes.NewBufferString(`{"student_ids":[42],"active_group_id":99}`),
 		)
@@ -128,7 +129,7 @@ func TestAssignTransitStudents(t *testing.T) {
 
 		rs.assignTransitStudents(w, req)
 
-		require.Equal(t, http.StatusForbidden, w.Code)
+		require.Equal(t, testutil.StatusForbidden, w.Code)
 		assert.True(t, calledAssign)
 	})
 
@@ -155,7 +156,7 @@ func TestAssignTransitStudents(t *testing.T) {
 			},
 		})
 		req := httptest.NewRequest(
-			http.MethodPost,
+			testutil.MethodPost,
 			"/api/active/visits/transit/assign",
 			bytes.NewBufferString(`{"student_ids":[42],"active_group_id":99}`),
 		)
@@ -164,7 +165,7 @@ func TestAssignTransitStudents(t *testing.T) {
 
 		rs.assignTransitStudents(w, req)
 
-		require.Equal(t, http.StatusOK, w.Code)
+		require.Equal(t, testutil.StatusOK, w.Code)
 		assert.True(t, calledAssign)
 	})
 
@@ -183,7 +184,7 @@ func TestAssignTransitStudents(t *testing.T) {
 			},
 		})
 		req := httptest.NewRequest(
-			http.MethodPost,
+			testutil.MethodPost,
 			"/api/active/visits/transit/assign",
 			bytes.NewBufferString(`{"student_ids":[42],"active_group_id":99}`),
 		)
@@ -192,7 +193,7 @@ func TestAssignTransitStudents(t *testing.T) {
 
 		rs.assignTransitStudents(w, req)
 
-		require.Equal(t, http.StatusInternalServerError, w.Code)
+		require.Equal(t, testutil.StatusInternalServerError, w.Code)
 		assert.True(t, calledAssign)
 	})
 }

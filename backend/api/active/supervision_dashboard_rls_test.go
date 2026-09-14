@@ -3,7 +3,6 @@ package active_test
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strconv"
 	"testing"
 	"time"
@@ -80,7 +79,7 @@ func TestSupervisionDashboardInputsEnforceRLS(t *testing.T) {
 		claims.TenantID = fixture.tenantID
 		req := testutil.NewRequest("GET", fmt.Sprintf("/active/supervision-dashboard?group_id=%d", fixture.groupID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, fixture.router, req, claims, dashboardPerms)
-		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		require.Equal(t, testutil.StatusOK, rr.Code, rr.Body.String())
 		data := decodeDashboard(t, rr.Body.Bytes()).Data
 		require.Len(t, data.Groups, 1, "each school sees exactly its own session")
 		require.Equal(t, strconv.FormatInt(fixture.groupID, 10), data.Groups[0].ID)
@@ -94,5 +93,5 @@ func TestSupervisionDashboardInputsEnforceRLS(t *testing.T) {
 	claims.TenantID = fixtures[0].tenantID
 	req := testutil.NewRequest("GET", fmt.Sprintf("/active/supervision-dashboard?group_id=%d", fixtures[1].groupID), nil)
 	rr := testutil.ExecuteWithAuthPermissions(t, fixtures[0].router, req, claims, dashboardPerms)
-	require.Equal(t, http.StatusForbidden, rr.Code, rr.Body.String())
+	require.Equal(t, testutil.StatusForbidden, rr.Code, rr.Body.String())
 }

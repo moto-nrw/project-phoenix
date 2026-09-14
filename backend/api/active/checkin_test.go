@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
-	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"testing"
@@ -120,14 +119,14 @@ func setupCheckinRoute(t *testing.T, db *testpkg.DB) *active.Resource {
 }
 
 // makeCheckinRequest creates an HTTP request with JWT auth for the checkin endpoint
-func makeCheckinRequest(t *testing.T, studentID int64, body interface{}, token string) *http.Request {
+func makeCheckinRequest(t *testing.T, studentID int64, body interface{}, token string) *testutil.Request {
 	t.Helper()
 
 	bodyBytes, err := json.Marshal(body)
 	require.NoError(t, err)
 
 	path := "/visits/student/" + strconv.FormatInt(studentID, 10) + "/checkin"
-	req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(bodyBytes))
+	req := httptest.NewRequest(testutil.MethodPost, path, bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
@@ -165,7 +164,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		router.ServeHTTP(rr, req)
 
 		// Should return 401 because no JWT token
-		assert.Equal(t, http.StatusUnauthorized, rr.Code)
+		assert.Equal(t, testutil.StatusUnauthorized, rr.Code)
 	})
 
 	t.Run("returns 401 for invalid JWT token", func(t *testing.T) {
@@ -180,7 +179,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 
-		assert.Equal(t, http.StatusUnauthorized, rr.Code)
+		assert.Equal(t, testutil.StatusUnauthorized, rr.Code)
 	})
 
 	t.Run("returns 400 for invalid student ID in URL", func(t *testing.T) {
@@ -195,7 +194,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		body := active.CheckinRequest{ActiveGroupID: 1}
 		bodyBytes, _ := json.Marshal(body)
 
-		req := httptest.NewRequest(http.MethodPost, "/visits/student/invalid/checkin", bytes.NewReader(bodyBytes))
+		req := httptest.NewRequest(testutil.MethodPost, "/visits/student/invalid/checkin", bytes.NewReader(bodyBytes))
 		req = req.WithContext(testpkg.WithPackageTenantRuntime(req.Context()))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+token)
@@ -204,7 +203,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 
-		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Equal(t, testutil.StatusBadRequest, rr.Code)
 	})
 
 	t.Run("returns 400 when active_group_id is missing", func(t *testing.T) {
@@ -225,7 +224,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 
-		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Equal(t, testutil.StatusBadRequest, rr.Code)
 	})
 
 	t.Run("returns 404 when active group does not exist", func(t *testing.T) {
@@ -246,7 +245,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 
-		assert.Equal(t, http.StatusNotFound, rr.Code)
+		assert.Equal(t, testutil.StatusNotFound, rr.Code)
 	})
 
 	t.Run("returns 403 when user is not staff", func(t *testing.T) {
@@ -271,7 +270,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 
 		// Should be 403 (forbidden) because user has no staff record
 		// or 500 if the lookup fails - both indicate the user can't check in students
-		assert.Contains(t, []int{http.StatusForbidden, http.StatusInternalServerError}, rr.Code)
+		assert.Contains(t, []int{testutil.StatusForbidden, testutil.StatusInternalServerError}, rr.Code)
 	})
 
 	t.Run("staff without a group relation to the student may check in", func(t *testing.T) {
@@ -295,7 +294,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 
-		assert.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+		assert.Equal(t, testutil.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 	})
 
 	t.Run("returns 409 when active group session has ended", func(t *testing.T) {
@@ -333,7 +332,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 
-		assert.Equal(t, http.StatusConflict, rr.Code)
+		assert.Equal(t, testutil.StatusConflict, rr.Code)
 	})
 
 	t.Run("returns 409 when room capacity is reached", func(t *testing.T) {
@@ -359,7 +358,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		rr := httptest.NewRecorder()
 		handler.Router().ServeHTTP(rr, req)
 
-		assert.Equal(t, http.StatusConflict, rr.Code)
+		assert.Equal(t, testutil.StatusConflict, rr.Code)
 		assert.Contains(t, rr.Body.String(), "room capacity exceeded")
 	})
 
@@ -393,7 +392,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		router.ServeHTTP(rr, req)
 
 		// Should succeed with 200
-		assert.Equal(t, http.StatusOK, rr.Code, "Response body: %s", rr.Body.String())
+		assert.Equal(t, testutil.StatusOK, rr.Code, "Response body: %s", rr.Body.String())
 
 		// Verify response contains expected fields
 		var response map[string]interface{}

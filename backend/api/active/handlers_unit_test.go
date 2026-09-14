@@ -3,9 +3,10 @@ package active
 import (
 	"context"
 	"errors"
-	"net/http"
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
@@ -729,7 +730,7 @@ func TestErrorRenderer_StudentAlreadyActive(t *testing.T) {
 
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
-	assert.Equal(t, http.StatusConflict, errResp.HTTPStatusCode)
+	assert.Equal(t, testutil.StatusConflict, errResp.HTTPStatusCode)
 	assert.Equal(t, "Student Already Has Active Visit", errResp.Status)
 }
 

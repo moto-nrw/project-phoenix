@@ -6,11 +6,12 @@
 package active_test
 
 import (
-	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -21,11 +22,11 @@ import (
 )
 
 // makeCheckoutRequest creates an HTTP request with JWT auth for the checkout endpoint
-func makeCheckoutRequest(t *testing.T, studentID int64, token string) *http.Request {
+func makeCheckoutRequest(t *testing.T, studentID int64, token string) *testutil.Request {
 	t.Helper()
 
 	path := "/visits/student/" + strconv.FormatInt(studentID, 10) + "/checkout"
-	req := httptest.NewRequest(http.MethodPost, path, nil)
+	req := httptest.NewRequest(testutil.MethodPost, path, nil)
 	req.Header.Set("Content-Type", "application/json")
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
@@ -63,7 +64,7 @@ func TestCheckoutStudent_Integration(t *testing.T) {
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 
-		require.Equal(t, http.StatusOK, rr.Code, "Response body: %s", rr.Body.String())
+		require.Equal(t, testutil.StatusOK, rr.Code, "Response body: %s", rr.Body.String())
 
 		// Attendance row is closed...
 		presence := testPresenceQueries(t, db)
@@ -102,14 +103,14 @@ func TestCheckoutStudent_Integration(t *testing.T) {
 		// First checkout succeeds.
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, makeCheckoutRequest(t, student.ID, token))
-		require.Equal(t, http.StatusOK, rr.Code, "Response body: %s", rr.Body.String())
+		require.Equal(t, testutil.StatusOK, rr.Code, "Response body: %s", rr.Body.String())
 
 		// Second checkout: student is no longer checked in → 404 per the
 		// handler contract. Crucially it must NOT flip into a fresh check-in
 		// (the pre-fix Toggle bug) and must NOT leave any open state behind.
 		rr = httptest.NewRecorder()
 		router.ServeHTTP(rr, makeCheckoutRequest(t, student.ID, token))
-		assert.Equal(t, http.StatusNotFound, rr.Code, "Response body: %s", rr.Body.String())
+		assert.Equal(t, testutil.StatusNotFound, rr.Code, "Response body: %s", rr.Body.String())
 
 		// Still exactly one attendance row, still closed.
 		presence := testPresenceQueries(t, db)

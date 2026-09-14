@@ -3,7 +3,6 @@ package active_test
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"testing"
 	"time"
 
@@ -38,9 +37,9 @@ func TestVisitListPresenceCutoverPreservesStatusAndGroupFilters(t *testing.T) {
 	} {
 		t.Run(test.status, func(t *testing.T) {
 			url := fmt.Sprintf("/active/visits?active=%s&active_group_ids=%d", test.status, group.ID)
-			req := testutil.NewJSONRequest(t, http.MethodGet, url, nil)
+			req := testutil.NewJSONRequest(t, testutil.MethodGet, url, nil)
 			rr := testutil.ExecuteWithAuthPermissions(t, router, req, testutil.AdminTestClaims(1), []string{permissions.GroupsRead})
-			testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+			testutil.AssertSuccessResponse(t, rr, testutil.StatusOK)
 			var response struct {
 				Data    []activeAPI.VisitResponse `json:"data"`
 				Message string                    `json:"message"`

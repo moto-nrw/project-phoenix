@@ -3,7 +3,6 @@ package active_test
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"testing"
@@ -97,7 +96,7 @@ func setupDashboardContext(t *testing.T) (*testContext, testutil.Router) {
 func dashboardExec(t *testing.T, router testutil.Router, path string, accountID int64, perms []string) *dashboardEnvelope {
 	t.Helper()
 	rr := dashboardExecRaw(t, router, path, accountID, perms)
-	require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+	require.Equal(t, testutil.StatusOK, rr.Code, "body: %s", rr.Body.String())
 	return decodeDashboard(t, rr.Body.Bytes())
 }
 
@@ -208,7 +207,7 @@ func TestSupervisionDashboard_MinimalProjection(t *testing.T) {
 	testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, time.Now().Add(-30*time.Minute), nil)
 
 	rr := dashboardExecRaw(t, router, "/active/supervision-dashboard", account.ID, dashboardPerms)
-	require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+	require.Equal(t, testutil.StatusOK, rr.Code, "body: %s", rr.Body.String())
 
 	body := rr.Body.String()
 	for _, forbidden := range []string{
@@ -252,7 +251,7 @@ func TestSupervisionDashboard_QueryBudget(t *testing.T) {
 	run := func() int {
 		counter.Reset()
 		rr := dashboardExecRaw(t, router, "/active/supervision-dashboard", account.ID, dashboardPerms)
-		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+		require.Equal(t, testutil.StatusOK, rr.Code, "body: %s", rr.Body.String())
 		return counter.Total()
 	}
 
@@ -296,7 +295,7 @@ func TestSupervisionDashboard_PayloadBudget(t *testing.T) {
 	}
 
 	rr := dashboardExecRaw(t, router, "/active/supervision-dashboard", account.ID, dashboardPerms)
-	require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+	require.Equal(t, testutil.StatusOK, rr.Code, "body: %s", rr.Body.String())
 
 	size := rr.Body.Len()
 	t.Logf("payload budget: %d students → %d bytes (%.0f bytes/student)", groupSize, size, float64(size)/groupSize)
@@ -334,12 +333,12 @@ func TestSupervisionDashboard_ErrorContract(t *testing.T) {
 
 	t.Run("invalid group_id is a 400", func(t *testing.T) {
 		rr := dashboardExecRaw(t, router, "/active/supervision-dashboard?group_id=abc", account.ID, dashboardPerms)
-		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Equal(t, testutil.StatusBadRequest, rr.Code)
 	})
 
 	t.Run("unsupervised group is a 403", func(t *testing.T) {
 		rr := dashboardExecRaw(t, router, fmt.Sprintf("/active/supervision-dashboard?group_id=%d", foreignActiveGroup.ID), account.ID, dashboardPerms)
-		assert.Equal(t, http.StatusForbidden, rr.Code)
+		assert.Equal(t, testutil.StatusForbidden, rr.Code)
 	})
 
 	t.Run("missing schedules:read redacts the timetable sections", func(t *testing.T) {
@@ -393,6 +392,6 @@ func TestSupervisionDashboard_TenantIsolation(t *testing.T) {
 	foreignActiveGroup := testpkg.CreateTestActiveGroupWithIDsForTenant(t, tc.db, otherTenantID, foreignActivityGroup.ID, foreignRoom.ID)
 
 	rr := dashboardExecRaw(t, router, fmt.Sprintf("/active/supervision-dashboard?group_id=%d", foreignActiveGroup.ID), account.ID, dashboardPerms)
-	assert.Equal(t, http.StatusForbidden, rr.Code,
+	assert.Equal(t, testutil.StatusForbidden, rr.Code,
 		"a tenant-1 supervisor must never resolve a tenant-2 active group through the aggregate")
 }
