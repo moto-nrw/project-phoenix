@@ -3075,15 +3075,19 @@ func newFactory(
 		DatabaseStatsCapabilities: func(ctx context.Context) database.StatsCapabilities {
 			return usercontext.DatabaseStatsCapabilities(ctx)
 		},
-		Import:                   dataImports.Student,        // Student import service
-		StaffImport:              dataImports.Staff,          // Staff (Mitarbeiter) import service
-		ClassListImport:          dataImports.ClassList,      // Class-list entry import (#2382)
-		OpeningBalanceImport:     dataImports.OpeningBalance, // Opening balance import (#2132)
-		ListExport:               listExportService,
-		PlanExport:               planExportService,
-		Emergency:                emergencyService,
-		SlotLists:                slotListsService,
-		Reminders:                reminder.Module{Query: remindersService, Command: NewCalendarReminderCommand(db, calendarSvc)},
+		Import:               dataImports.Student,        // Student import service
+		StaffImport:          dataImports.Staff,          // Staff (Mitarbeiter) import service
+		ClassListImport:      dataImports.ClassList,      // Class-list entry import (#2382)
+		OpeningBalanceImport: dataImports.OpeningBalance, // Opening balance import (#2132)
+		ListExport:           listExportService,
+		PlanExport:           planExportService,
+		Emergency:            emergencyService,
+		SlotLists:            slotListsService,
+		Reminders: reminder.Module{
+			Query:                     remindersService,
+			Command:                   NewCalendarReminderCommand(db, calendarSvc),
+			ParentAnnouncementCommand: parentAnnouncementService,
+		},
 		Notifications:            notificationsService,
 		PushSubscriptions:        pushSubscriptionsService,
 		PWAUsage:                 pwaUsageService,

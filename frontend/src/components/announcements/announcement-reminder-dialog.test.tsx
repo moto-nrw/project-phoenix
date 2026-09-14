@@ -83,6 +83,22 @@ describe("reminderError", () => {
       reminderError(new Date(2026, 8, 26), "08:00", new Date(2026, 8, 25)),
     ).toMatch(/Ablaufdatum/);
   });
+
+  it("rejects the Berlin spring-forward gap and a reminder after the exact expiry instant", () => {
+    expect(reminderError(new Date(2026, 2, 29), "02:30", null)).toMatch(
+      /gibt es/,
+    );
+    expect(reminderError(new Date(2026, 9, 25), "02:30", null)).toMatch(
+      /zweimal/,
+    );
+    expect(
+      reminderError(
+        new Date(2026, 8, 24),
+        "20:00",
+        new Date("2026-09-24T08:00:00.000Z"),
+      ),
+    ).toMatch(/Ablaufdatum/);
+  });
 });
 
 describe("AnnouncementReminderDialog (#3162)", () => {

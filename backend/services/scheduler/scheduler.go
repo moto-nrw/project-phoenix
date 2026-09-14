@@ -268,7 +268,7 @@ type Scheduler struct {
 
 	// Scheduled parent-announcement reminders (#3162). Same bookkeeping as the
 	// appointment reminders: one successful-scan boundary per tenant.
-	announcementReminders         AnnouncementReminderSender
+	announcementReminders         reminder.ParentAnnouncementCommand
 	announcementReminderScannedAt map[int64]time.Time
 	announcementReminderScanMu    sync.Mutex
 }
@@ -302,17 +302,14 @@ type ScheduledTask struct {
 func newScheduler(deps WorkerDependencies) *Scheduler {
 	lifecycleCtx, stopLifecycle := context.WithCancel(context.Background())
 	scheduler := &Scheduler{
-		tasks:                        make(map[string]*ScheduledTask),
-		done:                         make(chan struct{}),
-		logger:                       deps.Logger,
-		getenv:                       deps.Getenv,
-		lifecycleCtx:                 lifecycleCtx,
-		stopLifecycle:                stopLifecycle,
-		appointmentReminderScannedAt: make(map[int64]time.Time),
-		// Construction, not a setter: the composition ratchet counts mutable
-		// wiring, and the scheduled announcement reminder (#3162) must not grow
-		// that surface.
-		announcementReminders:         deps.AnnouncementReminders,
+		tasks:                         make(map[string]*ScheduledTask),
+		done:                          make(chan struct{}),
+		logger:                        deps.Logger,
+		getenv:                        deps.Getenv,
+		lifecycleCtx:                  lifecycleCtx,
+		stopLifecycle:                 stopLifecycle,
+		appointmentReminderScannedAt:  make(map[int64]time.Time),
+		announcementReminders:         deps.AppointmentReminders,
 		announcementReminderScannedAt: make(map[int64]time.Time),
 	}
 	addCleanupDependencies(scheduler, deps)

@@ -186,7 +186,6 @@ func workerRuntimeDependencies(api *API, logger *slog.Logger) scheduler.WorkerDe
 		StaffDocumentCleaner:   api.StaffAdmin,
 		StudentDocumentCleaner: api.Students,
 		FileStoreCleaner:       api.FileStore,
-		AnnouncementReminders:  api.Services.ParentAnnouncement,
 	}
 }
 

@@ -653,8 +653,10 @@ func (s *service) notifyAnnouncementGuardiansAs(ctx context.Context, a *usersMod
 	for locale, group := range groups {
 		title, body := notifications.ParentAnnouncementCopy(locale, copyKind)
 		err = s.notifier.Notify(ctx, notifications.Event{
-			Type:           notificationType,
-			IdempotencyKey: shape.idempotencyKey,
+			Type: notificationType,
+			// The push outbox deduplicates by tenant and key. Each locale is a
+			// distinct payload and audience, so it needs its own replay-safe key.
+			IdempotencyKey: fmt.Sprintf("%s:%s", shape.idempotencyKey, locale),
 			RelatedType:    shape.relatedType, RelatedID: a.ID,
 			Title:    title,
 			Body:     body,

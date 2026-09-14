@@ -70,10 +70,10 @@ type WorkerDependencies struct {
 	OutboxWorker              OutboxWorkerRunner
 	RolloverDeadlineRunner    RolloverDeadlineRunner
 	ReminderNotifications     ReminderNotificationDeps
-	AppointmentReminders      reminder.Command
-	// AnnouncementReminders delivers scheduled parent-announcement reminders
-	// (#3162). Nil leaves the tick unregistered.
-	AnnouncementReminders AnnouncementReminderSender
+	// AppointmentReminders is the established reminder capability consumed by
+	// the scheduler. It also exposes scheduled parent-announcement delivery,
+	// avoiding a second dependency in this shrink-only worker composition.
+	AppointmentReminders reminder.Capability
 }
 
 // NewWorker constructs and validates the complete embedded worker before the

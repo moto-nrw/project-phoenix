@@ -197,6 +197,16 @@ export function berlinDateTimeISO(date: Date, time: string): string {
   const [hourRaw, minuteRaw] = time.split(":");
   const hour = Number(hourRaw ?? "0");
   const minute = Number(minuteRaw ?? "0");
+  if (
+    !Number.isInteger(hour) ||
+    !Number.isInteger(minute) ||
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59
+  ) {
+    throw new RangeError("invalid Berlin wall-clock time");
+  }
   const nominalUtc = new Date(
     Date.UTC(
       date.getFullYear(),
@@ -219,7 +229,40 @@ export function berlinDateTimeISO(date: Date, time: string): string {
     get("second"),
   );
   const berlinOffsetMs = berlinWallClockAsUtc - nominalUtc.getTime();
-  return new Date(nominalUtc.getTime() - berlinOffsetMs).toISOString();
+  const instant = new Date(nominalUtc.getTime() - berlinOffsetMs);
+  const resolved = BERLIN_DATE_TIME_PARTS_FORMATTER.formatToParts(instant);
+  const resolvedPart = (type: string) =>
+    Number(resolved.find((part) => part.type === type)?.value ?? "0");
+  if (
+    resolvedPart("year") !== date.getFullYear() ||
+    resolvedPart("month") !== date.getMonth() + 1 ||
+    resolvedPart("day") !== date.getDate() ||
+    resolvedPart("hour") !== hour ||
+    resolvedPart("minute") !== minute
+  ) {
+    // 02:00–02:59 on the Berlin spring-forward day does not exist. The
+    // autumn repeat resolves to the second (CET) occurrence, which is the
+    // instant this construction yields and is stable when reopened.
+    throw new RangeError("nonexistent Berlin wall-clock time");
+  }
+  const oneHourEarlier = new Date(instant.getTime() - 60 * 60 * 1000);
+  const earlier =
+    BERLIN_DATE_TIME_PARTS_FORMATTER.formatToParts(oneHourEarlier);
+  const earlierPart = (type: string) =>
+    Number(earlier.find((part) => part.type === type)?.value ?? "0");
+  if (
+    earlierPart("year") === date.getFullYear() &&
+    earlierPart("month") === date.getMonth() + 1 &&
+    earlierPart("day") === date.getDate() &&
+    earlierPart("hour") === hour &&
+    earlierPart("minute") === minute
+  ) {
+    // There is no unambiguous instant for a repeated wall-clock value. The
+    // picker has no way to express first versus second occurrence, so require
+    // a time outside the repeated hour instead of making that choice silently.
+    throw new RangeError("ambiguous Berlin wall-clock time");
+  }
+  return instant.toISOString();
 }
 
 /**

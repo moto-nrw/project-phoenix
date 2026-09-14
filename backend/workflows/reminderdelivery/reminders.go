@@ -16,15 +16,24 @@ type Command interface {
 	EnqueueDueAppointmentReminders(ctx context.Context, from, to time.Time) (int, error)
 }
 
+// ParentAnnouncementCommand is the Communication capability consumed by the
+// existing scheduler reminder binding. It stays a consumer-owned port so this
+// workflow does not import Communication.
+type ParentAnnouncementCommand interface {
+	SendDueParentAnnouncementReminders(ctx context.Context, notBefore, dueBefore time.Time) (int, error)
+}
+
 // Capability is the single owner facade used by inbound and worker composition.
 type Capability interface {
 	Query
 	Command
+	ParentAnnouncementCommand
 }
 
 type Module struct {
 	Query
 	Command
+	ParentAnnouncementCommand
 }
 
 // CallerQuery resolves staff identity before computing a caller's reminders.

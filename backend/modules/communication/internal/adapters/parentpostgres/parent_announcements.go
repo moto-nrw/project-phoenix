@@ -364,6 +364,12 @@ func (s *AnnouncementStore) SetPublished(ctx context.Context, id int64, publishe
 		ModelTableExpr(parentAnnouncementTableExpr).
 		Set("published_at = ?", publishedAt).
 		Where(`"parent_announcement".id = ?`, id)
+	if publishedAt == nil {
+		// Unpublishing starts a new publication cycle. Its former reminder was
+		// already delivered for the withdrawn version and must not block the
+		// corrected announcement from scheduling a new one.
+		query.Set("reminder_sent_at = NULL")
+	}
 	query = withTenant(query, parentAnnouncementAlias, tenantID)
 	if _, err := query.Exec(ctx); err != nil {
 		return fmt.Errorf("set parent announcement published_at: %w", err)

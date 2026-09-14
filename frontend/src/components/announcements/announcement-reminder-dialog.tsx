@@ -11,7 +11,6 @@ import {
   berlinClockFromISO,
   berlinDateTimeISO,
   berlinDayFromISO,
-  endOfBerlinDayISO,
 } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { updateAnnouncementReminder } from "~/lib/parent-announcements-api";
@@ -42,11 +41,22 @@ export function reminderError(
   if (!TIME_PATTERN.test(time)) {
     return "Bitte eine Uhrzeit für die Erinnerung eingeben, z. B. 08:00.";
   }
-  const moment = new Date(berlinDateTimeISO(day, time));
+  let moment: Date;
+  try {
+    moment = new Date(berlinDateTimeISO(day, time));
+  } catch (error) {
+    if (error instanceof RangeError) {
+      if (error.message === "ambiguous Berlin wall-clock time") {
+        return "Diese Uhrzeit kommt an diesem Tag in Berlin zweimal vor. Bitte eine andere Uhrzeit wählen.";
+      }
+      return "Diese Uhrzeit gibt es an diesem Tag in Berlin nicht. Bitte eine andere Uhrzeit wählen.";
+    }
+    throw error;
+  }
   if (moment <= now) {
     return "Die Erinnerung muss in der Zukunft liegen.";
   }
-  if (expiresAt && moment > new Date(endOfBerlinDayISO(expiresAt))) {
+  if (expiresAt && moment > expiresAt) {
     return "Die Erinnerung darf nicht nach dem Ablaufdatum liegen, sonst sehen Eltern die Mitteilung nicht mehr.";
   }
   return null;
@@ -91,7 +101,7 @@ export function AnnouncementReminderDialog({
   const [error, setError] = useFormError();
 
   const expiresAt = announcement.expires_at
-    ? berlinDayFromISO(announcement.expires_at)
+    ? new Date(announcement.expires_at)
     : null;
 
   const submit = async (remove: boolean) => {

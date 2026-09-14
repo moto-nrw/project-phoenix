@@ -726,4 +726,13 @@ describe("berlinDateTimeISO / berlinClockFromISO (#3162)", () => {
     const iso = berlinDateTimeISO(new Date(2026, 8, 24), "13:45");
     expect(berlinClockFromISO(iso)).toBe("13:45");
   });
+
+  it("rejects wall-clock times that are missing or repeated during daylight saving changes", () => {
+    expect(() => berlinDateTimeISO(new Date(2026, 2, 29), "02:30")).toThrow(
+      RangeError,
+    );
+    expect(() => berlinDateTimeISO(new Date(2026, 9, 25), "02:30")).toThrow(
+      RangeError,
+    );
+  });
 });

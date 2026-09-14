@@ -30,13 +30,6 @@ const (
 	announcementReminderMaxLookback = 12 * time.Hour
 )
 
-// AnnouncementReminderSender is the narrow contract the tick needs from the
-// Communication capability. Defined here so the scheduler does not import the
-// module.
-type AnnouncementReminderSender interface {
-	SendDueParentAnnouncementReminders(ctx context.Context, notBefore, dueBefore time.Time) (int, error)
-}
-
 func (s *Scheduler) scheduleAnnouncementReminderTask() {
 	if s.announcementReminders == nil {
 		s.getLogger().Info("announcement reminder tick not configured (no sender)")

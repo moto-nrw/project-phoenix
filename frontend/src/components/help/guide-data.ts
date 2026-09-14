@@ -2261,7 +2261,8 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Übersicht der Elternmitteilungen mit Status (Entwurf, veröffentlicht, abgelaufen) und der Aktion „Neue Elternmitteilung“.",
+          "Schritt `Inhalt` einer neuen Elternmitteilung mit dem Abschnitt `Erinnerung`: Datum, Uhrzeit und optionaler Erinnerungstext.",
+        image: "/help/screens/elternmitteilung-erinnerung.webp",
       },
       {
         id: "elternbriefe",

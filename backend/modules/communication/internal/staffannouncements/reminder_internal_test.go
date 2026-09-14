@@ -324,6 +324,33 @@ func TestSendDueReminders_WithoutEmailOptInSendsPushOnly(t *testing.T) {
 	assert.Empty(t, h.outbox.requests, "e-mail only when the announcement itself opted in")
 }
 
+func TestSendDueReminders_SeparatesLocaleSpecificPushIntents(t *testing.T) {
+	t.Parallel()
+
+	a := publishedWithReminder(false)
+	repo := &reminderRepo{
+		fakeAnnouncementRepo: fakeAnnouncementRepo{
+			announcement: a,
+			audience: []*usersModels.AnnouncementRecipientStatus{
+				{AccountID: 101, PortalLocale: "de"},
+				{AccountID: 102, PortalLocale: "en"},
+			},
+		},
+		due:   []*usersModels.ParentAnnouncement{a},
+		claim: map[int64]bool{a.ID: true},
+	}
+	h := newReminderHarness(repo)
+
+	_, err := h.svc.SendDueReminders(context.Background(), time.Now().Add(-time.Hour), time.Now())
+	require.NoError(t, err)
+	require.Len(t, h.notifier.events, 2)
+	assert.NotEqual(t, h.notifier.events[0].IdempotencyKey, h.notifier.events[1].IdempotencyKey)
+	assert.ElementsMatch(t, []int64{101, 102}, []int64{
+		h.notifier.events[0].Audience.GuardianAccountIDs[0],
+		h.notifier.events[1].Audience.GuardianAccountIDs[0],
+	})
+}
+
 func TestSendDueReminders_LostClaimSendsNothing(t *testing.T) {
 	t.Parallel()
 
