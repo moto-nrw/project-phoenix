@@ -60,7 +60,7 @@ func assertDistinctPerLocale(t *testing.T, got map[string]string) {
 func TestParentAnnouncementCopyCoversEveryLocaleAndKind(t *testing.T) {
 	t.Parallel()
 
-	for _, kind := range []string{ParentPollPublished, ParentPollReminder, ParentAnnouncementPublished} {
+	for _, kind := range []string{ParentPollPublished, ParentPollReminder, ParentAnnouncementPublished, ParentAnnouncementReminder} {
 		titles := map[string]string{}
 		bodies := map[string]string{}
 		for _, locale := range parentLocales {

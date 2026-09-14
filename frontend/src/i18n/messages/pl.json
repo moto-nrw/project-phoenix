@@ -225,6 +225,8 @@
     "newsAttachmentsRetry": "Spróbuj ponownie",
     "newsClose": "Zamknij",
     "newsLetterBadge": "Wymagane potwierdzenie",
+    "newsReminder": "Przypomnienie",
+    "newsReminderFrom": "Przypomnienie z {date}",
     "newsLetterBindingHint": "Ten e-mail ma tylko charakter informacyjny. Liczy się potwierdzenie tutaj, w portalu dla rodziców. Wystarczy potwierdzenie jednego opiekuna dla każdego dziecka."
   },
   "parentNotificationSetup": {

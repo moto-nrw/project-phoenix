@@ -878,7 +878,7 @@ function AnnouncementFormModal({
     const reminderProblem = reminderError(
       isPollForm ? null : reminderDay,
       reminderTime,
-      expiresAt,
+      expiresAt ? new Date(endOfBerlinDayISO(expiresAt)) : null,
     );
     if (reminderProblem) {
       setFormError(reminderProblem);

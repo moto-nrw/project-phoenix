@@ -6,6 +6,7 @@ import {
   AnnouncementReminderDialog,
   reminderError,
 } from "./announcement-reminder-dialog";
+import { endOfBerlinDayISO } from "~/lib/date-helpers";
 
 // The test clock is 2026-09-09 12:00 Berlin (setup-common).
 
@@ -71,6 +72,14 @@ describe("reminderError", () => {
     expect(reminderError(null, "", null)).toBeNull();
     expect(
       reminderError(new Date(2026, 8, 24), "08:00", new Date(2026, 8, 25)),
+    ).toBeNull();
+  });
+
+  it("accepts a reminder later on its expiry day", () => {
+    const expiryDay = new Date(2026, 8, 24);
+
+    expect(
+      reminderError(expiryDay, "20:00", new Date(endOfBerlinDayISO(expiryDay))),
     ).toBeNull();
   });
 

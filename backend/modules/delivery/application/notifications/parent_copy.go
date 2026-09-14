@@ -67,6 +67,8 @@ func ParentAnnouncementCopy(locale, kind string) (string, string) {
 			return "Nowa ankieta", "Szkoła prosi o Państwa odpowiedź w portalu dla rodziców."
 		case ParentPollReminder:
 			return "Przypomnienie: ankieta otwarta", "W portalu dla rodziców brakuje jeszcze odpowiedzi za Państwa dziecko."
+		case ParentAnnouncementReminder:
+			return "Przypomnienie: ogłoszenie dla rodziców", "OGS przypomina o ogłoszeniu w portalu dla rodziców."
 		case ParentCareCancelled:
 			return "Opieka odwołana", "OGS odwołała jeden z terminów opieki Państwa dziecka."
 		default:
@@ -78,6 +80,8 @@ func ParentAnnouncementCopy(locale, kind string) (string, string) {
 			return "Yeni anket", "Bir okul veli portalında yanıtınızı bekliyor."
 		case ParentPollReminder:
 			return "Hatırlatma: anket açık", "Veli portalında çocuğunuz için bir yanıt hâlâ eksik."
+		case ParentAnnouncementReminder:
+			return "Hatırlatma: veli duyurusu", "OGS, veli portalındaki bir duyuruyu hatırlatıyor."
 		case ParentCareCancelled:
 			return "Bakım iptal edildi", "OGS, çocuğunuzun bakım günlerinden birini iptal etti."
 		default:
@@ -89,6 +93,8 @@ func ParentAnnouncementCopy(locale, kind string) (string, string) {
 			return "Нове опитування", "Школа просить вас відповісти в батьківському порталі."
 		case ParentPollReminder:
 			return "Нагадування: опитування відкрите", "У батьківському порталі ще немає відповіді за вашу дитину."
+		case ParentAnnouncementReminder:
+			return "Нагадування: оголошення для батьків", "OGS нагадує вам про оголошення в батьківському порталі."
 		case ParentCareCancelled:
 			return "Догляд скасовано", "OGS скасувала один із днів догляду вашої дитини."
 		default:
