@@ -70,26 +70,29 @@ func (w *Worker) runTransport(ctx context.Context, transport domain.Transport, l
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		renewed, renewErr := w.store.RenewLease(ctx, transport, rows[index].ID, leaseToken(rows[index]), time.Now().Add(w.leaseDuration))
-		if renewErr != nil {
-			w.observe(domain.Observation{Operation: "renew_error", Transport: string(transport), Template: rows[index].Template, Count: 1, Err: renewErr})
-			continue
-		}
-		if !renewed {
-			stats.LeaseLost++
-			w.observe(domain.Observation{Operation: "stale_renew", Transport: string(transport), Template: rows[index].Template, Count: 1})
-			continue
-		}
 		w.process(ctx, rows[index], maxAttempts, stats)
 	}
 	return nil
 }
 
 func (w *Worker) process(ctx context.Context, intent domain.Intent, maxAttempts int, stats *domain.WorkerStats) {
+	var result domain.ProviderResult
+	var sendErr error
 	started := time.Now()
-	providerCtx, cancel := context.WithTimeout(ctx, providerTimeout)
-	result, sendErr := w.provider.Send(providerCtx, intent)
-	cancel()
+	active, err := w.store.WithLease(ctx, intent.Transport, intent.ID, leaseToken(intent), time.Now().Add(w.leaseDuration), func() {
+		providerCtx, cancel := context.WithTimeout(ctx, providerTimeout)
+		result, sendErr = w.provider.Send(providerCtx, intent)
+		cancel()
+	})
+	if err != nil {
+		w.observe(domain.Observation{Operation: "lease_fence_error", Transport: string(intent.Transport), Template: intent.Template, Count: 1, Err: err})
+		return
+	}
+	if !active {
+		stats.LeaseLost++
+		w.observe(domain.Observation{Operation: "stale_lease_fence", Transport: string(intent.Transport), Template: intent.Template, Count: 1})
+		return
+	}
 	w.observe(domain.Observation{Operation: "provider", Transport: string(intent.Transport), Template: intent.Template, Duration: time.Since(started), Count: boolCount(sendErr == nil), Err: sendErr})
 	if errors.Is(sendErr, domain.ErrCancelled) {
 		w.finalizeCancelled(ctx, intent, sendErr, stats)

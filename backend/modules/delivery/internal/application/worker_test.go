@@ -14,24 +14,30 @@ import (
 )
 
 type workerStore struct {
-	claimed            []domain.Intent
-	finalizeSent       bool
-	finalizeSentErr    error
-	failureResult      domain.FinalizeResult
-	finalizeCancelled  bool
-	sentToken          string
-	cancelledToken     string
-	failureToken       string
-	failureAttempts    int
-	failureMaxAttempts int
-	renewed            bool
-	renewToken         string
-	statuses           []domain.EmailDeliveryStatus
+	claimed             []domain.Intent
+	finalizeSent        bool
+	finalizeSentErr     error
+	failureResult       domain.FinalizeResult
+	finalizeCancelled   bool
+	sentToken           string
+	cancelledToken      string
+	failureToken        string
+	failureAttempts     int
+	failureMaxAttempts  int
+	renewed             bool
+	renewToken          string
+	cancelledBeforeSend bool
+	statuses            []domain.EmailDeliveryStatus
 }
 
-func (s *workerStore) RenewLease(_ context.Context, _ domain.Transport, _ int64, token string, _ time.Time) (bool, error) {
+// WithLease is the cancellation-aware fence used by the worker.
+func (s *workerStore) WithLease(_ context.Context, _ domain.Transport, _ int64, token string, _ time.Time, deliver func()) (bool, error) {
 	s.renewToken = token
-	return s.renewed, nil
+	if !s.renewed || s.cancelledBeforeSend {
+		return false, nil
+	}
+	deliver()
+	return true, nil
 }
 
 func (*workerStore) Enqueue(context.Context, domain.Intent) (domain.Enqueued, error) {
@@ -138,7 +144,7 @@ func TestWorkerCountsStaleFinalizeAsLeaseLoss(t *testing.T) {
 	assert.Zero(t, stats.Sent)
 }
 
-func TestWorkerSkipsIntentWhenLeaseRenewalIsStale(t *testing.T) {
+func TestWorkerSkipsIntentWhenLeaseFenceIsStale(t *testing.T) {
 	t.Parallel()
 	store := &workerStore{claimed: []domain.Intent{claimedEmail(0)}}
 	provider := &workerProvider{}
@@ -149,6 +155,24 @@ func TestWorkerSkipsIntentWhenLeaseRenewalIsStale(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, stats.LeaseLost)
 	assert.Zero(t, provider.calls)
+}
+
+func TestWorkerDoesNotSendWhenCancellationWinsBeforeProvider(t *testing.T) {
+	t.Parallel()
+
+	store := &workerStore{
+		claimed:             []domain.Intent{claimedEmail(0)},
+		renewed:             true,
+		cancelledBeforeSend: true,
+	}
+	provider := &workerProvider{}
+	worker := NewWorker(store, provider, func(domain.Observation) {})
+
+	stats, err := worker.RunOnce(context.Background(), 1, 6)
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, stats.LeaseLost)
+	assert.Zero(t, provider.calls, "a cancellation between claim and provider delivery must win")
 }
 
 func TestWorkerRetriesProviderTimeout(t *testing.T) {
@@ -244,7 +268,8 @@ func (*concurrentRetryStore) Claim(_ context.Context, transport domain.Transport
 	return []domain.Intent{intent}, nil
 }
 
-func (*concurrentRetryStore) RenewLease(context.Context, domain.Transport, int64, string, time.Time) (bool, error) {
+func (*concurrentRetryStore) WithLease(_ context.Context, _ domain.Transport, _ int64, _ string, _ time.Time, deliver func()) (bool, error) {
+	deliver()
 	return true, nil
 }
 

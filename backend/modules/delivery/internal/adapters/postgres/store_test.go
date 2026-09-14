@@ -189,7 +189,9 @@ func TestStoreCancellationInvalidatesClaimedPush(t *testing.T) {
 		return err
 	})
 	require.NoError(t, err)
-	renewed, err := store.RenewLease(ctx, domain.TransportPush, enqueued.ID, *claimed[0].LeaseToken, time.Now().Add(time.Minute))
+	renewed, err := store.WithLease(ctx, domain.TransportPush, enqueued.ID, *claimed[0].LeaseToken, time.Now().Add(time.Minute), func() {
+		t.Fatal("a cancelled claim must not enter the provider call")
+	})
 	require.NoError(t, err)
 	assert.False(t, renewed, "the worker must lose its lease before the provider call")
 	finalized, err := store.FinalizeSent(ctx, domain.TransportPush, enqueued.ID, *claimed[0].LeaseToken, json.RawMessage(`{}`), time.Now())

@@ -23,11 +23,19 @@ import (
 type reminderRepo struct {
 	fakeAnnouncementRepo
 	due                []*usersModels.ParentAnnouncement
+	byID               map[int64]*usersModels.ParentAnnouncement
 	claim              map[int64]bool
 	claimCalls         []int64
 	setReminderCalls   []setReminderCall
 	setReminderApplied bool
 	deliveryRecipients []*usersModels.AnnouncementDeliveryRecipient
+}
+
+func (r *reminderRepo) FindByID(ctx context.Context, id int64) (*usersModels.ParentAnnouncement, error) {
+	if r.byID != nil {
+		return r.byID[id], nil
+	}
+	return r.fakeAnnouncementRepo.FindByID(ctx, id)
 }
 
 type setReminderCall struct {
@@ -326,7 +334,7 @@ func TestSendDueReminders_WithoutEmailOptInSendsPushOnly(t *testing.T) {
 	assert.Empty(t, h.outbox.requests, "e-mail only when the announcement itself opted in")
 }
 
-func TestSendDueReminders_SuppressedPushWithoutEmailRollsTheTickBack(t *testing.T) {
+func TestSendDueReminders_SuppressedPushWithoutEmailIsSkipped(t *testing.T) {
 	t.Parallel()
 
 	a := publishedWithReminder(false)
@@ -342,32 +350,37 @@ func TestSendDueReminders_SuppressedPushWithoutEmailRollsTheTickBack(t *testing.
 	h.notifier.err = notifications.ErrDisabled
 
 	sent, err := h.svc.SendDueReminders(context.Background(), time.Now().Add(-time.Hour), time.Now())
-	require.Error(t, err, "the caller's tenant transaction must roll back a claim without an accepted delivery")
+	require.NoError(t, err)
 	assert.Zero(t, sent)
 	assert.Empty(t, h.outbox.requests)
 }
 
-func TestSendDueReminders_WithoutQueuedPushOrEmailRollsTheTickBack(t *testing.T) {
+func TestSendDueReminders_SkipsUndeliverableReminderAndContinues(t *testing.T) {
 	t.Parallel()
 
-	a := publishedWithReminder(false)
+	undeliverable := publishedWithReminder(false)
+	deliverable := publishedWithReminder(true)
+	deliverable.ID = undeliverable.ID + 1
 	repo := &reminderRepo{
 		fakeAnnouncementRepo: fakeAnnouncementRepo{
-			announcement: a,
-			recipients:   []*usersModels.AnnouncementRecipient{{AccountID: 101}},
+			announcement: undeliverable,
+			recipients:   []*usersModels.AnnouncementRecipient{{AccountID: 101, Email: "anna@example.test"}},
 		},
-		due:   []*usersModels.ParentAnnouncement{a},
-		claim: map[int64]bool{a.ID: true},
+		due:   []*usersModels.ParentAnnouncement{undeliverable, deliverable},
+		byID:  map[int64]*usersModels.ParentAnnouncement{undeliverable.ID: undeliverable, deliverable.ID: deliverable},
+		claim: map[int64]bool{undeliverable.ID: true, deliverable.ID: true},
 	}
 	h := newReminderHarness(repo)
 	h.notifier.durableAcceptedSet = true // VAPID is unavailable or nobody subscribed.
 
 	sent, err := h.svc.SendDueReminders(context.Background(), time.Now().Add(-time.Hour), time.Now())
 
-	require.ErrorIs(t, err, errReminderDeliverySuppressed)
-	assert.Zero(t, sent)
-	assert.Len(t, h.notifier.events, 1)
-	assert.Empty(t, h.outbox.requests)
+	require.NoError(t, err)
+	assert.Equal(t, 1, sent)
+	assert.Equal(t, []int64{undeliverable.ID, deliverable.ID}, repo.claimCalls)
+	assert.Len(t, h.notifier.events, 2)
+	require.Len(t, h.outbox.requests, 1)
+	assert.Equal(t, deliverable.ID, h.outbox.requests[0].RelatedEntityID)
 }
 
 func TestSendDueReminders_ReloadsTheClaimedReminderBeforeDelivery(t *testing.T) {

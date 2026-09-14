@@ -45,11 +45,6 @@ const (
 // history and cannot be changed or removed any more.
 var ErrReminderAlreadySent = errors.New("announcement: the reminder has already been sent")
 
-// errReminderDeliverySuppressed rolls back the scheduler tenant transaction
-// after a claim when neither channel accepted the reminder. Keeping the scan
-// boundary unchanged lets the next tick retry it once the delivery gate opens.
-var errReminderDeliverySuppressed = errors.New("announcement: reminder delivery was suppressed")
-
 // ReminderInput is the narrow post-publish edit: move the reminder, reword it,
 // or remove it (nil ReminderAt). Title, text, audience and channels of a
 // published announcement stay immutable.
@@ -208,7 +203,15 @@ func (s *service) SendDueReminders(ctx context.Context, notBefore, dueBefore tim
 			return sent, err
 		}
 		if !delivered {
-			return sent, errReminderDeliverySuppressed
+			// ClaimReminder is the terminal marker for this one fixed reminder
+			// moment. A live announcement can lose every current recipient or
+			// delivery channel after publication; retrying that unchanged state
+			// every five minutes would block the tenant's later reminders without
+			// creating a delivery. Keep the claim and continue this batch.
+			s.logger.Info("parent announcement reminder skipped without delivery target",
+				slog.Int64("announcement_id", fresh.ID),
+			)
+			continue
 		}
 		sent++
 	}

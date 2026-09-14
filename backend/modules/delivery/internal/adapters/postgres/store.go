@@ -286,8 +286,12 @@ func (s *Store) Claim(ctx context.Context, transport domain.Transport, limit int
 	return toDomainRows(transport, rows), nil
 }
 
-func (s *Store) RenewLease(ctx context.Context, transport domain.Transport, id int64, token string, leaseExpiresAt time.Time) (bool, error) {
-	var renewed bool
+// WithLease fences the external provider call with the same row lock that a
+// lifecycle cancellation needs. Holding this narrow per-intent lock makes the
+// ordering explicit: a cancellation that commits first prevents delivery; a
+// provider call that owns the lock is completed before cancellation can commit.
+func (s *Store) WithLease(ctx context.Context, transport domain.Transport, id int64, token string, leaseExpiresAt time.Time, deliver func()) (bool, error) {
+	active := false
 	err := s.adminTx(ctx, func(txCtx context.Context, db bun.IDB) error {
 		var result interface{ RowsAffected() (int64, error) }
 		var execErr error
@@ -303,13 +307,20 @@ func (s *Store) RenewLease(ctx context.Context, transport domain.Transport, id i
 			return execErr
 		}
 		rows, rowsErr := result.RowsAffected()
-		renewed = rows == 1
-		return rowsErr
+		if rowsErr != nil {
+			return rowsErr
+		}
+		if rows != 1 {
+			return nil
+		}
+		active = true
+		deliver()
+		return nil
 	})
 	if err != nil {
-		return false, fmt.Errorf("delivery postgres: renew %s lease for intent %d: %w", transport, id, err)
+		return false, fmt.Errorf("delivery postgres: fence %s lease for intent %d: %w", transport, id, err)
 	}
-	return renewed, nil
+	return active, nil
 }
 
 func (s *Store) FinalizeSent(ctx context.Context, transport domain.Transport, id int64, token string, providerResult json.RawMessage, sentAt time.Time) (bool, error) {
