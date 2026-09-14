@@ -315,15 +315,17 @@ describe("CareWeeklyPlanModal", () => {
     );
   });
 
-  it("only allows pickup times on booked care days", () => {
+  it("only allows and persists pickup times on booked care days", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+
     render(
       <CareWeeklyPlanModal
         isOpen
         onClose={vi.fn()}
         careDaysSource="bookings"
         initialArrivalSchedules={initialArrivalSchedules}
-        initialPickupSchedules={[]}
-        onSubmit={vi.fn()}
+        initialPickupSchedules={initialPickupSchedules}
+        onSubmit={onSubmit}
         successMessage="Betreuungszeiten übernommen"
       />,
     );
@@ -338,5 +340,19 @@ describe("CareWeeklyPlanModal", () => {
     expect(document.getElementById("weekly-arrival-3")).toBeDisabled();
     expect(document.getElementById("weekly-pickup-1")).toBeEnabled();
     expect(document.getElementById("weekly-pickup-3")).toBeDisabled();
+
+    submit();
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith({
+        arrivalSchedules: expect.arrayContaining([
+          expect.objectContaining({ weekday: 1 }),
+          expect.objectContaining({ weekday: 2 }),
+        ]),
+        pickupData: {
+          schedules: [{ weekday: 1, pickupTime: "15:00", notes: "Mama" }],
+        },
+      });
+    });
   });
 });

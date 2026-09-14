@@ -73,7 +73,10 @@ function CareWeeklyPlanModalForm({
       return;
     }
 
-    const { arrivalSchedules, pickupSchedules } = toWeeklySubmit(draft.rows);
+    const { arrivalSchedules, pickupSchedules } = toWeeklySubmit(
+      draft.rows,
+      careDaysSource === "bookings",
+    );
     setIsSubmitting(true);
     try {
       await onSubmit({
