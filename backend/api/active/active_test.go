@@ -24,7 +24,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -43,13 +42,13 @@ type testSettingsWriter struct {
 }
 
 type recordingEndActiveGroupService struct {
-	activeSvc.Service
+	activeAPI.PresenceOperations
 	endCalls int
 }
 
-func (s *recordingEndActiveGroupService) EndActiveGroupSession(ctx context.Context, id int64) error {
+func (s *recordingEndActiveGroupService) EndSession(ctx context.Context, id int64) error {
 	s.endCalls++
-	return s.Service.EndActiveGroupSession(ctx, id)
+	return s.PresenceOperations.EndSession(ctx, id)
 }
 
 // setupActiveRoute creates test resources for active handler tests
@@ -57,7 +56,7 @@ func setupActiveRoute(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupActiveModule(t)
-	resource := activeAPI.NewResource(svc.Active, activePeople{source: svc.AttendancePeople()}, svc.TeacherGroupIDs, svc.Schulhof, activeStaffAccess{source: svc.AttendanceStaff()}, svc.Settings, common.ProtectedTenantRoutes, slog.Default(), testPresenceQueries(t, db), requestRuntimeForTest(svc.WithAttendanceStaff), authorizationForTest())
+	resource := activeAPI.NewResource(svc.PresenceOperations(), activePeople{source: svc.AttendancePeople()}, svc.TeacherGroupIDs, svc.Schulhof, activeStaffAccess{source: svc.AttendanceStaff()}, svc.Settings, common.ProtectedTenantRoutes, slog.Default(), testPresenceQueries(t, db), requestRuntimeForTest(svc.WithAttendanceStaff), authorizationForTest())
 	resource.SupervisionDashboardService = svc.SupervisionDashboard
 
 	return &testContext{
@@ -278,7 +277,7 @@ func TestEndActiveGroup(t *testing.T) {
 				return false, nil
 			},
 		}
-		recordingService := &recordingEndActiveGroupService{Service: tc.resource.ActiveService}
+		recordingService := &recordingEndActiveGroupService{PresenceOperations: tc.resource.Operations}
 		disabledResource := activeAPI.NewResource(
 			recordingService,
 			tc.resource.PersonService,
@@ -302,9 +301,10 @@ func TestEndActiveGroup(t *testing.T) {
 		testutil.AssertForbidden(t, rr)
 		assert.Contains(t, rr.Body.String(), common.ErrCodeAttendanceWebDisabled)
 		assert.Zero(t, recordingService.endCalls, "the disabled route must not invoke group teardown")
-		stored, err := tc.resource.ActiveService.GetActiveGroup(settingCtx, activeGroup.ID)
+		stored, err := tc.resource.Presence.ListLiveGroups(settingCtx, []int64{activeGroup.ID})
 		require.NoError(t, err)
-		assert.Nil(t, stored.EndTime, "the disabled route must not invoke group teardown")
+		require.Len(t, stored, 1)
+		assert.Nil(t, stored[0].EndTime, "the disabled route must not invoke group teardown")
 	})
 
 	t.Run("success ending active group", func(t *testing.T) {

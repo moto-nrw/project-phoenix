@@ -7,7 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/active"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,13 +18,13 @@ func TestErrorRenderer_NotFoundErrors(t *testing.T) {
 		name string
 		err  error
 	}{
-		{"ErrActiveGroupNotFound", activeSvc.ErrActiveGroupNotFound},
-		{"ErrVisitNotFound", activeSvc.ErrVisitNotFound},
-		{"ErrGroupSupervisorNotFound", activeSvc.ErrGroupSupervisorNotFound},
-		{"ErrCombinedGroupNotFound", activeSvc.ErrCombinedGroupNotFound},
-		{"ErrGroupMappingNotFound", activeSvc.ErrGroupMappingNotFound},
-		{"ErrStudentNotFound", activeSvc.ErrStudentNotFound},
-		{"ErrStaffNotFound", activeSvc.ErrStaffNotFound},
+		{"ErrActiveGroupNotFound", studentpresence.ErrGroupNotFound},
+		{"ErrVisitNotFound", studentpresence.ErrVisitNotFound},
+		{"ErrGroupSupervisorNotFound", studentpresence.ErrGroupSupervisorNotFound},
+		{"ErrCombinedGroupNotFound", studentpresence.ErrCombinedGroupNotFound},
+		{"ErrGroupMappingNotFound", studentpresence.ErrGroupMappingNotFound},
+		{"ErrStudentNotFound", studentpresence.ErrStudentNotFound},
+		{"ErrStaffNotFound", studentpresence.ErrStaffNotFound},
 	}
 
 	for _, tt := range tests {
@@ -46,20 +46,20 @@ func TestErrorRenderer_BadRequestErrors(t *testing.T) {
 		name string
 		err  error
 	}{
-		{"ErrInvalidData", activeSvc.ErrInvalidData},
-		{"ErrActiveGroupAlreadyEnded", activeSvc.ErrActiveGroupAlreadyEnded},
-		{"ErrVisitAlreadyEnded", activeSvc.ErrVisitAlreadyEnded},
-		{"ErrSupervisionAlreadyEnded", activeSvc.ErrSupervisionAlreadyEnded},
-		{"ErrCombinedGroupAlreadyEnded", activeSvc.ErrCombinedGroupAlreadyEnded},
-		{"ErrGroupAlreadyInCombination", activeSvc.ErrGroupAlreadyInCombination},
-		{"ErrStudentAlreadyInGroup", activeSvc.ErrStudentAlreadyInGroup},
+		{"ErrInvalidData", studentpresence.ErrInvalidData},
+		{"ErrActiveGroupAlreadyEnded", studentpresence.ErrGroupAlreadyEnded},
+		{"ErrVisitAlreadyEnded", studentpresence.ErrVisitAlreadyEnded},
+		{"ErrSupervisionAlreadyEnded", studentpresence.ErrSupervisionAlreadyEnded},
+		{"ErrCombinedGroupAlreadyEnded", studentpresence.ErrCombinedGroupAlreadyEnded},
+		{"ErrGroupAlreadyInCombination", studentpresence.ErrGroupAlreadyInCombination},
+		{"ErrStudentAlreadyInGroup", studentpresence.ErrStudentAlreadyInGroup},
 		// ErrStudentAlreadyActive moved out of the 400 list — see
 		// TestErrorRenderer_ConflictError. It now maps to 409 Conflict
 		// because Issue #844 routes the DB-level duplicate-active-visit
 		// translation through this renderer for non-IoT callers.
-		{"ErrStaffAlreadySupervising", activeSvc.ErrStaffAlreadySupervising},
-		{"ErrCannotDeleteActiveGroup", activeSvc.ErrCannotDeleteActiveGroup},
-		{"ErrInvalidTimeRange", activeSvc.ErrInvalidTimeRange},
+		{"ErrStaffAlreadySupervising", studentpresence.ErrStaffAlreadySupervising},
+		{"ErrCannotDeleteActiveGroup", studentpresence.ErrCannotDeleteActiveGroup},
+		{"ErrInvalidTimeRange", studentpresence.ErrInvalidTimeRange},
 	}
 
 	for _, tt := range tests {
@@ -77,7 +77,7 @@ func TestErrorRenderer_BadRequestErrors(t *testing.T) {
 func TestErrorRenderer_ConflictError(t *testing.T) {
 	t.Parallel()
 
-	renderer := active.ErrorRenderer(activeSvc.ErrRoomConflict)
+	renderer := active.ErrorRenderer(studentpresence.ErrRoomConflict)
 	resp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
@@ -87,7 +87,7 @@ func TestErrorRenderer_ConflictError(t *testing.T) {
 func TestErrorRenderer_RoomCapacityConflict(t *testing.T) {
 	t.Parallel()
 
-	renderer := active.ErrorRenderer(&activeSvc.RoomCapacityError{
+	renderer := active.ErrorRenderer(&studentpresence.RoomCapacityError{
 		RoomID:           12,
 		RoomName:         "Mensa",
 		CurrentOccupancy: 43,
@@ -108,7 +108,7 @@ func TestErrorRenderer_RoomCapacityConflict(t *testing.T) {
 func TestErrorRenderer_StudentAlreadyActiveConflict(t *testing.T) {
 	t.Parallel()
 
-	renderer := active.ErrorRenderer(activeSvc.ErrStudentAlreadyActive)
+	renderer := active.ErrorRenderer(studentpresence.ErrStudentAlreadyActive)
 	resp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
@@ -118,7 +118,7 @@ func TestErrorRenderer_StudentAlreadyActiveConflict(t *testing.T) {
 func TestErrorRenderer_StudentsNotPresentConflict(t *testing.T) {
 	t.Parallel()
 
-	renderer := active.ErrorRenderer(activeSvc.ErrStudentsNotPresent)
+	renderer := active.ErrorRenderer(studentpresence.ErrStudentsNotPresent)
 	resp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
@@ -128,7 +128,7 @@ func TestErrorRenderer_StudentsNotPresentConflict(t *testing.T) {
 func TestErrorRenderer_StudentMoveForbidden(t *testing.T) {
 	t.Parallel()
 
-	renderer := active.ErrorRenderer(activeSvc.ErrStudentMoveForbidden)
+	renderer := active.ErrorRenderer(studentpresence.ErrStudentMoveForbidden)
 	resp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, http.StatusForbidden, resp.HTTPStatusCode)

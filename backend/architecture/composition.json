@@ -5190,7 +5190,7 @@
       "declaration": "newDailyCheckoutService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        122
+        123
       ],
       "tables": []
     },
@@ -5200,7 +5200,7 @@
       "declaration": "TestCreateVisit_EnrichesCheckInEventWithAttendance",
       "target": "database/repositories.NewFactory",
       "lines": [
-        55
+        56
       ],
       "tables": [
         "schedule.activity_instances"
@@ -5212,7 +5212,7 @@
       "declaration": "TestCreateVisit_WalkInLeavesAttendanceFieldsUnset",
       "target": "database/repositories.NewFactory",
       "lines": [
-        217
+        218
       ],
       "tables": []
     },
@@ -5222,7 +5222,7 @@
       "declaration": "TestBroadcast_UpdateVisitMoveSendsMovementEvents",
       "target": "database/repositories.NewFactory",
       "lines": [
-        226
+        227
       ],
       "tables": []
     },
@@ -5232,7 +5232,7 @@
       "declaration": "newServiceWithPresenceSync",
       "target": "database/repositories.NewFactory",
       "lines": [
-        53
+        54
       ],
       "tables": []
     },
@@ -5252,7 +5252,7 @@
       "declaration": "buildCombinedGroupService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        24
+        25
       ],
       "tables": []
     },
@@ -5322,10 +5322,10 @@
       "declaration": "TestForceStartActivitySessionWithSupervisors",
       "target": "database/repositories.NewFactory",
       "lines": [
-        513,
-        537,
-        546,
-        600
+        514,
+        538,
+        547,
+        601
       ],
       "tables": [
         "active.group_supervisors"
@@ -5337,7 +5337,7 @@
       "declaration": "setupActiveService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        108
+        109
       ],
       "tables": []
     },
@@ -5367,7 +5367,7 @@
       "declaration": "newOverviewFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        57
+        58
       ],
       "tables": [
         "active.staff_absences",
@@ -5430,7 +5430,7 @@
       "declaration": "newAuditLogFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        65
+        66
       ],
       "tables": [
         "active.staff_absence_audit",
@@ -5578,7 +5578,7 @@
       "declaration": "newSnapshotFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        76
+        77
       ],
       "tables": [
         "active.staff_absences",

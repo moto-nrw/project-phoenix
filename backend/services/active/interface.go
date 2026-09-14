@@ -41,7 +41,6 @@ type Service interface {
 	MoveStudentsToTransitAuthorized(ctx context.Context, studentIDs []int64, auth StudentMoveAuthorization) (*StudentMoveResult, error)
 
 	// Group Supervisor operations
-	GetGroupSupervisor(ctx context.Context, id int64) (*active.GroupSupervisor, error)
 	CreateGroupSupervisor(ctx context.Context, supervisor *active.GroupSupervisor) error
 	UpdateGroupSupervisor(ctx context.Context, supervisor *active.GroupSupervisor) error
 	DeleteGroupSupervisor(ctx context.Context, id int64) error
@@ -52,7 +51,6 @@ type Service interface {
 	UpdateCombinedGroup(ctx context.Context, group *studentpresence.CombinedGroup) error
 	DeleteCombinedGroup(ctx context.Context, id int64) error
 	EndCombinedGroup(ctx context.Context, id int64) error
-	GetCombinedGroupWithGroups(ctx context.Context, id int64) (*CombinedGroupDetails, error)
 	CreateCombinedGroupWithGroups(ctx context.Context, group *studentpresence.CombinedGroup, groupIDs []int64) error
 
 	// Activity Session Management with Conflict Detection

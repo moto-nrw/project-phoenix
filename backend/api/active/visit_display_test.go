@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 // adminAccess returns an access context that grants full access to every
@@ -22,13 +22,11 @@ func adminAccess() *common.StudentAccessContext {
 func TestCollectAuthorizedVisitStudentIDs_FiltersByAccess(t *testing.T) {
 	t.Parallel()
 
-	groupA := int64(100)
-	groupB := int64(200)
-	results := []visitWithStudent{
-		{StudentID: 11, GroupID: &groupA},
-		{StudentID: 22, GroupID: &groupB},
-		{StudentID: 33, GroupID: nil},     // group-less
-		{StudentID: 11, GroupID: &groupA}, // duplicate
+	results := []studentpresence.VisitDisplay{
+		{StudentID: 11, OGSGroupName: "Gruppe A"},
+		{StudentID: 22, OGSGroupName: "Gruppe B"},
+		{StudentID: 33}, // group-less
+		{StudentID: 11, OGSGroupName: "Gruppe A"}, // duplicate
 	}
 
 	t.Run("admin sees everyone (group-less included)", func(t *testing.T) {
@@ -62,7 +60,7 @@ func TestBuildVisitDisplayResponses_AppliesActualTimesFromMap(t *testing.T) {
 	checkIn := time.Date(2026, 4, 27, 6, 30, 0, 0, time.UTC)  // 08:30 Berlin (CEST)
 	checkOut := time.Date(2026, 4, 27, 14, 5, 0, 0, time.UTC) // 16:05 Berlin (CEST)
 
-	results := []visitWithStudent{
+	results := []studentpresence.VisitDisplay{
 		{
 			VisitID:       1,
 			StudentID:     11,
@@ -81,7 +79,7 @@ func TestBuildVisitDisplayResponses_AppliesActualTimesFromMap(t *testing.T) {
 		},
 	}
 
-	statuses := map[int64]*activeService.AttendanceStatus{
+	statuses := map[int64]*studentpresence.AttendanceStatus{
 		11: {
 			Status:       "checked_out",
 			CheckInTime:  &checkIn,
@@ -113,7 +111,7 @@ func TestBuildVisitDisplayResponses_NilStatusEntryIsSkipped(t *testing.T) {
 
 	rs := resourceForTest(Resource{})
 
-	results := []visitWithStudent{{
+	results := []studentpresence.VisitDisplay{{
 		VisitID:   1,
 		StudentID: 11,
 		EntryTime: time.Now(),
@@ -123,7 +121,7 @@ func TestBuildVisitDisplayResponses_NilStatusEntryIsSkipped(t *testing.T) {
 
 	// Map contains the key but the pointer is nil — must not panic and must
 	// leave the actuals as nil rather than dereferencing.
-	statuses := map[int64]*activeService.AttendanceStatus{11: nil}
+	statuses := map[int64]*studentpresence.AttendanceStatus{11: nil}
 
 	responses := rs.buildVisitDisplayResponses(results, statuses, adminAccess(), true)
 
@@ -147,31 +145,28 @@ func TestBuildVisitDisplayResponses_ActualsGatedPerStudent(t *testing.T) {
 	checkIn := time.Date(2026, 4, 27, 6, 30, 0, 0, time.UTC)
 	checkOut := time.Date(2026, 4, 27, 14, 5, 0, 0, time.UTC)
 
-	groupOne := int64(100)
-	groupTwo := int64(200)
-
-	results := []visitWithStudent{
+	results := []studentpresence.VisitDisplay{
 		{
 			VisitID: 1, StudentID: 11, ActiveGroupID: 999,
 			EntryTime: checkIn,
 			FirstName: "Anna", LastName: "Müller",
-			GroupID: &groupOne,
+			OGSGroupName: "Gruppe 1",
 		},
 		{
 			VisitID: 2, StudentID: 22, ActiveGroupID: 999,
 			EntryTime: checkIn,
 			FirstName: "Ben", LastName: "Otto",
-			GroupID: &groupTwo,
+			OGSGroupName: "Gruppe 2",
 		},
 		{
 			VisitID: 3, StudentID: 33, ActiveGroupID: 999,
 			EntryTime: checkIn,
 			FirstName: "Cara", LastName: "Pohl",
-			GroupID: nil, // group-less student
+			// group-less student
 		},
 	}
 
-	statuses := map[int64]*activeService.AttendanceStatus{
+	statuses := map[int64]*studentpresence.AttendanceStatus{
 		11: {Status: "checked_out", CheckInTime: &checkIn, CheckOutTime: &checkOut},
 		22: {Status: "checked_in", CheckInTime: &checkIn},
 		33: {Status: "checked_in", CheckInTime: &checkIn},

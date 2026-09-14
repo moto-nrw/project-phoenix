@@ -47,7 +47,7 @@ func TestVisitCreateReadbackFailureRollsBackAndCanBeRetried(t *testing.T) {
 	visits, err := queries.ListVisits(testpkg.Ctx(t), studentpresence.VisitFilter{StudentIDs: []int64{student.ID}})
 	require.NoError(t, err)
 	assert.Empty(t, visits, "failed readback must roll back the visit")
-	status, err := tc.resource.ActiveService.GetStudentAttendanceStatus(testpkg.Ctx(t), student.ID)
+	status, err := tc.resource.Operations.StudentAttendanceStatus(testpkg.Ctx(t), student.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "not_checked_in", status.Status, "failed readback must roll back attendance too")
 	tc.resource.Presence = queries

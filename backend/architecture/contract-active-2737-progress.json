@@ -2,7 +2,7 @@
   "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737",
   "status": "incomplete",
   "evidence_date": "2026-09-14",
-  "evidence_scope": "Current uncommitted worktree after native session, visit and supervision read migrations and wrapper retirement; latest checks refreshed below. Reassessment graph statistics remain a prior snapshot, not a completion attestation.",
+  "evidence_scope": "Current worktree after the api/active cut: the active routes consume a consumer-owned presence operations port bound to the retained active service in the services composition root, presence sentinels live in the owner public package, and the two retained read providers with zero callers are deleted.",
   "remaining_keys": [
     {
       "scope": "external_test",
@@ -36,21 +36,7 @@
       "scope": "external_test",
       "rule": "imports.forbidden",
       "source": "github.com/moto-nrw/project-phoenix/api/active",
-      "target": "github.com/moto-nrw/project-phoenix/models/active",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "external_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/api/active",
       "target": "github.com/moto-nrw/project-phoenix/models/config",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "external_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/api/active",
-      "target": "github.com/moto-nrw/project-phoenix/services/active",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
     },
     {
@@ -260,28 +246,7 @@
       "scope": "internal_test",
       "rule": "imports.forbidden",
       "source": "github.com/moto-nrw/project-phoenix/api/active",
-      "target": "github.com/moto-nrw/project-phoenix/models/active",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "internal_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/api/active",
-      "target": "github.com/moto-nrw/project-phoenix/models/base",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "internal_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/api/active",
       "target": "github.com/moto-nrw/project-phoenix/models/config",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "internal_test",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/api/active",
-      "target": "github.com/moto-nrw/project-phoenix/services/active",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
     },
     {
@@ -385,20 +350,6 @@
     {
       "scope": "production",
       "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/api/active",
-      "target": "github.com/moto-nrw/project-phoenix/models/active",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "production",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/api/active",
-      "target": "github.com/moto-nrw/project-phoenix/services/active",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "production",
-      "rule": "imports.forbidden",
       "source": "github.com/moto-nrw/project-phoenix/database/repositories/active",
       "target": "github.com/moto-nrw/project-phoenix/internal/timezone",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
@@ -415,13 +366,6 @@
       "rule": "imports.forbidden",
       "source": "github.com/moto-nrw/project-phoenix/models/active",
       "target": "github.com/moto-nrw/project-phoenix/models/base",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
-    },
-    {
-      "scope": "production",
-      "rule": "imports.forbidden",
-      "source": "github.com/moto-nrw/project-phoenix/services/active",
-      "target": "cmp",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737"
     },
     {
@@ -497,30 +441,23 @@
       "FindSupervisorsByStaffID",
       "FindSupervisorsByActiveGroupID",
       "FindSupervisorsByActiveGroupIDs",
-      "GetStaffActiveSupervisions"
+      "GetStaffActiveSupervisions",
+      "GetGroupSupervisor",
+      "GetCombinedGroupWithGroups",
+      "CombinedGroupDetails",
+      "CombinedGroupMapping"
     ],
     "verification": "Current Go declarations and call sites must be checked per symbol; historical error operation strings and HTTP route names can remain. This list is incomplete for the entire migration."
   },
   "latest_verification": {
-    "full_backend_suite": {
-      "log": "/tmp/2737-dashboard-supervisions-suite.log",
-      "reported_tests": 26288,
-      "skipped": 3,
-      "seconds": 65.442,
-      "exit_code": 0
-    },
-    "lint": {
-      "log": "/tmp/2737-dashboard-supervisions-lint.log",
-      "issues": 0
-    },
+    "full_backend_suite": "full backend suite via scripts/test-backend.sh: 26278 tests, 2 skipped, 126s; the single failure (PyrePortal error string guard) was fixed by adding the relocated sentinel file to the guard corpus and api/active plus api/iot were rerun green",
     "architecture": {
-      "log": "/tmp/2737-dashboard-supervisions-architecture.log",
-      "legacy_keys": 1493,
+      "legacy_keys": 1485,
       "composition_field_setter_targets": 779
     },
-    "quality_gate": {
-      "log": "/tmp/2737-dashboard-supervisions-gate.log",
-      "exit_code": 0
+    "lint": {
+      "issues": 0,
+      "scope": "touched packages"
     },
     "limitation": "Temporary local logs; green checks do not establish ticket completion."
   },
@@ -532,24 +469,23 @@
     "Complete code review and commit the implementation on the current branch."
   ],
   "next_boundary": {
-    "source": "api/active",
-    "target": "models/active and services/active",
+    "source": "services/active",
+    "target": "internal/timezone, models/base, models/config, models/users, realtime, tenant, bun",
     "status": "Incomplete",
     "required_facts": [
-      "Consumer-owned supervision create/update commands retaining validation, staff/group locks, tenant writes and work-session auto-stamping",
-      "Retire remaining legacy supervision model conversions and GetGroupSupervisor read contract after migrating update callers"
+      "Every remaining production key needs the retained implementation to move behind presence ports or to the timetable and workforce owners; the loosening ratchet rejects new rules for existing packages.",
+      "api/active -> api/common and internal/timezone can only go by replacing the inbound-active http package with a candidate-created package (the documented workforce pattern) or by removing those imports."
     ],
     "constraints": [
       "Keep authorization, calendar-date semantics, tenant transactions and exact error mapping.",
-      "Do not change ownership policy or hide dependencies behind aliases or copied implementations.",
-      "Batch a coherent contract cut before broad verification."
+      "Do not change ownership policy or hide dependencies behind aliases or copied implementations."
     ]
   },
   "reassessment": {
     "reason": "User requested a credible completion estimate after prolonged incremental work.",
-    "remaining_key_count": 68,
-    "production_keys": 16,
-    "test_keys": 52,
+    "remaining_key_count": 60,
+    "production_keys": 13,
+    "test_keys": 47,
     "import_locations": 650,
     "affected_files": 249,
     "graph": "/var/folders/j7/7kqbqjhd4832k7mfwk0httlw0000gn/T/phoenix-backend-architecture-3337068393/architecture.json",
@@ -608,6 +544,8 @@
     "Scheduling conflict and reopen checks; failed reopen supervision lookup retains completed state and allows retry",
     "Facilities projections no longer depend on the active service",
     "Reminder delivery and SSE use native staff supervision reads",
-    "Dashboard staff-group projection uses native IDs; user-context test module no longer constructs an active service for SSE"
+    "Dashboard staff-group projection uses native IDs; user-context test module no longer constructs an active service for SSE",
+    "api/active no longer imports services/active or models/active: a consumer-owned PresenceOperations port (studentpresence public values and sentinels) is bound to the retained service by services.NewPresenceOperations; single-session, supervision-row and combination-group reads are native presence queries",
+    "services/active sentinel errors alias the studentpresence public sentinels; RoomCapacityError lives in the owner package; services/active no longer imports cmp"
   ]
 }

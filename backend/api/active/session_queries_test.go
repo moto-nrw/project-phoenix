@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -33,9 +32,9 @@ func TestSessionVisitsPreserveExistenceGateAndErrors(t *testing.T) {
 		groups                   []studentpresence.LiveGroup
 		groupErr, visitErr, want error
 	}{
-		{name: "missing", want: activeService.ErrActiveGroupNotFound},
-		{name: "lookup failure", groupErr: errors.New("lookup failed"), want: activeService.ErrDatabaseOperation},
-		{name: "visit failure", groups: []studentpresence.LiveGroup{{ID: 42}}, visitErr: errors.New("visits failed"), want: activeService.ErrDatabaseOperation},
+		{name: "missing", want: studentpresence.ErrGroupNotFound},
+		{name: "lookup failure", groupErr: errors.New("lookup failed"), want: studentpresence.ErrDatabaseOperation},
+		{name: "visit failure", groups: []studentpresence.LiveGroup{{ID: 42}}, visitErr: errors.New("visits failed"), want: studentpresence.ErrDatabaseOperation},
 		{name: "found", groups: []studentpresence.LiveGroup{{ID: 42}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -100,7 +99,7 @@ func TestRoomSessionQueryPreservesFilterAndErrorContract(t *testing.T) {
 		}
 		require.Nil(t, rows)
 		require.ErrorIs(t, err, failure)
-		var activeErr *activeService.ActiveError
+		var activeErr *presenceError
 		require.ErrorAs(t, err, &activeErr)
 		assert.Equal(t, "FindActiveGroupsByRoomID", activeErr.Op)
 		assert.EqualError(t, activeErr.Err, "find by room: query failed")
@@ -124,8 +123,8 @@ func TestActivitySessionQueryPreservesFilterAndErrorContract(t *testing.T) {
 			continue
 		}
 		require.Nil(t, rows)
-		require.ErrorIs(t, err, activeService.ErrDatabaseOperation)
-		var activeErr *activeService.ActiveError
+		require.ErrorIs(t, err, studentpresence.ErrDatabaseOperation)
+		var activeErr *presenceError
 		require.ErrorAs(t, err, &activeErr)
 		assert.Equal(t, "FindActiveGroupsByGroupID", activeErr.Op)
 	}
@@ -139,8 +138,8 @@ func TestSessionQueryPreservesLookupErrors(t *testing.T) {
 		err  error
 		want error
 	}{
-		{name: "missing", want: activeService.ErrActiveGroupNotFound},
-		{name: "partial failure", rows: []studentpresence.LiveGroup{{ID: 42}}, err: errors.New("query failed"), want: activeService.ErrDatabaseOperation},
+		{name: "missing", want: studentpresence.ErrGroupNotFound},
+		{name: "partial failure", rows: []studentpresence.LiveGroup{{ID: 42}}, err: errors.New("query failed"), want: studentpresence.ErrDatabaseOperation},
 		{name: "found", rows: []studentpresence.LiveGroup{{ID: 42, RoomID: 7}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

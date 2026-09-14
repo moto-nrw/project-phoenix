@@ -33,7 +33,7 @@ func (rs *Resource) moveStudentsToActiveGroup(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	result, err := rs.ActiveService.MoveStudentsToActiveGroupAuthorized(r.Context(), req.StudentIDs, req.TargetActiveGroupID, *auth)
+	result, err := rs.Operations.MoveStudentsToSession(r.Context(), req.StudentIDs, req.TargetActiveGroupID, *auth)
 	if err != nil {
 		rs.runtime.MarkRollback(r.Context())
 		common.RenderError(w, r, ErrorRenderer(err))
@@ -59,7 +59,7 @@ func (rs *Resource) moveStudentsToTransit(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	result, err := rs.ActiveService.MoveStudentsToTransitAuthorized(r.Context(), req.StudentIDs, *auth)
+	result, err := rs.Operations.MoveStudentsToTransit(r.Context(), req.StudentIDs, *auth)
 	if err != nil {
 		rs.runtime.MarkRollback(r.Context())
 		common.RenderError(w, r, ErrorRenderer(err))

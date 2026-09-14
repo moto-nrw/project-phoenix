@@ -91,16 +91,16 @@ func (rs *Resource) getCombinedGroupGroups(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Get combined group with groups
-	combinedGroup, err := rs.ActiveService.GetCombinedGroupWithGroups(r.Context(), id)
+	_, groups, err := rs.presenceCombinationGroups(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	// Build response
-	responses := make([]ActiveGroupResponse, 0, len(combinedGroup.ActiveGroups))
-	for _, group := range combinedGroup.ActiveGroups {
-		responses = append(responses, newPresenceLiveGroupResponse(*group))
+	responses := make([]ActiveGroupResponse, 0, len(groups))
+	for _, group := range groups {
+		responses = append(responses, newPresenceLiveGroupResponse(group))
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Combined group's active groups retrieved successfully")
@@ -116,27 +116,28 @@ func (rs *Resource) createCombinedGroup(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Create combined group atomically with all group mappings
-	group := &studentpresence.CombinedGroup{
+	group := studentpresence.CombinedGroup{
 		StartTime: req.StartTime,
 		EndTime:   req.EndTime,
 	}
 
-	if err := rs.ActiveService.CreateCombinedGroupWithGroups(r.Context(), group, req.GroupIDs); err != nil {
+	created, err := rs.Operations.CreateCombination(r.Context(), group, req.GroupIDs)
+	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	// Get the created combined group with all groups
-	createdGroup, err := rs.ActiveService.GetCombinedGroupWithGroups(r.Context(), group.ID)
+	combination, groups, err := rs.presenceCombinationGroups(r.Context(), created.ID)
 	if err != nil {
 		// Still return success but with the basic group info
-		response := newPresenceCombinationResponse(*group)
+		response := newPresenceCombinationResponse(created)
 		common.Respond(w, r, http.StatusCreated, response, "Combined group created successfully")
 		return
 	}
 
 	// Return the combined group with all details
-	response := newCombinedGroupResponse(createdGroup)
+	response := newCombinationWithGroupsResponse(combination, groups)
 	common.Respond(w, r, http.StatusCreated, response, "Combined group created successfully")
 }
 
@@ -168,7 +169,8 @@ func (rs *Resource) updateCombinedGroup(w http.ResponseWriter, r *http.Request) 
 	existing.EndTime = req.EndTime
 
 	// Update combined group
-	if err := rs.ActiveService.UpdateCombinedGroup(r.Context(), &existing); err != nil {
+	revised, err := rs.Operations.AmendCombination(r.Context(), existing)
+	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -177,7 +179,7 @@ func (rs *Resource) updateCombinedGroup(w http.ResponseWriter, r *http.Request) 
 	updatedGroup, err := rs.presenceCombination(r.Context(), id)
 	if err != nil {
 		// Still return success but with the basic group info
-		response := newPresenceCombinationResponse(existing)
+		response := newPresenceCombinationResponse(revised)
 		common.Respond(w, r, http.StatusOK, response, "Combined group updated successfully")
 		return
 	}
@@ -197,7 +199,7 @@ func (rs *Resource) deleteCombinedGroup(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Delete combined group
-	if err := rs.ActiveService.DeleteCombinedGroup(r.Context(), id); err != nil {
+	if err := rs.Operations.RemoveCombination(r.Context(), id); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -215,7 +217,7 @@ func (rs *Resource) endCombinedGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// End combined group
-	if err := rs.ActiveService.EndCombinedGroup(r.Context(), id); err != nil {
+	if err := rs.Operations.CloseCombination(r.Context(), id); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}

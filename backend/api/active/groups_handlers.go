@@ -9,9 +9,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
 )
 
 // ===== Active Group Handlers =====
@@ -32,7 +30,7 @@ func (rs *Resource) listActiveGroups(w http.ResponseWriter, r *http.Request) {
 	}
 	includeRelations := r.URL.Query().Get("active") == "true" || r.URL.Query().Get("is_active") == "true"
 	if includeRelations && len(groups) > 0 {
-		rs.loadActiveGroupRelations(r, groups, responses)
+		rs.loadActiveGroupRelations(r.Context(), groups, responses)
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Active groups retrieved successfully")
@@ -49,9 +47,9 @@ func (rs *Resource) parseActiveGroupQueryParams(r *http.Request) studentpresence
 }
 
 // loadActiveGroupRelations loads rooms and supervisors for active groups
-func (rs *Resource) loadActiveGroupRelations(r *http.Request, groups []studentpresence.LiveGroup, responses []ActiveGroupResponse) {
-	roomMap := rs.loadRoomsMap(r, groups)
-	supervisorMap := rs.loadActiveSupervisorsMap(r, groups)
+func (rs *Resource) loadActiveGroupRelations(ctx context.Context, groups []studentpresence.LiveGroup, responses []ActiveGroupResponse) {
+	roomMap := rs.loadRoomsMap(ctx, groups)
+	supervisorMap := rs.loadActiveSupervisorsMap(ctx, groups)
 
 	for i, group := range groups {
 		if supervisors, ok := supervisorMap[group.ID]; ok {
@@ -59,18 +57,18 @@ func (rs *Resource) loadActiveGroupRelations(r *http.Request, groups []studentpr
 			responses[i].SupervisorCount = len(responses[i].Supervisors)
 		}
 		if room, ok := roomMap[group.RoomID]; ok {
-			responses[i].Room = &RoomSimple{ID: room.ID, Name: room.Name, Color: room.Color}
+			responses[i].Room = newSessionRoomResponse(room)
 		}
 	}
 }
 
 // loadRoomsMap loads rooms and returns a map of room ID to room
-func (rs *Resource) loadRoomsMap(r *http.Request, groups []studentpresence.LiveGroup) map[int64]*active.SessionRoom {
+func (rs *Resource) loadRoomsMap(ctx context.Context, groups []studentpresence.LiveGroup) map[int64]studentpresence.SessionRoomSummary {
 	roomIDs := rs.collectUniqueRoomIDs(groups)
-	roomMap := make(map[int64]*active.SessionRoom)
+	roomMap := make(map[int64]studentpresence.SessionRoomSummary)
 
 	if len(roomIDs) > 0 {
-		rooms, err := rs.ActiveService.GetRoomsByIDs(r.Context(), roomIDs)
+		rooms, err := rs.Operations.SessionRooms(ctx, roomIDs)
 		if err == nil {
 			for _, room := range rooms {
 				roomMap[room.ID] = room
@@ -97,7 +95,7 @@ func (rs *Resource) collectUniqueRoomIDs(groups []studentpresence.LiveGroup) []i
 }
 
 // loadActiveSupervisorsMap loads supervisors and returns a map of group ID to active supervisors
-func (rs *Resource) loadActiveSupervisorsMap(r *http.Request, groups []studentpresence.LiveGroup) map[int64][]GroupSupervisorSimple {
+func (rs *Resource) loadActiveSupervisorsMap(ctx context.Context, groups []studentpresence.LiveGroup) map[int64][]GroupSupervisorSimple {
 	supervisorMap := make(map[int64][]GroupSupervisorSimple)
 	if len(groups) == 0 {
 		return supervisorMap
@@ -107,7 +105,7 @@ func (rs *Resource) loadActiveSupervisorsMap(r *http.Request, groups []studentpr
 		groupIDs[i] = group.ID
 	}
 	day := timezone.TodayDate().String()
-	rows, err := rs.Presence.QueryGroupSupervisions(r.Context(), studentpresence.GroupSupervisionFilter{GroupIDs: groupIDs, ActiveOn: &day})
+	rows, err := rs.Presence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: groupIDs, ActiveOn: &day})
 	if err != nil {
 		slog.Default().Error("failed to load supervisors", slog.String("error", err.Error()))
 		return supervisorMap
@@ -136,14 +134,11 @@ func (rs *Resource) getActiveGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get active group
-	group, err := rs.ActiveService.GetActiveGroup(r.Context(), id)
+	response, err := rs.sessionResponse(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
-
-	// Prepare response
-	response := newActiveGroupResponse(group)
 
 	common.Respond(w, r, http.StatusOK, response, "Active group retrieved successfully")
 }
@@ -249,7 +244,7 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 		}
 	}
 
-	results, err := rs.fetchVisitsWithDisplayData(r, id)
+	results, err := rs.Operations.SessionVisitsWithDisplay(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
@@ -330,40 +325,24 @@ func (rs *Resource) verifyStaffSupervisionAccess(w http.ResponseWriter, r *http.
 	return nil
 }
 
-// visitWithStudent is the service projection of visits and student display data.
-type visitWithStudent = activeService.VisitWithStudentDisplay
-
-// fetchVisitsWithDisplayData fetches visits with student display data
-func (rs *Resource) fetchVisitsWithDisplayData(r *http.Request, activeGroupID int64) ([]visitWithStudent, error) {
-	rows, err := rs.ActiveService.GetActiveGroupVisitsWithDisplay(r.Context(), activeGroupID)
-	if err != nil {
-		return nil, err
-	}
-	results := make([]visitWithStudent, 0, len(rows))
-	for _, row := range rows {
-		results = append(results, *row)
-	}
-	return results, nil
-}
-
 // fetchAttendanceStatusesForVisits fetches today's attendance status for the
 // students in results, but only for the subset the caller has full access to.
 // Students outside the caller's access scope are skipped entirely so the DB
 // never returns their actual check-in/out times to this request.
-func (rs *Resource) fetchAttendanceStatusesForVisits(r *http.Request, results []visitWithStudent, access *common.StudentAccessContext) (map[int64]*activeService.AttendanceStatus, error) {
+func (rs *Resource) fetchAttendanceStatusesForVisits(r *http.Request, results []studentpresence.VisitDisplay, access *common.StudentAccessContext) (map[int64]*studentpresence.AttendanceStatus, error) {
 	studentIDs := collectAuthorizedVisitStudentIDs(results, access)
 	if len(studentIDs) == 0 {
-		return map[int64]*activeService.AttendanceStatus{}, nil
+		return map[int64]*studentpresence.AttendanceStatus{}, nil
 	}
 
-	return rs.ActiveService.GetStudentsAttendanceStatuses(r.Context(), studentIDs)
+	return rs.Operations.StudentsAttendanceStatuses(r.Context(), studentIDs)
 }
 
 // collectAuthorizedVisitStudentIDs returns the unique student IDs from results
 // for which the caller has full data access (admin or verified staff, #2329).
 // Used to scope the bulk attendance lookup so unauthorized rows never leave
 // the DB.
-func collectAuthorizedVisitStudentIDs(results []visitWithStudent, access *common.StudentAccessContext) []int64 {
+func collectAuthorizedVisitStudentIDs(results []studentpresence.VisitDisplay, access *common.StudentAccessContext) []int64 {
 	studentIDs := make([]int64, 0, len(results))
 	seen := make(map[int64]struct{}, len(results))
 
@@ -391,7 +370,7 @@ func collectAuthorizedVisitStudentIDs(results []visitWithStudent, access *common
 // skip photo_url for every row so an admin who turns the feature off
 // after photos were uploaded actually suppresses them — matches the
 // gate in api/students/response_helpers.go.
-func (rs *Resource) buildVisitDisplayResponses(results []visitWithStudent, attendanceStatuses map[int64]*activeService.AttendanceStatus, access *common.StudentAccessContext, photosEnabled bool) []VisitWithDisplayDataResponse {
+func (rs *Resource) buildVisitDisplayResponses(results []studentpresence.VisitDisplay, attendanceStatuses map[int64]*studentpresence.AttendanceStatus, access *common.StudentAccessContext, photosEnabled bool) []VisitWithDisplayDataResponse {
 	responses := make([]VisitWithDisplayDataResponse, 0, len(results))
 	for _, result := range results {
 		studentName := result.FirstName + " " + result.LastName
@@ -492,30 +471,29 @@ func (rs *Resource) createActiveGroup(w http.ResponseWriter, r *http.Request) {
 	// (validated in req.Bind as > 0), so GroupID is always set here —
 	// spontaneous instance creation runs through a separate handler (WP-B9+).
 	groupID := req.GroupID
-	group := &active.Group{
-		GroupID:   &groupID,
-		RoomID:    req.RoomID,
-		StartTime: req.StartTime,
-		EndTime:   req.EndTime,
+	group := studentpresence.LiveGroup{
+		ActivityGroupID: &groupID,
+		RoomID:          req.RoomID,
+		StartTime:       req.StartTime,
+		EndTime:         req.EndTime,
 	}
 
 	// Create active group
-	if err := rs.ActiveService.CreateActiveGroup(r.Context(), group); err != nil {
+	created, err := rs.Operations.StartSession(r.Context(), group)
+	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	// Get the created active group
-	createdGroup, err := rs.ActiveService.GetActiveGroup(r.Context(), group.ID)
+	response, err := rs.sessionResponse(r.Context(), created.ID)
 	if err != nil {
 		// Still return success but with the basic group info
-		response := newActiveGroupResponse(group)
-		common.Respond(w, r, http.StatusCreated, response, "Active group created successfully")
+		common.Respond(w, r, http.StatusCreated, newPresenceLiveGroupResponse(created), "Active group created successfully")
 		return
 	}
 
 	// Return the active group with all details
-	response := newActiveGroupResponse(createdGroup)
 	common.Respond(w, r, http.StatusCreated, response, "Active group created successfully")
 }
 
@@ -536,7 +514,7 @@ func (rs *Resource) updateActiveGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get existing active group
-	existing, err := rs.ActiveService.GetActiveGroup(r.Context(), id)
+	existing, err := rs.presenceLiveGroup(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
@@ -545,28 +523,27 @@ func (rs *Resource) updateActiveGroup(w http.ResponseWriter, r *http.Request) {
 	// Update fields. See create handler comment on GroupID — the CRUD surface
 	// always supplies a template id, so we wrap the value in a pointer.
 	groupID := req.GroupID
-	existing.GroupID = &groupID
+	existing.ActivityGroupID = &groupID
 	existing.RoomID = req.RoomID
 	existing.StartTime = req.StartTime
 	existing.EndTime = req.EndTime
 
 	// Update active group
-	if err := rs.ActiveService.UpdateActiveGroup(r.Context(), existing); err != nil {
+	updated, err := rs.Operations.ReviseSession(r.Context(), *existing)
+	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	// Get the updated active group
-	updatedGroup, err := rs.ActiveService.GetActiveGroup(r.Context(), id)
+	response, err := rs.sessionResponse(r.Context(), id)
 	if err != nil {
 		// Still return success but with the basic group info
-		response := newActiveGroupResponse(existing)
-		common.Respond(w, r, http.StatusOK, response, "Active group updated successfully")
+		common.Respond(w, r, http.StatusOK, newPresenceLiveGroupResponse(updated), "Active group updated successfully")
 		return
 	}
 
 	// Return the updated active group with all details
-	response := newActiveGroupResponse(updatedGroup)
 	common.Respond(w, r, http.StatusOK, response, "Active group updated successfully")
 }
 
@@ -580,7 +557,7 @@ func (rs *Resource) deleteActiveGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete active group
-	if err := rs.ActiveService.DeleteActiveGroup(r.Context(), id); err != nil {
+	if err := rs.Operations.RemoveSession(r.Context(), id); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -598,19 +575,18 @@ func (rs *Resource) endActiveGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// End active group session
-	if err := rs.ActiveService.EndActiveGroupSession(r.Context(), id); err != nil {
+	if err := rs.Operations.EndSession(r.Context(), id); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	// Get the updated active group
-	updatedGroup, err := rs.ActiveService.GetActiveGroup(r.Context(), id)
+	response, err := rs.sessionResponse(r.Context(), id)
 	if err != nil {
 		common.Respond(w, r, http.StatusOK, nil, "Active group session ended successfully")
 		return
 	}
 
 	// Return the updated active group
-	response := newActiveGroupResponse(updatedGroup)
 	common.Respond(w, r, http.StatusOK, response, "Active group session ended successfully")
 }

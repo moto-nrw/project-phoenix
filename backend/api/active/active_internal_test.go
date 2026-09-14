@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
 )
 
 // =============================================================================
@@ -56,17 +55,17 @@ func TestErrorRenderer_AllNotFoundErrors(t *testing.T) {
 	}{
 		{
 			name:         "ErrGroupSupervisorNotFound",
-			err:          &activeService.ActiveError{Op: "test", Err: activeService.ErrGroupSupervisorNotFound},
+			err:          operationError("test", studentpresence.ErrGroupSupervisorNotFound),
 			expectedText: "Group Supervisor Not Found",
 		},
 		{
 			name:         "ErrCombinedGroupNotFound",
-			err:          &activeService.ActiveError{Op: "test", Err: activeService.ErrCombinedGroupNotFound},
+			err:          operationError("test", studentpresence.ErrCombinedGroupNotFound),
 			expectedText: "Combined Group Not Found",
 		},
 		{
 			name:         "ErrGroupMappingNotFound",
-			err:          &activeService.ActiveError{Op: "test", Err: activeService.ErrGroupMappingNotFound},
+			err:          operationError("test", studentpresence.ErrGroupMappingNotFound),
 			expectedText: "Group Mapping Not Found",
 		},
 	}
@@ -92,32 +91,32 @@ func TestErrorRenderer_AllBadRequestErrors(t *testing.T) {
 	}{
 		{
 			name:         "ErrActiveGroupAlreadyEnded",
-			err:          &activeService.ActiveError{Op: "test", Err: activeService.ErrActiveGroupAlreadyEnded},
+			err:          operationError("test", studentpresence.ErrGroupAlreadyEnded),
 			expectedText: "Active Group Already Ended",
 		},
 		{
 			name:         "ErrVisitAlreadyEnded",
-			err:          &activeService.ActiveError{Op: "test", Err: activeService.ErrVisitAlreadyEnded},
+			err:          operationError("test", studentpresence.ErrVisitAlreadyEnded),
 			expectedText: "Visit Already Ended",
 		},
 		{
 			name:         "ErrSupervisionAlreadyEnded",
-			err:          &activeService.ActiveError{Op: "test", Err: activeService.ErrSupervisionAlreadyEnded},
+			err:          operationError("test", studentpresence.ErrSupervisionAlreadyEnded),
 			expectedText: "Supervision Already Ended",
 		},
 		{
 			name:         "ErrCombinedGroupAlreadyEnded",
-			err:          &activeService.ActiveError{Op: "test", Err: activeService.ErrCombinedGroupAlreadyEnded},
+			err:          operationError("test", studentpresence.ErrCombinedGroupAlreadyEnded),
 			expectedText: "Combined Group Already Ended",
 		},
 		{
 			name:         "ErrGroupAlreadyInCombination",
-			err:          &activeService.ActiveError{Op: "test", Err: activeService.ErrGroupAlreadyInCombination},
+			err:          operationError("test", studentpresence.ErrGroupAlreadyInCombination),
 			expectedText: "Group Already In Combination",
 		},
 		{
 			name:         "ErrStudentAlreadyInGroup",
-			err:          &activeService.ActiveError{Op: "test", Err: activeService.ErrStudentAlreadyInGroup},
+			err:          operationError("test", studentpresence.ErrStudentAlreadyInGroup),
 			expectedText: "Student Already In Group",
 		},
 		// ErrStudentAlreadyActive intentionally absent — it maps to
@@ -126,17 +125,17 @@ func TestErrorRenderer_AllBadRequestErrors(t *testing.T) {
 		// in errors_test.go) per the Issue #844 review fix.
 		{
 			name:         "ErrStaffAlreadySupervising",
-			err:          &activeService.ActiveError{Op: "test", Err: activeService.ErrStaffAlreadySupervising},
+			err:          operationError("test", studentpresence.ErrStaffAlreadySupervising),
 			expectedText: "Staff Already Supervising This Group",
 		},
 		{
 			name:         "ErrCannotDeleteActiveGroup",
-			err:          &activeService.ActiveError{Op: "test", Err: activeService.ErrCannotDeleteActiveGroup},
+			err:          operationError("test", studentpresence.ErrCannotDeleteActiveGroup),
 			expectedText: "Cannot Delete Active Group With Active Visits",
 		},
 		{
 			name:         "ErrInvalidTimeRange",
-			err:          &activeService.ActiveError{Op: "test", Err: activeService.ErrInvalidTimeRange},
+			err:          operationError("test", studentpresence.ErrInvalidTimeRange),
 			expectedText: "Invalid Time Range",
 		},
 	}
@@ -246,7 +245,7 @@ func TestCheckinError_Respond(t *testing.T) {
 func TestCheckoutContext_Fields(t *testing.T) {
 	t.Parallel()
 
-	attendance := &activeService.AttendanceStatus{Status: "checked_in"}
+	attendance := &studentpresence.AttendanceStatus{Status: "checked_in"}
 
 	ctx := &checkoutContext{
 		StudentID:        123,
@@ -272,8 +271,8 @@ func TestCheckoutContext_NilFields(t *testing.T) {
 func TestCheckoutResult_Fields(t *testing.T) {
 	t.Parallel()
 
-	result := &activeService.AttendanceResult{Action: "checked_out"}
-	attendance := &activeService.AttendanceStatus{Status: "checked_out"}
+	result := studentpresence.CheckoutOutcome{Action: "checked_out"}
+	attendance := &studentpresence.AttendanceStatus{Status: "checked_out"}
 
 	checkoutRes := &checkoutResult{
 		Result:            result,

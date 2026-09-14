@@ -10,19 +10,19 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 // checkoutContext holds all context needed for a checkout operation
 type checkoutContext struct {
 	StudentID        int64
-	AttendanceStatus *activeService.AttendanceStatus
+	AttendanceStatus *studentpresence.AttendanceStatus
 }
 
 // checkoutResult holds the result of a checkout operation
 type checkoutResult struct {
-	Result            *activeService.AttendanceResult
-	UpdatedAttendance *activeService.AttendanceStatus
+	Result            studentpresence.CheckoutOutcome
+	UpdatedAttendance *studentpresence.AttendanceStatus
 }
 
 // Common errors for checkout operations
@@ -42,7 +42,7 @@ func parseStudentIDFromRequest(r *http.Request) (int64, error) {
 // getCheckoutContext retrieves the attendance status for a student
 func (rs *Resource) getCheckoutContext(ctx context.Context, studentID int64) (*checkoutContext, error) {
 	// Get attendance status (required)
-	attendanceStatus, err := rs.ActiveService.GetStudentAttendanceStatus(ctx, studentID)
+	attendanceStatus, err := rs.Operations.StudentAttendanceStatus(ctx, studentID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get attendance status: %w", err)
 	}
@@ -85,12 +85,12 @@ func (rs *Resource) executeStudentCheckout(
 	// Embed staff in context for visit-end recording
 	actionCtx := rs.runtime.WithStaff(ctx, staff.ID, staff.TenantID)
 
-	// Action-explicit, race-safe checkout (issue #895). The service closes
+	// Action-explicit, race-safe checkout (issue #895). The command closes
 	// the attendance row AND ends any open visit in the same request
 	// transaction; any failure propagates so the handler responds 500 and
 	// TenantTxMiddleware rolls the whole request back — never a checked-out
 	// attendance row alongside an orphaned open visit.
-	result, err := rs.ActiveService.CheckOutStudent(actionCtx, checkoutCtx.StudentID, staff.ID, true)
+	result, err := rs.Operations.CheckOutStudent(actionCtx, checkoutCtx.StudentID, staff.ID)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrCheckoutFailed, err)
 	}
@@ -105,8 +105,8 @@ func (rs *Resource) executeStudentCheckout(
 }
 
 // getUpdatedAttendanceStatus fetches the updated attendance status (optional)
-func (rs *Resource) getUpdatedAttendanceStatus(ctx context.Context, studentID int64) *activeService.AttendanceStatus {
-	status, err := rs.ActiveService.GetStudentAttendanceStatus(ctx, studentID)
+func (rs *Resource) getUpdatedAttendanceStatus(ctx context.Context, studentID int64) *studentpresence.AttendanceStatus {
+	status, err := rs.Operations.StudentAttendanceStatus(ctx, studentID)
 	if err != nil {
 		rs.getLogger().WarnContext(ctx, "failed to get updated attendance status after checkout",
 			slog.Int64("student_id", studentID),

@@ -1,7 +1,6 @@
 package active
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -206,7 +205,7 @@ func (s *staffOverviewService) SetHolidayReader(reader HolidayDatesReader) {
 }
 
 func (s *staffOverviewService) getLogger() *slog.Logger {
-	return cmp.Or(s.logger, slog.Default())
+	return loggerOrDefault(s.logger)
 }
 
 func (s *staffOverviewService) today() timezone.Date {
@@ -522,7 +521,10 @@ func resolveOverviewMonth(filters OverviewFilters, today timezone.Date) (monthKe
 // staff members with the same balance (0 is very common) would swap places
 // between identical requests and the table would flicker.
 func sortOverviewRows(rows []TimeTrackingOverviewRow, filters OverviewFilters) {
-	key := cmp.Or(filters.SortBy, OverviewSortName)
+	key := filters.SortBy
+	if key == "" {
+		key = OverviewSortName
+	}
 	slices.SortStableFunc(rows, func(a, b TimeTrackingOverviewRow) int {
 		order := compareOverviewRows(a, b, key)
 		if filters.Descending {
@@ -538,20 +540,20 @@ func compareOverviewRows(a, b TimeTrackingOverviewRow, key string) int {
 	var order int
 	switch key {
 	case OverviewSortBalance:
-		order = cmp.Compare(a.BalanceMinutes, b.BalanceMinutes)
+		order = compareOrdered(a.BalanceMinutes, b.BalanceMinutes)
 	case OverviewSortSoll:
-		order = cmp.Compare(a.SollMinutes, b.SollMinutes)
+		order = compareOrdered(a.SollMinutes, b.SollMinutes)
 	case OverviewSortIst:
-		order = cmp.Compare(a.IstMinutes, b.IstMinutes)
+		order = compareOrdered(a.IstMinutes, b.IstMinutes)
 	case OverviewSortVacation:
-		order = cmp.Compare(a.RemainingVacationDays, b.RemainingVacationDays)
+		order = compareOrdered(a.RemainingVacationDays, b.RemainingVacationDays)
 	default:
-		order = cmp.Compare(
+		order = compareOrdered(
 			strings.ToLower(a.LastName+" "+a.FirstName),
 			strings.ToLower(b.LastName+" "+b.FirstName),
 		)
 	}
-	return cmp.Or(order, cmp.Compare(a.StaffID, b.StaffID))
+	return orderOr(order, compareOrdered(a.StaffID, b.StaffID))
 }
 
 func validEmploymentTypes() []string {

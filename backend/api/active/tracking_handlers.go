@@ -53,7 +53,7 @@ func (rs *Resource) getTrackingIndicators(w http.ResponseWriter, r *http.Request
 	}
 
 	// Get tracking indicator results from the service.
-	results, err := rs.ActiveService.GetTrackingIndicators(ctx, req.StudentIDs, labels)
+	results, err := rs.Operations.TrackingIndicators(ctx, req.StudentIDs, labels)
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return

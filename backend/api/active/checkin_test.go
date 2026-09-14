@@ -16,7 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -28,36 +27,36 @@ import (
 // Test JWT secret - must match the secret used in test fixtures
 
 // =============================================================================
-// Active Group Model Tests
+// Live Group Openness Tests
 // =============================================================================
 
-func TestActiveGroup_IsActive(t *testing.T) {
+func TestLiveGroup_IsOpen(t *testing.T) {
 	t.Parallel()
 
-	t.Run("group with no end time is active", func(t *testing.T) {
-		group := &activeModels.Group{
+	t.Run("group with no end time is open", func(t *testing.T) {
+		group := studentpresence.LiveGroup{
 			RoomID: 1,
 		}
-		assert.True(t, group.IsActive())
+		assert.True(t, group.IsOpen())
 	})
 
-	t.Run("group with end time is not active (regardless of time)", func(t *testing.T) {
-		// IsActive() returns true only when EndTime is nil
+	t.Run("group with end time is not open (regardless of time)", func(t *testing.T) {
+		// IsOpen() returns true only when EndTime is nil
 		futureTime := time.Now().Add(1 * time.Hour)
-		group := &activeModels.Group{
+		group := studentpresence.LiveGroup{
 			RoomID:  1,
 			EndTime: &futureTime,
 		}
-		assert.False(t, group.IsActive()) // EndTime is set, so not active
+		assert.False(t, group.IsOpen()) // EndTime is set, so not open
 	})
 
-	t.Run("group with past end time is not active", func(t *testing.T) {
+	t.Run("group with past end time is not open", func(t *testing.T) {
 		pastTime := time.Now().Add(-1 * time.Hour)
-		group := &activeModels.Group{
+		group := studentpresence.LiveGroup{
 			RoomID:  1,
 			EndTime: &pastTime,
 		}
-		assert.False(t, group.IsActive())
+		assert.False(t, group.IsOpen())
 	})
 }
 
@@ -118,7 +117,7 @@ func setupCheckinRoute(t *testing.T, db *bun.DB) *active.Resource {
 
 	_, serviceFactory := testutil.SetupActiveModule(t)
 
-	return active.NewResource(serviceFactory.Active, activePeople{source: serviceFactory.AttendancePeople()}, serviceFactory.TeacherGroupIDs, serviceFactory.Schulhof, activeStaffAccess{source: serviceFactory.AttendanceStaff()}, serviceFactory.Settings, common.ProtectedTenantRoutes, slog.Default(), testPresenceQueries(t, db), requestRuntimeForTest(serviceFactory.WithAttendanceStaff), authorizationForTest())
+	return active.NewResource(serviceFactory.PresenceOperations(), activePeople{source: serviceFactory.AttendancePeople()}, serviceFactory.TeacherGroupIDs, serviceFactory.Schulhof, activeStaffAccess{source: serviceFactory.AttendanceStaff()}, serviceFactory.Settings, common.ProtectedTenantRoutes, slog.Default(), testPresenceQueries(t, db), requestRuntimeForTest(serviceFactory.WithAttendanceStaff), authorizationForTest())
 }
 
 // makeCheckinRequest creates an HTTP request with JWT auth for the checkin endpoint
@@ -319,8 +318,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		// End the active group session
 		endTime := time.Now().Add(-1 * time.Hour)
 		_, err := db.NewUpdate().
-			Model((*activeModels.Group)(nil)).
-			ModelTableExpr(`active.groups`).
+			TableExpr(`active.groups`).
 			Set("end_time = ?", endTime).
 			Where("id = ?", activeGroup.ID).
 			Exec(context.Background())

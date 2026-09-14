@@ -9,7 +9,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
 )
 
 // ===== Visit Handlers =====
@@ -188,7 +187,7 @@ func (rs *Resource) createVisit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create visit
-	visit := &studentpresence.Visit{
+	visit := studentpresence.Visit{
 		StudentID:     req.StudentID,
 		ActiveGroupID: req.ActiveGroupID,
 		EntryTime:     req.CheckInTime,
@@ -196,26 +195,27 @@ func (rs *Resource) createVisit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create visit
-	if err := rs.ActiveService.CreateVisit(r.Context(), visit); err != nil {
+	admitted, err := rs.Operations.AdmitVisit(r.Context(), visit)
+	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	// Binary mode deliberately succeeds without creating a room visit.
-	if visit.ID == 0 {
-		mode, err := rs.ActiveService.GetPresenceMode(r.Context())
+	if admitted.ID == 0 {
+		mode, err := rs.Operations.PresenceMode(r.Context())
 		if err != nil {
 			common.RenderError(w, r, ErrorInternalServer(presenceQueryError("GetPresenceMode", err)))
 			return
 		}
-		if mode == activeService.PresenceModeBinary {
-			common.Respond(w, r, http.StatusCreated, newPresenceVisitResponse(*visit), "Visit created successfully")
+		if mode == studentpresence.PresenceModeBinary {
+			common.Respond(w, r, http.StatusCreated, newPresenceVisitResponse(admitted), "Visit created successfully")
 			return
 		}
 	}
 
 	// Get the created visit
-	createdVisit, err := rs.findPresenceVisit(r.Context(), visit.ID)
+	createdVisit, err := rs.findPresenceVisit(r.Context(), admitted.ID)
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
@@ -256,7 +256,7 @@ func (rs *Resource) updateVisit(w http.ResponseWriter, r *http.Request) {
 	existing.ExitTime = req.CheckOutTime
 
 	// Update visit
-	if err := rs.ActiveService.UpdateVisit(r.Context(), existing); err != nil {
+	if err := rs.Operations.AmendVisit(r.Context(), *existing); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -283,7 +283,7 @@ func (rs *Resource) deleteVisit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete visit
-	if err := rs.ActiveService.DeleteVisit(r.Context(), id); err != nil {
+	if err := rs.Operations.RemoveVisit(r.Context(), id); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -301,7 +301,7 @@ func (rs *Resource) endVisit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// End visit
-	if err := rs.ActiveService.EndVisit(r.Context(), id); err != nil {
+	if err := rs.Operations.EndVisit(r.Context(), id); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}

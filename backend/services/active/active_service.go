@@ -1,7 +1,6 @@
 package active
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -188,7 +187,7 @@ func (s *service) GetPresenceMode(ctx context.Context) (string, error) {
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
 func (s *service) getLogger() *slog.Logger {
-	return cmp.Or(s.Logger, slog.Default())
+	return loggerOrDefault(s.Logger)
 }
 
 // trackProductEvent captures a product analytics event scoped to the tenant
@@ -1418,14 +1417,6 @@ func (s *service) ListOpenVisitStudentIDsByRoom(ctx context.Context) (map[int64]
 }
 
 // Group Supervisor operations
-func (s *service) GetGroupSupervisor(ctx context.Context, id int64) (*active.GroupSupervisor, error) {
-	supervisor, err := s.SupervisorRepo.FindByID(ctx, id)
-	if err != nil {
-		return nil, &ActiveError{Op: "GetGroupSupervisor", Err: ErrGroupSupervisorNotFound}
-	}
-	return supervisor, nil
-}
-
 func (s *service) CreateGroupSupervisor(ctx context.Context, supervisor *active.GroupSupervisor) error {
 	if supervisor == nil || supervisor.Validate() != nil {
 		return &ActiveError{Op: "CreateGroupSupervisor", Err: ErrInvalidData}

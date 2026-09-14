@@ -11,6 +11,7 @@ import (
 	"time"
 
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -36,7 +37,7 @@ import (
 func CreateTestRoomCapacityError(tb testing.TB) error {
 	tb.Helper()
 	room := CreateTestRoom(tb, SetupTestDB(tb), "capacity error")
-	return &active.RoomCapacityError{
+	return &studentpresence.RoomCapacityError{
 		RoomID: room.ID, RoomName: room.Name,
 		CurrentOccupancy: 43, MaxCapacity: 43,
 	}

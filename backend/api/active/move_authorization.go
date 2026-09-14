@@ -4,12 +4,12 @@ import (
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
-func (rs *Resource) bulkStudentMoveAuthorization(w http.ResponseWriter, r *http.Request) (*activeSvc.StudentMoveAuthorization, bool) {
+func (rs *Resource) bulkStudentMoveAuthorization(w http.ResponseWriter, r *http.Request) (*studentpresence.StudentMoveAuthorization, bool) {
 	if canBypassBulkMoveResourceChecks(r) {
-		return &activeSvc.StudentMoveAuthorization{BypassResourceChecks: true}, true
+		return &studentpresence.StudentMoveAuthorization{BypassResourceChecks: true}, true
 	}
 
 	staff, err := rs.extractStaffFromRequest(w, r)
@@ -18,7 +18,7 @@ func (rs *Resource) bulkStudentMoveAuthorization(w http.ResponseWriter, r *http.
 	}
 
 	eligible := common.CanUseSchoolWideAttendance(r.Context(), staff.TenantID, rs.runtime.TenantID(r.Context()))
-	return &activeSvc.StudentMoveAuthorization{
+	return &studentpresence.StudentMoveAuthorization{
 		StaffID: staff.ID, SchoolWideAttendanceEligible: eligible,
 	}, true
 }

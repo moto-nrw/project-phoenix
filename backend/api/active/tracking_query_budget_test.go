@@ -46,8 +46,8 @@ func TestTrackingIndicatorsIssuesOneSettingValuesQuery(t *testing.T) {
 
 	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Budget", "Test", "1a")
 
-	active := &trackingMockActiveService{
-		getTrackingIndicatorsFunc: func(_ context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error) {
+	active := &stubPresenceOperations{
+		trackingIndicators: func(_ context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error) {
 			result := make(map[int64][]bool, len(studentIDs))
 			for _, id := range studentIDs {
 				result[id] = make([]bool, len(labels))

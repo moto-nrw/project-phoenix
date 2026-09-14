@@ -83,52 +83,6 @@ func (s *service) EndCombinedGroup(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (s *service) GetCombinedGroupWithGroups(ctx context.Context, id int64) (*CombinedGroupDetails, error) {
-	group, err := s.loadCombinedGroupWithGroups(ctx, id)
-	if err != nil {
-		return nil, &ActiveError{Op: "GetCombinedGroupWithGroups", Err: ErrCombinedGroupNotFound}
-	}
-	return group, nil
-}
-
-func (s *service) loadCombinedGroupWithGroups(ctx context.Context, id int64) (*CombinedGroupDetails, error) {
-	row, err := s.SchoolPresence.GetCombinedGroup(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	mappings, err := s.SchoolPresence.ListGroupMappings(ctx, studentpresence.GroupMappingFilter{CombinedGroupID: &id})
-	if err != nil {
-		return nil, err
-	}
-	ids := make([]int64, 0, len(mappings))
-	for _, mapping := range mappings {
-		if mapping.ActiveGroupID > 0 {
-			ids = append(ids, mapping.ActiveGroupID)
-		}
-	}
-	rows, err := s.SchoolPresence.ListLiveGroups(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	byID := make(map[int64]*studentpresence.LiveGroup, len(rows))
-	for _, row := range rows {
-		byID[row.ID] = &row
-	}
-	group := &CombinedGroupDetails{
-		CombinedGroup: row,
-		GroupMappings: make([]CombinedGroupMapping, 0, len(mappings)),
-		ActiveGroups:  make([]*studentpresence.LiveGroup, 0, len(mappings)),
-	}
-	for _, row := range mappings {
-		mapping := CombinedGroupMapping{GroupMapping: row, ActiveGroup: byID[row.ActiveGroupID]}
-		group.GroupMappings = append(group.GroupMappings, mapping)
-		if mapping.ActiveGroup != nil {
-			group.ActiveGroups = append(group.ActiveGroups, mapping.ActiveGroup)
-		}
-	}
-	return group, nil
-}
-
 func (s *service) CreateCombinedGroupWithGroups(ctx context.Context, group *studentpresence.CombinedGroup, groupIDs []int64) error {
 	if !validPresenceCombination(group) {
 		return &ActiveError{Op: "CreateCombinedGroupWithGroups", Err: ErrInvalidData}

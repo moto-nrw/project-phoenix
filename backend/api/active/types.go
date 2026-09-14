@@ -24,11 +24,6 @@ const (
 	errMsgInvalidCombinedGroupID = "invalid combined group ID"
 )
 
-// Display text constants
-const (
-	displayGroupPrefix = "Group #"
-)
-
 // Response messages
 const (
 	msgGroupAddedToCombination = "Group added to combination successfully"

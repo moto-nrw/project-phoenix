@@ -10,7 +10,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -116,9 +115,9 @@ func TestSessionSupervisorsPreserveExistenceGate(t *testing.T) {
 		found                             bool
 		groupErr, supervisionErr, wantErr error
 	}{
-		{name: "missing", wantErr: activeService.ErrActiveGroupNotFound},
-		{name: "lookup failure", found: true, groupErr: storageErr, wantErr: activeService.ErrActiveGroupNotFound},
-		{name: "supervision failure", found: true, supervisionErr: storageErr, wantErr: activeService.ErrDatabaseOperation},
+		{name: "missing", wantErr: studentpresence.ErrGroupNotFound},
+		{name: "lookup failure", found: true, groupErr: storageErr, wantErr: studentpresence.ErrGroupNotFound},
+		{name: "supervision failure", found: true, supervisionErr: storageErr, wantErr: studentpresence.ErrDatabaseOperation},
 		{name: "found", found: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -222,14 +221,14 @@ func TestSupervisionReadsPreserveErrorEnvelopes(t *testing.T) {
 				return tc.rows, tc.err
 			}}}
 			row, err := rs.presenceSupervisor(ctx, 7)
-			require.ErrorIs(t, err, activeService.ErrGroupSupervisorNotFound)
+			require.ErrorIs(t, err, studentpresence.ErrGroupSupervisorNotFound)
 			assert.Equal(t, SupervisorResponse{}, row)
 			rows, err := rs.presenceSupervisionResponses(ctx, filter, "ListGroupSupervisors")
 			if len(tc.rows) == 0 && tc.err == nil {
 				require.NoError(t, err)
 				assert.Empty(t, rows)
 			} else {
-				require.ErrorIs(t, err, activeService.ErrDatabaseOperation)
+				require.ErrorIs(t, err, studentpresence.ErrDatabaseOperation)
 				assert.Nil(t, rows)
 			}
 		})

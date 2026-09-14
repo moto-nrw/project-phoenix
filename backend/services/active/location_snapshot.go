@@ -26,8 +26,8 @@ type StudentLocationInfo struct {
 
 // Mode constants for StudentLocationSnapshot.Mode.
 const (
-	PresenceModeDetailed = "detailed"
-	PresenceModeBinary   = "binary"
+	PresenceModeDetailed = studentpresence.PresenceModeDetailed
+	PresenceModeBinary   = studentpresence.PresenceModeBinary
 )
 
 // YardLocationLabel is the binary-mode label for a student on the schoolyard.

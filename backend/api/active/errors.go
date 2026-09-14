@@ -5,7 +5,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 // newErrResponse builds a common.ErrResponse carrying this package's
@@ -28,44 +28,44 @@ func statusText(status int, text string) func(error) render.Renderer {
 	return func(err error) render.Renderer { return newErrResponse(status, text, err) }
 }
 
-// errorRules maps active-service sentinels to HTTP status + the package's
-// human-text status classification. Matched via errors.Is, so both bare
-// sentinels and *activeSvc.ActiveError-wrapped ones classify identically.
+// errorRules maps presence sentinels to HTTP status + the package's
+// human-text status classification. Matched via errors.Is, so bare sentinels
+// and operation-wrapped ones classify identically.
 //
 // The ErrStudentAlreadyActive 409: issue #844 added a DB-level partial
-// unique index on active.visits; the active service translates the
-// resulting 23505 to ErrStudentAlreadyActive for ALL CreateVisit callers,
-// so the admin POST /active/visits route must answer 409 like the IoT
-// checkin path, not 400.
+// unique index on active.visits; the presence command translates the
+// resulting 23505 to ErrStudentAlreadyActive for ALL visit admissions, so the
+// admin POST /active/visits route must answer 409 like the IoT checkin path,
+// not 400.
 var errorRules = []common.ErrorRule{
-	{Target: activeSvc.ErrActiveGroupNotFound, Render: statusText(http.StatusNotFound, "Active Group Not Found")},
-	{Target: activeSvc.ErrVisitNotFound, Render: statusText(http.StatusNotFound, "Visit Not Found")},
-	{Target: activeSvc.ErrGroupSupervisorNotFound, Render: statusText(http.StatusNotFound, "Group Supervisor Not Found")},
-	{Target: activeSvc.ErrCombinedGroupNotFound, Render: statusText(http.StatusNotFound, "Combined Group Not Found")},
-	{Target: activeSvc.ErrGroupMappingNotFound, Render: statusText(http.StatusNotFound, "Group Mapping Not Found")},
-	{Target: activeSvc.ErrInvalidData, Render: statusText(http.StatusBadRequest, "Invalid Data")},
-	{Target: activeSvc.ErrActiveGroupAlreadyEnded, Render: statusText(http.StatusBadRequest, "Active Group Already Ended")},
-	{Target: activeSvc.ErrVisitAlreadyEnded, Render: statusText(http.StatusBadRequest, "Visit Already Ended")},
-	{Target: activeSvc.ErrSupervisionAlreadyEnded, Render: statusText(http.StatusBadRequest, "Supervision Already Ended")},
-	{Target: activeSvc.ErrCombinedGroupAlreadyEnded, Render: statusText(http.StatusBadRequest, "Combined Group Already Ended")},
-	{Target: activeSvc.ErrGroupAlreadyInCombination, Render: statusText(http.StatusBadRequest, "Group Already In Combination")},
-	{Target: activeSvc.ErrStudentAlreadyInGroup, Render: statusText(http.StatusBadRequest, "Student Already In Group")},
-	{Target: activeSvc.ErrStudentAlreadyActive, Render: statusText(http.StatusConflict, "Student Already Has Active Visit")},
-	{Target: activeSvc.ErrStudentsNotPresent, Render: statusText(http.StatusConflict, "Students Not Present")},
-	{Target: activeSvc.ErrStudentMoveForbidden, Render: statusText(http.StatusForbidden, "Forbidden")},
-	{Target: activeSvc.ErrStaffAlreadySupervising, Render: statusText(http.StatusBadRequest, "Staff Already Supervising This Group")},
-	{Target: activeSvc.ErrCannotDeleteActiveGroup, Render: statusText(http.StatusBadRequest, "Cannot Delete Active Group With Active Visits")},
-	{Target: activeSvc.ErrInvalidTimeRange, Render: statusText(http.StatusBadRequest, "Invalid Time Range")},
-	{Target: activeSvc.ErrRoomConflict, Render: statusText(http.StatusConflict, "Room Conflict")},
-	{Target: activeSvc.ErrRoomCapacityExceeded, Render: statusText(http.StatusConflict, "Room Capacity Exceeded")},
-	{Target: activeSvc.ErrNoRoomAvailable, Render: statusText(http.StatusBadRequest, "No Room Available")},
-	{Target: activeSvc.ErrStudentNotFound, Render: statusText(http.StatusNotFound, "Student Not Found")},
-	{Target: activeSvc.ErrStaffNotFound, Render: statusText(http.StatusNotFound, "Staff Not Found")},
+	{Target: studentpresence.ErrGroupNotFound, Render: statusText(http.StatusNotFound, "Active Group Not Found")},
+	{Target: studentpresence.ErrVisitNotFound, Render: statusText(http.StatusNotFound, "Visit Not Found")},
+	{Target: studentpresence.ErrGroupSupervisorNotFound, Render: statusText(http.StatusNotFound, "Group Supervisor Not Found")},
+	{Target: studentpresence.ErrCombinedGroupNotFound, Render: statusText(http.StatusNotFound, "Combined Group Not Found")},
+	{Target: studentpresence.ErrGroupMappingNotFound, Render: statusText(http.StatusNotFound, "Group Mapping Not Found")},
+	{Target: studentpresence.ErrInvalidData, Render: statusText(http.StatusBadRequest, "Invalid Data")},
+	{Target: studentpresence.ErrGroupAlreadyEnded, Render: statusText(http.StatusBadRequest, "Active Group Already Ended")},
+	{Target: studentpresence.ErrVisitAlreadyEnded, Render: statusText(http.StatusBadRequest, "Visit Already Ended")},
+	{Target: studentpresence.ErrSupervisionAlreadyEnded, Render: statusText(http.StatusBadRequest, "Supervision Already Ended")},
+	{Target: studentpresence.ErrCombinedGroupAlreadyEnded, Render: statusText(http.StatusBadRequest, "Combined Group Already Ended")},
+	{Target: studentpresence.ErrGroupAlreadyInCombination, Render: statusText(http.StatusBadRequest, "Group Already In Combination")},
+	{Target: studentpresence.ErrStudentAlreadyInGroup, Render: statusText(http.StatusBadRequest, "Student Already In Group")},
+	{Target: studentpresence.ErrStudentAlreadyActive, Render: statusText(http.StatusConflict, "Student Already Has Active Visit")},
+	{Target: studentpresence.ErrStudentsNotPresent, Render: statusText(http.StatusConflict, "Students Not Present")},
+	{Target: studentpresence.ErrStudentMoveForbidden, Render: statusText(http.StatusForbidden, "Forbidden")},
+	{Target: studentpresence.ErrStaffAlreadySupervising, Render: statusText(http.StatusBadRequest, "Staff Already Supervising This Group")},
+	{Target: studentpresence.ErrCannotDeleteActiveGroup, Render: statusText(http.StatusBadRequest, "Cannot Delete Active Group With Active Visits")},
+	{Target: studentpresence.ErrInvalidTimeRange, Render: statusText(http.StatusBadRequest, "Invalid Time Range")},
+	{Target: studentpresence.ErrRoomConflict, Render: statusText(http.StatusConflict, "Room Conflict")},
+	{Target: studentpresence.ErrRoomCapacityExceeded, Render: statusText(http.StatusConflict, "Room Capacity Exceeded")},
+	{Target: studentpresence.ErrNoRoomAvailable, Render: statusText(http.StatusBadRequest, "No Room Available")},
+	{Target: studentpresence.ErrStudentNotFound, Render: statusText(http.StatusNotFound, "Student Not Found")},
+	{Target: studentpresence.ErrStaffNotFound, Render: statusText(http.StatusNotFound, "Staff Not Found")},
 	// A graduated (alumnus) student is treated like an unknown/absent student
 	// (404), matching the IoT check-in mapper — a stale web/timetable request or
 	// a graduation race must not fall through to a 500 (#405).
-	{Target: activeSvc.ErrStudentGraduated, Render: statusText(http.StatusNotFound, "Student Graduated")},
-	{Target: activeSvc.ErrStudentCareEnded, Render: statusText(http.StatusNotFound, "Student Care Ended")},
+	{Target: studentpresence.ErrStudentGraduated, Render: statusText(http.StatusNotFound, "Student Graduated")},
+	{Target: studentpresence.ErrStudentCareEnded, Render: statusText(http.StatusNotFound, "Student Care Ended")},
 }
 
 // ErrorRenderer returns a render.Renderer for the given error

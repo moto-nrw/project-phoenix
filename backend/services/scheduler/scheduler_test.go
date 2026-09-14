@@ -636,9 +636,6 @@ func (m *mockActiveService) GetStudentsCurrentVisits(_ context.Context, _ []int6
 func (m *mockActiveService) GetStudentCurrentVisitWithRoom(_ context.Context, _ int64) (*activeService.VisitWithRoom, error) {
 	return nil, nil
 }
-func (m *mockActiveService) GetGroupSupervisor(_ context.Context, _ int64) (*active.GroupSupervisor, error) {
-	return nil, nil
-}
 func (m *mockActiveService) CreateGroupSupervisor(_ context.Context, _ *active.GroupSupervisor) error {
 	return nil
 }
@@ -655,9 +652,6 @@ func (m *mockActiveService) UpdateCombinedGroup(_ context.Context, _ *studentpre
 }
 func (m *mockActiveService) DeleteCombinedGroup(_ context.Context, _ int64) error { return nil }
 func (m *mockActiveService) EndCombinedGroup(_ context.Context, _ int64) error    { return nil }
-func (m *mockActiveService) GetCombinedGroupWithGroups(_ context.Context, _ int64) (*activeService.CombinedGroupDetails, error) {
-	return nil, nil
-}
 func (m *mockActiveService) CreateCombinedGroupWithGroups(_ context.Context, _ *studentpresence.CombinedGroup, _ []int64) error {
 	return nil
 }

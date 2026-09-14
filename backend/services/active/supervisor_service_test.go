@@ -13,65 +13,19 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
-// =============================================================================
-// GetGroupSupervisor Tests
-// =============================================================================
-
-func TestActiveService_GetGroupSupervisor(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupActiveService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns supervisor when found", func(t *testing.T) {
-		// ARRANGE
-		activity := testpkg.CreateTestActivityGroup(t, db, "get-supervisor")
-		room := testpkg.CreateTestRoom(t, db, "Supervisor Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		staff := testpkg.CreateTestStaff(t, db, "Get", "Supervisor")
-
-		// Create supervisor
-		now := timezone.NewDate(2026, 8, 24)
-		supervisor := &activeModels.GroupSupervisor{
-			GroupID:   activeGroup.ID,
-			StaffID:   staff.ID,
-			Role:      "supervisor",
-			StartDate: now,
-		}
-		err := service.CreateGroupSupervisor(ctx, supervisor)
-		require.NoError(t, err)
-
-		// ACT
-		result, err := service.GetGroupSupervisor(ctx, supervisor.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, result)
-		assert.Equal(t, supervisor.ID, result.ID)
-		assert.Equal(t, staff.ID, result.StaffID)
-	})
-
-	t.Run("returns error when not found", func(t *testing.T) {
-		// ACT
-		result, err := service.GetGroupSupervisor(ctx, 99999999)
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, result)
-	})
-
-	t.Run("returns error for invalid ID", func(t *testing.T) {
-		// ACT
-		result, err := service.GetGroupSupervisor(ctx, 0)
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, result)
-	})
+// storedSupervision reads a supervision row back through the owner query so
+// write tests verify persistence without a retained read method.
+func storedSupervision(t *testing.T, db *bun.DB, ctx context.Context, id int64) (studentpresence.GroupSupervision, bool) {
+	t.Helper()
+	rows, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{IDs: []int64{id}})
+	require.NoError(t, err)
+	if len(rows) == 0 {
+		return studentpresence.GroupSupervision{}, false
+	}
+	return rows[0], true
 }
 
 // =============================================================================
@@ -207,8 +161,8 @@ func TestActiveService_UpdateGroupSupervisor(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify update persisted
-		updated, err := service.GetGroupSupervisor(ctx, supervisor.ID)
-		require.NoError(t, err)
+		updated, found := storedSupervision(t, db, ctx, supervisor.ID)
+		require.True(t, found)
 		assert.Equal(t, "primary_supervisor", updated.Role)
 	})
 
@@ -269,8 +223,8 @@ func TestActiveService_DeleteGroupSupervisor(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify deletion
-		_, err = service.GetGroupSupervisor(ctx, supervisor.ID)
-		require.Error(t, err)
+		_, found := storedSupervision(t, db, ctx, supervisor.ID)
+		require.False(t, found)
 	})
 
 	t.Run("returns error when not found", func(t *testing.T) {
@@ -536,8 +490,8 @@ func TestActiveService_EndSupervision(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify end time set
-		ended, err := service.GetGroupSupervisor(ctx, supervisor.ID)
-		require.NoError(t, err)
+		ended, found := storedSupervision(t, db, ctx, supervisor.ID)
+		require.True(t, found)
 		assert.NotNil(t, ended.EndDate)
 	})
 

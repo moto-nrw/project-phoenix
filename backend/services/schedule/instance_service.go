@@ -1238,7 +1238,7 @@ func (s *instanceService) validateReopenOccupancy(ctx context.Context, instance 
 		return &ScheduleError{Op: "reopen instance: count room occupancy", Err: err}
 	}
 	if currentOccupancy+len(snapshot.VisitIDs) > *room.Capacity {
-		return activeSvc.ErrRoomCapacityExceeded
+		return ErrRoomCapacityExceeded
 	}
 	return nil
 }

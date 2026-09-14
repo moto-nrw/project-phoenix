@@ -17,11 +17,11 @@ func (rs *Resource) getCrossTenantStudents(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	students, err := rs.ActiveService.GetCrossTenantStudents(ctx, hostingTenantID)
+	students, err := rs.Operations.CrossTenantStudents(ctx, hostingTenantID)
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, students, "Cross-tenant students retrieved successfully")
+	common.Respond(w, r, http.StatusOK, newCrossTenantStudentResponses(students), "Cross-tenant students retrieved successfully")
 }

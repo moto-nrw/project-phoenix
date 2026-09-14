@@ -13,13 +13,18 @@ import (
 // listUnclaimedGroups returns all active groups that have no supervisors
 // This is used for deviceless rooms like Schulhof where teachers claim via frontend
 func (rs *Resource) listUnclaimedGroups(w http.ResponseWriter, r *http.Request) {
-	groups, err := rs.ActiveService.GetUnclaimedActiveGroups(r.Context())
+	groups, err := rs.Operations.UnclaimedSessions(r.Context())
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, groups, "Unclaimed groups retrieved successfully")
+	responses := make([]unclaimedSessionResponse, 0, len(groups))
+	for _, group := range groups {
+		responses = append(responses, newUnclaimedSessionResponse(group))
+	}
+
+	common.Respond(w, r, http.StatusOK, responses, "Unclaimed groups retrieved successfully")
 }
 
 // claimGroup allows authenticated staff to claim supervision of an active group
@@ -56,11 +61,11 @@ func (rs *Resource) claimGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Claim the group (default role: "supervisor")
-	supervisor, err := rs.ActiveService.ClaimActiveGroup(ctx, groupID, staff.ID, "supervisor")
+	supervisor, err := rs.Operations.ClaimSupervision(ctx, groupID, staff.ID, "supervisor")
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, supervisor, "Successfully claimed supervision")
+	common.Respond(w, r, http.StatusOK, newClaimedSupervisionResponse(supervisor), "Successfully claimed supervision")
 }

@@ -8,12 +8,11 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 )
 
 // Resource defines the active API resource
 type Resource struct {
-	ActiveService      activeSvc.Service
+	Operations         PresenceOperations
 	Presence           PresenceQueries
 	PersonService      People
 	EducationService   func(context.Context, int64) ([]int64, error)
@@ -36,7 +35,7 @@ func (rs *Resource) getLogger() *slog.Logger {
 }
 
 // NewResource creates a new active resource
-func NewResource(activeService activeSvc.Service, personService People, educationService func(context.Context, int64) ([]int64, error), schulhofService SchulhofStatusQuery, userContextService StaffAccess, settingsService Settings, protectedRoutes func(chi.Router, func(chi.Router, common.Middleware)), logger *slog.Logger, presence PresenceQueries, runtime RequestRuntime, authorization Authorization) *Resource {
+func NewResource(operations PresenceOperations, personService People, educationService func(context.Context, int64) ([]int64, error), schulhofService SchulhofStatusQuery, userContextService StaffAccess, settingsService Settings, protectedRoutes func(chi.Router, func(chi.Router, common.Middleware)), logger *slog.Logger, presence PresenceQueries, runtime RequestRuntime, authorization Authorization) *Resource {
 	if logger == nil {
 		panic("active API: logger is required")
 	}
@@ -59,7 +58,7 @@ func NewResource(activeService activeSvc.Service, personService People, educatio
 		panic("active API: overview authorization is required")
 	}
 	return &Resource{
-		ActiveService:      activeService,
+		Operations:         operations,
 		Presence:           presence,
 		PersonService:      personService,
 		EducationService:   educationService,

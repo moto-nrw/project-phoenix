@@ -1,7 +1,6 @@
 package active
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -405,6 +404,6 @@ func exportFilename(base string, req TimeExportRequest) string {
 // compareExportStaff preserves name ordering and the staff-ID tiebreak across
 // daily and monthly exports.
 func compareExportStaff(a, b TimeExportStaff) int {
-	order := cmp.Compare(strings.ToLower(a.LastName+" "+a.FirstName), strings.ToLower(b.LastName+" "+b.FirstName))
-	return cmp.Or(order, cmp.Compare(a.ID, b.ID))
+	order := compareOrdered(strings.ToLower(a.LastName+" "+a.FirstName), strings.ToLower(b.LastName+" "+b.FirstName))
+	return orderOr(order, compareOrdered(a.ID, b.ID))
 }

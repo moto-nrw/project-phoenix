@@ -29,7 +29,7 @@ func (rs *Resource) assignTransitStudents(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	result, err := rs.ActiveService.AssignTransitStudentsToActiveGroupAuthorized(r.Context(), req.StudentIDs, req.ActiveGroupID, *auth)
+	result, err := rs.Operations.AssignTransitStudents(r.Context(), req.StudentIDs, req.ActiveGroupID, *auth)
 	if err != nil {
 		rs.runtime.MarkRollback(r.Context())
 		common.RenderError(w, r, ErrorRenderer(err))

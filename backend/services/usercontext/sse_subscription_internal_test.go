@@ -664,9 +664,6 @@ func (m *mockActiveSvcForSSE) MoveStudentsToActiveGroupAuthorized(_ context.Cont
 func (m *mockActiveSvcForSSE) MoveStudentsToTransitAuthorized(_ context.Context, _ []int64, _ activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
 	return nil, nil
 }
-func (m *mockActiveSvcForSSE) GetGroupSupervisor(_ context.Context, _ int64) (*activeModel.GroupSupervisor, error) {
-	return nil, nil
-}
 func (m *mockActiveSvcForSSE) CreateGroupSupervisor(_ context.Context, _ *activeModel.GroupSupervisor) error {
 	return nil
 }
@@ -683,9 +680,6 @@ func (m *mockActiveSvcForSSE) UpdateCombinedGroup(_ context.Context, _ *studentp
 }
 func (m *mockActiveSvcForSSE) DeleteCombinedGroup(_ context.Context, _ int64) error { return nil }
 func (m *mockActiveSvcForSSE) EndCombinedGroup(_ context.Context, _ int64) error    { return nil }
-func (m *mockActiveSvcForSSE) GetCombinedGroupWithGroups(_ context.Context, _ int64) (*activeSvc.CombinedGroupDetails, error) {
-	return nil, nil
-}
 func (m *mockActiveSvcForSSE) CreateCombinedGroupWithGroups(_ context.Context, _ *studentpresence.CombinedGroup, _ []int64) error {
 	return nil
 }

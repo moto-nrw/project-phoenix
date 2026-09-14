@@ -55,6 +55,12 @@ func (m ActiveTestModule) AttendanceStaff() attendanceRouteStaff {
 	return NewAttendanceRouteStaff(m.UserContext)
 }
 
+// PresenceOperations binds the retained active service behind the presence
+// operations contract the active routes consume.
+func (m ActiveTestModule) PresenceOperations() presenceOperations {
+	return NewPresenceOperations(m.Active)
+}
+
 func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() time.Time) (ActiveTestModule, error) {
 	r, err := repositories.NewActiveTestRepositories(db, clocks...)
 	if err != nil {

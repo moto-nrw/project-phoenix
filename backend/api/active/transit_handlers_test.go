@@ -9,7 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,13 +21,13 @@ func TestAssignTransitStudents(t *testing.T) {
 		var capturedStudentIDs []int64
 		var capturedActiveGroupID int64
 		rs := resourceForTest(Resource{
-			ActiveService: &trackingMockActiveService{
-				assignTransitStudentsToActiveGroupFunc: func(_ context.Context, studentIDs []int64, activeGroupID int64) (*activeSvc.TransitAssignResult, error) {
+			Operations: &stubPresenceOperations{
+				assignTransitStudents: func(_ context.Context, studentIDs []int64, activeGroupID int64, _ studentpresence.StudentMoveAuthorization) (studentpresence.TransitAssignResult, error) {
 					capturedStudentIDs = studentIDs
 					capturedActiveGroupID = activeGroupID
-					return &activeSvc.TransitAssignResult{
+					return studentpresence.TransitAssignResult{
 						Assigned:      []int64{42, 84},
-						Skipped:       []activeSvc.TransitAssignSkipped{},
+						Skipped:       []studentpresence.TransitAssignSkipped{},
 						ActiveGroupID: activeGroupID,
 						RoomID:        77,
 					}, nil
@@ -54,7 +54,7 @@ func TestAssignTransitStudents(t *testing.T) {
 	})
 
 	t.Run("rejects malformed json", func(t *testing.T) {
-		rs := resourceForTest(Resource{ActiveService: &trackingMockActiveService{}})
+		rs := resourceForTest(Resource{Operations: &stubPresenceOperations{}})
 		req := httptest.NewRequest(
 			http.MethodPost,
 			"/api/active/visits/transit/assign",
@@ -68,7 +68,7 @@ func TestAssignTransitStudents(t *testing.T) {
 	})
 
 	t.Run("rejects missing required fields", func(t *testing.T) {
-		rs := resourceForTest(Resource{ActiveService: &trackingMockActiveService{}})
+		rs := resourceForTest(Resource{Operations: &stubPresenceOperations{}})
 		req := httptest.NewRequest(
 			http.MethodPost,
 			"/api/active/visits/transit/assign",
@@ -83,12 +83,9 @@ func TestAssignTransitStudents(t *testing.T) {
 
 	t.Run("renders service errors", func(t *testing.T) {
 		rs := resourceForTest(Resource{
-			ActiveService: &trackingMockActiveService{
-				assignTransitStudentsToActiveGroupFunc: func(_ context.Context, _ []int64, _ int64) (*activeSvc.TransitAssignResult, error) {
-					return nil, &activeSvc.ActiveError{
-						Op:  "AssignTransitStudentsToActiveGroup",
-						Err: activeSvc.ErrActiveGroupAlreadyEnded,
-					}
+			Operations: &stubPresenceOperations{
+				assignTransitStudents: func(_ context.Context, _ []int64, _ int64, _ studentpresence.StudentMoveAuthorization) (studentpresence.TransitAssignResult, error) {
+					return studentpresence.TransitAssignResult{}, operationError("AssignTransitStudentsToActiveGroup", studentpresence.ErrGroupAlreadyEnded)
 				},
 			},
 		})
@@ -112,12 +109,12 @@ func TestAssignTransitStudents(t *testing.T) {
 				person: &PersonIdentity{ID: 10},
 				staff:  &StaffIdentity{ID: 20},
 			},
-			ActiveService: &trackingMockActiveService{
-				assignTransitStudentsAuthorizedFunc: func(_ context.Context, _ []int64, _ int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.TransitAssignResult, error) {
+			Operations: &stubPresenceOperations{
+				assignTransitStudents: func(_ context.Context, _ []int64, _ int64, auth studentpresence.StudentMoveAuthorization) (studentpresence.TransitAssignResult, error) {
 					calledAssign = true
 					require.Equal(t, int64(20), auth.StaffID)
 					require.False(t, auth.BypassResourceChecks)
-					return nil, &activeSvc.ActiveError{Op: "AssignTransitStudentsToActiveGroup", Err: activeSvc.ErrStudentMoveForbidden}
+					return studentpresence.TransitAssignResult{}, operationError("AssignTransitStudentsToActiveGroup", studentpresence.ErrStudentMoveForbidden)
 				},
 			},
 		})
@@ -143,14 +140,14 @@ func TestAssignTransitStudents(t *testing.T) {
 				person: &PersonIdentity{ID: 10},
 				staff:  &StaffIdentity{ID: 20},
 			},
-			ActiveService: &trackingMockActiveService{
-				assignTransitStudentsAuthorizedFunc: func(_ context.Context, studentIDs []int64, activeGroupID int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.TransitAssignResult, error) {
+			Operations: &stubPresenceOperations{
+				assignTransitStudents: func(_ context.Context, studentIDs []int64, activeGroupID int64, auth studentpresence.StudentMoveAuthorization) (studentpresence.TransitAssignResult, error) {
 					calledAssign = true
 					require.Equal(t, int64(20), auth.StaffID)
 					require.False(t, auth.BypassResourceChecks)
-					return &activeSvc.TransitAssignResult{
+					return studentpresence.TransitAssignResult{
 						Assigned:      studentIDs,
-						Skipped:       []activeSvc.TransitAssignSkipped{},
+						Skipped:       []studentpresence.TransitAssignSkipped{},
 						ActiveGroupID: activeGroupID,
 						RoomID:        77,
 					}, nil
@@ -178,10 +175,10 @@ func TestAssignTransitStudents(t *testing.T) {
 				person: &PersonIdentity{ID: 10},
 				staff:  &StaffIdentity{ID: 20},
 			},
-			ActiveService: &trackingMockActiveService{
-				assignTransitStudentsToActiveGroupFunc: func(_ context.Context, _ []int64, _ int64) (*activeSvc.TransitAssignResult, error) {
+			Operations: &stubPresenceOperations{
+				assignTransitStudents: func(_ context.Context, _ []int64, _ int64, _ studentpresence.StudentMoveAuthorization) (studentpresence.TransitAssignResult, error) {
 					calledAssign = true
-					return nil, errors.New("active group lookup failed")
+					return studentpresence.TransitAssignResult{}, errors.New("active group lookup failed")
 				},
 			},
 		})

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -45,8 +44,8 @@ func TestCombinationLookupPreservesNotFoundEnvelope(t *testing.T) {
 		}}}
 		row, err := rs.presenceCombination(ctx, 42)
 		assert.Zero(t, row)
-		require.ErrorIs(t, err, activeService.ErrCombinedGroupNotFound)
-		var activeErr *activeService.ActiveError
+		require.ErrorIs(t, err, studentpresence.ErrCombinedGroupNotFound)
+		var activeErr *presenceError
 		require.ErrorAs(t, err, &activeErr)
 		assert.Equal(t, "GetCombinedGroup", activeErr.Op)
 		cancel()
@@ -73,8 +72,8 @@ func TestCombinationQueryPreservesFiltersAndDiscardsPartialFailures(t *testing.T
 			}}}
 			rows, err := rs.listPresenceCombinations(ctx, filter, operation)
 			assert.Nil(t, rows)
-			require.ErrorIs(t, err, activeService.ErrDatabaseOperation)
-			var activeErr *activeService.ActiveError
+			require.ErrorIs(t, err, studentpresence.ErrDatabaseOperation)
+			var activeErr *presenceError
 			require.ErrorAs(t, err, &activeErr)
 			assert.Equal(t, operation, activeErr.Op)
 		})

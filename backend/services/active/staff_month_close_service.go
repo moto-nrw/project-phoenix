@@ -1,7 +1,6 @@
 package active
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -97,7 +96,7 @@ func NewStaffMonthCloseService(
 }
 
 func (s *staffMonthCloseService) getLogger() *slog.Logger {
-	return cmp.Or(s.logger, slog.Default())
+	return loggerOrDefault(s.logger)
 }
 
 // SetBroadcaster injects the tenant-wide SSE broadcaster. It stays outside

@@ -1,6 +1,7 @@
 package active
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"testing"
@@ -9,32 +10,29 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/stretchr/testify/assert"
 )
 
 // =============================================================================
-// CONVERTER TESTS - Testing model-to-response conversion functions
+// CONVERTER TESTS - Testing record-to-response conversion functions
 // =============================================================================
 
-func TestNewActiveGroupResponse_BasicFields(t *testing.T) {
+func TestNewPresenceLiveGroupResponse_BasicFields(t *testing.T) {
 	t.Parallel()
 
 	now := time.Now()
 	endTime := now.Add(time.Hour)
 
-	group := &active.Group{
-		Model:     base.Model{ID: 1, CreatedAt: now, UpdatedAt: now},
-		GroupID:   ptrtest.Ptr(int64(100)),
-		RoomID:    200,
-		StartTime: now,
-		EndTime:   &endTime,
+	group := studentpresence.LiveGroup{
+		ID: 1, CreatedAt: now, UpdatedAt: now,
+		ActivityGroupID: ptrtest.Ptr(int64(100)),
+		RoomID:          200,
+		StartTime:       now,
+		EndTime:         &endTime,
 	}
 
-	response := newActiveGroupResponse(group)
+	response := newPresenceLiveGroupResponse(group)
 
 	assert.Equal(t, int64(1), response.ID)
 	if assert.NotNil(t, response.GroupID) {
@@ -49,53 +47,39 @@ func TestNewActiveGroupResponse_BasicFields(t *testing.T) {
 	assert.Nil(t, response.Room)
 }
 
-func TestNewActiveGroupResponse_WithActiveSupervisors(t *testing.T) {
+func TestLoadActiveGroupRelations_KeepsActiveSupervisorsAndRooms(t *testing.T) {
 	t.Parallel()
 
-	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
+	today := timezone.TodayDate()
+	yesterday := today.AddDays(-1).String()
+	groups := []studentpresence.LiveGroup{{ID: 1, ActivityGroupID: ptrtest.Ptr(int64(100)), RoomID: 200, StartTime: time.Now()}}
+	responses := []ActiveGroupResponse{newPresenceLiveGroupResponse(groups[0])}
+	rs := resourceForTest(Resource{
+		Presence: supervisionQueryStub{query: func(_ context.Context, _ studentpresence.GroupSupervisionFilter) ([]studentpresence.GroupSupervision, error) {
+			return []studentpresence.GroupSupervision{
+				{ID: 1, GroupID: 1, StaffID: 10, Role: "Teacher", StartDate: today.String()},                     // Active
+				{ID: 2, GroupID: 1, StaffID: 20, Role: "Helper", StartDate: today.String(), EndDate: &yesterday}, // Inactive (ended)
+				{ID: 3, GroupID: 1, StaffID: 30, Role: "Supervisor", StartDate: today.String()},                  // Active
+			}, nil
+		}},
+		Operations: &stubPresenceOperations{sessionRooms: func(_ context.Context, ids []int64) ([]studentpresence.SessionRoomSummary, error) {
+			assert.Equal(t, []int64{200}, ids)
+			return []studentpresence.SessionRoomSummary{{ID: 200, Name: "Test Room"}}, nil
+		}},
+	})
 
-	group := &active.Group{
-		Model:     base.Model{ID: 1},
-		GroupID:   ptrtest.Ptr(int64(100)),
-		RoomID:    200,
-		StartTime: now,
-		EndTime:   nil,
-		Supervisors: []*active.GroupSupervisor{
-			{Model: base.Model{ID: 1}, StaffID: 10, Role: "Teacher", StartDate: timezone.DateFromTime(now), EndDate: nil},                                   // Active
-			{Model: base.Model{ID: 2}, StaffID: 20, Role: "Helper", StartDate: timezone.DateFromTime(now), EndDate: ptrDate(timezone.NewDate(2026, 8, 24))}, // Inactive (has end date)
-			{Model: base.Model{ID: 3}, StaffID: 30, Role: "Supervisor", StartDate: timezone.DateFromTime(now), EndDate: nil},                                // Active
-		},
-	}
+	rs.loadActiveGroupRelations(context.Background(), groups, responses)
 
-	response := newActiveGroupResponse(group)
-
+	response := responses[0]
 	assert.Equal(t, 2, response.SupervisorCount) // Only 2 active supervisors
 	assert.Len(t, response.Supervisors, 2)
 	assert.Equal(t, int64(10), response.Supervisors[0].StaffID)
 	assert.Equal(t, "Teacher", response.Supervisors[0].Role)
 	assert.Equal(t, int64(30), response.Supervisors[1].StaffID)
-}
-
-func TestNewActiveGroupResponse_WithRoom(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-
-	group := &active.Group{
-		Model:     base.Model{ID: 1},
-		GroupID:   ptrtest.Ptr(int64(100)),
-		RoomID:    200,
-		StartTime: now,
-		Room: &active.SessionRoom{
-			ID: 200, Name: "Test Room",
-		},
+	if assert.NotNil(t, response.Room) {
+		assert.Equal(t, int64(200), response.Room.ID)
+		assert.Equal(t, "Test Room", response.Room.Name)
 	}
-
-	response := newActiveGroupResponse(group)
-
-	assert.NotNil(t, response.Room)
-	assert.Equal(t, int64(200), response.Room.ID)
-	assert.Equal(t, "Test Room", response.Room.Name)
 }
 
 func TestNewPresenceVisitResponse_BasicFields(t *testing.T) {
@@ -143,21 +127,21 @@ func TestNewPresenceVisitResponse_ActiveVisit(t *testing.T) {
 	assert.Nil(t, response.CheckOutTime)
 }
 
-func TestNewSupervisorResponse_BasicFields(t *testing.T) {
+func TestSupervisionRowResponse_BasicFields(t *testing.T) {
 	t.Parallel()
 
 	now := time.Now()
-	endDate := timezone.TodayDate().AddDays(-1) // End date in the past = inactive
+	endDate := timezone.TodayDate().AddDays(-1).String() // End date in the past = inactive
 
-	supervisor := &active.GroupSupervisor{
-		Model:     base.Model{ID: 1, CreatedAt: now, UpdatedAt: now},
+	supervisor := studentpresence.GroupSupervision{
+		ID: 1, CreatedAt: now, UpdatedAt: now,
 		StaffID:   100,
 		GroupID:   200,
-		StartDate: timezone.TodayDate().AddDays(-1),
+		StartDate: timezone.TodayDate().AddDays(-1).String(),
 		EndDate:   &endDate,
 	}
 
-	response := newSupervisorResponse(supervisor)
+	response := supervisionRowResponse(supervisor)
 
 	assert.Equal(t, int64(1), response.ID)
 	assert.Equal(t, int64(100), response.StaffID)
@@ -166,82 +150,45 @@ func TestNewSupervisorResponse_BasicFields(t *testing.T) {
 	assert.False(t, response.IsActive) // End date in the past = inactive
 }
 
-func TestNewSupervisorResponse_ActiveSupervisor(t *testing.T) {
+func TestSupervisionRowResponse_ActiveSupervisor(t *testing.T) {
 	t.Parallel()
 
-	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
-
-	supervisor := &active.GroupSupervisor{
-		Model:     base.Model{ID: 1},
+	supervisor := studentpresence.GroupSupervision{
+		ID:        1,
 		StaffID:   100,
 		GroupID:   200,
-		StartDate: timezone.DateFromTime(now),
+		StartDate: timezone.TodayDate().AddDays(-1).String(),
 		EndDate:   nil, // Active
 	}
 
-	response := newSupervisorResponse(supervisor)
+	response := supervisionRowResponse(supervisor)
 
 	assert.True(t, response.IsActive)
 }
 
-func TestNewSupervisorResponse_WithStaff(t *testing.T) {
+func TestSupervisionRowResponse_InvalidDateKeepsIdentity(t *testing.T) {
 	t.Parallel()
 
-	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
+	supervisor := studentpresence.GroupSupervision{ID: 1, StaffID: 100, GroupID: 200, StartDate: "invalid"}
 
-	supervisor := &active.GroupSupervisor{
-		Model:     base.Model{ID: 1},
-		StaffID:   100,
-		GroupID:   200,
-		StartDate: timezone.DateFromTime(now),
-		Staff: &active.SessionStaff{
-			ID: 100,
-			Person: &active.SessionStaffPerson{
-				ID:        50,
-				FirstName: "Jane",
-				LastName:  "Smith",
-			},
-		},
-	}
+	response := supervisionRowResponse(supervisor)
 
-	response := newSupervisorResponse(supervisor)
-
-	assert.Equal(t, "Jane Smith", response.StaffName)
+	assert.Equal(t, int64(1), response.ID)
+	assert.Equal(t, int64(100), response.StaffID)
+	assert.Equal(t, int64(200), response.ActiveGroupID)
+	assert.False(t, response.IsActive)
 }
 
-func TestNewSupervisorResponse_WithActiveGroup(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
-
-	supervisor := &active.GroupSupervisor{
-		Model:     base.Model{ID: 1},
-		StaffID:   100,
-		GroupID:   200,
-		StartDate: timezone.DateFromTime(now),
-		ActiveGroup: &active.Group{
-			Model:   base.Model{ID: 200},
-			GroupID: ptrtest.Ptr(int64(300)),
-		},
-	}
-
-	response := newSupervisorResponse(supervisor)
-
-	assert.Equal(t, "Group #300", response.ActiveGroupName)
-}
-
-func TestNewCombinedGroupResponse_BasicFields(t *testing.T) {
+func TestNewCombinationWithGroupsResponse_BasicFields(t *testing.T) {
 	t.Parallel()
 
 	now := time.Now()
 	endTime := now.Add(-time.Hour) // Past end time = inactive
 
-	group := &activeSvc.CombinedGroupDetails{
-		CombinedGroup: studentpresence.CombinedGroup{ID: 1, CreatedAt: now, UpdatedAt: now,
-			StartTime: now.Add(-2 * time.Hour), EndTime: &endTime},
-	}
+	group := studentpresence.CombinedGroup{ID: 1, CreatedAt: now, UpdatedAt: now,
+		StartTime: now.Add(-2 * time.Hour), EndTime: &endTime}
 
-	response := newCombinedGroupResponse(group)
+	response := newCombinationWithGroupsResponse(group, nil)
 
 	assert.Equal(t, int64(1), response.ID)
 	assert.Equal(t, "Combined Group #1", response.Name)
@@ -253,20 +200,15 @@ func TestNewCombinedGroupResponse_BasicFields(t *testing.T) {
 	assert.Equal(t, 0, response.GroupCount)
 }
 
-func TestNewCombinedGroupResponse_ActiveWithGroups(t *testing.T) {
+func TestNewCombinationWithGroupsResponse_ActiveWithGroups(t *testing.T) {
 	t.Parallel()
 
 	now := time.Now()
 
-	group := &activeSvc.CombinedGroupDetails{
-		CombinedGroup: studentpresence.CombinedGroup{ID: 5, StartTime: now},
-		ActiveGroups: []*studentpresence.LiveGroup{
-			{ID: 1},
-			{ID: 2},
-		},
-	}
+	group := studentpresence.CombinedGroup{ID: 5, StartTime: now}
+	groups := []studentpresence.LiveGroup{{ID: 1}, {ID: 2}}
 
-	response := newCombinedGroupResponse(group)
+	response := newCombinationWithGroupsResponse(group, groups)
 
 	assert.True(t, response.IsActive)
 	assert.Equal(t, 2, response.GroupCount)
@@ -631,7 +573,7 @@ func TestExportedHandlers_NotNil(t *testing.T) {
 func TestErrorRenderer_ActiveGroupNotFound(t *testing.T) {
 	t.Parallel()
 
-	err := activeSvc.ErrActiveGroupNotFound
+	err := studentpresence.ErrGroupNotFound
 	renderer := ErrorRenderer(err)
 
 	errResp, ok := renderer.(*common.ErrResponse)
@@ -643,7 +585,7 @@ func TestErrorRenderer_ActiveGroupNotFound(t *testing.T) {
 func TestErrorRenderer_VisitNotFound(t *testing.T) {
 	t.Parallel()
 
-	err := activeSvc.ErrVisitNotFound
+	err := studentpresence.ErrVisitNotFound
 	renderer := ErrorRenderer(err)
 
 	errResp, ok := renderer.(*common.ErrResponse)
@@ -655,7 +597,7 @@ func TestErrorRenderer_VisitNotFound(t *testing.T) {
 func TestErrorRenderer_GroupSupervisorNotFound(t *testing.T) {
 	t.Parallel()
 
-	err := activeSvc.ErrGroupSupervisorNotFound
+	err := studentpresence.ErrGroupSupervisorNotFound
 	renderer := ErrorRenderer(err)
 
 	errResp, ok := renderer.(*common.ErrResponse)
@@ -667,7 +609,7 @@ func TestErrorRenderer_GroupSupervisorNotFound(t *testing.T) {
 func TestErrorRenderer_CombinedGroupNotFound(t *testing.T) {
 	t.Parallel()
 
-	err := activeSvc.ErrCombinedGroupNotFound
+	err := studentpresence.ErrCombinedGroupNotFound
 	renderer := ErrorRenderer(err)
 
 	errResp, ok := renderer.(*common.ErrResponse)
@@ -679,7 +621,7 @@ func TestErrorRenderer_CombinedGroupNotFound(t *testing.T) {
 func TestErrorRenderer_GroupMappingNotFound(t *testing.T) {
 	t.Parallel()
 
-	err := activeSvc.ErrGroupMappingNotFound
+	err := studentpresence.ErrGroupMappingNotFound
 	renderer := ErrorRenderer(err)
 
 	errResp, ok := renderer.(*common.ErrResponse)
@@ -691,7 +633,7 @@ func TestErrorRenderer_GroupMappingNotFound(t *testing.T) {
 func TestErrorRenderer_InvalidData(t *testing.T) {
 	t.Parallel()
 
-	err := activeSvc.ErrInvalidData
+	err := studentpresence.ErrInvalidData
 	renderer := ErrorRenderer(err)
 
 	errResp, ok := renderer.(*common.ErrResponse)
@@ -703,7 +645,7 @@ func TestErrorRenderer_InvalidData(t *testing.T) {
 func TestErrorRenderer_ActiveGroupAlreadyEnded(t *testing.T) {
 	t.Parallel()
 
-	err := activeSvc.ErrActiveGroupAlreadyEnded
+	err := studentpresence.ErrGroupAlreadyEnded
 	renderer := ErrorRenderer(err)
 
 	errResp, ok := renderer.(*common.ErrResponse)
@@ -715,7 +657,7 @@ func TestErrorRenderer_ActiveGroupAlreadyEnded(t *testing.T) {
 func TestErrorRenderer_VisitAlreadyEnded(t *testing.T) {
 	t.Parallel()
 
-	err := activeSvc.ErrVisitAlreadyEnded
+	err := studentpresence.ErrVisitAlreadyEnded
 	renderer := ErrorRenderer(err)
 
 	errResp, ok := renderer.(*common.ErrResponse)
@@ -727,7 +669,7 @@ func TestErrorRenderer_VisitAlreadyEnded(t *testing.T) {
 func TestErrorRenderer_SupervisionAlreadyEnded(t *testing.T) {
 	t.Parallel()
 
-	err := activeSvc.ErrSupervisionAlreadyEnded
+	err := studentpresence.ErrSupervisionAlreadyEnded
 	renderer := ErrorRenderer(err)
 
 	errResp, ok := renderer.(*common.ErrResponse)
@@ -739,7 +681,7 @@ func TestErrorRenderer_SupervisionAlreadyEnded(t *testing.T) {
 func TestErrorRenderer_CombinedGroupAlreadyEnded(t *testing.T) {
 	t.Parallel()
 
-	err := activeSvc.ErrCombinedGroupAlreadyEnded
+	err := studentpresence.ErrCombinedGroupAlreadyEnded
 	renderer := ErrorRenderer(err)
 
 	errResp, ok := renderer.(*common.ErrResponse)
@@ -751,7 +693,7 @@ func TestErrorRenderer_CombinedGroupAlreadyEnded(t *testing.T) {
 func TestErrorRenderer_GroupAlreadyInCombination(t *testing.T) {
 	t.Parallel()
 
-	err := activeSvc.ErrGroupAlreadyInCombination
+	err := studentpresence.ErrGroupAlreadyInCombination
 	renderer := ErrorRenderer(err)
 
 	errResp, ok := renderer.(*common.ErrResponse)
@@ -763,7 +705,7 @@ func TestErrorRenderer_GroupAlreadyInCombination(t *testing.T) {
 func TestErrorRenderer_StudentAlreadyInGroup(t *testing.T) {
 	t.Parallel()
 
-	err := activeSvc.ErrStudentAlreadyInGroup
+	err := studentpresence.ErrStudentAlreadyInGroup
 	renderer := ErrorRenderer(err)
 
 	errResp, ok := renderer.(*common.ErrResponse)
@@ -782,7 +724,7 @@ func TestErrorRenderer_StudentAlreadyActive(t *testing.T) {
 	// contradict both the IoT path (which already returns 409) and
 	// the HTTP semantics — a duplicate visit is a state conflict,
 	// not a malformed request.
-	err := activeSvc.ErrStudentAlreadyActive
+	err := studentpresence.ErrStudentAlreadyActive
 	renderer := ErrorRenderer(err)
 
 	errResp, ok := renderer.(*common.ErrResponse)
@@ -794,7 +736,7 @@ func TestErrorRenderer_StudentAlreadyActive(t *testing.T) {
 func TestErrorRenderer_StaffAlreadySupervising(t *testing.T) {
 	t.Parallel()
 
-	err := activeSvc.ErrStaffAlreadySupervising
+	err := studentpresence.ErrStaffAlreadySupervising
 	renderer := ErrorRenderer(err)
 
 	errResp, ok := renderer.(*common.ErrResponse)
@@ -806,7 +748,7 @@ func TestErrorRenderer_StaffAlreadySupervising(t *testing.T) {
 func TestErrorRenderer_CannotDeleteActiveGroup(t *testing.T) {
 	t.Parallel()
 
-	err := activeSvc.ErrCannotDeleteActiveGroup
+	err := studentpresence.ErrCannotDeleteActiveGroup
 	renderer := ErrorRenderer(err)
 
 	errResp, ok := renderer.(*common.ErrResponse)
@@ -818,7 +760,7 @@ func TestErrorRenderer_CannotDeleteActiveGroup(t *testing.T) {
 func TestErrorRenderer_InvalidTimeRange(t *testing.T) {
 	t.Parallel()
 
-	err := activeSvc.ErrInvalidTimeRange
+	err := studentpresence.ErrInvalidTimeRange
 	renderer := ErrorRenderer(err)
 
 	errResp, ok := renderer.(*common.ErrResponse)
@@ -830,7 +772,7 @@ func TestErrorRenderer_InvalidTimeRange(t *testing.T) {
 func TestErrorRenderer_RoomConflict(t *testing.T) {
 	t.Parallel()
 
-	err := activeSvc.ErrRoomConflict
+	err := studentpresence.ErrRoomConflict
 	renderer := ErrorRenderer(err)
 
 	errResp, ok := renderer.(*common.ErrResponse)
@@ -851,5 +793,3 @@ func TestErrorRenderer_UnknownError(t *testing.T) {
 	assert.Equal(t, "Internal Server Error", errResp.Status)
 	assert.Equal(t, "unknown error", errResp.ErrorText)
 }
-
-func ptrDate(d timezone.Date) *timezone.Date { return &d }

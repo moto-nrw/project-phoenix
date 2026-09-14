@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
 )
 
 type PresenceQueries interface {
@@ -25,7 +24,7 @@ type PresenceQueries interface {
 func (rs *Resource) listPresenceLiveGroups(ctx context.Context, filter studentpresence.LiveGroupFilter) ([]studentpresence.LiveGroup, error) {
 	rows, err := rs.Presence.QueryLiveGroups(ctx, filter)
 	if err != nil {
-		return nil, &activeService.ActiveError{Op: "ListActiveGroups", Err: fmt.Errorf("list failed: %w", err)}
+		return nil, &presenceError{Op: "ListActiveGroups", Err: fmt.Errorf("list failed: %w", err)}
 	}
 	return rows, nil
 }
@@ -34,14 +33,14 @@ func (rs *Resource) presenceSessionVisits(ctx context.Context, groupID int64) ([
 	const operation = "GetActiveGroupVisits"
 	groups, err := rs.Presence.ListLiveGroups(ctx, []int64{groupID})
 	if err != nil {
-		return nil, &activeService.ActiveError{Op: operation, Err: activeService.ErrDatabaseOperation}
+		return nil, &presenceError{Op: operation, Err: studentpresence.ErrDatabaseOperation}
 	}
 	if len(groups) == 0 {
-		return nil, &activeService.ActiveError{Op: operation, Err: activeService.ErrActiveGroupNotFound}
+		return nil, &presenceError{Op: operation, Err: studentpresence.ErrGroupNotFound}
 	}
 	visits, err := rs.Presence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{groupID}})
 	if err != nil {
-		return nil, &activeService.ActiveError{Op: operation, Err: activeService.ErrDatabaseOperation}
+		return nil, &presenceError{Op: operation, Err: studentpresence.ErrDatabaseOperation}
 	}
 	return visits, nil
 }
@@ -49,7 +48,7 @@ func (rs *Resource) presenceSessionVisits(ctx context.Context, groupID int64) ([
 func (rs *Resource) presenceRoomSessions(ctx context.Context, roomID int64) ([]studentpresence.LiveGroup, error) {
 	rows, err := rs.Presence.QueryLiveGroups(ctx, studentpresence.LiveGroupFilter{RoomID: &roomID, OpenOnly: true})
 	if err != nil {
-		return nil, &activeService.ActiveError{Op: "FindActiveGroupsByRoomID", Err: fmt.Errorf("find by room: %w", err)}
+		return nil, &presenceError{Op: "FindActiveGroupsByRoomID", Err: fmt.Errorf("find by room: %w", err)}
 	}
 	return rows, nil
 }
@@ -57,7 +56,7 @@ func (rs *Resource) presenceRoomSessions(ctx context.Context, roomID int64) ([]s
 func (rs *Resource) presenceActivitySessions(ctx context.Context, activityID int64) ([]studentpresence.LiveGroup, error) {
 	rows, err := rs.Presence.QueryLiveGroups(ctx, studentpresence.LiveGroupFilter{ActivityGroupIDs: []int64{activityID}, OpenOnly: true})
 	if err != nil {
-		return nil, &activeService.ActiveError{Op: "FindActiveGroupsByGroupID", Err: activeService.ErrDatabaseOperation}
+		return nil, &presenceError{Op: "FindActiveGroupsByGroupID", Err: studentpresence.ErrDatabaseOperation}
 	}
 	return rows, nil
 }
@@ -65,26 +64,78 @@ func (rs *Resource) presenceActivitySessions(ctx context.Context, activityID int
 func (rs *Resource) presenceLiveGroup(ctx context.Context, id int64) (*studentpresence.LiveGroup, error) {
 	rows, err := rs.Presence.ListLiveGroups(ctx, []int64{id})
 	if err != nil {
-		return nil, &activeService.ActiveError{Op: "GetActiveGroup", Err: activeService.ErrDatabaseOperation}
+		return nil, &presenceError{Op: "GetActiveGroup", Err: studentpresence.ErrDatabaseOperation}
 	}
 	if len(rows) == 0 {
-		return nil, &activeService.ActiveError{Op: "GetActiveGroup", Err: activeService.ErrActiveGroupNotFound}
+		return nil, &presenceError{Op: "GetActiveGroup", Err: studentpresence.ErrGroupNotFound}
 	}
 	return &rows[0], nil
+}
+
+// sessionResponse renders one session with its room summary, the shape the
+// single-session routes answer with.
+func (rs *Resource) sessionResponse(ctx context.Context, id int64) (ActiveGroupResponse, error) {
+	group, err := rs.presenceLiveGroup(ctx, id)
+	if err != nil {
+		return ActiveGroupResponse{}, err
+	}
+	response := newPresenceLiveGroupResponse(*group)
+	if group.RoomID > 0 {
+		if room, ok := rs.loadRoomsMap(ctx, []studentpresence.LiveGroup{*group})[group.RoomID]; ok {
+			response.Room = newSessionRoomResponse(room)
+		}
+	}
+	return response, nil
 }
 
 func (rs *Resource) presenceCombination(ctx context.Context, id int64) (studentpresence.CombinedGroup, error) {
 	row, err := rs.Presence.GetCombinedGroup(ctx, id)
 	if err != nil {
-		return studentpresence.CombinedGroup{}, &activeService.ActiveError{Op: "GetCombinedGroup", Err: activeService.ErrCombinedGroupNotFound}
+		return studentpresence.CombinedGroup{}, &presenceError{Op: "GetCombinedGroup", Err: studentpresence.ErrCombinedGroupNotFound}
 	}
 	return row, nil
+}
+
+// presenceCombinationGroups returns the sessions mapped into a combination.
+// A missing combination fails as not found; mapped sessions that no longer
+// exist are skipped.
+func (rs *Resource) presenceCombinationGroups(ctx context.Context, id int64) (studentpresence.CombinedGroup, []studentpresence.LiveGroup, error) {
+	const operation = "GetCombinedGroupWithGroups"
+	combination, err := rs.Presence.GetCombinedGroup(ctx, id)
+	if err != nil {
+		return studentpresence.CombinedGroup{}, nil, &presenceError{Op: operation, Err: studentpresence.ErrCombinedGroupNotFound}
+	}
+	mappings, err := rs.Presence.ListGroupMappings(ctx, studentpresence.GroupMappingFilter{CombinedGroupID: &id})
+	if err != nil {
+		return studentpresence.CombinedGroup{}, nil, &presenceError{Op: operation, Err: studentpresence.ErrCombinedGroupNotFound}
+	}
+	ids := make([]int64, 0, len(mappings))
+	for _, mapping := range mappings {
+		if mapping.ActiveGroupID > 0 {
+			ids = append(ids, mapping.ActiveGroupID)
+		}
+	}
+	rows, err := rs.Presence.ListLiveGroups(ctx, ids)
+	if err != nil {
+		return studentpresence.CombinedGroup{}, nil, &presenceError{Op: operation, Err: studentpresence.ErrCombinedGroupNotFound}
+	}
+	byID := make(map[int64]studentpresence.LiveGroup, len(rows))
+	for _, row := range rows {
+		byID[row.ID] = row
+	}
+	groups := make([]studentpresence.LiveGroup, 0, len(mappings))
+	for _, mapping := range mappings {
+		if group, ok := byID[mapping.ActiveGroupID]; ok {
+			groups = append(groups, group)
+		}
+	}
+	return combination, groups, nil
 }
 
 func (rs *Resource) listPresenceCombinations(ctx context.Context, filter studentpresence.CombinedGroupFilter, operation string) ([]studentpresence.CombinedGroup, error) {
 	rows, err := rs.Presence.ListCombinedGroups(ctx, filter)
 	if err != nil {
-		return nil, &activeService.ActiveError{Op: operation, Err: activeService.ErrDatabaseOperation}
+		return nil, &presenceError{Op: operation, Err: studentpresence.ErrDatabaseOperation}
 	}
 	return rows, nil
 }
@@ -97,18 +148,18 @@ func (rs *Resource) addPresenceGroupToCombination(ctx context.Context, combinedI
 	}
 	for _, mapping := range mappings {
 		if mapping.ActiveGroupID == groupID {
-			return &activeService.ActiveError{Op: operation, Err: activeService.ErrGroupAlreadyInCombination}
+			return &presenceError{Op: operation, Err: studentpresence.ErrGroupAlreadyInCombination}
 		}
 	}
 	if err := rs.Presence.AddGroupToCombination(ctx, combinedID, groupID); err != nil {
-		return &activeService.ActiveError{Op: operation, Err: activeService.ErrDatabaseOperation}
+		return &presenceError{Op: operation, Err: studentpresence.ErrDatabaseOperation}
 	}
 	return nil
 }
 
 func (rs *Resource) removePresenceGroupFromCombination(ctx context.Context, combinedID, groupID int64) error {
 	if err := rs.Presence.RemoveGroupFromCombination(ctx, combinedID, groupID); err != nil {
-		return &activeService.ActiveError{Op: "RemoveGroupFromCombination", Err: activeService.ErrDatabaseOperation}
+		return &presenceError{Op: "RemoveGroupFromCombination", Err: studentpresence.ErrDatabaseOperation}
 	}
 	return nil
 }
@@ -116,7 +167,7 @@ func (rs *Resource) removePresenceGroupFromCombination(ctx context.Context, comb
 func (rs *Resource) presenceGroupMappings(ctx context.Context, filter studentpresence.GroupMappingFilter, operation string) ([]studentpresence.GroupMapping, error) {
 	rows, err := rs.Presence.ListGroupMappings(ctx, filter)
 	if err != nil {
-		return nil, &activeService.ActiveError{Op: operation, Err: activeService.ErrDatabaseOperation}
+		return nil, &presenceError{Op: operation, Err: studentpresence.ErrDatabaseOperation}
 	}
 	return rows, nil
 }
@@ -148,11 +199,11 @@ func presenceQueryError(operation string, err error) error {
 	if err == nil {
 		return nil
 	}
-	cause := activeService.ErrDatabaseOperation
+	cause := studentpresence.ErrDatabaseOperation
 	if errors.Is(err, studentpresence.ErrVisitNotFound) {
-		cause = activeService.ErrVisitNotFound
+		cause = studentpresence.ErrVisitNotFound
 	}
-	return &activeService.ActiveError{Op: operation, Err: cause}
+	return &presenceError{Op: operation, Err: cause}
 }
 
 func newPresenceVisitResponse(visit studentpresence.Visit) VisitResponse {

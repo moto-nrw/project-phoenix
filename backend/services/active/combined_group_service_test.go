@@ -420,46 +420,6 @@ func TestActiveService_EndCombinedGroup(t *testing.T) {
 }
 
 // =============================================================================
-// GetCombinedGroupWithGroups Tests
-// =============================================================================
-
-func TestActiveService_GetCombinedGroupWithGroups(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := buildCombinedGroupService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns combined group with mapped groups", func(t *testing.T) {
-		// ARRANGE
-		now := time.Now()
-		combinedGroup := &studentpresence.CombinedGroup{
-			StartTime: now,
-		}
-		err := service.CreateCombinedGroup(ctx, combinedGroup)
-		require.NoError(t, err)
-
-		// ACT
-		result, err := service.GetCombinedGroupWithGroups(ctx, combinedGroup.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, result)
-		assert.Equal(t, combinedGroup.ID, result.ID)
-	})
-
-	t.Run("returns error when not found", func(t *testing.T) {
-		// ACT
-		result, err := service.GetCombinedGroupWithGroups(ctx, 99999999)
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, result)
-	})
-}
-
-// =============================================================================
 // AddGroupToCombination Tests
 // =============================================================================
 

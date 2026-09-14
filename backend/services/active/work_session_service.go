@@ -1,7 +1,6 @@
 package active
 
 import (
-	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -423,7 +422,7 @@ func (s *workSessionService) SetBroadcaster(broadcaster realtime.Broadcaster) {
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
 func (s *workSessionService) getLogger() *slog.Logger {
-	return cmp.Or(s.logger, slog.Default())
+	return loggerOrDefault(s.logger)
 }
 
 func (s *workSessionService) broadcastTimeTrackingChanged(ctx context.Context) {

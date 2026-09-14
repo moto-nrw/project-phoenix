@@ -11,10 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -86,11 +83,11 @@ func TestMoveHandlerOnlyPassesSchoolWideEligibilityForTenantStaff(t *testing.T) 
 			called := false
 			rs := resourceForTest(Resource{
 				PersonService: moveAuthPersonService{person: &PersonIdentity{ID: 10}, staff: staff},
-				ActiveService: &trackingMockActiveService{moveStudentsToActiveGroupAuthorizedFunc: func(_ context.Context, _ []int64, _ int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
+				Operations: &stubPresenceOperations{moveStudentsToSession: func(_ context.Context, _ []int64, _ int64, auth studentpresence.StudentMoveAuthorization) (studentpresence.StudentMoveResult, error) {
 					called = true
 					require.Equal(t, tc.want, auth.SchoolWideAttendanceEligible)
 					require.False(t, auth.BypassResourceChecks)
-					return nil, &activeSvc.ActiveError{Op: "MoveStudentsToActiveGroup", Err: activeSvc.ErrStudentMoveForbidden}
+					return studentpresence.StudentMoveResult{}, operationError("MoveStudentsToActiveGroup", studentpresence.ErrStudentMoveForbidden)
 				}},
 			})
 			ctx := testpkg.ContextForTenant(context.Background(), 42)
@@ -115,14 +112,14 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 		targetGroupID := int64(99)
 		targetRoomID := int64(77)
 		rs := resourceForTest(Resource{
-			ActiveService: &trackingMockActiveService{
-				moveStudentsToActiveGroupFunc: func(_ context.Context, studentIDs []int64, activeGroupID int64) (*activeSvc.StudentMoveResult, error) {
+			Operations: &stubPresenceOperations{
+				moveStudentsToSession: func(_ context.Context, studentIDs []int64, activeGroupID int64, _ studentpresence.StudentMoveAuthorization) (studentpresence.StudentMoveResult, error) {
 					capturedStudentIDs = studentIDs
 					capturedActiveGroupID = activeGroupID
-					return &activeSvc.StudentMoveResult{
+					return studentpresence.StudentMoveResult{
 						Moved:         []int64{42, 84},
 						Unchanged:     []int64{},
-						Skipped:       []activeSvc.StudentMoveSkipped{},
+						Skipped:       []studentpresence.StudentMoveSkipped{},
 						ActiveGroupID: &targetGroupID,
 						RoomID:        &targetRoomID,
 					}, nil
@@ -149,7 +146,7 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 	})
 
 	t.Run("rejects missing required fields", func(t *testing.T) {
-		rs := resourceForTest(Resource{ActiveService: &trackingMockActiveService{}})
+		rs := resourceForTest(Resource{Operations: &stubPresenceOperations{}})
 		req := httptest.NewRequest(
 			http.MethodPost,
 			"/api/active/visits/move-to-group",
@@ -164,9 +161,9 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 
 	t.Run("rejects all-not-present moves as conflict", func(t *testing.T) {
 		rs := resourceForTest(Resource{
-			ActiveService: &trackingMockActiveService{
-				moveStudentsToActiveGroupFunc: func(_ context.Context, _ []int64, _ int64) (*activeSvc.StudentMoveResult, error) {
-					return nil, &activeSvc.ActiveError{Op: "MoveStudentsToActiveGroup", Err: activeSvc.ErrStudentsNotPresent}
+			Operations: &stubPresenceOperations{
+				moveStudentsToSession: func(_ context.Context, _ []int64, _ int64, _ studentpresence.StudentMoveAuthorization) (studentpresence.StudentMoveResult, error) {
+					return studentpresence.StudentMoveResult{}, operationError("MoveStudentsToActiveGroup", studentpresence.ErrStudentsNotPresent)
 				},
 			},
 		})
@@ -195,14 +192,14 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 				person: &PersonIdentity{ID: 10},
 				staff:  &StaffIdentity{ID: 20},
 			},
-			ActiveService: &trackingMockActiveService{
-				moveStudentsToActiveGroupAuthorizedFunc: func(_ context.Context, studentIDs []int64, activeGroupID int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
+			Operations: &stubPresenceOperations{
+				moveStudentsToSession: func(_ context.Context, studentIDs []int64, activeGroupID int64, auth studentpresence.StudentMoveAuthorization) (studentpresence.StudentMoveResult, error) {
 					calledMove = true
 					assert.Equal(t, []int64{42}, studentIDs)
 					assert.Equal(t, int64(99), activeGroupID)
 					assert.Equal(t, int64(20), auth.StaffID)
 					assert.False(t, auth.BypassResourceChecks)
-					return nil, &activeSvc.ActiveError{Op: "MoveStudentsToActiveGroup", Err: activeSvc.ErrStudentMoveForbidden}
+					return studentpresence.StudentMoveResult{}, operationError("MoveStudentsToActiveGroup", studentpresence.ErrStudentMoveForbidden)
 				},
 			},
 		})
@@ -241,35 +238,19 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 
 	t.Run("moves students the service authorizes", func(t *testing.T) {
 		calledMove := false
-		targetGroupID := int64(99)
 		targetRoomID := int64(77)
 		rs := resourceForTest(Resource{
 			PersonService: moveAuthPersonService{
 				person: &PersonIdentity{ID: 10},
 				staff:  &StaffIdentity{ID: 20},
 			},
-			ActiveService: &trackingMockActiveService{
-				getActiveGroupFunc: func(_ context.Context, id int64) (*activeModel.Group, error) {
-					return &activeModel.Group{Model: base.Model{ID: id}, RoomID: targetRoomID}, nil
-				},
-				getStaffActiveSupervisionsFunc: func(_ context.Context, _ int64) ([]*activeModel.GroupSupervisor, error) {
-					return []*activeModel.GroupSupervisor{{GroupID: targetGroupID}}, nil
-				},
-				getStudentsAttendanceStatusesFunc: func(_ context.Context, studentIDs []int64) (map[int64]*activeSvc.AttendanceStatus, error) {
-					assert.Equal(t, []int64{42}, studentIDs)
-					return map[int64]*activeSvc.AttendanceStatus{
-						42: {StudentID: 42, Status: "on_yard"},
-					}, nil
-				},
-				getStudentCurrentVisitFunc: func(_ context.Context, _ int64) (*studentpresence.Visit, error) {
-					return nil, &activeSvc.ActiveError{Op: "GetStudentCurrentVisit", Err: activeSvc.ErrVisitNotFound}
-				},
-				moveStudentsToActiveGroupFunc: func(_ context.Context, studentIDs []int64, activeGroupID int64) (*activeSvc.StudentMoveResult, error) {
+			Operations: &stubPresenceOperations{
+				moveStudentsToSession: func(_ context.Context, studentIDs []int64, activeGroupID int64, _ studentpresence.StudentMoveAuthorization) (studentpresence.StudentMoveResult, error) {
 					calledMove = true
-					return &activeSvc.StudentMoveResult{
+					return studentpresence.StudentMoveResult{
 						Moved:         studentIDs,
 						Unchanged:     []int64{},
-						Skipped:       []activeSvc.StudentMoveSkipped{},
+						Skipped:       []studentpresence.StudentMoveSkipped{},
 						ActiveGroupID: &activeGroupID,
 						RoomID:        &targetRoomID,
 					}, nil
@@ -297,10 +278,10 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 				person: &PersonIdentity{ID: 10},
 				staff:  &StaffIdentity{ID: 20},
 			},
-			ActiveService: &trackingMockActiveService{
-				moveStudentsToActiveGroupAuthorizedFunc: func(_ context.Context, _ []int64, _ int64, _ activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
+			Operations: &stubPresenceOperations{
+				moveStudentsToSession: func(_ context.Context, _ []int64, _ int64, _ studentpresence.StudentMoveAuthorization) (studentpresence.StudentMoveResult, error) {
 					calledMove = true
-					return nil, errors.New("active group lookup failed")
+					return studentpresence.StudentMoveResult{}, errors.New("active group lookup failed")
 				},
 			},
 		})
@@ -325,13 +306,13 @@ func TestMoveStudentsToTransit(t *testing.T) {
 	t.Run("moves selected students", func(t *testing.T) {
 		var capturedStudentIDs []int64
 		rs := resourceForTest(Resource{
-			ActiveService: &trackingMockActiveService{
-				moveStudentsToTransitFunc: func(_ context.Context, studentIDs []int64) (*activeSvc.StudentMoveResult, error) {
+			Operations: &stubPresenceOperations{
+				moveStudentsToTransit: func(_ context.Context, studentIDs []int64, _ studentpresence.StudentMoveAuthorization) (studentpresence.StudentMoveResult, error) {
 					capturedStudentIDs = studentIDs
-					return &activeSvc.StudentMoveResult{
+					return studentpresence.StudentMoveResult{
 						Moved:     []int64{42},
 						Unchanged: []int64{84},
-						Skipped:   []activeSvc.StudentMoveSkipped{},
+						Skipped:   []studentpresence.StudentMoveSkipped{},
 					}, nil
 				},
 			},
@@ -355,7 +336,7 @@ func TestMoveStudentsToTransit(t *testing.T) {
 	})
 
 	t.Run("rejects malformed json", func(t *testing.T) {
-		rs := resourceForTest(Resource{ActiveService: &trackingMockActiveService{}})
+		rs := resourceForTest(Resource{Operations: &stubPresenceOperations{}})
 		req := httptest.NewRequest(
 			http.MethodPost,
 			"/api/active/visits/move-to-transit",
@@ -370,9 +351,9 @@ func TestMoveStudentsToTransit(t *testing.T) {
 
 	t.Run("rejects all-not-present moves as conflict", func(t *testing.T) {
 		rs := resourceForTest(Resource{
-			ActiveService: &trackingMockActiveService{
-				moveStudentsToTransitFunc: func(_ context.Context, _ []int64) (*activeSvc.StudentMoveResult, error) {
-					return nil, &activeSvc.ActiveError{Op: "MoveStudentsToTransit", Err: activeSvc.ErrStudentsNotPresent}
+			Operations: &stubPresenceOperations{
+				moveStudentsToTransit: func(_ context.Context, _ []int64, _ studentpresence.StudentMoveAuthorization) (studentpresence.StudentMoveResult, error) {
+					return studentpresence.StudentMoveResult{}, operationError("MoveStudentsToTransit", studentpresence.ErrStudentsNotPresent)
 				},
 			},
 		})

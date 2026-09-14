@@ -26,7 +26,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/active"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -49,25 +49,25 @@ func TestWireFormat_Active_ErrorRenderer(t *testing.T) {
 	}{
 		{
 			name:       "ErrRoomConflict",
-			err:        activeSvc.ErrRoomConflict,
+			err:        studentpresence.ErrRoomConflict,
 			wantStatus: 409,
 			wantBody:   "{\"status\":\"Room Conflict\",\"error\":\"room is already occupied by another active group\"}\n",
 		},
 		{
 			name:       "ErrActiveGroupNotFound",
-			err:        activeSvc.ErrActiveGroupNotFound,
+			err:        studentpresence.ErrGroupNotFound,
 			wantStatus: 404,
 			wantBody:   "{\"status\":\"Active Group Not Found\",\"error\":\"active group not found\"}\n",
 		},
 		{
 			name:       "ErrStudentAlreadyActive",
-			err:        activeSvc.ErrStudentAlreadyActive,
+			err:        studentpresence.ErrStudentAlreadyActive,
 			wantStatus: 409,
 			wantBody:   "{\"status\":\"Student Already Has Active Visit\",\"error\":\"student already has an active visit\"}\n",
 		},
 		{
 			name:       "ErrStudentMoveForbidden",
-			err:        activeSvc.ErrStudentMoveForbidden,
+			err:        studentpresence.ErrStudentMoveForbidden,
 			wantStatus: 403,
 			wantBody:   "{\"status\":\"Forbidden\",\"error\":\"not authorized to move the selected students\"}\n",
 		},

@@ -1439,7 +1439,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		}
 		return ids, nil
 	}
-	api.Active = activeAPI.NewResource(api.Services.Active, activePeople{source: services.NewAttendanceRoutePeople(api.Services.Users)}, teacherGroupIDs, services.NewSchulhofProjection(api.Services.Schulhof), activeStaffAccess{source: services.NewAttendanceRouteStaff(api.Services.UserContext)}, api.Services.Settings, apiCommon.ProtectedTenantRoutes, logger.With("handler", "active"), presence, activeRequestRuntime(), activeAuthorization())
+	api.Active = activeAPI.NewResource(services.NewPresenceOperations(api.Services.Active), activePeople{source: services.NewAttendanceRoutePeople(api.Services.Users)}, teacherGroupIDs, services.NewSchulhofProjection(api.Services.Schulhof), activeStaffAccess{source: services.NewAttendanceRouteStaff(api.Services.UserContext)}, api.Services.Settings, apiCommon.ProtectedTenantRoutes, logger.With("handler", "active"), presence, activeRequestRuntime(), activeAuthorization())
 	api.Active.SupervisionDashboardService = api.Services.SupervisionDashboard
 	sessionEnd, err := newSessionEnd(presence, modules, api.Services, logger)
 	if err != nil {

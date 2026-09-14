@@ -1,7 +1,6 @@
 package active
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"log/slog"
@@ -71,7 +70,7 @@ func StampAbsenceTypeLabels(ctx context.Context, svc AbsenceTypeReader, absences
 	}
 	labels, err := svc.LabelsByID(ctx)
 	if err != nil {
-		cmp.Or(logger, slog.Default()).WarnContext(ctx, "resolving absence type labels failed",
+		loggerOrDefault(logger).WarnContext(ctx, "resolving absence type labels failed",
 			slog.String("error", err.Error()),
 		)
 		return

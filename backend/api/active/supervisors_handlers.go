@@ -8,7 +8,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
@@ -138,26 +137,26 @@ func (rs *Resource) createSupervisor(w http.ResponseWriter, r *http.Request) {
 
 	// Create supervisor. The wire carries RFC3339 instants; only their
 	// Berlin calendar days matter for the DATE columns.
-	supervisor := &active.GroupSupervisor{
+	supervisor := studentpresence.GroupSupervision{
 		StaffID:   req.StaffID,
 		GroupID:   req.ActiveGroupID,
 		Role:      "Supervisor", // Default role
-		StartDate: timezone.DateFromTime(req.StartTime),
+		StartDate: timezone.DateFromTime(req.StartTime).String(),
 		EndDate:   supervisorEndDate(req.EndTime),
 	}
 
 	// Create supervisor
-	if err := rs.ActiveService.CreateGroupSupervisor(r.Context(), supervisor); err != nil {
+	created, err := rs.Operations.AssignSupervision(r.Context(), supervisor)
+	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	// Get the created supervisor
-	response, err := rs.presenceSupervisor(r.Context(), supervisor.ID)
+	response, err := rs.presenceSupervisor(r.Context(), created.ID)
 	if err != nil {
 		// Still return success but with the basic supervisor info
-		response := newSupervisorResponse(supervisor)
-		common.Respond(w, r, http.StatusCreated, response, "Supervisor created successfully")
+		common.Respond(w, r, http.StatusCreated, supervisionRowResponse(created), "Supervisor created successfully")
 		return
 	}
 
@@ -182,7 +181,7 @@ func (rs *Resource) updateSupervisor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get existing supervisor
-	existing, err := rs.ActiveService.GetGroupSupervisor(r.Context(), id)
+	existing, err := rs.presenceSupervisionRow(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
@@ -191,11 +190,11 @@ func (rs *Resource) updateSupervisor(w http.ResponseWriter, r *http.Request) {
 	// Update fields
 	existing.StaffID = req.StaffID
 	existing.GroupID = req.ActiveGroupID
-	existing.StartDate = timezone.DateFromTime(req.StartTime)
+	existing.StartDate = timezone.DateFromTime(req.StartTime).String()
 	existing.EndDate = supervisorEndDate(req.EndTime)
 
 	// Update supervisor
-	if err := rs.ActiveService.UpdateGroupSupervisor(r.Context(), existing); err != nil {
+	if err := rs.Operations.AmendSupervision(r.Context(), existing); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -204,8 +203,7 @@ func (rs *Resource) updateSupervisor(w http.ResponseWriter, r *http.Request) {
 	response, err := rs.presenceSupervisor(r.Context(), id)
 	if err != nil {
 		// Still return success but with the basic supervisor info
-		response := newSupervisorResponse(existing)
-		common.Respond(w, r, http.StatusOK, response, "Supervisor updated successfully")
+		common.Respond(w, r, http.StatusOK, supervisionRowResponse(existing), "Supervisor updated successfully")
 		return
 	}
 
@@ -223,7 +221,7 @@ func (rs *Resource) deleteSupervisor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete supervisor
-	if err := rs.ActiveService.DeleteGroupSupervisor(r.Context(), id); err != nil {
+	if err := rs.Operations.RemoveSupervisionRecord(r.Context(), id); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -241,7 +239,7 @@ func (rs *Resource) endSupervision(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// End supervision
-	if err := rs.ActiveService.EndSupervision(r.Context(), id); err != nil {
+	if err := rs.Operations.EndSupervision(r.Context(), id); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -291,7 +289,7 @@ func (rs *Resource) getAllActiveSupervisions(w http.ResponseWriter, r *http.Requ
 	}
 	// Preserve enrichment of the complete query result before filtering open sessions.
 	if len(groups) > 0 {
-		rs.loadActiveGroupRelations(r, groups, responses)
+		rs.loadActiveGroupRelations(ctx, groups, responses)
 	}
 	openResponses := responses[:0]
 	for _, response := range responses {
@@ -306,10 +304,10 @@ func (rs *Resource) getAllActiveSupervisions(w http.ResponseWriter, r *http.Requ
 // supervisorEndDate converts an optional wire instant into the optional
 // end-date calendar day. nil stays nil — an open-ended supervision must
 // never gain a zero-Date sentinel.
-func supervisorEndDate(endTime *time.Time) *timezone.Date {
+func supervisorEndDate(endTime *time.Time) *string {
 	if endTime == nil {
 		return nil
 	}
-	d := timezone.DateFromTime(*endTime)
+	d := timezone.DateFromTime(*endTime).String()
 	return &d
 }

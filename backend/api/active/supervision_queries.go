@@ -6,19 +6,18 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
 )
 
 func (rs *Resource) presenceSupervisionResponses(ctx context.Context, filter studentpresence.GroupSupervisionFilter, operation string) ([]SupervisorResponse, error) {
 	rows, err := rs.Presence.QueryGroupSupervisions(ctx, filter)
 	if err != nil {
-		return nil, &activeService.ActiveError{Op: operation, Err: activeService.ErrDatabaseOperation}
+		return nil, &presenceError{Op: operation, Err: studentpresence.ErrDatabaseOperation}
 	}
 	responses := make([]SupervisorResponse, 0, len(rows))
 	for _, row := range rows {
 		response, err := presenceSupervisionResponse(row, timezone.TodayDate())
 		if err != nil {
-			return nil, &activeService.ActiveError{Op: operation, Err: activeService.ErrDatabaseOperation}
+			return nil, &presenceError{Op: operation, Err: studentpresence.ErrDatabaseOperation}
 		}
 		responses = append(responses, response)
 	}
@@ -29,7 +28,7 @@ func (rs *Resource) presenceSessionSupervisors(ctx context.Context, groupID int6
 	const operation = "GetActiveGroupWithSupervisors"
 	groups, err := rs.Presence.ListLiveGroups(ctx, []int64{groupID})
 	if err != nil || len(groups) == 0 {
-		return nil, &activeService.ActiveError{Op: operation, Err: activeService.ErrActiveGroupNotFound}
+		return nil, &presenceError{Op: operation, Err: studentpresence.ErrGroupNotFound}
 	}
 	day := today.String()
 	return rs.presenceSupervisionResponses(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{groupID}, ActiveOn: &day}, operation)
@@ -62,7 +61,28 @@ func (rs *Resource) presenceSupervisor(ctx context.Context, id int64) (Superviso
 	const operation = "GetGroupSupervisor"
 	rows, err := rs.presenceSupervisionResponses(ctx, studentpresence.GroupSupervisionFilter{IDs: []int64{id}}, operation)
 	if err != nil || len(rows) == 0 {
-		return SupervisorResponse{}, &activeService.ActiveError{Op: operation, Err: activeService.ErrGroupSupervisorNotFound}
+		return SupervisorResponse{}, &presenceError{Op: operation, Err: studentpresence.ErrGroupSupervisorNotFound}
 	}
 	return rows[0], nil
+}
+
+// presenceSupervisionRow returns the persisted supervision record the update
+// route revises. A missing record fails as not found.
+func (rs *Resource) presenceSupervisionRow(ctx context.Context, id int64) (studentpresence.GroupSupervision, error) {
+	const operation = "GetGroupSupervisor"
+	rows, err := rs.Presence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{IDs: []int64{id}})
+	if err != nil || len(rows) == 0 {
+		return studentpresence.GroupSupervision{}, &presenceError{Op: operation, Err: studentpresence.ErrGroupSupervisorNotFound}
+	}
+	return rows[0], nil
+}
+
+// supervisionRowResponse renders a persisted supervision row when the
+// trailing re-read after a write fails.
+func supervisionRowResponse(row studentpresence.GroupSupervision) SupervisorResponse {
+	response, err := presenceSupervisionResponse(row, timezone.TodayDate())
+	if err != nil {
+		return SupervisorResponse{ID: row.ID, StaffID: row.StaffID, ActiveGroupID: row.GroupID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	}
+	return response
 }

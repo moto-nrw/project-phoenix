@@ -4,108 +4,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
 )
 
-// activeGroupDisplayName renders a display string for an active.Group. For
-// template-backed sessions it emits "<prefix><template_id>"; for spontaneous
-// sessions (no template, WP-B6) it emits "<prefix>spontaneous" so the name
-// remains distinguishable and never collides with a real template id.
-func activeGroupDisplayName(g *active.Group) string {
-	if g == nil {
-		return ""
-	}
-	if templateID, ok := g.TemplateID(); ok {
-		return displayGroupPrefix + strconv.FormatInt(templateID, 10)
-	}
-	return displayGroupPrefix + "spontaneous"
-}
-
 // ===== Conversion Functions =====
-
-// newActiveGroupResponse converts an active group model to a response object
-func newActiveGroupResponse(group *active.Group) ActiveGroupResponse {
-	response := ActiveGroupResponse{
-		ID:        group.ID,
-		GroupID:   group.GroupID,
-		RoomID:    group.RoomID,
-		StartTime: group.StartTime,
-		EndTime:   group.EndTime,
-		IsActive:  group.IsActive(),
-		CreatedAt: group.CreatedAt,
-		UpdatedAt: group.UpdatedAt,
-	}
-
-	if group.Supervisors != nil {
-		response.Supervisors = newActiveSupervisorResponses(group.Supervisors)
-		response.SupervisorCount = len(response.Supervisors)
-	}
-
-	// Add room info if available
-	if group.Room != nil {
-		response.Room = &RoomSimple{
-			ID:    group.Room.ID,
-			Name:  group.Room.Name,
-			Color: group.Room.Color,
-		}
-	}
-
-	return response
-}
-
-func newActiveSupervisorResponses(supervisors []*active.GroupSupervisor) []GroupSupervisorSimple {
-	now := time.Now()
-	responses := make([]GroupSupervisorSimple, 0, len(supervisors))
-	for _, supervisor := range supervisors {
-		if activeService.IsSupervisorActive(supervisor, now) {
-			responses = append(responses, GroupSupervisorSimple{StaffID: supervisor.StaffID, Role: supervisor.Role})
-		}
-	}
-	return responses
-}
-
-// newSupervisorResponse converts a group supervisor model to a response object
-func newSupervisorResponse(supervisor *active.GroupSupervisor) SupervisorResponse {
-	// The supervisor wire shape keeps start_time/end_time as ISO timestamps
-	// (UTC midnight of the DATE), matching how the DATE columns serialized
-	// before the timezone.Date migration.
-	var endTime *time.Time
-	if supervisor.EndDate != nil {
-		t := supervisor.EndDate.UTCMidnight()
-		endTime = &t
-	}
-	response := SupervisorResponse{
-		ID:            supervisor.ID,
-		StaffID:       supervisor.StaffID,
-		ActiveGroupID: supervisor.GroupID,
-		StartTime:     supervisor.StartDate.UTCMidnight(),
-		EndTime:       endTime,
-		IsActive:      activeService.IsSupervisorActive(supervisor, time.Now()),
-		CreatedAt:     supervisor.CreatedAt,
-		UpdatedAt:     supervisor.UpdatedAt,
-	}
-
-	// Add related information if available
-	if supervisor.Staff != nil && supervisor.Staff.Person != nil {
-		response.StaffName = supervisor.Staff.Person.GetFullName()
-	}
-	if supervisor.ActiveGroup != nil {
-		response.ActiveGroupName = activeGroupDisplayName(supervisor.ActiveGroup)
-	}
-
-	return response
-}
-
-// newCombinedGroupResponse converts a combined group model to a response object
-func newCombinedGroupResponse(group *activeService.CombinedGroupDetails) CombinedGroupResponse {
-	response := newPresenceCombinationResponse(group.CombinedGroup)
-	if group.ActiveGroups != nil {
-		response.GroupCount = len(group.ActiveGroups)
-	}
-	return response
-}
 
 func newPresenceLiveGroupResponse(group studentpresence.LiveGroup) ActiveGroupResponse {
 	return ActiveGroupResponse{
@@ -113,6 +15,11 @@ func newPresenceLiveGroupResponse(group studentpresence.LiveGroup) ActiveGroupRe
 		StartTime: group.StartTime, EndTime: group.EndTime, IsActive: group.IsOpen(),
 		CreatedAt: group.CreatedAt, UpdatedAt: group.UpdatedAt,
 	}
+}
+
+// newSessionRoomResponse projects the room summary a session response embeds.
+func newSessionRoomResponse(room studentpresence.SessionRoomSummary) *RoomSimple {
+	return &RoomSimple{ID: room.ID, Name: room.Name, Color: room.Color}
 }
 
 func newPresenceCombinationResponse(group studentpresence.CombinedGroup) CombinedGroupResponse {
@@ -129,4 +36,97 @@ func newPresenceCombinationResponse(group studentpresence.CombinedGroup) Combine
 	}
 
 	return response
+}
+
+// newCombinationWithGroupsResponse adds the mapped session count to the
+// combination response.
+func newCombinationWithGroupsResponse(group studentpresence.CombinedGroup, groups []studentpresence.LiveGroup) CombinedGroupResponse {
+	response := newPresenceCombinationResponse(group)
+	response.GroupCount = len(groups)
+	return response
+}
+
+// claimedSupervisionResponse keeps the wire shape of the claimed supervision
+// record: the persisted row with its calendar start day.
+type claimedSupervisionResponse struct {
+	ID        int64     `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	TenantID  int64     `json:"tenant_id"`
+	StaffID   int64     `json:"staff_id"`
+	GroupID   int64     `json:"group_id"`
+	Role      string    `json:"role"`
+	StartDate string    `json:"start_date"`
+}
+
+func newClaimedSupervisionResponse(row studentpresence.ClaimedSupervision) claimedSupervisionResponse {
+	return claimedSupervisionResponse{
+		ID: row.ID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, TenantID: row.TenantID,
+		StaffID: row.StaffID, GroupID: row.GroupID, Role: row.Role, StartDate: row.StartDate,
+	}
+}
+
+// unclaimedSessionResponse keeps the wire shape of an unclaimed session: the
+// session row with its room and template projections.
+type unclaimedSessionResponse struct {
+	ID             int64                      `json:"id"`
+	CreatedAt      time.Time                  `json:"created_at"`
+	UpdatedAt      time.Time                  `json:"updated_at"`
+	TenantID       int64                      `json:"tenant_id"`
+	StartTime      time.Time                  `json:"start_time"`
+	EndTime        *time.Time                 `json:"end_time,omitempty"`
+	LastActivity   time.Time                  `json:"last_activity"`
+	TimeoutMinutes int                        `json:"timeout_minutes"`
+	GroupID        *int64                     `json:"group_id"`
+	DeviceID       *int64                     `json:"device_id,omitempty"`
+	RoomID         int64                      `json:"room_id"`
+	ActualGroup    *unclaimedActivityResponse `json:"actual_group,omitempty"`
+	Room           *unclaimedRoomResponse     `json:"room,omitempty"`
+}
+
+type unclaimedActivityResponse struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+}
+
+type unclaimedRoomResponse struct {
+	ID       int64   `json:"id"`
+	Name     string  `json:"name"`
+	Category *string `json:"category,omitempty"`
+	Color    *string `json:"color,omitempty"`
+}
+
+func newUnclaimedSessionResponse(row studentpresence.UnclaimedSession) unclaimedSessionResponse {
+	response := unclaimedSessionResponse{
+		ID: row.ID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, TenantID: row.TenantID,
+		StartTime: row.StartTime, EndTime: row.EndTime, LastActivity: row.LastActivity,
+		TimeoutMinutes: row.TimeoutMinutes, GroupID: row.GroupID, DeviceID: row.DeviceID, RoomID: row.RoomID,
+	}
+	if row.Activity != nil {
+		response.ActualGroup = &unclaimedActivityResponse{ID: row.Activity.ID, Name: row.Activity.Name}
+	}
+	if row.Room != nil {
+		response.Room = &unclaimedRoomResponse{ID: row.Room.ID, Name: row.Room.Name, Category: row.Room.Category, Color: row.Room.Color}
+	}
+	return response
+}
+
+// crossTenantStudentResponse keeps the wire shape of a hosted child.
+type crossTenantStudentResponse struct {
+	StudentID  int64  `json:"student_id"`
+	FirstName  string `json:"first_name"`
+	LastName   string `json:"last_name"`
+	GroupName  string `json:"group_name"`
+	HomeTenant string `json:"home_tenant"`
+}
+
+func newCrossTenantStudentResponses(rows []studentpresence.CrossTenantStudent) []crossTenantStudentResponse {
+	responses := make([]crossTenantStudentResponse, 0, len(rows))
+	for _, row := range rows {
+		responses = append(responses, crossTenantStudentResponse{
+			StudentID: row.StudentID, FirstName: row.FirstName, LastName: row.LastName,
+			GroupName: row.GroupName, HomeTenant: row.HomeTenant,
+		})
+	}
+	return responses
 }

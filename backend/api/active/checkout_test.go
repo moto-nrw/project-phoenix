@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/stretchr/testify/assert"
 )
@@ -36,15 +36,6 @@ func TestAuthorizeCheckoutPreservesIdentityErrorClassification(t *testing.T) {
 			assert.ErrorIs(t, err, tc.want)
 		})
 	}
-}
-
-type checkoutActiveServiceStub struct {
-	*stubActiveService
-	getStudentAttendanceStatus func(ctx context.Context, studentID int64) (*activeService.AttendanceStatus, error)
-}
-
-func (s *checkoutActiveServiceStub) GetStudentAttendanceStatus(ctx context.Context, studentID int64) (*activeService.AttendanceStatus, error) {
-	return s.getStudentAttendanceStatus(ctx, studentID)
 }
 
 // =============================================================================
@@ -127,11 +118,10 @@ func TestCheckoutStudent_RejectsNonStaffBeforeReadingAttendance(t *testing.T) {
 
 	attendanceCalls := 0
 	rs := resourceForTest(Resource{
-		ActiveService: &checkoutActiveServiceStub{
-			stubActiveService: &stubActiveService{},
-			getStudentAttendanceStatus: func(_ context.Context, _ int64) (*activeService.AttendanceStatus, error) {
+		Operations: &stubPresenceOperations{
+			studentAttendanceStatus: func(_ context.Context, _ int64) (*studentpresence.AttendanceStatus, error) {
 				attendanceCalls++
-				return &activeService.AttendanceStatus{Status: "checked_in"}, nil
+				return &studentpresence.AttendanceStatus{Status: "checked_in"}, nil
 			},
 		},
 		UserContextService: &mockUserContextService{
@@ -164,11 +154,11 @@ func TestBuildCheckoutResponse_WithAttendanceStatus(t *testing.T) {
 	checkOutTime := time.Date(2024, 1, 15, 15, 30, 0, 0, time.UTC)
 
 	result := &checkoutResult{
-		Result: &activeService.AttendanceResult{
+		Result: studentpresence.CheckoutOutcome{
 			Action:       "checkout",
 			AttendanceID: 456,
 		},
-		UpdatedAttendance: &activeService.AttendanceStatus{
+		UpdatedAttendance: &studentpresence.AttendanceStatus{
 			Status:       "checked_out",
 			CheckInTime:  &checkInTime,
 			CheckOutTime: &checkOutTime,
@@ -197,7 +187,7 @@ func TestBuildCheckoutResponse_WithoutAttendanceStatus(t *testing.T) {
 	t.Parallel()
 
 	result := &checkoutResult{
-		Result: &activeService.AttendanceResult{
+		Result: studentpresence.CheckoutOutcome{
 			Action:       "checkout",
 			AttendanceID: 789,
 		},
