@@ -11,10 +11,10 @@ import (
 type Store interface {
 	Enqueue(context.Context, domain.Intent) (domain.Enqueued, error)
 	Claim(context.Context, domain.Transport, int, time.Time, time.Time) ([]domain.Intent, error)
-	// WithLease keeps the outbox row locked while deliver runs. A concurrent
-	// cancellation therefore either wins before the provider sees the intent,
-	// or waits until that provider call has completed.
-	WithLease(context.Context, domain.Transport, int64, string, time.Time, func()) (bool, error)
+	// StartDelivery atomically advances a claimed intent to its durable dispatch
+	// fence. A cancellation that commits first prevents the provider call; once
+	// the fence is committed, the provider call has logically begun.
+	StartDelivery(context.Context, domain.Transport, int64, string, time.Time) (string, bool, error)
 	FinalizeSent(context.Context, domain.Transport, int64, string, json.RawMessage, time.Time) (bool, error)
 	FinalizeCancelled(context.Context, domain.Transport, int64, string, string, time.Time) (bool, error)
 	FinalizeFailure(context.Context, domain.Transport, int64, string, int, string, time.Time, int) (domain.FinalizeResult, error)

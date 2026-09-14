@@ -932,10 +932,10 @@ func (s *service) resolveSchoolLogoURL(ctx context.Context, tenantID int64) stri
 	return emailbranding.SchoolLogoURL(s.parentsURL, raw)
 }
 
-// cancelPendingEmails cancels any not-yet-sent announcement and poll-reminder
-// e-mails queued for this announcement. Called when it is retracted (unpublish)
-// or deleted: both kinds of mail carry a portal link that must not be delivered
-// after the announcement is no longer available.
+// cancelPendingEmails cancels announcement and poll-reminder e-mails that have
+// not crossed the worker's durable dispatch fence. Called when it is retracted
+// (unpublish) or deleted: both kinds of mail carry a portal link that must not
+// be delivered after the announcement is no longer available.
 // Leaving them would deliver a notification for an announcement staff has already
 // pulled — and, on the documented unpublish -> edit -> republish correction path,
 // a stale e-mail followed by a second corrected one. The cancel runs in the same
@@ -952,7 +952,7 @@ func (s *service) cancelPendingEmails(ctx context.Context, id int64) error {
 	for _, relatedType := range []string{relatedEntityTypeAnnouncement, relatedEntityTypePollReminder, relatedEntityTypeReminder} {
 		n, err := s.outbox.CancelPendingByRelatedEntity(ctx, relatedType, id, "announcement no longer available")
 		if err != nil {
-			return fmt.Errorf("announcement: cancel pending e-mails: %w", err)
+			return fmt.Errorf("announcement: cancel e-mails: %w", err)
 		}
 		cancelled += n
 	}

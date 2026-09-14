@@ -30,14 +30,13 @@ type workerStore struct {
 	statuses            []domain.EmailDeliveryStatus
 }
 
-// WithLease is the cancellation-aware fence used by the worker.
-func (s *workerStore) WithLease(_ context.Context, _ domain.Transport, _ int64, token string, _ time.Time, deliver func()) (bool, error) {
-	s.renewToken = token
+// StartDelivery is the cancellation-aware durable fence used by the worker.
+func (s *workerStore) StartDelivery(_ context.Context, _ domain.Transport, _ int64, token string, _ time.Time) (string, bool, error) {
 	if !s.renewed || s.cancelledBeforeSend {
-		return false, nil
+		return "", false, nil
 	}
-	deliver()
-	return true, nil
+	s.renewToken = "dispatch:" + token
+	return s.renewToken, true, nil
 }
 
 func (*workerStore) Enqueue(context.Context, domain.Intent) (domain.Enqueued, error) {
@@ -268,9 +267,8 @@ func (*concurrentRetryStore) Claim(_ context.Context, transport domain.Transport
 	return []domain.Intent{intent}, nil
 }
 
-func (*concurrentRetryStore) WithLease(_ context.Context, _ domain.Transport, _ int64, _ string, _ time.Time, deliver func()) (bool, error) {
-	deliver()
-	return true, nil
+func (*concurrentRetryStore) StartDelivery(_ context.Context, _ domain.Transport, _ int64, token string, _ time.Time) (string, bool, error) {
+	return "dispatch:" + token, true, nil
 }
 
 func (*concurrentRetryStore) FinalizeFailure(_ context.Context, _ domain.Transport, _ int64, _ string, attempts int, _ string, _ time.Time, maxAttempts int) (domain.FinalizeResult, error) {

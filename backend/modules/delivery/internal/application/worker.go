@@ -76,14 +76,8 @@ func (w *Worker) runTransport(ctx context.Context, transport domain.Transport, l
 }
 
 func (w *Worker) process(ctx context.Context, intent domain.Intent, maxAttempts int, stats *domain.WorkerStats) {
-	var result domain.ProviderResult
-	var sendErr error
 	started := time.Now()
-	active, err := w.store.WithLease(ctx, intent.Transport, intent.ID, leaseToken(intent), time.Now().Add(w.leaseDuration), func() {
-		providerCtx, cancel := context.WithTimeout(ctx, providerTimeout)
-		result, sendErr = w.provider.Send(providerCtx, intent)
-		cancel()
-	})
+	dispatchToken, active, err := w.store.StartDelivery(ctx, intent.Transport, intent.ID, leaseToken(intent), time.Now().Add(w.leaseDuration))
 	if err != nil {
 		w.observe(domain.Observation{Operation: "lease_fence_error", Transport: string(intent.Transport), Template: intent.Template, Count: 1, Err: err})
 		return
@@ -93,21 +87,24 @@ func (w *Worker) process(ctx context.Context, intent domain.Intent, maxAttempts 
 		w.observe(domain.Observation{Operation: "stale_lease_fence", Transport: string(intent.Transport), Template: intent.Template, Count: 1})
 		return
 	}
+	providerCtx, cancel := context.WithTimeout(ctx, providerTimeout)
+	result, sendErr := w.provider.Send(providerCtx, intent)
+	cancel()
 	w.observe(domain.Observation{Operation: "provider", Transport: string(intent.Transport), Template: intent.Template, Duration: time.Since(started), Count: boolCount(sendErr == nil), Err: sendErr})
 	if errors.Is(sendErr, domain.ErrCancelled) {
-		w.finalizeCancelled(ctx, intent, sendErr, stats)
+		w.finalizeCancelled(ctx, intent, dispatchToken, sendErr, stats)
 		return
 	}
 	if sendErr != nil {
-		w.finalizeFailure(ctx, intent, sendErr, maxAttempts, stats)
+		w.finalizeFailure(ctx, intent, dispatchToken, sendErr, maxAttempts, stats)
 		return
 	}
 	encoded, err := json.Marshal(result)
 	if err != nil {
-		w.finalizeFailure(ctx, intent, fmt.Errorf("encode provider result: %w", err), maxAttempts, stats)
+		w.finalizeFailure(ctx, intent, dispatchToken, fmt.Errorf("encode provider result: %w", err), maxAttempts, stats)
 		return
 	}
-	finalized, err := w.store.FinalizeSent(ctx, intent.Transport, intent.ID, leaseToken(intent), encoded, time.Now())
+	finalized, err := w.store.FinalizeSent(ctx, intent.Transport, intent.ID, dispatchToken, encoded, time.Now())
 	if err != nil {
 		w.observe(domain.Observation{Operation: "finalize_error", Transport: string(intent.Transport), Template: intent.Template, Count: 1, Err: err})
 		return
@@ -121,8 +118,8 @@ func (w *Worker) process(ctx context.Context, intent domain.Intent, maxAttempts 
 	w.observe(domain.Observation{Operation: "sent", Transport: string(intent.Transport), Template: intent.Template, Count: 1})
 }
 
-func (w *Worker) finalizeCancelled(ctx context.Context, intent domain.Intent, reason error, stats *domain.WorkerStats) {
-	finalized, err := w.store.FinalizeCancelled(ctx, intent.Transport, intent.ID, leaseToken(intent), reason.Error(), time.Now())
+func (w *Worker) finalizeCancelled(ctx context.Context, intent domain.Intent, token string, reason error, stats *domain.WorkerStats) {
+	finalized, err := w.store.FinalizeCancelled(ctx, intent.Transport, intent.ID, token, reason.Error(), time.Now())
 	if err != nil {
 		w.observe(domain.Observation{Operation: "finalize_error", Transport: string(intent.Transport), Template: intent.Template, Count: 1, Err: err})
 		return
@@ -136,10 +133,10 @@ func (w *Worker) finalizeCancelled(ctx context.Context, intent domain.Intent, re
 	w.observe(domain.Observation{Operation: "cancelled", Transport: string(intent.Transport), Template: intent.Template, Count: 1})
 }
 
-func (w *Worker) finalizeFailure(ctx context.Context, intent domain.Intent, sendErr error, maxAttempts int, stats *domain.WorkerStats) {
+func (w *Worker) finalizeFailure(ctx context.Context, intent domain.Intent, token string, sendErr error, maxAttempts int, stats *domain.WorkerStats) {
 	attempts := intent.Attempts + 1
 	nextAttempt := time.Now().Add(backoff(attempts))
-	result, err := w.store.FinalizeFailure(ctx, intent.Transport, intent.ID, leaseToken(intent), attempts, sendErr.Error(), nextAttempt, maxAttempts)
+	result, err := w.store.FinalizeFailure(ctx, intent.Transport, intent.ID, token, attempts, sendErr.Error(), nextAttempt, maxAttempts)
 	if err != nil {
 		w.observe(domain.Observation{Operation: "finalize_error", Transport: string(intent.Transport), Template: intent.Template, Count: 1, Err: err})
 		return

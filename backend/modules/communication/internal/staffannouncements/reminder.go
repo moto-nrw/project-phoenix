@@ -253,8 +253,9 @@ func (s *service) deliverReminder(ctx context.Context, a *usersModels.ParentAnno
 }
 
 // reminderPushShape keeps the push generic like every other parent push (no
-// content leaves the portal) and keys it on the reminder moment: a moved
-// reminder is a new intent, a retried tick for the same moment is not.
+// content leaves the portal) and keys it on the reminder moment and publication
+// cycle: a moved or republished reminder is a new intent, while a retried tick
+// for the same publication remains idempotent.
 func reminderPushShape(a *usersModels.ParentAnnouncement) pushShape {
 	stamp := int64(0)
 	if a.ReminderAt != nil {
@@ -264,21 +265,28 @@ func reminderPushShape(a *usersModels.ParentAnnouncement) pushShape {
 		notificationType: parentAnnouncementNotificationType,
 		copyKind:         notifications.ParentAnnouncementReminder,
 		deepLink:         "/",
-		idempotencyKey:   fmt.Sprintf("parent-announcement-reminder:%d:%d", a.ID, stamp),
+		idempotencyKey:   fmt.Sprintf("parent-announcement-reminder:%d:%d:%d", a.ID, stamp, reminderPublicationCycle(a)),
 		relatedType:      relatedEntityTypeReminder,
 	}
 }
 
 // reminderIdempotencyKey ties one reminder mail to one address for one
-// reminder moment. A retried tick must not queue twice; a moved reminder (a
-// new moment) is a new mail by definition, but a moved reminder is only
-// possible BEFORE the send, so the key never has to cover that.
+// reminder moment and publication cycle. A retried tick must not queue twice;
+// a correction can retract and republish an announcement at the same reminder
+// moment, and must not collide with that cancelled publication's outbox row.
 func reminderIdempotencyKey(a *usersModels.ParentAnnouncement, address string) string {
 	stamp := int64(0)
 	if a.ReminderAt != nil {
 		stamp = a.ReminderAt.UTC().UnixNano()
 	}
-	return fmt.Sprintf("parent_announcement_reminder:%d:%d:%s", a.ID, stamp, address)
+	return fmt.Sprintf("parent_announcement_reminder:%d:%d:%d:%s", a.ID, stamp, reminderPublicationCycle(a), address)
+}
+
+func reminderPublicationCycle(a *usersModels.ParentAnnouncement) int64 {
+	if a.PublishedAt == nil {
+		return 0
+	}
+	return a.PublishedAt.UTC().UnixNano()
 }
 
 func reminderIntro(schoolName, what string) string {

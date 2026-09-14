@@ -579,3 +579,17 @@ func TestReminderPushShape_IsKeyedOnTheReminderMoment(t *testing.T) {
 	moved.ReminderAt = &later
 	assert.NotEqual(t, shape.idempotencyKey, reminderPushShape(&moved).idempotencyKey)
 }
+
+func TestReminderIdempotencyKeysChangeWithPublicationCycle(t *testing.T) {
+	t.Parallel()
+
+	a := publishedWithReminder(false)
+	pushKey := reminderPushShape(a).idempotencyKey
+	mailKey := reminderIdempotencyKey(a, "mama@example.test")
+
+	republished := *a
+	laterPublication := a.PublishedAt.Add(time.Nanosecond)
+	republished.PublishedAt = &laterPublication
+	assert.NotEqual(t, pushKey, reminderPushShape(&republished).idempotencyKey)
+	assert.NotEqual(t, mailKey, reminderIdempotencyKey(&republished, "mama@example.test"))
+}
