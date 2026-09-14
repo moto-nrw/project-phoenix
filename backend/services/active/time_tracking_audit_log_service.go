@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 )
 
 // ErrAuditLogInvalid marks a caller mistake in an audit log request — HTTP 400.
@@ -206,7 +205,7 @@ func (s *timeTrackingAuditLogService) decorate(ctx context.Context, entries []*T
 func (s *timeTrackingAuditLogService) retentionCutoff(ctx context.Context) timezone.Date {
 	days := auditLogRetentionDefaultDays
 	if s.settings != nil {
-		if v, err := s.settings.ResolveInt(ctx, configModel.KeyGDPRTimeTrackingRetentionDays); err == nil && v > 0 {
+		if v, err := s.settings.TimeTrackingRetentionDays(ctx); err == nil && v > 0 {
 			days = v
 		}
 	}

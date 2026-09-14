@@ -39,7 +39,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -106,8 +105,10 @@ type TimeTrackingCleanupService interface {
 }
 
 type retentionSettingsResolver interface {
-	HasTenantOverride(context.Context, string) (bool, error)
-	ResolveInt(context.Context, string) (int, error)
+	// TimeTrackingRetentionOverridden probes whether the tenant set its own
+	// retention window; TimeTrackingRetentionDays is the effective value.
+	TimeTrackingRetentionOverridden(context.Context) (bool, error)
+	TimeTrackingRetentionDays(context.Context) (int, error)
 }
 
 type timeTrackingCleanupService struct {
@@ -297,13 +298,13 @@ func (s *timeTrackingCleanupService) resolveRetentionDays(ctx context.Context) i
 	if s.settings == nil {
 		return timeTrackingRetentionDefaultDays
 	}
-	if _, err := s.settings.HasTenantOverride(ctx, configModel.KeyGDPRTimeTrackingRetentionDays); err != nil {
+	if _, err := s.settings.TimeTrackingRetentionOverridden(ctx); err != nil {
 		s.logger.Warn("settings override check failed, falling back to registry default",
-			slog.String("key", configModel.KeyGDPRTimeTrackingRetentionDays),
+			slog.String("setting", "time_tracking_retention_days"),
 			slog.String("error", err.Error()),
 		)
 	}
-	if v, err := s.settings.ResolveInt(ctx, configModel.KeyGDPRTimeTrackingRetentionDays); err == nil && v > 0 {
+	if v, err := s.settings.TimeTrackingRetentionDays(ctx); err == nil && v > 0 {
 		return v
 	}
 	return timeTrackingRetentionDefaultDays

@@ -137,7 +137,7 @@
       "declaration": "setupTestCleanupContextWithServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        68
+        67
       ],
       "tables": []
     },
@@ -5606,7 +5606,7 @@
       "declaration": "newSnapshotFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        76
+        80
       ],
       "tables": [
         "active.staff_absences",

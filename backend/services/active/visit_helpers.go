@@ -9,7 +9,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -155,13 +154,27 @@ func (s *service) resolveDeviceIDForAttendance(ctx context.Context, deviceID int
 }
 
 // resolveClearMode uses the tenant value or registry default supplied by settings.
-func (s *service) resolveClearMode(ctx context.Context, key string) (string, error) {
+func (s *service) resolveSickClearMode(ctx context.Context) (string, error) {
+	return s.resolveClearMode(ctx, "sick clear mode", func(ctx context.Context) (string, error) {
+		return s.settings.SickClearMode(ctx)
+	})
+}
+
+func (s *service) resolveExcusedClearMode(ctx context.Context) (string, error) {
+	return s.resolveClearMode(ctx, "excused clear mode", func(ctx context.Context) (string, error) {
+		return s.settings.ExcusedClearMode(ctx)
+	})
+}
+
+// resolveClearMode keeps the shared wiring guard and error wording the two
+// clear-mode reads had while they still passed a registry key around.
+func (s *service) resolveClearMode(ctx context.Context, name string, read func(context.Context) (string, error)) (string, error) {
 	if s.settings == nil {
-		return "", fmt.Errorf("resolve %s: settings service is not configured", key)
+		return "", fmt.Errorf("resolve %s: settings service is not configured", name)
 	}
-	value, err := s.settings.ResolveString(ctx, key)
+	value, err := read(ctx)
 	if err != nil {
-		return "", fmt.Errorf("resolve %s: %w", key, err)
+		return "", fmt.Errorf("resolve %s: %w", name, err)
 	}
 	return value, nil
 }
@@ -169,11 +182,11 @@ func (s *service) resolveClearMode(ctx context.Context, key string) (string, err
 // autoClearStudentSickness clears the sickness flag on student check-in when
 // the tenant's operations.sick_clear_mode setting is "next_checkin" (default).
 func (s *service) autoClearStudentSickness(ctx context.Context, studentID int64) error {
-	mode, err := s.resolveClearMode(ctx, configModel.KeySickClearMode)
+	mode, err := s.resolveSickClearMode(ctx)
 	if err != nil {
 		return err
 	}
-	if mode != configModel.ClearModeNextCheckin {
+	if mode != ClearModeNextCheckin {
 		return nil
 	}
 
@@ -217,11 +230,11 @@ func (s *service) clearSickFlagOnCheckin(ctx context.Context, student *StudentRe
 // autoClearStudentExcused clears the excused flag on student check-in when
 // the tenant's operations.excused_clear_mode setting is "next_checkin".
 func (s *service) autoClearStudentExcused(ctx context.Context, studentID int64) error {
-	mode, err := s.resolveClearMode(ctx, configModel.KeyExcusedClearMode)
+	mode, err := s.resolveExcusedClearMode(ctx)
 	if err != nil {
 		return err
 	}
-	if mode != configModel.ClearModeNextCheckin {
+	if mode != ClearModeNextCheckin {
 		return nil
 	}
 

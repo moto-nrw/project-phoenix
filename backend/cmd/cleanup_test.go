@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/services/active"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -89,9 +88,7 @@ func setupTestCleanupContextWithServices(t *testing.T) *cleanupContext {
 		DB:                       db,
 		Logger:                   slog.Default(),
 	})
-	sessionService.SetSettingsService(&configtest.Mock{ResolveStringFn: func(context.Context, string) (string, error) {
-		return active.PresenceModeDetailed, nil
-	}})
+	sessionService.SetSettingsService(detailedPresenceSettings{})
 	cleanupSvc := buildRetentionCleanupService(&cleanupContext{DB: db, Audit: repositories.NewTestAuditStore(db)})
 	schools, err := repositories.NewOrganizationTenancy(db)
 	require.NoError(t, err)
@@ -1044,4 +1041,24 @@ func TestCleanupSupervisorsCmd_Flags(t *testing.T) {
 	f := cleanupSupervisorsCmd.Flags()
 	assert.NotNil(t, f.Lookup("dry-run"))
 	assert.NotNil(t, f.Lookup("verbose"))
+}
+
+// detailedPresenceSettings answers the one question the cleanup path asks.
+// Declared here rather than taken from the composition root, which this
+// package may not import.
+type detailedPresenceSettings struct{}
+
+func (detailedPresenceSettings) PresenceMode(context.Context) (string, error) {
+	return active.PresenceModeDetailed, nil
+}
+func (detailedPresenceSettings) SickClearMode(context.Context) (string, error)    { return "", nil }
+func (detailedPresenceSettings) ExcusedClearMode(context.Context) (string, error) { return "", nil }
+func (detailedPresenceSettings) AttendanceEditScope(context.Context) (string, error) {
+	return "", nil
+}
+func (detailedPresenceSettings) OperationalOverviewScope(context.Context) (string, error) {
+	return "", nil
+}
+func (detailedPresenceSettings) SessionInactivityTimeoutMinutes(context.Context) (int, error) {
+	return 0, nil
 }

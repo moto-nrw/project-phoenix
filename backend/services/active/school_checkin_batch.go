@@ -10,7 +10,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -396,22 +395,22 @@ func (s *service) autoClearOnBatchCheckin(
 	now time.Time,
 	day timezone.Date,
 ) error {
-	sickMode, err := s.resolveClearMode(ctx, configModel.KeySickClearMode)
+	sickMode, err := s.resolveSickClearMode(ctx)
 	if err != nil {
 		return err
 	}
-	if sickMode == configModel.ClearModeNextCheckin {
+	if sickMode == ClearModeNextCheckin {
 		for _, student := range actionableStudents {
 			if err := s.clearSickFlagOnCheckin(ctx, student, now); err != nil {
 				return err
 			}
 		}
 	}
-	excusedMode, err := s.resolveClearMode(ctx, configModel.KeyExcusedClearMode)
+	excusedMode, err := s.resolveExcusedClearMode(ctx)
 	if err != nil {
 		return err
 	}
-	if excusedMode == configModel.ClearModeNextCheckin {
+	if excusedMode == ClearModeNextCheckin {
 		for _, student := range actionableStudents {
 			if err := s.clearExcusedFlagOnCheckin(ctx, student, now); err != nil {
 				return err

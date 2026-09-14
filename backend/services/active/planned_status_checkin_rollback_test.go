@@ -129,7 +129,7 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 	})
 	testpkg.SetTenantRuntime(t, svc, db)
 	var settingsErr error
-	svc.SetSettingsService(&configtest.Mock{
+	svc.SetSettingsService(services.PresenceSettings(&configtest.Mock{
 		HasTenantOverrideFn: func(context.Context, string) (bool, error) { return true, nil },
 		ResolveStringFn: func(_ context.Context, key string) (string, error) {
 			if settingsErr != nil && stage == "presence setting" && key == configModel.KeyPresenceMode {
@@ -149,7 +149,7 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 			}
 			return "manual", nil
 		},
-	})
+	}))
 	device := testpkg.EnsureWebManualDevice(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Planned", "Rollback")
 	ctx = context.WithValue(ctx, deviceAuth.CtxDevice, devicePrincipal(device.ID, device.TenantID))

@@ -75,9 +75,9 @@ func newServiceWithPresenceSync(t *testing.T, db *bun.DB, presence active.Studen
 		deps.Now = now[0]
 	}
 	svc := active.NewService(deps)
-	svc.SetSettingsService(&configtest.Mock{ResolveStringFn: func(_ context.Context, key string) (string, error) {
+	svc.SetSettingsService(services.PresenceSettings(&configtest.Mock{ResolveStringFn: func(_ context.Context, key string) (string, error) {
 		return configModel.GetDefinition(key).Default.(string), nil
-	}})
+	}}))
 
 	return svc, broadcaster
 }

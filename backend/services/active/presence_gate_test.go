@@ -30,17 +30,37 @@ type stubSettingsResolver struct {
 	intValues    map[string]int
 }
 
-func (s *stubSettingsResolver) HasTenantOverride(_ context.Context, _ string) (bool, error) {
-	return false, nil
-}
-func (s *stubSettingsResolver) ResolveString(_ context.Context, key string) (string, error) {
+// The stub still scripts answers per registry key, so the tables below read
+// the same as when the service asked for settings by key.
+func (s *stubSettingsResolver) resolveString(key string) (string, error) {
 	if s.stringErr != nil {
 		return "", s.stringErr
 	}
 	return s.stringValues[key], nil
 }
-func (s *stubSettingsResolver) ResolveInt(_ context.Context, key string) (int, error) {
-	return s.intValues[key], nil
+
+func (s *stubSettingsResolver) PresenceMode(context.Context) (string, error) {
+	return s.resolveString(configModel.KeyPresenceMode)
+}
+
+func (s *stubSettingsResolver) SickClearMode(context.Context) (string, error) {
+	return s.resolveString(configModel.KeySickClearMode)
+}
+
+func (s *stubSettingsResolver) ExcusedClearMode(context.Context) (string, error) {
+	return s.resolveString(configModel.KeyExcusedClearMode)
+}
+
+func (s *stubSettingsResolver) AttendanceEditScope(context.Context) (string, error) {
+	return s.resolveString(configModel.KeyAttendanceEditScope)
+}
+
+func (s *stubSettingsResolver) OperationalOverviewScope(context.Context) (string, error) {
+	return s.resolveString(configModel.KeyOperationalOverviewScope)
+}
+
+func (s *stubSettingsResolver) SessionInactivityTimeoutMinutes(context.Context) (int, error) {
+	return s.intValues[configModel.KeySessionInactivityTimeoutMin], nil
 }
 
 func TestResolvePresenceModeRejectsFailuresAndInvalidValues(t *testing.T) {

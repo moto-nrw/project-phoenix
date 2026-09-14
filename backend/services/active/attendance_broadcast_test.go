@@ -147,9 +147,9 @@ func newDailyCheckoutService(t *testing.T, db *bun.DB) (active.Service, *testpkg
 		Logger:      slog.Default(),
 	})
 
-	svc.SetSettingsService(&configtest.Mock{ResolveStringFn: func(_ context.Context, key string) (string, error) {
+	svc.SetSettingsService(services.PresenceSettings(&configtest.Mock{ResolveStringFn: func(_ context.Context, key string) (string, error) {
 		return configModel.GetDefinition(key).Default.(string), nil
-	}})
+	}}))
 	return svc, broadcaster
 }
 

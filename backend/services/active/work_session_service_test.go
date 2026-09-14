@@ -276,18 +276,36 @@ type wsMockSettingsResolver struct {
 	resolveIntFunc  func(ctx context.Context, key string) (int, error)
 }
 
-func (m *wsMockSettingsResolver) ResolveBool(ctx context.Context, key string) (bool, error) {
+// The hooks still take the registry key the setting used to be read by, so the
+// existing table tests keep scripting per-key answers unchanged.
+func (m *wsMockSettingsResolver) resolveBool(ctx context.Context, key string) (bool, error) {
 	if m.resolveBoolFunc != nil {
 		return m.resolveBoolFunc(ctx, key)
 	}
 	return false, nil
 }
 
-func (m *wsMockSettingsResolver) ResolveInt(ctx context.Context, key string) (int, error) {
+func (m *wsMockSettingsResolver) resolveInt(ctx context.Context, key string) (int, error) {
 	if m.resolveIntFunc != nil {
 		return m.resolveIntFunc(ctx, key)
 	}
 	return 0, nil
+}
+
+func (m *wsMockSettingsResolver) EnforcePlannedStart(ctx context.Context) (bool, error) {
+	return m.resolveBool(ctx, configModels.KeyTimeTrackingEnforcePlannedStart)
+}
+
+func (m *wsMockSettingsResolver) RequireDeviationReason(ctx context.Context) (bool, error) {
+	return m.resolveBool(ctx, configModels.KeyTimeTrackingRequireDeviationReason)
+}
+
+func (m *wsMockSettingsResolver) DeviationToleranceMinutes(ctx context.Context) (int, error) {
+	return m.resolveInt(ctx, configModels.KeyTimeTrackingDeviationToleranceMinutes)
+}
+
+func (m *wsMockSettingsResolver) TimeTrackingRetentionDays(ctx context.Context) (int, error) {
+	return m.resolveInt(ctx, configModels.KeyGDPRTimeTrackingRetentionDays)
 }
 
 // ============================================================================

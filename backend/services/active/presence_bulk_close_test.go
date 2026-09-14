@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
@@ -54,9 +56,9 @@ func testDailySessionClosureFailure(t *testing.T, fault string) {
 		settingsErr = injected
 	}
 	svc, broadcaster := newServiceWithBroadcaster(t, db, presence)
-	svc.SetSettingsService(&configtest.Mock{ResolveStringFn: func(context.Context, string) (string, error) {
+	svc.SetSettingsService(services.PresenceSettings(&configtest.Mock{ResolveStringFn: func(context.Context, string) (string, error) {
 		return activeService.PresenceModeDetailed, settingsErr
-	}})
+	}}))
 	testpkg.SetTenantRuntime(t, svc, db)
 	group := testpkg.CreateTestActiveGroupForTenant(t, db, testpkg.Tenant(t))
 	student := testpkg.CreateTestStudent(t, db, "Bulk", "Closure", "3a")

@@ -16,7 +16,7 @@ type sessionDevices struct {
 
 // NewSessionDeviceDirectory binds session device operations and the owner's
 // online-window resolver without exposing the settings service to attendance.
-func NewSessionDeviceDirectory(records devicefleetLegacy.SessionDeviceRecords, settings active.SettingsResolver, logger *slog.Logger) active.SessionDeviceDirectory {
+func NewSessionDeviceDirectory(records devicefleetLegacy.SessionDeviceRecords, settings devicefleetLegacy.SettingsResolver, logger *slog.Logger) active.SessionDeviceDirectory {
 	return sessionDevices{SessionDeviceIDs: &devicefleetLegacy.SessionDeviceIDs{SessionDeviceRecords: records}, window: devicefleetLegacy.NewOnlineWindowResolver(settings, logger)}
 }
 

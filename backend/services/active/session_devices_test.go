@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -31,9 +30,14 @@ func (s *sessionWindowSettings) ResolveInt(context.Context, string) (int, error)
 func TestSessionDeviceDirectoryOnlineWindow(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name     string
-		settings active.SettingsResolver
-		want     time.Duration
+		name string
+		// The directory takes the device-fleet module's own settings port;
+		// spelled inline so this test names no package it may not import.
+		settings interface {
+			HasTenantOverride(context.Context, string) (bool, error)
+			ResolveInt(context.Context, string) (int, error)
+		}
+		want time.Duration
 	}{
 		{name: "without settings"},
 		{name: "override check failure", settings: &sessionWindowSettings{hasErr: errors.New("settings db down")}},

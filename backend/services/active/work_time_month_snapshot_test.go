@@ -43,8 +43,12 @@ type snapshotFixture struct {
 // surface; the snapshot tests exercise no setting-driven behaviour.
 type snapshotSessionSettings struct{}
 
-func (snapshotSessionSettings) ResolveBool(context.Context, string) (bool, error) { return false, nil }
-func (snapshotSessionSettings) ResolveInt(context.Context, string) (int, error)   { return 0, nil }
+func (snapshotSessionSettings) EnforcePlannedStart(context.Context) (bool, error) { return false, nil }
+func (snapshotSessionSettings) RequireDeviationReason(context.Context) (bool, error) {
+	return false, nil
+}
+func (snapshotSessionSettings) DeviationToleranceMinutes(context.Context) (int, error) { return 0, nil }
+func (snapshotSessionSettings) TimeTrackingRetentionDays(context.Context) (int, error) { return 0, nil }
 
 // newAdminSessionService builds the admin correction path used to mutate a
 // closed month, wired exactly as services/factory.go does.

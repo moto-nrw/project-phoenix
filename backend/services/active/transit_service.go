@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -702,21 +701,21 @@ func (s *service) schoolWideAttendanceMoveAllowed(ctx context.Context, staffID i
 	if s.settings == nil {
 		return false, errors.New("attendance edit settings unavailable")
 	}
-	scope, err := s.settings.ResolveString(ctx, configModel.KeyAttendanceEditScope)
+	scope, err := s.settings.AttendanceEditScope(ctx)
 	if err != nil {
 		return false, fmt.Errorf("resolve attendance edit scope: %w", err)
 	}
-	if scope == configModel.AttendanceEditScopeOwn {
+	if scope == AttendanceEditScopeOwn {
 		return false, nil
 	}
-	if scope != configModel.AttendanceEditScopeAllStaff {
+	if scope != AttendanceEditScopeAllStaff {
 		return false, ErrStudentMoveForbidden
 	}
-	visibility, err := s.settings.ResolveString(ctx, configModel.KeyOperationalOverviewScope)
+	visibility, err := s.settings.OperationalOverviewScope(ctx)
 	if err != nil {
 		return false, fmt.Errorf("resolve attendance visibility: %w", err)
 	}
-	if visibility != configModel.OverviewScopeAllStaff || staffID <= 0 || tenant.FromContext(ctx) <= 0 {
+	if visibility != OverviewScopeAllStaff || staffID <= 0 || tenant.FromContext(ctx) <= 0 {
 		return false, ErrStudentMoveForbidden
 	}
 	staffTenantID, err := s.StaffRepo.StaffTenantID(ctx, staffID)

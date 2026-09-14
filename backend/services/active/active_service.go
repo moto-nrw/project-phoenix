@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -59,10 +58,30 @@ type School struct {
 // SettingsResolver resolves tenant-scoped settings. Implemented by config.SettingsService.
 // Optional dependency — when nil, auto-clear behavior falls back to the registry default.
 type SettingsResolver interface {
-	HasTenantOverride(ctx context.Context, key string) (bool, error)
-	ResolveString(ctx context.Context, key string) (string, error)
-	ResolveInt(ctx context.Context, key string) (int, error)
+	// PresenceMode is the tenant's attendance granularity, one of
+	// PresenceModeDetailed or PresenceModeBinary.
+	PresenceMode(ctx context.Context) (string, error)
+	// SickClearMode and ExcusedClearMode say when a reported sick or excused
+	// flag is cleared; ClearModeNextCheckin is the value the check-in acts on.
+	SickClearMode(ctx context.Context) (string, error)
+	ExcusedClearMode(ctx context.Context) (string, error)
+	// SessionInactivityTimeoutMinutes is how long a kiosk session may idle.
+	SessionInactivityTimeoutMinutes(ctx context.Context) (int, error)
+	// AttendanceEditScope and OperationalOverviewScope gate who may edit
+	// attendance and who sees the tenant-wide overview.
+	AttendanceEditScope(ctx context.Context) (string, error)
+	OperationalOverviewScope(ctx context.Context) (string, error)
 }
+
+// Settings values the presence flows compare against. They are the stored
+// column values of the settings registry, so they are named here the same way
+// the wire vocabulary is.
+const (
+	ClearModeNextCheckin        = "next_checkin"
+	AttendanceEditScopeOwn      = "own"
+	AttendanceEditScopeAllStaff = "all_staff"
+	OverviewScopeAllStaff       = "all_staff"
+)
 
 // TimetableBridgeCompleter marks timetable instances that are still bridged
 // to active groups as completed. Implemented by schedule.ActivityInstanceRepository.
@@ -163,7 +182,7 @@ func (s *service) GetPresenceMode(ctx context.Context) (string, error) {
 	if s.settings == nil {
 		return "", errors.New("resolve presence mode: settings service is not configured")
 	}
-	mode, err := s.settings.ResolveString(ctx, configModel.KeyPresenceMode)
+	mode, err := s.settings.PresenceMode(ctx)
 	if err != nil {
 		return "", fmt.Errorf("resolve presence mode: %w", err)
 	}

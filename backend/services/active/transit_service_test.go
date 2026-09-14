@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -41,7 +43,7 @@ func TestActiveService_AssignTransitAttendanceScope(t *testing.T) {
 			ctx := testpkg.OwnCtx(t)
 			db := testpkg.SetupTestDB(t)
 			service := setupActiveService(t, db)
-			service.SetSettingsService(&configtest.Mock{ResolveStringFn: func(_ context.Context, key string) (string, error) {
+			service.SetSettingsService(services.PresenceSettings(&configtest.Mock{ResolveStringFn: func(_ context.Context, key string) (string, error) {
 				switch key {
 				case configModel.KeyAttendanceEditScope:
 					return tc.scope, nil
@@ -52,7 +54,7 @@ func TestActiveService_AssignTransitAttendanceScope(t *testing.T) {
 				default:
 					return "", nil
 				}
-			}})
+			}}))
 			staff := testpkg.CreateTestStaff(t, db, "TransitScope", "Staff")
 			device := testpkg.CreateTestDevice(t, db, "transit-scope-device")
 			target := testpkg.CreateTestActiveGroup(t, db,
@@ -116,7 +118,7 @@ func TestActiveService_SchoolWideAttendanceMove(t *testing.T) {
 			ctx := testpkg.OwnCtx(t)
 			db := testpkg.SetupTestDB(t)
 			service := setupActiveService(t, db)
-			service.SetSettingsService(&configtest.Mock{ResolveStringFn: func(_ context.Context, key string) (string, error) {
+			service.SetSettingsService(services.PresenceSettings(&configtest.Mock{ResolveStringFn: func(_ context.Context, key string) (string, error) {
 				switch key {
 				case configModel.KeyAttendanceEditScope:
 					return tc.scope, tc.settingsErr
@@ -127,7 +129,7 @@ func TestActiveService_SchoolWideAttendanceMove(t *testing.T) {
 				default:
 					return "", nil
 				}
-			}})
+			}}))
 			staff := testpkg.CreateTestStaff(t, db, "MoveScope", "Staff")
 			device := testpkg.CreateTestDevice(t, db, "move-scope-device")
 			source := testpkg.CreateTestActiveGroup(t, db,

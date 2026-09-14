@@ -193,9 +193,20 @@ const (
 	deviationActionCheckOut = "check_out"
 )
 
+// settingsResolver answers the tenant settings the time-tracking services
+// consult. Each question is named rather than expressed as a registry key, so
+// this package does not carry another owner's settings vocabulary.
 type settingsResolver interface {
-	ResolveBool(ctx context.Context, key string) (bool, error)
-	ResolveInt(ctx context.Context, key string) (int, error)
+	// EnforcePlannedStart reports whether a check-in outside the planned shift
+	// is refused.
+	EnforcePlannedStart(ctx context.Context) (bool, error)
+	// RequireDeviationReason reports whether a self-edit that moves recorded
+	// times must carry a reason.
+	RequireDeviationReason(ctx context.Context) (bool, error)
+	// DeviationToleranceMinutes is the grace window before a deviation counts.
+	DeviationToleranceMinutes(ctx context.Context) (int, error)
+	// TimeTrackingRetentionDays is how long the audit feed keeps its entries.
+	TimeTrackingRetentionDays(ctx context.Context) (int, error)
 }
 
 // WorkSessionService defines operations for staff time tracking
@@ -631,7 +642,7 @@ func (s *workSessionService) ensurePlannedStartReached(ctx context.Context, staf
 	if s.settings == nil {
 		return nil
 	}
-	enabled, err := s.settings.ResolveBool(ctx, configModels.KeyTimeTrackingEnforcePlannedStart)
+	enabled, err := s.settings.EnforcePlannedStart(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to resolve planned-start setting: %w", err)
 	}
@@ -806,7 +817,7 @@ func (s *workSessionService) detectPlannedDeviation(ctx context.Context, staffID
 	if s.settings == nil || s.staffShiftRepo == nil {
 		return nil, nil
 	}
-	enabled, err := s.settings.ResolveBool(ctx, configModels.KeyTimeTrackingRequireDeviationReason)
+	enabled, err := s.settings.RequireDeviationReason(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve deviation-reason setting: %w", err)
 	}
@@ -831,7 +842,7 @@ func (s *workSessionService) detectPlannedDeviation(ctx context.Context, staffID
 		return nil, nil
 	}
 
-	toleranceMinutes, err := s.settings.ResolveInt(ctx, configModels.KeyTimeTrackingDeviationToleranceMinutes)
+	toleranceMinutes, err := s.settings.DeviationToleranceMinutes(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve deviation-tolerance setting: %w", err)
 	}
@@ -1235,7 +1246,7 @@ func (s *workSessionService) deviationReasonRequired(ctx context.Context) (bool,
 	if s.settings == nil {
 		return false, nil
 	}
-	enabled, err := s.settings.ResolveBool(ctx, configModels.KeyTimeTrackingRequireDeviationReason)
+	enabled, err := s.settings.RequireDeviationReason(ctx)
 	if err != nil {
 		return false, fmt.Errorf("failed to resolve deviation-reason setting: %w", err)
 	}

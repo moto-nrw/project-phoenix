@@ -82,9 +82,9 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 		AttendanceSyncer:   syncer,
 		Logger:             slog.Default(),
 	})
-	svc.SetSettingsService(&configtest.Mock{ResolveStringFn: func(_ context.Context, key string) (string, error) {
+	svc.SetSettingsService(services.PresenceSettings(&configtest.Mock{ResolveStringFn: func(_ context.Context, key string) (string, error) {
 		return configModel.GetDefinition(key).Default.(string), nil
-	}})
+	}}))
 
 	// Fixtures: activity + room + active.group + student + staff + device.
 	// CreateVisit requires staff + device on ctx for attendance FK.
@@ -240,9 +240,9 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 		AttendanceSyncer:   syncer,
 		Logger:             slog.Default(),
 	})
-	svc.SetSettingsService(&configtest.Mock{ResolveStringFn: func(_ context.Context, key string) (string, error) {
+	svc.SetSettingsService(services.PresenceSettings(&configtest.Mock{ResolveStringFn: func(_ context.Context, key string) (string, error) {
 		return configModel.GetDefinition(key).Default.(string), nil
-	}})
+	}}))
 
 	// NO instance bridges to this active.group — it's a walk-in session.
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("E2E-Walk-%d", suffix))

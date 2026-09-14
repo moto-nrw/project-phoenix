@@ -879,7 +879,7 @@ func newFactory(
 	guardianProfileLoader := users.NewGuardianProfileLoader(repos.GuardianProfile, db, logger.With("service", "guardian-profile-loader"))
 
 	// Initialize work session service (before active service - needed for NFC auto-check-in)
-	workSessionService := active.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, NewWorkSessionAudit(repos.WorkSessionEdit), repos.StaffAbsence, repos.GroupSupervisor, repos.ActiveGroup, WorkSessionStaff(repos.Staff), repos.StaffWorkSchedule, repos.WorkTimeModel, settingsService, activeLogger, db, RenderTimeTrackingPDF, RenderTimeTrackingWorkbook)
+	workSessionService := active.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, NewWorkSessionAudit(repos.WorkSessionEdit), repos.StaffAbsence, repos.GroupSupervisor, repos.ActiveGroup, WorkSessionStaff(repos.Staff), repos.StaffWorkSchedule, repos.WorkTimeModel, PresenceSettings(settingsService), activeLogger, db, RenderTimeTrackingPDF, RenderTimeTrackingWorkbook)
 	// Planned-shift lookups for the auto-checkout job (#1798).
 	workSessionService.SetStaffShiftRepo(NewTimeTrackingShifts(repos.StaffShift))
 	if broadcastAware, ok := workSessionService.(interface {
@@ -1057,7 +1057,7 @@ func newFactory(
 	timeTrackingAuditLogService := active.NewTimeTrackingAuditLogService(
 		NewTimeTrackingAuditReader(repos.TimeTrackingAuditLog),
 		StaffDisplayNames(repos.Staff),
-		settingsService,
+		PresenceSettings(settingsService),
 	)
 
 	// Absence email notifications (#1419 4d). Setter injection keeps the
@@ -1165,7 +1165,7 @@ func newFactory(
 	// Inject settings resolver into active service so auto-clear of sick /
 	// excused flags respects the tenant's operations.sick_clear_mode and
 	// operations.excused_clear_mode settings.
-	activeService.SetSettingsService(settingsService)
+	activeService.SetSettingsService(PresenceSettings(settingsService))
 
 	// Initialize activities service
 	activitiesService, err := activities.NewService(
@@ -1506,7 +1506,7 @@ func newFactory(
 		repos.WorkSession,
 		repos.StaffAbsence,
 		NewDeletionAudit(repos.DataDeletion),
-		settingsService,
+		PresenceSettings(settingsService),
 		logger.With("service", "time-tracking-cleanup"),
 	)
 

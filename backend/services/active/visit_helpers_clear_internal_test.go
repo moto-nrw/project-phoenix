@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -121,16 +120,43 @@ type fakeSettingsResolver struct {
 	resolveErr     error
 }
 
-func (f *fakeSettingsResolver) HasTenantOverride(_ context.Context, _ string) (bool, error) {
-	return f.hasOverride, f.hasOverrideErr
-}
-
-func (f *fakeSettingsResolver) ResolveString(_ context.Context, _ string) (string, error) {
+// Every question answers from the same pair: these tests exercise one setting
+// at a time.
+func (f *fakeSettingsResolver) PresenceMode(context.Context) (string, error) {
 	return f.resolved, f.resolveErr
 }
 
-func (f *fakeSettingsResolver) ResolveInt(_ context.Context, _ string) (int, error) {
+func (f *fakeSettingsResolver) SickClearMode(context.Context) (string, error) {
+	return f.resolved, f.resolveErr
+}
+
+func (f *fakeSettingsResolver) ExcusedClearMode(context.Context) (string, error) {
+	return f.resolved, f.resolveErr
+}
+
+func (f *fakeSettingsResolver) AttendanceEditScope(context.Context) (string, error) {
+	return f.resolved, f.resolveErr
+}
+
+func (f *fakeSettingsResolver) OperationalOverviewScope(context.Context) (string, error) {
+	return f.resolved, f.resolveErr
+}
+
+func (f *fakeSettingsResolver) SessionInactivityTimeoutMinutes(context.Context) (int, error) {
 	return 0, nil
+}
+
+// registryDefaultSettings answers each clear-mode question with the value the
+// settings registry declares, which is what the auto-clear tests relied on
+// when the service still resolved by key.
+type registryDefaultSettings struct{ *fakeSettingsResolver }
+
+func (registryDefaultSettings) SickClearMode(context.Context) (string, error) {
+	return configModel.GetDefinition(configModel.KeySickClearMode).Default.(string), nil
+}
+
+func (registryDefaultSettings) ExcusedClearMode(context.Context) (string, error) {
+	return configModel.GetDefinition(configModel.KeyExcusedClearMode).Default.(string), nil
 }
 
 func TestResolveClearModeUsesResolvedValueAndPropagatesErrors(t *testing.T) {
@@ -152,7 +178,7 @@ func TestResolveClearModeUsesResolvedValueAndPropagatesErrors(t *testing.T) {
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			svc := &service{settings: scenario.resolver}
-			value, err := svc.resolveClearMode(context.Background(), configModel.KeySickClearMode)
+			value, err := svc.resolveSickClearMode(context.Background())
 			if scenario.missing {
 				require.ErrorContains(t, err, "settings service is not configured")
 			} else if scenario.wantErr != nil {
@@ -191,9 +217,7 @@ func (m *mockStudentRepoForClear) UpdateLiveStatus(_ context.Context, s *Student
 // auto-clear exercises are populated.
 func newTestServiceWithLogger(s SettingsResolver, repo PresenceStudents) *service {
 	if s == nil {
-		s = &configtest.Mock{ResolveStringFn: func(_ context.Context, key string) (string, error) {
-			return configModel.GetDefinition(key).Default.(string), nil
-		}}
+		s = registryDefaultSettings{fakeSettingsResolver: &fakeSettingsResolver{}}
 	}
 	return &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, StudentRepo: repo, Logger: slog.New(slog.NewTextHandler(new(bytes.Buffer), nil))}, settings: s}
 }

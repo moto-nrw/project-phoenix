@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 )
 
 // Active-session lifecycle policy (Rule 12: Models Hold Data, Not Decisions).
@@ -45,10 +44,10 @@ func (s *service) resolveDefaultSessionTimeout(ctx context.Context) time.Duratio
 		return DefaultSessionInactivityTimeout
 	}
 
-	minutes, err := s.settings.ResolveInt(ctx, configModel.KeySessionInactivityTimeoutMin)
+	minutes, err := s.settings.SessionInactivityTimeoutMinutes(ctx)
 	if err != nil {
 		s.getLogger().Warn("session inactivity timeout resolve failed, using default",
-			slog.String("key", configModel.KeySessionInactivityTimeoutMin),
+			slog.String("setting", "session_inactivity_timeout"),
 			slog.String("error", err.Error()),
 		)
 		return DefaultSessionInactivityTimeout

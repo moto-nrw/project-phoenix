@@ -69,9 +69,9 @@ func newActiveService(t *testing.T, db *bun.DB) activeService.Service {
 		DB:     db,
 		Logger: slog.Default(),
 	})
-	svc.SetSettingsService(&configtest.Mock{ResolveStringFn: func(context.Context, string) (string, error) {
+	svc.SetSettingsService(services.PresenceSettings(&configtest.Mock{ResolveStringFn: func(context.Context, string) (string, error) {
 		return "binary", nil
-	}})
+	}}))
 	return svc
 }
 

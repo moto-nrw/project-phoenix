@@ -39,3 +39,62 @@ func (s presenceSettings) AbsenceApprovalEmailEnabled(ctx context.Context) (bool
 func (s presenceSettings) AccountStartDate(ctx context.Context) (string, error) {
 	return s.source.ResolveString(ctx, configModels.KeyTimeTrackingAccountStartDate)
 }
+
+// EnforcePlannedStart reports whether a check-in outside the planned shift is
+// refused.
+func (s presenceSettings) EnforcePlannedStart(ctx context.Context) (bool, error) {
+	return s.source.ResolveBool(ctx, configModels.KeyTimeTrackingEnforcePlannedStart)
+}
+
+// RequireDeviationReason reports whether a self-edit that moves recorded times
+// must carry a reason.
+func (s presenceSettings) RequireDeviationReason(ctx context.Context) (bool, error) {
+	return s.source.ResolveBool(ctx, configModels.KeyTimeTrackingRequireDeviationReason)
+}
+
+// DeviationToleranceMinutes is the grace window before a deviation counts.
+func (s presenceSettings) DeviationToleranceMinutes(ctx context.Context) (int, error) {
+	return s.source.ResolveInt(ctx, configModels.KeyTimeTrackingDeviationToleranceMinutes)
+}
+
+// TimeTrackingRetentionDays is how long the time-tracking audit feed keeps its
+// entries.
+func (s presenceSettings) TimeTrackingRetentionDays(ctx context.Context) (int, error) {
+	return s.source.ResolveInt(ctx, configModels.KeyGDPRTimeTrackingRetentionDays)
+}
+
+// PresenceMode is the tenant's attendance granularity.
+func (s presenceSettings) PresenceMode(ctx context.Context) (string, error) {
+	return s.source.ResolveString(ctx, configModels.KeyPresenceMode)
+}
+
+// SickClearMode says when a reported sick flag is cleared.
+func (s presenceSettings) SickClearMode(ctx context.Context) (string, error) {
+	return s.source.ResolveString(ctx, configModels.KeySickClearMode)
+}
+
+// ExcusedClearMode says when a reported excused flag is cleared.
+func (s presenceSettings) ExcusedClearMode(ctx context.Context) (string, error) {
+	return s.source.ResolveString(ctx, configModels.KeyExcusedClearMode)
+}
+
+// SessionInactivityTimeoutMinutes is how long a kiosk session may idle.
+func (s presenceSettings) SessionInactivityTimeoutMinutes(ctx context.Context) (int, error) {
+	return s.source.ResolveInt(ctx, configModels.KeySessionInactivityTimeoutMin)
+}
+
+// AttendanceEditScope gates who may edit recorded attendance.
+func (s presenceSettings) AttendanceEditScope(ctx context.Context) (string, error) {
+	return s.source.ResolveString(ctx, configModels.KeyAttendanceEditScope)
+}
+
+// OperationalOverviewScope gates who sees the tenant-wide overview.
+func (s presenceSettings) OperationalOverviewScope(ctx context.Context) (string, error) {
+	return s.source.ResolveString(ctx, configModels.KeyOperationalOverviewScope)
+}
+
+// TimeTrackingRetentionOverridden probes whether the tenant set its own
+// retention window. The cleanup logs a failing probe and falls back.
+func (s presenceSettings) TimeTrackingRetentionOverridden(ctx context.Context) (bool, error) {
+	return s.source.HasTenantOverride(ctx, configModels.KeyGDPRTimeTrackingRetentionDays)
+}

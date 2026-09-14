@@ -86,7 +86,7 @@ func NewSessionCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools org
 		DeviceRepo: NewSessionDeviceDirectory(repos.Device, settings, logger), TimetableBridgeCompleter: repos.TimetableBridge, DB: db, Logger: logger,
 	})
 	service.SetTenantRuntime(runtime)
-	service.SetSettingsService(settings)
+	service.SetSettingsService(PresenceSettings(settings))
 	return service
 }
 
@@ -108,7 +108,7 @@ func NewTimetableCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools o
 func NewTimeTrackingCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, logger *slog.Logger, command AuditCommand) active.TimeTrackingCleanupService {
 	repos := repositories.NewTimeTrackingCleanupRepositories(db, command)
 	return active.NewTimeTrackingCleanupService(
-		repos.Session, repos.Absence, NewDeletionAudit(repos.Deletion), NewCleanupSettingsService(db, runtime, schools, logger), logger,
+		repos.Session, repos.Absence, NewDeletionAudit(repos.Deletion), PresenceSettings(NewCleanupSettingsService(db, runtime, schools, logger)), logger,
 	)
 }
 
