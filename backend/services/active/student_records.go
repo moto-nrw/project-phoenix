@@ -22,15 +22,6 @@ const (
 	StudentLifecycleAlumnus
 )
 
-// Employment types as the workforce services group and label them. These are
-// the stored column values; services/active owns the workforce domain, so it
-// names them directly.
-const (
-	EmploymentTypeFullTime = "full_time"
-	EmploymentTypePartTime = "part_time"
-	EmploymentTypeMinijob  = "minijob"
-)
-
 // StudentRecord is the presence view of a child: identity, group membership,
 // lifecycle, enrollment interval and the live sick/excused flags the
 // check-in and status-day flows read and reset. It carries no departure plan
@@ -90,12 +81,4 @@ type PersonName struct {
 	ID        int64
 	FirstName string
 	LastName  string
-}
-
-// StaffScheduleBinding is the part of a staff row the schedule commands
-// rewrite: the assigned work time model and the rotation anchor.
-type StaffScheduleBinding struct {
-	ID                 int64
-	WorkTimeModelID    *int64
-	RotationAnchorDate *timezone.Date
 }
