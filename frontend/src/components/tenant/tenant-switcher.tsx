@@ -27,7 +27,6 @@ import {
 const logger = createLogger({ component: "BrandTenantSwitcher" });
 
 interface BrandTenantSwitcherProps {
-  readonly isScrolled?: boolean;
   readonly href?: string;
   readonly label?: string | null;
   /** Unterhalb dieser Breite nur das Logo zeigen, siehe `BrandLink`. */
@@ -50,7 +49,6 @@ interface BrandTenantSwitcherProps {
  * 5. Hard-navigate to new tenant URL
  */
 export function BrandTenantSwitcher({
-  isScrolled = false,
   href = "/home",
   label,
   hideLabelBelow,
@@ -170,12 +168,7 @@ export function BrandTenantSwitcher({
   // Single (or unknown) tenant: plain brand link, no dropdown
   if (tenants.length <= 1) {
     return (
-      <BrandLink
-        isScrolled={isScrolled}
-        href={href}
-        label={label}
-        hideLabelBelow={hideLabelBelow}
-      />
+      <BrandLink href={href} label={label} hideLabelBelow={hideLabelBelow} />
     );
   }
 
@@ -208,11 +201,11 @@ export function BrandTenantSwitcher({
         aria-haspopup="menu"
         aria-expanded={isOpen}
         aria-label="Einrichtung wechseln"
-        className="-mx-1.5 flex max-w-[200px] min-w-0 items-center gap-2 rounded-lg px-1.5 py-1 transition-colors hover:bg-gray-100 disabled:opacity-50 sm:max-w-[260px] lg:max-w-[300px]"
+        className="-mx-1.5 flex max-w-[200px] min-w-0 items-center gap-2.5 rounded-lg px-1.5 py-1 transition-colors hover:bg-gray-100 disabled:opacity-50 sm:max-w-[260px] lg:max-w-[300px]"
       >
         <BrandLogo />
         <span
-          className={`${brandLabelClass(isScrolled, true)} ${
+          className={`${brandLabelClass(true)} ${
             hideLabelBelow === "md"
               ? "hidden md:inline-block"
               : hideLabelBelow === "lg"
