@@ -160,7 +160,7 @@ func TestStoreCrashBeforeSendReclaimsExpiredLeaseAndFencesStaleWorker(t *testing
 	assert.True(t, finalized)
 }
 
-func TestStoreCancellationLeavesClaimedWorkOwnedByWorker(t *testing.T) {
+func TestStoreCancellationInvalidatesClaimedPush(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	store, ctx := testStore(t, db)
@@ -171,7 +171,7 @@ func TestStoreCancellationLeavesClaimedWorkOwnedByWorker(t *testing.T) {
 	err := tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		var err error
 		enqueued, err = store.Enqueue(txCtx, domain.Intent{
-			TenantID: testpkg.Tenant(t), Transport: domain.TransportEmail, Template: "announcement", IdempotencyKey: &key,
+			TenantID: testpkg.Tenant(t), Transport: domain.TransportPush, Template: "announcement", IdempotencyKey: &key,
 			RelatedEntityType: &relatedType, RelatedEntityID: &relatedID,
 			Recipient: json.RawMessage(`{"address":"guardian@example.com"}`), Payload: json.RawMessage(`{}`),
 			Status: "pending", NextRetryAt: time.Now().Add(-time.Minute),
@@ -179,19 +179,22 @@ func TestStoreCancellationLeavesClaimedWorkOwnedByWorker(t *testing.T) {
 		return err
 	})
 	require.NoError(t, err)
-	claimed, err := store.Claim(ctx, domain.TransportEmail, 1, time.Now(), time.Now().Add(time.Minute))
+	claimed, err := store.Claim(ctx, domain.TransportPush, 1, time.Now(), time.Now().Add(time.Minute))
 	require.NoError(t, err)
 	require.Len(t, claimed, 1)
 
 	err = tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
-		count, err := store.Cancel(txCtx, testpkg.Tenant(t), domain.TransportEmail, relatedType, relatedID, "retracted", time.Now())
-		assert.Zero(t, count)
+		count, err := store.Cancel(txCtx, testpkg.Tenant(t), domain.TransportPush, relatedType, relatedID, "retracted", time.Now())
+		assert.EqualValues(t, 1, count)
 		return err
 	})
 	require.NoError(t, err)
-	finalized, err := store.FinalizeSent(ctx, domain.TransportEmail, enqueued.ID, *claimed[0].LeaseToken, json.RawMessage(`{}`), time.Now())
+	renewed, err := store.RenewLease(ctx, domain.TransportPush, enqueued.ID, *claimed[0].LeaseToken, time.Now().Add(time.Minute))
 	require.NoError(t, err)
-	assert.True(t, finalized)
+	assert.False(t, renewed, "the worker must lose its lease before the provider call")
+	finalized, err := store.FinalizeSent(ctx, domain.TransportPush, enqueued.ID, *claimed[0].LeaseToken, json.RawMessage(`{}`), time.Now())
+	require.NoError(t, err)
+	assert.False(t, finalized, "a cancelled claim must lose its lease before the provider call")
 }
 
 func TestStoreRejectsCrossTenantEmailOutboxAttachment(t *testing.T) {

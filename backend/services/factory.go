@@ -2699,15 +2699,16 @@ func newFactory(
 	})
 
 	parentAnnouncementService := communicationCompose.NewParentAnnouncements(communicationCompose.ParentAnnouncementConfig{
-		Repo:        repos.ParentAnnouncement,
-		Settings:    settingsService,
-		Outbox:      emailOutboxService,
-		PushOutbox:  durablePushAdapter{module: deliveryRuntime.Module},
-		Notifier:    notificationsService,
-		Preferences: notificationPreferencesService,
-		Deliveries:  announcementDeliveryAdapter{module: deliveryRuntime.Module},
-		ParentsURL:  parentsURL,
-		Logger:      logger.With("service", "announcement"),
+		Repo:             repos.ParentAnnouncement,
+		Settings:         settingsService,
+		Outbox:           emailOutboxService,
+		PushOutbox:       durablePushAdapter{module: deliveryRuntime.Module},
+		Notifier:         notificationsService,
+		ReminderNotifier: notificationsService,
+		Preferences:      notificationPreferencesService,
+		Deliveries:       announcementDeliveryAdapter{module: deliveryRuntime.Module},
+		ParentsURL:       parentsURL,
+		Logger:           logger.With("service", "announcement"),
 	})
 
 	staffNoticeService := schedule.NewStaffNoticeService(schedule.StaffNoticeServiceConfig{

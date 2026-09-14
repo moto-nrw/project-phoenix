@@ -220,7 +220,7 @@ func (s *service) SendDueReminders(ctx context.Context, notBefore, dueBefore tim
 // audience rules of the publication (portal audience, or the wider letter
 // audience) applied unchanged.
 func (s *service) deliverReminder(ctx context.Context, a *usersModels.ParentAnnouncement) (bool, error) {
-	pushAccepted, err := s.notifyAnnouncementGuardiansAs(ctx, a, reminderPushShape(a))
+	pushAccepted, err := s.notifyReminderGuardians(ctx, a, reminderPushShape(a))
 	if err != nil {
 		return false, fmt.Errorf("announcement: reminder push notifications: %w", err)
 	}

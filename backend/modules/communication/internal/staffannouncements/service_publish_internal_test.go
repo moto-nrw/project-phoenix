@@ -137,13 +137,26 @@ type fakeOutbox struct {
 type fakePushOutbox struct{ cancelRelatedTypes []string }
 
 type fakeNotifier struct {
-	events []notifications.Event
-	err    error
+	events             []notifications.Event
+	err                error
+	durableAccepted    int
+	durableAcceptedSet bool
 }
 
 func (f *fakeNotifier) Notify(_ context.Context, event notifications.Event) error {
 	f.events = append(f.events, event)
 	return f.err
+}
+
+func (f *fakeNotifier) NotifyDurably(_ context.Context, event notifications.Event) (int, error) {
+	f.events = append(f.events, event)
+	if f.err != nil {
+		return 0, f.err
+	}
+	if f.durableAcceptedSet {
+		return f.durableAccepted, nil
+	}
+	return len(event.Audience.GuardianAccountIDs), nil
 }
 
 func (f *fakeOutbox) Enqueue(_ context.Context, req platformService.EnqueueRequest) (*platformModels.EmailOutbox, error) {

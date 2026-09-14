@@ -153,7 +153,7 @@ const pushCancelSQL = `UPDATE platform.push_outbox
 	SET status = 'cancelled', last_error = ?, cancelled_at = ?,
 		lease_token = NULL, lease_expires_at = NULL, updated_at = ?
 	WHERE tenant_id = ? AND related_entity_type = ? AND related_entity_id = ?
-	AND status = 'pending'`
+	AND status IN ('pending', 'claimed')`
 
 const emailStatusesSQL = `SELECT * FROM platform.email_outbox
 	WHERE tenant_id = ? AND related_entity_type = ? AND related_entity_id = ?

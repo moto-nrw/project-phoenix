@@ -192,6 +192,10 @@ type ServiceConfig struct {
 	Outbox     OutboxEnqueuer
 	PushOutbox PushOutboxCanceller
 	Notifier   notifications.Service
+	// ReminderNotifier provides an outbox receipt for a claimed scheduled
+	// reminder. It is intentionally separate from Notifier: publication keeps
+	// its fire-and-forget notification semantics.
+	ReminderNotifier notifications.DurableReceiptService
 	// Preferences gates the push by the guardian's own consent. Optional; when
 	// absent no guardian is notified at all, which is the safe direction.
 	Preferences notifications.PreferenceService
@@ -204,14 +208,15 @@ type ServiceConfig struct {
 }
 
 type service struct {
-	repo        usersModels.ParentAnnouncementRepository
-	settings    configService.SettingsService
-	outbox      OutboxEnqueuer
-	pushOutbox  PushOutboxCanceller
-	notifier    notifications.Service
-	preferences notifications.PreferenceService
-	deliveries  DeliveryRecorder
-	parentsURL  string
+	repo             usersModels.ParentAnnouncementRepository
+	settings         configService.SettingsService
+	outbox           OutboxEnqueuer
+	pushOutbox       PushOutboxCanceller
+	notifier         notifications.Service
+	reminderNotifier notifications.DurableReceiptService
+	preferences      notifications.PreferenceService
+	deliveries       DeliveryRecorder
+	parentsURL       string
 	// attachments is the file side of #2890, injected after construction (the
 	// two services point at each other).
 	attachments AttachmentPurger
@@ -225,15 +230,16 @@ func NewService(cfg ServiceConfig) Service {
 		logger = slog.Default()
 	}
 	return &service{
-		repo:        cfg.Repo,
-		settings:    cfg.Settings,
-		outbox:      cfg.Outbox,
-		pushOutbox:  cfg.PushOutbox,
-		notifier:    cfg.Notifier,
-		preferences: cfg.Preferences,
-		deliveries:  cfg.Deliveries,
-		parentsURL:  cfg.ParentsURL,
-		logger:      logger,
+		repo:             cfg.Repo,
+		settings:         cfg.Settings,
+		outbox:           cfg.Outbox,
+		pushOutbox:       cfg.PushOutbox,
+		notifier:         cfg.Notifier,
+		reminderNotifier: cfg.ReminderNotifier,
+		preferences:      cfg.Preferences,
+		deliveries:       cfg.Deliveries,
+		parentsURL:       cfg.ParentsURL,
+		logger:           logger,
 	}
 }
 
@@ -612,6 +618,24 @@ func (s *service) notifyAnnouncementGuardiansAs(ctx context.Context, a *usersMod
 	if s.notifier == nil {
 		return 0, nil
 	}
+	return s.notifyAnnouncementGuardiansWith(ctx, a, shape, func(ctx context.Context, event notifications.Event) (int, error) {
+		return 1, s.notifier.Notify(ctx, event)
+	})
+}
+
+// notifyReminderGuardians uses the durable receipt path. The reminder claim
+// must roll back when neither Web Push nor the selected e-mail channel queued
+// a delivery; a successful router call alone is not evidence of that.
+func (s *service) notifyReminderGuardians(ctx context.Context, a *usersModels.ParentAnnouncement, shape pushShape) (int, error) {
+	if s.reminderNotifier == nil {
+		return 0, nil
+	}
+	return s.notifyAnnouncementGuardiansWith(ctx, a, shape, s.reminderNotifier.NotifyDurably)
+}
+
+type guardianNotificationSender func(context.Context, notifications.Event) (int, error)
+
+func (s *service) notifyAnnouncementGuardiansWith(ctx context.Context, a *usersModels.ParentAnnouncement, shape pushShape, notify guardianNotificationSender) (int, error) {
 	var err error
 	priority := notifications.PriorityNormal
 	if a.Priority == usersModels.ParentAnnouncementPriorityImportant {
@@ -671,7 +695,7 @@ func (s *service) notifyAnnouncementGuardiansAs(ctx context.Context, a *usersMod
 	accepted := 0
 	for locale, group := range groups {
 		title, body := notifications.ParentAnnouncementCopy(locale, copyKind)
-		err = s.notifier.Notify(ctx, notifications.Event{
+		count, err := notify(ctx, notifications.Event{
 			Type: notificationType,
 			// The push outbox deduplicates by tenant and key. Each locale is a
 			// distinct payload and audience, so it needs its own replay-safe key.
@@ -698,7 +722,7 @@ func (s *service) notifyAnnouncementGuardiansAs(ctx context.Context, a *usersMod
 		if err != nil {
 			return accepted, fmt.Errorf("notify guardian audience: %w", err)
 		}
-		accepted++
+		accepted += count
 	}
 	return accepted, nil
 }
@@ -941,10 +965,11 @@ func (s *service) cancelPendingEmails(ctx context.Context, id int64) error {
 	return nil
 }
 
-// cancelPendingReminderPushes removes durable reminder pushes that have not
-// been claimed by the delivery worker yet. Like the e-mail cancellation, it
-// runs in the retract/delete transaction so a rolled-back lifecycle change
-// cannot cancel a still-live announcement's reminder.
+// cancelPendingReminderPushes invalidates durable reminder pushes before the
+// provider call. It also clears an active worker lease; the worker renews that
+// lease immediately before delivery and therefore drops a retracted reminder
+// instead of sending it. The cancellation runs in the retract/delete tenant
+// transaction, so a rolled-back lifecycle change cannot affect a live reminder.
 func (s *service) cancelPendingReminderPushes(ctx context.Context, id int64) error {
 	if s.pushOutbox == nil {
 		return nil

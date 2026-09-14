@@ -31,15 +31,17 @@ func TestSeedParentLetterMarksLetterReadByParent(t *testing.T) {
 	t.Parallel()
 
 	var paths []string
+	createdAnnouncements := 0
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		paths = append(paths, r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/api/parent-announcements/":
-			_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":"71"}}`)
+			createdAnnouncements++
+			_, _ = fmt.Fprintf(w, `{"status":"success","data":{"id":"%d"}}`, 70+createdAnnouncements)
 		case "/parent/auth/login":
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"access_token":"parent-token"}}`)
-		case "/api/parent-announcements/71/publish":
+		case "/api/parent-announcements/71/publish", "/api/parent-announcements/72/publish":
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"published_at":"2026-08-31T00:00:00Z"}}`)
 		default:
 			_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
@@ -64,6 +66,6 @@ func TestSeedParentLetterMarksLetterReadByParent(t *testing.T) {
 		"/api/parent-announcements/", "/api/announcement-attachments/71",
 		"/api/parent-announcements/71/publish",
 		"/parent/auth/login", "/parent/me/news/71/read",
-		"/api/parent-announcements/", "/api/parent-announcements/71/publish",
+		"/api/parent-announcements/", "/api/parent-announcements/72/publish",
 	}, paths)
 }

@@ -37,15 +37,16 @@ type ParentAnnouncementDeliveryRecorder interface {
 }
 
 type ParentAnnouncementConfig struct {
-	Repo        usersModels.ParentAnnouncementRepository
-	Settings    configService.SettingsService
-	Outbox      ParentAnnouncementOutbox
-	PushOutbox  ParentAnnouncementPushOutbox
-	Notifier    notifications.Service
-	Preferences notifications.PreferenceService
-	Deliveries  ParentAnnouncementDeliveryRecorder
-	ParentsURL  string
-	Logger      *slog.Logger
+	Repo             usersModels.ParentAnnouncementRepository
+	Settings         configService.SettingsService
+	Outbox           ParentAnnouncementOutbox
+	PushOutbox       ParentAnnouncementPushOutbox
+	Notifier         notifications.Service
+	ReminderNotifier notifications.DurableReceiptService
+	Preferences      notifications.PreferenceService
+	Deliveries       ParentAnnouncementDeliveryRecorder
+	ParentsURL       string
+	Logger           *slog.Logger
 }
 
 type ParentAnnouncementEmailConfig struct{ DefaultFrom email.Email }
@@ -57,7 +58,8 @@ func NewParentAnnouncements(cfg ParentAnnouncementConfig) communication.ParentAn
 	}
 	return &parentAnnouncements{service: staff.NewService(staff.ServiceConfig{
 		Repo: cfg.Repo, Settings: cfg.Settings, Outbox: cfg.Outbox, PushOutbox: cfg.PushOutbox, Notifier: cfg.Notifier,
-		Preferences: cfg.Preferences, Deliveries: deliveries,
+		ReminderNotifier: cfg.ReminderNotifier,
+		Preferences:      cfg.Preferences, Deliveries: deliveries,
 		ParentsURL: cfg.ParentsURL, Logger: cfg.Logger,
 	})}
 }

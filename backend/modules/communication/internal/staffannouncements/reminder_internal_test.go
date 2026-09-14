@@ -71,12 +71,13 @@ func newReminderHarness(repo *reminderRepo) *reminderHarness {
 		settings: &fakeSettings{enabled: true},
 	}
 	h.svc = NewService(ServiceConfig{
-		Repo:       repo,
-		Settings:   h.settings,
-		Notifier:   h.notifier,
-		Outbox:     h.outbox,
-		ParentsURL: "https://parents.example.test",
-		Logger:     slog.Default(),
+		Repo:             repo,
+		Settings:         h.settings,
+		Notifier:         h.notifier,
+		ReminderNotifier: h.notifier,
+		Outbox:           h.outbox,
+		ParentsURL:       "https://parents.example.test",
+		Logger:           slog.Default(),
 	})
 	h.svc.SetAttachmentPurger(&stubPurger{})
 	return h
@@ -343,6 +344,29 @@ func TestSendDueReminders_SuppressedPushWithoutEmailRollsTheTickBack(t *testing.
 	sent, err := h.svc.SendDueReminders(context.Background(), time.Now().Add(-time.Hour), time.Now())
 	require.Error(t, err, "the caller's tenant transaction must roll back a claim without an accepted delivery")
 	assert.Zero(t, sent)
+	assert.Empty(t, h.outbox.requests)
+}
+
+func TestSendDueReminders_WithoutQueuedPushOrEmailRollsTheTickBack(t *testing.T) {
+	t.Parallel()
+
+	a := publishedWithReminder(false)
+	repo := &reminderRepo{
+		fakeAnnouncementRepo: fakeAnnouncementRepo{
+			announcement: a,
+			recipients:   []*usersModels.AnnouncementRecipient{{AccountID: 101}},
+		},
+		due:   []*usersModels.ParentAnnouncement{a},
+		claim: map[int64]bool{a.ID: true},
+	}
+	h := newReminderHarness(repo)
+	h.notifier.durableAcceptedSet = true // VAPID is unavailable or nobody subscribed.
+
+	sent, err := h.svc.SendDueReminders(context.Background(), time.Now().Add(-time.Hour), time.Now())
+
+	require.ErrorIs(t, err, errReminderDeliverySuppressed)
+	assert.Zero(t, sent)
+	assert.Len(t, h.notifier.events, 1)
 	assert.Empty(t, h.outbox.requests)
 }
 
