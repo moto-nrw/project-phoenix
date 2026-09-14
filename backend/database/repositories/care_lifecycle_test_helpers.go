@@ -3,7 +3,6 @@ package repositories
 import (
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
@@ -44,7 +43,7 @@ func NewCareLifecycleTestRepositories(db *bun.DB, command auditModels.Command) (
 	if err != nil {
 		return CareLifecycleTestRepositories{}, err
 	}
-	r.bindSchoolCalendarAdapters(calendar, scheduleRepo.NewCalendarPeriodUsageRepository(db, enrollmentCompose.New(), tt.Timetable.CountPlannedSupervisorsByCalendarPeriod))
+	r.bindSchoolCalendarAdapters(calendar, NewCalendarPeriodUsage(enrollmentCompose.New(), tt.Timetable))
 	r.bindCarePlanAdapters(care)
 	r.CareExitCleanup.(*usersRepo.CareExitCleanupRepository).BindActivityBookings(activityBookingDirectory{capability: tt.Timetable})
 	return CareLifecycleTestRepositories{TimetableTestRepositories: tt, CareExit: r.CareExit, CareExitCleanup: r.CareExitCleanup,

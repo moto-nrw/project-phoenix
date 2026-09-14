@@ -119,7 +119,7 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 		SubmissionRateLimit:       enrollmentCompose.New(),
 	}
 	repos.bindDefaultFacilities(db)
-	repos.bindSchoolCalendarAdapters(calendar, scheduleRepo.NewCalendarPeriodUsageRepository(db, enrollmentCompose.New(), bookings.CountPlannedSupervisorsByCalendarPeriod))
+	repos.bindSchoolCalendarAdapters(calendar, NewCalendarPeriodUsage(enrollmentCompose.New(), bookings))
 	repos.bindStudentDirectories(persons, persons)
 	carePlan, err := NewCarePlan(db, persons, repos.InstanceStudent)
 	if err != nil {

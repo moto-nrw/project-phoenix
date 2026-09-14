@@ -841,7 +841,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	if err != nil {
 		panic(fmt.Sprintf("repository factory: compose school calendar: %v", err))
 	}
-	factory.bindSchoolCalendarAdapters(calendar, schedule.NewCalendarPeriodUsageRepository(db, enrollmentCompose.New(), timetableCapability.CountPlannedSupervisorsByCalendarPeriod))
+	factory.bindSchoolCalendarAdapters(calendar, NewCalendarPeriodUsage(enrollmentCompose.New(), timetableCapability))
 	// The decorators are wired once, innermost: they read the capability
 	// lazily so a later BindSchoolMembership swap reaches them too, and they
 	// stay under the school/person/group wrappers bound afterwards.
