@@ -4,6 +4,7 @@
 import importlib.util
 import json
 import os
+import secrets
 from pathlib import Path
 import subprocess
 import tempfile
@@ -31,11 +32,12 @@ def main():
         if "APP_ENV" in service.get("environment", {}):
             service["environment"]["APP_ENV"] = "development"
     services["postgres"]["tmpfs"] = ["/var/lib/postgresql/data"]
-    services["postgres"]["environment"]["POSTGRES_PASSWORD"] = "rehearsal-postgres-fixture"
+    database_password = secrets.token_urlsafe(32)
+    services["postgres"]["environment"]["POSTGRES_PASSWORD"] = database_password
     services["migrate"]["environment"].update({
-        "DB_DSN": "postgres://postgres:rehearsal-postgres-fixture@postgres:5432/postgres?sslmode=disable",
-        "ADMIN_EMAIL": "admin@example.invalid", "ADMIN_PASSWORD": "Rehearsal-admin-fixture-42!",
-        "OPERATOR_EMAIL": "operator@example.invalid", "OPERATOR_PASSWORD": "Rehearsal-operator-fixture-42!",
+        "DB_DSN": f"postgres://postgres:{database_password}@postgres:5432/postgres?sslmode=disable",
+        "ADMIN_EMAIL": "admin@example.invalid", "ADMIN_PASSWORD": secrets.token_urlsafe(32) + "aA1!",
+        "OPERATOR_EMAIL": "operator@example.invalid", "OPERATOR_PASSWORD": secrets.token_urlsafe(32) + "aA1!",
         "OPERATOR_DISPLAY_NAME": "Rehearsal Operator",
     })
     services["server"]["environment"]["POSTHOG_API_KEY"] = ""
