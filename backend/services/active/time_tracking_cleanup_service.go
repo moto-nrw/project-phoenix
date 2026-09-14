@@ -38,10 +38,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -107,11 +105,16 @@ type TimeTrackingCleanupService interface {
 	GetStats(ctx context.Context) (*TimeTrackingCleanupStats, error)
 }
 
+type retentionSettingsResolver interface {
+	HasTenantOverride(context.Context, string) (bool, error)
+	ResolveInt(context.Context, string) (int, error)
+}
+
 type timeTrackingCleanupService struct {
 	workSessionRepo  activeModel.WorkSessionRepository
 	staffAbsenceRepo activeModel.StaffAbsenceRepository
-	auditRepo        audit.DataDeletionRepository
-	settings         config.SettingsService
+	auditRepo        DeletionAudit
+	settings         retentionSettingsResolver
 	logger           *slog.Logger
 }
 
@@ -121,8 +124,8 @@ type timeTrackingCleanupService struct {
 func NewTimeTrackingCleanupService(
 	workSessionRepo activeModel.WorkSessionRepository,
 	staffAbsenceRepo activeModel.StaffAbsenceRepository,
-	auditRepo audit.DataDeletionRepository,
-	settings config.SettingsService,
+	auditRepo DeletionAudit,
+	settings retentionSettingsResolver,
 	logger *slog.Logger,
 ) TimeTrackingCleanupService {
 	if logger == nil {
@@ -400,21 +403,18 @@ func (s *timeTrackingCleanupService) writeStaffAuditRows(
 	}
 	cutoffStr := cutoff.String()
 	for staffID, n := range counts {
-		deletion := audit.NewStaffDataDeletion(
-			staffID,
-			audit.DeletionTypeTimeTrackingRetention,
-			n,
-			"system",
-		)
-		deletion.SetTenantID(tenantID)
-		deletion.DeletionReason = "automated time-tracking retention cleanup"
-		deletion.SetMetadata("retention_days", retentionDays)
-		deletion.SetMetadata("cutoff_date", cutoffStr)
+		deletion := &DeletionEvent{
+			TenantID: tenantID, StaffID: &staffID,
+			DeletionType: "time_tracking_retention", RecordsDeleted: n,
+			DeletedBy: "system", DeletedAt: time.Now(),
+			DeletionReason: "automated time-tracking retention cleanup",
+			Metadata:       map[string]interface{}{"retention_days": retentionDays, "cutoff_date": cutoffStr},
+		}
 		if sample := samples[staffID]; len(sample.SessionIDs) > 0 {
-			deletion.SetMetadata("session_ids_sample", sample.SessionIDs)
+			deletion.Metadata["session_ids_sample"] = sample.SessionIDs
 		}
 		if sample := samples[staffID]; len(sample.AbsenceIDs) > 0 {
-			deletion.SetMetadata("absence_ids_sample", sample.AbsenceIDs)
+			deletion.Metadata["absence_ids_sample"] = sample.AbsenceIDs
 		}
 		if err := s.auditRepo.Create(ctx, deletion); err != nil {
 			return fmt.Errorf("audit row for staff %d: %w", staffID, err)

@@ -57,7 +57,7 @@ func TestCollectAuthorizedVisitStudentIDs_FiltersByAccess(t *testing.T) {
 func TestBuildVisitDisplayResponses_AppliesActualTimesFromMap(t *testing.T) {
 	t.Parallel()
 
-	rs := &Resource{}
+	rs := resourceForTest(Resource{})
 
 	checkIn := time.Date(2026, 4, 27, 6, 30, 0, 0, time.UTC)  // 08:30 Berlin (CEST)
 	checkOut := time.Date(2026, 4, 27, 14, 5, 0, 0, time.UTC) // 16:05 Berlin (CEST)
@@ -111,7 +111,7 @@ func TestBuildVisitDisplayResponses_AppliesActualTimesFromMap(t *testing.T) {
 func TestBuildVisitDisplayResponses_NilStatusEntryIsSkipped(t *testing.T) {
 	t.Parallel()
 
-	rs := &Resource{}
+	rs := resourceForTest(Resource{})
 
 	results := []visitWithStudent{{
 		VisitID:   1,
@@ -142,7 +142,7 @@ func TestBuildVisitDisplayResponses_NilStatusEntryIsSkipped(t *testing.T) {
 func TestBuildVisitDisplayResponses_ActualsGatedPerStudent(t *testing.T) {
 	t.Parallel()
 
-	rs := &Resource{}
+	rs := resourceForTest(Resource{})
 
 	checkIn := time.Date(2026, 4, 27, 6, 30, 0, 0, time.UTC)
 	checkOut := time.Date(2026, 4, 27, 14, 5, 0, 0, time.UTC)

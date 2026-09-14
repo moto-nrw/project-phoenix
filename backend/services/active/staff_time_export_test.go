@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
@@ -25,10 +27,11 @@ func (f *overviewFixture) newExportService() active.StaffTimeExportService {
 	return active.NewStaffTimeExportService(
 		f.svc,
 		f.newWorkSessionService(),
-		f.repos.Staff,
-		f.repos.DataAccessLog,
+		services.TimeExportStaff(f.repos.Staff),
+		services.NewDataAccessAudit(f.repos.DataAccessLog),
 		nil,
 		nil,
+		services.RenderTimeTrackingWorkbook,
 	)
 }
 
@@ -36,12 +39,14 @@ func (f *overviewFixture) newWorkSessionService() active.WorkSessionService {
 	// nil settings: the F9 deviation checks are opt-in and irrelevant for
 	// reading export rows.
 	return active.NewWorkSessionService(
-		f.repos.WorkSession, f.repos.WorkSessionBreak, f.repos.WorkSessionEdit,
-		f.repos.StaffAbsence, f.repos.GroupSupervisor, f.repos.ActiveGroup, f.repos.Staff,
+		f.repos.WorkSession, f.repos.WorkSessionBreak, services.NewWorkSessionAudit(f.repos.WorkSessionEdit),
+		f.repos.StaffAbsence, f.repos.GroupSupervisor, f.repos.ActiveGroup, services.WorkSessionStaff(f.repos.Staff),
 		f.repos.StaffWorkSchedule, f.repos.WorkTimeModel,
 		nil,
 		nil,
 		f.db,
+		services.RenderTimeTrackingPDF,
+		services.RenderTimeTrackingWorkbook,
 	)
 }
 
@@ -155,13 +160,13 @@ func TestMonthExportRows_ClosedMonthCarriesFrozenValue(t *testing.T) {
 		accountStart: timezone.NewDate(closedMonth.Year(), closedMonth.Month(), 1).String(),
 	}
 	monthSvc := active.NewWorkTimeMonthService(
-		f.repos.WorkSession, f.repos.WorkSessionBreak, f.repos.StaffAbsence, f.repos.Staff,
-		f.repos.StaffWorkSchedule, f.repos.WorkTimeModel, f.repos.StaffShift,
+		f.repos.WorkSession, f.repos.WorkSessionBreak, f.repos.StaffAbsence, services.StaffScheduleAssignments(f.repos.Staff),
+		services.NewWorkScheduleTargets(f.repos.StaffWorkSchedule), services.NewWorkTimeTargetModels(f.repos.WorkTimeModel), services.NewTimeTrackingShifts(f.repos.StaffShift),
 		settings, nil,
 	)
 	monthSvc.SetAdjustmentReader(f.repos.StaffBalanceAdjust)
-	monthSvc.SetSnapshotReader(f.repos.StaffMonthSnapshot)
-	closeSvc := active.NewStaffMonthCloseService(f.repos.StaffMonthSnapshot, monthSvc, f.repos.Staff, settings, nil)
+	monthSvc.SetSnapshotReader(services.MonthSnapshotCapability(f.repos.StaffMonthSnapshot))
+	closeSvc := active.NewStaffMonthCloseService(services.MonthSnapshotCapability(f.repos.StaffMonthSnapshot), monthSvc, services.MonthCloseStaff(f.repos.Staff), settings, nil)
 	svc := f.newOverviewService(settings)
 
 	closeResult, err := closeSvc.CloseMonth(f.ctx, staffID, closedMonth.Year(), int(closedMonth.Month()), "Abschluss")
@@ -261,12 +266,8 @@ func TestStaffTimeExport_CSVAndAudit(t *testing.T) {
 // failingAccessLogRepo simulates an audit outage.
 type failingAccessLogRepo struct{}
 
-func (failingAccessLogRepo) Create(context.Context, *auditModels.DataAccessLog) error {
+func (failingAccessLogRepo) Create(context.Context, *active.DataAccessEvent) error {
 	return errors.New("audit down")
-}
-
-func (failingAccessLogRepo) ExistsSince(context.Context, int64, string, map[string]string, time.Time) (bool, error) {
-	return false, nil
 }
 
 // TestStaffTimeExport_NoFileWithoutAudit: when the access-audit row cannot be
@@ -277,7 +278,8 @@ func TestStaffTimeExport_NoFileWithoutAudit(t *testing.T) {
 	f := newOverviewFixture(t, 1)
 	actorID := f.newActorAccount(t)
 	exportSvc := active.NewStaffTimeExportService(
-		f.svc, f.newWorkSessionService(), f.repos.Staff, failingAccessLogRepo{}, nil, nil,
+		f.svc, f.newWorkSessionService(), services.TimeExportStaff(f.repos.Staff), failingAccessLogRepo{}, nil, nil,
+		services.RenderTimeTrackingWorkbook,
 	)
 
 	file, err := exportSvc.Export(f.ctx, active.TimeExportRequest{
@@ -298,7 +300,8 @@ func TestStaffTimeExport_DayRowsMatchSingleExport(t *testing.T) {
 	f.cleanupAccessLogs(t)
 	sessionSvc := f.newWorkSessionService()
 	exportSvc := active.NewStaffTimeExportService(
-		f.svc, sessionSvc, f.repos.Staff, f.repos.DataAccessLog, nil, nil,
+		f.svc, sessionSvc, services.TimeExportStaff(f.repos.Staff), services.NewDataAccessAudit(f.repos.DataAccessLog), nil, nil,
+		services.RenderTimeTrackingWorkbook,
 	)
 
 	file, err := exportSvc.Export(f.ctx, active.TimeExportRequest{

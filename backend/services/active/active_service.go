@@ -3,7 +3,6 @@ package active
 import (
 	"cmp"
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -11,27 +10,23 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/analytics"
-	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
-	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
-	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/education"
-	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
-// Broadcaster interface (re-exported from realtime for convenience)
-type Broadcaster = realtime.Broadcaster
+// Broadcaster exposes only the tenant-scoped delivery used by attendance.
+type Broadcaster interface {
+	BroadcastToGroup(tenantID int64, groupID string, event realtime.Event) error
+	BroadcastToGroups(tenantID int64, groupIDs []string, event realtime.Event) error
+	BroadcastToTenant(tenantID int64, event realtime.Event) error
+}
 
 const (
 	// sseErrorMessage is the standard error message for SSE broadcast failures
@@ -90,12 +85,13 @@ type TimetableBridgeCompleter interface {
 
 // ServiceDependencies contains all dependencies required by the active service
 type ServiceDependencies struct {
+	PrincipalReader func(context.Context) RequestPrincipal
 	// Active domain repositories
-	GroupRepo         active.GroupRepository
-	SessionStartLock  active.SessionStartLocker
+	GroupRepo        active.GroupRepository
+	SessionStartLock interface {
+		LockSessionStart(context.Context, int64) error
+	}
 	SupervisorRepo    active.GroupSupervisorRepository
-	CombinedGroupRepo active.CombinedGroupRepository
-	GroupMappingRepo  active.GroupMappingRepository
 	SchoolPresence    StudentPresence
 	StudentDisplay    StudentDisplayReader
 	StudentStatusRepo active.StudentStatusDayRepository
@@ -106,27 +102,25 @@ type ServiceDependencies struct {
 
 	// User domain repositories
 	StudentRepo userModels.StudentRepository
-	PersonRepo  userModels.PersonRepository
-	TeacherRepo userModels.TeacherRepository
-	StaffRepo   userModels.StaffRepository
+	StaffRepo   AttendanceStaff
 
 	// Supporting domain repositories
-	RoomRepo           facilityModels.RoomRepository
-	ActivityGroupRepo  activitiesModels.GroupRepository
-	ActivityCatRepo    activitiesModels.CategoryRepository
-	EducationGroupRepo educationModels.GroupRepository
-	DeviceRepo         iotModels.DeviceRepository
+	RoomRepo           AttendanceRooms
+	YardRoomColor      func(context.Context) (*string, error)
+	ActivityGroupRepo  AttendanceActivityGroups
+	ActivityCatRepo    AttendanceActivityCategories
+	EducationGroupRepo AttendanceEducationGroups
+	DeviceRepo         SessionDeviceDirectory
 
 	// External services
-	EducationService education.Service
-	UsersService     users.PersonService
+	StaffNames AttendanceStaffNames
 
 	// Infrastructure
 	DB          *bun.DB
 	Broadcaster Broadcaster // SSE event broadcaster (optional - can be nil for testing)
 
 	// Optional: Product analytics tracker (nil-safe, no student PII)
-	Tracker analytics.Tracker
+	Tracker productEventTracker
 
 	// Optional: Work session service for NFC auto-check-in
 	WorkSessionService WorkSessionService
@@ -258,8 +252,8 @@ func checkoutSourceLabel(checkoutType string) string {
 
 // attendanceMethod derives how an attendance change was triggered: RFID/kiosk
 // requests carry device auth in context, everything else is web/manual.
-func attendanceMethod(ctx context.Context) string {
-	if device.IsIoTDeviceRequest(ctx) {
+func (s *service) attendanceMethod(ctx context.Context) string {
+	if s.attendancePrincipal(ctx).IsIoT {
 		return "rfid"
 	}
 	return "manual"
@@ -330,7 +324,7 @@ func (s *service) CreateActiveGroup(ctx context.Context, group *active.Group) er
 func (s *service) createActiveGroupLocked(ctx context.Context, group *active.Group) error {
 	// Check for room conflicts if room is assigned
 	if group.RoomID > 0 {
-		if err := s.GroupRepo.LockRoomSessionWrites(ctx, group.RoomID); err != nil {
+		if err := s.SchoolPresence.LockRoomSessionWrites(ctx, group.RoomID); err != nil {
 			return &ActiveError{Op: "CreateActiveGroup", Err: ErrDatabaseOperation}
 		}
 		hasConflict, _, err := s.GroupRepo.CheckRoomConflict(ctx, group.RoomID, 0)
@@ -361,7 +355,7 @@ func (s *service) UpdateActiveGroup(ctx context.Context, group *active.Group) er
 
 func (s *service) updateActiveGroupLocked(ctx context.Context, group *active.Group) error {
 	if group.RoomID > 0 {
-		if err := s.GroupRepo.LockRoomSessionWrites(ctx, group.RoomID); err != nil {
+		if err := s.SchoolPresence.LockRoomSessionWrites(ctx, group.RoomID); err != nil {
 			return &ActiveError{Op: "UpdateActiveGroup", Err: ErrDatabaseOperation}
 		}
 	}
@@ -433,36 +427,12 @@ func (s *service) DeleteActiveGroup(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (s *service) ListActiveGroups(ctx context.Context, options *base.QueryOptions) ([]*active.Group, error) {
-	groups, err := s.GroupRepo.List(ctx, options)
-	if err != nil {
-		return nil, &ActiveError{Op: "ListActiveGroups", Err: fmt.Errorf("list failed: %w", err)}
-	}
-	return groups, nil
-}
-
-func (s *service) FindActiveGroupsByRoomID(ctx context.Context, roomID int64) ([]*active.Group, error) {
-	groups, err := s.GroupRepo.FindActiveByRoomID(ctx, roomID)
-	if err != nil {
-		return nil, &ActiveError{Op: "FindActiveGroupsByRoomID", Err: fmt.Errorf("find by room: %w", err)}
-	}
-	return groups, nil
-}
-
 func (s *service) FindDeviceActiveGroupInRoom(ctx context.Context, roomID int64, deviceID int64) (*active.Group, error) {
 	group, err := s.GroupRepo.FindActiveByRoomIDAndDeviceID(ctx, roomID, deviceID)
 	if err != nil {
 		return nil, &ActiveError{Op: "FindDeviceActiveGroupInRoom", Err: fmt.Errorf("find by room and device: %w", err)}
 	}
 	return group, nil
-}
-
-func (s *service) FindActiveGroupsByGroupID(ctx context.Context, groupID int64) ([]*active.Group, error) {
-	groups, err := s.GroupRepo.FindActiveByGroupID(ctx, groupID)
-	if err != nil {
-		return nil, &ActiveError{Op: "FindActiveGroupsByGroupID", Err: ErrDatabaseOperation}
-	}
-	return groups, nil
 }
 
 func (s *service) EndActiveGroupSession(ctx context.Context, id int64) error {
@@ -522,59 +492,7 @@ func (s *service) EndActiveGroupSession(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (s *service) GetActiveGroupVisits(ctx context.Context, id int64) ([]studentpresence.Visit, error) {
-	// Check the group exists before listing its visits.
-	group, err := s.GroupRepo.FindByID(ctx, id)
-	if err != nil {
-		if base.IsNoRows(err) {
-			return nil, &ActiveError{Op: "GetActiveGroupVisits", Err: ErrActiveGroupNotFound}
-		}
-		return nil, &ActiveError{Op: "GetActiveGroupVisits", Err: ErrDatabaseOperation}
-	}
-	if group == nil {
-		return nil, &ActiveError{Op: "GetActiveGroupVisits", Err: ErrActiveGroupNotFound}
-	}
-
-	// Get visits for this group
-	visits, err := s.SchoolPresence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{id}})
-	if err != nil {
-		return nil, &ActiveError{Op: "GetActiveGroupVisits", Err: ErrDatabaseOperation}
-	}
-
-	return visits, nil
-}
-
-func (s *service) GetActiveGroupWithSupervisors(ctx context.Context, id int64) (*active.Group, error) {
-	// Get the active group
-	group, err := s.GroupRepo.FindByID(ctx, id)
-	if err != nil {
-		return nil, &ActiveError{Op: "GetActiveGroupWithSupervisors", Err: ErrActiveGroupNotFound}
-	}
-
-	// Get supervisors for this group (only active ones)
-	supervisors, err := s.SupervisorRepo.FindByActiveGroupID(ctx, id, true)
-	if err != nil {
-		return nil, &ActiveError{Op: "GetActiveGroupWithSupervisors", Err: ErrDatabaseOperation}
-	}
-
-	group.Supervisors = supervisors
-	return group, nil
-}
-
 // Visit operations
-func (s *service) GetVisit(ctx context.Context, id int64) (*studentpresence.Visit, error) {
-	visit, err := s.SchoolPresence.FindVisit(ctx, id)
-	if err != nil {
-		if errors.Is(err, studentpresence.ErrVisitNotFound) {
-			return nil, &ActiveError{Op: "GetVisit", Err: ErrVisitNotFound}
-		}
-		return nil, &ActiveError{Op: "GetVisit", Err: ErrDatabaseOperation}
-	}
-	if visit == nil {
-		return nil, &ActiveError{Op: "GetVisit", Err: ErrVisitNotFound}
-	}
-	return visit, nil
-}
 
 func (s *service) CreateVisit(ctx context.Context, visit *studentpresence.Visit) error {
 	return s.runInSessionTx(ctx, func(txCtx context.Context) error {
@@ -776,8 +694,8 @@ func (s *service) lockActiveGroupOpenForUpdate(ctx context.Context, groupID int6
 
 // validateStaffExists locks a live staff member and maps missing-row errors.
 func (s *service) validateStaffExists(ctx context.Context, staffID int64) error {
-	staff, err := s.StaffRepo.FindByIDForUpdate(ctx, staffID)
-	if base.IsNoRows(err) || (err == nil && staff == nil) {
+	found, err := s.StaffRepo.LockStaffExists(ctx, staffID)
+	if base.IsNoRows(err) || (err == nil && !found) {
 		return ErrStaffNotFound
 	}
 	return err
@@ -799,13 +717,8 @@ func (s *service) lockStaffForSupervision(ctx context.Context, staffID int64) er
 
 // extractContextIDs extracts device and staff IDs from context
 func (s *service) extractContextIDs(ctx context.Context) (deviceID, staffID int64) {
-	if deviceCtx := device.DeviceFromCtx(ctx); deviceCtx != nil {
-		deviceID = deviceCtx.ID
-	}
-	if staffCtx := device.StaffFromCtx(ctx); staffCtx != nil {
-		staffID = staffCtx.ID
-	}
-	return deviceID, staffID
+	principal := s.attendancePrincipal(ctx)
+	return principal.DeviceID, principal.StaffID
 }
 
 func (s *service) UpdateVisit(ctx context.Context, visit *studentpresence.Visit) error {
@@ -1001,14 +914,6 @@ func (s *service) FindVisitsByStudentID(ctx context.Context, studentID int64) ([
 	return visits, nil
 }
 
-func (s *service) FindVisitsByActiveGroupID(ctx context.Context, activeGroupID int64) ([]studentpresence.Visit, error) {
-	visits, err := s.SchoolPresence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{activeGroupID}})
-	if err != nil {
-		return nil, &ActiveError{Op: "FindVisitsByActiveGroupID", Err: ErrDatabaseOperation}
-	}
-	return visits, nil
-}
-
 func (s *service) EndVisit(ctx context.Context, id int64) error {
 	return s.runInSessionTx(ctx, func(txCtx context.Context) error {
 		return s.endVisit(txCtx, id)
@@ -1098,10 +1003,10 @@ func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *studen
 		return
 	}
 
-	studentRec := s.getStudentForSSE(ctx, endedVisit.StudentID)
+	educationGroupID := s.getEducationGroupForSSE(ctx, endedVisit.StudentID)
 	broadcastCtx := tenant.ContextWithoutTransaction(ctx)
 	tenant.RegisterAfterCommit(ctx, func() {
-		s.emitVisitCheckout(broadcastCtx, endedVisit, snapshot, studentRec, "")
+		s.emitVisitCheckout(broadcastCtx, endedVisit, snapshot, educationGroupID, "")
 	})
 }
 
@@ -1115,7 +1020,7 @@ func (s *service) emitVisitCheckout(
 	ctx context.Context,
 	endedVisit *studentpresence.Visit,
 	snapshot *AttendanceSnapshot,
-	studentRec *userModels.Student,
+	educationGroupID *int64,
 	source string,
 ) {
 	if s.Broadcaster == nil || endedVisit == nil {
@@ -1124,7 +1029,7 @@ func (s *service) emitVisitCheckout(
 
 	activeGroupID := fmt.Sprintf("%d", endedVisit.ActiveGroupID)
 	studentID := fmt.Sprintf("%d", endedVisit.StudentID)
-	eduGroupIDs := eduGroupIDsOf(studentRec)
+	eduGroupIDs := eduGroupIDsOf(educationGroupID)
 
 	data := realtime.EventData{
 		StudentID: &studentID,
@@ -1143,7 +1048,7 @@ func (s *service) emitVisitCheckout(
 		data,
 	)
 
-	if err := s.broadcastVisitEvent(ctx, activeGroupID, studentRec, event); err != nil {
+	if err := s.broadcastVisitEvent(ctx, activeGroupID, educationGroupID, event); err != nil {
 		s.getLogger().Error("SSE broadcast failed",
 			slog.String("error", err.Error()),
 			slog.String("event_type", "student_checkout"),
@@ -1175,17 +1080,17 @@ func (s *service) broadcastVisitMoved(
 	if s.Broadcaster == nil {
 		return
 	}
-	studentRec := s.getStudentForSSE(ctx, movedVisit.StudentID)
-	s.emitVisitCheckout(ctx, previousVisit, sourceSnapshot, studentRec, "")
-	s.emitVisitCreated(ctx, movedVisit, targetSnapshot, studentRec)
+	educationGroupID := s.getEducationGroupForSSE(ctx, movedVisit.StudentID)
+	s.emitVisitCheckout(ctx, previousVisit, sourceSnapshot, educationGroupID, "")
+	s.emitVisitCreated(ctx, movedVisit, targetSnapshot, educationGroupID)
 }
 
 // broadcastToEducationalGroup mirrors active-group broadcasts to the student's OGS group topic
-func (s *service) broadcastToEducationalGroup(ctx context.Context, student *userModels.Student, event realtime.Event) {
-	if s.Broadcaster == nil || student == nil || student.GroupID == nil {
+func (s *service) broadcastToEducationalGroup(ctx context.Context, educationGroupID *int64, event realtime.Event) {
+	if s.Broadcaster == nil || educationGroupID == nil {
 		return
 	}
-	groupID := fmt.Sprintf("edu:%d", *student.GroupID)
+	groupID := fmt.Sprintf("edu:%d", *educationGroupID)
 	if err := s.Broadcaster.BroadcastToGroup(tenant.FromContext(ctx), groupID, event); err != nil {
 		studentID := ""
 		if event.Data.StudentID != nil {
@@ -1217,20 +1122,15 @@ func (s *service) broadcastStudentCheckoutEvents(ctx context.Context, sessionIDS
 	}
 
 	// Collect every student ID for the active-group topic, and bucket them by
-	// educational group for the per-edu-group topics. eduReps keeps one student
-	// per group so broadcastToEducationalGroup can derive the edu:{id} topic.
+	// educational group for the per-edu-group topics.
 	allStudentIDs := make([]string, 0, len(visitsToNotify))
 	eduGroups := make(map[int64][]string)
-	eduReps := make(map[int64]*userModels.Student)
 	for _, visitData := range visitsToNotify {
 		idStr := strconv.FormatInt(visitData.StudentID, 10)
 		allStudentIDs = append(allStudentIDs, idStr)
-		if visitData.Student != nil && visitData.Student.GroupID != nil {
-			gid := *visitData.Student.GroupID
+		if visitData.EducationGroupID != nil {
+			gid := *visitData.EducationGroupID
 			eduGroups[gid] = append(eduGroups[gid], idStr)
-			if eduReps[gid] == nil {
-				eduReps[gid] = visitData.Student
-			}
 		}
 	}
 
@@ -1265,7 +1165,7 @@ func (s *service) broadcastStudentCheckoutEvents(ctx context.Context, sessionIDS
 			sessionIDStr,
 			realtime.EventData{StudentIDs: &groupIDs, GroupIDs: &eduGroupID},
 		)
-		s.broadcastToEducationalGroup(ctx, eduReps[gid], eduEvent)
+		s.broadcastToEducationalGroup(ctx, &gid, eduEvent)
 	}
 
 	// Single tenant-wide broadcast for the entire batch, scoped to the
@@ -1476,14 +1376,6 @@ func (s *service) GetStudentsCurrentVisits(ctx context.Context, studentIDs []int
 	return visits, nil
 }
 
-func (s *service) CountActiveVisitsByRoomID(ctx context.Context, roomID int64) (int, error) {
-	count, err := s.SchoolPresence.CountOpenVisitsInRoom(ctx, roomID)
-	if err != nil {
-		return 0, &ActiveError{Op: "CountActiveVisitsByRoomID", Err: ErrDatabaseOperation}
-	}
-	return count, nil
-}
-
 func (s *service) CountActiveVisitsByActiveGroupID(ctx context.Context, activeGroupID int64) (int, error) {
 	count, err := s.SchoolPresence.CountOpenVisitsInGroup(ctx, activeGroupID)
 	if err != nil {
@@ -1579,7 +1471,7 @@ func (s *service) createGroupSupervisor(ctx context.Context, supervisor *active.
 	// in assignMultipleSupervisorsNonCritical; this covers the web app path.
 	if supervisor.StartDate == s.todayDate() {
 		source := active.WorkSessionSourceApp
-		if device.IsIoTDeviceRequest(ctx) {
+		if s.attendancePrincipal(ctx).IsIoT {
 			source = active.WorkSessionSourceNFC
 		}
 		s.ensureStaffPresence(ctx, supervisor.StaffID, source)
@@ -1636,42 +1528,10 @@ func (s *service) DeleteGroupSupervisor(ctx context.Context, id int64) error {
 	})
 }
 
-func (s *service) ListGroupSupervisors(ctx context.Context, options *base.QueryOptions) ([]*active.GroupSupervisor, error) {
-	supervisors, err := s.SupervisorRepo.List(ctx, options)
-	if err != nil {
-		return nil, &ActiveError{Op: "ListGroupSupervisors", Err: ErrDatabaseOperation}
-	}
-	return supervisors, nil
-}
-
-func (s *service) FindSupervisorsByStaffID(ctx context.Context, staffID int64) ([]*active.GroupSupervisor, error) {
-	supervisors, err := s.SupervisorRepo.FindActiveByStaffID(ctx, staffID)
-	if err != nil {
-		return nil, &ActiveError{Op: "FindSupervisorsByStaffID", Err: ErrDatabaseOperation}
-	}
-	return supervisors, nil
-}
-
-func (s *service) FindSupervisorsByActiveGroupID(ctx context.Context, activeGroupID int64) ([]*active.GroupSupervisor, error) {
-	supervisors, err := s.SupervisorRepo.FindByActiveGroupID(ctx, activeGroupID, true)
-	if err != nil {
-		return nil, &ActiveError{Op: "FindSupervisorsByActiveGroupID", Err: ErrDatabaseOperation}
-	}
-	return supervisors, nil
-}
-
-func (s *service) FindSupervisorsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) ([]*active.GroupSupervisor, error) {
-	supervisors, err := s.SupervisorRepo.FindByActiveGroupIDs(ctx, activeGroupIDs, true)
-	if err != nil {
-		return nil, &ActiveError{Op: "FindSupervisorsByActiveGroupIDs", Err: ErrDatabaseOperation}
-	}
-	return supervisors, nil
-}
-
 func (s *service) EndSupervision(ctx context.Context, id int64) error {
 	supervision, err := s.SupervisorRepo.FindByID(ctx, id)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if base.IsNoRows(err) {
 			return &ActiveError{Op: "EndSupervision", Err: ErrGroupSupervisorNotFound}
 		}
 		return &ActiveError{Op: "EndSupervision", Err: fmt.Errorf("failed to verify supervision: %w", err)}
@@ -1699,24 +1559,6 @@ func (s *service) EndSupervision(ctx context.Context, id int64) error {
 		}
 		return nil
 	})
-}
-
-func (s *service) GetStaffActiveSupervisions(ctx context.Context, staffID int64) ([]*active.GroupSupervisor, error) {
-	supervisors, err := s.SupervisorRepo.FindActiveByStaffID(ctx, staffID)
-	if err != nil {
-		return nil, &ActiveError{Op: "GetStaffActiveSupervisions", Err: ErrDatabaseOperation}
-	}
-
-	// Filter only active supervisions
-	now := time.Now()
-	var activeSupervisions []*active.GroupSupervisor
-	for _, supervisor := range supervisors {
-		if IsSupervisorActive(supervisor, now) {
-			activeSupervisions = append(activeSupervisions, supervisor)
-		}
-	}
-
-	return activeSupervisions, nil
 }
 
 // GetCrossTenantStudents returns students visiting from other tenants.
@@ -1813,9 +1655,8 @@ func (s *service) GetTrackingIndicators(ctx context.Context, studentIDs []int64,
 
 // visitSSEData holds data needed for SSE broadcasts after a visit is ended
 type visitSSEData struct {
-	VisitID   int64
-	StudentID int64
-	Student   *userModels.Student
+	StudentID        int64
+	EducationGroupID *int64
 }
 
 // HasOpenAttendanceOn reports whether any attendance row on the given
@@ -1825,6 +1666,6 @@ func (s *service) HasOpenAttendanceOn(ctx context.Context, date timezone.Date) (
 }
 
 // GetRoomsByIDs retrieves rooms by ID.
-func (s *service) GetRoomsByIDs(ctx context.Context, ids []int64) ([]*facilityModels.Room, error) {
+func (s *service) GetRoomsByIDs(ctx context.Context, ids []int64) ([]*active.SessionRoom, error) {
 	return s.RoomRepo.FindByIDs(ctx, ids)
 }

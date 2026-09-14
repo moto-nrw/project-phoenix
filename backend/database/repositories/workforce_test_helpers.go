@@ -3,7 +3,8 @@ package repositories
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories/active"
+	workforceCapability "github.com/moto-nrw/project-phoenix/modules/workforce"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	"github.com/moto-nrw/project-phoenix/database/repositories/workforce"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -17,13 +18,13 @@ import (
 type WorkforceTestRepositories struct {
 	WorkSessionTestRepositories
 	StaffDocument                   userModels.StaffDocumentRepository
-	StaffAbsenceType                activeModels.StaffAbsenceTypeRepository
+	StaffAbsenceType                workforceCapability.Capability
 	StaffAbsenceTypeAllowance       activeModels.StaffAbsenceTypeAllowanceRepository
 	StaffAbsenceTypeAllowanceChange activeModels.StaffAbsenceTypeAllowanceChangeRepository
 	StaffVacationQuota              activeModels.StaffVacationQuotaRepository
 	StaffVacationOpening            activeModels.StaffVacationOpeningRepository
 	StaffBalanceAdjust              activeModels.StaffBalanceAdjustmentRepository
-	StaffMonthSnapshot              activeModels.StaffMonthBalanceSnapshotRepository
+	StaffMonthSnapshot              workforceCapability.MonthSnapshots
 	StaffAbsenceAudit               activeModels.StaffAbsenceAuditRepository
 	TimeTrackingDeletion            auditModels.TimeTrackingDeletionRepository
 	TimeTrackingAuditLog            auditModels.TimeTrackingAuditLogRepository
@@ -58,11 +59,9 @@ func NewWorkforceTestRepositories(db *bun.DB, command auditModels.Command, clock
 		return WorkforceTestRepositories{}, err
 	}
 	r := &Factory{db: db,
-		StaffAbsenceType:                workforceLegacy.NewStaffAbsenceTypeRepository(workTime),
-		StaffAbsenceTypeAllowance:       workforce.NewStaffAbsenceTypeAllowanceRepository(db),
-		StaffAbsenceTypeAllowanceChange: workforce.NewStaffAbsenceTypeAllowanceChangeRepository(db),
-		StaffVacationQuota:              workforceLegacy.NewStaffVacationQuotaRepository(workTime), StaffVacationOpening: workforceLegacy.NewStaffVacationOpeningRepository(workTime),
-		StaffBalanceAdjust: workforceLegacy.NewStaffBalanceAdjustmentRepository(workTime), StaffMonthSnapshot: active.NewStaffMonthBalanceSnapshotRepository(db),
+		StaffAbsenceType:   workTime,
+		StaffVacationQuota: workforceLegacy.NewStaffVacationQuotaRepository(workTime), StaffVacationOpening: workforceLegacy.NewStaffVacationOpeningRepository(workTime),
+		StaffBalanceAdjust: workforceLegacy.NewStaffBalanceAdjustmentRepository(workTime), StaffMonthSnapshot: workTime,
 		StaffAbsenceAudit: workforceLegacy.NewStaffAbsenceAuditRepository(workTime), TimeTrackingDeletion: audit.NewTimeTrackingDeletionRepository(newTestAuditRuntime(db)),
 		TimeTrackingAuditLog: audit.NewTimeTrackingAuditLogRepository(newTestAuditRuntime(db)),
 		StaffMasterData:      workforceLegacy.NewStaffMasterDataRepository(workTime), StaffQualification: workforceLegacy.NewStaffQualificationRepository(workTime),
@@ -74,9 +73,11 @@ func NewWorkforceTestRepositories(db *bun.DB, command auditModels.Command, clock
 	r.BindPeopleDirectory(people)
 	r.RouteAuditWrites(command)
 	return WorkforceTestRepositories{WorkSessionTestRepositories: sessions,
-		StaffDocument:    staffDocumentMembershipRepository{StaffDocumentRepository: workforceLegacy.NewStaffDocumentRepository(workTime), membership: func() schoolmembership.Capability { return membership }},
-		StaffAbsenceType: r.StaffAbsenceType, StaffAbsenceTypeAllowance: r.StaffAbsenceTypeAllowance, StaffAbsenceTypeAllowanceChange: r.StaffAbsenceTypeAllowanceChange,
-		StaffVacationQuota: r.StaffVacationQuota, StaffVacationOpening: r.StaffVacationOpening, StaffBalanceAdjust: r.StaffBalanceAdjust, StaffMonthSnapshot: r.StaffMonthSnapshot,
+		StaffDocument:                   staffDocumentMembershipRepository{StaffDocumentRepository: workforceLegacy.NewStaffDocumentRepository(workTime), membership: func() schoolmembership.Capability { return membership }},
+		StaffAbsenceType:                workTime,
+		StaffAbsenceTypeAllowance:       workforce.NewStaffAbsenceTypeAllowanceRepository(db),
+		StaffAbsenceTypeAllowanceChange: workforce.NewStaffAbsenceTypeAllowanceChangeRepository(db),
+		StaffVacationQuota:              r.StaffVacationQuota, StaffVacationOpening: r.StaffVacationOpening, StaffBalanceAdjust: r.StaffBalanceAdjust, StaffMonthSnapshot: r.StaffMonthSnapshot,
 		StaffAbsenceAudit: r.StaffAbsenceAudit, TimeTrackingDeletion: r.TimeTrackingDeletion, TimeTrackingAuditLog: r.TimeTrackingAuditLog,
 		StaffMasterData: r.StaffMasterData, StaffQualification: r.StaffQualification, StaffFinancialData: r.StaffFinancialData,
 		PersonnelNumberChange: r.PersonnelNumberChange, StaffMasterDataChange: r.StaffMasterDataChange, DataAccessLog: r.DataAccessLog, DataDeletion: r.DataDeletion}, nil

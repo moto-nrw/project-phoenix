@@ -20,6 +20,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
@@ -64,21 +66,17 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
-	svc := active.NewService(active.ServiceDependencies{
+	svc := active.NewService(active.ServiceDependencies{PrincipalReader: services.AttendancePrincipal,
 		GroupRepo:          repos.ActiveGroup,
 		SupervisorRepo:     repos.GroupSupervisor,
-		CombinedGroupRepo:  repos.CombinedGroup,
-		GroupMappingRepo:   repos.GroupMapping,
 		SchoolPresence:     testSchoolPresence(t, db),
 		StudentRepo:        repos.Student,
-		PersonRepo:         repos.Person,
-		TeacherRepo:        repos.Teacher,
-		StaffRepo:          repos.Staff,
-		RoomRepo:           repos.Room,
-		ActivityGroupRepo:  repos.ActivityGroup,
-		ActivityCatRepo:    repos.ActivityCategory,
-		EducationGroupRepo: repos.Group,
-		DeviceRepo:         repos.Device,
+		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
+		RoomRepo:           services.NewAttendanceRooms(repos.Room),
+		ActivityGroupRepo:  repositories.NewSessionActivities(repos.ActivityGroup),
+		ActivityCatRepo:    services.NewAttendanceActivityCategories(repos.ActivityCategory),
+		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student),
+		DeviceRepo:         services.NewSessionDeviceDirectory(repos.Device, nil, nil),
 		DB:                 db,
 		Broadcaster:        broadcaster,
 		AttendanceSyncer:   syncer,
@@ -226,21 +224,17 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 	)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
-	svc := active.NewService(active.ServiceDependencies{
+	svc := active.NewService(active.ServiceDependencies{PrincipalReader: services.AttendancePrincipal,
 		GroupRepo:          repos.ActiveGroup,
 		SupervisorRepo:     repos.GroupSupervisor,
-		CombinedGroupRepo:  repos.CombinedGroup,
-		GroupMappingRepo:   repos.GroupMapping,
 		SchoolPresence:     testSchoolPresence(t, db),
 		StudentRepo:        repos.Student,
-		PersonRepo:         repos.Person,
-		TeacherRepo:        repos.Teacher,
-		StaffRepo:          repos.Staff,
-		RoomRepo:           repos.Room,
-		ActivityGroupRepo:  repos.ActivityGroup,
-		ActivityCatRepo:    repos.ActivityCategory,
-		EducationGroupRepo: repos.Group,
-		DeviceRepo:         repos.Device,
+		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
+		RoomRepo:           services.NewAttendanceRooms(repos.Room),
+		ActivityGroupRepo:  repositories.NewSessionActivities(repos.ActivityGroup),
+		ActivityCatRepo:    services.NewAttendanceActivityCategories(repos.ActivityCategory),
+		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student),
+		DeviceRepo:         services.NewSessionDeviceDirectory(repos.Device, nil, nil),
 		DB:                 db,
 		Broadcaster:        broadcaster,
 		AttendanceSyncer:   syncer,

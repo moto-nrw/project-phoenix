@@ -13,7 +13,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -323,11 +322,11 @@ type staffAbsenceService struct {
 	// without the tombstone a delete erases its whole history. Setter
 	// injection (SetDeletionAudit) like SetBroadcaster; nil makes deletes
 	// fail.
-	deletionRepo auditModels.TimeTrackingDeletionRepository
+	deletionRepo TimeTrackingDeletionAudit
 	// absenceTypes resolves school-defined Abwesenheitsarten (#2403). Setter
 	// injection (SetAbsenceTypeService) like the others; nil in bare-constructed
 	// unit fixtures, where every absence is a plain standard type.
-	absenceTypes StaffAbsenceTypeService
+	absenceTypes AbsenceTypeReader
 	// logger is setter-injected by the factory (SetLogger); nil falls back to
 	// slog.Default() via getLogger, like the other active services.
 	logger    *slog.Logger
@@ -355,7 +354,7 @@ func (s *staffAbsenceService) today() timezone.Date {
 }
 
 // SetAbsenceTypeService wires the school-defined absence names (#2403).
-func (s *staffAbsenceService) SetAbsenceTypeService(svc StaffAbsenceTypeService) {
+func (s *staffAbsenceService) SetAbsenceTypeService(svc AbsenceTypeReader) {
 	s.absenceTypes = svc
 }
 
@@ -391,7 +390,7 @@ func (s *staffAbsenceService) withLabels(ctx context.Context, responses ...*Staf
 			absences = append(absences, r.StaffAbsence)
 		}
 	}
-	StampAbsenceTypeLabels(ctx, s.absenceTypes, absences)
+	StampAbsenceTypeLabels(ctx, s.absenceTypes, absences, s.getLogger())
 	return responses
 }
 
@@ -402,7 +401,7 @@ func (s *staffAbsenceService) withLabel(ctx context.Context, response *StaffAbse
 }
 
 // SetDeletionAudit wires the deletion tombstone writer (#1417).
-func (s *staffAbsenceService) SetDeletionAudit(repo auditModels.TimeTrackingDeletionRepository) {
+func (s *staffAbsenceService) SetDeletionAudit(repo TimeTrackingDeletionAudit) {
 	s.deletionRepo = repo
 }
 
@@ -1304,14 +1303,14 @@ func (s *staffAbsenceService) writeAbsenceDeletionAudit(ctx context.Context, abs
 	if s.deletionRepo == nil {
 		return fmt.Errorf("time tracking deletion audit repository is not configured")
 	}
-	StampAbsenceTypeLabels(ctx, s.absenceTypes, []*activeModels.StaffAbsence{absence})
+	StampAbsenceTypeLabels(ctx, s.absenceTypes, []*activeModels.StaffAbsence{absence}, s.getLogger())
 	payload, err := json.Marshal(absence)
 	if err != nil {
 		return fmt.Errorf("failed to snapshot absence for deletion audit: %w", err)
 	}
-	if err := s.deletionRepo.Create(ctx, &auditModels.TimeTrackingDeletion{
+	if err := s.deletionRepo.Create(ctx, &TimeTrackingDeletionEvent{
 		StaffID:   absence.StaffID,
-		Source:    auditModels.TimeTrackingDeletionSourceAbsence,
+		Source:    "absence",
 		SourceID:  absence.ID,
 		DeletedBy: actorStaffID,
 		Payload:   payload,

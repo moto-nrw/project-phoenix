@@ -20,7 +20,7 @@ func TestBinaryCreateVisitPreservesSuccessfulNoOp(t *testing.T) {
 	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 	ctx := testpkg.Ctx(t)
-	require.NoError(t, tc.resource.SettingsService.SetValue(ctx, configModel.KeyPresenceMode, "binary", nil, nil))
+	require.NoError(t, tc.settings.SetString(ctx, configModel.KeyPresenceMode, "binary", nil, nil))
 	student := testpkg.CreateTestStudent(t, tc.db, "Binary", "Visit", "3a")
 	activity := testpkg.CreateTestActivityGroup(t, tc.db, "Binary visit")
 	room := testpkg.CreateTestRoom(t, tc.db, "Binary visit")

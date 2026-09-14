@@ -17,7 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -1095,44 +1095,27 @@ func setupSupervisorsCRUDRouter(t *testing.T) (*testContext, chi.Router) {
 }
 
 // createTestCombinedGroup creates a combined group directly in the database
-func createTestCombinedGroup(t *testing.T, db *bun.DB) *active.CombinedGroup {
+func createTestCombinedGroup(t *testing.T, db *bun.DB) *studentpresence.CombinedGroup {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
 	defer cancel()
 
-	combinedGroup := &active.CombinedGroup{
-		StartTime: time.Now(),
-	}
-	combinedGroup.SetTenantID(testpkg.Tenant(t))
-
-	err := db.NewInsert().
-		Model(combinedGroup).
-		ModelTableExpr(`active.combined_groups`).
-		Scan(ctx)
+	combinedGroup, err := testPresenceQueries(t, db).RecordCombination(ctx, time.Now(), nil)
 	require.NoError(t, err, "Failed to create test combined group")
 
-	return combinedGroup
+	return &combinedGroup
 }
 
 // createTestGroupMapping creates a group mapping directly in the database
-func createTestGroupMapping(t *testing.T, db *bun.DB, activeGroupID, combinedGroupID int64) *active.GroupMapping {
+func createTestGroupMapping(t *testing.T, db *bun.DB, activeGroupID, combinedGroupID int64) *studentpresence.GroupMapping {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
 	defer cancel()
 
-	mapping := &active.GroupMapping{
-		ActiveGroupID:         activeGroupID,
-		ActiveCombinedGroupID: combinedGroupID,
-	}
-	mapping.SetTenantID(testpkg.Tenant(t))
-
-	err := db.NewInsert().
-		Model(mapping).
-		ModelTableExpr(`active.group_mappings`).
-		Scan(ctx)
+	mapping, err := testPresenceQueries(t, db).RecordGroupMapping(ctx, combinedGroupID, activeGroupID)
 	require.NoError(t, err, "Failed to create test group mapping")
 
-	return mapping
+	return &mapping
 }

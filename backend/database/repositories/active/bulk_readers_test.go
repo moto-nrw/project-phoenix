@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,7 +26,7 @@ func TestGroupSupervisorRepository_ListActiveSupervisedRooms(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	today := timezone.NewDate(2026, 8, 24)
-	repo := activeRepo.NewGroupSupervisorRepository(db, func() time.Time {
+	repo := activeRepo.NewGroupSupervisorRepository(repositories.NewPresenceSupervisionRecords(db), func() time.Time {
 		return today.BerlinMidnight()
 	})
 	ctx := testpkg.Ctx(t)
@@ -107,7 +108,7 @@ func TestGroupSupervisorRepository_ListActiveSupervisedRooms(t *testing.T) {
 	})
 
 	t.Run("uses the Berlin date independently of the database timezone", func(t *testing.T) {
-		err := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
+		err := testpkg.WithTenantTx(t, context.Background(), db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
 			var databaseDate string
 			for _, zone := range []string{"Pacific/Kiritimati", "Etc/GMT+12"} {
 				var configuredZone string

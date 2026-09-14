@@ -15,6 +15,7 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
@@ -62,10 +63,11 @@ func (f *overviewFixture) newDatevExportService(values map[string]string) active
 	return active.NewStaffTimeExportService(
 		f.svc,
 		f.newWorkSessionService(),
-		f.repos.Staff,
-		f.repos.DataAccessLog,
-		payrollStatus,
+		services.TimeExportStaff(f.repos.Staff),
+		services.NewDataAccessAudit(f.repos.DataAccessLog),
+		services.PayrollExportSettings{Source: payrollStatus},
 		nil,
+		services.RenderTimeTrackingWorkbook,
 	)
 }
 
@@ -309,7 +311,7 @@ func TestDatevExport_RequiresSingleMonth(t *testing.T) {
 func TestDatevReport_RejectsNonDatevFormats(t *testing.T) {
 	t.Parallel()
 
-	svc := active.NewStaffTimeExportService(nil, nil, nil, nil, nil, nil)
+	svc := active.NewStaffTimeExportService(nil, nil, nil, nil, nil, nil, services.RenderTimeTrackingWorkbook)
 
 	for _, format := range []string{"", active.ExportFormatCSV, active.ExportFormatXLSX} {
 		_, err := svc.DatevReport(context.Background(), active.TimeExportRequest{
@@ -333,8 +335,9 @@ func TestDatevExport_NoFileWithoutAudit(t *testing.T) {
 		},
 	}
 	svc := active.NewStaffTimeExportService(
-		f.svc, f.newWorkSessionService(), f.repos.Staff, failingAccessLogRepo{},
-		configSvc.NewPayrollStatusService(settings, testpkg.PersonnelNumberCounter(f.repos.Staff)), nil,
+		f.svc, f.newWorkSessionService(), services.TimeExportStaff(f.repos.Staff), failingAccessLogRepo{},
+		services.PayrollExportSettings{Source: configSvc.NewPayrollStatusService(settings, testpkg.PersonnelNumberCounter(f.repos.Staff))}, nil,
+		services.RenderTimeTrackingWorkbook,
 	)
 
 	file, err := svc.Export(f.ctx, datevRequest(active.ExportFormatDatevLodas), actorID, "admin")

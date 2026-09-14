@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -126,7 +128,7 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 		ActorID:    adminAccount.ID,
 		Note:       "Attest liegt vor",
 	}
-	absenceAudit.SetTenantID(tenantID)
+	absenceAudit.TenantID = tenantID
 	require.NoError(t, repos.StaffAbsenceAudit.Create(ctx, absenceAudit))
 
 	// Balance adjustment for staffA (stays) and one for staffB (deleted below).
@@ -151,12 +153,11 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 	closedAt := time.Date(2025, time.September, 1, 9, 0, 0, 0, time.UTC)
 	reopenedAt := time.Date(2025, time.September, 2, 10, 0, 0, 0, time.UTC)
 	reopenReason := "Abschluss war verfrüht"
-	for _, snap := range []*activeModels.StaffMonthBalanceSnapshot{
+	for _, snap := range []*active.MonthSnapshot{
 		{StaffID: staffA.ID, Year: 2025, Month: 8, ClosingBalanceMinutes: 30, ClosedAt: closedAt, ClosedBy: admin.ID, CloseReason: "Monatsabschluss August", Source: "admin", ReopenedAt: &reopenedAt, ReopenedBy: &admin.ID, ReopenReason: reopenReason},
 		{StaffID: staffB.ID, Year: 2025, Month: 8, ClosingBalanceMinutes: -15, ClosedAt: closedAt, ClosedBy: admin.ID, CloseReason: "Monatsabschluss August", Source: "admin"},
 	} {
-		snap.SetTenantID(tenantID)
-		_, err := db.NewInsert().Model(snap).ModelTableExpr("active.staff_month_balance_snapshots").Exec(ctx)
+		_, err := services.MonthSnapshotCapability(repos.StaffMonthSnapshot).RecordClosedMonth(ctx, *snap)
 		require.NoError(t, err)
 	}
 
@@ -164,14 +165,14 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 	// tombstone write is covered end to end.
 	adjustSvc := active.NewStaffBalanceAdjustmentService(repos.StaffBalanceAdjust, nil, wtmIntSettings{accountStart: "2025-01-01"}, nil)
 	adjustSvc.(interface {
-		SetDeletionAudit(auditModels.TimeTrackingDeletionRepository)
-	}).SetDeletionAudit(repos.TimeTrackingDeletion)
+		SetDeletionAudit(active.TimeTrackingDeletionAudit)
+	}).SetDeletionAudit(services.NewTimeTrackingDeletionAudit(repos.TimeTrackingDeletion))
 	require.NoError(t, adjustSvc.DeleteAdjustment(ctx, staffB.ID, doomed.ID, admin.ID))
 
 	return &auditLogFixture{
 		tenantID: tenantID, staffA: staffA, staffB: staffB, admin: admin,
 		repos: repos, db: db, ctx: ctx,
-		svc: active.NewTimeTrackingAuditLogService(repos.TimeTrackingAuditLog, repos.Staff, nil),
+		svc: active.NewTimeTrackingAuditLogService(services.NewTimeTrackingAuditReader(repos.TimeTrackingAuditLog), services.StaffDisplayNames(repos.Staff), nil),
 	}
 }
 

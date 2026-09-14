@@ -8,7 +8,7 @@
 // feedback, ...) into shared helpers in api/common. That
 // refactor MUST NOT change a single byte of what a client currently
 // receives on the wire. This file is the oracle: it renders through the
-// real render.Render(...) pipeline (go-chi/render's json.NewEncoder, which
+// production common.RenderError pipeline (go-chi/render's json.NewEncoder, which
 // HTML-escapes, emits compact JSON, and appends a trailing newline) and
 // asserts the literal body string.
 //
@@ -20,21 +20,21 @@ package active_test
 
 import (
 	"errors"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/active"
+	"github.com/moto-nrw/project-phoenix/api/common"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/stretchr/testify/assert"
 )
 
-func renderWire(t *testing.T, renderer render.Renderer) (int, string) {
+func renderWire(t *testing.T, handler http.HandlerFunc) (int, string) {
 	t.Helper()
 	r := httptest.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
-	err := render.Render(w, r, renderer)
-	assert.NoError(t, err)
+	handler.ServeHTTP(w, r)
 	return w.Code, w.Body.String()
 }
 
@@ -81,8 +81,9 @@ func TestWireFormat_Active_ErrorRenderer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			renderer := active.ErrorRenderer(tt.err)
-			gotStatus, gotBody := renderWire(t, renderer)
+			gotStatus, gotBody := renderWire(t, func(w http.ResponseWriter, r *http.Request) {
+				common.RenderError(w, r, active.ErrorRenderer(tt.err))
+			})
 			assert.Equal(t, tt.wantStatus, gotStatus)
 			assert.Equal(t, tt.wantBody, gotBody)
 		})
@@ -94,31 +95,39 @@ func TestWireFormat_Active_ErrorHelpers(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		renderer   render.Renderer
+		handler    http.HandlerFunc
 		wantStatus int
 		wantBody   string
 	}{
 		{
-			name:       "ErrorInvalidRequest",
-			renderer:   active.ErrorInvalidRequest(errors.New("bad")),
+			name: "ErrorInvalidRequest",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				common.RenderError(w, r, active.ErrorInvalidRequest(errors.New("bad")))
+			},
 			wantStatus: 400,
 			wantBody:   "{\"status\":\"Invalid Request\",\"error\":\"bad\"}\n",
 		},
 		{
-			name:       "ErrorForbidden",
-			renderer:   active.ErrorForbidden(errors.New("nope")),
+			name: "ErrorForbidden",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				common.RenderError(w, r, active.ErrorForbidden(errors.New("nope")))
+			},
 			wantStatus: 403,
 			wantBody:   "{\"status\":\"Forbidden\",\"error\":\"nope\"}\n",
 		},
 		{
-			name:       "ErrorUnauthorized",
-			renderer:   active.ErrorUnauthorized(errors.New("nope")),
+			name: "ErrorUnauthorized",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				common.RenderError(w, r, active.ErrorUnauthorized(errors.New("nope")))
+			},
 			wantStatus: 401,
 			wantBody:   "{\"status\":\"Unauthorized\",\"error\":\"nope\"}\n",
 		},
 		{
-			name:       "ErrorInternalServer",
-			renderer:   active.ErrorInternalServer(errors.New("boom2")),
+			name: "ErrorInternalServer",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				common.RenderError(w, r, active.ErrorInternalServer(errors.New("boom2")))
+			},
 			wantStatus: 500,
 			wantBody:   "{\"status\":\"Internal Server Error\",\"error\":\"boom2\"}\n",
 		},
@@ -126,7 +135,7 @@ func TestWireFormat_Active_ErrorHelpers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotStatus, gotBody := renderWire(t, tt.renderer)
+			gotStatus, gotBody := renderWire(t, tt.handler)
 			assert.Equal(t, tt.wantStatus, gotStatus)
 			assert.Equal(t, tt.wantBody, gotBody)
 		})

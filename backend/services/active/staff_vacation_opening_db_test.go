@@ -7,12 +7,12 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	auditRepos "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/services"
 	active "github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -76,12 +76,10 @@ func newVacationOpeningFixture(t *testing.T) *vacationOpeningFixture {
 	openingAware.SetVacationOpeningRepository(repos.StaffVacationOpening)
 
 	deletionAware, ok := svc.(interface {
-		SetDeletionAudit(auditModels.TimeTrackingDeletionRepository)
+		SetDeletionAudit(active.TimeTrackingDeletionAudit)
 	})
 	require.True(t, ok, "staff absence service must accept the deletion audit repository")
-	deletionAware.SetDeletionAudit(auditRepos.NewTimeTrackingDeletionRepository(
-		auditRepos.NewRuntime(db, auditModels.TenantIDFromContext),
-	))
+	deletionAware.SetDeletionAudit(services.NewTimeTrackingDeletionAudit(repos.TimeTrackingDeletion))
 
 	return &vacationOpeningFixture{
 		tenantID: tenantID,

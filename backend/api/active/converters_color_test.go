@@ -7,7 +7,6 @@ import (
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -35,7 +34,7 @@ func TestNewActiveGroupResponse_RoomColorPropagation(t *testing.T) {
 			Model:     modelBase.Model{ID: 1, CreatedAt: now, UpdatedAt: now},
 			RoomID:    10,
 			StartTime: now,
-			Room: &facilities.Room{
+			Room: &activeModels.SessionRoom{
 				ID: 10, Name: "Werkraum", Color: &color,
 			},
 		}
@@ -65,7 +64,7 @@ func TestNewActiveGroupResponse_RoomColorPropagation(t *testing.T) {
 			Model:     modelBase.Model{ID: 1},
 			RoomID:    10,
 			StartTime: now,
-			Room: &facilities.Room{
+			Room: &activeModels.SessionRoom{
 				ID: 10, Name: "Bibliothek",
 			},
 		}

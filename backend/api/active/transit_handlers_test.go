@@ -9,8 +9,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
-	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,7 +20,7 @@ func TestAssignTransitStudents(t *testing.T) {
 	t.Run("assigns selected students", func(t *testing.T) {
 		var capturedStudentIDs []int64
 		var capturedActiveGroupID int64
-		rs := &Resource{
+		rs := resourceForTest(Resource{
 			ActiveService: &trackingMockActiveService{
 				assignTransitStudentsToActiveGroupFunc: func(_ context.Context, studentIDs []int64, activeGroupID int64) (*activeSvc.TransitAssignResult, error) {
 					capturedStudentIDs = studentIDs
@@ -35,7 +33,7 @@ func TestAssignTransitStudents(t *testing.T) {
 					}, nil
 				},
 			},
-		}
+		})
 
 		req := httptest.NewRequest(
 			http.MethodPost,
@@ -56,7 +54,7 @@ func TestAssignTransitStudents(t *testing.T) {
 	})
 
 	t.Run("rejects malformed json", func(t *testing.T) {
-		rs := &Resource{ActiveService: &trackingMockActiveService{}}
+		rs := resourceForTest(Resource{ActiveService: &trackingMockActiveService{}})
 		req := httptest.NewRequest(
 			http.MethodPost,
 			"/api/active/visits/transit/assign",
@@ -70,7 +68,7 @@ func TestAssignTransitStudents(t *testing.T) {
 	})
 
 	t.Run("rejects missing required fields", func(t *testing.T) {
-		rs := &Resource{ActiveService: &trackingMockActiveService{}}
+		rs := resourceForTest(Resource{ActiveService: &trackingMockActiveService{}})
 		req := httptest.NewRequest(
 			http.MethodPost,
 			"/api/active/visits/transit/assign",
@@ -84,7 +82,7 @@ func TestAssignTransitStudents(t *testing.T) {
 	})
 
 	t.Run("renders service errors", func(t *testing.T) {
-		rs := &Resource{
+		rs := resourceForTest(Resource{
 			ActiveService: &trackingMockActiveService{
 				assignTransitStudentsToActiveGroupFunc: func(_ context.Context, _ []int64, _ int64) (*activeSvc.TransitAssignResult, error) {
 					return nil, &activeSvc.ActiveError{
@@ -93,7 +91,7 @@ func TestAssignTransitStudents(t *testing.T) {
 					}
 				},
 			},
-		}
+		})
 		req := httptest.NewRequest(
 			http.MethodPost,
 			"/api/active/visits/transit/assign",
@@ -109,10 +107,10 @@ func TestAssignTransitStudents(t *testing.T) {
 
 	t.Run("renders the service refusal outside target room scope", func(t *testing.T) {
 		calledAssign := false
-		rs := &Resource{
+		rs := resourceForTest(Resource{
 			PersonService: moveAuthPersonService{
-				person: &userModel.Person{Model: base.Model{ID: 10}},
-				staff:  &userModel.Staff{Model: base.Model{ID: 20}},
+				person: &PersonIdentity{ID: 10},
+				staff:  &StaffIdentity{ID: 20},
 			},
 			ActiveService: &trackingMockActiveService{
 				assignTransitStudentsAuthorizedFunc: func(_ context.Context, _ []int64, _ int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.TransitAssignResult, error) {
@@ -122,7 +120,7 @@ func TestAssignTransitStudents(t *testing.T) {
 					return nil, &activeSvc.ActiveError{Op: "AssignTransitStudentsToActiveGroup", Err: activeSvc.ErrStudentMoveForbidden}
 				},
 			},
-		}
+		})
 		req := httptest.NewRequest(
 			http.MethodPost,
 			"/api/active/visits/transit/assign",
@@ -140,10 +138,10 @@ func TestAssignTransitStudents(t *testing.T) {
 	// Target access is now checked against locked state by the service.
 	t.Run("assigns transit students authorized by the service", func(t *testing.T) {
 		calledAssign := false
-		rs := &Resource{
+		rs := resourceForTest(Resource{
 			PersonService: moveAuthPersonService{
-				person: &userModel.Person{Model: base.Model{ID: 10}},
-				staff:  &userModel.Staff{Model: base.Model{ID: 20}},
+				person: &PersonIdentity{ID: 10},
+				staff:  &StaffIdentity{ID: 20},
 			},
 			ActiveService: &trackingMockActiveService{
 				assignTransitStudentsAuthorizedFunc: func(_ context.Context, studentIDs []int64, activeGroupID int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.TransitAssignResult, error) {
@@ -158,7 +156,7 @@ func TestAssignTransitStudents(t *testing.T) {
 					}, nil
 				},
 			},
-		}
+		})
 		req := httptest.NewRequest(
 			http.MethodPost,
 			"/api/active/visits/transit/assign",
@@ -175,10 +173,10 @@ func TestAssignTransitStudents(t *testing.T) {
 
 	t.Run("propagates target lookup failures", func(t *testing.T) {
 		calledAssign := false
-		rs := &Resource{
+		rs := resourceForTest(Resource{
 			PersonService: moveAuthPersonService{
-				person: &userModel.Person{Model: base.Model{ID: 10}},
-				staff:  &userModel.Staff{Model: base.Model{ID: 20}},
+				person: &PersonIdentity{ID: 10},
+				staff:  &StaffIdentity{ID: 20},
 			},
 			ActiveService: &trackingMockActiveService{
 				assignTransitStudentsToActiveGroupFunc: func(_ context.Context, _ []int64, _ int64) (*activeSvc.TransitAssignResult, error) {
@@ -186,7 +184,7 @@ func TestAssignTransitStudents(t *testing.T) {
 					return nil, errors.New("active group lookup failed")
 				},
 			},
-		}
+		})
 		req := httptest.NewRequest(
 			http.MethodPost,
 			"/api/active/visits/transit/assign",

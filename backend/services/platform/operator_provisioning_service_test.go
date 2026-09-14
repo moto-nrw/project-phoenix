@@ -17,7 +17,6 @@ import (
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -4196,8 +4195,8 @@ func TestOperatorProvisioningService_GetDeviceTransferStatus_IncludesSessionName
 			return &activeModels.Group{
 				Model:       base.Model{ID: 300},
 				StartTime:   startedAt,
-				ActualGroup: &activityModels.Group{Name: "Mensa"},
-				Room:        &facilitiesModels.Room{Name: "Speisesaal"},
+				ActualGroup: &activeModels.SessionActivity{Name: "Mensa"},
+				Room:        &activeModels.SessionRoom{Name: "Speisesaal"},
 			}, nil
 		}},
 	})

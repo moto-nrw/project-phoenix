@@ -11,8 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/stretchr/testify/assert"
@@ -88,7 +86,7 @@ func TestNewActiveGroupResponse_WithRoom(t *testing.T) {
 		GroupID:   ptrtest.Ptr(int64(100)),
 		RoomID:    200,
 		StartTime: now,
-		Room: &facilities.Room{
+		Room: &active.SessionRoom{
 			ID: 200, Name: "Test Room",
 		},
 	}
@@ -196,10 +194,10 @@ func TestNewSupervisorResponse_WithStaff(t *testing.T) {
 		StaffID:   100,
 		GroupID:   200,
 		StartDate: timezone.DateFromTime(now),
-		Staff: &users.Staff{
-			Model: base.Model{ID: 100},
-			Person: &users.Person{
-				Model:     base.Model{ID: 50},
+		Staff: &active.SessionStaff{
+			ID: 100,
+			Person: &active.SessionStaffPerson{
+				ID:        50,
 				FirstName: "Jane",
 				LastName:  "Smith",
 			},
@@ -238,10 +236,9 @@ func TestNewCombinedGroupResponse_BasicFields(t *testing.T) {
 	now := time.Now()
 	endTime := now.Add(-time.Hour) // Past end time = inactive
 
-	group := &active.CombinedGroup{
-		Model:     base.Model{ID: 1, CreatedAt: now, UpdatedAt: now},
-		StartTime: now.Add(-2 * time.Hour), // Started 2 hours ago
-		EndTime:   &endTime,                // Ended 1 hour ago
+	group := &activeSvc.CombinedGroupDetails{
+		CombinedGroup: studentpresence.CombinedGroup{ID: 1, CreatedAt: now, UpdatedAt: now,
+			StartTime: now.Add(-2 * time.Hour), EndTime: &endTime},
 	}
 
 	response := newCombinedGroupResponse(group)
@@ -261,13 +258,11 @@ func TestNewCombinedGroupResponse_ActiveWithGroups(t *testing.T) {
 
 	now := time.Now()
 
-	group := &active.CombinedGroup{
-		Model:     base.Model{ID: 5},
-		StartTime: now,
-		EndTime:   nil, // Active
-		ActiveGroups: []*active.Group{
-			{Model: base.Model{ID: 1}},
-			{Model: base.Model{ID: 2}},
+	group := &activeSvc.CombinedGroupDetails{
+		CombinedGroup: studentpresence.CombinedGroup{ID: 5, StartTime: now},
+		ActiveGroups: []*studentpresence.LiveGroup{
+			{ID: 1},
+			{ID: 2},
 		},
 	}
 
@@ -276,49 +271,6 @@ func TestNewCombinedGroupResponse_ActiveWithGroups(t *testing.T) {
 	assert.True(t, response.IsActive)
 	assert.Equal(t, 2, response.GroupCount)
 	assert.Equal(t, "Combined Group #5", response.Name)
-}
-
-func TestNewGroupMappingResponse_BasicFields(t *testing.T) {
-	t.Parallel()
-
-	mapping := &active.GroupMapping{
-		Model:                 base.Model{ID: 1},
-		ActiveGroupID:         100,
-		ActiveCombinedGroupID: 200,
-	}
-
-	response := newGroupMappingResponse(mapping)
-
-	assert.Equal(t, int64(1), response.ID)
-	assert.Equal(t, int64(100), response.ActiveGroupID)
-	assert.Equal(t, int64(200), response.CombinedGroupID)
-	assert.Empty(t, response.GroupName)
-	assert.Empty(t, response.CombinedName)
-}
-
-func TestNewGroupMappingResponse_WithRelations(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-
-	mapping := &active.GroupMapping{
-		Model:                 base.Model{ID: 1},
-		ActiveGroupID:         100,
-		ActiveCombinedGroupID: 200,
-		ActiveGroup: &active.Group{
-			Model:   base.Model{ID: 100},
-			GroupID: ptrtest.Ptr(int64(50)),
-		},
-		CombinedGroup: &active.CombinedGroup{
-			Model:     base.Model{ID: 200},
-			StartTime: now,
-		},
-	}
-
-	response := newGroupMappingResponse(mapping)
-
-	assert.Equal(t, "Group #50", response.GroupName)
-	assert.Equal(t, "Combined Group #200", response.CombinedName)
 }
 
 // =============================================================================
@@ -605,7 +557,7 @@ func TestGroupMappingRequest_Bind_MissingCombinedGroupID(t *testing.T) {
 func TestExportedHandlers_NotNil(t *testing.T) {
 	t.Parallel()
 
-	rs := &Resource{}
+	rs := resourceForTest(Resource{})
 
 	// Active Group Handlers
 	assert.NotNil(t, rs.listActiveGroups)

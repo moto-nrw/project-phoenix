@@ -10,10 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	userSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 func TestRequireVisitViewUsesPrincipalAndPreservesDenialContract(t *testing.T) {
@@ -41,7 +38,7 @@ func TestRequireVisitViewUsesPrincipalAndPreservesDenialContract(t *testing.T) {
 				ctx = permissions.WithPrincipal(ctx, *tt.principal)
 			}
 			recorder := httptest.NewRecorder()
-			(&Resource{}).requireVisitView(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			(resourceForTest(Resource{})).requireVisitView(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusNoContent)
 			})).ServeHTTP(recorder, req.WithContext(ctx))
 			if recorder.Code != tt.want {
@@ -73,37 +70,6 @@ func TestRequireVisitViewMapsRelationshipsAndErrors(t *testing.T) {
 			}
 			if strings.Contains(recorder.Body.String(), internalErr.Error()) {
 				t.Fatalf("response leaked internal error: %s", recorder.Body.String())
-			}
-		})
-	}
-}
-
-func TestVisitReadAllPreservesLegacyBroadGrants(t *testing.T) {
-	t.Parallel()
-	for _, tt := range []struct {
-		name        string
-		roles       []string
-		permissions []string
-		admin       bool
-		want        bool
-	}{
-		{name: "admin role", roles: []string{"admin"}, want: true},
-		{name: "admin role remains canonical", roles: []string{"ADMIN"}},
-		{name: "signed admin claim", admin: true, want: true},
-		{name: "admin wildcard", permissions: []string{"admin:*"}, want: true},
-		{name: "visits read", permissions: []string{permissions.VisitsRead}, want: true},
-		{name: "visits manage", permissions: []string{permissions.VisitsManage}, want: true},
-		{name: "resource wildcard was not a broad grant", permissions: []string{"visits:*"}},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			principal, err := permissions.NewPrincipal(permissions.PrincipalInput{
-				AccountID: 1, TenantID: 2, Roles: tt.roles, Permissions: tt.permissions, Admin: tt.admin,
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			if got := visitReadAll(principal); got != tt.want {
-				t.Fatalf("visitReadAll() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -142,29 +108,29 @@ func (s visitPresenceQueries) FindVisit(context.Context, int64) (*studentpresenc
 }
 
 type visitPersonService struct {
-	userSvc.PersonService
+	People
 	fixture visitFixture
 }
 
-func (s visitPersonService) FindByAccountID(context.Context, int64) (*userModel.Person, error) {
-	return &userModel.Person{Model: base.Model{ID: 1}}, nil
+func (s visitPersonService) FindByAccountID(context.Context, int64) (*PersonIdentity, error) {
+	return &PersonIdentity{ID: 1}, nil
 }
 
-func (s visitPersonService) GetStudentByPersonID(context.Context, int64) (*userModel.Student, error) {
+func (s visitPersonService) GetStudentByPersonID(context.Context, int64) (*StudentIdentity, error) {
 	if s.fixture.studentForPerson == 0 {
 		return nil, nil
 	}
-	return &userModel.Student{Model: base.Model{ID: s.fixture.studentForPerson}}, nil
+	return &StudentIdentity{ID: s.fixture.studentForPerson}, nil
 }
 
-func (s visitPersonService) GetStaffByPersonID(context.Context, int64) (*userModel.Staff, error) {
+func (s visitPersonService) GetStaffByPersonID(context.Context, int64) (*StaffIdentity, error) {
 	return nil, nil
 }
 
 func visitResource(fixture visitFixture) *Resource {
-	return &Resource{
+	return resourceForTest(Resource{
 		Presence: visitPresenceQueries{fixture: fixture}, PersonService: visitPersonService{fixture: fixture},
-	}
+	})
 }
 
 func executeVisitView(t *testing.T, resource *Resource, principal permissions.Principal, param string) *httptest.ResponseRecorder {

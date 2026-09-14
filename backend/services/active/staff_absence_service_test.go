@@ -4,16 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"strconv"
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -149,10 +146,10 @@ func TestAbsUpdateAbsenceRejectsManagerControlledCustomType(t *testing.T) {
 
 	svc, repo, _ := absSetupService()
 	customID := int64(42)
-	svc.absenceTypes = NewStaffAbsenceTypeService(&absTypeRepoMock{rows: []*activeModels.StaffAbsenceType{{
+	svc.absenceTypes = &absTypeReaderMock{rows: []*activeModels.StaffAbsenceType{{
 		Model: base.Model{ID: customID}, Name: "Regenerationstag",
 		BaseType: activeModels.AbsenceTypeOther, IsActive: true, AllowanceEnabled: true,
-	}}}, nil)
+	}}}
 	existing := &activeModels.StaffAbsence{
 		Model: base.Model{ID: 100}, StaffID: 7,
 		AbsenceType: activeModels.AbsenceTypeOther,
@@ -232,12 +229,12 @@ func TestListAbsenceRequestsStampsCustomTypeLabels(t *testing.T) {
 
 	svc, repo, _ := absSetupService()
 	customID := int64(42)
-	svc.absenceTypes = NewStaffAbsenceTypeService(&absTypeRepoMock{rows: []*activeModels.StaffAbsenceType{{
+	svc.absenceTypes = &absTypeReaderMock{rows: []*activeModels.StaffAbsenceType{{
 		Model:    base.Model{ID: customID},
 		Name:     "Regenerationstag",
 		BaseType: activeModels.AbsenceTypeOther,
 		IsActive: true,
-	}}}, nil)
+	}}}
 	repo.listRequestsFunc = func(context.Context, activeModels.AbsenceRequestFilter) ([]*activeModels.AbsenceRequestRow, error) {
 		return []*activeModels.AbsenceRequestRow{{
 			StaffAbsence: &activeModels.StaffAbsence{
@@ -1305,10 +1302,10 @@ func TestAbsDeleteAbsenceRejectsManagerControlledCustomType(t *testing.T) {
 
 	svc, absRepo, _ := absSetupService()
 	staffID, absenceID, customID := int64(100), int64(200), int64(42)
-	svc.absenceTypes = NewStaffAbsenceTypeService(&absTypeRepoMock{rows: []*activeModels.StaffAbsenceType{{
+	svc.absenceTypes = &absTypeReaderMock{rows: []*activeModels.StaffAbsenceType{{
 		Model: base.Model{ID: customID}, Name: "Regenerationstag",
 		BaseType: activeModels.AbsenceTypeOther, IsActive: true, AllowanceEnabled: true,
-	}}}, nil)
+	}}}
 	absRepo.findByIDFunc = func(context.Context, any) (*activeModels.StaffAbsence, error) {
 		return &activeModels.StaffAbsence{
 			Model: base.Model{ID: absenceID}, StaffID: staffID,
@@ -3008,19 +3005,18 @@ func (m absSettingsMock) ResolveBool(context.Context, string) (bool, error) {
 	return m.enabled, nil
 }
 
-func newAbsEmailTestService(t *testing.T, absRepo *absStaffAbsenceRepoMock, enabled bool, staffRepo *testpkg.StaffRepoMock) (*staffAbsenceService, *testpkg.CapturingMailer) {
+func newAbsEmailTestService(t *testing.T, absRepo *absStaffAbsenceRepoMock, enabled bool, staffRepo *testpkg.StaffRepoMock) (*staffAbsenceService, *capturingAbsenceEmails) {
 	t.Helper()
-	mailer := testpkg.NewCapturingMailer()
+	mailer := newCapturingAbsenceEmails()
 	svc := &staffAbsenceService{
 		absenceRepo: absRepo,
 		auditRepo:   &absStaffAbsenceAuditRepoMock{},
 	}
 	svc.SetAbsenceEmailDeps(AbsenceEmailDeps{
 		Settings:    absSettingsMock{enabled: enabled},
-		Dispatcher:  email.NewDispatcher(mailer, slog.Default()),
-		StaffRepo:   staffRepo,
-		SchoolRepo:  absenceEmailSchoolFinderStub{school: &platformModels.School{Subdomain: "tenant"}},
-		DefaultFrom: email.NewEmail("moto", "no-reply@moto.test"),
+		Dispatcher:  mailer,
+		StaffRepo:   absenceEmailStaffDirectoryStub{staffRepo},
+		SchoolRepo:  absenceEmailSchoolFinderStub{subdomain: "tenant", found: true},
 		FrontendURL: "http://localhost:3000",
 	})
 	return svc, mailer

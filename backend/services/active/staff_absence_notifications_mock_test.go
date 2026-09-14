@@ -7,10 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -20,33 +18,59 @@ import (
 
 type failingAbsenceEmailSettings struct{}
 
+type absenceEmailStaffDirectoryStub struct{ *testpkg.StaffRepoMock }
+
+func (d absenceEmailStaffDirectoryStub) GetStaffContactInfo(ctx context.Context, id int64) (*AbsenceEmailContact, error) {
+	row, err := d.StaffRepoMock.GetStaffContactInfo(ctx, id)
+	return absenceEmailContactFixture(row), err
+}
+
+func (d absenceEmailStaffDirectoryStub) ListAbsenceApprovers(ctx context.Context) ([]*AbsenceEmailContact, error) {
+	rows, err := d.ListStaffWithPermission(ctx, "vacation:approve")
+	if rows == nil {
+		return nil, err
+	}
+	contacts := make([]*AbsenceEmailContact, len(rows))
+	for i, row := range rows {
+		contacts[i] = absenceEmailContactFixture(row)
+	}
+	return contacts, err
+}
+
+func absenceEmailContactFixture(row *usersModels.StaffWithRoleInfo) *AbsenceEmailContact {
+	if row == nil {
+		return nil
+	}
+	return &AbsenceEmailContact{StaffID: row.StaffID, FirstName: row.FirstName, LastName: row.LastName, Email: row.Email}
+}
+
 func (failingAbsenceEmailSettings) ResolveBool(context.Context, string) (bool, error) {
 	return false, errors.New("settings unavailable")
 }
 
 type absenceEmailSchoolFinderStub struct {
-	school *platformModels.School
-	err    error
+	subdomain string
+	found     bool
+	err       error
 }
 
-func (s absenceEmailSchoolFinderStub) FindByID(context.Context, int64) (*platformModels.School, error) {
-	return s.school, s.err
+func (s absenceEmailSchoolFinderStub) FindSchoolSubdomain(context.Context, int64) (string, bool, error) {
+	return s.subdomain, s.found, s.err
 }
 
 func newAbsenceNotificationTestService(
 	t *testing.T,
 	settings absenceEmailSettingResolver,
 	staffRepo *testpkg.StaffRepoMock,
-) (*staffAbsenceService, *testpkg.CapturingMailer) {
+) (*staffAbsenceService, *capturingAbsenceEmails) {
 	t.Helper()
-	mailer := testpkg.NewCapturingMailer()
+	mailer := newCapturingAbsenceEmails()
 	svc := &staffAbsenceService{}
 	svc.SetAbsenceEmailDeps(AbsenceEmailDeps{
 		Settings:    settings,
-		Dispatcher:  email.NewDispatcher(mailer, slog.Default()),
-		StaffRepo:   staffRepo,
-		SchoolRepo:  absenceEmailSchoolFinderStub{school: &platformModels.School{Subdomain: "tenant"}},
-		DefaultFrom: email.NewEmail("moto", "no-reply@moto.test"),
+		Dispatcher:  mailer,
+		StaffRepo:   absenceEmailStaffDirectoryStub{staffRepo},
+		SchoolRepo:  absenceEmailSchoolFinderStub{subdomain: "tenant", found: true},
 		FrontendURL: "http://localhost:3000",
 	})
 	return svc, mailer
@@ -105,7 +129,7 @@ func TestAbsenceEmailsEnabled_RequiresDependenciesAndHandlesSettingFailure(t *te
 	assert.False(t, svc.absenceEmailsEnabled(ctx))
 
 	svc.emailDeps = &AbsenceEmailDeps{
-		Dispatcher: email.NewDispatcher(testpkg.NewCapturingMailer(), slog.Default()),
+		Dispatcher: newCapturingAbsenceEmails(),
 	}
 	assert.False(t, svc.absenceEmailsEnabled(ctx))
 
@@ -113,9 +137,9 @@ func TestAbsenceEmailsEnabled_RequiresDependenciesAndHandlesSettingFailure(t *te
 	assert.False(t, svc.absenceEmailsEnabled(ctx))
 
 	svc.emailDeps.Settings = absSettingsMock{enabled: true}
-	svc.emailDeps.StaffRepo = &testpkg.StaffRepoMock{}
+	svc.emailDeps.StaffRepo = absenceEmailStaffDirectoryStub{&testpkg.StaffRepoMock{}}
 	svc.emailDeps.SchoolRepo = absenceEmailSchoolFinderStub{
-		school: &platformModels.School{Subdomain: "tenant"},
+		subdomain: "tenant", found: true,
 	}
 	assert.True(t, svc.absenceEmailsEnabled(ctx))
 }
@@ -270,12 +294,11 @@ func TestNotifyAbsenceRequested_SkipsSelfAndMissingEmail(t *testing.T) {
 	messages := mailer.Messages()
 	require.Len(t, messages, 1)
 	assert.Equal(t, "lena@example.test", messages[0].To.Address)
-	content, ok := messages[0].Content.(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "Krankmeldung", content["AbsenceTypeLabel"])
-	assert.Equal(t, "05.07.2027", content["DateRange"])
-	assert.Equal(t, "", content["PreviousQuestion"])
-	assert.Equal(t, "http://tenant.localhost:3000/staff", content["LinkURL"])
+	content := messages[0].Content
+	assert.Equal(t, "Krankmeldung", content.AbsenceTypeLabel)
+	assert.Equal(t, "05.07.2027", content.DateRange)
+	assert.Equal(t, "", content.PreviousQuestion)
+	assert.Equal(t, "http://tenant.localhost:3000/staff", content.LinkURL)
 }
 
 func TestNotifyAbsenceRequested_IncludesResubmissionContext(t *testing.T) {
@@ -310,10 +333,9 @@ func TestNotifyAbsenceRequested_IncludesResubmissionContext(t *testing.T) {
 	messages := mailer.Messages()
 	require.Len(t, messages, 1)
 	assert.Equal(t, "Abwesenheitsantrag erneut eingereicht von Mila Muster", messages[0].Subject)
-	content, ok := messages[0].Content.(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "Vertretung ist geklärt", content["Note"])
-	assert.Equal(t, "Wer übernimmt die Frühschicht?", content["PreviousQuestion"])
+	content := messages[0].Content
+	assert.Equal(t, "Vertretung ist geklärt", content.Note)
+	assert.Equal(t, "Wer übernimmt die Frühschicht?", content.PreviousQuestion)
 }
 
 func TestNotifyAbsenceRequested_DispatchesOnlyAfterCommit(t *testing.T) {

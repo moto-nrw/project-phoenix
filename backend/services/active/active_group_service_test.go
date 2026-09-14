@@ -12,8 +12,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -317,15 +317,15 @@ func TestActiveService_DeleteActiveGroup(t *testing.T) {
 }
 
 // =============================================================================
-// ListActiveGroups Tests
+// Native session query tests
 // =============================================================================
 
-func TestActiveService_ListActiveGroups(t *testing.T) {
+func TestPresence_QueryLiveGroups(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	service := createActiveService(t, db)
+	presence := testSchoolPresence(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns active groups with no options", func(t *testing.T) {
@@ -335,7 +335,7 @@ func TestActiveService_ListActiveGroups(t *testing.T) {
 		testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 		// ACT
-		result, err := service.ListActiveGroups(ctx, nil)
+		result, err := presence.QueryLiveGroups(ctx, studentpresence.LiveGroupFilter{})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -350,13 +350,12 @@ func TestActiveService_ListActiveGroups(t *testing.T) {
 		cancel() // Cancel immediately
 
 		// ACT
-		result, err := service.ListActiveGroups(canceledCtx, nil)
+		result, err := presence.QueryLiveGroups(canceledCtx, studentpresence.LiveGroupFilter{})
 
 		// ASSERT
 		require.Error(t, err)
 		assert.Nil(t, result)
-		var activeErr *active.ActiveError
-		require.ErrorAs(t, err, &activeErr)
+		require.ErrorIs(t, err, context.Canceled)
 	})
 
 	t.Run("returns active groups with pagination", func(t *testing.T) {
@@ -365,11 +364,10 @@ func TestActiveService_ListActiveGroups(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "List Paginated Room")
 		testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
-		options := base.NewQueryOptions()
-		options.WithPagination(1, 10)
+		options := studentpresence.LiveGroupFilter{Limit: 10}
 
 		// ACT
-		result, err := service.ListActiveGroups(ctx, options)
+		result, err := presence.QueryLiveGroups(ctx, options)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -382,12 +380,12 @@ func TestActiveService_ListActiveGroups(t *testing.T) {
 // FindActiveGroupsByRoomID Tests
 // =============================================================================
 
-func TestActiveService_FindActiveGroupsByRoomID(t *testing.T) {
+func TestPresence_QueryOpenRoomSessions(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	service := createActiveService(t, db)
+	presence := testSchoolPresence(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns groups for room", func(t *testing.T) {
@@ -397,7 +395,7 @@ func TestActiveService_FindActiveGroupsByRoomID(t *testing.T) {
 		testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 		// ACT
-		result, err := service.FindActiveGroupsByRoomID(ctx, room.ID)
+		result, err := presence.QueryLiveGroups(ctx, studentpresence.LiveGroupFilter{RoomID: &room.ID, OpenOnly: true})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -415,7 +413,8 @@ func TestActiveService_FindActiveGroupsByRoomID(t *testing.T) {
 
 	t.Run("returns empty list for non-existent room", func(t *testing.T) {
 		// ACT
-		result, err := service.FindActiveGroupsByRoomID(ctx, 99999999)
+		roomID := int64(99999999)
+		result, err := presence.QueryLiveGroups(ctx, studentpresence.LiveGroupFilter{RoomID: &roomID, OpenOnly: true})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -428,13 +427,13 @@ func TestActiveService_FindActiveGroupsByRoomID(t *testing.T) {
 		cancel() // Cancel immediately
 
 		// ACT
-		result, err := service.FindActiveGroupsByRoomID(canceledCtx, 1)
+		roomID := testpkg.CreateTestRoom(t, db, "Cancelled Query Room").ID
+		result, err := presence.QueryLiveGroups(canceledCtx, studentpresence.LiveGroupFilter{RoomID: &roomID, OpenOnly: true})
 
 		// ASSERT
 		require.Error(t, err)
 		assert.Nil(t, result)
-		var activeErr *active.ActiveError
-		require.ErrorAs(t, err, &activeErr)
+		require.ErrorIs(t, err, context.Canceled)
 	})
 }
 
@@ -442,12 +441,12 @@ func TestActiveService_FindActiveGroupsByRoomID(t *testing.T) {
 // FindActiveGroupsByGroupID Tests
 // =============================================================================
 
-func TestActiveService_FindActiveGroupsByGroupID(t *testing.T) {
+func TestPresence_QueryOpenActivitySessions(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	service := createActiveService(t, db)
+	presence := testSchoolPresence(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns active groups for activity group ID", func(t *testing.T) {
@@ -457,7 +456,7 @@ func TestActiveService_FindActiveGroupsByGroupID(t *testing.T) {
 		testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 		// ACT
-		result, err := service.FindActiveGroupsByGroupID(ctx, activity.ID)
+		result, err := presence.QueryLiveGroups(ctx, studentpresence.LiveGroupFilter{ActivityGroupIDs: []int64{activity.ID}, OpenOnly: true})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -466,7 +465,7 @@ func TestActiveService_FindActiveGroupsByGroupID(t *testing.T) {
 		// GroupID is *int64; spontaneous sessions never match here.
 		found := false
 		for _, g := range result {
-			if templateID, ok := g.TemplateID(); ok && templateID == activity.ID {
+			if g.ActivityGroupID != nil && *g.ActivityGroupID == activity.ID {
 				found = true
 				break
 			}
@@ -476,7 +475,7 @@ func TestActiveService_FindActiveGroupsByGroupID(t *testing.T) {
 
 	t.Run("returns empty list for non-existent group", func(t *testing.T) {
 		// ACT
-		result, err := service.FindActiveGroupsByGroupID(ctx, 99999999)
+		result, err := presence.QueryLiveGroups(ctx, studentpresence.LiveGroupFilter{ActivityGroupIDs: []int64{99999999}, OpenOnly: true})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -567,12 +566,12 @@ func TestActiveService_EndActiveGroupSession(t *testing.T) {
 // GetActiveGroupVisits Tests
 // =============================================================================
 
-func TestActiveService_GetActiveGroupVisits(t *testing.T) {
+func TestPresence_ListSessionVisits(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	service := createActiveService(t, db)
+	presence := testSchoolPresence(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns group with visits", func(t *testing.T) {
@@ -584,7 +583,7 @@ func TestActiveService_GetActiveGroupVisits(t *testing.T) {
 		visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now().UTC().Truncate(time.Microsecond), nil)
 
 		// ACT
-		result, err := service.GetActiveGroupVisits(ctx, activeGroup.ID)
+		result, err := presence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{activeGroup.ID}})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -596,26 +595,18 @@ func TestActiveService_GetActiveGroupVisits(t *testing.T) {
 		assert.Equal(t, *visit, actual)
 	})
 
-	t.Run("returns error when not found", func(t *testing.T) {
-		// ACT
-		result, err := service.GetActiveGroupVisits(ctx, 99999999)
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, result)
-	})
 }
 
 // =============================================================================
 // GetActiveGroupWithSupervisors Tests
 // =============================================================================
 
-func TestActiveService_GetActiveGroupWithSupervisors(t *testing.T) {
+func TestPresence_QuerySessionSupervisions(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	service := createActiveService(t, db)
+	presence := testSchoolPresence(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns group with supervisors", func(t *testing.T) {
@@ -627,24 +618,24 @@ func TestActiveService_GetActiveGroupWithSupervisors(t *testing.T) {
 		_ = testpkg.CreateTestGroupSupervisor(t, db, staff.ID, activeGroup.ID, "supervisor")
 
 		// ACT
-		result, err := service.GetActiveGroupWithSupervisors(ctx, activeGroup.ID)
+		day := timezone.TodayDate().String()
+		result, err := presence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{activeGroup.ID}, ActiveOn: &day})
 
 		// ASSERT
 		require.NoError(t, err)
 		assert.NotNil(t, result)
-		assert.Equal(t, activeGroup.ID, result.ID)
-		// Supervisors relation should be loaded with the supervisor we created
-		require.NotNil(t, result.Supervisors)
-		assert.Len(t, result.Supervisors, 1)
+		require.Len(t, result, 1)
+		assert.Equal(t, activeGroup.ID, result[0].GroupID)
+		assert.Equal(t, staff.ID, result[0].StaffID)
 	})
 
-	t.Run("returns error when not found", func(t *testing.T) {
+	t.Run("returns no supervisions for missing group", func(t *testing.T) {
 		// ACT
-		result, err := service.GetActiveGroupWithSupervisors(ctx, 99999999)
+		result, err := presence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{99999999}})
 
 		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, result)
+		require.NoError(t, err)
+		assert.Empty(t, result)
 	})
 }
 
@@ -1120,7 +1111,7 @@ func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify visits are active (no exit time)
-		activeVisits, err := service.FindVisitsByActiveGroupID(ctx, session.ID)
+		activeVisits, err := testSchoolPresence(t, db).ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{session.ID}})
 		require.NoError(t, err)
 		activeCount := 0
 		for _, v := range activeVisits {
@@ -1142,7 +1133,7 @@ func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
 		assert.NotNil(t, endedSession.EndTime, "Session should have end time set")
 
 		// Verify all visits have been ended (exit time set)
-		endedVisits, err := service.FindVisitsByActiveGroupID(ctx, session.ID)
+		endedVisits, err := testSchoolPresence(t, db).ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{session.ID}})
 		require.NoError(t, err)
 		for _, v := range endedVisits {
 			assert.NotNil(t, v.ExitTime, "Visit should have exit time after session ends")
@@ -1214,7 +1205,7 @@ func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify supervisors are active
-		supervisors, err := service.FindSupervisorsByActiveGroupID(ctx, session.ID)
+		supervisors, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{session.ID}, ActiveOn: new(timezone.TodayDate().String())})
 		require.NoError(t, err)
 		activeCount := 0
 		for _, sup := range supervisors {
@@ -1231,7 +1222,7 @@ func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify all supervisors have ended
-		endedSupervisors, err := service.FindSupervisorsByActiveGroupID(ctx, session.ID)
+		endedSupervisors, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{session.ID}, ActiveOn: new(timezone.TodayDate().String())})
 		require.NoError(t, err)
 		for _, sup := range endedSupervisors {
 			assert.NotNil(t, sup.EndDate, "Supervisor should have end time after session ends")

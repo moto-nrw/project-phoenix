@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 )
 
 // checkoutStudent handles immediate checkout of a student.
@@ -13,9 +12,8 @@ import (
 func (rs *Resource) checkoutStudent(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// 1. Validate JWT token
-	userClaims := jwt.ClaimsFromCtx(ctx)
-	if userClaims.ID == 0 {
+	// 1. Require the validated security principal
+	if _, err := common.CurrentPrincipal(ctx); err != nil {
 		common.RespondWithError(w, r, http.StatusUnauthorized, "Invalid token")
 		return
 	}

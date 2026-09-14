@@ -83,7 +83,7 @@ func TestService_CreateVisit_BinaryMode_IsNoOp(t *testing.T) {
 	// proves the short-circuit — if the gate leaks, this would panic. Visit
 	// must pass Validate() (StudentID/ActiveGroupID/EntryTime), since the
 	// gate is placed after validation to preserve caller-contract errors.
-	s := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default()}, settings: &stubSettingsResolver{
+	s := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, Logger: slog.Default()}, settings: &stubSettingsResolver{
 		stringValues: map[string]string{"operations.presence_mode": "binary"},
 	},
 	}
@@ -102,7 +102,7 @@ func TestService_EndVisit_BinaryMode_IsNoOp(t *testing.T) {
 
 	// Same contract for EndVisit — stale visit IDs from before a mode
 	// switch hit the no-op path instead of a missing-row error.
-	s := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default()}, settings: &stubSettingsResolver{
+	s := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, Logger: slog.Default()}, settings: &stubSettingsResolver{
 		stringValues: map[string]string{"operations.presence_mode": "binary"},
 	},
 	}
@@ -114,7 +114,7 @@ func TestService_EndVisit_BinaryMode_IsNoOp(t *testing.T) {
 func TestService_EndDailySessions_BinaryMode_ReturnsEmptySuccess(t *testing.T) {
 	t.Parallel()
 
-	s := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default()}, settings: &stubSettingsResolver{
+	s := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, Logger: slog.Default()}, settings: &stubSettingsResolver{
 		stringValues: map[string]string{"operations.presence_mode": "binary"},
 	},
 	}

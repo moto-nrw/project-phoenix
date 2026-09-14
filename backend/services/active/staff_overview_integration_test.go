@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -88,12 +90,12 @@ func newOverviewFixture(t *testing.T, count int) *overviewFixture {
 	monthStart := timezone.NewDate(today.Year(), today.Month(), 1)
 	settings := wtmIntSettings{accountStart: monthStart.String()}
 	f.monthSvc = active.NewWorkTimeMonthService(
-		repos.WorkSession, repos.WorkSessionBreak, repos.StaffAbsence, repos.Staff,
-		repos.StaffWorkSchedule, repos.WorkTimeModel, repos.StaffShift,
+		repos.WorkSession, repos.WorkSessionBreak, repos.StaffAbsence, services.StaffScheduleAssignments(repos.Staff),
+		services.NewWorkScheduleTargets(repos.StaffWorkSchedule), services.NewWorkTimeTargetModels(repos.WorkTimeModel), services.NewTimeTrackingShifts(repos.StaffShift),
 		settings, nil,
 	)
 	f.monthSvc.SetAdjustmentReader(repos.StaffBalanceAdjust)
-	f.monthSvc.SetSnapshotReader(repos.StaffMonthSnapshot)
+	f.monthSvc.SetSnapshotReader(services.MonthSnapshotCapability(repos.StaffMonthSnapshot))
 
 	f.svc = f.newOverviewService(settings)
 	return f
@@ -101,9 +103,9 @@ func newOverviewFixture(t *testing.T, count int) *overviewFixture {
 
 func (f *overviewFixture) newOverviewService(settings wtmIntSettings) active.StaffOverviewService {
 	return active.NewStaffOverviewService(
-		f.repos.Staff, f.repos.WorkSession, f.repos.WorkSessionBreak, f.repos.StaffAbsence,
-		f.repos.StaffBalanceAdjust, f.repos.StaffVacationQuota, f.repos.StaffMonthSnapshot,
-		f.repos.StaffWorkSchedule, f.repos.WorkTimeModel, f.repos.StaffShift,
+		services.OverviewStaff(f.repos.Staff), f.repos.WorkSession, f.repos.WorkSessionBreak, f.repos.StaffAbsence,
+		f.repos.StaffBalanceAdjust, f.repos.StaffVacationQuota, services.MonthSnapshotCapability(f.repos.StaffMonthSnapshot),
+		services.NewWorkScheduleTargets(f.repos.StaffWorkSchedule), services.NewWorkTimeTargetModels(f.repos.WorkTimeModel), services.NewTimeTrackingShifts(f.repos.StaffShift),
 		settings, nil,
 	)
 }
@@ -260,12 +262,12 @@ func TestTimeTrackingOverview_AccountStartAfterRequestedMonthMatchesDetail(t *te
 	}
 	svc := f.newOverviewService(settings)
 	monthSvc := active.NewWorkTimeMonthService(
-		f.repos.WorkSession, f.repos.WorkSessionBreak, f.repos.StaffAbsence, f.repos.Staff,
-		f.repos.StaffWorkSchedule, f.repos.WorkTimeModel, f.repos.StaffShift,
+		f.repos.WorkSession, f.repos.WorkSessionBreak, f.repos.StaffAbsence, services.StaffScheduleAssignments(f.repos.Staff),
+		services.NewWorkScheduleTargets(f.repos.StaffWorkSchedule), services.NewWorkTimeTargetModels(f.repos.WorkTimeModel), services.NewTimeTrackingShifts(f.repos.StaffShift),
 		settings, nil,
 	)
 	monthSvc.SetAdjustmentReader(f.repos.StaffBalanceAdjust)
-	monthSvc.SetSnapshotReader(f.repos.StaffMonthSnapshot)
+	monthSvc.SetSnapshotReader(services.MonthSnapshotCapability(f.repos.StaffMonthSnapshot))
 
 	overview, err := svc.GetTimeTrackingOverview(f.ctx, active.OverviewFilters{
 		Year:  requestedDate.Year(),
@@ -406,9 +408,9 @@ func TestDashboardSummary_AbsenceKPIsUseBerlinToday(t *testing.T) {
 		accountStart: timezone.NewDate(f.today.Year(), f.today.Month(), 1).String(),
 	}
 	svc := active.NewStaffOverviewService(
-		f.repos.Staff, f.repos.WorkSession, f.repos.WorkSessionBreak, absenceRepo,
-		f.repos.StaffBalanceAdjust, f.repos.StaffVacationQuota, f.repos.StaffMonthSnapshot,
-		f.repos.StaffWorkSchedule, f.repos.WorkTimeModel, f.repos.StaffShift,
+		services.OverviewStaff(f.repos.Staff), f.repos.WorkSession, f.repos.WorkSessionBreak, absenceRepo,
+		f.repos.StaffBalanceAdjust, f.repos.StaffVacationQuota, services.MonthSnapshotCapability(f.repos.StaffMonthSnapshot),
+		services.NewWorkScheduleTargets(f.repos.StaffWorkSchedule), services.NewWorkTimeTargetModels(f.repos.WorkTimeModel), services.NewTimeTrackingShifts(f.repos.StaffShift),
 		settings, nil,
 	)
 
@@ -661,13 +663,13 @@ func TestTimeTrackingOverview_RespectsFrozenMonths(t *testing.T) {
 	prevMonth := timezone.NewDate(f.today.Year(), f.today.Month(), 1).AddDays(-1)
 	settings := wtmIntSettings{accountStart: timezone.NewDate(prevMonth.Year(), prevMonth.Month(), 1).String()}
 	monthSvc := active.NewWorkTimeMonthService(
-		f.repos.WorkSession, f.repos.WorkSessionBreak, f.repos.StaffAbsence, f.repos.Staff,
-		f.repos.StaffWorkSchedule, f.repos.WorkTimeModel, f.repos.StaffShift,
+		f.repos.WorkSession, f.repos.WorkSessionBreak, f.repos.StaffAbsence, services.StaffScheduleAssignments(f.repos.Staff),
+		services.NewWorkScheduleTargets(f.repos.StaffWorkSchedule), services.NewWorkTimeTargetModels(f.repos.WorkTimeModel), services.NewTimeTrackingShifts(f.repos.StaffShift),
 		settings, nil,
 	)
 	monthSvc.SetAdjustmentReader(f.repos.StaffBalanceAdjust)
-	monthSvc.SetSnapshotReader(f.repos.StaffMonthSnapshot)
-	closeSvc := active.NewStaffMonthCloseService(f.repos.StaffMonthSnapshot, monthSvc, f.repos.Staff, settings, nil)
+	monthSvc.SetSnapshotReader(services.MonthSnapshotCapability(f.repos.StaffMonthSnapshot))
+	closeSvc := active.NewStaffMonthCloseService(services.MonthSnapshotCapability(f.repos.StaffMonthSnapshot), monthSvc, services.MonthCloseStaff(f.repos.Staff), settings, nil)
 	svc := f.newOverviewService(settings)
 
 	_, err := closeSvc.CloseMonth(f.ctx, staffID, prevMonth.Year(), int(prevMonth.Month()), "Abschluss")
@@ -694,13 +696,13 @@ func TestTimeTrackingOverview_ClosedMonthUsesFrozenBalance(t *testing.T) {
 		accountStart: timezone.NewDate(closedMonth.Year(), closedMonth.Month(), 1).String(),
 	}
 	monthSvc := active.NewWorkTimeMonthService(
-		f.repos.WorkSession, f.repos.WorkSessionBreak, f.repos.StaffAbsence, f.repos.Staff,
-		f.repos.StaffWorkSchedule, f.repos.WorkTimeModel, f.repos.StaffShift,
+		f.repos.WorkSession, f.repos.WorkSessionBreak, f.repos.StaffAbsence, services.StaffScheduleAssignments(f.repos.Staff),
+		services.NewWorkScheduleTargets(f.repos.StaffWorkSchedule), services.NewWorkTimeTargetModels(f.repos.WorkTimeModel), services.NewTimeTrackingShifts(f.repos.StaffShift),
 		settings, nil,
 	)
 	monthSvc.SetAdjustmentReader(f.repos.StaffBalanceAdjust)
-	monthSvc.SetSnapshotReader(f.repos.StaffMonthSnapshot)
-	closeSvc := active.NewStaffMonthCloseService(f.repos.StaffMonthSnapshot, monthSvc, f.repos.Staff, settings, nil)
+	monthSvc.SetSnapshotReader(services.MonthSnapshotCapability(f.repos.StaffMonthSnapshot))
+	closeSvc := active.NewStaffMonthCloseService(services.MonthSnapshotCapability(f.repos.StaffMonthSnapshot), monthSvc, services.MonthCloseStaff(f.repos.Staff), settings, nil)
 	svc := f.newOverviewService(settings)
 
 	closeResult, err := closeSvc.CloseMonth(f.ctx, staffID, closedMonth.Year(), int(closedMonth.Month()), "Abschluss")

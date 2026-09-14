@@ -9,11 +9,21 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type statusDayStudentRecords interface {
+	FindByIDForUpdate(context.Context, int64) (*userModels.Student, error)
+	Update(context.Context, *userModels.Student) error
+}
+
+type statusDayTestStudents struct{ statusDayStudentRecords }
+
+func (s statusDayTestStudents) GetByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error) {
+	return s.FindByIDForUpdate(ctx, id)
+}
 
 func TestCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 	t.Parallel()
@@ -21,8 +31,8 @@ func TestCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	service := NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil)
-	studentService := users.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion, nil)
+	service := NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil, repoFactory.CarePlan().LockExceptionDay)
+	studentService := statusDayTestStudents{repoFactory.Student}
 	student := testpkg.CreateTestStudent(t, db, "StatusConflict", "Student", "SCS1")
 
 	ctx := testpkg.Ctx(t)
@@ -66,8 +76,8 @@ func TestBulkCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	service := NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil)
-	studentService := users.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion, nil)
+	service := NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil, repoFactory.CarePlan().LockExceptionDay)
+	studentService := statusDayTestStudents{repoFactory.Student}
 
 	withConflict := testpkg.CreateTestStudent(t, db, "BulkStatusConflict", "Student", "BSC1")
 	clear := testpkg.CreateTestStudent(t, db, "BulkStatusClear", "Student", "BSC2")
@@ -138,8 +148,8 @@ func TestBulkCreateForDates_RejectsUnauthorizedWithoutPartialWrites(t *testing.T
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	service := NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil)
-	studentService := users.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion, nil)
+	service := NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil, repoFactory.CarePlan().LockExceptionDay)
+	studentService := statusDayTestStudents{repoFactory.Student}
 
 	allowed := testpkg.CreateTestStudent(t, db, "BulkStatusAllowed", "Student", "BSA1")
 	denied := testpkg.CreateTestStudent(t, db, "BulkStatusDenied", "Student", "BSD1")

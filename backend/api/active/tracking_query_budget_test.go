@@ -12,10 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	configRepository "github.com/moto-nrw/project-phoenix/database/repositories/config"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -29,7 +28,6 @@ func init() { testutil.SeedTestJWTConfig() }
 // (issue #2065).
 func TestTrackingIndicatorsIssuesOneSettingValuesQuery(t *testing.T) {
 	t.Parallel()
-	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupIsolatedTestDB(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
@@ -40,9 +38,7 @@ func TestTrackingIndicatorsIssuesOneSettingValuesQuery(t *testing.T) {
 		_, _ = db.ExecContext(ctx, `DELETE FROM config.setting_values WHERE tenant_id = ?`, tenantID)
 	})
 
-	valueRepo := configRepository.NewSettingValueRepository(testpkg.ConfigRuntime(db))
-	auditRepo := configRepository.NewSettingAuditRepository(testpkg.ConfigRuntime(db))
-	settings := configSvc.NewSettingsService(valueRepo, auditRepo, nil, testpkg.SettingsRuntime(t, db), slog.Default())
+	settings := testutil.SetupSettingsModuleWithDB(t, db).Settings
 
 	seedCtx := tenant.WithTenantID(context.Background(), tenantID)
 	require.NoError(t, settings.SetValue(seedCtx, configModel.KeyTrackingIndicatorsEnabled, true, nil, nil))
@@ -60,7 +56,7 @@ func TestTrackingIndicatorsIssuesOneSettingValuesQuery(t *testing.T) {
 		},
 	}
 	// This route does not read visits; an unexpected presence call must fail.
-	rs := NewResource(active, nil, nil, nil, nil, settings, db, slog.Default(), struct{ PresenceQueries }{})
+	rs := NewResource(active, nil, nil, nil, nil, settings, common.ProtectedTenantRoutes, slog.Default(), struct{ PresenceQueries }{}, requestRuntimeForTest(func(context.Context, int64, int64) context.Context { panic("tracking must not bind staff") }), authorizationForTest())
 	router := rs.Router()
 
 	body, err := json.Marshal(map[string]any{"student_ids": []int64{student.ID}})

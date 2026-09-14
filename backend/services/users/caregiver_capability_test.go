@@ -548,7 +548,7 @@ func TestCaregiverCapability_DisableReturnsDetailedBlockers(t *testing.T) {
 	activityGroup := testpkg.CreateTestActivityGroupForTenant(t, db, testpkg.Tenant(t), "Blocked Activity")
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
 
-	testpkg.CreateTestGroupSupervisor(
+	supervision := testpkg.CreateTestGroupSupervisor(
 		t,
 		db,
 		teacher.Staff.ID,
@@ -579,7 +579,11 @@ func TestCaregiverCapability_DisableReturnsDetailedBlockers(t *testing.T) {
 	require.NotNil(t, state)
 	assert.True(t, state.DisableBlocked)
 	assert.Len(t, state.DisableBlockers, 4)
-	assert.Len(t, state.ActiveSupervisions, 1)
+	require.Len(t, state.ActiveSupervisions, 1)
+	assert.Equal(t, supervision.ID, state.ActiveSupervisions[0].ID)
+	assert.Equal(t, activeGroup.ID, state.ActiveSupervisions[0].GroupID)
+	assert.Equal(t, supervision.StartDate.String(), state.ActiveSupervisions[0].StartDate)
+	assert.NotEmpty(t, state.ActiveSupervisions[0].GroupName)
 	assert.Len(t, state.ActiveSubstitutions, 1)
 	assert.Len(t, state.ActivitySupervisions, 1)
 	assert.Len(t, state.GroupAssignments, 1)

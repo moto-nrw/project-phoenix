@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
@@ -197,7 +196,7 @@ func publicHistory(value *active.HistoryResponse) *workforce.HistoryResponse {
 	return result
 }
 
-func publicWorkSessionEdit(entity *auditModels.WorkSessionEdit) *workforce.WorkSessionEdit {
+func publicWorkSessionEdit(entity *active.WorkSessionEdit) *workforce.WorkSessionEdit {
 	if entity == nil {
 		return nil
 	}
@@ -820,30 +819,6 @@ func MonthClosingCapability(closing active.StaffMonthCloseService) workforce.Mon
 	return monthClosingCapability{closing: closing}
 }
 
-func publicSnapshot(entity *activeModels.StaffMonthBalanceSnapshot) *workforce.StaffMonthBalanceSnapshot {
-	if entity == nil {
-		return nil
-	}
-	return &workforce.StaffMonthBalanceSnapshot{
-		ID: entity.ID, CreatedAt: entity.CreatedAt, UpdatedAt: entity.UpdatedAt, TenantID: entity.TenantID, StaffID: entity.StaffID,
-		Year: entity.Year, Month: entity.Month, ClosingBalanceMinutes: entity.ClosingBalanceMinutes, CarryInMinutes: entity.CarryInMinutes,
-		TargetMinutes: entity.TargetMinutes, ActualMinutes: entity.ActualMinutes, CreditedMinutes: entity.CreditedMinutes,
-		AdjustmentMinutes: entity.AdjustmentMinutes, ClosedAt: entity.ClosedAt, ClosedBy: entity.ClosedBy, CloseReason: entity.CloseReason,
-		Source: entity.Source, ReopenedAt: entity.ReopenedAt, ReopenedBy: entity.ReopenedBy, ReopenReason: entity.ReopenReason,
-	}
-}
-
-func publicSnapshots(entities []*activeModels.StaffMonthBalanceSnapshot) []*workforce.StaffMonthBalanceSnapshot {
-	if entities == nil {
-		return nil
-	}
-	result := make([]*workforce.StaffMonthBalanceSnapshot, 0, len(entities))
-	for _, entity := range entities {
-		result = append(result, publicSnapshot(entity))
-	}
-	return result
-}
-
 func (c monthClosingCapability) CloseMonth(ctx context.Context, closedBy int64, year, month int, reason string) (*workforce.MonthCloseResult, error) {
 	result, err := c.closing.CloseMonth(ctx, closedBy, year, month, reason)
 	if err != nil {
@@ -854,7 +829,7 @@ func (c monthClosingCapability) CloseMonth(ctx context.Context, closedBy int64, 
 	}
 	return &workforce.MonthCloseResult{
 		Year: result.Year, Month: result.Month, ClosedStaff: result.ClosedStaff, SkippedStaff: result.SkippedStaff,
-		Snapshots: publicSnapshots(result.Snapshots),
+		Snapshots: publicMonthSnapshots(result.Snapshots),
 	}, nil
 }
 
@@ -867,7 +842,7 @@ func (c monthClosingCapability) ListMonthStatus(ctx context.Context, year, month
 	if err != nil {
 		return nil, mapTimeTrackingFailure(err)
 	}
-	return publicSnapshots(snapshots), nil
+	return publicMonthSnapshots(snapshots), nil
 }
 
 // --- overview ---------------------------------------------------------------

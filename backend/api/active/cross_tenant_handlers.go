@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // getCrossTenantStudents returns students visiting from other tenants.
@@ -12,7 +11,7 @@ import (
 func (rs *Resource) getCrossTenantStudents(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	hostingTenantID := tenant.FromContext(ctx)
+	hostingTenantID := rs.runtime.TenantID(ctx)
 	if hostingTenantID == 0 {
 		common.RespondWithError(w, r, http.StatusBadRequest, "Tenant context required")
 		return

@@ -20,7 +20,6 @@ package active_test
 
 import (
 	"context"
-	"database/sql"
 	"testing"
 	"time"
 
@@ -278,14 +277,14 @@ func TestToggleStudentAttendance_CheckInWithZeroStaffID(t *testing.T) {
 	assert.Equal(t, student.ID, result.StudentID)
 	assert.NotZero(t, result.AttendanceID)
 
-	var checkedInBy sql.NullInt64
+	var checkedInBy *int64
 	err = db.NewSelect().
 		TableExpr(`active.attendance`).
 		Column("checked_in_by").
 		Where("id = ?", result.AttendanceID).
 		Scan(ctx, &checkedInBy)
 	require.NoError(t, err)
-	assert.False(t, checkedInBy.Valid, "device-attributed check-in must not claim a staff identity")
+	assert.Nil(t, checkedInBy, "device-attributed check-in must not claim a staff identity")
 }
 
 // TestToggleStudentAttendance_CheckOut tests checking out a student who is checked in.
@@ -443,85 +442,6 @@ func TestToggleStudentAttendance_WebAuthorizationPath(t *testing.T) {
 		require.NotNil(t, result)
 		assert.Equal(t, "checked_in", result.Action)
 		assert.Equal(t, student.ID, result.StudentID)
-	})
-}
-
-// TestCheckTeacherStudentAccess tests the CheckTeacherStudentAccess function
-func TestCheckTeacherStudentAccess(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupActiveService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns false for staff without teacher record", func(t *testing.T) {
-		// ARRANGE: Create student and staff (staff is not a teacher)
-		student := testpkg.CreateTestStudent(t, db, "Unrelated", "Student", "6a")
-		staff := testpkg.CreateTestStaff(t, db, "Unrelated", "Staff")
-
-		// ACT: Check access - should return false because staff is not a teacher
-		hasAccess, err := service.CheckTeacherStudentAccess(ctx, staff.ID, student.ID)
-
-		// ASSERT: No error, but access denied
-		require.NoError(t, err)
-		assert.False(t, hasAccess, "Staff without teacher record should not have access")
-	})
-
-	t.Run("returns false for non-existent staff", func(t *testing.T) {
-		// ARRANGE
-		student := testpkg.CreateTestStudent(t, db, "Orphan", "Student", "6b")
-
-		// ACT
-		hasAccess, err := service.CheckTeacherStudentAccess(ctx, 99999999, student.ID)
-
-		// ASSERT: Either returns false or error - both are acceptable
-		if err == nil {
-			assert.False(t, hasAccess)
-		}
-	})
-
-	t.Run("teacher with group access can access student in their group", func(t *testing.T) {
-		// ARRANGE: Create a full teacher with account
-		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Group", "Teacher")
-		student := testpkg.CreateTestStudent(t, db, "Group", "Student", "6c")
-
-		// Note: We don't have a way to easily assign the teacher to the student's group
-		// without more complex fixture setup, so this test verifies the error path
-		// when teacher exists but has no group relationship
-
-		// ACT
-		hasAccess, err := service.CheckTeacherStudentAccess(ctx, teacher.Staff.ID, student.ID)
-
-		// ASSERT: No error but no access (teacher exists but not assigned to student's group)
-		require.NoError(t, err)
-		assert.False(t, hasAccess, "Expected no access when teacher not in student's group")
-	})
-
-	t.Run("returns false for non-existent student", func(t *testing.T) {
-		// ARRANGE: Create a teacher so the check reaches the student lookup.
-		teacher := testpkg.CreateTestTeacher(t, db, "MissingStudent", "Teacher")
-
-		// ACT
-		hasAccess, err := service.CheckTeacherStudentAccess(ctx, teacher.Staff.ID, 999999999)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.False(t, hasAccess, "Missing students must be treated as an authorization miss")
-	})
-
-	t.Run("returns false for student with nil group ID", func(t *testing.T) {
-		// ARRANGE: Create a teacher and student without group assignment
-		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "NoGroup", "Teacher")
-		student := testpkg.CreateTestStudent(t, db, "NoGroup", "Student", "6d")
-		// Note: student.GroupID is nil by default
-
-		// ACT
-		hasAccess, err := service.CheckTeacherStudentAccess(ctx, teacher.Staff.ID, student.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.False(t, hasAccess, "Expected no access when student has no group")
 	})
 }
 
@@ -1151,7 +1071,7 @@ func TestCheckOutStudent_EndsOpenVisit(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "checked_out", status.Status)
 
-	endedVisit, err := service.GetVisit(ctx, visit.ID)
+	endedVisit, err := testSchoolPresence(t, db).FindVisit(ctx, visit.ID)
 	require.NoError(t, err)
 	require.NotNil(t, endedVisit.ExitTime, "open visit must be ended by attendance checkout")
 }
@@ -1188,7 +1108,7 @@ func TestCheckOutStudent_NoOpenAttendance_HealsOrphanVisit(t *testing.T) {
 	assert.Equal(t, "checked_out", result.Action)
 	assert.Zero(t, result.AttendanceID, "no open attendance row → idempotent close")
 
-	healedVisit, err := service.GetVisit(ctx, visit.ID)
+	healedVisit, err := testSchoolPresence(t, db).FindVisit(ctx, visit.ID)
 	require.NoError(t, err)
 	require.NotNil(t, healedVisit.ExitTime, "orphaned visit must be healed even on the idempotent path")
 }
@@ -1221,7 +1141,7 @@ func TestToggleStudentAttendance_CheckOut_EndsOpenVisit(t *testing.T) {
 	require.NotNil(t, result)
 	assert.Equal(t, "checked_out", result.Action)
 
-	endedVisit, err := service.GetVisit(ctx, visit.ID)
+	endedVisit, err := testSchoolPresence(t, db).FindVisit(ctx, visit.ID)
 	require.NoError(t, err)
 	require.NotNil(t, endedVisit.ExitTime, "toggle checkout must end the open visit")
 }

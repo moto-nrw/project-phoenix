@@ -3,6 +3,7 @@ package compose
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
@@ -105,8 +106,14 @@ func (v visits) Record(ctx context.Context, studentID, sessionID int64) (int64, 
 // sessions binds the room session transitions to the retained presence
 // service.
 type sessions struct {
-	active activeSvc.Service
-	clock  clock
+	active   activeSvc.Service
+	presence roomSessionQuery
+	clock    clock
+}
+
+type roomSessionQuery interface {
+	QueryLiveGroups(context.Context, studentpresence.LiveGroupFilter) ([]studentpresence.LiveGroup, error)
+	QueryGroupSupervisions(context.Context, studentpresence.GroupSupervisionFilter) ([]studentpresence.GroupSupervision, error)
 }
 
 func sessionFromGroup(group *active.Group) ports.Session {
@@ -115,7 +122,11 @@ func sessionFromGroup(group *active.Group) ports.Session {
 		DeviceID: group.DeviceID, TemplateID: group.GroupID,
 	}
 	if group.ActualGroup != nil {
-		session.Activity = activityFromGroup(group.ActualGroup)
+		activity := group.ActualGroup
+		session.Activity = &ports.Activity{
+			ID: activity.ID, Name: activity.Name, MaxParticipants: activity.MaxParticipants,
+			PlannedRoomID: activity.PlannedRoomID, IsSystem: activity.IsSystem, IsOpen: activity.IsOpen,
+		}
 		session.ActivityName = group.ActualGroup.Name
 	}
 	if group.Room != nil {
@@ -125,16 +136,16 @@ func sessionFromGroup(group *active.Group) ports.Session {
 }
 
 func (s sessions) ListOpenInRoom(ctx context.Context, roomID int64) ([]ports.Session, error) {
-	groups, err := s.active.FindActiveGroupsByRoomID(ctx, roomID)
+	groups, err := s.presence.QueryLiveGroups(ctx, studentpresence.LiveGroupFilter{RoomID: &roomID, OpenOnly: true})
 	if err != nil {
-		return nil, err
+		return nil, &activeSvc.ActiveError{Op: "FindActiveGroupsByRoomID", Err: fmt.Errorf("find by room: %w", err)}
 	}
 	result := make([]ports.Session, 0, len(groups))
 	for _, group := range groups {
-		if group == nil {
-			continue
-		}
-		result = append(result, sessionFromGroup(group))
+		result = append(result, ports.Session{
+			ID: group.ID, RoomID: group.RoomID, StartTime: group.StartTime, EndTime: group.EndTime,
+			DeviceID: group.DeviceID, TemplateID: group.ActivityGroupID,
+		})
 	}
 	return result, nil
 }
@@ -193,15 +204,18 @@ func (s sessions) Touch(ctx context.Context, sessionID int64) error {
 }
 
 func (s sessions) Supervisors(ctx context.Context, sessionID int64) ([]ports.Supervisor, error) {
-	group, err := s.active.GetActiveGroupWithSupervisors(ctx, sessionID)
-	if err != nil {
-		return nil, err
+	const operation = "GetActiveGroupWithSupervisors"
+	groups, err := s.presence.QueryLiveGroups(ctx, studentpresence.LiveGroupFilter{IDs: []int64{sessionID}})
+	if err != nil || len(groups) == 0 {
+		return nil, &activeSvc.ActiveError{Op: operation, Err: activeSvc.ErrActiveGroupNotFound}
 	}
-	result := make([]ports.Supervisor, 0, len(group.Supervisors))
-	for _, supervisor := range group.Supervisors {
-		if supervisor == nil {
-			continue
-		}
+	day := s.clock.Day(s.clock.Now()).String()
+	supervisors, err := s.presence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{sessionID}, ActiveOn: &day})
+	if err != nil {
+		return nil, &activeSvc.ActiveError{Op: operation, Err: activeSvc.ErrDatabaseOperation}
+	}
+	result := make([]ports.Supervisor, 0, len(supervisors))
+	for _, supervisor := range supervisors {
 		result = append(result, ports.Supervisor{StaffID: supervisor.StaffID, Ended: supervisor.EndDate != nil})
 	}
 	return result, nil

@@ -135,6 +135,12 @@ func TestCrossTenantRepository_Direct(t *testing.T) {
 	require.NoError(t, err)
 	repo := factory.CrossTenant
 
+	t.Run("rejects a hosting tenant outside the caller context", func(t *testing.T) {
+		results, err := repo.FindCrossTenantStudents(testpkg.TenantContext(tenantVisitor), tenantHost)
+		require.ErrorContains(t, err, "hosting tenant context")
+		assert.Nil(t, results)
+	})
+
 	t.Run("returns empty for no visits", func(t *testing.T) {
 		results, err := repo.FindCrossTenantStudents(testpkg.TenantContext(tenantHost), tenantHost)
 		require.NoError(t, err)

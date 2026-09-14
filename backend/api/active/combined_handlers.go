@@ -6,8 +6,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 // ===== Combined Group Handlers =====
@@ -15,7 +14,7 @@ import (
 // listCombinedGroups handles listing all combined groups
 func (rs *Resource) listCombinedGroups(w http.ResponseWriter, r *http.Request) {
 	// Get query parameters
-	queryOptions := base.NewQueryOptions()
+	queryOptions := studentpresence.CombinedGroupFilter{}
 
 	// Get active status filter
 	// Note: active.combined_groups doesn't have is_active column, use "active_only" filter
@@ -23,11 +22,11 @@ func (rs *Resource) listCombinedGroups(w http.ResponseWriter, r *http.Request) {
 	activeStr := r.URL.Query().Get("active")
 	if activeStr != "" {
 		isActive := activeStr == "true" || activeStr == "1"
-		queryOptions.Filter.Equal("active_only", isActive)
+		queryOptions.Active = &isActive
 	}
 
 	// Get combined groups
-	groups, err := rs.ActiveService.ListCombinedGroups(r.Context(), queryOptions)
+	groups, err := rs.listPresenceCombinations(r.Context(), queryOptions, "ListCombinedGroups")
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
@@ -36,7 +35,7 @@ func (rs *Resource) listCombinedGroups(w http.ResponseWriter, r *http.Request) {
 	// Build response
 	responses := make([]CombinedGroupResponse, 0, len(groups))
 	for _, group := range groups {
-		responses = append(responses, newCombinedGroupResponse(group))
+		responses = append(responses, newPresenceCombinationResponse(group))
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Combined groups retrieved successfully")
@@ -45,7 +44,7 @@ func (rs *Resource) listCombinedGroups(w http.ResponseWriter, r *http.Request) {
 // getActiveCombinedGroups handles getting all active combined groups
 func (rs *Resource) getActiveCombinedGroups(w http.ResponseWriter, r *http.Request) {
 	// Get active combined groups
-	groups, err := rs.ActiveService.FindActiveCombinedGroups(r.Context())
+	groups, err := rs.listPresenceCombinations(r.Context(), studentpresence.CombinedGroupFilter{OpenOnly: true}, "FindActiveCombinedGroups")
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
@@ -54,7 +53,7 @@ func (rs *Resource) getActiveCombinedGroups(w http.ResponseWriter, r *http.Reque
 	// Build response
 	responses := make([]CombinedGroupResponse, 0, len(groups))
 	for _, group := range groups {
-		responses = append(responses, newCombinedGroupResponse(group))
+		responses = append(responses, newPresenceCombinationResponse(group))
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Active combined groups retrieved successfully")
@@ -70,14 +69,14 @@ func (rs *Resource) getCombinedGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get combined group
-	group, err := rs.ActiveService.GetCombinedGroup(r.Context(), id)
+	group, err := rs.presenceCombination(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	// Prepare response
-	response := newCombinedGroupResponse(group)
+	response := newPresenceCombinationResponse(group)
 
 	common.Respond(w, r, http.StatusOK, response, "Combined group retrieved successfully")
 }
@@ -101,7 +100,7 @@ func (rs *Resource) getCombinedGroupGroups(w http.ResponseWriter, r *http.Reques
 	// Build response
 	responses := make([]ActiveGroupResponse, 0, len(combinedGroup.ActiveGroups))
 	for _, group := range combinedGroup.ActiveGroups {
-		responses = append(responses, newActiveGroupResponse(group))
+		responses = append(responses, newPresenceLiveGroupResponse(*group))
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Combined group's active groups retrieved successfully")
@@ -117,7 +116,7 @@ func (rs *Resource) createCombinedGroup(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Create combined group atomically with all group mappings
-	group := &active.CombinedGroup{
+	group := &studentpresence.CombinedGroup{
 		StartTime: req.StartTime,
 		EndTime:   req.EndTime,
 	}
@@ -131,7 +130,7 @@ func (rs *Resource) createCombinedGroup(w http.ResponseWriter, r *http.Request) 
 	createdGroup, err := rs.ActiveService.GetCombinedGroupWithGroups(r.Context(), group.ID)
 	if err != nil {
 		// Still return success but with the basic group info
-		response := newCombinedGroupResponse(group)
+		response := newPresenceCombinationResponse(*group)
 		common.Respond(w, r, http.StatusCreated, response, "Combined group created successfully")
 		return
 	}
@@ -158,7 +157,7 @@ func (rs *Resource) updateCombinedGroup(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Get existing combined group
-	existing, err := rs.ActiveService.GetCombinedGroup(r.Context(), id)
+	existing, err := rs.presenceCombination(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
@@ -169,22 +168,22 @@ func (rs *Resource) updateCombinedGroup(w http.ResponseWriter, r *http.Request) 
 	existing.EndTime = req.EndTime
 
 	// Update combined group
-	if err := rs.ActiveService.UpdateCombinedGroup(r.Context(), existing); err != nil {
+	if err := rs.ActiveService.UpdateCombinedGroup(r.Context(), &existing); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	// Get the updated combined group
-	updatedGroup, err := rs.ActiveService.GetCombinedGroup(r.Context(), id)
+	updatedGroup, err := rs.presenceCombination(r.Context(), id)
 	if err != nil {
 		// Still return success but with the basic group info
-		response := newCombinedGroupResponse(existing)
+		response := newPresenceCombinationResponse(existing)
 		common.Respond(w, r, http.StatusOK, response, "Combined group updated successfully")
 		return
 	}
 
 	// Return the updated combined group with all details
-	response := newCombinedGroupResponse(updatedGroup)
+	response := newPresenceCombinationResponse(updatedGroup)
 	common.Respond(w, r, http.StatusOK, response, "Combined group updated successfully")
 }
 
@@ -222,13 +221,13 @@ func (rs *Resource) endCombinedGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get the updated combined group
-	updatedGroup, err := rs.ActiveService.GetCombinedGroup(r.Context(), id)
+	updatedGroup, err := rs.presenceCombination(r.Context(), id)
 	if err != nil {
 		common.Respond(w, r, http.StatusOK, nil, "Combined group ended successfully")
 		return
 	}
 
 	// Return the updated combined group
-	response := newCombinedGroupResponse(updatedGroup)
+	response := newPresenceCombinationResponse(updatedGroup)
 	common.Respond(w, r, http.StatusOK, response, "Combined group ended successfully")
 }

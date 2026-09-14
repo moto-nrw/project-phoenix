@@ -51,6 +51,22 @@ type StudentTestModule struct {
 	OGSGroupLive       grouplive.Query
 }
 
+// ManualPartialAbsences binds the owner projection without constructing another service graph.
+func (m StudentTestModule) ManualPartialAbsences(source careplan.Capability) active.ManualPartialAbsenceReader {
+	return NewManualPartialAbsenceDates(source)
+}
+
+// DataAccessAudit supplies the access-evidence writer from this module's audit command.
+func (m StudentTestModule) DataAccessAudit() active.DataAccessAudit {
+	return NewDataAccessAudit(studentAccessAuditWriter{m.Audit})
+}
+
+type studentAccessAuditWriter struct{ auditModels.Command }
+
+func (w studentAccessAuditWriter) Create(ctx context.Context, entry *auditModels.DataAccessLog) error {
+	return w.Append(ctx, entry)
+}
+
 func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter users.FeedbackEntryCounter, clocks ...func() time.Time) (StudentTestModule, error) {
 	auditCommand, err := auditService.NewCommand(repositories.NewTestAuditStore(db), func(auditService.AppendObservation) {})
 	if err != nil {
@@ -203,7 +219,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	})
 	studentService := users.NewStudentService(
 		repos.Student,
-		repos.PrivacyConsent,
+		repositories.StudentPrivacyConsentCapability(newStudentPresence(db, logger)),
 		repos.StudentCompanion,
 		studentAuditService,
 	)
@@ -341,8 +357,9 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	})
 	studentStatusDayService := active.NewStudentStatusDayServiceWithPartialAbsences(
 		repos.StudentStatusDay,
-		repos.StudentPickupException,
+		NewManualPartialAbsenceDates(repos.CarePlan),
 		db,
+		repos.CarePlan.LockExceptionDay,
 		now,
 	)
 	ogsGroupLiveService, err := grouplivelegacy.New(grouplivelegacy.Sources{

@@ -1,22 +1,17 @@
 package active
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
-	"time"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // ===== Active Group Handlers =====
@@ -25,61 +20,54 @@ import (
 func (rs *Resource) listActiveGroups(w http.ResponseWriter, r *http.Request) {
 	queryOptions := rs.parseActiveGroupQueryParams(r)
 
-	groups, err := rs.ActiveService.ListActiveGroups(r.Context(), queryOptions)
+	groups, err := rs.listPresenceLiveGroups(r.Context(), queryOptions)
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
-	includeRelations := r.URL.Query().Get("active") == "true" || r.URL.Query().Get("is_active") == "true"
-	if includeRelations && len(groups) > 0 {
-		rs.loadActiveGroupRelations(r, groups)
-	}
-
 	responses := make([]ActiveGroupResponse, 0, len(groups))
 	for _, group := range groups {
-		responses = append(responses, newActiveGroupResponse(group))
+		responses = append(responses, newPresenceLiveGroupResponse(group))
+	}
+	includeRelations := r.URL.Query().Get("active") == "true" || r.URL.Query().Get("is_active") == "true"
+	if includeRelations && len(groups) > 0 {
+		rs.loadActiveGroupRelations(r, groups, responses)
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Active groups retrieved successfully")
 }
 
 // parseActiveGroupQueryParams parses query parameters for active groups
-func (rs *Resource) parseActiveGroupQueryParams(r *http.Request) *base.QueryOptions {
-	queryOptions := base.NewQueryOptions()
-
-	activeStr := r.URL.Query().Get("active")
-	if activeStr != "" {
-		isActive := activeStr == "true" || activeStr == "1"
-		if isActive {
-			queryOptions.Filter.IsNull("end_time")
-		} else {
-			queryOptions.Filter.IsNotNull("end_time")
-		}
+func (rs *Resource) parseActiveGroupQueryParams(r *http.Request) studentpresence.LiveGroupFilter {
+	options := studentpresence.LiveGroupFilter{}
+	if value := r.URL.Query().Get("active"); value != "" {
+		isActive := value == "true" || value == "1"
+		options.OpenOnly, options.EndedOnly = isActive, !isActive
 	}
-
-	return queryOptions
+	return options
 }
 
 // loadActiveGroupRelations loads rooms and supervisors for active groups
-func (rs *Resource) loadActiveGroupRelations(r *http.Request, groups []*active.Group) {
+func (rs *Resource) loadActiveGroupRelations(r *http.Request, groups []studentpresence.LiveGroup, responses []ActiveGroupResponse) {
 	roomMap := rs.loadRoomsMap(r, groups)
 	supervisorMap := rs.loadActiveSupervisorsMap(r, groups)
 
-	for _, group := range groups {
+	for i, group := range groups {
 		if supervisors, ok := supervisorMap[group.ID]; ok {
-			group.Supervisors = supervisors
+			responses[i].Supervisors = supervisors
+			responses[i].SupervisorCount = len(responses[i].Supervisors)
 		}
 		if room, ok := roomMap[group.RoomID]; ok {
-			group.Room = room
+			responses[i].Room = &RoomSimple{ID: room.ID, Name: room.Name, Color: room.Color}
 		}
 	}
 }
 
 // loadRoomsMap loads rooms and returns a map of room ID to room
-func (rs *Resource) loadRoomsMap(r *http.Request, groups []*active.Group) map[int64]*facilities.Room {
+func (rs *Resource) loadRoomsMap(r *http.Request, groups []studentpresence.LiveGroup) map[int64]*active.SessionRoom {
 	roomIDs := rs.collectUniqueRoomIDs(groups)
-	roomMap := make(map[int64]*facilities.Room)
+	roomMap := make(map[int64]*active.SessionRoom)
 
 	if len(roomIDs) > 0 {
 		rooms, err := rs.ActiveService.GetRoomsByIDs(r.Context(), roomIDs)
@@ -94,7 +82,7 @@ func (rs *Resource) loadRoomsMap(r *http.Request, groups []*active.Group) map[in
 }
 
 // collectUniqueRoomIDs collects unique room IDs from groups
-func (rs *Resource) collectUniqueRoomIDs(groups []*active.Group) []int64 {
+func (rs *Resource) collectUniqueRoomIDs(groups []studentpresence.LiveGroup) []int64 {
 	roomIDs := make([]int64, 0, len(groups))
 	roomIDMap := make(map[int64]bool)
 
@@ -109,31 +97,32 @@ func (rs *Resource) collectUniqueRoomIDs(groups []*active.Group) []int64 {
 }
 
 // loadActiveSupervisorsMap loads supervisors and returns a map of group ID to active supervisors
-func (rs *Resource) loadActiveSupervisorsMap(r *http.Request, groups []*active.Group) map[int64][]*active.GroupSupervisor {
+func (rs *Resource) loadActiveSupervisorsMap(r *http.Request, groups []studentpresence.LiveGroup) map[int64][]GroupSupervisorSimple {
+	supervisorMap := make(map[int64][]GroupSupervisorSimple)
+	if len(groups) == 0 {
+		return supervisorMap
+	}
 	groupIDs := make([]int64, len(groups))
 	for i, group := range groups {
 		groupIDs[i] = group.ID
 	}
-
-	allSupervisors, err := rs.ActiveService.FindSupervisorsByActiveGroupIDs(r.Context(), groupIDs)
+	day := timezone.TodayDate().String()
+	rows, err := rs.Presence.QueryGroupSupervisions(r.Context(), studentpresence.GroupSupervisionFilter{GroupIDs: groupIDs, ActiveOn: &day})
 	if err != nil {
 		slog.Default().Error("failed to load supervisors", slog.String("error", err.Error()))
-		return make(map[int64][]*active.GroupSupervisor)
+		return supervisorMap
 	}
-
-	now := time.Now()
-	activeSupervisors := make([]*active.GroupSupervisor, 0, len(allSupervisors))
-	for _, supervisor := range allSupervisors {
-		if activeService.IsSupervisorActive(supervisor, now) {
-			activeSupervisors = append(activeSupervisors, supervisor)
+	today := timezone.TodayDate()
+	for _, row := range rows {
+		response, err := presenceSupervisionResponse(row, today)
+		if err != nil {
+			slog.Default().Error("failed to load supervisors", slog.String("error", err.Error()))
+			return make(map[int64][]GroupSupervisorSimple)
+		}
+		if response.IsActive {
+			supervisorMap[row.GroupID] = append(supervisorMap[row.GroupID], GroupSupervisorSimple{StaffID: row.StaffID, Role: row.Role})
 		}
 	}
-
-	supervisorMap := make(map[int64][]*active.GroupSupervisor)
-	for _, supervisor := range activeSupervisors {
-		supervisorMap[supervisor.GroupID] = append(supervisorMap[supervisor.GroupID], supervisor)
-	}
-
 	return supervisorMap
 }
 
@@ -169,7 +158,7 @@ func (rs *Resource) getActiveGroupsByRoom(w http.ResponseWriter, r *http.Request
 	}
 
 	// Get active groups for room
-	groups, err := rs.ActiveService.FindActiveGroupsByRoomID(r.Context(), roomID)
+	groups, err := rs.presenceRoomSessions(r.Context(), roomID)
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
@@ -178,7 +167,7 @@ func (rs *Resource) getActiveGroupsByRoom(w http.ResponseWriter, r *http.Request
 	// Build response
 	responses := make([]ActiveGroupResponse, 0, len(groups))
 	for _, group := range groups {
-		responses = append(responses, newActiveGroupResponse(group))
+		responses = append(responses, newPresenceLiveGroupResponse(group))
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Room active groups retrieved successfully")
@@ -194,7 +183,7 @@ func (rs *Resource) getActiveGroupsByGroup(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Get active groups for group
-	groups, err := rs.ActiveService.FindActiveGroupsByGroupID(r.Context(), groupID)
+	groups, err := rs.presenceActivitySessions(r.Context(), groupID)
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
@@ -203,7 +192,7 @@ func (rs *Resource) getActiveGroupsByGroup(w http.ResponseWriter, r *http.Reques
 	// Build response
 	responses := make([]ActiveGroupResponse, 0, len(groups))
 	for _, group := range groups {
-		responses = append(responses, newActiveGroupResponse(group))
+		responses = append(responses, newPresenceLiveGroupResponse(group))
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Group active sessions retrieved successfully")
@@ -219,7 +208,7 @@ func (rs *Resource) getActiveGroupVisits(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Get active group with visits
-	visits, err := rs.ActiveService.GetActiveGroupVisits(r.Context(), id)
+	visits, err := rs.presenceSessionVisits(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
@@ -244,10 +233,7 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 
 	// One batch query for every setting this handler and its downstream
 	// helpers (DetermineStudentAccess included) resolve (issue #2065).
-	r = r.WithContext(common.PrefetchSettings(r.Context(), rs.SettingsService,
-		configModel.KeyOperationalOverviewScope,
-		configModel.KeyStudentPhotosEnabled,
-	))
+	r = r.WithContext(common.PrefetchStudentDisplaySettings(r.Context(), rs.SettingsService))
 
 	// The school-wide overview scope broadens the operational room scope.
 	// Per-student GDPR fields below still use DetermineStudentAccess and are
@@ -274,7 +260,10 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 	// caller who can't see a student's planned schedule (because they
 	// don't supervise the student's education group) must not see the
 	// real check-in/out clock either.
-	access := common.DetermineStudentAccess(r, rs.UserContextService)
+	access := common.DetermineStudentAccessWithStaffLookup(r, func(ctx context.Context) (bool, error) {
+		staff, err := rs.UserContextService.GetCurrentStaff(ctx)
+		return staff != nil, err
+	})
 
 	attendanceStatuses, err := rs.fetchAttendanceStatusesForVisits(r, results, access)
 	if err != nil {
@@ -282,16 +271,20 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 		return
 	}
 
-	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.getLogger())
+	photosEnabled := common.StudentPhotosEnabled(r.Context(), rs.SettingsService, rs.getLogger())
 	responses := rs.buildVisitDisplayResponses(results, attendanceStatuses, access, photosEnabled)
 	common.Respond(w, r, http.StatusOK, responses, "Active group visits with display data retrieved successfully")
 }
 
-// extractStaffFromRequest extracts staff information from JWT claims
-func (rs *Resource) extractStaffFromRequest(w http.ResponseWriter, r *http.Request) (*users.Staff, error) {
-	claims := jwt.ClaimsFromCtx(r.Context())
+// extractStaffFromRequest resolves staff for the validated account.
+func (rs *Resource) extractStaffFromRequest(w http.ResponseWriter, r *http.Request) (*StaffIdentity, error) {
+	principal, principalErr := common.CurrentPrincipal(r.Context())
+	if principalErr != nil {
+		common.RenderError(w, r, ErrorUnauthorized(errors.New("account not found")))
+		return nil, errors.New("account not found")
+	}
 
-	person, err := rs.PersonService.FindByAccountID(r.Context(), int64(claims.ID))
+	person, err := rs.PersonService.FindByAccountID(r.Context(), principal.AccountID())
 	if err != nil || person == nil {
 		common.RenderError(w, r, ErrorUnauthorized(errors.New("account not found")))
 		return nil, errors.New("account not found")
@@ -308,7 +301,8 @@ func (rs *Resource) extractStaffFromRequest(w http.ResponseWriter, r *http.Reque
 
 // verifyStaffSupervisionAccess verifies staff has permission to view an active group
 func (rs *Resource) verifyStaffSupervisionAccess(w http.ResponseWriter, r *http.Request, staffID int64, activeGroupID int64) error {
-	supervisions, err := rs.ActiveService.GetStaffActiveSupervisions(r.Context(), staffID)
+	day := timezone.TodayDate().String()
+	supervisions, err := rs.presenceSupervisionResponses(r.Context(), studentpresence.GroupSupervisionFilter{StaffID: &staffID, ActiveOn: &day}, "GetStaffActiveSupervisions")
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return err
@@ -316,7 +310,7 @@ func (rs *Resource) verifyStaffSupervisionAccess(w http.ResponseWriter, r *http.
 
 	hasPermission := false
 	for _, supervision := range supervisions {
-		if supervision.GroupID == activeGroupID {
+		if supervision.IsActive && supervision.ActiveGroupID == activeGroupID {
 			hasPermission = true
 			break
 		}
@@ -327,7 +321,7 @@ func (rs *Resource) verifyStaffSupervisionAccess(w http.ResponseWriter, r *http.
 		return errors.New("not authorized")
 	}
 
-	_, err = rs.ActiveService.GetActiveGroup(r.Context(), activeGroupID)
+	_, err = rs.presenceLiveGroup(r.Context(), activeGroupID)
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return err
@@ -476,16 +470,10 @@ func (rs *Resource) getActiveGroupSupervisors(w http.ResponseWriter, r *http.Req
 	}
 
 	// Get active group with supervisors
-	group, err := rs.ActiveService.GetActiveGroupWithSupervisors(r.Context(), id)
+	responses, err := rs.presenceSessionSupervisors(r.Context(), id, timezone.TodayDate())
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
-	}
-
-	// Build response
-	responses := make([]SupervisorResponse, 0, len(group.Supervisors))
-	for _, supervisor := range group.Supervisors {
-		responses = append(responses, newSupervisorResponse(supervisor))
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Active group supervisors retrieved successfully")

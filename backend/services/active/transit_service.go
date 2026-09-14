@@ -7,7 +7,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -107,7 +106,7 @@ func (s *service) assignTransitStudentsToActiveGroup(ctx context.Context, studen
 		}
 	}
 
-	uniqueIDs := sliceutil.UniquePositive(studentIDs)
+	uniqueIDs := slices.DeleteFunc(dedupeStudentIDs(studentIDs), func(id int64) bool { return id <= 0 })
 	if len(uniqueIDs) == 0 {
 		return nil, &ActiveError{Op: "AssignTransitStudentsToActiveGroup", Err: ErrInvalidData}
 	}
@@ -226,7 +225,7 @@ func (s *service) moveStudentsToActiveGroupLocked(ctx context.Context, studentID
 		return nil, &ActiveError{Op: op, Err: ErrInvalidData}
 	}
 
-	uniqueIDs := sliceutil.UniquePositive(studentIDs)
+	uniqueIDs := slices.DeleteFunc(dedupeStudentIDs(studentIDs), func(id int64) bool { return id <= 0 })
 	if len(uniqueIDs) == 0 {
 		return nil, &ActiveError{Op: op, Err: ErrInvalidData}
 	}
@@ -466,7 +465,7 @@ func (s *service) moveStudentsToTransitLocked(ctx context.Context, studentIDs []
 		return nil, &ActiveError{Op: op, Err: ErrInvalidData}
 	}
 
-	uniqueIDs := sliceutil.UniquePositive(studentIDs)
+	uniqueIDs := slices.DeleteFunc(dedupeStudentIDs(studentIDs), func(id int64) bool { return id <= 0 })
 	if len(uniqueIDs) == 0 {
 		return nil, &ActiveError{Op: op, Err: ErrInvalidData}
 	}
@@ -609,7 +608,7 @@ func (s *service) lockMoveTargetRoom(ctx context.Context, activeGroupID int64, o
 	if group == nil || !group.IsActive() || group.RoomID <= 0 {
 		return 0, &ActiveError{Op: op, Err: ErrActiveGroupNotFound}
 	}
-	if err := s.GroupRepo.LockRoomSessionWrites(ctx, group.RoomID); err != nil {
+	if err := s.SchoolPresence.LockRoomSessionWrites(ctx, group.RoomID); err != nil {
 		return 0, &ActiveError{Op: op, Err: ErrDatabaseOperation}
 	}
 	return group.RoomID, nil
@@ -720,14 +719,14 @@ func (s *service) schoolWideAttendanceMoveAllowed(ctx context.Context, staffID i
 	if visibility != configModel.OverviewScopeAllStaff || staffID <= 0 || tenant.FromContext(ctx) <= 0 {
 		return false, ErrStudentMoveForbidden
 	}
-	staff, err := s.StaffRepo.FindByID(ctx, staffID)
+	staffTenantID, err := s.StaffRepo.StaffTenantID(ctx, staffID)
 	if modelBase.IsNoRows(err) {
 		return false, ErrStudentMoveForbidden
 	}
 	if err != nil {
 		return false, err
 	}
-	if staff == nil || staff.TenantID != tenant.FromContext(ctx) {
+	if staffTenantID == nil || *staffTenantID != tenant.FromContext(ctx) {
 		return false, ErrStudentMoveForbidden
 	}
 	return true, nil

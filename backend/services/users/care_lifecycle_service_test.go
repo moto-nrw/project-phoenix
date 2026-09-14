@@ -658,7 +658,7 @@ func TestStudentDeletion_RetentionReasonOnlyForEndedCare(t *testing.T) {
 	actorID := careActor(t, db)
 
 	studentService := userService.NewStudentService(
-		repos.Student, repos.PrivacyConsent, repos.StudentCompanion, nil)
+		repos.Student, repositories.NewStudentPrivacyConsentStore(db), repos.StudentCompanion, nil)
 	deletion := userService.NewStudentDeletionService(
 		studentService, repos.Student, repos.Person, repos.StudentDeletion,
 		repos.GradeTransition, repos.DataDeletion, repos.StudentDeletionAudit,

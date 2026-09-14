@@ -208,7 +208,7 @@ func (s *service) processSchoolCheckinBatch(
 	// child, up to the full batch cap. Best-effort exactly like the
 	// single-student path: a failure is logged and never fails the batch.
 	if stampPresence {
-		s.ensureStaffPresence(ctx, staffID, attendanceStampSource(ctx))
+		s.ensureStaffPresence(ctx, staffID, s.attendanceStampSource(ctx))
 	}
 
 	// Back-fill the final status for every actionable student (changed or
@@ -490,10 +490,8 @@ func (s *service) registerSchoolCheckinBatchBroadcast(
 		eventType = realtime.EventBulkStudentCheckOut
 	}
 
-	// Bucket the notified students by educational group; keep one student per
-	// group so broadcastToEducationalGroup can derive the edu:{id} topic.
+	// Bucket the notified students by educational group.
 	eduGroups := make(map[int64][]string)
-	eduReps := make(map[int64]*userModels.Student)
 	for studentID := range notify {
 		student := students[studentID]
 		if student == nil || student.GroupID == nil {
@@ -501,9 +499,6 @@ func (s *service) registerSchoolCheckinBatchBroadcast(
 		}
 		gid := *student.GroupID
 		eduGroups[gid] = append(eduGroups[gid], strconv.FormatInt(studentID, 10))
-		if eduReps[gid] == nil {
-			eduReps[gid] = student
-		}
 	}
 	allEduGroupIDs := make([]string, 0, len(eduGroups))
 	for gid := range eduGroups {
@@ -544,7 +539,7 @@ func (s *service) registerSchoolCheckinBatchBroadcast(
 				"", // no active group — roomless attendance change
 				realtime.EventData{StudentIDs: &studentIDs, GroupIDs: &eduGroupID},
 			)
-			s.broadcastToEducationalGroup(ctx, eduReps[gid], event)
+			s.broadcastToEducationalGroup(ctx, &gid, event)
 		}
 
 		// Single tenant-wide refresh for the entire batch. The group-specific
@@ -563,14 +558,14 @@ func (s *service) trackSchoolCheckinBatchEvent(ctx context.Context, action strin
 	}
 	if action == SchoolCheckinActionIn {
 		s.trackProductEvent(ctx, "student_checked_in", map[string]any{
-			"method": attendanceMethod(ctx),
+			"method": s.attendanceMethod(ctx),
 			"batch":  true,
 			"count":  changedCount,
 		})
 		return
 	}
 	s.trackProductEvent(ctx, "student_checked_out", map[string]any{
-		"method":        attendanceMethod(ctx),
+		"method":        s.attendanceMethod(ctx),
 		"checkout_type": checkoutTypeWeb,
 		"batch":         true,
 		"count":         changedCount,

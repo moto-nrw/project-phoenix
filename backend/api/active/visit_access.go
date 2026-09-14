@@ -4,14 +4,34 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"slices"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 const visitAccessPolicyName = "student_visit_access"
+
+// VisitAccessQuery supplies tenant-scoped facts to the visit authorization policy.
+type VisitAccessQuery interface {
+	VisitStudentID(context.Context, int64) (int64, error)
+	PersonIDByAccount(context.Context, int64) (int64, bool)
+	StudentIDByPerson(context.Context, int64) (int64, bool)
+	StaffIDByPerson(context.Context, int64) (int64, bool)
+	TeacherIDByStaff(context.Context, int64) (int64, bool)
+	TeacherGroupIDs(context.Context, int64) ([]int64, error)
+	StudentGroupID(context.Context, int64) (int64, bool)
+	SupervisedActiveGroupIDs(context.Context, int64) []int64
+	StudentCurrentActiveGroupID(context.Context, int64) (int64, bool)
+}
+
+type VisitAuthorizer func(context.Context, int64, bool, int64, VisitAccessQuery) (bool, error)
+
+// Authorization supplies the Security Runtime policies used by active routes.
+type Authorization struct {
+	Visit               VisitAuthorizer
+	OperationalOverview func(context.Context, Settings, StaffAccess, bool, bool) (bool, error)
+}
 
 type visitAccessQuery struct{ resource *Resource }
 
@@ -56,17 +76,7 @@ func (q visitAccessQuery) TeacherIDByStaff(ctx context.Context, staffID int64) (
 }
 
 func (q visitAccessQuery) TeacherGroupIDs(ctx context.Context, teacherID int64) ([]int64, error) {
-	groups, err := q.resource.EducationService.GetTeacherGroups(ctx, teacherID)
-	if err != nil {
-		return nil, err
-	}
-	ids := make([]int64, 0, len(groups))
-	for _, group := range groups {
-		if group != nil {
-			ids = append(ids, group.ID)
-		}
-	}
-	return ids, nil
+	return q.resource.EducationService(ctx, teacherID)
 }
 
 func (q visitAccessQuery) StudentGroupID(ctx context.Context, studentID int64) (int64, bool) {
@@ -78,15 +88,14 @@ func (q visitAccessQuery) StudentGroupID(ctx context.Context, studentID int64) (
 }
 
 func (q visitAccessQuery) SupervisedActiveGroupIDs(ctx context.Context, staffID int64) []int64 {
-	supervisors, err := q.resource.ActiveService.FindSupervisorsByStaffID(ctx, staffID)
+	day := timezone.TodayDate().String()
+	supervisors, err := q.resource.Presence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{StaffID: &staffID, ActiveOn: &day})
 	if err != nil {
 		return nil
 	}
 	ids := make([]int64, 0, len(supervisors))
 	for _, supervisor := range supervisors {
-		if supervisor != nil {
-			ids = append(ids, supervisor.GroupID)
-		}
+		ids = append(ids, supervisor.GroupID)
 	}
 	return ids
 }
@@ -101,15 +110,15 @@ func (q visitAccessQuery) StudentCurrentActiveGroupID(ctx context.Context, stude
 
 func (rs *Resource) requireVisitView(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		principal, err := common.CurrentPrincipal(r.Context())
+		accountID, readAll, err := common.VisitReadAccess(r.Context())
 		if err != nil {
-			common.RenderError(w, r, common.ErrorUnauthorized(permissions.ErrPrincipalRequired))
+			common.RenderError(w, r, common.ErrorUnauthorized(err))
 			return
 		}
 		// Malformed IDs historically reach the policy as zero and produce the
 		// same 403 as an unknown relationship; preserve that response contract.
 		visitID, _ := common.ParseID(r)
-		allowed, err := authorize.CanViewVisit(r.Context(), principal.AccountID(), visitReadAll(principal), visitID, visitAccessQuery{resource: rs})
+		allowed, err := rs.authorization.Visit(r.Context(), accountID, readAll, visitID, visitAccessQuery{resource: rs})
 		if err != nil {
 			renderVisitAuthorizationError(w, r, fmt.Errorf("policy %s evaluation failed: %w", visitAccessPolicyName, err))
 			return
@@ -125,12 +134,4 @@ func (rs *Resource) requireVisitView(next http.Handler) http.Handler {
 
 func renderVisitAuthorizationError(w http.ResponseWriter, r *http.Request, err error) {
 	common.RenderError(w, r, common.ErrorInternalServerWrap("Authorization error", err))
-}
-
-func visitReadAll(principal permissions.Principal) bool {
-	granted := principal.Permissions()
-	return slices.Contains(principal.Roles(), "admin") ||
-		principal.HasAdminScope() ||
-		slices.Contains(granted, permissions.VisitsRead) ||
-		slices.Contains(granted, permissions.VisitsManage)
 }

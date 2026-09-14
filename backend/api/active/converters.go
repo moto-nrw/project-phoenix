@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 )
 
@@ -38,24 +39,8 @@ func newActiveGroupResponse(group *active.Group) ActiveGroupResponse {
 	}
 
 	if group.Supervisors != nil {
-		// Only expose currently active supervisors
-		now := time.Now()
-		activeSupervisors := make([]*active.GroupSupervisor, 0, len(group.Supervisors))
-		for _, supervisor := range group.Supervisors {
-			if activeService.IsSupervisorActive(supervisor, now) {
-				activeSupervisors = append(activeSupervisors, supervisor)
-			}
-		}
-
-		response.SupervisorCount = len(activeSupervisors)
-		// Add supervisor details
-		response.Supervisors = make([]GroupSupervisorSimple, 0, len(activeSupervisors))
-		for _, supervisor := range activeSupervisors {
-			response.Supervisors = append(response.Supervisors, GroupSupervisorSimple{
-				StaffID: supervisor.StaffID,
-				Role:    supervisor.Role,
-			})
-		}
+		response.Supervisors = newActiveSupervisorResponses(group.Supervisors)
+		response.SupervisorCount = len(response.Supervisors)
 	}
 
 	// Add room info if available
@@ -68,6 +53,17 @@ func newActiveGroupResponse(group *active.Group) ActiveGroupResponse {
 	}
 
 	return response
+}
+
+func newActiveSupervisorResponses(supervisors []*active.GroupSupervisor) []GroupSupervisorSimple {
+	now := time.Now()
+	responses := make([]GroupSupervisorSimple, 0, len(supervisors))
+	for _, supervisor := range supervisors {
+		if activeService.IsSupervisorActive(supervisor, now) {
+			responses = append(responses, GroupSupervisorSimple{StaffID: supervisor.StaffID, Role: supervisor.Role})
+		}
+	}
+	return responses
 }
 
 // newSupervisorResponse converts a group supervisor model to a response object
@@ -103,7 +99,23 @@ func newSupervisorResponse(supervisor *active.GroupSupervisor) SupervisorRespons
 }
 
 // newCombinedGroupResponse converts a combined group model to a response object
-func newCombinedGroupResponse(group *active.CombinedGroup) CombinedGroupResponse {
+func newCombinedGroupResponse(group *activeService.CombinedGroupDetails) CombinedGroupResponse {
+	response := newPresenceCombinationResponse(group.CombinedGroup)
+	if group.ActiveGroups != nil {
+		response.GroupCount = len(group.ActiveGroups)
+	}
+	return response
+}
+
+func newPresenceLiveGroupResponse(group studentpresence.LiveGroup) ActiveGroupResponse {
+	return ActiveGroupResponse{
+		ID: group.ID, GroupID: group.ActivityGroupID, RoomID: group.RoomID,
+		StartTime: group.StartTime, EndTime: group.EndTime, IsActive: group.IsOpen(),
+		CreatedAt: group.CreatedAt, UpdatedAt: group.UpdatedAt,
+	}
+}
+
+func newPresenceCombinationResponse(group studentpresence.CombinedGroup) CombinedGroupResponse {
 	response := CombinedGroupResponse{
 		ID:          group.ID,
 		Name:        "Combined Group #" + strconv.FormatInt(group.ID, 10), // Using ID as name since the model doesn't have name
@@ -111,33 +123,9 @@ func newCombinedGroupResponse(group *active.CombinedGroup) CombinedGroupResponse
 		RoomID:      0,                                                    // Using default value since the model doesn't have roomID
 		StartTime:   group.StartTime,
 		EndTime:     group.EndTime,
-		IsActive:    activeService.IsCombinedGroupActive(group, time.Now()),
+		IsActive:    group.EndTime == nil || time.Now().Before(*group.EndTime),
 		CreatedAt:   group.CreatedAt,
 		UpdatedAt:   group.UpdatedAt,
-	}
-
-	// Add group count if available
-	if group.ActiveGroups != nil {
-		response.GroupCount = len(group.ActiveGroups)
-	}
-
-	return response
-}
-
-// newGroupMappingResponse converts a group mapping model to a response object
-func newGroupMappingResponse(mapping *active.GroupMapping) GroupMappingResponse {
-	response := GroupMappingResponse{
-		ID:              mapping.ID,
-		ActiveGroupID:   mapping.ActiveGroupID,
-		CombinedGroupID: mapping.ActiveCombinedGroupID,
-	}
-
-	// Add related information if available
-	if mapping.ActiveGroup != nil {
-		response.GroupName = activeGroupDisplayName(mapping.ActiveGroup)
-	}
-	if mapping.CombinedGroup != nil {
-		response.CombinedName = "Combined Group #" + strconv.FormatInt(mapping.CombinedGroup.ID, 10)
 	}
 
 	return response

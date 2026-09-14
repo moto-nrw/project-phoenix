@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
@@ -34,24 +33,32 @@ import (
 // what a test calls — an unexpected call panics on the nil embedded interface.
 type mockActiveService struct {
 	activeService.Service
-	listActiveGroupsFn         func() ([]*activeModels.Group, error)
 	getActiveGroupsByIDsFn     func(ids []int64) (map[int64]*activeModels.Group, error)
-	getRoomsByIDsFn            func(ids []int64) ([]*facilitiesModels.Room, error)
+	getRoomsByIDsFn            func(ids []int64) ([]*activeModels.SessionRoom, error)
 	getUnclaimedActiveGroupsFn func() ([]*activeModels.Group, error)
 	getActiveGroupVisitsFn     func(activeGroupID int64) ([]*activeService.VisitWithStudentDisplay, error)
 	getAttendanceStatusesFn    func(studentIDs []int64) (map[int64]*activeService.AttendanceStatus, error)
-	getStaffSupervisionsFn     func(staffID int64) ([]*activeModels.GroupSupervisor, error)
 }
 
-func (m *mockActiveService) ListActiveGroups(_ context.Context, _ *base.QueryOptions) ([]*activeModels.Group, error) {
-	return m.listActiveGroupsFn()
+type mockRoomSessions struct {
+	OpenRoomSessions
+	list  func() ([]int64, error)
+	staff func(int64) ([]int64, error)
+}
+
+func (m *mockRoomSessions) GetStaffActiveGroupIDs(_ context.Context, staffID int64) ([]int64, error) {
+	return m.staff(staffID)
+}
+
+func (m *mockRoomSessions) ListRunningSessionIDs(context.Context) ([]int64, error) {
+	return m.list()
 }
 
 func (m *mockActiveService) GetActiveGroupsByIDs(_ context.Context, ids []int64) (map[int64]*activeModels.Group, error) {
 	return m.getActiveGroupsByIDsFn(ids)
 }
 
-func (m *mockActiveService) GetRoomsByIDs(_ context.Context, ids []int64) ([]*facilitiesModels.Room, error) {
+func (m *mockActiveService) GetRoomsByIDs(_ context.Context, ids []int64) ([]*activeModels.SessionRoom, error) {
 	return m.getRoomsByIDsFn(ids)
 }
 
@@ -65,10 +72,6 @@ func (m *mockActiveService) GetActiveGroupVisitsWithDisplay(_ context.Context, a
 
 func (m *mockActiveService) GetStudentsAttendanceStatuses(_ context.Context, studentIDs []int64) (map[int64]*activeService.AttendanceStatus, error) {
 	return m.getAttendanceStatusesFn(studentIDs)
-}
-
-func (m *mockActiveService) GetStaffActiveSupervisions(_ context.Context, staffID int64) ([]*activeModels.GroupSupervisor, error) {
-	return m.getStaffSupervisionsFn(staffID)
 }
 
 type mockUserContextService struct {
@@ -258,35 +261,29 @@ func TestRunningSessionsResolveRelationsAndRooms(t *testing.T) {
 
 	ctx := context.Background()
 	color := "#83CD2D"
-	endedAt := time.Date(2026, time.August, 19, 12, 0, 0, 0, time.UTC)
 
 	active := &mockActiveService{
-		listActiveGroupsFn: func() ([]*activeModels.Group, error) {
-			return []*activeModels.Group{
-				{Model: base.Model{ID: 11}, RoomID: 21, ActualGroup: &activityModels.Group{Name: "Malen"}, Room: &facilitiesModels.Room{ID: 21, Name: "Zebra", Color: &color}},
-				{Model: base.Model{ID: 12}, RoomID: 22},
-				{Model: base.Model{ID: 13}, RoomID: 22},
-				{Model: base.Model{ID: 14}, RoomID: 23, EndTime: &endedAt},
-			}, nil
-		},
-		getRoomsByIDsFn: func(ids []int64) ([]*facilitiesModels.Room, error) {
+		getRoomsByIDsFn: func(ids []int64) ([]*activeModels.SessionRoom, error) {
 			assert.Equal(t, []int64{22}, ids, "rooms are bulk-loaded once per missing relation")
-			return []*facilitiesModels.Room{{ID: 22, Name: "Adler"}}, nil
+			return []*activeModels.SessionRoom{{ID: 22, Name: "Adler"}}, nil
 		},
 		getActiveGroupsByIDsFn: func(ids []int64) (map[int64]*activeModels.Group, error) {
 			assert.Equal(t, []int64{11, 12, 13}, ids, "ended sessions are not re-read")
 			return map[int64]*activeModels.Group{
-				11: {Model: base.Model{ID: 11}, RoomID: 21, ActualGroup: &activityModels.Group{Name: "Malen"}, Room: &facilitiesModels.Room{ID: 21, Name: "Zebra", Color: &color}},
+				11: {Model: base.Model{ID: 11}, RoomID: 21, ActualGroup: &activeModels.SessionActivity{Name: "Malen"}, Room: &activeModels.SessionRoom{ID: 21, Name: "Zebra", Color: &color}},
 				12: {Model: base.Model{ID: 12}, RoomID: 22},
 				13: {Model: base.Model{ID: 13}, RoomID: 22},
 			}, nil
 		},
-		getStaffSupervisionsFn: func(staffID int64) ([]*activeModels.GroupSupervisor, error) {
+	}
+	roomSessions := &mockRoomSessions{
+		list: func() ([]int64, error) { return []int64{11, 12, 13}, nil },
+		staff: func(staffID int64) ([]int64, error) {
 			assert.Equal(t, int64(91), staffID)
-			return []*activeModels.GroupSupervisor{{GroupID: 12}}, nil
+			return []int64{12}, nil
 		},
 	}
-	s := sessions{active: active}
+	s := sessions{active: active, groups: roomSessions}
 
 	records, err := s.Running(ctx)
 	require.NoError(t, err)
@@ -300,7 +297,7 @@ func TestRunningSessionsResolveRelationsAndRooms(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, map[int64]struct{}{12: {}}, owned)
 
-	active.getRoomsByIDsFn = func([]int64) ([]*facilitiesModels.Room, error) { return nil, errors.New("boom") }
+	active.getRoomsByIDsFn = func([]int64) ([]*activeModels.SessionRoom, error) { return nil, errors.New("boom") }
 	_, err = s.Running(ctx)
 	require.ErrorContains(t, err, "bulk load rooms")
 
@@ -308,7 +305,7 @@ func TestRunningSessionsResolveRelationsAndRooms(t *testing.T) {
 	_, err = s.Running(ctx)
 	require.ErrorContains(t, err, "load active group relations")
 
-	active.listActiveGroupsFn = func() ([]*activeModels.Group, error) { return nil, errors.New("boom") }
+	roomSessions.list = func() ([]int64, error) { return nil, errors.New("boom") }
 	_, err = s.Running(ctx)
 	require.EqualError(t, err, "boom")
 }
@@ -321,13 +318,13 @@ func TestSupervisedSessionsAndUnclaimed(t *testing.T) {
 		return []*activeModels.Group{{Model: base.Model{ID: 11}, RoomID: 21}, {Model: base.Model{ID: 12}}}, nil
 	}}
 	active := &mockActiveService{
-		getRoomsByIDsFn: func(ids []int64) ([]*facilitiesModels.Room, error) {
+		getRoomsByIDsFn: func(ids []int64) ([]*activeModels.SessionRoom, error) {
 			assert.Equal(t, []int64{21}, ids)
-			return []*facilitiesModels.Room{{ID: 21, Name: "Zebra"}}, nil
+			return []*activeModels.SessionRoom{{ID: 21, Name: "Zebra"}}, nil
 		},
 		getUnclaimedActiveGroupsFn: func() ([]*activeModels.Group, error) {
 			return []*activeModels.Group{
-				{Model: base.Model{ID: 11}, Room: &facilitiesModels.Room{ID: 21, Name: "Adler"}},
+				{Model: base.Model{ID: 11}, Room: &activeModels.SessionRoom{ID: 21, Name: "Adler"}},
 				{Model: base.Model{ID: 12}},
 			}, nil
 		},
@@ -591,10 +588,10 @@ func TestYardPreservesWireShape(t *testing.T) {
 		SupervisionID: int64Ptr(4), SupervisorCount: 1, StudentCount: 12,
 		Supervisors: []facilitiesService.SupervisorInfo{{ID: 4, StaffID: 7, Name: "Erika Muster", IsCurrentUser: true}},
 	}
-	y := yard{schulhof: &mockSchulhofService{statusFn: func(staffID int64) (*facilitiesService.SchulhofStatus, error) {
+	y := NewYard(&mockSchulhofService{statusFn: func(staffID int64) (*facilitiesService.SchulhofStatus, error) {
 		assert.Equal(t, int64(77), staffID)
 		return retained, nil
-	}}}
+	}})
 
 	status, err := y.Status(context.Background(), 77)
 	require.NoError(t, err)

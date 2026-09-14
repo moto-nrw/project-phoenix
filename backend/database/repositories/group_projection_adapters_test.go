@@ -36,7 +36,7 @@ func TestSupervisionBlockersResolveGroupNamesThroughTheOwner(t *testing.T) {
 	factory.BindSchoolStructure(groups)
 
 	err = testpkg.WithinTenantContext(t, context.Background(), db, tenantID, func(ctx context.Context) error {
-		rows, err := factory.GroupSupervisor.ListActiveSupervisionBlockers(ctx, staff.ID, tenantID)
+		rows, err := factory.GroupSupervisor.ListActiveSupervisionBlockers(ctx, staff.ID)
 		require.NoError(t, err)
 		require.Len(t, rows, 1)
 		assert.Equal(t, supervision.ID, rows[0].ID)
@@ -66,7 +66,7 @@ func TestSupervisionBlockersExcludeFutureSupervisions(t *testing.T) {
 
 	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	err = testpkg.WithinTenantContext(t, context.Background(), db, tenantID, func(ctx context.Context) error {
-		rows, err := factory.GroupSupervisor.ListActiveSupervisionBlockers(ctx, staff.ID, tenantID)
+		rows, err := factory.GroupSupervisor.ListActiveSupervisionBlockers(ctx, staff.ID)
 		require.NoError(t, err)
 		assert.Empty(t, rows)
 		return nil

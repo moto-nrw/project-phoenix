@@ -10,17 +10,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
-
-// WebManualDeviceCode is the device_id for manual web check-ins.
-// This virtual device is created during seeding and represents check-ins
-// performed through the web portal rather than physical RFID scanners.
-const WebManualDeviceCode = iotModels.WebManualDeviceID
 
 // ensureStudentHasNoActiveVisit checks that the student doesn't already have an active visit
 func (s *service) ensureStudentHasNoActiveVisit(ctx context.Context, studentID int64) error {
@@ -154,14 +148,11 @@ func (s *service) resolveDeviceIDForAttendance(ctx context.Context, deviceID int
 	}
 
 	// Look up the web manual device for manual check-ins
-	webDevice, err := s.DeviceRepo.FindByDeviceID(ctx, WebManualDeviceCode)
+	webDeviceID, err := s.DeviceRepo.ManualAttendanceDeviceID(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("resolve web manual device: %w", err)
 	}
-	if webDevice == nil {
-		return 0, fmt.Errorf("resolve web manual device: %s is not configured", WebManualDeviceCode)
-	}
-	return webDevice.ID, nil
+	return webDeviceID, nil
 }
 
 // resolveClearMode uses the tenant value or registry default supplied by settings.
@@ -387,17 +378,17 @@ func (s *service) broadcastVisitCreated(ctx context.Context, visit *studentprese
 	if s.Broadcaster == nil {
 		return
 	}
-	studentRec := s.getStudentForSSE(ctx, visit.StudentID)
+	educationGroupID := s.getEducationGroupForSSE(ctx, visit.StudentID)
 	broadcastCtx := tenant.ContextWithoutTransaction(ctx)
 	tenant.RegisterAfterCommit(ctx, func() {
-		s.emitVisitCreated(broadcastCtx, visit, snapshot, studentRec)
+		s.emitVisitCreated(broadcastCtx, visit, snapshot, educationGroupID)
 	})
 }
 
 // emitVisitCreated publishes a visit using routing data already resolved in
 // the request transaction. Move events reuse the same student record for their
 // checkout and check-in halves.
-func (s *service) emitVisitCreated(ctx context.Context, visit *studentpresence.Visit, snapshot *AttendanceSnapshot, studentRec *userModels.Student) {
+func (s *service) emitVisitCreated(ctx context.Context, visit *studentpresence.Visit, snapshot *AttendanceSnapshot, educationGroupID *int64) {
 	if s.Broadcaster == nil || visit == nil {
 		return
 	}
@@ -405,7 +396,7 @@ func (s *service) emitVisitCreated(ctx context.Context, visit *studentpresence.V
 	activeGroupID := fmt.Sprintf("%d", visit.ActiveGroupID)
 	studentID := fmt.Sprintf("%d", visit.StudentID)
 
-	eduGroupIDs := eduGroupIDsOf(studentRec)
+	eduGroupIDs := eduGroupIDsOf(educationGroupID)
 
 	data := realtime.EventData{
 		StudentID: &studentID,
@@ -421,7 +412,7 @@ func (s *service) emitVisitCreated(ctx context.Context, visit *studentpresence.V
 		data,
 	)
 
-	if err := s.broadcastVisitEvent(ctx, activeGroupID, studentRec, event); err != nil {
+	if err := s.broadcastVisitEvent(ctx, activeGroupID, educationGroupID, event); err != nil {
 		s.getLogger().Error("SSE broadcast failed",
 			slog.String("error", err.Error()),
 			slog.String("event_type", "student_checkin"),
@@ -435,20 +426,20 @@ func (s *service) emitVisitCreated(ctx context.Context, visit *studentpresence.V
 	s.broadcastSupervisionRefresh(ctx, activeGroupID, activeSupervisionReasonStudentMoved, eduGroupIDs)
 }
 
-func (s *service) broadcastVisitEvent(ctx context.Context, activeGroupID string, studentRec *userModels.Student, event realtime.Event) error {
+func (s *service) broadcastVisitEvent(ctx context.Context, activeGroupID string, educationGroupID *int64, event realtime.Event) error {
 	topics := []string{activeGroupID}
-	if studentRec != nil && studentRec.GroupID != nil {
-		topics = append(topics, fmt.Sprintf("edu:%d", *studentRec.GroupID))
+	if educationGroupID != nil {
+		topics = append(topics, fmt.Sprintf("edu:%d", *educationGroupID))
 	}
 	return s.Broadcaster.BroadcastToGroups(tenant.FromContext(ctx), topics, event)
 }
 
-// getStudentForSSE resolves only routing data. Names are never consumed by SSE
+// getEducationGroupForSSE resolves only routing data. Names are never consumed by SSE
 // clients and used to cost an additional person query per attendance change.
-func (s *service) getStudentForSSE(ctx context.Context, studentID int64) *userModels.Student {
-	student, err := s.StudentRepo.FindByID(ctx, studentID)
-	if err != nil || student == nil {
+func (s *service) getEducationGroupForSSE(ctx context.Context, studentID int64) *int64 {
+	groupID, err := s.EducationGroupRepo.StudentGroupID(ctx, studentID)
+	if err != nil {
 		return nil
 	}
-	return student
+	return groupID
 }

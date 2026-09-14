@@ -9,7 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 // ===== Supervisor Handlers =====
@@ -17,28 +17,24 @@ import (
 // listSupervisors handles listing all group supervisors
 func (rs *Resource) listSupervisors(w http.ResponseWriter, r *http.Request) {
 	// Get query parameters
-	queryOptions := base.NewQueryOptions()
+	filter := studentpresence.GroupSupervisionFilter{}
 
 	// Get active status filter
-	// Note: active.group_supervisors doesn't have is_active column, use "active_only" filter
-	// which the service/repository interprets as end_date IS NULL OR end_date > NOW()
 	activeStr := r.URL.Query().Get("active")
 	if activeStr != "" {
-		isActive := activeStr == "true" || activeStr == "1"
-		queryOptions.Filter.Equal("active_only", isActive)
+		day := timezone.TodayDate().String()
+		if activeStr == "true" || activeStr == "1" {
+			filter.ActiveOn = &day
+		} else {
+			filter.EndedBy = &day
+		}
 	}
 
 	// Get supervisors
-	supervisors, err := rs.ActiveService.ListGroupSupervisors(r.Context(), queryOptions)
+	responses, err := rs.presenceSupervisionResponses(r.Context(), filter, "ListGroupSupervisors")
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
-	}
-
-	// Build response
-	responses := make([]SupervisorResponse, 0, len(supervisors))
-	for _, supervisor := range supervisors {
-		responses = append(responses, newSupervisorResponse(supervisor))
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Supervisors retrieved successfully")
@@ -54,14 +50,11 @@ func (rs *Resource) getSupervisor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get supervisor
-	supervisor, err := rs.ActiveService.GetGroupSupervisor(r.Context(), id)
+	response, err := rs.presenceSupervisor(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
-
-	// Prepare response
-	response := newSupervisorResponse(supervisor)
 
 	common.Respond(w, r, http.StatusOK, response, "Supervisor retrieved successfully")
 }
@@ -76,16 +69,11 @@ func (rs *Resource) getStaffSupervisions(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Get supervisions for staff
-	supervisors, err := rs.ActiveService.FindSupervisorsByStaffID(r.Context(), staffID)
+	day := timezone.TodayDate().String()
+	responses, err := rs.presenceSupervisionResponses(r.Context(), studentpresence.GroupSupervisionFilter{StaffID: &staffID, ActiveOn: &day}, "FindSupervisorsByStaffID")
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
-	}
-
-	// Build response
-	responses := make([]SupervisorResponse, 0, len(supervisors))
-	for _, supervisor := range supervisors {
-		responses = append(responses, newSupervisorResponse(supervisor))
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Staff supervisions retrieved successfully")
@@ -101,17 +89,20 @@ func (rs *Resource) getStaffActiveSupervisions(w http.ResponseWriter, r *http.Re
 	}
 
 	// Get active supervisions for staff
-	supervisors, err := rs.ActiveService.GetStaffActiveSupervisions(r.Context(), staffID)
+	day := timezone.TodayDate().String()
+	responses, err := rs.presenceSupervisionResponses(r.Context(), studentpresence.GroupSupervisionFilter{StaffID: &staffID, ActiveOn: &day}, "GetStaffActiveSupervisions")
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
-	// Build response
-	responses := make([]SupervisorResponse, 0, len(supervisors))
-	for _, supervisor := range supervisors {
-		responses = append(responses, newSupervisorResponse(supervisor))
+	filtered := responses[:0]
+	for _, response := range responses {
+		if response.IsActive {
+			filtered = append(filtered, response)
+		}
 	}
+	responses = filtered
 
 	common.Respond(w, r, http.StatusOK, responses, "Staff active supervisions retrieved successfully")
 }
@@ -126,16 +117,11 @@ func (rs *Resource) getSupervisorsByGroup(w http.ResponseWriter, r *http.Request
 	}
 
 	// Get supervisors for active group
-	supervisors, err := rs.ActiveService.FindSupervisorsByActiveGroupID(r.Context(), groupID)
+	day := timezone.TodayDate().String()
+	responses, err := rs.presenceSupervisionResponses(r.Context(), studentpresence.GroupSupervisionFilter{GroupIDs: []int64{groupID}, ActiveOn: &day}, "FindSupervisorsByActiveGroupID")
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
-	}
-
-	// Build response
-	responses := make([]SupervisorResponse, 0, len(supervisors))
-	for _, supervisor := range supervisors {
-		responses = append(responses, newSupervisorResponse(supervisor))
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Group supervisors retrieved successfully")
@@ -167,7 +153,7 @@ func (rs *Resource) createSupervisor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get the created supervisor
-	createdSupervisor, err := rs.ActiveService.GetGroupSupervisor(r.Context(), supervisor.ID)
+	response, err := rs.presenceSupervisor(r.Context(), supervisor.ID)
 	if err != nil {
 		// Still return success but with the basic supervisor info
 		response := newSupervisorResponse(supervisor)
@@ -176,7 +162,6 @@ func (rs *Resource) createSupervisor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return the supervisor with all details
-	response := newSupervisorResponse(createdSupervisor)
 	common.Respond(w, r, http.StatusCreated, response, "Supervisor created successfully")
 }
 
@@ -216,7 +201,7 @@ func (rs *Resource) updateSupervisor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get the updated supervisor
-	updatedSupervisor, err := rs.ActiveService.GetGroupSupervisor(r.Context(), id)
+	response, err := rs.presenceSupervisor(r.Context(), id)
 	if err != nil {
 		// Still return success but with the basic supervisor info
 		response := newSupervisorResponse(existing)
@@ -225,7 +210,6 @@ func (rs *Resource) updateSupervisor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return the updated supervisor with all details
-	response := newSupervisorResponse(updatedSupervisor)
 	common.Respond(w, r, http.StatusOK, response, "Supervisor updated successfully")
 }
 
@@ -263,14 +247,13 @@ func (rs *Resource) endSupervision(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get the updated supervisor
-	updatedSupervisor, err := rs.ActiveService.GetGroupSupervisor(r.Context(), id)
+	response, err := rs.presenceSupervisor(r.Context(), id)
 	if err != nil {
 		common.Respond(w, r, http.StatusOK, nil, "Supervision ended successfully")
 		return
 	}
 
 	// Return the updated supervisor
-	response := newSupervisorResponse(updatedSupervisor)
 	common.Respond(w, r, http.StatusOK, response, "Supervision ended successfully")
 }
 
@@ -295,26 +278,29 @@ func (rs *Resource) getAllActiveSupervisions(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Get all active groups with room info (same format as /api/me/groups/supervised)
-	groups, err := rs.ActiveService.ListActiveGroups(ctx, base.NewQueryOptions())
+	groups, err := rs.listPresenceLiveGroups(ctx, studentpresence.LiveGroupFilter{})
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
-	// Load room relations for display
-	if len(groups) > 0 {
-		rs.loadActiveGroupRelations(r, groups)
-	}
-
 	// Build response using the same ActiveGroupResponse format
 	responses := make([]ActiveGroupResponse, 0, len(groups))
 	for _, group := range groups {
-		if group.IsActive() {
-			responses = append(responses, newActiveGroupResponse(group))
+		responses = append(responses, newPresenceLiveGroupResponse(group))
+	}
+	// Preserve enrichment of the complete query result before filtering open sessions.
+	if len(groups) > 0 {
+		rs.loadActiveGroupRelations(r, groups, responses)
+	}
+	openResponses := responses[:0]
+	for _, response := range responses {
+		if response.IsActive {
+			openResponses = append(openResponses, response)
 		}
 	}
 
-	common.Respond(w, r, http.StatusOK, responses, "All active groups retrieved successfully")
+	common.Respond(w, r, http.StatusOK, openResponses, "All active groups retrieved successfully")
 }
 
 // supervisorEndDate converts an optional wire instant into the optional

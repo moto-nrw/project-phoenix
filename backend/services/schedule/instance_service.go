@@ -491,6 +491,15 @@ func (s *instanceService) notScheduledStudentIDs(
 // (TenantTxMiddleware); any failure rolls back the whole thing — no dangling
 // active.group, no half-linked instance, no stale supervisors.
 func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffID int64) (*StartInstanceResult, error) {
+	if !s.hasTx(ctx) {
+		var result *StartInstanceResult
+		err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+			var startErr error
+			result, startErr = s.Start(txCtx, instanceID, startedByStaffID)
+			return startErr
+		})
+		return result, err
+	}
 	instance, err := s.loadForTransition(ctx, instanceID)
 	if err != nil {
 		return nil, err
@@ -537,7 +546,6 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 	// Conflicts are advisory; failed presence reads abort before any writes.
 	warnings, err := DetectStartConflicts(ctx, ConflictDependencies{
 		GroupRepo:         s.deps.ActiveGroupRepo,
-		SupervisorRepo:    s.deps.SupervisorRepo,
 		Presence:          s.deps.Presence,
 		InstanceRepo:      s.deps.InstanceRepo,
 		InstanceStaffRepo: s.deps.InstanceStaffRepo,
@@ -1277,11 +1285,10 @@ func (s *instanceService) validateReopenSupervisorsUnchanged(ctx context.Context
 			staffIDs = append(staffIDs, row.StaffID)
 		}
 	}
-	activeByStaff := make(map[int64][]*activeModel.GroupSupervisor, len(staffIDs))
+	activeByStaff := make(map[int64][]studentpresence.GroupSupervision, len(staffIDs))
 	if len(staffIDs) > 0 {
-		options := modelBase.NewQueryOptions()
-		options.Filter = modelBase.NewFilter().Equal("active_only", true).In("staff_id", int64FilterArgs(staffIDs)...)
-		activeRows, listErr := s.deps.SupervisorRepo.List(ctx, options)
+		day := timezone.TodayDate().String()
+		activeRows, listErr := s.deps.Presence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{ActiveOn: &day, StaffIDs: staffIDs})
 		if listErr != nil {
 			return &ScheduleError{Op: "reopen instance: load staff supervisions", Err: listErr}
 		}

@@ -1,6 +1,8 @@
 package active
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -8,6 +10,27 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestStatusDayLocksKeepOrderAndStopOnFailure(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	first := timezone.NewDate(2026, 3, 28)
+	dates := []timezone.Date{first.AddDays(2), first, first.AddDays(1)}
+	wantErr := errors.New("day lock failed")
+	var locked []string
+	service := NewStudentStatusDayServiceWithPartialAbsences(nil, nil, nil, func(received context.Context, studentID int64, date string) error {
+		assert.Equal(t, ctx, received)
+		assert.EqualValues(t, 7, studentID)
+		locked = append(locked, date)
+		if date == first.AddDays(1).String() {
+			return wantErr
+		}
+		return nil
+	})
+	assert.ErrorIs(t, service.lockStudentStatusDates(ctx, 7, dates), wantErr)
+	assert.Equal(t, []string{first.String(), first.AddDays(1).String()}, locked)
+	assert.Equal(t, []timezone.Date{first.AddDays(2), first, first.AddDays(1)}, dates)
+}
 
 func TestDedupeStudentIDsPreservesFirstOccurrenceOrder(t *testing.T) {
 	t.Parallel()

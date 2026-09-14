@@ -12,14 +12,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
-	"github.com/moto-nrw/project-phoenix/tenant"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/device"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 )
 
 // CheckinRequest represents the request body for manual check-in
@@ -30,8 +25,8 @@ type CheckinRequest struct {
 // checkinContext holds validated data for the check-in operation
 type checkinContext struct {
 	studentID   int64
-	activeGroup *activeModels.Group
-	staff       *users.Staff
+	activeGroup *studentpresence.LiveGroup
+	staff       *StaffIdentity
 	request     CheckinRequest
 }
 
@@ -54,7 +49,7 @@ func (rs *Resource) checkinStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create the visit with staff context
-	ctx = context.WithValue(ctx, device.CtxStaff, staffPrincipal(checkinCtx.staff))
+	ctx = rs.runtime.WithStaff(ctx, checkinCtx.staff.ID, checkinCtx.staff.TenantID)
 	visit, err := rs.createCheckinVisit(ctx, checkinCtx)
 	if err != nil {
 		err.respond(w, r)
@@ -77,9 +72,9 @@ func (e *checkinError) respond(w http.ResponseWriter, r *http.Request) {
 
 // parseAndValidateCheckinRequest parses the request and validates authorization
 func (rs *Resource) parseAndValidateCheckinRequest(ctx context.Context, r *http.Request) (*checkinContext, *checkinError) {
-	// Get user from JWT context
-	userClaims := jwt.ClaimsFromCtx(ctx)
-	if userClaims.ID == 0 {
+	// Read the principal validated by the route's authentication middleware.
+	principal, principalErr := common.CurrentPrincipal(ctx)
+	if principalErr != nil {
 		return nil, &checkinError{http.StatusUnauthorized, "Invalid token"}
 	}
 
@@ -109,7 +104,7 @@ func (rs *Resource) parseAndValidateCheckinRequest(ctx context.Context, r *http.
 	}
 
 	// Get and validate the active group
-	activeGroup, groupErr := rs.ActiveService.GetActiveGroup(ctx, req.ActiveGroupID)
+	activeGroup, groupErr := rs.presenceLiveGroup(ctx, req.ActiveGroupID)
 	if groupErr != nil {
 		// Distinguish "not found" from other errors (DB failures, timeouts)
 		if errors.Is(groupErr, activeService.ErrActiveGroupNotFound) {
@@ -121,12 +116,12 @@ func (rs *Resource) parseAndValidateCheckinRequest(ctx context.Context, r *http.
 		return nil, &checkinError{http.StatusNotFound, "Active group not found"}
 	}
 
-	if !activeGroup.IsActive() {
+	if !activeGroup.IsOpen() {
 		return nil, &checkinError{http.StatusConflict, "The selected room session is no longer active"}
 	}
 
 	// Get staff authorization
-	staff, authErr := rs.getAuthorizedStaff(ctx, userClaims.ID)
+	staff, authErr := rs.getAuthorizedStaff(ctx, principal.AccountID())
 	if authErr != nil {
 		return nil, authErr
 	}
@@ -140,8 +135,8 @@ func (rs *Resource) parseAndValidateCheckinRequest(ctx context.Context, r *http.
 }
 
 // getAuthorizedStaff checks if the user is authorized to check in the student
-func (rs *Resource) getAuthorizedStaff(ctx context.Context, accountID int) (*users.Staff, *checkinError) {
-	person, personErr := rs.PersonService.FindByAccountID(ctx, int64(accountID))
+func (rs *Resource) getAuthorizedStaff(ctx context.Context, accountID int64) (*StaffIdentity, *checkinError) {
+	person, personErr := rs.PersonService.FindByAccountID(ctx, accountID)
 	if personErr != nil || person == nil {
 		return nil, &checkinError{http.StatusInternalServerError, "Failed to get user information"}
 	}
@@ -209,7 +204,7 @@ func (rs *Resource) createCheckinVisit(ctx context.Context, checkinCtx *checkinC
 	if createErr := rs.ActiveService.CreateVisit(ctx, visit); createErr != nil {
 		var capacityErr *activeService.RoomCapacityError
 		if errors.As(createErr, &capacityErr) {
-			tenant.MarkRollback(ctx)
+			rs.runtime.MarkRollback(ctx)
 			return nil, &checkinError{http.StatusConflict, capacityErr.Error()}
 		}
 		// Handle race condition: another request already created a visit for this student

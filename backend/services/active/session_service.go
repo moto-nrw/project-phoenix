@@ -2,7 +2,6 @@ package active
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -11,15 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -81,7 +76,7 @@ func (s *service) validateSupervisorIDs(ctx context.Context, supervisorIDs []int
 	// Batch-validate all unique supervisor IDs in a single query
 	idSlice := slices.Collect(maps.Keys(uniqueIDs))
 
-	staffMap, err := s.StaffRepo.FindByIDs(ctx, idSlice)
+	staffMap, err := s.StaffRepo.ExistingStaffIDs(ctx, idSlice)
 	if err != nil {
 		return &ActiveError{Op: "ValidateSupervisors", Err: ErrStaffNotFound}
 	}
@@ -143,7 +138,7 @@ func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID 
 		if err != nil {
 			return err
 		}
-		if err := s.GroupRepo.LockRoomSessionWrites(txCtx, finalRoomID); err != nil {
+		if err := s.SchoolPresence.LockRoomSessionWrites(txCtx, finalRoomID); err != nil {
 			return &ActiveError{Op: operation, Err: ErrDatabaseOperation}
 		}
 
@@ -157,7 +152,7 @@ func (s *service) acquireActivitySessionLock(ctx context.Context, activityID int
 	if s.SessionStartLock == nil {
 		return &ActiveError{Op: operation, Err: errors.New("session start lock repository is not configured")}
 	}
-	if err := s.SessionStartLock.LockSessionStart(ctx, tenant.FromContext(ctx), activityID); err != nil {
+	if err := s.SessionStartLock.LockSessionStart(ctx, activityID); err != nil {
 		return &ActiveError{Op: operation, Err: fmt.Errorf("failed to acquire activity lock: %w", err)}
 	}
 	return nil
@@ -703,7 +698,7 @@ func (s *service) determineRoomIDWithStrategy(ctx context.Context, activityID in
 // validateManualRoomSelection validates manually selected room based on conflict strategy
 func (s *service) validateManualRoomSelection(ctx context.Context, roomID int64, strategy RoomConflictStrategy, lockRoom bool) (int64, error) {
 	if lockRoom && s.GroupRepo != nil {
-		if err := s.GroupRepo.LockRoomSessionWrites(ctx, roomID); err != nil {
+		if err := s.SchoolPresence.LockRoomSessionWrites(ctx, roomID); err != nil {
 			return 0, err
 		}
 	}
@@ -753,7 +748,7 @@ func (s *service) lockForceStartRooms(ctx context.Context, activityID, deviceID,
 	}
 	slices.Sort(ids)
 	for _, roomID := range ids {
-		if err := s.GroupRepo.LockRoomSessionWrites(ctx, roomID); err != nil {
+		if err := s.SchoolPresence.LockRoomSessionWrites(ctx, roomID); err != nil {
 			return err
 		}
 	}
@@ -797,7 +792,7 @@ func (s *service) UpdateActiveGroupSupervisors(ctx context.Context, activeGroupI
 	// auto-open their work sessions so they show as "Anwesend" (issue #1439).
 	// Same best-effort semantics as the session-start auto-stamp.
 	source := active.WorkSessionSourceApp
-	if device.IsIoTDeviceRequest(ctx) {
+	if s.attendancePrincipal(ctx).IsIoT {
 		source = active.WorkSessionSourceNFC
 	}
 	for staffID := range uniqueSupervisors {
@@ -1194,22 +1189,21 @@ func (s *service) collectActiveVisitsForSSE(ctx context.Context, sessionID int64
 		return nil, nil
 	}
 
-	// Batch-fetch all students (1 query instead of N)
+	// Resolve educational-group routing in one batch.
 	studentIDs := slices.Collect(maps.Keys(studentIDSet))
-	studentsMap, err := s.StudentRepo.FindByIDs(ctx, studentIDs)
+	studentGroups, err := s.EducationGroupRepo.StudentGroupIDs(ctx, studentIDs)
 	if err != nil {
-		studentsMap = nil
+		studentGroups = nil
 	}
 
 	// Build result using map lookups (O(1) per visit)
 	result := make([]visitSSEData, 0, len(activeVisits))
 	for _, visit := range activeVisits {
 		data := visitSSEData{
-			VisitID:   visit.ID,
 			StudentID: visit.StudentID,
 		}
-		if student, ok := studentsMap[visit.StudentID]; ok && student != nil {
-			data.Student = student
+		if groupID, ok := studentGroups[visit.StudentID]; ok {
+			data.EducationGroupID = &groupID
 		}
 		result = append(result, data)
 	}
@@ -1344,13 +1338,16 @@ func (s *service) UpdateSessionActivity(ctx context.Context, activeGroupID int64
 }
 
 func isUpdateLastActivitySessionMiss(err error) bool {
+	if errors.Is(err, studentpresence.ErrGroupNotOpen) {
+		return true
+	}
 	var dbErr *modelBase.DatabaseError
 	return errors.As(err, &dbErr) && dbErr.Op == "update last activity - session not found"
 }
 
 func isFindByIDNoRows(err error) bool {
 	var dbErr *modelBase.DatabaseError
-	return errors.As(err, &dbErr) && dbErr.Op == "find by id" && errors.Is(dbErr.Err, sql.ErrNoRows)
+	return errors.As(err, &dbErr) && dbErr.Op == "find by id" && modelBase.IsNoRows(dbErr.Err)
 }
 
 // ValidateSessionTimeout validates if a timeout request is valid
@@ -1443,14 +1440,7 @@ func (s *service) CleanupAbandonedSessions(ctx context.Context, threshold time.D
 		// This ensures we end the exact session we identified as abandoned, not whatever
 		// session happens to be current for the device at cleanup time
 		//
-		// Stamp the session's tenant into the context: the CLI cleanup path
-		// (cmd/cleanup.go) calls with context.Background(), and the SSE
-		// broadcasts inside the timeout flow are tenant-scoped
-		// (BroadcastToTenant) — without a tenant id they would be silently
-		// dropped. The scheduler path already carries the same tenant id, so
-		// re-stamping is a no-op there.
-		sessionCtx := tenant.WithTenantID(ctx, session.TenantID)
-		_, err := s.ProcessSessionTimeoutByID(sessionCtx, session.ID)
+		_, err := s.ProcessSessionTimeoutByID(ctx, session.ID)
 		if err != nil {
 			// Log error but continue with other sessions
 			// Note: ErrActiveGroupAlreadyEnded is expected if session was ended between
@@ -1469,7 +1459,7 @@ func (s *service) CleanupAbandonedSessions(ctx context.Context, threshold time.D
 // setting iot.device_online_window_minutes, falling back to
 // defaultDeviceOnlineWindow when the resolver is nil, no override exists, or
 // the lookup fails. Moved off the iot.Device model per issue #586 (Rule 12).
-func (s *service) isDeviceOnline(ctx context.Context, device *iotModels.Device, now time.Time) bool {
+func (s *service) isDeviceOnline(ctx context.Context, device *active.SessionDevice, now time.Time) bool {
 	if device == nil || device.LastSeen == nil {
 		return false
 	}
@@ -1479,11 +1469,12 @@ func (s *service) isDeviceOnline(ctx context.Context, device *iotModels.Device, 
 // deviceOnlineWindow resolves the per-tenant device-online window, falling back
 // to defaultDeviceOnlineWindow.
 func (s *service) deviceOnlineWindow(ctx context.Context) time.Duration {
-	minutes := config.ResolveIntOrDefault(ctx, s.settings, configModel.KeyDeviceOnlineWindowMinutes, 0, s.getLogger())
-	if minutes <= 0 {
-		return defaultDeviceOnlineWindow
+	if s.DeviceRepo != nil {
+		if window := s.DeviceRepo.OnlineWindow(ctx); window > 0 {
+			return window
+		}
 	}
-	return time.Duration(minutes) * time.Minute
+	return defaultDeviceOnlineWindow
 }
 
 // EndDailySessions ends all active sessions at the end of the day using bulk UPDATEs
@@ -1542,15 +1533,13 @@ func newDailySessionCleanupResult() *DailySessionCleanupResult {
 }
 
 func (s *service) activeSessionIDs(ctx context.Context) ([]int64, error) {
-	activeGroups, err := s.GroupRepo.List(ctx, nil)
+	activeGroups, err := s.GroupRepo.FindActiveGroups(ctx)
 	if err != nil {
 		return nil, err
 	}
 	activeIDs := make([]int64, 0, len(activeGroups))
 	for _, group := range activeGroups {
-		if group.IsActive() {
-			activeIDs = append(activeIDs, group.ID)
-		}
+		activeIDs = append(activeIDs, group.ID)
 	}
 	return activeIDs, nil
 }
@@ -1637,7 +1626,7 @@ func (s *service) closeStaleSupervisor(ctx context.Context, record *active.Group
 		endDate := current.StartDate
 		current.EndDate = &endDate
 		current.UpdatedAt = time.Now()
-		_, err = s.SupervisorRepo.UpdateColumns(txCtx, current, "end_date", "updated_at")
+		_, err = s.SupervisorRepo.SetEndDate(txCtx, current)
 		closed = err == nil
 		return err
 	})

@@ -8,6 +8,7 @@
 package common
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
@@ -21,7 +22,12 @@ type StudentAccessContext = usercontext.StudentAccessContext
 // delegating to the usercontext policy.
 func DetermineStudentAccess(
 	r *http.Request,
-	userContextSvc usercontext.UserContextService,
+	userContextSvc usercontext.CurrentStaff,
 ) *StudentAccessContext {
 	return usercontext.ResolveStudentAccess(r.Context(), userContextSvc)
+}
+
+// DetermineStudentAccessWithStaffLookup accepts a projected staff lookup.
+func DetermineStudentAccessWithStaffLookup(r *http.Request, lookup func(context.Context) (bool, error)) *StudentAccessContext {
+	return usercontext.ResolveStudentAccessWithStaffLookup(r.Context(), lookup)
 }

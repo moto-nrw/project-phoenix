@@ -1,22 +1,27 @@
 package active
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/services/facilities"
-	"github.com/moto-nrw/project-phoenix/services/usercontext"
+	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 )
+
+// SchulhofStatusQuery supplies the courtyard status without infrastructure writes.
+type SchulhofStatusQuery interface {
+	Status(context.Context, int64) (*supervisiondashboard.SchulhofStatus, error)
+}
 
 // SchulhofResource handles Schulhof-specific API endpoints.
 type SchulhofResource struct {
-	schulhofService    facilities.SchulhofService
-	userContextService usercontext.UserContextService
+	schulhofService    SchulhofStatusQuery
+	userContextService CurrentStaff
 }
 
 // NewSchulhofResource creates a new Schulhof resource.
-func NewSchulhofResource(schulhofService facilities.SchulhofService, userContextService usercontext.UserContextService) *SchulhofResource {
+func NewSchulhofResource(schulhofService SchulhofStatusQuery, userContextService CurrentStaff) *SchulhofResource {
 	return &SchulhofResource{
 		schulhofService:    schulhofService,
 		userContextService: userContextService,
@@ -57,7 +62,7 @@ func (rs *SchulhofResource) getSchulhofStatus(w http.ResponseWriter, r *http.Req
 	}
 
 	// Get Schulhof status
-	status, err := rs.schulhofService.GetSchulhofStatus(ctx, staff.ID)
+	status, err := rs.schulhofService.Status(ctx, staff.ID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to get Schulhof status", err))
 		return

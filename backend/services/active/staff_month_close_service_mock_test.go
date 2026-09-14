@@ -7,8 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -17,14 +15,14 @@ import (
 )
 
 type concurrentMonthCloseSnapshotRepo struct {
-	activeModels.StaffMonthBalanceSnapshotRepository
+	MonthSnapshots
 	events   *[]string
-	snapshot *activeModels.StaffMonthBalanceSnapshot
+	snapshot *MonthSnapshot
 }
 
 func (r *concurrentMonthCloseSnapshotRepo) LockStaffBalanceWrites(context.Context, int64) error {
 	*r.events = append(*r.events, "lock")
-	r.snapshot = &activeModels.StaffMonthBalanceSnapshot{
+	r.snapshot = &MonthSnapshot{
 		StaffID: 41,
 		Year:    2025,
 		Month:   8,
@@ -32,19 +30,19 @@ func (r *concurrentMonthCloseSnapshotRepo) LockStaffBalanceWrites(context.Contex
 	return nil
 }
 
-func (r *concurrentMonthCloseSnapshotRepo) GetLatestClosedThrough(context.Context, int64, int, int) (*activeModels.StaffMonthBalanceSnapshot, error) {
+func (r *concurrentMonthCloseSnapshotRepo) LatestClosedMonth(context.Context, int64, int, int) (*MonthSnapshot, error) {
 	*r.events = append(*r.events, "snapshot")
 	return r.snapshot, nil
 }
 
-func (r *concurrentMonthCloseSnapshotRepo) GetByMonth(context.Context, int, int) ([]*activeModels.StaffMonthBalanceSnapshot, error) {
+func (r *concurrentMonthCloseSnapshotRepo) ClosedMonthSnapshots(context.Context, int, int) ([]*MonthSnapshot, error) {
 	*r.events = append(*r.events, "pre-lock-snapshots")
 	return nil, nil
 }
 
-func (r *concurrentMonthCloseSnapshotRepo) Create(context.Context, *activeModels.StaffMonthBalanceSnapshot) error {
+func (r *concurrentMonthCloseSnapshotRepo) RecordClosedMonth(_ context.Context, value MonthSnapshot) (MonthSnapshot, error) {
 	*r.events = append(*r.events, "create")
-	return nil
+	return value, nil
 }
 
 type recordingMonthCloseMonthService struct {
@@ -61,11 +59,9 @@ type recordingMonthCloseStaffLister struct {
 	events *[]string
 }
 
-func (l *recordingMonthCloseStaffLister) ListAllWithPerson(context.Context) ([]*userModels.Staff, error) {
+func (l *recordingMonthCloseStaffLister) ListStaffIDs(context.Context) ([]int64, error) {
 	*l.events = append(*l.events, "staff")
-	staff := &userModels.Staff{}
-	staff.ID = 41
-	return []*userModels.Staff{staff}, nil
+	return []int64{41}, nil
 }
 
 func TestStaffMonthCloseService_RechecksIdempotencyAfterLock(t *testing.T) {
@@ -102,23 +98,23 @@ func TestCalendarMonthHasEnded_RequiresFollowingDay(t *testing.T) {
 }
 
 type broadcastMonthCloseSnapshotRepo struct {
-	activeModels.StaffMonthBalanceSnapshotRepository
-	snapshot *activeModels.StaffMonthBalanceSnapshot
+	MonthSnapshots
+	snapshot *MonthSnapshot
 }
 
 func (r *broadcastMonthCloseSnapshotRepo) LockStaffBalanceWrites(context.Context, int64) error {
 	return nil
 }
 
-func (r *broadcastMonthCloseSnapshotRepo) GetLatestClosedThrough(context.Context, int64, int, int) (*activeModels.StaffMonthBalanceSnapshot, error) {
+func (r *broadcastMonthCloseSnapshotRepo) LatestClosedMonth(context.Context, int64, int, int) (*MonthSnapshot, error) {
 	return r.snapshot, nil
 }
 
-func (r *broadcastMonthCloseSnapshotRepo) Create(context.Context, *activeModels.StaffMonthBalanceSnapshot) error {
-	return nil
+func (r *broadcastMonthCloseSnapshotRepo) RecordClosedMonth(_ context.Context, value MonthSnapshot) (MonthSnapshot, error) {
+	return value, nil
 }
 
-func (r *broadcastMonthCloseSnapshotRepo) UpdateColumns(context.Context, *activeModels.StaffMonthBalanceSnapshot, ...string) (int64, error) {
+func (r *broadcastMonthCloseSnapshotRepo) ReopenMonthSnapshot(context.Context, int64, int64, time.Time, string) (int64, error) {
 	return 1, nil
 }
 
@@ -177,7 +173,7 @@ func TestStaffMonthCloseService_ReopenBroadcastsAfterCommit(t *testing.T) {
 
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	service := newBroadcastMonthCloseService(&broadcastMonthCloseSnapshotRepo{
-		snapshot: &activeModels.StaffMonthBalanceSnapshot{
+		snapshot: &MonthSnapshot{
 			StaffID: 41,
 			Year:    2025,
 			Month:   8,

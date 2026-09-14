@@ -106,4 +106,17 @@ func TestAttendanceFacadeKeepsCompletedStaysAndRetriesExplicitActions(t *testing
 	require.Len(t, rows, 2)
 	assert.Equal(t, first.ID, rows[0].ID)
 	assert.Equal(t, second.ID, rows[1].ID)
+
+	days, err := module.ListAttendanceDays(ctx, input.Date, input.Date)
+	require.NoError(t, err)
+	assert.Equal(t, []studentpresence.AttendanceDay{{StudentID: student.ID, Date: input.Date}}, days,
+		"multiple stays on one calendar day count once")
+	nextDay := testpkg.TodayDate().AddDays(1).String()
+	days, err = module.ListAttendanceDays(ctx, nextDay, nextDay)
+	require.NoError(t, err)
+	assert.Empty(t, days, "the range excludes days before its inclusive start")
+	_, err = module.ListAttendanceDays(ctx, nextDay, input.Date)
+	require.Error(t, err, "a reversed range is rejected")
+	_, err = module.ListAttendanceDays(context.Background(), input.Date, input.Date)
+	require.Error(t, err, "a report query requires a tenant")
 }

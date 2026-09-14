@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 type assignTransitStudentsRequest struct {
@@ -32,7 +31,7 @@ func (rs *Resource) assignTransitStudents(w http.ResponseWriter, r *http.Request
 
 	result, err := rs.ActiveService.AssignTransitStudentsToActiveGroupAuthorized(r.Context(), req.StudentIDs, req.ActiveGroupID, *auth)
 	if err != nil {
-		tenant.MarkRollback(r.Context())
+		rs.runtime.MarkRollback(r.Context())
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}

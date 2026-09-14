@@ -517,17 +517,6 @@ func TestCreateVisit_ClearsParentStatusForToday(t *testing.T) {
 }
 
 // =============================================================================
-// WebManualDeviceCode Constant Test
-// =============================================================================
-
-func TestWebManualDeviceCode(t *testing.T) {
-	t.Parallel()
-
-	// Verify the constant is set correctly
-	assert.Equal(t, "WEB-MANUAL-001", active.WebManualDeviceCode, "WebManualDeviceCode should be 'WEB-MANUAL-001'")
-}
-
-// =============================================================================
 // Helper Functions
 // =============================================================================
 

@@ -9,9 +9,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // The adapters in this file let the Monatskarte math run over data loaded once
@@ -33,17 +30,17 @@ import (
 type monthPrefetch struct {
 	from, to timezone.Date
 
-	staff          map[int64]*userModels.Staff
+	staff          map[int64]*StaffScheduleAssignment
 	sessions       map[int64][]*activeModels.WorkSession
 	breaks         map[int64][]*activeModels.WorkSessionBreak
 	absences       map[int64][]*activeModels.StaffAbsence
 	adjustments    map[int64][]*activeModels.StaffBalanceAdjustment
-	shifts         map[int64][]*scheduleModels.StaffShift
-	schedules      map[int64][]*configModels.StaffWorkSchedule
+	shifts         map[int64][]*TimeTrackingShift
+	schedules      map[int64]WorkScheduleTargets
 	scheduleHist   map[int64]bool
-	workTimeModels map[int64]*configModels.WorkTimeModel
+	workTimeModels map[int64]*WorkTimeTargetModel
 	holidays       map[timezone.Date]bool
-	snapshots      map[int64][]*activeModels.StaffMonthBalanceSnapshot
+	snapshots      map[int64][]*MonthSnapshot
 	settings       *memoSettingsResolver
 }
 
@@ -85,7 +82,6 @@ func (m *memoSettingsResolver) ResolveString(ctx context.Context, key string) (s
 // asked for something it never loaded. Failing loudly beats reporting a
 // silently wrong Stundenkonto.
 var (
-	errUnexpectedPrefetchID       = errors.New("prefetched staff reader expects an int64 id")
 	errStaffNotPrefetched         = errors.New("staff member is not part of the prefetch")
 	errWorkTimeModelNotPrefetched = errors.New("work time model is not part of the prefetch")
 )
@@ -94,11 +90,7 @@ var (
 
 type prefetchedStaffReader struct{ p *monthPrefetch }
 
-func (r prefetchedStaffReader) FindByID(_ context.Context, id any) (*userModels.Staff, error) {
-	staffID, ok := id.(int64)
-	if !ok {
-		return nil, errUnexpectedPrefetchID
-	}
+func (r prefetchedStaffReader) ScheduleAssignment(_ context.Context, staffID int64) (*StaffScheduleAssignment, error) {
 	staff, ok := r.p.staff[staffID]
 	if !ok {
 		return nil, errStaffNotPrefetched
@@ -160,18 +152,14 @@ func (r prefetchedAdjustmentReader) GetByStaffAndDateRange(_ context.Context, st
 
 type prefetchedShiftReader struct{ p *monthPrefetch }
 
-func (r prefetchedShiftReader) FindByStaffAndDateRange(_ context.Context, staffID int64, _, _ scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
+func (r prefetchedShiftReader) FindByStaffAndDateRange(_ context.Context, staffID int64, _, _ timezone.Date) ([]*TimeTrackingShift, error) {
 	return r.p.shifts[staffID], nil
 }
 
 type prefetchedScheduleReader struct{ p *monthPrefetch }
 
-func (r prefetchedScheduleReader) FindByStaffIDsValidInRange(_ context.Context, staffIDs []int64, _, _ configModels.CalendarDate) ([]*configModels.StaffWorkSchedule, error) {
-	var entries []*configModels.StaffWorkSchedule
-	for _, staffID := range staffIDs {
-		entries = append(entries, r.p.schedules[staffID]...)
-	}
-	return entries, nil
+func (r prefetchedScheduleReader) TargetsForStaff(_ context.Context, staffID int64, _, _ timezone.Date) (WorkScheduleTargets, error) {
+	return r.p.schedules[staffID], nil
 }
 
 func (r prefetchedScheduleReader) HasScheduleHistory(_ context.Context, staffID int64) (bool, error) {
@@ -180,7 +168,7 @@ func (r prefetchedScheduleReader) HasScheduleHistory(_ context.Context, staffID 
 
 type prefetchedModelReader struct{ p *monthPrefetch }
 
-func (r prefetchedModelReader) FindByID(_ context.Context, id int64) (*configModels.WorkTimeModel, error) {
+func (r prefetchedModelReader) FindByID(_ context.Context, id int64) (*WorkTimeTargetModel, error) {
 	model, ok := r.p.workTimeModels[id]
 	if !ok {
 		return nil, errWorkTimeModelNotPrefetched
@@ -204,9 +192,9 @@ func (r prefetchedHolidayReader) HolidayDates(_ context.Context, _, _ timezone.D
 // TestTimeTrackingOverview_QueryCountIsConstant catches).
 type prefetchedSnapshotReader struct{ p *monthPrefetch }
 
-func (r prefetchedSnapshotReader) GetLatestClosedThrough(_ context.Context, staffID int64, year, month int) (*activeModels.StaffMonthBalanceSnapshot, error) {
+func (r prefetchedSnapshotReader) LatestClosedMonth(_ context.Context, staffID int64, year, month int) (*MonthSnapshot, error) {
 	limit := year*12 + month
-	var best *activeModels.StaffMonthBalanceSnapshot
+	var best *MonthSnapshot
 	for _, snapshot := range r.p.snapshots[staffID] {
 		ordinal := snapshot.Year*12 + snapshot.Month
 		if ordinal > limit {

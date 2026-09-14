@@ -2,7 +2,6 @@ package students
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"net/http"
 	"slices"
@@ -208,7 +207,7 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 	}
 
 	if err := rs.StudentStatusDayService.DeleteByID(r.Context(), rs.newStatusDayWriteContext(r, userPermissions), statusDayID, student.ID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if common.IsNotFound(err) {
 			renderError(w, r, common.ErrorNotFound(errors.New("student status day not found")))
 			return
 		}

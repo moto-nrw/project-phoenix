@@ -11,42 +11,54 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
-	userSvc "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type moveAuthPersonService struct {
-	userSvc.PersonService
-	person *userModel.Person
-	staff  *userModel.Staff
+	People
+	person *PersonIdentity
+	staff  *StaffIdentity
 }
 
-func (s moveAuthPersonService) FindByAccountID(_ context.Context, _ int64) (*userModel.Person, error) {
+func (s moveAuthPersonService) FindByAccountID(_ context.Context, _ int64) (*PersonIdentity, error) {
 	return s.person, nil
 }
 
-func (s moveAuthPersonService) GetStaffByPersonID(_ context.Context, _ int64) (*userModel.Staff, error) {
+func (s moveAuthPersonService) GetStaffByPersonID(_ context.Context, _ int64) (*StaffIdentity, error) {
 	return s.staff, nil
 }
 
 func withAdminMoveContext(req *http.Request) *http.Request {
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 1, IsAdmin: true})
-	ctx = context.WithValue(ctx, jwt.CtxPermissions, []string{"admin:*"})
-	return req.WithContext(ctx)
+	claims := adminClaims()
+	claims.ID, claims.Permissions = 1, []string{"admin:*"}
+	return req.WithContext(claimsCtxWithParent(req.Context(), claims))
 }
 
 func withStaffMoveContext(req *http.Request) *http.Request {
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 2})
-	ctx = context.WithValue(ctx, jwt.CtxPermissions, []string{"visits:update"})
-	return req.WithContext(ctx)
+	claims := staffClaims()
+	claims.ID, claims.Permissions = 2, []string{"visits:update"}
+	return req.WithContext(claimsCtxWithParent(req.Context(), claims))
+}
+
+func TestBulkMoveBypassRequiresValidatedAdminPrincipal(t *testing.T) {
+	t.Parallel()
+	for _, granted := range [][]string{{"admin:*"}, {"*:*"}} {
+		claims := staffClaims()
+		claims.Permissions = granted
+		req := newRequestWithClaims(http.MethodPost, "/visits/move-to-group", claims)
+		require.True(t, canBypassBulkMoveResourceChecks(req))
+	}
+	req := withStaffMoveContext(httptest.NewRequest(http.MethodPost, "/visits/move-to-group", nil))
+	require.False(t, canBypassBulkMoveResourceChecks(req))
+	// Raw claims alone cannot bypass the validated principal boundary.
+	raw := testpkg.IdentityContext(context.Background(), 2, 42, "", []string{"admin:*"})
+	require.False(t, canBypassBulkMoveResourceChecks(req.WithContext(raw)))
 }
 
 func TestMoveHandlerOnlyPassesSchoolWideEligibilityForTenantStaff(t *testing.T) {
@@ -61,28 +73,30 @@ func TestMoveHandlerOnlyPassesSchoolWideEligibilityForTenantStaff(t *testing.T) 
 	}{
 		{name: "OGS staff", claimTenant: 42, staffTenant: 42, permissions: []string{"visits:update"}, want: true},
 		{name: "school portal", scope: "school", claimTenant: 42, staffTenant: 42, permissions: []string{"visits:update"}},
-		{name: "parent portal", scope: "parent", claimTenant: 42, staffTenant: 42, permissions: []string{"visits:update"}},
-		{name: "operator portal", scope: "platform", claimTenant: 42, staffTenant: 42, permissions: []string{"visits:update"}},
+		{name: "parent portal", scope: "parent", staffTenant: 42, permissions: []string{"visits:update"}},
+		{name: "operator portal", scope: "platform", staffTenant: 42, permissions: []string{"visits:update"}},
 		{name: "missing permission", claimTenant: 42, staffTenant: 42},
 		{name: "wrong tenant", claimTenant: 43, staffTenant: 43, permissions: []string{"visits:update"}},
 		{name: "foreign staff", claimTenant: 42, staffTenant: 43, permissions: []string{"visits:update"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			staff := &userModel.Staff{Model: base.Model{ID: 20}}
+			staff := &StaffIdentity{ID: 20}
 			staff.TenantID = tc.staffTenant
 			called := false
-			rs := &Resource{
-				PersonService: moveAuthPersonService{person: &userModel.Person{Model: base.Model{ID: 10}}, staff: staff},
+			rs := resourceForTest(Resource{
+				PersonService: moveAuthPersonService{person: &PersonIdentity{ID: 10}, staff: staff},
 				ActiveService: &trackingMockActiveService{moveStudentsToActiveGroupAuthorizedFunc: func(_ context.Context, _ []int64, _ int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
 					called = true
 					require.Equal(t, tc.want, auth.SchoolWideAttendanceEligible)
 					require.False(t, auth.BypassResourceChecks)
 					return nil, &activeSvc.ActiveError{Op: "MoveStudentsToActiveGroup", Err: activeSvc.ErrStudentMoveForbidden}
 				}},
-			}
+			})
 			ctx := testpkg.ContextForTenant(context.Background(), 42)
-			ctx = testpkg.IdentityContext(ctx, 2, tc.claimTenant, tc.scope, tc.permissions)
+			claims := staffClaims()
+			claims.ID, claims.TenantID, claims.Scope, claims.Permissions = 2, tc.claimTenant, tc.scope, tc.permissions
+			ctx = claimsCtxWithParent(ctx, claims)
 			req := httptest.NewRequest(http.MethodPost, "/visits/move-to-group", bytes.NewBufferString(`{"student_ids":[123],"target_active_group_id":99}`)).WithContext(ctx)
 			rr := httptest.NewRecorder()
 			rs.moveStudentsToActiveGroup(rr, req)
@@ -100,7 +114,7 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 		var capturedActiveGroupID int64
 		targetGroupID := int64(99)
 		targetRoomID := int64(77)
-		rs := &Resource{
+		rs := resourceForTest(Resource{
 			ActiveService: &trackingMockActiveService{
 				moveStudentsToActiveGroupFunc: func(_ context.Context, studentIDs []int64, activeGroupID int64) (*activeSvc.StudentMoveResult, error) {
 					capturedStudentIDs = studentIDs
@@ -114,7 +128,7 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 					}, nil
 				},
 			},
-		}
+		})
 
 		req := httptest.NewRequest(
 			http.MethodPost,
@@ -135,7 +149,7 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 	})
 
 	t.Run("rejects missing required fields", func(t *testing.T) {
-		rs := &Resource{ActiveService: &trackingMockActiveService{}}
+		rs := resourceForTest(Resource{ActiveService: &trackingMockActiveService{}})
 		req := httptest.NewRequest(
 			http.MethodPost,
 			"/api/active/visits/move-to-group",
@@ -149,13 +163,13 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 	})
 
 	t.Run("rejects all-not-present moves as conflict", func(t *testing.T) {
-		rs := &Resource{
+		rs := resourceForTest(Resource{
 			ActiveService: &trackingMockActiveService{
 				moveStudentsToActiveGroupFunc: func(_ context.Context, _ []int64, _ int64) (*activeSvc.StudentMoveResult, error) {
 					return nil, &activeSvc.ActiveError{Op: "MoveStudentsToActiveGroup", Err: activeSvc.ErrStudentsNotPresent}
 				},
 			},
-		}
+		})
 		req := httptest.NewRequest(
 			http.MethodPost,
 			"/api/active/visits/move-to-group",
@@ -176,10 +190,10 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 	// staff identity to the service and surfaces the service's refusal.
 	t.Run("surfaces a service-side move refusal as 403", func(t *testing.T) {
 		calledMove := false
-		rs := &Resource{
+		rs := resourceForTest(Resource{
 			PersonService: moveAuthPersonService{
-				person: &userModel.Person{Model: base.Model{ID: 10}},
-				staff:  &userModel.Staff{Model: base.Model{ID: 20}},
+				person: &PersonIdentity{ID: 10},
+				staff:  &StaffIdentity{ID: 20},
 			},
 			ActiveService: &trackingMockActiveService{
 				moveStudentsToActiveGroupAuthorizedFunc: func(_ context.Context, studentIDs []int64, activeGroupID int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
@@ -191,7 +205,7 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 					return nil, &activeSvc.ActiveError{Op: "MoveStudentsToActiveGroup", Err: activeSvc.ErrStudentMoveForbidden}
 				},
 			},
-		}
+		})
 		req := httptest.NewRequest(
 			http.MethodPost,
 			"/api/active/visits/move-to-group",
@@ -207,13 +221,13 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 	})
 
 	t.Run("all_staff visibility does not bypass move resource checks", func(t *testing.T) {
-		rs := &Resource{
+		rs := resourceForTest(Resource{
 			SettingsService: scopeSettings(configModel.OverviewScopeAllStaff),
 			PersonService: moveAuthPersonService{
-				person: &userModel.Person{Model: base.Model{ID: 10}},
-				staff:  &userModel.Staff{Model: base.Model{ID: 20}},
+				person: &PersonIdentity{ID: 10},
+				staff:  &StaffIdentity{ID: 20},
 			},
-		}
+		})
 		req := withStaffMoveContext(httptest.NewRequest(http.MethodPost, "/api/active/visits/move-to-group", nil))
 		w := httptest.NewRecorder()
 
@@ -229,10 +243,10 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 		calledMove := false
 		targetGroupID := int64(99)
 		targetRoomID := int64(77)
-		rs := &Resource{
+		rs := resourceForTest(Resource{
 			PersonService: moveAuthPersonService{
-				person: &userModel.Person{Model: base.Model{ID: 10}},
-				staff:  &userModel.Staff{Model: base.Model{ID: 20}},
+				person: &PersonIdentity{ID: 10},
+				staff:  &StaffIdentity{ID: 20},
 			},
 			ActiveService: &trackingMockActiveService{
 				getActiveGroupFunc: func(_ context.Context, id int64) (*activeModel.Group, error) {
@@ -246,9 +260,6 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 					return map[int64]*activeSvc.AttendanceStatus{
 						42: {StudentID: 42, Status: "on_yard"},
 					}, nil
-				},
-				checkTeacherStudentAccessFunc: func(_ context.Context, _, _ int64) (bool, error) {
-					return false, nil
 				},
 				getStudentCurrentVisitFunc: func(_ context.Context, _ int64) (*studentpresence.Visit, error) {
 					return nil, &activeSvc.ActiveError{Op: "GetStudentCurrentVisit", Err: activeSvc.ErrVisitNotFound}
@@ -264,7 +275,7 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 					}, nil
 				},
 			},
-		}
+		})
 		req := httptest.NewRequest(
 			http.MethodPost,
 			"/api/active/visits/move-to-group",
@@ -281,10 +292,10 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 
 	t.Run("propagates target lookup failures", func(t *testing.T) {
 		calledMove := false
-		rs := &Resource{
+		rs := resourceForTest(Resource{
 			PersonService: moveAuthPersonService{
-				person: &userModel.Person{Model: base.Model{ID: 10}},
-				staff:  &userModel.Staff{Model: base.Model{ID: 20}},
+				person: &PersonIdentity{ID: 10},
+				staff:  &StaffIdentity{ID: 20},
 			},
 			ActiveService: &trackingMockActiveService{
 				moveStudentsToActiveGroupAuthorizedFunc: func(_ context.Context, _ []int64, _ int64, _ activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
@@ -292,7 +303,7 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 					return nil, errors.New("active group lookup failed")
 				},
 			},
-		}
+		})
 		req := httptest.NewRequest(
 			http.MethodPost,
 			"/api/active/visits/move-to-group",
@@ -313,7 +324,7 @@ func TestMoveStudentsToTransit(t *testing.T) {
 
 	t.Run("moves selected students", func(t *testing.T) {
 		var capturedStudentIDs []int64
-		rs := &Resource{
+		rs := resourceForTest(Resource{
 			ActiveService: &trackingMockActiveService{
 				moveStudentsToTransitFunc: func(_ context.Context, studentIDs []int64) (*activeSvc.StudentMoveResult, error) {
 					capturedStudentIDs = studentIDs
@@ -324,7 +335,7 @@ func TestMoveStudentsToTransit(t *testing.T) {
 					}, nil
 				},
 			},
-		}
+		})
 
 		req := httptest.NewRequest(
 			http.MethodPost,
@@ -344,7 +355,7 @@ func TestMoveStudentsToTransit(t *testing.T) {
 	})
 
 	t.Run("rejects malformed json", func(t *testing.T) {
-		rs := &Resource{ActiveService: &trackingMockActiveService{}}
+		rs := resourceForTest(Resource{ActiveService: &trackingMockActiveService{}})
 		req := httptest.NewRequest(
 			http.MethodPost,
 			"/api/active/visits/move-to-transit",
@@ -358,13 +369,13 @@ func TestMoveStudentsToTransit(t *testing.T) {
 	})
 
 	t.Run("rejects all-not-present moves as conflict", func(t *testing.T) {
-		rs := &Resource{
+		rs := resourceForTest(Resource{
 			ActiveService: &trackingMockActiveService{
 				moveStudentsToTransitFunc: func(_ context.Context, _ []int64) (*activeSvc.StudentMoveResult, error) {
 					return nil, &activeSvc.ActiveError{Op: "MoveStudentsToTransit", Err: activeSvc.ErrStudentsNotPresent}
 				},
 			},
-		}
+		})
 		req := httptest.NewRequest(
 			http.MethodPost,
 			"/api/active/visits/move-to-transit",

@@ -9,7 +9,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -79,10 +78,10 @@ func (s *recordingBalanceMonthService) GetBalanceReductionCapacity(_ context.Con
 
 type recordingAdjustmentFreezeReader struct {
 	events   *[]string
-	snapshot *activeModels.StaffMonthBalanceSnapshot
+	snapshot *MonthSnapshot
 }
 
-func (r *recordingAdjustmentFreezeReader) GetLatestClosedThrough(context.Context, int64, int, int) (*activeModels.StaffMonthBalanceSnapshot, error) {
+func (r *recordingAdjustmentFreezeReader) LatestClosedMonth(context.Context, int64, int, int) (*MonthSnapshot, error) {
 	*r.events = append(*r.events, "snapshot")
 	return r.snapshot, nil
 }
@@ -102,7 +101,7 @@ func newRecordingBalanceAdjustmentService(
 	// event log stays limited to the adjustment repo, so assertions are
 	// unchanged.
 	if aware, ok := service.(interface {
-		SetDeletionAudit(auditModels.TimeTrackingDeletionRepository)
+		SetDeletionAudit(TimeTrackingDeletionAudit)
 	}); ok {
 		aware.SetDeletionAudit(noopDeletionAuditRepo{})
 	}
@@ -111,7 +110,7 @@ func newRecordingBalanceAdjustmentService(
 
 type noopDeletionAuditRepo struct{}
 
-func (noopDeletionAuditRepo) Create(context.Context, *auditModels.TimeTrackingDeletion) error {
+func (noopDeletionAuditRepo) Create(context.Context, *TimeTrackingDeletionEvent) error {
 	return nil
 }
 
@@ -159,7 +158,7 @@ func TestStaffBalanceAdjustmentService_ChecksFrozenMonthAfterLock(t *testing.T) 
 		decidedBy = int64(42)
 	)
 	effectiveDate := timezone.NewDate(2026, time.July, 7)
-	frozen := &activeModels.StaffMonthBalanceSnapshot{
+	frozen := &MonthSnapshot{
 		StaffID: staffID,
 		Year:    effectiveDate.Year(),
 		Month:   int(effectiveDate.Month()),

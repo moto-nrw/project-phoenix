@@ -33,7 +33,10 @@ type DeviceScan = devicescan.DeviceScan
 type Fleet = application.Fleet
 
 // Presence is the part of the Student Presence capability the scans read.
-type Presence = application.Presence
+type Presence interface {
+	application.Presence
+	roomSessionQuery
+}
 
 // Rooms is the part of the Facilities capability the scans use.
 type Rooms = application.Rooms
@@ -106,7 +109,7 @@ func New(deps Dependencies) DeviceScan {
 		Principals: principals{},
 		People:     people{users: deps.Users},
 		Visits:     visits{active: deps.Active, clock: clock},
-		Sessions:   sessions{active: deps.Active, clock: clock},
+		Sessions:   sessions{active: deps.Active, presence: deps.Presence, clock: clock},
 		Attendance: attendance{active: deps.Active},
 		Activities: activities,
 		Groups:     groups,

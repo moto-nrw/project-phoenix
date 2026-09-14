@@ -6,7 +6,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 // ===== Group Mapping Handlers =====
@@ -21,7 +21,7 @@ func (rs *Resource) getGroupMappings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get mappings for active group
-	mappings, err := rs.ActiveService.GetGroupMappingsByActiveGroupID(r.Context(), groupID)
+	mappings, err := rs.presenceGroupMappings(r.Context(), studentpresence.GroupMappingFilter{ActiveGroupID: &groupID}, "GetGroupMappingsByActiveGroupID")
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
@@ -30,7 +30,7 @@ func (rs *Resource) getGroupMappings(w http.ResponseWriter, r *http.Request) {
 	// Build response
 	responses := make([]GroupMappingResponse, 0, len(mappings))
 	for _, mapping := range mappings {
-		responses = append(responses, newGroupMappingResponse(mapping))
+		responses = append(responses, newPresenceGroupMappingResponse(mapping))
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Group mappings retrieved successfully")
@@ -46,7 +46,7 @@ func (rs *Resource) getCombinedGroupMappings(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Get mappings for combined group
-	mappings, err := rs.ActiveService.GetGroupMappingsByCombinedGroupID(r.Context(), combinedID)
+	mappings, err := rs.presenceGroupMappings(r.Context(), studentpresence.GroupMappingFilter{CombinedGroupID: &combinedID}, "GetGroupMappingsByCombinedGroupID")
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
@@ -55,7 +55,7 @@ func (rs *Resource) getCombinedGroupMappings(w http.ResponseWriter, r *http.Requ
 	// Build response
 	responses := make([]GroupMappingResponse, 0, len(mappings))
 	for _, mapping := range mappings {
-		responses = append(responses, newGroupMappingResponse(mapping))
+		responses = append(responses, newPresenceGroupMappingResponse(mapping))
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Combined group mappings retrieved successfully")
@@ -71,23 +71,23 @@ func (rs *Resource) addGroupToCombination(w http.ResponseWriter, r *http.Request
 	}
 
 	// Add group to combination
-	if err := rs.ActiveService.AddGroupToCombination(r.Context(), req.CombinedGroupID, req.ActiveGroupID); err != nil {
+	if err := rs.addPresenceGroupToCombination(r.Context(), req.CombinedGroupID, req.ActiveGroupID); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	// Get the mappings for verification
-	mappings, err := rs.ActiveService.GetGroupMappingsByCombinedGroupID(r.Context(), req.CombinedGroupID)
+	mappings, err := rs.presenceGroupMappings(r.Context(), studentpresence.GroupMappingFilter{CombinedGroupID: &req.CombinedGroupID}, "GetGroupMappingsByCombinedGroupID")
 	if err != nil {
 		common.Respond(w, r, http.StatusOK, nil, msgGroupAddedToCombination)
 		return
 	}
 
 	// Find the newly created mapping
-	var newMapping *activeModels.GroupMapping
+	var newMapping *studentpresence.GroupMapping
 	for _, mapping := range mappings {
 		if mapping.ActiveGroupID == req.ActiveGroupID {
-			newMapping = mapping
+			newMapping = &mapping
 			break
 		}
 	}
@@ -98,7 +98,7 @@ func (rs *Resource) addGroupToCombination(w http.ResponseWriter, r *http.Request
 	}
 
 	// Return the mapping
-	response := newGroupMappingResponse(newMapping)
+	response := newPresenceGroupMappingResponse(*newMapping)
 	common.Respond(w, r, http.StatusOK, response, msgGroupAddedToCombination)
 }
 
@@ -112,7 +112,7 @@ func (rs *Resource) removeGroupFromCombination(w http.ResponseWriter, r *http.Re
 	}
 
 	// Remove group from combination
-	if err := rs.ActiveService.RemoveGroupFromCombination(r.Context(), req.CombinedGroupID, req.ActiveGroupID); err != nil {
+	if err := rs.removePresenceGroupFromCombination(r.Context(), req.CombinedGroupID, req.ActiveGroupID); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}

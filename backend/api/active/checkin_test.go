@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/active"
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -25,7 +26,6 @@ import (
 )
 
 // Test JWT secret - must match the secret used in test fixtures
-const testJWTSecret = "test-jwt-secret-32-chars-minimum"
 
 // =============================================================================
 // Active Group Model Tests
@@ -118,7 +118,7 @@ func setupCheckinRoute(t *testing.T, db *bun.DB) *active.Resource {
 
 	_, serviceFactory := testutil.SetupActiveModule(t)
 
-	return active.NewResource(serviceFactory.Active, serviceFactory.Users, serviceFactory.Education, serviceFactory.Schulhof, serviceFactory.UserContext, serviceFactory.Settings, db, slog.Default(), testPresenceQueries(t, db))
+	return active.NewResource(serviceFactory.Active, activePeople{source: serviceFactory.AttendancePeople()}, serviceFactory.TeacherGroupIDs, serviceFactory.Schulhof, activeStaffAccess{source: serviceFactory.AttendanceStaff()}, serviceFactory.Settings, common.ProtectedTenantRoutes, slog.Default(), testPresenceQueries(t, db), requestRuntimeForTest(serviceFactory.WithAttendanceStaff), authorizationForTest())
 }
 
 // makeCheckinRequest creates an HTTP request with JWT auth for the checkin endpoint

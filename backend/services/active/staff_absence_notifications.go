@@ -8,12 +8,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/email"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -27,7 +23,20 @@ type absenceEmailSettingResolver interface {
 }
 
 type absenceEmailSchoolFinder interface {
-	FindByID(ctx context.Context, id int64) (*platformModels.School, error)
+	FindSchoolSubdomain(ctx context.Context, id int64) (subdomain string, found bool, err error)
+}
+
+type absenceEmailStaffDirectory interface {
+	GetStaffContactInfo(context.Context, int64) (*AbsenceEmailContact, error)
+	ListAbsenceApprovers(context.Context) ([]*AbsenceEmailContact, error)
+}
+
+// AbsenceEmailContact contains only notification addressing and identity.
+type AbsenceEmailContact struct {
+	StaffID   int64
+	FirstName string
+	LastName  string
+	Email     string
 }
 
 // AbsenceEmailDeps carries everything the absence email notifications need.
@@ -35,15 +44,11 @@ type absenceEmailSchoolFinder interface {
 // bare-constructed services (unit tests) simply never send.
 type AbsenceEmailDeps struct {
 	Settings    absenceEmailSettingResolver
-	Dispatcher  *email.Dispatcher
-	StaffRepo   usersModels.StaffRepository
+	Dispatcher  absenceEmailDispatcher
+	StaffRepo   absenceEmailStaffDirectory
 	SchoolRepo  absenceEmailSchoolFinder
-	DefaultFrom email.Email
 	FrontendURL string
-	// MailIdentity points replies at the OGS instead of moto (#1936).
-	// Optional: nil sends without a Reply-To, exactly as before.
-	MailIdentity email.ReplyToResolver
-	Logger       *slog.Logger
+	Logger      *slog.Logger
 }
 
 // SetAbsenceEmailDeps wires the absence email notifications (#1419 4d).
@@ -117,7 +122,7 @@ func formatAbsenceDateRange(a *activeModels.StaffAbsence) string {
 // a new request arrived (#1419 4d). Called after the request row is created;
 // failures only log — email must never block the workflow.
 func (s *staffAbsenceService) notifyAbsenceRequested(ctx context.Context, absence *activeModels.StaffAbsence) {
-	StampAbsenceTypeLabels(ctx, s.absenceTypes, []*activeModels.StaffAbsence{absence})
+	StampAbsenceTypeLabels(ctx, s.absenceTypes, []*activeModels.StaffAbsence{absence}, s.getLogger())
 	if !s.absenceEmailsEnabled(ctx) {
 		return
 	}
@@ -134,7 +139,7 @@ func (s *staffAbsenceService) notifyAbsenceRequested(ctx context.Context, absenc
 		)
 		return
 	}
-	approvers, err := s.emailDeps.StaffRepo.ListStaffWithPermission(ctx, permissions.VacationApprove)
+	approvers, err := s.emailDeps.StaffRepo.ListAbsenceApprovers(ctx)
 	if err != nil {
 		s.emailLogger().Warn("failed to load approvers for absence email",
 			"absence_id", absence.ID,
@@ -158,21 +163,20 @@ func (s *staffAbsenceService) notifyAbsenceRequested(ctx context.Context, absenc
 		if approver.Email == "" || approver.StaffID == absence.StaffID {
 			continue
 		}
-		s.dispatchAbsenceEmail(ctx, "absence_request_received", absence, email.Message{
-			From:     s.emailDeps.DefaultFrom,
-			To:       email.NewEmail(approver.FirstName+" "+approver.LastName, approver.Email),
+		s.dispatchAbsenceEmail(ctx, "absence_request_received", absence, AbsenceEmailMessage{
+			To:       AbsenceEmailAddress{Name: approver.FirstName + " " + approver.LastName, Address: approver.Email},
 			Subject:  subject,
 			Template: "absence-request-received.html",
-			Content: map[string]any{
-				"FirstName":        approver.FirstName,
-				"LastName":         approver.LastName,
-				"RequesterName":    requesterName,
-				"AbsenceTypeLabel": absenceEmailTypeLabel(absence),
-				"DateRange":        formatAbsenceDateRange(absence),
-				"Note":             absence.Note,
-				"PreviousQuestion": previousQuestion,
-				"LinkURL":          linkURL,
-				"LogoURL":          s.logoURL(),
+			Content: AbsenceEmailContent{
+				FirstName:        approver.FirstName,
+				LastName:         approver.LastName,
+				RequesterName:    requesterName,
+				AbsenceTypeLabel: absenceEmailTypeLabel(absence),
+				DateRange:        formatAbsenceDateRange(absence),
+				Note:             absence.Note,
+				PreviousQuestion: previousQuestion,
+				LinkURL:          linkURL,
+				LogoURL:          s.logoURL(),
 			},
 		}, approver.Email)
 	}
@@ -181,7 +185,7 @@ func (s *staffAbsenceService) notifyAbsenceRequested(ctx context.Context, absenc
 // notifyAbsenceDecision emails the requesting staff member about an approve /
 // decline / Rückfrage on their request (#1419 4d).
 func (s *staffAbsenceService) notifyAbsenceDecision(ctx context.Context, absence *activeModels.StaffAbsence) {
-	StampAbsenceTypeLabels(ctx, s.absenceTypes, []*activeModels.StaffAbsence{absence})
+	StampAbsenceTypeLabels(ctx, s.absenceTypes, []*activeModels.StaffAbsence{absence}, s.getLogger())
 	if !s.absenceEmailsEnabled(ctx) {
 		return
 	}
@@ -212,19 +216,18 @@ func (s *staffAbsenceService) notifyAbsenceDecision(ctx context.Context, absence
 	if requester.Email == "" {
 		return
 	}
-	s.dispatchAbsenceEmail(ctx, metaType, absence, email.Message{
-		From:     s.emailDeps.DefaultFrom,
-		To:       email.NewEmail(requester.FirstName+" "+requester.LastName, requester.Email),
+	s.dispatchAbsenceEmail(ctx, metaType, absence, AbsenceEmailMessage{
+		To:       AbsenceEmailAddress{Name: requester.FirstName + " " + requester.LastName, Address: requester.Email},
 		Subject:  subject,
 		Template: template,
-		Content: map[string]any{
-			"FirstName":        requester.FirstName,
-			"LastName":         requester.LastName,
-			"AbsenceTypeLabel": absenceEmailTypeLabel(absence),
-			"DateRange":        formatAbsenceDateRange(absence),
-			"DecisionNote":     absence.DecisionNote,
-			"LinkURL":          linkURL,
-			"LogoURL":          s.logoURL(),
+		Content: AbsenceEmailContent{
+			FirstName:        requester.FirstName,
+			LastName:         requester.LastName,
+			AbsenceTypeLabel: absenceEmailTypeLabel(absence),
+			DateRange:        formatAbsenceDateRange(absence),
+			DecisionNote:     absence.DecisionNote,
+			LinkURL:          linkURL,
+			LogoURL:          s.logoURL(),
 		},
 	}, requester.Email)
 }
@@ -241,7 +244,7 @@ func (s *staffAbsenceService) absenceEmailLink(ctx context.Context, absence *act
 		return "", false
 	}
 
-	school, err := s.emailDeps.SchoolRepo.FindByID(ctx, tenantID)
+	subdomain, found, err := s.emailDeps.SchoolRepo.FindSchoolSubdomain(ctx, tenantID)
 	if err != nil {
 		s.emailLogger().Warn("failed to load school for absence email link",
 			"absence_id", absence.ID,
@@ -250,14 +253,14 @@ func (s *staffAbsenceService) absenceEmailLink(ctx context.Context, absence *act
 		)
 		return "", false
 	}
-	if school == nil {
+	if !found {
 		s.emailLogger().Warn("school lookup returned no row for absence email link",
 			"absence_id", absence.ID,
 			"tenant_id", tenantID,
 		)
 		return "", false
 	}
-	link, err := buildTenantFrontendURL(s.emailDeps.FrontendURL, school.Subdomain, targetPath)
+	link, err := buildTenantFrontendURL(s.emailDeps.FrontendURL, subdomain, targetPath)
 	if err != nil {
 		s.emailLogger().Warn("failed to build tenant-aware absence email link",
 			"absence_id", absence.ID,
@@ -301,31 +304,21 @@ func (s *staffAbsenceService) logoURL() string {
 	return fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", s.emailDeps.FrontendURL)
 }
 
-func (s *staffAbsenceService) dispatchAbsenceEmail(ctx context.Context, metaType string, absence *activeModels.StaffAbsence, message email.Message, recipient string) {
+func (s *staffAbsenceService) dispatchAbsenceEmail(ctx context.Context, metaType string, absence *activeModels.StaffAbsence, message AbsenceEmailMessage, recipient string) {
 	dispatcher := s.emailDeps.Dispatcher
-	request := email.DeliveryRequest{
-		Message: message,
-		Metadata: email.DeliveryMetadata{
-			Type:        metaType,
-			ReferenceID: absence.ID,
-			Recipient:   recipient,
-		},
-	}
+	message.Type, message.ReferenceID, message.Recipient = metaType, absence.ID, recipient
 	// The reply address is resolved after commit, on a fresh context that only
 	// carries the tenant: resolving it here would open a settings transaction
 	// inside the caller's still-open one.
 	tenantID := tenant.FromContext(ctx)
-	logger := s.emailDeps.Logger
-	resolver := s.emailDeps.MailIdentity
+	message.TenantID = tenantID
 	tenant.RegisterAfterCommit(ctx, func() {
 		sendCtx := context.Background()
 		// Without a tenant there is no OGS to answer to, and stamping the
 		// context would panic. Send exactly as before in that case.
 		if tenantID > 0 {
 			sendCtx = tenant.WithTenantID(sendCtx, tenantID)
-			identity := email.ResolveReplyToIdentity(sendCtx, resolver, tenantID, logger)
-			request.Message.ReplyTo = email.NewEmail(identity.Name, identity.Address)
 		}
-		dispatcher.Dispatch(sendCtx, request)
+		dispatcher.Dispatch(sendCtx, message)
 	})
 }

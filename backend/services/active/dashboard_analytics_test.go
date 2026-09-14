@@ -7,7 +7,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/stretchr/testify/assert"
 )
@@ -166,7 +165,7 @@ func TestCountStudentsInIndoorRooms(t *testing.T) {
 		name          string
 		activeVisits  []studentpresence.Visit
 		activeGroups  []*active.Group
-		rooms         []*facilityModels.Room
+		rooms         []*active.SessionRoom
 		expectedCount int
 		description   string
 	}{
@@ -179,7 +178,7 @@ func TestCountStudentsInIndoorRooms(t *testing.T) {
 			activeGroups: []*active.Group{
 				{Model: base.Model{ID: 100}, RoomID: 10},
 			},
-			rooms: []*facilityModels.Room{
+			rooms: []*active.SessionRoom{
 				{ID: 10, Name: "Raum 101", Category: ptrtest.Ptr("Klassenraum")},
 			},
 			expectedCount: 2,
@@ -195,7 +194,7 @@ func TestCountStudentsInIndoorRooms(t *testing.T) {
 				{Model: base.Model{ID: 100}, RoomID: 10},
 				{Model: base.Model{ID: 200}, RoomID: 20},
 			},
-			rooms: []*facilityModels.Room{
+			rooms: []*active.SessionRoom{
 				{ID: 10, Name: "Raum 101", Category: ptrtest.Ptr("Klassenraum")},
 				{ID: 20, Name: "Schulhof", Category: ptrtest.Ptr("Schulhof")},
 			},
@@ -211,7 +210,7 @@ func TestCountStudentsInIndoorRooms(t *testing.T) {
 			activeGroups: []*active.Group{
 				{Model: base.Model{ID: 200}, RoomID: 20},
 			},
-			rooms: []*facilityModels.Room{
+			rooms: []*active.SessionRoom{
 				{ID: 20, Name: "Schulhof", Category: ptrtest.Ptr("Schulhof")},
 			},
 			expectedCount: 0,
@@ -225,7 +224,7 @@ func TestCountStudentsInIndoorRooms(t *testing.T) {
 			activeGroups: []*active.Group{
 				{Model: base.Model{ID: 100}, RoomID: 10, EndTime: ptrtest.Ptr(time.Now())},
 			},
-			rooms: []*facilityModels.Room{
+			rooms: []*active.SessionRoom{
 				{ID: 10, Name: "Raum 101", Category: ptrtest.Ptr("Klassenraum")},
 			},
 			expectedCount: 0,
@@ -239,7 +238,7 @@ func TestCountStudentsInIndoorRooms(t *testing.T) {
 			activeGroups: []*active.Group{
 				{Model: base.Model{ID: 100}, RoomID: 10},
 			},
-			rooms: []*facilityModels.Room{
+			rooms: []*active.SessionRoom{
 				{ID: 10, Name: "Raum 101", Category: ptrtest.Ptr("Klassenraum")},
 			},
 			expectedCount: 0,
@@ -249,7 +248,7 @@ func TestCountStudentsInIndoorRooms(t *testing.T) {
 			name:          "Empty visits and groups",
 			activeVisits:  []studentpresence.Visit{},
 			activeGroups:  []*active.Group{},
-			rooms:         []*facilityModels.Room{},
+			rooms:         []*active.SessionRoom{},
 			expectedCount: 0,
 			description:   "No students when there are no visits or groups",
 		},
@@ -261,7 +260,7 @@ func TestCountStudentsInIndoorRooms(t *testing.T) {
 			activeGroups: []*active.Group{
 				{Model: base.Model{ID: 100}, RoomID: 10},
 			},
-			rooms: []*facilityModels.Room{
+			rooms: []*active.SessionRoom{
 				{ID: 10, Name: "Raum 101", Category: ptrtest.Ptr("Klassenraum")},
 			},
 			expectedCount: 0,
@@ -273,7 +272,7 @@ func TestCountStudentsInIndoorRooms(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Build room data
 			roomData := &dashboardRoomData{
-				roomByID:        make(map[int64]*facilityModels.Room),
+				roomByID:        make(map[int64]*active.SessionRoom),
 				occupiedRooms:   make(map[int64]bool),
 				roomStudentsMap: make(map[int64]map[int64]struct{}),
 			}

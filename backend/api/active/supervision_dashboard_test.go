@@ -130,11 +130,11 @@ func TestSupervisionDashboard_Aggregates(t *testing.T) {
 	testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, checkIn, nil)
 
 	settingsCtx := testpkg.Ctx(t)
-	require.NoError(t, tc.resource.SettingsService.SetValue(settingsCtx, configModel.KeyTrackingIndicatorsEnabled, true, nil, nil))
-	require.NoError(t, tc.resource.SettingsService.SetValue(settingsCtx, configModel.KeyTrackingIndicator1, "Hausaufgaben", nil, nil))
+	require.NoError(t, tc.settings.SetBool(settingsCtx, configModel.KeyTrackingIndicatorsEnabled, true, nil, nil))
+	require.NoError(t, tc.settings.SetString(settingsCtx, configModel.KeyTrackingIndicator1, "Hausaufgaben", nil, nil))
 	t.Cleanup(func() {
-		_ = tc.resource.SettingsService.ResetValue(settingsCtx, configModel.KeyTrackingIndicatorsEnabled, nil, nil)
-		_ = tc.resource.SettingsService.ResetValue(settingsCtx, configModel.KeyTrackingIndicator1, nil, nil)
+		_ = tc.settings.ResetValue(settingsCtx, configModel.KeyTrackingIndicatorsEnabled, nil, nil)
+		_ = tc.settings.ResetValue(settingsCtx, configModel.KeyTrackingIndicator1, nil, nil)
 	})
 
 	envelope := dashboardExec(t, router, "/active/supervision-dashboard", account.ID, dashboardPerms)
@@ -311,7 +311,7 @@ func TestSupervisionDashboard_PayloadBudget(t *testing.T) {
 func TestSupervisionDashboard_ErrorContract(t *testing.T) {
 	t.Parallel()
 	tc, router := setupDashboardContext(t)
-	require.NoError(t, tc.resource.SettingsService.SetValue(
+	require.NoError(t, tc.settings.SetString(
 		testpkg.Ctx(t), configModel.KeyOperationalOverviewScope, configModel.OverviewScopeOwn, nil, nil,
 	))
 

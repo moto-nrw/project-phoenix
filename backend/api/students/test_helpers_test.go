@@ -172,7 +172,7 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		PersonService:          svc.Users,
 		PeopleDirectory:        svc.PeopleDirectory,
 		GradeTransitionService: svc.GradeTransition,
-		StudentService:         userService.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion, nil),
+		StudentService:         userService.NewStudentService(repoFactory.Student, repositories.NewStudentPrivacyConsentStore(db), repoFactory.StudentCompanion, nil),
 		EducationService:       svc.Education,
 		UserContextService:     svc.UserContext,
 		ActiveService:          svc.Active,
@@ -193,12 +193,12 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 				names[room.ID] = room.Name
 			}
 			return names, nil
-		}, repoFactory.DataAccessLog, repoFactory.InstanceStudent),
+		}, svc.DataAccessAudit(), svc.HistorySlots(repoFactory.InstanceStudent)),
 		OGSGroupLiveService:     svc.OGSGroupLive,
 		InstanceService:         svc.Instance,
 		CareDayService:          svc.CareDay,
 		CareLifecycleService:    svc.CareLifecycle,
-		StudentStatusDayService: activeSvc.NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, repoFactory.StudentPickupException, db),
+		StudentStatusDayService: activeSvc.NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, svc.ManualPartialAbsences(repoFactory.CarePlan), db, repoFactory.CarePlan.LockExceptionDay),
 		AbsenceOverview:         activeSvc.NewStudentStatusDayOverviewService(repoFactory.StudentStatusDay, svc.Users),
 		ExcusedRequestService:   svc.ExcusedRequests,
 		StudentAuditService:     svc.StudentAudit,

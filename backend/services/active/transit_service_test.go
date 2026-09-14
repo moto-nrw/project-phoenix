@@ -10,6 +10,7 @@ import (
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -167,7 +168,7 @@ func TestActiveService_SchoolWideAttendanceMove(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, source.ID, visit.ActiveGroupID)
 			}
-			supervisions, err := service.GetStaffActiveSupervisions(ctx, staff.ID)
+			supervisions, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{StaffID: &staff.ID, ActiveOn: new(timezone.TodayDate().String())})
 			require.NoError(t, err)
 			if tc.targetSupervised {
 				require.Len(t, supervisions, 1)
@@ -310,7 +311,7 @@ func TestActiveService_MoveStudentsToActiveGroup_PreservesVisitHistory(t *testin
 	assert.Equal(t, absentStudent.ID, result.Skipped[0].StudentID)
 	assert.Equal(t, activeSvc.StudentMoveSkipNotPresent, result.Skipped[0].Reason)
 
-	endedSourceVisit, err := service.GetVisit(ctx, sourceVisit.ID)
+	endedSourceVisit, err := testSchoolPresence(t, db).FindVisit(ctx, sourceVisit.ID)
 	require.NoError(t, err)
 	require.NotNil(t, endedSourceVisit.ExitTime, "source visit must be closed instead of mutated")
 
@@ -366,7 +367,7 @@ func TestActiveService_MoveStudentsToActiveGroup_RejectsGraduatedStudent(t *test
 	require.Error(t, err)
 	assert.ErrorIs(t, err, activeSvc.ErrStudentGraduated)
 	assert.Nil(t, result)
-	reloadedVisit, reloadErr := service.GetVisit(ctx, visit.ID)
+	reloadedVisit, reloadErr := testSchoolPresence(t, db).FindVisit(ctx, visit.ID)
 	require.NoError(t, reloadErr)
 	assert.Nil(t, reloadedVisit.ExitTime)
 	assert.Equal(t, sourceGroup.ID, reloadedVisit.ActiveGroupID)
@@ -503,7 +504,7 @@ func TestActiveService_MoveStudentsToActiveGroupAuthorized_AllowsSupervisedSourc
 	require.NotNil(t, result)
 	assert.Equal(t, []int64{student.ID}, result.Moved)
 
-	endedSourceVisit, err := service.GetVisit(ctx, sourceVisit.ID)
+	endedSourceVisit, err := testSchoolPresence(t, db).FindVisit(ctx, sourceVisit.ID)
 	require.NoError(t, err)
 	require.NotNil(t, endedSourceVisit.ExitTime)
 
@@ -567,7 +568,7 @@ func TestActiveService_MoveStudentsToTransitAuthorized_AllowsUnsupervisedSource(
 	require.NotNil(t, result)
 	assert.Contains(t, result.Moved, student.ID)
 
-	reloadedVisit, err := service.GetVisit(ctx, visit.ID)
+	reloadedVisit, err := testSchoolPresence(t, db).FindVisit(ctx, visit.ID)
 	require.NoError(t, err)
 	assert.NotNil(t, reloadedVisit.ExitTime, "the transit move closes the source visit")
 }
@@ -652,7 +653,7 @@ func TestActiveService_MoveStudentsToActiveGroup_BinaryModeRejectsStaleVisit(t *
 	assert.Empty(t, result.Unchanged)
 	assert.Equal(t, []activeSvc.StudentMoveSkipped{{StudentID: student.ID, Reason: activeSvc.StudentMoveSkipConflict}}, result.Skipped)
 
-	reloadedVisit, err := service.GetVisit(ctx, visit.ID)
+	reloadedVisit, err := testSchoolPresence(t, db).FindVisit(ctx, visit.ID)
 	require.NoError(t, err)
 	assert.Nil(t, reloadedVisit.ExitTime, "rejecting the binary no-op must leave the source visit unchanged")
 }
@@ -697,7 +698,7 @@ func TestActiveService_MoveStudentsToTransit_EndsVisitKeepsAttendanceOpen(t *tes
 		{StudentID: absentStudent.ID, Reason: activeSvc.StudentMoveSkipNotPresent},
 	}, result.Skipped)
 
-	endedVisit, err := service.GetVisit(ctx, visit.ID)
+	endedVisit, err := testSchoolPresence(t, db).FindVisit(ctx, visit.ID)
 	require.NoError(t, err)
 	require.NotNil(t, endedVisit.ExitTime)
 

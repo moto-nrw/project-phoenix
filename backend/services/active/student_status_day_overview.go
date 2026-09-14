@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -29,11 +28,17 @@ func NewStudentStatusDayOverviewService(repo activeModels.StudentStatusDayOvervi
 	return &StudentStatusDayOverviewService{repo: repo, people: people}
 }
 
+// StatusDayOverviewGroup identifies an authorized group in the overview.
+type StatusDayOverviewGroup struct {
+	ID   int64
+	Name string
+}
+
 type StatusDayOverviewEntry struct {
 	StatusDay *activeModels.StudentStatusDay
 	Student   *userModels.Student
 	Person    *userModels.Person
-	Group     *educationModels.Group
+	Group     *StatusDayOverviewGroup
 }
 
 type StatusDayOverviewFilters struct {
@@ -51,7 +56,7 @@ type StatusDayOverview struct {
 // GetOverview loads and assembles the absence rows for the authorized groups.
 // Enrollment is evaluated on each status-day date; lifecycle status is used
 // only for legacy students without enrollment bounds.
-func (s *StudentStatusDayOverviewService) GetOverview(ctx context.Context, groups []*educationModels.Group, from, to, today timezone.Date, filters StatusDayOverviewFilters) (*StatusDayOverview, error) {
+func (s *StudentStatusDayOverviewService) GetOverview(ctx context.Context, groups []*StatusDayOverviewGroup, from, to, today timezone.Date, filters StatusDayOverviewFilters) (*StatusDayOverview, error) {
 	if s.people == nil || s.repo == nil {
 		return nil, errors.New("student status day overview dependencies are not configured")
 	}
@@ -185,9 +190,9 @@ func filterOverviewStudentIDs(ids []int64, students map[int64]*userModels.Studen
 	return filtered
 }
 
-func indexOverviewGroups(groups []*educationModels.Group) ([]int64, map[int64]*educationModels.Group) {
+func indexOverviewGroups(groups []*StatusDayOverviewGroup) ([]int64, map[int64]*StatusDayOverviewGroup) {
 	ids := make([]int64, 0, len(groups))
-	byID := make(map[int64]*educationModels.Group, len(groups))
+	byID := make(map[int64]*StatusDayOverviewGroup, len(groups))
 	for _, group := range groups {
 		ids = append(ids, group.ID)
 		byID[group.ID] = group
@@ -207,7 +212,7 @@ func indexOverviewStudents(students []*userModels.Student) ([]int64, []int64, ma
 	return studentIDs, personIDs, byID
 }
 
-func assembleStatusDayOverview(rows []*activeModels.StudentStatusDay, students map[int64]*userModels.Student, persons map[int64]*userModels.Person, groups map[int64]*educationModels.Group, today timezone.Date) []StatusDayOverviewEntry {
+func assembleStatusDayOverview(rows []*activeModels.StudentStatusDay, students map[int64]*userModels.Student, persons map[int64]*userModels.Person, groups map[int64]*StatusDayOverviewGroup, today timezone.Date) []StatusDayOverviewEntry {
 	entries := make([]StatusDayOverviewEntry, 0, len(rows))
 	for _, row := range rows {
 		student := students[row.StudentID]

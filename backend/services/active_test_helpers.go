@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"time"
@@ -21,11 +22,20 @@ import (
 	"github.com/uptrace/bun"
 )
 
+func (ActiveTestModule) WithAttendanceStaff(ctx context.Context, staffID, tenantID int64) context.Context {
+	return WithAttendanceStaff(ctx, staffID, tenantID)
+}
+
+type activeTestYard struct {
+	facilities.SchulhofService
+	supervisiondashboard.Yard
+}
+
 type ActiveTestModule struct {
 	GroupsTestModule
 	IoTDataTestModule
 	Settings             config.SettingsService
-	Schulhof             facilities.SchulhofService
+	Schulhof             activeTestYard
 	PickupSchedule       schedule.PickupScheduleService
 	ArrivalSchedule      schedule.ArrivalScheduleService
 	TimetableOperations  schedule.TimetableOperationsService
@@ -35,6 +45,14 @@ type ActiveTestModule struct {
 	// SessionEnd is the kiosk session end workflow over the real owners.
 	SessionEnd       sessionend.Command
 	SessionLifecycle devicescanCompose.SessionLifecycle
+}
+
+func (m ActiveTestModule) AttendancePeople() attendanceRoutePeople {
+	return NewAttendanceRoutePeople(m.Users)
+}
+
+func (m ActiveTestModule) AttendanceStaff() attendanceRouteStaff {
+	return NewAttendanceRouteStaff(m.UserContext)
 }
 
 func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() time.Time) (ActiveTestModule, error) {
@@ -94,15 +112,20 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
+	rooms, err := repositories.NewFacilities(db)
+	if err != nil {
+		return ActiveTestModule{}, err
+	}
 	presenceDeps := active.ServiceDependencies{
-		StudentDisplay: studentDisplayProjection{students: students, groups: displayGroups},
-		SchoolPresence: newStudentPresence(db, logger),
-		GroupRepo:      r.ActiveGroup, SessionStartLock: r.SessionStartLock, SupervisorRepo: r.GroupSupervisor,
-		CombinedGroupRepo: r.CombinedGroup, GroupMappingRepo: r.GroupMapping,
+		PrincipalReader: AttendancePrincipal,
+		StudentDisplay:  studentDisplayProjection{students: students, groups: displayGroups},
+		SchoolPresence:  newStudentPresence(db, logger),
+		YardRoomColor:   yardRoomColorQuery(rooms),
+		GroupRepo:       r.ActiveGroup, SessionStartLock: r.SessionStartLock, SupervisorRepo: r.GroupSupervisor,
 		StudentStatusRepo: r.StudentStatusDay, CrossTenantRepo: r.CrossTenant, Schools: newActiveSchoolQuery(organizations),
-		StudentRepo: r.Student, PersonRepo: r.Person, TeacherRepo: r.Teacher, StaffRepo: r.Staff, RoomRepo: r.Room,
-		ActivityGroupRepo: r.ActivityGroup, ActivityCatRepo: r.ActivityCategory, EducationGroupRepo: r.Group, DeviceRepo: devices,
-		EducationService: groups.Education, UsersService: data.Users, DB: db, Broadcaster: hub, WorkSessionService: work.WorkSession,
+		StudentRepo: r.Student, StaffRepo: NewAttendanceStaffDirectory(r.Staff), RoomRepo: NewAttendanceRooms(r.Room),
+		ActivityGroupRepo: repositories.NewSessionActivities(r.ActivityGroup), ActivityCatRepo: NewAttendanceActivityCategories(r.ActivityCategory), EducationGroupRepo: NewAttendanceEducationGroups(r.Group, r.Student), DeviceRepo: NewSessionDeviceDirectory(devices, settings.Settings, logger),
+		StaffNames: NewAttendanceStaffNames(r.Staff, data.Users), DB: db, Broadcaster: hub, WorkSessionService: work.WorkSession,
 		AttendanceSyncer:         schedule.NewAttendanceSyncService(r.ActivityInstance, r.InstanceStudent, logger),
 		TimetableBridgeCompleter: bridge, Logger: logger, Now: optionalClock(clocks),
 	}
@@ -110,7 +133,7 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	presence.SetSettingsService(settings.Settings)
 	groups.Active = presence
 	groups.Users = data.Users
-	yard := facilities.NewSchulhofService(data.Facilities, facilitiesLegacy.ActivityCatalog(data.Activities), facilitiesLegacy.OpenGroupCatalog(presence), logger)
+	yard := facilities.NewSchulhofService(data.Facilities, facilitiesLegacy.ActivityCatalog(data.Activities), facilitiesLegacy.OpenGroupCatalog(facilitiesGroupSupervisions(newStudentPresence(db, logger)), facilitiesRoomSessions(newStudentPresence(db, logger)), facilitiesGroupVisits(newStudentPresence(db, logger))), logger)
 	autoExcusal := schedule.NewPickupAutoExcusalSyncer(r.StudentPickupException, pickup, r.InstanceStudent, db)
 	pickups := schedule.NewPickupScheduleServiceWithBulk(r.StudentPickupSchedule, r.StudentPickupException, r.StudentPickupNote, r.Student, r.Person, autoExcusal, pickup, db, logger)
 	arrivals := schedule.NewArrivalScheduleServiceWithBaselines(r.StudentArrivalSchedule, r.StudentArrivalException, r.StudentArrivalNote, r.Student, r.Person, arrival, r.ClassArrivalTime, db, logger, schedule.WithClassArrivalExceptions(r.ClassArrivalException))
@@ -121,19 +144,15 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 		StudentRepo: r.Student, EducationGroupRepo: r.Group, RoomRepo: r.Room, PersonService: data.Users, PlanningTrackRepo: r.PlanningTrack,
 		Settings: settings.Settings, Broadcaster: hub, DB: db, Logger: logger, Now: optionalClock(clocks), RecoveryRepo: repositories.NewActivityRecoveryRepository(db, r.InstanceStudent),
 	})
-	rooms, err := repositories.NewFacilities(db)
+	timetableOwner, err := repositories.NewTimetable(db, students, rooms, schedule.TimetableCareDayLocker(db))
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	dashboard, err := supervisiondashboardlegacy.New(supervisiondashboardlegacy.Sources{Active: presence, ActiveGroups: r.ActiveGroup,
+	dashboard, err := supervisiondashboardlegacy.New(supervisiondashboardlegacy.Sources{Active: presence, ActiveGroups: openRoomSessionPresence{newStudentPresence(db, logger), timetableOwner},
 		OpenVisits: active.NewVisitDisplayBatchReader(presenceDeps), Rooms: openRoomDirectory{rooms: rooms}, UserContext: groups.UserContext, Education: groups.Education,
 		Schulhof: yard, Operations: operations, Settings: settings.Settings, Pickups: pickups, Arrivals: arrivals, Now: optionalClock(clocks)})
 	if err != nil {
 		return ActiveTestModule{}, fmt.Errorf("compose supervision dashboard projection: %w", err)
-	}
-	timetableOwner, err := repositories.NewTimetable(db, students, rooms, schedule.TimetableCareDayLocker(db))
-	if err != nil {
-		return ActiveTestModule{}, err
 	}
 	sessionEnd, err := sessionEndCompose.New(sessionEndCompose.Dependencies{
 		Presence: newStudentPresence(db, logger), Timetable: timetableOwner, Completion: bridge, Students: students, Rooms: rooms,
@@ -142,7 +161,7 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	return ActiveTestModule{GroupsTestModule: groups, IoTDataTestModule: data, Settings: settings.Settings, Schulhof: yard,
+	return ActiveTestModule{GroupsTestModule: groups, IoTDataTestModule: data, Settings: settings.Settings, Schulhof: activeTestYard{SchulhofService: yard, Yard: supervisiondashboardlegacy.NewYard(yard)},
 		PickupSchedule: pickups, ArrivalSchedule: arrivals, TimetableOperations: operations, SupervisionDashboard: dashboard, CareDay: careDay, Instance: tt.Instance,
-		SessionEnd: sessionEnd, SessionLifecycle: devicescanCompose.NewSessionLifecycle(presence, data.Users, data.IoT, nil, logger)}, nil
+		SessionEnd: sessionEnd, SessionLifecycle: devicescanCompose.NewSessionLifecycle(presence, devicescanCompose.NewSupervisionQuery(newStudentPresence(db, logger)), data.Users, data.IoT, nil, logger)}, nil
 }

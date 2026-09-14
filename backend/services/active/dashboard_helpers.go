@@ -7,10 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
-	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
@@ -18,11 +15,11 @@ import (
 type dashboardBaseData struct {
 	activeVisits             []studentpresence.Visit
 	todaysAttendance         []studentpresence.Attendance
-	allRooms                 []*facilityModels.Room
+	allRooms                 []*active.SessionRoom
 	activeGroups             []*active.Group
-	allEducationGroups       []*educationModels.Group
-	allActivityGroups        []*activitiesModels.Group
-	activityGroupsByID       map[int64]*activitiesModels.Group
+	allEducationGroups       []*EducationGroupRoom
+	allActivityGroups        []*active.SessionActivity
+	activityGroupsByID       map[int64]*active.SessionActivity
 	activityCategories       int
 	supervisorsToday         int
 	visitsByGroupID          map[int64][]studentpresence.Visit
@@ -33,7 +30,7 @@ type dashboardBaseData struct {
 
 // dashboardRoomData holds room-related lookup maps
 type dashboardRoomData struct {
-	roomByID          map[int64]*facilityModels.Room
+	roomByID          map[int64]*active.SessionRoom
 	roomCapacityTotal int
 	occupiedRooms     map[int64]bool
 	roomStudentsMap   map[int64]map[int64]struct{} // roomID -> set of unique student IDs
@@ -60,7 +57,7 @@ func (s *service) fetchDashboardBaseData(ctx context.Context, today timezone.Dat
 		studentsWithAttendance:   make(map[int64]bool),
 		studentsPresent:          make(map[int64]bool),
 		visitsByGroupID:          make(map[int64][]studentpresence.Visit),
-		activityGroupsByID:       make(map[int64]*activitiesModels.Group),
+		activityGroupsByID:       make(map[int64]*active.SessionActivity),
 	}
 
 	// Get active visits
@@ -111,7 +108,7 @@ func (s *service) fetchDashboardBaseData(ctx context.Context, today timezone.Dat
 	data.activeGroups = activeGroups
 
 	// Get education groups
-	allEducationGroups, err := s.EducationGroupRepo.List(ctx, nil)
+	allEducationGroups, err := s.EducationGroupRepo.ListGroupRooms(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +118,7 @@ func (s *service) fetchDashboardBaseData(ctx context.Context, today timezone.Dat
 	// classification and current activities).
 	// Non-critical: if this fails, dashboard still shows core metrics with
 	// fallback names and an OGS-group count of zero — log it, never swallow it.
-	allActivityGroups, err := s.ActivityGroupRepo.ListWithCategory(ctx, nil)
+	allActivityGroups, err := s.ActivityGroupRepo.ListSessionActivities(ctx)
 	if err != nil {
 		s.getLogger().Warn("activity groups load failed, dashboard degrades to fallback names",
 			"error", err.Error(),
@@ -134,11 +131,11 @@ func (s *service) fetchDashboardBaseData(ctx context.Context, today timezone.Dat
 	}
 
 	// Get activity categories count
-	activityCategories, err := s.ActivityCatRepo.List(ctx, nil)
+	activityCategories, err := s.ActivityCatRepo.CountCategories(ctx)
 	if err != nil {
 		return nil, err
 	}
-	data.activityCategories = len(activityCategories)
+	data.activityCategories = activityCategories
 
 	// Get supervisors count
 	supervisorsCount, err := s.countSupervisorsToday(ctx)
@@ -161,9 +158,9 @@ func (s *service) countSupervisorsToday(ctx context.Context) (int, error) {
 }
 
 // buildRoomLookupMaps creates room-related lookup structures
-func (s *service) buildRoomLookupMaps(allRooms []*facilityModels.Room) *dashboardRoomData {
+func (s *service) buildRoomLookupMaps(allRooms []*active.SessionRoom) *dashboardRoomData {
 	data := &dashboardRoomData{
-		roomByID:        make(map[int64]*facilityModels.Room),
+		roomByID:        make(map[int64]*active.SessionRoom),
 		occupiedRooms:   make(map[int64]bool),
 		roomStudentsMap: make(map[int64]map[int64]struct{}),
 	}
@@ -178,27 +175,8 @@ func (s *service) buildRoomLookupMaps(allRooms []*facilityModels.Room) *dashboar
 	return data
 }
 
-// loadStudentsWithGroups batch loads students for the given IDs. Consumers
-// only build lookup maps from the result, so the order is irrelevant.
-func (s *service) loadStudentsWithGroups(ctx context.Context, studentIDs []int64) ([]*userModels.Student, error) {
-	if len(studentIDs) == 0 {
-		return nil, nil
-	}
-
-	studentsByID, err := s.StudentRepo.FindByIDs(ctx, studentIDs)
-	if err != nil {
-		return nil, err
-	}
-
-	studentsWithGroups := make([]*userModels.Student, 0, len(studentsByID))
-	for _, student := range studentsByID {
-		studentsWithGroups = append(studentsWithGroups, student)
-	}
-	return studentsWithGroups, nil
-}
-
 // buildEducationGroupMaps creates group-related lookup structures
-func (s *service) buildEducationGroupMaps(allEducationGroups []*educationModels.Group, studentsWithGroups []*userModels.Student) *dashboardGroupData {
+func (s *service) buildEducationGroupMaps(allEducationGroups []*EducationGroupRoom, studentGroups map[int64]int64) *dashboardGroupData {
 	data := &dashboardGroupData{
 		educationGroupRooms: make(map[int64]bool),
 		studentHomeRoomMap:  make(map[int64]int64),
@@ -208,13 +186,13 @@ func (s *service) buildEducationGroupMaps(allEducationGroups []*educationModels.
 	buildEducationGroupRoomsSet(allEducationGroups, data)
 
 	// Build student home room map
-	buildStudentHomeRoomMap(studentsWithGroups, allEducationGroups, data)
+	buildStudentHomeRoomMap(studentGroups, allEducationGroups, data)
 
 	return data
 }
 
 // buildEducationGroupRoomsSet populates the set of room IDs belonging to education groups
-func buildEducationGroupRoomsSet(allEducationGroups []*educationModels.Group, data *dashboardGroupData) {
+func buildEducationGroupRoomsSet(allEducationGroups []*EducationGroupRoom, data *dashboardGroupData) {
 	for _, eduGroup := range allEducationGroups {
 		if eduGroup.RoomID != nil && *eduGroup.RoomID > 0 {
 			data.educationGroupRooms[*eduGroup.RoomID] = true
@@ -223,22 +201,19 @@ func buildEducationGroupRoomsSet(allEducationGroups []*educationModels.Group, da
 }
 
 // buildStudentHomeRoomMap creates a mapping of student IDs to their home room IDs
-func buildStudentHomeRoomMap(studentsWithGroups []*userModels.Student, allEducationGroups []*educationModels.Group, data *dashboardGroupData) {
+func buildStudentHomeRoomMap(studentGroups map[int64]int64, allEducationGroups []*EducationGroupRoom, data *dashboardGroupData) {
 	// Pre-build group ID to room ID lookup for O(1) access
 	groupToRoom := buildGroupToRoomLookup(allEducationGroups)
 
-	for _, student := range studentsWithGroups {
-		if student.GroupID == nil {
-			continue
-		}
-		if roomID, ok := groupToRoom[*student.GroupID]; ok {
-			data.studentHomeRoomMap[student.ID] = roomID
+	for studentID, groupID := range studentGroups {
+		if roomID, ok := groupToRoom[groupID]; ok {
+			data.studentHomeRoomMap[studentID] = roomID
 		}
 	}
 }
 
 // buildGroupToRoomLookup creates a map from group ID to room ID
-func buildGroupToRoomLookup(allEducationGroups []*educationModels.Group) map[int64]int64 {
+func buildGroupToRoomLookup(allEducationGroups []*EducationGroupRoom) map[int64]int64 {
 	lookup := make(map[int64]int64)
 	for _, eduGroup := range allEducationGroups {
 		if eduGroup.RoomID != nil {
@@ -268,15 +243,15 @@ func buildGroupToRoomLookup(allEducationGroups []*educationModels.Group) map[int
 // a "gruppe" target list always mirrors its first entry into the scalar
 // EducationGroupID (normalizeDynamicTargets), and Group.validateEducationGroupTarget
 // makes that scalar mandatory for the type.
-func isOGSGroupTemplate(template *activitiesModels.Group) bool {
+func isOGSGroupTemplate(template *active.SessionActivity) bool {
 	return template != nil &&
-		template.Type == activitiesModels.GroupTypeCare &&
+		template.Type == "care" &&
 		template.EducationGroupID != nil
 }
 
 // processActiveGroups calculates metrics from active groups.
 // Returns total active count, OGS-only count, and unique students in rooms.
-func processActiveGroups(activeGroups []*active.Group, visitsByGroupID map[int64][]studentpresence.Visit, activityGroupsByID map[int64]*activitiesModels.Group, roomData *dashboardRoomData) (int, int, map[int64]struct{}) {
+func processActiveGroups(activeGroups []*active.Group, visitsByGroupID map[int64][]studentpresence.Visit, activityGroupsByID map[int64]*active.SessionActivity, roomData *dashboardRoomData) (int, int, map[int64]struct{}) {
 	ogsGroupsCount := 0
 	uniqueStudentsInRoomsOverall := make(map[int64]struct{})
 
@@ -310,7 +285,7 @@ func processActiveGroups(activeGroups []*active.Group, visitsByGroupID map[int64
 }
 
 // isPlaygroundRoom checks if a room is a playground/outdoor area
-func isPlaygroundRoom(room *facilityModels.Room) bool {
+func isPlaygroundRoom(room *active.SessionRoom) bool {
 	if room == nil || room.Category == nil {
 		return false
 	}
@@ -402,7 +377,7 @@ func buildActiveGroupRoomLookup(activeGroups []*active.Group, roomData *dashboar
 }
 
 // buildRecentActivity builds the recent activity list
-func buildRecentActivity(activeGroups []*active.Group, activityGroupsByID map[int64]*activitiesModels.Group, roomData *dashboardRoomData) []RecentActivity {
+func buildRecentActivity(activeGroups []*active.Group, activityGroupsByID map[int64]*active.SessionActivity, roomData *dashboardRoomData) []RecentActivity {
 	recentActivity := []RecentActivity{}
 
 	for _, group := range activeGroups {
@@ -437,7 +412,7 @@ func buildRecentActivity(activeGroups []*active.Group, activityGroupsByID map[in
 }
 
 // buildCurrentActivities builds the current activities list
-func buildCurrentActivities(allActivityGroups []*activitiesModels.Group, activeGroups []*active.Group, roomData *dashboardRoomData) []CurrentActivity {
+func buildCurrentActivities(allActivityGroups []*active.SessionActivity, activeGroups []*active.Group, roomData *dashboardRoomData) []CurrentActivity {
 	currentActivities := []CurrentActivity{}
 
 	for _, actGroup := range allActivityGroups {
@@ -462,7 +437,7 @@ func buildCurrentActivities(allActivityGroups []*activitiesModels.Group, activeG
 			Name:         actGroup.Name,
 			Category:     categoryName,
 			Participants: participantCount,
-			MaxCapacity:  actGroup.MaxParticipants,
+			MaxCapacity:  actGroup.ParticipantLimit(),
 			Status:       status,
 		}
 		currentActivities = append(currentActivities, activity)
@@ -503,7 +478,7 @@ func determineActivityStatus(participants, maxCapacity int) string {
 }
 
 // buildActiveGroupsSummary builds the active groups summary list
-func buildActiveGroupsSummary(activeGroups []*active.Group, activityGroupsByID map[int64]*activitiesModels.Group, roomData *dashboardRoomData) []ActiveGroupInfo {
+func buildActiveGroupsSummary(activeGroups []*active.Group, activityGroupsByID map[int64]*active.SessionActivity, roomData *dashboardRoomData) []ActiveGroupInfo {
 	summary := []ActiveGroupInfo{}
 
 	for _, group := range activeGroups {
@@ -541,7 +516,7 @@ func buildActiveGroupsSummary(activeGroups []*active.Group, activityGroupsByID m
 //
 // groupID is an activities.groups.id — never look it up in an education-keyed
 // map (#2178).
-func resolveGroupName(groupID *int64, activityGroupsByID map[int64]*activitiesModels.Group) string {
+func resolveGroupName(groupID *int64, activityGroupsByID map[int64]*active.SessionActivity) string {
 	if groupID == nil {
 		return "Spontane Aktivität"
 	}
@@ -555,7 +530,7 @@ func resolveGroupName(groupID *int64, activityGroupsByID map[int64]*activitiesMo
 // Both come from the session's activities template: care blocks bound to an
 // education group are typed "ogs_group", everything else "activity".
 // Spontaneous sessions (groupID == nil) are classified as "spontaneous".
-func resolveGroupNameAndType(groupID *int64, activityGroupsByID map[int64]*activitiesModels.Group) (string, string) {
+func resolveGroupNameAndType(groupID *int64, activityGroupsByID map[int64]*active.SessionActivity) (string, string) {
 	if groupID == nil {
 		return "Spontane Aktivität", "spontaneous"
 	}
@@ -570,7 +545,7 @@ func resolveGroupNameAndType(groupID *int64, activityGroupsByID map[int64]*activ
 }
 
 // resolveRoomName gets the display name for a room
-func resolveRoomName(roomID int64, roomByID map[int64]*facilityModels.Room) string {
+func resolveRoomName(roomID int64, roomByID map[int64]*active.SessionRoom) string {
 	if room, ok := roomByID[roomID]; ok {
 		return room.Name
 	}

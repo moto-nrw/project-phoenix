@@ -427,8 +427,8 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 		Logger:      slog.Default(),
 	})
 
-	statusSvc := activeService.NewStudentStatusDayServiceWithPartialAbsences(repos.StudentStatusDay, nil, nil)
-	studentSvc := usersService.NewStudentService(repos.Student, repos.PrivacyConsent, repos.StudentCompanion, nil)
+	statusSvc := activeService.NewStudentStatusDayServiceWithPartialAbsences(repos.StudentStatusDay, nil, nil, repos.CarePlan().LockExceptionDay)
+	studentSvc := usersService.NewStudentService(repos.Student, repositories.NewStudentPrivacyConsentStore(db), repos.StudentCompanion, nil)
 	staffAttempted := make(chan struct{})
 	staffStudentSvc := &signalingStudentService{StudentService: studentSvc, attempted: staffAttempted}
 	date := timezone.NewDate(2026, 8, 24).AddDays(40)

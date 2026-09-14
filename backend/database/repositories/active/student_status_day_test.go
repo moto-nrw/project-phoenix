@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -252,12 +251,7 @@ func TestStudentStatusDayRepository_CountEffectiveDashboardAbsences(t *testing.T
 
 	inactive := create("Inactive", "Dashboard")
 	report(ctxA, inactive, active.StudentStatusDayExcused)
-	_, err := db.NewUpdate().
-		TableExpr(`users.students`).
-		Set("status = ?", string(usersModels.StudentStatusInactive)).
-		Where("id = ?", inactive).
-		Exec(ctxA)
-	require.NoError(t, err)
+	testpkg.SetStudentStatus(t, db, inactive, "inactive")
 
 	otherTenantStudent := testpkg.CreateTestStudentForTenant(t, db, tenantB, "OtherTenant", "Dashboard", "DB1")
 	studentIDs = append(studentIDs, otherTenantStudent.ID)

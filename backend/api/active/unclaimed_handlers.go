@@ -6,7 +6,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 )
 
 // ======== Unclaimed Groups Management (Deviceless Claiming) ========
@@ -35,15 +34,15 @@ func (rs *Resource) claimGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get authenticated user from JWT token
-	claims := jwt.ClaimsFromCtx(ctx)
-	if claims.ID == 0 {
+	// Read the authenticated account from the validated security principal.
+	principal, principalErr := common.CurrentPrincipal(ctx)
+	if principalErr != nil {
 		common.RespondWithError(w, r, http.StatusUnauthorized, "Invalid token")
 		return
 	}
 
 	// Get person from account ID
-	person, err := rs.PersonService.FindByAccountID(ctx, int64(claims.ID))
+	person, err := rs.PersonService.FindByAccountID(ctx, principal.AccountID())
 	if err != nil || person == nil {
 		common.RespondWithError(w, r, http.StatusUnauthorized, "Account not found")
 		return

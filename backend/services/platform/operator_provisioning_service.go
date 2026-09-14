@@ -1325,7 +1325,10 @@ func (s *operatorProvisioningService) SoftDeletePerson(ctx context.Context, pers
 		if staffErr == nil && staff != nil {
 			// Staff exists — check active supervisions
 			if s.GroupSupervisorRepo != nil {
-				supervisors, supErr := s.GroupSupervisorRepo.FindActiveByStaffID(adminCtx, staff.ID)
+				// The operator transaction is cross-tenant, but the presence owner
+				// requires the resolved staff member's tenant for this read.
+				supervisionCtx := tenant.WithTenantID(adminCtx, staff.TenantID)
+				supervisors, supErr := s.GroupSupervisorRepo.FindActiveByStaffID(supervisionCtx, staff.ID)
 				if supErr != nil {
 					s.getLogger().Warn("soft_delete_supervision_check_failed",
 						slog.Int64("person_id", personID),

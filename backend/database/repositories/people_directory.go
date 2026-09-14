@@ -39,7 +39,7 @@ func (f *Factory) bindDefaultPeopleDirectory(db *bun.DB) {
 // consent owner (student-presence, #2662). A child carries a handful of
 // consent rows at most, so the existing listing is the count.
 func (f *Factory) countPrivacyConsents(ctx context.Context, studentID int64) (int, error) {
-	consents, err := f.PrivacyConsent.FindByStudentID(ctx, studentID)
+	consents, err := newStudentPresence(f.db).ListPrivacyConsents(ctx, studentID)
 	if err != nil {
 		return 0, err
 	}

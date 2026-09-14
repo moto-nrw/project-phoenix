@@ -22,9 +22,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/collation"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
@@ -37,7 +35,7 @@ import (
 // Sources are the retained owner services the projection's ports adapt.
 type Sources struct {
 	Active       activeService.Service
-	ActiveGroups activeModels.GroupRepository
+	ActiveGroups OpenRoomSessions
 	OpenVisits   activeService.VisitDisplayBatchReader
 	Rooms        supervisiondashboard.RoomDirectory
 	UserContext  userContextService.UserContextService
@@ -130,7 +128,7 @@ func (a access) FullStudentAccess(ctx context.Context) (bool, error) {
 
 type sessions struct {
 	active      activeService.Service
-	groups      activeModels.GroupRepository
+	groups      OpenRoomSessions
 	userContext userContextService.UserContextService
 }
 
@@ -138,15 +136,9 @@ type sessions struct {
 // filled in: the list query intentionally returns only active-group columns,
 // so the rows are re-read in bulk by id.
 func (s sessions) Running(ctx context.Context) ([]supervisiondashboard.Session, error) {
-	all, err := s.active.ListActiveGroups(ctx, base.NewQueryOptions())
+	ids, err := s.groups.ListRunningSessionIDs(ctx)
 	if err != nil {
 		return nil, err
-	}
-	ids := make([]int64, 0, len(all))
-	for _, group := range all {
-		if group.IsActive() {
-			ids = append(ids, group.ID)
-		}
 	}
 	loaded, err := s.active.GetActiveGroupsByIDs(ctx, ids)
 	if err != nil {
@@ -170,13 +162,13 @@ func (s sessions) Supervised(ctx context.Context) ([]supervisiondashboard.Sessio
 }
 
 func (s sessions) SupervisedByStaff(ctx context.Context, staffID int64) (map[int64]struct{}, error) {
-	supervisions, err := s.active.GetStaffActiveSupervisions(ctx, staffID)
+	supervisions, err := s.groups.GetStaffActiveGroupIDs(ctx, staffID)
 	if err != nil {
 		return nil, err
 	}
 	result := make(map[int64]struct{}, len(supervisions))
-	for _, supervision := range supervisions {
-		result[supervision.GroupID] = struct{}{}
+	for _, groupID := range supervisions {
+		result[groupID] = struct{}{}
 	}
 	return result, nil
 }
@@ -197,25 +189,17 @@ func (s sessions) Unclaimed(ctx context.Context) ([]supervisiondashboard.Unclaim
 	return result, nil
 }
 
+type OpenRoomSessions interface {
+	GetStaffActiveGroupIDs(context.Context, int64) ([]int64, error)
+	ListRunningSessionIDs(context.Context) ([]int64, error)
+	FindOpenSessionsInRooms(context.Context, []int64) ([]supervisiondashboard.RunningSession, error)
+}
+
 func (s sessions) InRooms(ctx context.Context, roomIDs []int64) ([]supervisiondashboard.RunningSession, error) {
 	if s.groups == nil {
 		return nil, errors.New("open-room session repository is not configured")
 	}
-	groups, err := s.groups.FindOpenSessionsInRooms(ctx, roomIDs)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]supervisiondashboard.RunningSession, 0, len(groups))
-	for _, group := range groups {
-		result = append(result, supervisiondashboard.RunningSession{
-			ActiveGroupID:      group.ActiveGroupID,
-			RoomID:             group.RoomID,
-			ActivityName:       group.ActivityName,
-			StartTime:          group.StartTime,
-			SupervisorStaffIDs: group.SupervisorStaffIDs,
-		})
-	}
-	return result, nil
+	return s.groups.FindOpenSessionsInRooms(ctx, roomIDs)
 }
 
 // records maps the rows to session records with their rooms resolved and
@@ -249,10 +233,10 @@ func (s sessions) records(ctx context.Context, groups []*activeModels.Group) ([]
 
 // rooms bulk-resolves rooms for groups whose relation is not preloaded —
 // this replaces the former per-group GET /api/rooms/{id} N+1.
-func (s sessions) rooms(ctx context.Context, groups []*activeModels.Group) (map[int64]*facilitiesModels.Room, error) {
+func (s sessions) rooms(ctx context.Context, groups []*activeModels.Group) (map[int64]*activeModels.SessionRoom, error) {
 	missing := make([]int64, 0, len(groups))
 	seen := map[int64]struct{}{}
-	result := map[int64]*facilitiesModels.Room{}
+	result := map[int64]*activeModels.SessionRoom{}
 	for _, group := range groups {
 		if group.RoomID <= 0 {
 			continue
@@ -282,6 +266,12 @@ func (s sessions) rooms(ctx context.Context, groups []*activeModels.Group) (map[
 
 type yard struct {
 	schulhof facilitiesService.SchulhofService
+}
+
+// NewYard exposes the existing courtyard projection independently of the
+// aggregate dashboard, for callers that only need courtyard status.
+func NewYard(source facilitiesService.SchulhofService) supervisiondashboard.Yard {
+	return yard{schulhof: source}
 }
 
 func (y yard) Status(ctx context.Context, staffID int64) (*supervisiondashboard.SchulhofStatus, error) {

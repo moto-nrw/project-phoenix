@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -21,6 +22,11 @@ type GroupsTestModule struct {
 	UserContext usercontext.UserContextService
 }
 
+// TeacherGroupIDs exposes the same assignment projection as attendance composition.
+func (m GroupsTestModule) TeacherGroupIDs(ctx context.Context, teacherID int64) ([]int64, error) {
+	return NewAttendanceTeacherGroups(m.Education).TeacherGroupIDs(ctx, teacherID)
+}
+
 func NewGroupsTestModule(db *bun.DB, unit tenant.UnitOfWork) (GroupsTestModule, error) {
 	r, err := repositories.NewUserContextTestRepositories(db)
 	if err != nil {
@@ -36,10 +42,17 @@ func NewGroupsTestModule(db *bun.DB, unit tenant.UnitOfWork) (GroupsTestModule, 
 	persons := users.NewPersonService(users.PersonServiceDependencies{
 		PersonRepo: tt.Person, StudentRepo: tt.Student, StaffRepo: tt.Staff, TeacherRepo: tt.Teacher, AccountRepo: r.Account, DB: db, Logger: slog.Default(),
 	})
+	rooms, err := repositories.NewFacilities(db)
+	if err != nil {
+		return GroupsTestModule{}, err
+	}
 	presence := active.NewService(active.ServiceDependencies{
-		UsersService: persons, GroupRepo: tt.ActiveGroup, SupervisorRepo: tt.GroupSupervisor,
-		StudentRepo: tt.Student, PersonRepo: tt.Person, StaffRepo: tt.Staff, RoomRepo: tt.Room,
-		ActivityGroupRepo: tt.ActivityGroup, DB: db, Logger: slog.Default(),
+		PrincipalReader: AttendancePrincipal,
+		YardRoomColor:   yardRoomColorQuery(rooms),
+		StaffNames:      NewAttendanceStaffNames(tt.Staff, persons), GroupRepo: tt.ActiveGroup, SupervisorRepo: tt.GroupSupervisor,
+		StudentRepo: tt.Student, StaffRepo: NewAttendanceStaffDirectory(tt.Staff), RoomRepo: NewAttendanceRooms(tt.Room),
+		EducationGroupRepo: NewAttendanceEducationGroups(tt.Group, tt.Student),
+		ActivityGroupRepo:  repositories.NewSessionActivities(tt.ActivityGroup), DB: db, Logger: slog.Default(),
 		SchoolPresence: newStudentPresence(db, slog.Default()),
 	})
 

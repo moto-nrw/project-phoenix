@@ -12,12 +12,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/xuri/excelize/v2"
 )
 
 // ============================================================================
@@ -25,12 +22,12 @@ import (
 // ============================================================================
 
 type wsMockStaffRepository struct {
-	userModels.StaffRepository
-	findWithPersonByIDsFunc func(context.Context, []int64) (map[int64]*userModels.Staff, error)
+	WorkSessionStaff
+	staffNamesFunc func(context.Context, []int64) (map[int64]WorkSessionStaffName, error)
 }
 
-func (m *wsMockStaffRepository) FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Staff, error) {
-	return m.findWithPersonByIDsFunc(ctx, ids)
+func (m *wsMockStaffRepository) StaffNames(ctx context.Context, ids []int64) (map[int64]WorkSessionStaffName, error) {
+	return m.staffNamesFunc(ctx, ids)
 }
 
 func wsCreateTestServiceWithAbsenceRepo() (*workSessionService, *wsMockWorkSessionRepository, *wsMockWorkSessionBreakRepository, *wsMockWorkSessionEditRepository, *wsMockStaffAbsenceRepository, *wsMockGroupSupervisorRepository) {
@@ -114,10 +111,16 @@ func TestWSExportSessions_CSV_Success(t *testing.T) {
 	assert.Contains(t, content, "Datum;Wochentag;Start;Ende")
 }
 
-func TestWSExportSessions_XLSX_Success(t *testing.T) {
+func TestWSExportSessions_XLSX_RenderFailure(t *testing.T) {
 	t.Parallel()
 
 	svc, sessionRepo, breakRepo, auditRepo, absenceRepo, _ := wsCreateTestServiceWithAbsenceRepo()
+	renderErr := errors.New("workbook failed")
+	svc.renderWorkbook = func(sheet string, headers []string, rows [][]any, decimalColumns []int) ([]byte, error) {
+		require.Equal(t, "Zeiterfassung", sheet)
+		require.Equal(t, timeTrackingHeaders(), headers)
+		return nil, renderErr
+	}
 	ctx := context.Background()
 	staffID := int64(100)
 	from := timezone.NewDate(2024, 1, 1)
@@ -140,15 +143,8 @@ func TestWSExportSessions_XLSX_Success(t *testing.T) {
 	}
 
 	file, err := svc.ExportSessions(ctx, staffID, from, to, "xlsx")
-	require.NoError(t, err)
-	require.NotNil(t, file)
-	assert.NotEmpty(t, file.Data)
-	assert.Contains(t, file.Filename, ".xlsx")
-	assert.Contains(t, file.ContentType, "spreadsheetml")
-
-	// Verify ZIP magic bytes (XLSX is a ZIP file)
-	assert.Equal(t, byte(0x50), file.Data[0]) // 'P'
-	assert.Equal(t, byte(0x4B), file.Data[1]) // 'K'
+	require.ErrorIs(t, err, renderErr)
+	require.Nil(t, file)
 }
 
 func TestWSExportSessions_GetHistoryError(t *testing.T) {
@@ -377,12 +373,12 @@ func TestDayExportRowsByStaffIDsStampsCustomAbsenceLabels(t *testing.T) {
 	date := timezone.NewDate(2026, 8, 20)
 	customID := int64(42)
 
-	svc.SetAbsenceTypeService(NewStaffAbsenceTypeService(&absTypeRepoMock{rows: []*activeModels.StaffAbsenceType{{
+	svc.SetAbsenceTypeService(&absTypeReaderMock{rows: []*activeModels.StaffAbsenceType{{
 		Model:    base.Model{ID: customID},
 		Name:     "Regenerationstag",
 		BaseType: activeModels.AbsenceTypeOther,
 		IsActive: false,
-	}}}, nil))
+	}}})
 	sessionRepo.getHistoryByStaffIDsFunc = func(context.Context, []int64, timezone.Date, timezone.Date) (map[int64][]*activeModels.WorkSession, error) {
 		return map[int64][]*activeModels.WorkSession{}, nil
 	}
@@ -551,30 +547,22 @@ func TestCrossStaffCSV_SanitizesUntrustedTextOnly(t *testing.T) {
 
 func TestWriteMonthXLSX_DecimalDurationsAreNumeric(t *testing.T) {
 	t.Parallel()
-
-	data, err := writeMonthXLSX([]MonthExportRow{{
-		CarryInMinutes: 750,
-		BalanceMinutes: -90,
-	}}, ExportTimeDecimal)
+	calls := 0
+	render := func(sheet string, headers []string, rows [][]any, decimalColumns []int) ([]byte, error) {
+		calls++
+		require.Equal(t, "Zeiterfassung", sheet)
+		require.Equal(t, monthExportHeaders, headers)
+		require.Len(t, rows, 1)
+		require.Equal(t, float64(12.5), rows[0][5])
+		require.Equal(t, float64(-1.5), rows[0][19])
+		require.Contains(t, decimalColumns, 6)
+		require.Contains(t, decimalColumns, 20)
+		return []byte("rendered"), nil
+	}
+	data, err := writeMonthXLSX([]MonthExportRow{{CarryInMinutes: 750, BalanceMinutes: -90}}, ExportTimeDecimal, render)
 	require.NoError(t, err)
-
-	book, err := excelize.OpenReader(bytes.NewReader(data))
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = book.Close() })
-
-	cellType, err := book.GetCellType("Zeiterfassung", "F2")
-	require.NoError(t, err)
-	assert.NotEqual(t, excelize.CellTypeSharedString, cellType)
-	assert.NotEqual(t, excelize.CellTypeInlineString, cellType)
-	value, err := book.GetCellValue("Zeiterfassung", "F2")
-	require.NoError(t, err)
-	assert.Equal(t, "12.50", value)
-	styleID, err := book.GetCellStyle("Zeiterfassung", "F2")
-	require.NoError(t, err)
-	style, err := book.GetStyle(styleID)
-	require.NoError(t, err)
-	require.NotNil(t, style.CustomNumFmt)
-	assert.Equal(t, "0.00", *style.CustomNumFmt)
+	require.Equal(t, []byte("rendered"), data)
+	require.Equal(t, 1, calls)
 }
 
 // ============================================================================
@@ -1009,10 +997,16 @@ func TestWSBuildTimeTrackingDocument_ShapesRows(t *testing.T) {
 	assert.Contains(t, doc.Filters[0], "15.01.2024")
 }
 
-func TestWSExportSessions_PDF_Success(t *testing.T) {
+func TestWSExportSessions_PDF_RenderFailure(t *testing.T) {
 	t.Parallel()
 
 	svc, sessionRepo, breakRepo, auditRepo, absenceRepo, _ := wsCreateTestServiceWithAbsenceRepo()
+	renderErr := errors.New("PDF rendering failed")
+	svc.renderPDF = func(doc TimeTrackingDocument) ([]byte, error) {
+		require.Equal(t, "Zeiterfassung", doc.Title)
+		require.Len(t, doc.Columns, 9)
+		return nil, renderErr
+	}
 
 	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
 		return []*activeModels.WorkSession{}, nil
@@ -1028,11 +1022,8 @@ func TestWSExportSessions_PDF_Success(t *testing.T) {
 	}
 
 	file, err := svc.ExportSessions(context.Background(), 100, timezone.NewDate(2024, 1, 1), timezone.NewDate(2024, 1, 7), "pdf")
-	require.NoError(t, err)
-	require.NotNil(t, file)
-	assert.Contains(t, file.Filename, ".pdf")
-	assert.Equal(t, "application/pdf", file.ContentType)
-	assert.True(t, bytes.HasPrefix(file.Data, []byte("%PDF")))
+	require.ErrorIs(t, err, renderErr)
+	require.Nil(t, file)
 }
 
 func TestWSExportSessions_PDF_StaffLookupError(t *testing.T) {
@@ -1053,7 +1044,7 @@ func TestWSExportSessions_PDF_StaffLookupError(t *testing.T) {
 		return nil, nil
 	}
 	svc.staffRepo = &wsMockStaffRepository{
-		findWithPersonByIDsFunc: func(_ context.Context, _ []int64) (map[int64]*userModels.Staff, error) {
+		staffNamesFunc: func(_ context.Context, _ []int64) (map[int64]WorkSessionStaffName, error) {
 			return nil, errors.New("database error")
 		},
 	}
@@ -1092,13 +1083,13 @@ func TestWSUpdateSession_StatusChange(t *testing.T) {
 		return nil
 	}
 
-	auditRepo.createBatchFunc = func(_ context.Context, edits []*auditModels.WorkSessionEdit) error {
+	auditRepo.createBatchFunc = func(_ context.Context, edits []*WorkSessionEdit) error {
 		// Both status and notes change → two audit entries, both annotated
 		// with the same reason via uc.notes.
 		assert.Len(t, edits, 2)
 		fields := []string{edits[0].FieldName, edits[1].FieldName}
-		assert.Contains(t, fields, auditModels.FieldStatus)
-		assert.Contains(t, fields, auditModels.FieldNotes)
+		assert.Contains(t, fields, "status")
+		assert.Contains(t, fields, "notes")
 		return nil
 	}
 
@@ -1138,7 +1129,7 @@ func TestWSUpdateSession_StatusChangeRequiresNotes(t *testing.T) {
 		t.Fatal("repo.Update must not be called when status change is rejected")
 		return nil
 	}
-	auditRepo.createBatchFunc = func(_ context.Context, _ []*auditModels.WorkSessionEdit) error {
+	auditRepo.createBatchFunc = func(_ context.Context, _ []*WorkSessionEdit) error {
 		t.Fatal("audit.CreateBatch must not be called when status change is rejected")
 		return nil
 	}
@@ -1192,7 +1183,7 @@ func TestWSUpdateSession_NotesOnlyDoesNotRequireReason(t *testing.T) {
 	sessionRepo.updateFunc = func(_ context.Context, _ *activeModels.WorkSession) error {
 		return nil
 	}
-	auditRepo.createBatchFunc = func(_ context.Context, _ []*auditModels.WorkSessionEdit) error {
+	auditRepo.createBatchFunc = func(_ context.Context, _ []*WorkSessionEdit) error {
 		return nil
 	}
 
@@ -1227,9 +1218,9 @@ func TestWSUpdateSession_NotesChange(t *testing.T) {
 		return nil
 	}
 
-	auditRepo.createBatchFunc = func(_ context.Context, edits []*auditModels.WorkSessionEdit) error {
+	auditRepo.createBatchFunc = func(_ context.Context, edits []*WorkSessionEdit) error {
 		assert.Len(t, edits, 1)
-		assert.Equal(t, auditModels.FieldNotes, edits[0].FieldName)
+		assert.Equal(t, "notes", edits[0].FieldName)
 		return nil
 	}
 
@@ -1266,9 +1257,9 @@ func TestWSUpdateSession_BreakMinutesWithoutIndividualBreaks(t *testing.T) {
 		return nil
 	}
 
-	auditRepo.createBatchFunc = func(_ context.Context, edits []*auditModels.WorkSessionEdit) error {
+	auditRepo.createBatchFunc = func(_ context.Context, edits []*WorkSessionEdit) error {
 		assert.Len(t, edits, 1)
-		assert.Equal(t, auditModels.FieldBreakMinutes, edits[0].FieldName)
+		assert.Equal(t, "break_minutes", edits[0].FieldName)
 		return nil
 	}
 
@@ -1308,9 +1299,9 @@ func TestWSUpdateSession_CheckOutTimeChange(t *testing.T) {
 		return nil
 	}
 
-	auditRepo.createBatchFunc = func(_ context.Context, edits []*auditModels.WorkSessionEdit) error {
+	auditRepo.createBatchFunc = func(_ context.Context, edits []*WorkSessionEdit) error {
 		assert.Len(t, edits, 1)
-		assert.Equal(t, auditModels.FieldCheckOutTime, edits[0].FieldName)
+		assert.Equal(t, "check_out_time", edits[0].FieldName)
 		return nil
 	}
 
@@ -1346,7 +1337,7 @@ func TestWSUpdateSession_NoChanges(t *testing.T) {
 	}
 
 	// Should not be called when no changes
-	auditRepo.createBatchFunc = func(_ context.Context, edits []*auditModels.WorkSessionEdit) error {
+	auditRepo.createBatchFunc = func(_ context.Context, edits []*WorkSessionEdit) error {
 		t.Fatal("createBatch should not be called with no changes")
 		return nil
 	}
@@ -1381,7 +1372,7 @@ func TestWSUpdateSession_AuditRepoError(t *testing.T) {
 		return nil
 	}
 
-	auditRepo.createBatchFunc = func(_ context.Context, _ []*auditModels.WorkSessionEdit) error {
+	auditRepo.createBatchFunc = func(_ context.Context, _ []*WorkSessionEdit) error {
 		return errors.New("audit error")
 	}
 
@@ -1512,7 +1503,7 @@ func TestWSGetSessionEdits_RepoError(t *testing.T) {
 		}, nil
 	}
 
-	auditRepo.getBySessionIDFunc = func(_ context.Context, _ int64) ([]*auditModels.WorkSessionEdit, error) {
+	auditRepo.getBySessionIDFunc = func(_ context.Context, _ int64) ([]*WorkSessionEdit, error) {
 		return nil, errors.New("database error")
 	}
 

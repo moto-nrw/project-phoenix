@@ -13,8 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -150,16 +148,16 @@ type StaffOverviewService interface {
 }
 
 type staffOverviewService struct {
-	staffRepo      userModels.StaffRepository
+	staffRepo      OverviewStaffQuery
 	sessionRepo    activeModels.WorkSessionRepository
 	breakRepo      activeModels.WorkSessionBreakRepository
 	absenceRepo    activeModels.StaffAbsenceRepository
 	adjustmentRepo activeModels.StaffBalanceAdjustmentRepository
 	quotaRepo      activeModels.StaffVacationQuotaRepository
-	snapshotRepo   activeModels.StaffMonthBalanceSnapshotRepository
-	scheduleRepo   configModels.StaffWorkScheduleRepository
-	workModelRepo  configModels.WorkTimeModelRepository
-	shiftRepo      scheduleModels.StaffShiftRepository
+	snapshotRepo   MonthSnapshots
+	scheduleRepo   OverviewWorkSchedules
+	workModelRepo  OverviewWorkTimeModels
+	shiftRepo      StaffOverviewShifts
 	settings       monthSettingsResolver
 	holidayReader  HolidayDatesReader
 	// openingRepo carries the vacation takeover rows (#2132); setter
@@ -172,16 +170,16 @@ type staffOverviewService struct {
 }
 
 func NewStaffOverviewService(
-	staffRepo userModels.StaffRepository,
+	staffRepo OverviewStaffQuery,
 	sessionRepo activeModels.WorkSessionRepository,
 	breakRepo activeModels.WorkSessionBreakRepository,
 	absenceRepo activeModels.StaffAbsenceRepository,
 	adjustmentRepo activeModels.StaffBalanceAdjustmentRepository,
 	quotaRepo activeModels.StaffVacationQuotaRepository,
-	snapshotRepo activeModels.StaffMonthBalanceSnapshotRepository,
-	scheduleRepo configModels.StaffWorkScheduleRepository,
-	workModelRepo configModels.WorkTimeModelRepository,
-	shiftRepo scheduleModels.StaffShiftRepository,
+	snapshotRepo MonthSnapshots,
+	scheduleRepo OverviewWorkSchedules,
+	workModelRepo OverviewWorkTimeModels,
+	shiftRepo StaffOverviewShifts,
 	settings monthSettingsResolver,
 	logger *slog.Logger,
 ) *staffOverviewService {
@@ -225,7 +223,7 @@ func (s *staffOverviewService) today() timezone.Date {
 // account anchor (the ISO week can start in the previous month).
 func (s *staffOverviewService) buildPrefetch(
 	ctx context.Context,
-	staffMembers []*userModels.Staff,
+	staffMembers []OverviewStaff,
 	lower *timezone.Date,
 	through monthKey,
 ) (*monthPrefetch, error) {
@@ -253,11 +251,11 @@ func (s *staffOverviewService) buildPrefetch(
 	}
 
 	staffIDs := make([]int64, 0, len(staffMembers))
-	staffByID := make(map[int64]*userModels.Staff, len(staffMembers))
+	staffByID := make(map[int64]*StaffScheduleAssignment, len(staffMembers))
 	modelIDs := make([]int64, 0, len(staffMembers))
 	for _, staff := range staffMembers {
 		staffIDs = append(staffIDs, staff.ID)
-		staffByID[staff.ID] = staff
+		staffByID[staff.ID] = &StaffScheduleAssignment{WorkTimeModelID: staff.WorkTimeModelID, RotationAnchorDate: staff.RotationAnchorDate}
 		if staff.WorkTimeModelID != nil && !slices.Contains(modelIDs, *staff.WorkTimeModelID) {
 			modelIDs = append(modelIDs, *staff.WorkTimeModelID)
 		}
@@ -291,24 +289,21 @@ func (s *staffOverviewService) buildPrefetch(
 	if prefetch.adjustments, err = s.adjustmentRepo.GetByStaffIDsAndDateRange(ctx, staffIDs, from, to); err != nil {
 		return nil, fmt.Errorf("failed to prefetch balance adjustments: %w", err)
 	}
-	if prefetch.shifts, err = s.shiftRepo.FindByStaffIDsAndDateRange(ctx, staffIDs, scheduleModels.Date(from), scheduleModels.Date(to)); err != nil {
+	if prefetch.shifts, err = s.shiftRepo.FindByStaffIDsAndDateRange(ctx, staffIDs, timezone.Date(from), timezone.Date(to)); err != nil {
 		return nil, fmt.Errorf("failed to prefetch staff shifts: %w", err)
 	}
-	scheduleEntries, err := s.scheduleRepo.FindByStaffIDsValidInRange(ctx, staffIDs, workforceDate(from), workforceDate(to))
+	scheduleTargets, err := s.scheduleRepo.TargetsByStaff(ctx, staffIDs, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prefetch work schedules: %w", err)
 	}
-	prefetch.schedules = make(map[int64][]*configModels.StaffWorkSchedule, len(staffIDs))
-	for _, entry := range scheduleEntries {
-		prefetch.schedules[entry.StaffID] = append(prefetch.schedules[entry.StaffID], entry)
-	}
+	prefetch.schedules = scheduleTargets
 	// Not derivable from the range-filtered schedules above: the question is
 	// whether a staff member EVER had a schedule version, which is what
 	// decides if the assigned work-time model may stand in.
 	if prefetch.scheduleHist, err = s.scheduleRepo.FindStaffIDsWithScheduleHistory(ctx, staffIDs); err != nil {
 		return nil, fmt.Errorf("failed to prefetch schedule history: %w", err)
 	}
-	prefetch.workTimeModels = make(map[int64]*configModels.WorkTimeModel, len(modelIDs))
+	prefetch.workTimeModels = make(map[int64]*WorkTimeTargetModel, len(modelIDs))
 	if len(modelIDs) > 0 {
 		models, err := s.workModelRepo.FindByIDs(ctx, modelIDs)
 		if err != nil {
@@ -334,23 +329,16 @@ func (s *staffOverviewService) buildPrefetch(
 // Deliberately unbounded in time: the splice asks for "the newest snapshot at
 // or before month M" for several different M, so a month-bounded prefetch could
 // not answer them all. At most one active row exists per staff member and
-// month, so the set stays small. The generic filtered List is enough — no new
-// repository method needed.
+// month, so the set stays small. Workforce supplies the tenant-scoped batch.
 func (s *staffOverviewService) prefetchSnapshots(
 	ctx context.Context,
 	staffIDs []int64,
-) (map[int64][]*activeModels.StaffMonthBalanceSnapshot, error) {
-	result := make(map[int64][]*activeModels.StaffMonthBalanceSnapshot, len(staffIDs))
+) (map[int64][]*MonthSnapshot, error) {
+	result := make(map[int64][]*MonthSnapshot, len(staffIDs))
 	if len(staffIDs) == 0 {
 		return result, nil
 	}
-	ids := make([]any, 0, len(staffIDs))
-	for _, id := range staffIDs {
-		ids = append(ids, id)
-	}
-	options := modelBase.NewQueryOptions()
-	options.Filter = options.Filter.In("staff_id", ids...).IsNull("reopened_at")
-	snapshots, err := s.snapshotRepo.List(ctx, options)
+	snapshots, err := s.snapshotRepo.ClosedMonthSnapshotsForStaff(ctx, staffIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prefetch month balance snapshots: %w", err)
 	}
@@ -389,7 +377,7 @@ func (s *staffOverviewService) GetTimeTrackingOverview(ctx context.Context, filt
 		return nil, err
 	}
 	if filters.EmploymentType != "" {
-		staffMembers = slices.DeleteFunc(staffMembers, func(staff *userModels.Staff) bool {
+		staffMembers = slices.DeleteFunc(staffMembers, func(staff OverviewStaff) bool {
 			return staff.EmploymentType == nil || *staff.EmploymentType != filters.EmploymentType
 		})
 	}
@@ -462,10 +450,8 @@ func (s *staffOverviewService) GetTimeTrackingOverview(ctx context.Context, filt
 		if staff.EmploymentType != nil {
 			row.EmploymentType = *staff.EmploymentType
 		}
-		if staff.Person != nil {
-			row.FirstName, row.LastName = staff.Person.FirstName, staff.Person.LastName
-			row.Name = strings.TrimSpace(staff.Person.FirstName + " " + staff.Person.LastName)
-		}
+		row.FirstName, row.LastName = staff.FirstName, staff.LastName
+		row.Name = strings.TrimSpace(staff.FirstName + " " + staff.LastName)
 		if filters.SaldoMin != nil && row.BalanceMinutes < *filters.SaldoMin {
 			continue
 		}
@@ -578,8 +564,8 @@ func validEmploymentTypes() []string {
 
 // activeStaff is the set every KPI is intersected against: tenant-scoped and
 // soft-delete-filtered. "Active" means not offboarded.
-func (s *staffOverviewService) activeStaff(ctx context.Context) ([]*userModels.Staff, error) {
-	staffMembers, err := s.staffRepo.ListAllWithPerson(ctx)
+func (s *staffOverviewService) activeStaff(ctx context.Context) ([]OverviewStaff, error) {
+	staffMembers, err := s.staffRepo.ListOverviewStaff(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list staff: %w", err)
 	}
@@ -626,7 +612,7 @@ func (s *staffOverviewService) GetDashboardSummary(ctx context.Context, period s
 	// period=week can reach into the previous month, so the prefetch window
 	// has to start no later than that Monday.
 	var lower *timezone.Date
-	weekStart := calendarDate(configModels.MondayOf(workforceDate(today)))
+	weekStart := today.StartOfISOWeek()
 	if period == OverviewPeriodWeek {
 		lower = &weekStart
 	}
@@ -741,7 +727,7 @@ func (s *staffOverviewService) expectedClockedIn(
 	activeIDs map[int64]bool,
 	today timezone.Date,
 ) (int, error) {
-	shiftDate := scheduleModels.Date(today)
+	shiftDate := timezone.Date(today)
 	shifts, err := s.shiftRepo.FindByDateRange(ctx, shiftDate, shiftDate)
 	if err != nil {
 		return 0, fmt.Errorf("failed to load today's shifts: %w", err)

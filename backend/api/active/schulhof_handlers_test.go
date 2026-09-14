@@ -8,51 +8,34 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/models/active"
-	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/auth"
-	"github.com/moto-nrw/project-phoenix/models/education"
-	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/services/facilities"
-	usercontextsvc "github.com/moto-nrw/project-phoenix/services/usercontext"
+	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 )
 
 // =============================================================================
 // Mock Services
 // =============================================================================
 
-// mockSchulhofService implements facilities.SchulhofService for testing
+// mockSchulhofService implements the courtyard status query for testing.
 type mockSchulhofService struct {
-	getStatusFunc            func(ctx context.Context, staffID int64) (*facilities.SchulhofStatus, error)
-	ensureInfrastructureFunc func(ctx context.Context, createdBy int64) (*facilities.SystemActivity, error)
+	getStatusFunc func(ctx context.Context, staffID int64) (*supervisiondashboard.SchulhofStatus, error)
 }
 
-func (m *mockSchulhofService) GetSchulhofStatus(ctx context.Context, staffID int64) (*facilities.SchulhofStatus, error) {
+func (m *mockSchulhofService) Status(ctx context.Context, staffID int64) (*supervisiondashboard.SchulhofStatus, error) {
 	if m.getStatusFunc != nil {
 		return m.getStatusFunc(ctx, staffID)
 	}
 	return nil, errors.New("not implemented")
 }
 
-func (m *mockSchulhofService) EnsureInfrastructure(ctx context.Context, createdBy int64) (*facilities.SystemActivity, error) {
-	if m.ensureInfrastructureFunc != nil {
-		return m.ensureInfrastructureFunc(ctx, createdBy)
-	}
-	return nil, errors.New("not implemented")
-}
-
 type mockUserContextService struct {
-	getCurrentStaffFunc   func(ctx context.Context) (*users.Staff, error)
-	getCurrentProfileFunc func(ctx context.Context) (map[string]interface{}, error)
+	getCurrentStaffFunc func(ctx context.Context) (*StaffIdentity, error)
 }
 
-func (m *mockUserContextService) GetCurrentStaff(ctx context.Context) (*users.Staff, error) {
+func (m *mockUserContextService) GetCurrentStaff(ctx context.Context) (*StaffIdentity, error) {
 	if m.getCurrentStaffFunc != nil {
 		return m.getCurrentStaffFunc(ctx)
 	}
@@ -64,80 +47,12 @@ func (m *mockUserContextService) HasCurrentStaff(ctx context.Context) (bool, err
 	return err == nil && staff != nil, err
 }
 
-func (m *mockUserContextService) GetNavigationContext(context.Context) (*usercontextsvc.NavigationContext, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (m *mockUserContextService) GetCurrentUser(ctx context.Context) (*auth.Account, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (m *mockUserContextService) GetCurrentPerson(ctx context.Context) (*users.Person, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (m *mockUserContextService) GetCurrentTeacher(ctx context.Context) (*users.Teacher, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (m *mockUserContextService) GetMyGroups(ctx context.Context) ([]*education.Group, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (m *mockUserContextService) GetMySchoolClasses(ctx context.Context) ([]string, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (m *mockUserContextService) ResolveSSESubscription(context.Context) (*usercontextsvc.SSESubscription, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (m *mockUserContextService) GetSubstitutedGroupIDs(ctx context.Context) (map[int64]bool, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (m *mockUserContextService) GetMyActivityGroups(ctx context.Context) ([]*activityModels.Group, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (m *mockUserContextService) GetMyActiveGroups(ctx context.Context) ([]*active.Group, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (m *mockUserContextService) GetMySupervisedGroups(ctx context.Context) ([]*active.Group, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (m *mockUserContextService) GetGroupStudents(ctx context.Context, groupID int64) ([]*users.Student, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (m *mockUserContextService) GetGroupVisits(ctx context.Context, groupID int64) ([]studentpresence.Visit, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (m *mockUserContextService) GetCurrentProfile(ctx context.Context) (map[string]interface{}, error) {
-	if m.getCurrentProfileFunc != nil {
-		return m.getCurrentProfileFunc(ctx)
-	}
-	return nil, errors.New("not implemented")
-}
-
-func (m *mockUserContextService) UpdateCurrentProfile(ctx context.Context, updates map[string]interface{}) (map[string]interface{}, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (m *mockUserContextService) UpdateAvatar(ctx context.Context, avatarURL string) (map[string]interface{}, error) {
-	return nil, errors.New("not implemented")
-}
-
 // =============================================================================
 // Test Setup
 // =============================================================================
 
 func setupSchulhofTestRouter(resource *SchulhofResource) chi.Router {
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router := testutil.NewJSONRouter()
 	router.Get("/status", resource.getSchulhofStatus)
 	return router
 }
@@ -159,13 +74,13 @@ func TestGetSchulhofStatus_Success(t *testing.T) {
 	t.Parallel()
 
 	mockSchulhof := &mockSchulhofService{
-		getStatusFunc: func(ctx context.Context, staffID int64) (*facilities.SchulhofStatus, error) {
+		getStatusFunc: func(ctx context.Context, staffID int64) (*supervisiondashboard.SchulhofStatus, error) {
 			roomID := int64(100)
 			activityGroupID := int64(200)
 			activeGroupID := int64(300)
 			supervisionID := int64(400)
 
-			return &facilities.SchulhofStatus{
+			return &supervisiondashboard.SchulhofStatus{
 				Exists:            true,
 				RoomID:            &roomID,
 				RoomName:          "Schulhof",
@@ -175,7 +90,7 @@ func TestGetSchulhofStatus_Success(t *testing.T) {
 				SupervisionID:     &supervisionID,
 				SupervisorCount:   2,
 				StudentCount:      15,
-				Supervisors: []facilities.SupervisorInfo{
+				Supervisors: []supervisiondashboard.Supervisor{
 					{
 						ID:            1,
 						StaffID:       10,
@@ -194,8 +109,8 @@ func TestGetSchulhofStatus_Success(t *testing.T) {
 	}
 
 	mockUserContext := &mockUserContextService{
-		getCurrentStaffFunc: func(ctx context.Context) (*users.Staff, error) {
-			return &users.Staff{PersonID: 10}, nil
+		getCurrentStaffFunc: func(ctx context.Context) (*StaffIdentity, error) {
+			return &StaffIdentity{}, nil
 		},
 	}
 
@@ -219,21 +134,21 @@ func TestGetSchulhofStatus_SchulhofDoesNotExist(t *testing.T) {
 	t.Parallel()
 
 	mockSchulhof := &mockSchulhofService{
-		getStatusFunc: func(ctx context.Context, staffID int64) (*facilities.SchulhofStatus, error) {
-			return &facilities.SchulhofStatus{
+		getStatusFunc: func(ctx context.Context, staffID int64) (*supervisiondashboard.SchulhofStatus, error) {
+			return &supervisiondashboard.SchulhofStatus{
 				Exists:            false,
 				RoomName:          "",
 				IsUserSupervising: false,
 				SupervisorCount:   0,
 				StudentCount:      0,
-				Supervisors:       []facilities.SupervisorInfo{},
+				Supervisors:       []supervisiondashboard.Supervisor{},
 			}, nil
 		},
 	}
 
 	mockUserContext := &mockUserContextService{
-		getCurrentStaffFunc: func(ctx context.Context) (*users.Staff, error) {
-			return &users.Staff{PersonID: 10}, nil
+		getCurrentStaffFunc: func(ctx context.Context) (*StaffIdentity, error) {
+			return &StaffIdentity{}, nil
 		},
 	}
 
@@ -254,7 +169,7 @@ func TestGetSchulhofStatus_UserNotStaff(t *testing.T) {
 	mockSchulhof := &mockSchulhofService{}
 
 	mockUserContext := &mockUserContextService{
-		getCurrentStaffFunc: func(ctx context.Context) (*users.Staff, error) {
+		getCurrentStaffFunc: func(ctx context.Context) (*StaffIdentity, error) {
 			return nil, errors.New("user is not staff")
 		},
 	}
@@ -273,14 +188,14 @@ func TestGetSchulhofStatus_ServiceError(t *testing.T) {
 	t.Parallel()
 
 	mockSchulhof := &mockSchulhofService{
-		getStatusFunc: func(ctx context.Context, staffID int64) (*facilities.SchulhofStatus, error) {
+		getStatusFunc: func(ctx context.Context, staffID int64) (*supervisiondashboard.SchulhofStatus, error) {
 			return nil, errors.New("database connection failed")
 		},
 	}
 
 	mockUserContext := &mockUserContextService{
-		getCurrentStaffFunc: func(ctx context.Context) (*users.Staff, error) {
-			return &users.Staff{PersonID: 10}, nil
+		getCurrentStaffFunc: func(ctx context.Context) (*StaffIdentity, error) {
+			return &StaffIdentity{}, nil
 		},
 	}
 

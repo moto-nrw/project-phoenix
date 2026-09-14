@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	"github.com/moto-nrw/project-phoenix/tenant"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -32,7 +32,7 @@ func buildCombinedGroupService(t *testing.T, db *bun.DB) active.Service {
 // GetCombinedGroup Tests
 // =============================================================================
 
-func TestActiveService_GetCombinedGroup(t *testing.T) {
+func TestPresence_GetCombinedGroup(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -43,38 +43,38 @@ func TestActiveService_GetCombinedGroup(t *testing.T) {
 	t.Run("returns combined group when found", func(t *testing.T) {
 		// ARRANGE
 		now := time.Now()
-		combinedGroup := &activeModels.CombinedGroup{
+		combinedGroup := &studentpresence.CombinedGroup{
 			StartTime: now,
 		}
 		err := service.CreateCombinedGroup(ctx, combinedGroup)
 		require.NoError(t, err)
 
 		// ACT
-		result, err := service.GetCombinedGroup(ctx, combinedGroup.ID)
+		result, err := testSchoolPresence(t, db).GetCombinedGroup(ctx, combinedGroup.ID)
 
 		// ASSERT
 		require.NoError(t, err)
-		assert.NotNil(t, result)
+		assert.NotZero(t, result)
 		assert.Equal(t, combinedGroup.ID, result.ID)
 		assert.Equal(t, combinedGroup.StartTime.Unix(), result.StartTime.Unix())
 	})
 
 	t.Run("returns error when not found", func(t *testing.T) {
 		// ACT
-		result, err := service.GetCombinedGroup(ctx, 99999999)
+		result, err := testSchoolPresence(t, db).GetCombinedGroup(ctx, 99999999)
 
 		// ASSERT
 		require.Error(t, err)
-		assert.Nil(t, result)
+		assert.Zero(t, result)
 	})
 
 	t.Run("returns error for invalid ID", func(t *testing.T) {
 		// ACT
-		result, err := service.GetCombinedGroup(ctx, 0)
+		result, err := testSchoolPresence(t, db).GetCombinedGroup(ctx, 0)
 
 		// ASSERT
 		require.Error(t, err)
-		assert.Nil(t, result)
+		assert.Zero(t, result)
 	})
 }
 
@@ -93,7 +93,7 @@ func TestActiveService_CreateCombinedGroup(t *testing.T) {
 	t.Run("creates combined group successfully", func(t *testing.T) {
 		// ARRANGE
 		now := time.Now()
-		combinedGroup := &activeModels.CombinedGroup{
+		combinedGroup := &studentpresence.CombinedGroup{
 			StartTime: now,
 		}
 
@@ -103,13 +103,20 @@ func TestActiveService_CreateCombinedGroup(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 		assert.Greater(t, combinedGroup.ID, int64(0))
+		assert.Equal(t, testpkg.Tenant(t), combinedGroup.TenantID)
+		assert.False(t, combinedGroup.CreatedAt.IsZero())
+		assert.False(t, combinedGroup.UpdatedAt.IsZero())
+		stored, err := testSchoolPresence(t, db).GetCombinedGroup(ctx, combinedGroup.ID)
+		require.NoError(t, err)
+		assert.Equal(t, stored.CreatedAt, combinedGroup.CreatedAt)
+		assert.Equal(t, stored.StartTime, combinedGroup.StartTime)
 	})
 
 	t.Run("creates combined group with end time", func(t *testing.T) {
 		// ARRANGE
 		now := time.Now()
 		endTime := now.Add(2 * time.Hour)
-		combinedGroup := &activeModels.CombinedGroup{
+		combinedGroup := &studentpresence.CombinedGroup{
 			StartTime: now,
 			EndTime:   &endTime,
 		}
@@ -146,7 +153,7 @@ func TestActiveService_UpdateCombinedGroup(t *testing.T) {
 	t.Run("updates combined group end time successfully", func(t *testing.T) {
 		// ARRANGE
 		now := time.Now()
-		combinedGroup := &activeModels.CombinedGroup{
+		combinedGroup := &studentpresence.CombinedGroup{
 			StartTime: now,
 		}
 		err := service.CreateCombinedGroup(ctx, combinedGroup)
@@ -157,15 +164,20 @@ func TestActiveService_UpdateCombinedGroup(t *testing.T) {
 		combinedGroup.EndTime = &endTime
 
 		// ACT
-		err = service.UpdateCombinedGroup(ctx, combinedGroup)
+		command := studentpresence.CombinedGroup{ID: combinedGroup.ID, StartTime: combinedGroup.StartTime, EndTime: combinedGroup.EndTime}
+		err = service.UpdateCombinedGroup(ctx, &command)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify update
-		updated, err := service.GetCombinedGroup(ctx, combinedGroup.ID)
+		updated, err := testSchoolPresence(t, db).GetCombinedGroup(ctx, combinedGroup.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, updated.EndTime)
+		assert.Equal(t, updated.EndTime, command.EndTime)
+		assert.Equal(t, updated.UpdatedAt, command.UpdatedAt)
+		assert.Equal(t, updated.CreatedAt, command.CreatedAt)
+		assert.Equal(t, testpkg.Tenant(t), command.TenantID)
 	})
 
 	t.Run("returns error for nil group", func(t *testing.T) {
@@ -178,7 +190,7 @@ func TestActiveService_UpdateCombinedGroup(t *testing.T) {
 
 	t.Run("returns error for group with zero ID", func(t *testing.T) {
 		// ARRANGE
-		group := &activeModels.CombinedGroup{
+		group := &studentpresence.CombinedGroup{
 			StartTime: time.Now(),
 		}
 		group.ID = 0 // Set ID via embedded base.Model
@@ -206,7 +218,7 @@ func TestActiveService_DeleteCombinedGroup(t *testing.T) {
 	t.Run("deletes combined group successfully", func(t *testing.T) {
 		// ARRANGE
 		now := time.Now()
-		combinedGroup := &activeModels.CombinedGroup{
+		combinedGroup := &studentpresence.CombinedGroup{
 			StartTime: now,
 		}
 		err := service.CreateCombinedGroup(ctx, combinedGroup)
@@ -219,7 +231,7 @@ func TestActiveService_DeleteCombinedGroup(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify deletion
-		_, err = service.GetCombinedGroup(ctx, combinedGroup.ID)
+		_, err = testSchoolPresence(t, db).GetCombinedGroup(ctx, combinedGroup.ID)
 		require.Error(t, err)
 	})
 
@@ -244,7 +256,7 @@ func TestActiveService_DeleteCombinedGroup(t *testing.T) {
 // ListCombinedGroups Tests
 // =============================================================================
 
-func TestActiveService_ListCombinedGroups(t *testing.T) {
+func TestPresence_ListCombinedGroups(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -255,14 +267,14 @@ func TestActiveService_ListCombinedGroups(t *testing.T) {
 	t.Run("returns combined groups with no options", func(t *testing.T) {
 		// ARRANGE
 		now := time.Now()
-		combinedGroup := &activeModels.CombinedGroup{
+		combinedGroup := &studentpresence.CombinedGroup{
 			StartTime: now,
 		}
 		err := service.CreateCombinedGroup(ctx, combinedGroup)
 		require.NoError(t, err)
 
 		// ACT
-		result, err := service.ListCombinedGroups(ctx, nil)
+		result, err := testSchoolPresence(t, db).ListCombinedGroups(ctx, studentpresence.CombinedGroupFilter{})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -272,11 +284,10 @@ func TestActiveService_ListCombinedGroups(t *testing.T) {
 
 	t.Run("returns combined groups with pagination", func(t *testing.T) {
 		// ARRANGE
-		options := base.NewQueryOptions()
-		options.WithPagination(1, 5)
+		options := studentpresence.CombinedGroupFilter{Limit: 5}
 
 		// ACT
-		result, err := service.ListCombinedGroups(ctx, options)
+		result, err := testSchoolPresence(t, db).ListCombinedGroups(ctx, options)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -288,7 +299,7 @@ func TestActiveService_ListCombinedGroups(t *testing.T) {
 // FindActiveCombinedGroups Tests
 // =============================================================================
 
-func TestActiveService_FindActiveCombinedGroups(t *testing.T) {
+func TestPresence_ListOpenCombinedGroups(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -299,14 +310,14 @@ func TestActiveService_FindActiveCombinedGroups(t *testing.T) {
 	t.Run("returns active combined groups", func(t *testing.T) {
 		// ARRANGE - active group has no end_time
 		now := time.Now()
-		combinedGroup := &activeModels.CombinedGroup{
+		combinedGroup := &studentpresence.CombinedGroup{
 			StartTime: now,
 		}
 		err := service.CreateCombinedGroup(ctx, combinedGroup)
 		require.NoError(t, err)
 
 		// ACT
-		result, err := service.FindActiveCombinedGroups(ctx)
+		result, err := testSchoolPresence(t, db).ListCombinedGroups(ctx, studentpresence.CombinedGroupFilter{OpenOnly: true})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -319,10 +330,10 @@ func TestActiveService_FindActiveCombinedGroups(t *testing.T) {
 }
 
 // =============================================================================
-// FindCombinedGroupsByTimeRange Tests
+// Combined-group time-range query tests
 // =============================================================================
 
-func TestActiveService_FindCombinedGroupsByTimeRange(t *testing.T) {
+func TestPresence_ListCombinedGroupsByTimeRange(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -333,7 +344,7 @@ func TestActiveService_FindCombinedGroupsByTimeRange(t *testing.T) {
 	t.Run("returns groups in time range", func(t *testing.T) {
 		// ARRANGE
 		now := time.Now()
-		combinedGroup := &activeModels.CombinedGroup{
+		combinedGroup := &studentpresence.CombinedGroup{
 			StartTime: now,
 		}
 		err := service.CreateCombinedGroup(ctx, combinedGroup)
@@ -344,7 +355,7 @@ func TestActiveService_FindCombinedGroupsByTimeRange(t *testing.T) {
 		end := now.Add(1 * time.Hour)
 
 		// ACT
-		result, err := service.FindCombinedGroupsByTimeRange(ctx, start, end)
+		result, err := testSchoolPresence(t, db).ListCombinedGroups(ctx, studentpresence.CombinedGroupFilter{From: &start, Until: &end})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -367,7 +378,7 @@ func TestActiveService_EndCombinedGroup(t *testing.T) {
 	t.Run("ends combined group successfully", func(t *testing.T) {
 		// ARRANGE
 		now := time.Now()
-		combinedGroup := &activeModels.CombinedGroup{
+		combinedGroup := &studentpresence.CombinedGroup{
 			StartTime: now,
 		}
 		err := service.CreateCombinedGroup(ctx, combinedGroup)
@@ -380,7 +391,7 @@ func TestActiveService_EndCombinedGroup(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify end time set
-		ended, err := service.GetCombinedGroup(ctx, combinedGroup.ID)
+		ended, err := testSchoolPresence(t, db).GetCombinedGroup(ctx, combinedGroup.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, ended.EndTime)
 	})
@@ -423,7 +434,7 @@ func TestActiveService_GetCombinedGroupWithGroups(t *testing.T) {
 	t.Run("returns combined group with mapped groups", func(t *testing.T) {
 		// ARRANGE
 		now := time.Now()
-		combinedGroup := &activeModels.CombinedGroup{
+		combinedGroup := &studentpresence.CombinedGroup{
 			StartTime: now,
 		}
 		err := service.CreateCombinedGroup(ctx, combinedGroup)
@@ -452,7 +463,7 @@ func TestActiveService_GetCombinedGroupWithGroups(t *testing.T) {
 // AddGroupToCombination Tests
 // =============================================================================
 
-func TestActiveService_AddGroupToCombination(t *testing.T) {
+func TestNativeAddGroupToCombination(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -467,20 +478,20 @@ func TestActiveService_AddGroupToCombination(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 		now := time.Now()
-		combinedGroup := &activeModels.CombinedGroup{
+		combinedGroup := &studentpresence.CombinedGroup{
 			StartTime: now,
 		}
 		err := service.CreateCombinedGroup(ctx, combinedGroup)
 		require.NoError(t, err)
 
 		// ACT
-		err = service.AddGroupToCombination(ctx, combinedGroup.ID, activeGroup.ID)
+		err = testSchoolPresence(t, db).AddGroupToCombination(ctx, combinedGroup.ID, activeGroup.ID)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify mapping exists
-		mappings, err := service.GetGroupMappingsByCombinedGroupID(ctx, combinedGroup.ID)
+		mappings, err := testSchoolPresence(t, db).ListGroupMappings(ctx, studentpresence.GroupMappingFilter{CombinedGroupID: &combinedGroup.ID})
 		require.NoError(t, err)
 		found := false
 		for _, m := range mappings {
@@ -499,7 +510,7 @@ func TestActiveService_AddGroupToCombination(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 		// ACT
-		err := service.AddGroupToCombination(ctx, 99999999, activeGroup.ID)
+		err := testSchoolPresence(t, db).AddGroupToCombination(ctx, 99999999, activeGroup.ID)
 
 		// ASSERT
 		require.Error(t, err)
@@ -510,7 +521,7 @@ func TestActiveService_AddGroupToCombination(t *testing.T) {
 // RemoveGroupFromCombination Tests
 // =============================================================================
 
-func TestActiveService_RemoveGroupFromCombination(t *testing.T) {
+func TestNativeRemoveGroupFromCombination(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -525,24 +536,24 @@ func TestActiveService_RemoveGroupFromCombination(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 		now := time.Now()
-		combinedGroup := &activeModels.CombinedGroup{
+		combinedGroup := &studentpresence.CombinedGroup{
 			StartTime: now,
 		}
 		err := service.CreateCombinedGroup(ctx, combinedGroup)
 		require.NoError(t, err)
 
 		// Add first
-		err = service.AddGroupToCombination(ctx, combinedGroup.ID, activeGroup.ID)
+		err = testSchoolPresence(t, db).AddGroupToCombination(ctx, combinedGroup.ID, activeGroup.ID)
 		require.NoError(t, err)
 
 		// ACT
-		err = service.RemoveGroupFromCombination(ctx, combinedGroup.ID, activeGroup.ID)
+		err = testSchoolPresence(t, db).RemoveGroupFromCombination(ctx, combinedGroup.ID, activeGroup.ID)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify mapping removed
-		mappings, err := service.GetGroupMappingsByCombinedGroupID(ctx, combinedGroup.ID)
+		mappings, err := testSchoolPresence(t, db).ListGroupMappings(ctx, studentpresence.GroupMappingFilter{CombinedGroupID: &combinedGroup.ID})
 		require.NoError(t, err)
 		for _, m := range mappings {
 			assert.NotEqual(t, activeGroup.ID, m.ActiveGroupID)
@@ -554,7 +565,7 @@ func TestActiveService_RemoveGroupFromCombination(t *testing.T) {
 // GetGroupMappingsByActiveGroupID Tests
 // =============================================================================
 
-func TestActiveService_GetGroupMappingsByActiveGroupID(t *testing.T) {
+func TestNativeGroupMappingsByActiveGroupID(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -569,17 +580,17 @@ func TestActiveService_GetGroupMappingsByActiveGroupID(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 		now := time.Now()
-		combinedGroup := &activeModels.CombinedGroup{
+		combinedGroup := &studentpresence.CombinedGroup{
 			StartTime: now,
 		}
 		err := service.CreateCombinedGroup(ctx, combinedGroup)
 		require.NoError(t, err)
 
-		err = service.AddGroupToCombination(ctx, combinedGroup.ID, activeGroup.ID)
+		err = testSchoolPresence(t, db).AddGroupToCombination(ctx, combinedGroup.ID, activeGroup.ID)
 		require.NoError(t, err)
 
 		// ACT
-		result, err := service.GetGroupMappingsByActiveGroupID(ctx, activeGroup.ID)
+		result, err := testSchoolPresence(t, db).ListGroupMappings(ctx, studentpresence.GroupMappingFilter{ActiveGroupID: &activeGroup.ID})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -596,7 +607,7 @@ func TestActiveService_GetGroupMappingsByActiveGroupID(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 		// ACT
-		result, err := service.GetGroupMappingsByActiveGroupID(ctx, activeGroup.ID)
+		result, err := testSchoolPresence(t, db).ListGroupMappings(ctx, studentpresence.GroupMappingFilter{ActiveGroupID: &activeGroup.ID})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -608,7 +619,7 @@ func TestActiveService_GetGroupMappingsByActiveGroupID(t *testing.T) {
 // GetGroupMappingsByCombinedGroupID Tests
 // =============================================================================
 
-func TestActiveService_GetGroupMappingsByCombinedGroupID(t *testing.T) {
+func TestNativeGroupMappingsByCombinedGroupID(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -623,17 +634,17 @@ func TestActiveService_GetGroupMappingsByCombinedGroupID(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 		now := time.Now()
-		combinedGroup := &activeModels.CombinedGroup{
+		combinedGroup := &studentpresence.CombinedGroup{
 			StartTime: now,
 		}
 		err := service.CreateCombinedGroup(ctx, combinedGroup)
 		require.NoError(t, err)
 
-		err = service.AddGroupToCombination(ctx, combinedGroup.ID, activeGroup.ID)
+		err = testSchoolPresence(t, db).AddGroupToCombination(ctx, combinedGroup.ID, activeGroup.ID)
 		require.NoError(t, err)
 
 		// ACT
-		result, err := service.GetGroupMappingsByCombinedGroupID(ctx, combinedGroup.ID)
+		result, err := testSchoolPresence(t, db).ListGroupMappings(ctx, studentpresence.GroupMappingFilter{CombinedGroupID: &combinedGroup.ID})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -646,85 +657,18 @@ func TestActiveService_GetGroupMappingsByCombinedGroupID(t *testing.T) {
 	t.Run("returns empty list for group with no mappings", func(t *testing.T) {
 		// ARRANGE
 		now := time.Now()
-		combinedGroup := &activeModels.CombinedGroup{
+		combinedGroup := &studentpresence.CombinedGroup{
 			StartTime: now,
 		}
 		err := service.CreateCombinedGroup(ctx, combinedGroup)
 		require.NoError(t, err)
 
 		// ACT
-		result, err := service.GetGroupMappingsByCombinedGroupID(ctx, combinedGroup.ID)
+		result, err := testSchoolPresence(t, db).ListGroupMappings(ctx, studentpresence.GroupMappingFilter{CombinedGroupID: &combinedGroup.ID})
 
 		// ASSERT
 		require.NoError(t, err)
 		assert.Empty(t, result)
-	})
-}
-
-// =============================================================================
-// FindCombinedGroupsByTimeRange Error Path Tests
-// =============================================================================
-
-func TestActiveService_FindCombinedGroupsByTimeRange_InvalidRange(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := buildCombinedGroupService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns error when start is after end", func(t *testing.T) {
-		// ARRANGE
-		start := time.Now().Add(1 * time.Hour) // Future
-		end := time.Now()                      // Now (before start)
-
-		// ACT
-		result, err := service.FindCombinedGroupsByTimeRange(ctx, start, end)
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, result)
-		var activeErr *active.ActiveError
-		require.ErrorAs(t, err, &activeErr)
-	})
-}
-
-// =============================================================================
-// AddGroupToCombination Duplicate Test
-// =============================================================================
-
-func TestActiveService_AddGroupToCombination_Duplicate(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := buildCombinedGroupService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns error when group already in combination", func(t *testing.T) {
-		// ARRANGE
-		activity := testpkg.CreateTestActivityGroup(t, db, "dup-combo")
-		room := testpkg.CreateTestRoom(t, db, "Dup Combo Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-
-		now := time.Now()
-		combinedGroup := &activeModels.CombinedGroup{
-			StartTime: now,
-		}
-		err := service.CreateCombinedGroup(ctx, combinedGroup)
-		require.NoError(t, err)
-
-		// Add first time - should succeed
-		err = service.AddGroupToCombination(ctx, combinedGroup.ID, activeGroup.ID)
-		require.NoError(t, err)
-
-		// ACT - Add second time - should fail
-		err = service.AddGroupToCombination(ctx, combinedGroup.ID, activeGroup.ID)
-
-		// ASSERT
-		require.Error(t, err)
-		var activeErr *active.ActiveError
-		require.ErrorAs(t, err, &activeErr)
 	})
 }
 
@@ -747,18 +691,18 @@ func TestActiveService_DeleteCombinedGroup_WithMappings(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 		now := time.Now()
-		combinedGroup := &activeModels.CombinedGroup{
+		combinedGroup := &studentpresence.CombinedGroup{
 			StartTime: now,
 		}
 		err := service.CreateCombinedGroup(ctx, combinedGroup)
 		require.NoError(t, err)
 
 		// Add a mapping
-		err = service.AddGroupToCombination(ctx, combinedGroup.ID, activeGroup.ID)
+		err = testSchoolPresence(t, db).AddGroupToCombination(ctx, combinedGroup.ID, activeGroup.ID)
 		require.NoError(t, err)
 
 		// Verify mapping exists
-		mappings, err := service.GetGroupMappingsByCombinedGroupID(ctx, combinedGroup.ID)
+		mappings, err := testSchoolPresence(t, db).ListGroupMappings(ctx, studentpresence.GroupMappingFilter{CombinedGroupID: &combinedGroup.ID})
 		require.NoError(t, err)
 		require.Len(t, mappings, 1)
 
@@ -769,7 +713,7 @@ func TestActiveService_DeleteCombinedGroup_WithMappings(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify combined group is deleted
-		_, err = service.GetCombinedGroup(ctx, combinedGroup.ID)
+		_, err = testSchoolPresence(t, db).GetCombinedGroup(ctx, combinedGroup.ID)
 		require.Error(t, err)
 	})
 }
@@ -778,12 +722,12 @@ func TestActiveService_DeleteCombinedGroup_WithMappings(t *testing.T) {
 // ListCombinedGroups Error Path Tests
 // =============================================================================
 
-func TestActiveService_ListCombinedGroups_ErrorPath(t *testing.T) {
+func TestPresence_ListCombinedGroups_ErrorPath(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	service := buildCombinedGroupService(t, db)
+	service := testSchoolPresence(t, db)
 
 	t.Run("returns error on database failure", func(t *testing.T) {
 		// ARRANGE - use canceled context to trigger DB error
@@ -791,7 +735,7 @@ func TestActiveService_ListCombinedGroups_ErrorPath(t *testing.T) {
 		cancel()
 
 		// ACT
-		_, err := service.ListCombinedGroups(canceledCtx, nil)
+		_, err := service.ListCombinedGroups(canceledCtx, studentpresence.CombinedGroupFilter{})
 
 		// ASSERT
 		require.Error(t, err)
@@ -802,12 +746,12 @@ func TestActiveService_ListCombinedGroups_ErrorPath(t *testing.T) {
 // FindActiveCombinedGroups Error Path Tests
 // =============================================================================
 
-func TestActiveService_FindActiveCombinedGroups_ErrorPath(t *testing.T) {
+func TestPresence_ListOpenCombinedGroups_ErrorPath(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	service := buildCombinedGroupService(t, db)
+	service := testSchoolPresence(t, db)
 
 	t.Run("returns error on database failure", func(t *testing.T) {
 		// ARRANGE - use canceled context to trigger DB error
@@ -815,7 +759,7 @@ func TestActiveService_FindActiveCombinedGroups_ErrorPath(t *testing.T) {
 		cancel()
 
 		// ACT
-		_, err := service.FindActiveCombinedGroups(canceledCtx)
+		_, err := service.ListCombinedGroups(canceledCtx, studentpresence.CombinedGroupFilter{OpenOnly: true})
 
 		// ASSERT
 		require.Error(t, err)
@@ -845,7 +789,7 @@ func TestActiveService_CreateCombinedGroupWithGroups(t *testing.T) {
 		activeGroup2 := testpkg.CreateTestActiveGroup(t, db, activity2.ID, room2.ID)
 
 		now := time.Now()
-		combinedGroup := &activeModels.CombinedGroup{
+		combinedGroup := &studentpresence.CombinedGroup{
 			StartTime: now,
 		}
 
@@ -864,7 +808,7 @@ func TestActiveService_CreateCombinedGroupWithGroups(t *testing.T) {
 		assert.Greater(t, combinedGroup.ID, int64(0))
 
 		// Verify both mappings exist
-		mappings, err := service.GetGroupMappingsByCombinedGroupID(ctx, combinedGroup.ID)
+		mappings, err := testSchoolPresence(t, db).ListGroupMappings(ctx, studentpresence.GroupMappingFilter{CombinedGroupID: &combinedGroup.ID})
 		require.NoError(t, err)
 		assert.Len(t, mappings, 2)
 	})
@@ -876,7 +820,7 @@ func TestActiveService_CreateCombinedGroupWithGroups(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 		now := time.Now()
-		combinedGroup := &activeModels.CombinedGroup{
+		combinedGroup := &studentpresence.CombinedGroup{
 			StartTime: now,
 		}
 
@@ -894,7 +838,7 @@ func TestActiveService_CreateCombinedGroupWithGroups(t *testing.T) {
 
 		// Verify the combined group was NOT created (full rollback)
 		if combinedGroup.ID > 0 {
-			_, getErr := service.GetCombinedGroup(ctx, combinedGroup.ID)
+			_, getErr := testSchoolPresence(t, db).GetCombinedGroup(ctx, combinedGroup.ID)
 			assert.Error(t, getErr, "combined group should not exist after rollback")
 		}
 	})
@@ -902,7 +846,7 @@ func TestActiveService_CreateCombinedGroupWithGroups(t *testing.T) {
 	t.Run("creates group without group IDs", func(t *testing.T) {
 		// ARRANGE
 		now := time.Now()
-		combinedGroup := &activeModels.CombinedGroup{
+		combinedGroup := &studentpresence.CombinedGroup{
 			StartTime: now,
 		}
 
@@ -914,7 +858,7 @@ func TestActiveService_CreateCombinedGroupWithGroups(t *testing.T) {
 		assert.Greater(t, combinedGroup.ID, int64(0))
 
 		// Verify no mappings exist
-		mappings, err := service.GetGroupMappingsByCombinedGroupID(ctx, combinedGroup.ID)
+		mappings, err := testSchoolPresence(t, db).ListGroupMappings(ctx, studentpresence.GroupMappingFilter{CombinedGroupID: &combinedGroup.ID})
 		require.NoError(t, err)
 		assert.Empty(t, mappings)
 	})
@@ -926,7 +870,7 @@ func TestActiveService_CreateCombinedGroupWithGroups(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 		now := time.Now()
-		combinedGroup := &activeModels.CombinedGroup{
+		combinedGroup := &studentpresence.CombinedGroup{
 			StartTime: now,
 		}
 
@@ -938,7 +882,7 @@ func TestActiveService_CreateCombinedGroupWithGroups(t *testing.T) {
 
 		// Verify nothing was persisted (full rollback)
 		if combinedGroup.ID > 0 {
-			_, getErr := service.GetCombinedGroup(ctx, combinedGroup.ID)
+			_, getErr := testSchoolPresence(t, db).GetCombinedGroup(ctx, combinedGroup.ID)
 			assert.Error(t, getErr, "combined group should not exist after rollback")
 		}
 	})

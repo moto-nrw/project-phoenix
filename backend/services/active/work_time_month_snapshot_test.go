@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -49,9 +51,10 @@ func (snapshotSessionSettings) ResolveInt(context.Context, string) (int, error) 
 // closed month, wired exactly as services/factory.go does.
 func (f *snapshotFixture) newAdminSessionService() active.WorkSessionService {
 	return active.NewWorkSessionService(
-		f.repos.WorkSession, f.repos.WorkSessionBreak, f.repos.WorkSessionEdit, f.repos.StaffAbsence,
-		f.repos.GroupSupervisor, f.repos.ActiveGroup, f.repos.Staff, f.repos.StaffWorkSchedule, f.repos.WorkTimeModel,
-		snapshotSessionSettings{}, nil, f.db,
+		f.repos.WorkSession, f.repos.WorkSessionBreak, services.NewWorkSessionAudit(f.repos.WorkSessionEdit), f.repos.StaffAbsence,
+		f.repos.GroupSupervisor, f.repos.ActiveGroup, services.WorkSessionStaff(f.repos.Staff), f.repos.StaffWorkSchedule, f.repos.WorkTimeModel,
+		snapshotSessionSettings{}, nil, f.db, services.RenderTimeTrackingPDF,
+		services.RenderTimeTrackingWorkbook,
 	)
 }
 
@@ -114,20 +117,20 @@ func newSnapshotFixture(t *testing.T) *snapshotFixture {
 
 	settings := wtmIntSettings{accountStart: "2025-01-01"}
 	monthSvc := active.NewWorkTimeMonthService(
-		repos.WorkSession, repos.WorkSessionBreak, repos.StaffAbsence, repos.Staff,
-		repos.StaffWorkSchedule, repos.WorkTimeModel, repos.StaffShift,
+		repos.WorkSession, repos.WorkSessionBreak, repos.StaffAbsence, services.StaffScheduleAssignments(repos.Staff),
+		services.NewWorkScheduleTargets(repos.StaffWorkSchedule), services.NewWorkTimeTargetModels(repos.WorkTimeModel), services.NewTimeTrackingShifts(repos.StaffShift),
 		settings, nil,
 	)
-	monthSvc.SetSnapshotReader(repos.StaffMonthSnapshot)
+	monthSvc.SetSnapshotReader(services.MonthSnapshotCapability(repos.StaffMonthSnapshot))
 	monthSvc.SetAdjustmentReader(repos.StaffBalanceAdjust)
 
 	closeSvc := active.NewStaffMonthCloseService(
-		repos.StaffMonthSnapshot, monthSvc, repos.Staff, settings, nil,
+		services.MonthSnapshotCapability(repos.StaffMonthSnapshot), monthSvc, services.MonthCloseStaff(repos.Staff), settings, nil,
 	)
 	adjustSvc := active.NewStaffBalanceAdjustmentService(
 		repos.StaffBalanceAdjust, monthSvc, settings, nil,
 	)
-	adjustSvc.SetSnapshotReader(repos.StaffMonthSnapshot)
+	adjustSvc.SetSnapshotReader(services.MonthSnapshotCapability(repos.StaffMonthSnapshot))
 
 	return &snapshotFixture{
 		tenantID: tenantID, staff: staff, admin: admin,
@@ -159,7 +162,7 @@ func TestMonthClose_FreezesBalanceAgainstRetroactiveSessionEdit(t *testing.T) {
 	assert.Equal(t, 2, result.ClosedStaff, "close is school-wide: staff member and admin both get a row")
 	assert.Equal(t, 0, result.SkippedStaff)
 
-	var frozen *activeModels.StaffMonthBalanceSnapshot
+	var frozen *active.MonthSnapshot
 	for _, snapshot := range result.Snapshots {
 		if snapshot.StaffID == f.staff.ID {
 			frozen = snapshot

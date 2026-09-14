@@ -21,12 +21,11 @@ import (
 // GetVisit Tests
 // =============================================================================
 
-func TestActiveService_GetVisit(t *testing.T) {
+func TestPresence_FindVisit(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupActiveService(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns visit when found", func(t *testing.T) {
@@ -38,7 +37,7 @@ func TestActiveService_GetVisit(t *testing.T) {
 		visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
 
 		// ACT
-		result, err := service.GetVisit(ctx, visit.ID)
+		result, err := testSchoolPresence(t, db).FindVisit(ctx, visit.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -49,7 +48,7 @@ func TestActiveService_GetVisit(t *testing.T) {
 
 	t.Run("returns error when not found", func(t *testing.T) {
 		// ACT
-		result, err := service.GetVisit(ctx, 99999999)
+		result, err := testSchoolPresence(t, db).FindVisit(ctx, 99999999)
 
 		// ASSERT
 		require.Error(t, err)
@@ -58,7 +57,7 @@ func TestActiveService_GetVisit(t *testing.T) {
 
 	t.Run("returns error for invalid ID", func(t *testing.T) {
 		// ACT
-		result, err := service.GetVisit(ctx, 0)
+		result, err := testSchoolPresence(t, db).FindVisit(ctx, 0)
 
 		// ASSERT
 		require.Error(t, err)
@@ -293,7 +292,7 @@ func TestActiveService_UpdateVisit(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify update persisted
-		updated, err := service.GetVisit(ctx, visit.ID)
+		updated, err := testSchoolPresence(t, db).FindVisit(ctx, visit.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, updated.ExitTime)
 	})
@@ -321,7 +320,7 @@ func TestActiveService_UpdateVisit(t *testing.T) {
 		err = service.UpdateVisit(ctx, movingVisit)
 
 		require.NoError(t, err)
-		updated, err := service.GetVisit(ctx, movingVisit.ID)
+		updated, err := testSchoolPresence(t, db).FindVisit(ctx, movingVisit.ID)
 		require.NoError(t, err)
 		assert.Equal(t, targetGroup.ID, updated.ActiveGroupID)
 		assert.Equal(t, checkoutAt.Unix(), updated.ExitTime.Unix())
@@ -345,7 +344,7 @@ func TestActiveService_UpdateVisit(t *testing.T) {
 		err = service.UpdateVisit(ctx, closedVisit)
 
 		require.ErrorIs(t, err, active.ErrRoomCapacityExceeded)
-		persisted, findErr := service.GetVisit(ctx, closedVisit.ID)
+		persisted, findErr := testSchoolPresence(t, db).FindVisit(ctx, closedVisit.ID)
 		require.NoError(t, findErr)
 		require.NotNil(t, persisted.ExitTime)
 		assert.Equal(t, closedAt.Unix(), persisted.ExitTime.Unix())
@@ -419,7 +418,7 @@ func TestActiveService_DeleteVisit(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify deletion
-		_, err = service.GetVisit(ctx, visit.ID)
+		_, err = testSchoolPresence(t, db).FindVisit(ctx, visit.ID)
 		require.Error(t, err)
 	})
 
@@ -531,12 +530,12 @@ func TestActiveService_FindVisitsByStudentID(t *testing.T) {
 // FindVisitsByActiveGroupID Tests
 // =============================================================================
 
-func TestActiveService_FindVisitsByActiveGroupID(t *testing.T) {
+func TestPresence_ListVisitsBySession(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupActiveService(t, db)
+	presence := testSchoolPresence(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns visits for active group", func(t *testing.T) {
@@ -548,7 +547,7 @@ func TestActiveService_FindVisitsByActiveGroupID(t *testing.T) {
 		testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
 
 		// ACT
-		result, err := service.FindVisitsByActiveGroupID(ctx, activeGroup.ID)
+		result, err := presence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{activeGroup.ID}})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -566,7 +565,7 @@ func TestActiveService_FindVisitsByActiveGroupID(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 		// ACT
-		result, err := service.FindVisitsByActiveGroupID(ctx, activeGroup.ID)
+		result, err := presence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{activeGroup.ID}})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -601,7 +600,7 @@ func TestActiveService_EndVisit(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify exit time set
-		ended, err := service.GetVisit(ctx, visit.ID)
+		ended, err := testSchoolPresence(t, db).FindVisit(ctx, visit.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, ended.ExitTime)
 	})
@@ -751,44 +750,6 @@ func TestActiveService_GetStudentsCurrentVisits(t *testing.T) {
 		assert.Len(t, result, 1)
 		assert.Contains(t, result, studentActive.ID)
 		assert.NotContains(t, result, studentInactive.ID)
-	})
-}
-
-// =============================================================================
-// CheckTeacherStudentAccess Tests
-// =============================================================================
-
-func TestActiveService_CheckTeacherStudentAccess(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupActiveService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns false when teacher has no access", func(t *testing.T) {
-		// ARRANGE - teacher and student not related
-		teacher := testpkg.CreateTestTeacher(t, db, "No", "Access")
-		student := testpkg.CreateTestStudent(t, db, "Unrelated", "Student", "1a")
-
-		// ACT - use staff ID as first parameter (service expects staffID)
-		hasAccess, err := service.CheckTeacherStudentAccess(ctx, teacher.Staff.ID, student.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.False(t, hasAccess)
-	})
-
-	t.Run("returns error for invalid teacher ID", func(t *testing.T) {
-		// ARRANGE
-		student := testpkg.CreateTestStudent(t, db, "Valid", "Student", "1a")
-
-		// ACT
-		_, _ = service.CheckTeacherStudentAccess(ctx, 99999999, student.ID)
-
-		// ASSERT
-		// May or may not error depending on implementation
-		// Just verify no panic
 	})
 }
 

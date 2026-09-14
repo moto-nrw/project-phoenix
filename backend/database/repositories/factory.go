@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	workforceCapability "github.com/moto-nrw/project-phoenix/modules/workforce"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	"github.com/moto-nrw/project-phoenix/database/repositories/auth"
@@ -16,7 +18,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/pwausage"
 	"github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/database/repositories/users"
-	"github.com/moto-nrw/project-phoenix/database/repositories/workforce"
 	filestoreModels "github.com/moto-nrw/project-phoenix/models/filestore"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -126,7 +127,6 @@ type Factory struct {
 	StudentCompanion    userModels.StudentCompanionRepository
 	GuardianProfile     userModels.GuardianProfileRepository
 	GuardianPhoneNumber userModels.GuardianPhoneNumberRepository
-	PrivacyConsent      userModels.PrivacyConsentRepository
 	FamilyProtection    userModels.FamilyProtectionEventRepository
 	ParentRequestShare  userModels.ParentRequestShareEventRepository
 	ParentRequestEvent  userModels.ParentRequestEventRepository
@@ -198,31 +198,24 @@ type Factory struct {
 	StudentEnrollment  activitiesModels.StudentEnrollmentRepository
 
 	// Active domain
-	ActiveGroup      activeModels.GroupRepository
-	GroupSupervisor  activeModels.GroupSupervisorRepository
-	CrossTenant      CrossTenantQuery
-	CombinedGroup    activeModels.CombinedGroupRepository
-	GroupMapping     activeModels.GroupMappingRepository
-	StudentStatusDay activeModels.StudentStatusDayOverviewRepository
-	// Statistics serves the aggregate reads of the Statistik page (#2606).
-	Statistics activeModels.StatisticsRepository
-	// CourseStatistics serves the course participation section of the
-	// Statistik page (#2891).
-	CourseStatistics                scheduleModels.CourseStatisticsRepository
-	ExcusedAbsenceRequest           activeModels.ExcusedAbsenceRequestRepository
-	WorkSession                     activeModels.WorkSessionRepository
-	WorkSessionBreak                activeModels.WorkSessionBreakRepository
-	StaffAbsence                    activeModels.StaffAbsenceRepository
-	StaffAbsenceAudit               activeModels.StaffAbsenceAuditRepository
-	StaffAbsenceType                activeModels.StaffAbsenceTypeRepository
-	StaffAbsenceTypeAllowance       activeModels.StaffAbsenceTypeAllowanceRepository
-	StaffAbsenceTypeAllowanceChange activeModels.StaffAbsenceTypeAllowanceChangeRepository
-	StaffVacationQuota              activeModels.StaffVacationQuotaRepository
-	StaffVacationOpening            activeModels.StaffVacationOpeningRepository
-	StaffBalanceAdjust              activeModels.StaffBalanceAdjustmentRepository
-	StaffMonthSnapshot              activeModels.StaffMonthBalanceSnapshotRepository
+	ActiveGroup           activeModels.GroupRepository
+	GroupSupervisor       activeModels.GroupSupervisorRepository
+	CrossTenant           CrossTenantQuery
+	StudentStatusDay      activeModels.StudentStatusDayOverviewRepository
+	ExcusedAbsenceRequest activeModels.ExcusedAbsenceRequestRepository
+	WorkSession           activeModels.WorkSessionRepository
+	WorkSessionBreak      activeModels.WorkSessionBreakRepository
+	StaffAbsence          activeModels.StaffAbsenceRepository
+	StaffAbsenceAudit     activeModels.StaffAbsenceAuditRepository
+	StaffAbsenceType      workforceCapability.AbsenceTypeQuery
+	StaffVacationQuota    activeModels.StaffVacationQuotaRepository
+	StaffVacationOpening  activeModels.StaffVacationOpeningRepository
+	StaffBalanceAdjust    activeModels.StaffBalanceAdjustmentRepository
+	StaffMonthSnapshot    workforceCapability.MonthSnapshots
 
-	SessionStartLock activeModels.SessionStartLocker
+	SessionStartLock interface {
+		LockSessionStart(context.Context, int64) error
+	}
 
 	// IoT domain
 	Device             iotModels.DeviceRepository
@@ -518,7 +511,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		now = clocks[0]
 	}
 	deviceFleet := mustNewDeviceFleet(db)
-	groupSupervisor := active.NewGroupSupervisorRepository(db, now)
+	groupSupervisor := active.NewGroupSupervisorRepository(NewPresenceSupervisionRecords(db), now)
 	enrollmentModule := enrollmentCompose.New()
 	parentAnnouncement := NewParentAnnouncementRepository(db, enrollmentModule, now)
 	auditRepositoryRuntime := func(ctx context.Context) (bun.IDB, int64) {
@@ -590,7 +583,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		StudentCompanion:    nil, // bound to Care Plan below
 		GuardianProfile:     NewGuardianProfileRepository(db),
 		GuardianPhoneNumber: users.NewGuardianPhoneNumberRepository(db),
-		PrivacyConsent:      active.NewPrivacyConsentRepository(db),
 		FamilyProtection:    users.NewFamilyProtectionEventRepository(db),
 		ParentRequestShare:  users.NewParentRequestShareEventRepository(db),
 		ParentRequestEvent:  users.NewParentRequestEventRepository(db),
@@ -659,30 +651,24 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		StudentEnrollment:  nil, // bound to Timetable below
 
 		// Active repositories
-		ActiveGroup:           active.NewGroupRepository(db, activeDeviceDirectory{devices: deviceFleet}),
+		ActiveGroup:           active.NewGroupRepository(activeDeviceDirectory{devices: deviceFleet}, NewPresenceGroupRecords(db), NewSessionActivities(timetableActivityGroupRepository{timetable: timetableCapability})),
 		GroupSupervisor:       groupSupervisor,
-		CrossTenant:           active.NewCrossTenantRepository(db),
-		CombinedGroup:         active.NewCombinedGroupRepository(db),
-		GroupMapping:          active.NewGroupMappingRepository(db),
+		CrossTenant:           &visitorProjection{visits: presenceCapability},
 		StudentStatusDay:      nil, // bound to Care Plan below
-		Statistics:            active.NewStatisticsRepository(db),
-		CourseStatistics:      timetableCourseStatisticsRepository{timetable: timetableCapability},
 		ExcusedAbsenceRequest: nil, // bound to Care Plan below
 		// Work sessions, breaks, balances and vacation rows belong to
 		// Workforce (#2690); the facade carries its own clock.
-		WorkSession:                     workforceLegacy.NewWorkSessionRepository(timetableDependencies.Workforce),
-		WorkSessionBreak:                workforceLegacy.NewWorkSessionBreakRepository(timetableDependencies.Workforce),
-		StaffAbsence:                    workforceLegacy.NewStaffAbsenceRepository(timetableDependencies.Workforce),
-		StaffAbsenceAudit:               workforceLegacy.NewStaffAbsenceAuditRepository(timetableDependencies.Workforce),
-		StaffAbsenceType:                workforceLegacy.NewStaffAbsenceTypeRepository(timetableDependencies.Workforce),
-		StaffAbsenceTypeAllowance:       workforce.NewStaffAbsenceTypeAllowanceRepository(db),
-		StaffAbsenceTypeAllowanceChange: workforce.NewStaffAbsenceTypeAllowanceChangeRepository(db),
-		StaffVacationQuota:              workforceLegacy.NewStaffVacationQuotaRepository(timetableDependencies.Workforce),
-		StaffVacationOpening:            workforceLegacy.NewStaffVacationOpeningRepository(timetableDependencies.Workforce),
-		StaffBalanceAdjust:              workforceLegacy.NewStaffBalanceAdjustmentRepository(timetableDependencies.Workforce),
-		StaffMonthSnapshot:              active.NewStaffMonthBalanceSnapshotRepository(db),
+		WorkSession:          workforceLegacy.NewWorkSessionRepository(timetableDependencies.Workforce),
+		WorkSessionBreak:     workforceLegacy.NewWorkSessionBreakRepository(timetableDependencies.Workforce),
+		StaffAbsence:         workforceLegacy.NewStaffAbsenceRepository(timetableDependencies.Workforce),
+		StaffAbsenceAudit:    workforceLegacy.NewStaffAbsenceAuditRepository(timetableDependencies.Workforce),
+		StaffAbsenceType:     timetableDependencies.Workforce,
+		StaffVacationQuota:   workforceLegacy.NewStaffVacationQuotaRepository(timetableDependencies.Workforce),
+		StaffVacationOpening: workforceLegacy.NewStaffVacationOpeningRepository(timetableDependencies.Workforce),
+		StaffBalanceAdjust:   workforceLegacy.NewStaffBalanceAdjustmentRepository(timetableDependencies.Workforce),
+		StaffMonthSnapshot:   timetableDependencies.Workforce,
 
-		SessionStartLock: active.NewSessionStartLocker(db),
+		SessionStartLock: presenceCapability,
 
 		// IoT repositories
 		Device:             devicefleetRepositoryAdapter.NewDeviceRepository(deviceFleet),

@@ -8,7 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -294,7 +294,7 @@ func TestActiveService_DeleteGroupSupervisor(t *testing.T) {
 // ListGroupSupervisors Tests
 // =============================================================================
 
-func TestActiveService_ListGroupSupervisors(t *testing.T) {
+func TestPresence_QuerySupervisions(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -320,7 +320,7 @@ func TestActiveService_ListGroupSupervisors(t *testing.T) {
 		require.NoError(t, err)
 
 		// ACT
-		result, err := service.ListGroupSupervisors(ctx, nil)
+		result, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -330,11 +330,10 @@ func TestActiveService_ListGroupSupervisors(t *testing.T) {
 
 	t.Run("returns supervisors with pagination", func(t *testing.T) {
 		// ARRANGE
-		options := base.NewQueryOptions()
-		options.WithPagination(1, 5)
+		options := studentpresence.GroupSupervisionFilter{Limit: 5}
 
 		// ACT
-		result, err := service.ListGroupSupervisors(ctx, options)
+		result, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, options)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -346,7 +345,7 @@ func TestActiveService_ListGroupSupervisors(t *testing.T) {
 // FindSupervisorsByStaffID Tests
 // =============================================================================
 
-func TestActiveService_FindSupervisorsByStaffID(t *testing.T) {
+func TestPresence_QueryActiveStaffSupervisions(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -372,7 +371,8 @@ func TestActiveService_FindSupervisorsByStaffID(t *testing.T) {
 		require.NoError(t, err)
 
 		// ACT
-		result, err := service.FindSupervisorsByStaffID(ctx, staff.ID)
+		day := now.String()
+		result, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{StaffID: &staff.ID, ActiveOn: &day})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -388,7 +388,8 @@ func TestActiveService_FindSupervisorsByStaffID(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "No", "Supervisions")
 
 		// ACT
-		result, err := service.FindSupervisorsByStaffID(ctx, staff.ID)
+		day := timezone.TodayDate().String()
+		result, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{StaffID: &staff.ID, ActiveOn: &day})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -400,7 +401,7 @@ func TestActiveService_FindSupervisorsByStaffID(t *testing.T) {
 // FindSupervisorsByActiveGroupID Tests
 // =============================================================================
 
-func TestActiveService_FindSupervisorsByActiveGroupID(t *testing.T) {
+func TestPresence_QueryActiveSessionSupervisions(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -426,7 +427,7 @@ func TestActiveService_FindSupervisorsByActiveGroupID(t *testing.T) {
 		require.NoError(t, err)
 
 		// ACT
-		result, err := service.FindSupervisorsByActiveGroupID(ctx, activeGroup.ID)
+		result, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{activeGroup.ID}, ActiveOn: new(timezone.TodayDate().String())})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -444,7 +445,7 @@ func TestActiveService_FindSupervisorsByActiveGroupID(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 		// ACT
-		result, err := service.FindSupervisorsByActiveGroupID(ctx, activeGroup.ID)
+		result, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{activeGroup.ID}, ActiveOn: new(timezone.TodayDate().String())})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -456,7 +457,7 @@ func TestActiveService_FindSupervisorsByActiveGroupID(t *testing.T) {
 // FindSupervisorsByActiveGroupIDs Tests
 // =============================================================================
 
-func TestActiveService_FindSupervisorsByActiveGroupIDs(t *testing.T) {
+func TestPresence_QueryActiveSupervisionsForSessions(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -482,7 +483,7 @@ func TestActiveService_FindSupervisorsByActiveGroupIDs(t *testing.T) {
 		require.NoError(t, err)
 
 		// ACT
-		result, err := service.FindSupervisorsByActiveGroupIDs(ctx, []int64{group1.ID, group2.ID})
+		result, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{group1.ID, group2.ID}, ActiveOn: new(now.String())})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -491,7 +492,7 @@ func TestActiveService_FindSupervisorsByActiveGroupIDs(t *testing.T) {
 
 	t.Run("returns empty list for empty input", func(t *testing.T) {
 		// ACT
-		result, err := service.FindSupervisorsByActiveGroupIDs(ctx, []int64{})
+		result, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{}, ActiveOn: new(timezone.TodayDate().String())})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -567,7 +568,7 @@ func TestActiveService_EndSupervision(t *testing.T) {
 // GetStaffActiveSupervisions Tests
 // =============================================================================
 
-func TestActiveService_GetStaffActiveSupervisions(t *testing.T) {
+func TestPresence_QueryCurrentStaffGroups(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -593,7 +594,7 @@ func TestActiveService_GetStaffActiveSupervisions(t *testing.T) {
 		require.NoError(t, err)
 
 		// ACT
-		result, err := service.GetStaffActiveSupervisions(ctx, staff.ID)
+		result, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{StaffID: &staff.ID, ActiveOn: new(timezone.TodayDate().String())})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -609,7 +610,7 @@ func TestActiveService_GetStaffActiveSupervisions(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "No", "Active")
 
 		// ACT
-		result, err := service.GetStaffActiveSupervisions(ctx, staff.ID)
+		result, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{StaffID: &staff.ID, ActiveOn: new(timezone.TodayDate().String())})
 
 		// ASSERT
 		require.NoError(t, err)

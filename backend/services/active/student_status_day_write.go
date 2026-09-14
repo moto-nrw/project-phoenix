@@ -2,18 +2,15 @@ package active
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"slices"
+	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/careplanning"
-	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -79,7 +76,7 @@ func (e *StudentStatusDayConflictError) SampleConflicts() []*activeModels.Studen
 type StatusDayWriteContext struct {
 	DB             *bun.DB
 	TenantID       int64
-	StudentService users.StudentService
+	StudentService StatusDayStudents
 	Authorize      func(ctx context.Context, student *userModels.Student, status string) bool
 	AfterCommit    func(studentID int64)
 	// AfterCreate receives the students whose current-day status newly became a
@@ -100,7 +97,10 @@ func (s *StudentStatusDayService) CreateForDates(ctx context.Context, wc StatusD
 	}
 	now := s.now()
 	today := timezone.DateFromTime(now)
-	notePtr := strutil.TrimPtrToNil(&reason)
+	var notePtr *string
+	if note := strings.TrimSpace(reason); note != "" {
+		notePtr = &note
+	}
 	return tenant.WithTenantTx(ctx, wc.DB, wc.TenantID, func(ctx context.Context, _ bun.Tx) error {
 		fresh, err := wc.StudentService.GetByIDForUpdate(ctx, studentID)
 		if err != nil {
@@ -109,7 +109,7 @@ func (s *StudentStatusDayService) CreateForDates(ctx context.Context, wc StatusD
 		if !wc.Authorize(ctx, fresh, status) {
 			return ErrStudentStatusDayReassigned
 		}
-		if err := lockStudentStatusDates(ctx, wc.DB, studentID, dates); err != nil {
+		if err := s.lockStudentStatusDates(ctx, studentID, dates); err != nil {
 			return err
 		}
 		if err := s.ensureNoPartialAbsenceConflicts(ctx, studentID, dates); err != nil {
@@ -149,7 +149,10 @@ func (s *StudentStatusDayService) BulkCreateForDates(ctx context.Context, wc Sta
 	studentIDs = dedupeStudentIDs(studentIDs)
 	now := s.now()
 	today := timezone.DateFromTime(now)
-	notePtr := strutil.TrimPtrToNil(&reason)
+	var notePtr *string
+	if note := strings.TrimSpace(reason); note != "" {
+		notePtr = &note
+	}
 	return tenant.WithTenantTx(ctx, wc.DB, wc.TenantID, func(ctx context.Context, _ bun.Tx) error {
 		// Phase 1: lock and authorize every student before writing any row.
 		// Order by ID for stable lock acquisition across concurrent bulk ops.
@@ -167,7 +170,7 @@ func (s *StudentStatusDayService) BulkCreateForDates(ctx context.Context, wc Sta
 			lockedStudents[studentID] = fresh
 		}
 		for _, studentID := range sortedIDs {
-			if err := lockStudentStatusDates(ctx, wc.DB, studentID, dates); err != nil {
+			if err := s.lockStudentStatusDates(ctx, studentID, dates); err != nil {
 				return err
 			}
 			if err := s.ensureNoPartialAbsenceConflicts(ctx, studentID, dates); err != nil {
@@ -225,11 +228,11 @@ func (s *StudentStatusDayService) BulkCreateForDates(ctx context.Context, wc Sta
 	})
 }
 
-func lockStudentStatusDates(ctx context.Context, db *bun.DB, studentID int64, dates []timezone.Date) error {
+func (s *StudentStatusDayService) lockStudentStatusDates(ctx context.Context, studentID int64, dates []timezone.Date) error {
 	sortedDates := append([]timezone.Date(nil), dates...)
 	slices.SortFunc(sortedDates, timezone.Date.Compare)
 	for _, date := range sortedDates {
-		if err := careplanning.LockExceptionDay(ctx, db, studentID, date.String()); err != nil {
+		if err := s.lockStatusDate(ctx, studentID, date.String()); err != nil {
 			return err
 		}
 	}
@@ -242,15 +245,15 @@ func (s *StudentStatusDayService) ensureNoPartialAbsenceConflicts(
 	if s.pickupExceptions == nil || len(dates) == 0 {
 		return nil
 	}
-	requested := make(map[scheduleModels.Date]struct{}, len(dates))
+	requested := make(map[timezone.Date]struct{}, len(dates))
 	for _, date := range dates {
-		requested[scheduleModels.Date(date)] = struct{}{}
+		requested[date] = struct{}{}
 	}
-	rows, err := s.pickupExceptions.FindByStudentIDAndDateRange(
+	rows, err := s.pickupExceptions.ManualPartialAbsenceDates(
 		ctx,
 		studentID,
-		scheduleModels.Date(slices.MinFunc(dates, timezone.Date.Compare)),
-		scheduleModels.Date(slices.MaxFunc(dates, timezone.Date.Compare)),
+		slices.MinFunc(dates, timezone.Date.Compare),
+		slices.MaxFunc(dates, timezone.Date.Compare),
 	)
 	if err != nil {
 		return err
@@ -260,10 +263,8 @@ func (s *StudentStatusDayService) ensureNoPartialAbsenceConflicts(
 		// block a broad day status: the two coexist via disjoint slot
 		// ownership, and refusing would make every pickup change block a sick
 		// report. Only a staff-set manual partial absence conflicts.
-		if row != nil && row.HasManualPartialAbsence() {
-			if _, matches := requested[row.ExceptionDate]; matches {
-				return ErrStudentStatusDayPartialAbsenceConflict
-			}
+		if _, matches := requested[row]; matches {
+			return ErrStudentStatusDayPartialAbsenceConflict
 		}
 	}
 	return nil
@@ -322,7 +323,7 @@ func (s *StudentStatusDayService) DeleteByID(ctx context.Context, wc StatusDayWr
 			return err
 		}
 		if row.StudentID != studentID {
-			return sql.ErrNoRows
+			return base.ErrNotFound
 		}
 
 		fresh, err := wc.StudentService.GetByIDForUpdate(ctx, studentID)

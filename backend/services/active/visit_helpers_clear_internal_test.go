@@ -48,7 +48,7 @@ func TestLiveStatusHistoryFailuresDoNotClearFlags(t *testing.T) {
 				} else {
 					statuses.historyErr = injected
 				}
-				svc := &service{ServiceDependencies: ServiceDependencies{StudentRepo: students, StudentStatusRepo: statuses}}
+				svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, StudentRepo: students, StudentStatusRepo: statuses}}
 				var err error
 				if flag == "sick" {
 					err = svc.clearSickFlagOnCheckin(context.Background(), student, time.Now())
@@ -94,7 +94,7 @@ func TestPlannedStatusClearFailuresPropagate(t *testing.T) {
 			if stage == "student write" {
 				students.updateErr = injected
 			}
-			svc := &service{ServiceDependencies: ServiceDependencies{StudentStatusRepo: statuses, StudentRepo: students}}
+			svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, StudentStatusRepo: statuses, StudentRepo: students}}
 			rows := []*activeModels.StudentStatusDay{{StudentID: 42, Status: activeModels.StudentStatusDaySick, Source: activeModels.StudentStatusSourcePlanned}}
 			require.ErrorIs(t, svc.clearPlannedStatusRows(context.Background(), 42, nil, rows, time.Now()), injected)
 			if stage != "student write" {
@@ -107,7 +107,7 @@ func TestPlannedStatusClearFailuresPropagate(t *testing.T) {
 func TestCheckinPlannedStatusReadFailuresPropagate(t *testing.T) {
 	t.Parallel()
 	injected := errors.New("planned status read failed")
-	svc := &service{ServiceDependencies: ServiceDependencies{StudentStatusRepo: &failingPlannedStatusRead{err: injected}}}
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, StudentStatusRepo: &failingPlannedStatusRead{err: injected}}}
 	svc.settings = &fakeSettingsResolver{resolved: configModel.ClearModeManual}
 	require.ErrorIs(t, svc.autoClearPlannedStudentStatuses(context.Background(), 42), injected)
 	require.ErrorIs(t, svc.autoClearOnBatchCheckin(context.Background(), []int64{42}, nil, time.Now(), timezone.TodayDate()), injected)
@@ -199,7 +199,7 @@ func newTestServiceWithLogger(s SettingsResolver, repo userModels.StudentReposit
 			return configModel.GetDefinition(key).Default.(string), nil
 		}}
 	}
-	return &service{ServiceDependencies: ServiceDependencies{StudentRepo: repo, Logger: slog.New(slog.NewTextHandler(new(bytes.Buffer), nil))}, settings: s}
+	return &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, StudentRepo: repo, Logger: slog.New(slog.NewTextHandler(new(bytes.Buffer), nil))}, settings: s}
 }
 
 // TestAutoClearStudentSickness_SkipsWhenModeNotNextCheckin — no studentRepo

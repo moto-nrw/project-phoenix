@@ -12,7 +12,7 @@ func privacyConsentToPublic(row ports.PrivacyConsent) studentpresence.PrivacyCon
 	return studentpresence.PrivacyConsent{
 		ID: row.ID, TenantID: row.TenantID, StudentID: row.StudentID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		PolicyVersion: row.PolicyVersion, Accepted: row.Accepted, AcceptedAt: row.AcceptedAt, ExpiresAt: row.ExpiresAt,
-		DurationDays: row.DurationDays, RenewalRequired: row.RenewalRequired, DataRetentionDays: row.DataRetentionDays,
+		DurationDays: row.DurationDays, RenewalRequired: row.RenewalRequired, DataRetentionDays: row.DataRetentionDays, Details: row.Details,
 	}
 }
 
@@ -39,10 +39,34 @@ func (e engine) RecordPrivacyConsent(ctx context.Context, value studentpresence.
 	row := ports.PrivacyConsent{
 		StudentID: value.StudentID, PolicyVersion: value.PolicyVersion, Accepted: value.Accepted,
 		AcceptedAt: value.AcceptedAt, ExpiresAt: value.ExpiresAt, DurationDays: value.DurationDays,
-		RenewalRequired: value.RenewalRequired, DataRetentionDays: value.DataRetentionDays,
+		RenewalRequired: value.RenewalRequired, DataRetentionDays: value.DataRetentionDays, Details: value.Details,
 	}
 	if err := e.Service.RecordPrivacyConsent(ctx, &row); err != nil {
 		return studentpresence.PrivacyConsent{}, mapPrivacyConsentError(err)
+	}
+	return privacyConsentToPublic(row), nil
+}
+
+func (e engine) ListAcceptedRetentionSettings(ctx context.Context) ([]studentpresence.StudentRetentionSetting, error) {
+	rows, err := e.Service.ListAcceptedRetentionSettings(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]studentpresence.StudentRetentionSetting, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, studentpresence.StudentRetentionSetting(row))
+	}
+	return result, nil
+}
+
+func (e engine) RevisePrivacyConsent(ctx context.Context, value studentpresence.PrivacyConsent) (studentpresence.PrivacyConsent, error) {
+	row := ports.PrivacyConsent{
+		ID: value.ID, StudentID: value.StudentID, PolicyVersion: value.PolicyVersion, Accepted: value.Accepted,
+		AcceptedAt: value.AcceptedAt, ExpiresAt: value.ExpiresAt, DurationDays: value.DurationDays,
+		RenewalRequired: value.RenewalRequired, DataRetentionDays: value.DataRetentionDays, Details: value.Details,
+	}
+	if err := e.Service.RevisePrivacyConsent(ctx, &row); err != nil {
+		return studentpresence.PrivacyConsent{}, err
 	}
 	return privacyConsentToPublic(row), nil
 }

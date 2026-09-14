@@ -69,7 +69,7 @@ func testRetentionRollback(t *testing.T, stage string) {
 		fault.afterAppend = injected
 	}
 	repos := repositories.NewRetentionCleanupRepositories(db, fault)
-	svc := activeService.NewCleanupService(deleteFault, repos.Supervisor, repos.Consent, repos.Deletion, nil, db)
+	svc := activeService.NewCleanupService(deleteFault, repos.Supervisor, services.NewDeletionAudit(repos.Deletion))
 	consent := testpkg.CreateTestPrivacyConsent(t, db, "retention-rollback")
 	group := testpkg.CreateTestActiveGroupForTenant(t, db, testpkg.Tenant(t))
 	entry := time.Now().AddDate(0, 0, -45)
@@ -161,7 +161,7 @@ func TestRetentionReportsOwnerReadFailures(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			svc := activeService.NewCleanupService(tc.port, nil, nil, nil, nil, nil)
+			svc := activeService.NewCleanupService(tc.port, nil, nil)
 			if tc.preview {
 				result, err := svc.PreviewCleanup(context.Background())
 				require.ErrorIs(t, err, injected)

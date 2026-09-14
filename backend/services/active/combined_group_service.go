@@ -2,131 +2,135 @@ package active
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Combined Group operations
 
-func (s *service) GetCombinedGroup(ctx context.Context, id int64) (*active.CombinedGroup, error) {
-	group, err := s.CombinedGroupRepo.FindByID(ctx, id)
-	if err != nil {
-		return nil, &ActiveError{Op: "GetCombinedGroup", Err: ErrCombinedGroupNotFound}
-	}
-	return group, nil
-}
-
-func (s *service) CreateCombinedGroup(ctx context.Context, group *active.CombinedGroup) error {
-	if group == nil || group.Validate() != nil {
+func (s *service) CreateCombinedGroup(ctx context.Context, group *studentpresence.CombinedGroup) error {
+	if !validPresenceCombination(group) {
 		return &ActiveError{Op: "CreateCombinedGroup", Err: ErrInvalidData}
 	}
 
-	group.SetTenantID(tenant.FromContext(ctx))
-	if s.CombinedGroupRepo.Create(ctx, group) != nil {
+	group.TenantID = tenant.FromContext(ctx)
+	row, err := s.SchoolPresence.RecordCombination(ctx, group.StartTime, group.EndTime)
+	if err != nil {
 		return &ActiveError{Op: "CreateCombinedGroup", Err: ErrDatabaseOperation}
 	}
 
+	*group = row
 	return nil
 }
 
-func (s *service) UpdateCombinedGroup(ctx context.Context, group *active.CombinedGroup) error {
-	if group == nil || group.ID == 0 || group.Validate() != nil {
+func (s *service) UpdateCombinedGroup(ctx context.Context, group *studentpresence.CombinedGroup) error {
+	if !validPresenceCombination(group) || group.ID == 0 {
 		return &ActiveError{Op: "UpdateCombinedGroup", Err: ErrInvalidData}
 	}
 
-	if s.CombinedGroupRepo.Update(ctx, group) != nil {
+	row, err := s.SchoolPresence.ReviseCombination(ctx, group.ID, group.StartTime, group.EndTime)
+	if err != nil {
 		return &ActiveError{Op: "UpdateCombinedGroup", Err: ErrDatabaseOperation}
 	}
 
+	*group = row
 	return nil
 }
 
 func (s *service) DeleteCombinedGroup(ctx context.Context, id int64) error {
-	_, err := s.CombinedGroupRepo.FindByID(ctx, id)
+	_, err := s.SchoolPresence.GetCombinedGroup(ctx, id)
 	if err != nil {
 		return &ActiveError{Op: "DeleteCombinedGroup", Err: ErrCombinedGroupNotFound}
 	}
 
 	// Delete all group mappings
-	mappings, err := s.GroupMappingRepo.FindByActiveCombinedGroupID(ctx, id)
+	mappings, err := s.SchoolPresence.ListGroupMappings(ctx, studentpresence.GroupMappingFilter{CombinedGroupID: &id})
 	if err != nil {
 		return &ActiveError{Op: "DeleteCombinedGroup", Err: ErrDatabaseOperation}
 	}
 
 	for _, mapping := range mappings {
-		if err := s.GroupMappingRepo.Delete(ctx, mapping.ID); err != nil {
+		if err := s.SchoolPresence.DeleteGroupMapping(ctx, mapping.ID); err != nil {
 			return &ActiveError{Op: "DeleteCombinedGroup", Err: ErrDatabaseOperation}
 		}
 	}
 
 	// Delete the combined group
-	if err := s.CombinedGroupRepo.Delete(ctx, id); err != nil {
+	if err := s.SchoolPresence.DeleteCombination(ctx, id); err != nil {
 		return &ActiveError{Op: "DeleteCombinedGroup", Err: ErrDatabaseOperation}
 	}
 
 	return nil
 }
 
-func (s *service) ListCombinedGroups(ctx context.Context, options *base.QueryOptions) ([]*active.CombinedGroup, error) {
-	groups, err := s.CombinedGroupRepo.List(ctx, options)
-	if err != nil {
-		return nil, &ActiveError{Op: "ListCombinedGroups", Err: ErrDatabaseOperation}
-	}
-	return groups, nil
-}
-
-func (s *service) FindActiveCombinedGroups(ctx context.Context) ([]*active.CombinedGroup, error) {
-	groups, err := s.CombinedGroupRepo.FindActive(ctx)
-	if err != nil {
-		return nil, &ActiveError{Op: "FindActiveCombinedGroups", Err: ErrDatabaseOperation}
-	}
-	return groups, nil
-}
-
-func (s *service) FindCombinedGroupsByTimeRange(ctx context.Context, start, end time.Time) ([]*active.CombinedGroup, error) {
-	if start.After(end) {
-		return nil, &ActiveError{Op: "FindCombinedGroupsByTimeRange", Err: ErrInvalidTimeRange}
-	}
-
-	groups, err := s.CombinedGroupRepo.FindByTimeRange(ctx, start, end)
-	if err != nil {
-		return nil, &ActiveError{Op: "FindCombinedGroupsByTimeRange", Err: ErrDatabaseOperation}
-	}
-	return groups, nil
-}
-
 func (s *service) EndCombinedGroup(ctx context.Context, id int64) error {
 	// Verify group exists first
-	_, err := s.CombinedGroupRepo.FindByID(ctx, id)
+	_, err := s.SchoolPresence.GetCombinedGroup(ctx, id)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, studentpresence.ErrCombinedGroupNotFound) {
 			return &ActiveError{Op: "EndCombinedGroup", Err: ErrCombinedGroupNotFound}
 		}
-		return &ActiveError{Op: "EndCombinedGroup", Err: fmt.Errorf("failed to verify combined group: %w", err)}
+		return &ActiveError{Op: "EndCombinedGroup", Err: fmt.Errorf("failed to verify combined group: database error during find by id: %w", err)}
 	}
 
-	if err := s.CombinedGroupRepo.EndCombination(ctx, id); err != nil {
+	if err := s.SchoolPresence.EndCombination(ctx, id, time.Now()); err != nil {
 		return &ActiveError{Op: "EndCombinedGroup", Err: fmt.Errorf("end combination failed: %w", err)}
 	}
 	return nil
 }
 
-func (s *service) GetCombinedGroupWithGroups(ctx context.Context, id int64) (*active.CombinedGroup, error) {
-	combinedGroup, err := s.CombinedGroupRepo.FindWithGroups(ctx, id)
+func (s *service) GetCombinedGroupWithGroups(ctx context.Context, id int64) (*CombinedGroupDetails, error) {
+	group, err := s.loadCombinedGroupWithGroups(ctx, id)
 	if err != nil {
 		return nil, &ActiveError{Op: "GetCombinedGroupWithGroups", Err: ErrCombinedGroupNotFound}
 	}
-	return combinedGroup, nil
+	return group, nil
 }
 
-func (s *service) CreateCombinedGroupWithGroups(ctx context.Context, group *active.CombinedGroup, groupIDs []int64) error {
-	if group == nil || group.Validate() != nil {
+func (s *service) loadCombinedGroupWithGroups(ctx context.Context, id int64) (*CombinedGroupDetails, error) {
+	row, err := s.SchoolPresence.GetCombinedGroup(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	mappings, err := s.SchoolPresence.ListGroupMappings(ctx, studentpresence.GroupMappingFilter{CombinedGroupID: &id})
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]int64, 0, len(mappings))
+	for _, mapping := range mappings {
+		if mapping.ActiveGroupID > 0 {
+			ids = append(ids, mapping.ActiveGroupID)
+		}
+	}
+	rows, err := s.SchoolPresence.ListLiveGroups(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[int64]*studentpresence.LiveGroup, len(rows))
+	for _, row := range rows {
+		byID[row.ID] = &row
+	}
+	group := &CombinedGroupDetails{
+		CombinedGroup: row,
+		GroupMappings: make([]CombinedGroupMapping, 0, len(mappings)),
+		ActiveGroups:  make([]*studentpresence.LiveGroup, 0, len(mappings)),
+	}
+	for _, row := range mappings {
+		mapping := CombinedGroupMapping{GroupMapping: row, ActiveGroup: byID[row.ActiveGroupID]}
+		group.GroupMappings = append(group.GroupMappings, mapping)
+		if mapping.ActiveGroup != nil {
+			group.ActiveGroups = append(group.ActiveGroups, mapping.ActiveGroup)
+		}
+	}
+	return group, nil
+}
+
+func (s *service) CreateCombinedGroupWithGroups(ctx context.Context, group *studentpresence.CombinedGroup, groupIDs []int64) error {
+	if !validPresenceCombination(group) {
 		return &ActiveError{Op: "CreateCombinedGroupWithGroups", Err: ErrInvalidData}
 	}
 
@@ -151,30 +155,26 @@ func (s *service) CreateCombinedGroupWithGroups(ctx context.Context, group *acti
 	}
 
 	// Step 1: Create the combined group
-	group.SetTenantID(tenant.FromContext(ctx))
-	if err := s.CombinedGroupRepo.Create(ctx, group); err != nil {
-		return &ActiveError{Op: "CreateCombinedGroupWithGroups", Err: fmt.Errorf("%w: %v", ErrDatabaseOperation, err)}
+	group.TenantID = tenant.FromContext(ctx)
+	row, err := s.SchoolPresence.RecordCombination(ctx, group.StartTime, group.EndTime)
+	if err != nil {
+		return &ActiveError{Op: "CreateCombinedGroupWithGroups", Err: fmt.Errorf("%w: database error during create: %v", ErrDatabaseOperation, err)}
 	}
+	*group = row
 
 	// Step 2: Verify all active group IDs exist
-	existOptions := base.NewQueryOptions()
-	existOptions.Filter = base.NewFilter().In("id", int64Args(groupIDs)...)
-	existCount, err := s.GroupRepo.CountWithOptions(ctx, existOptions)
+	existing, err := s.SchoolPresence.ListLiveGroups(ctx, groupIDs)
 	if err != nil {
 		return &ActiveError{Op: "CreateCombinedGroupWithGroups", Err: fmt.Errorf("%w: %v", ErrDatabaseOperation, err)}
 	}
+	existCount := len(existing)
 	if existCount != len(groupIDs) {
 		return &ActiveError{Op: "CreateCombinedGroupWithGroups", Err: fmt.Errorf("%w: one or more group IDs do not exist (expected %d, found %d)", ErrInvalidData, len(groupIDs), existCount)}
 	}
 
 	// Step 3: Insert all group mappings
 	for _, gid := range groupIDs {
-		mapping := &active.GroupMapping{
-			ActiveCombinedGroupID: group.ID,
-			ActiveGroupID:         gid,
-		}
-		mapping.SetTenantID(tenant.FromContext(ctx))
-		if err := s.GroupMappingRepo.Create(ctx, mapping); err != nil {
+		if _, err := s.SchoolPresence.RecordGroupMapping(ctx, group.ID, gid); err != nil {
 			return &ActiveError{Op: "CreateCombinedGroupWithGroups", Err: fmt.Errorf("%w: %v", ErrDatabaseOperation, err)}
 		}
 	}
@@ -187,57 +187,6 @@ func (s *service) CreateCombinedGroupWithGroups(ctx context.Context, group *acti
 	return nil
 }
 
-// Group Mapping operations
-
-func (s *service) AddGroupToCombination(ctx context.Context, combinedGroupID, activeGroupID int64) error {
-	// Check if the mapping already exists
-	mappings, err := s.GroupMappingRepo.FindByActiveCombinedGroupID(ctx, combinedGroupID)
-	if err != nil {
-		return &ActiveError{Op: "AddGroupToCombination", Err: ErrDatabaseOperation}
-	}
-
-	for _, mapping := range mappings {
-		if mapping.ActiveGroupID == activeGroupID {
-			return &ActiveError{Op: "AddGroupToCombination", Err: ErrGroupAlreadyInCombination}
-		}
-	}
-
-	// Create the mapping
-	if s.GroupMappingRepo.AddGroupToCombination(ctx, combinedGroupID, activeGroupID) != nil {
-		return &ActiveError{Op: "AddGroupToCombination", Err: ErrDatabaseOperation}
-	}
-
-	return nil
-}
-
-func (s *service) RemoveGroupFromCombination(ctx context.Context, combinedGroupID, activeGroupID int64) error {
-	if s.GroupMappingRepo.RemoveGroupFromCombination(ctx, combinedGroupID, activeGroupID) != nil {
-		return &ActiveError{Op: "RemoveGroupFromCombination", Err: ErrDatabaseOperation}
-	}
-	return nil
-}
-
-func (s *service) GetGroupMappingsByActiveGroupID(ctx context.Context, activeGroupID int64) ([]*active.GroupMapping, error) {
-	mappings, err := s.GroupMappingRepo.FindByActiveGroupID(ctx, activeGroupID)
-	if err != nil {
-		return nil, &ActiveError{Op: "GetGroupMappingsByActiveGroupID", Err: ErrDatabaseOperation}
-	}
-	return mappings, nil
-}
-
-func (s *service) GetGroupMappingsByCombinedGroupID(ctx context.Context, combinedGroupID int64) ([]*active.GroupMapping, error) {
-	mappings, err := s.GroupMappingRepo.FindByActiveCombinedGroupID(ctx, combinedGroupID)
-	if err != nil {
-		return nil, &ActiveError{Op: "GetGroupMappingsByCombinedGroupID", Err: ErrDatabaseOperation}
-	}
-	return mappings, nil
-}
-
-// int64Args widens an int64 slice for the variadic Filter.In helper.
-func int64Args(ids []int64) []any {
-	args := make([]any, len(ids))
-	for i, id := range ids {
-		args[i] = id
-	}
-	return args
+func validPresenceCombination(group *studentpresence.CombinedGroup) bool {
+	return group != nil && !group.StartTime.IsZero() && (group.EndTime == nil || !group.StartTime.After(*group.EndTime))
 }

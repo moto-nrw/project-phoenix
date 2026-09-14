@@ -40,7 +40,7 @@ func TestPerformCheckIn_BinaryRetryMirrorsExistingCheckInTime(t *testing.T) {
 	syncer := &recordingAttendanceSyncer{}
 	repo := &retryAttendanceRepository{existing: existing}
 	svc := &service{
-		ServiceDependencies: ServiceDependencies{
+		ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal,
 			SchoolPresence:   repo,
 			AttendanceSyncer: syncer,
 		},
@@ -75,7 +75,7 @@ func TestPerformCheckIn_BinaryRetryReturnsSyncFailure(t *testing.T) {
 	syncer := &recordingAttendanceSyncer{mirrorAtErr: injected}
 	repo := &retryAttendanceRepository{existing: studentpresence.Attendance{ID: 701, StudentID: 702, CheckInTime: existingTime}}
 	svc := &service{
-		ServiceDependencies: ServiceDependencies{SchoolPresence: repo, AttendanceSyncer: syncer},
+		ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SchoolPresence: repo, AttendanceSyncer: syncer},
 		settings:            &fakeSettingsResolver{hasOverride: true, resolved: "binary"},
 	}
 

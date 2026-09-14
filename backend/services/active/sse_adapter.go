@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"strconv"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -70,14 +69,11 @@ func (s *service) broadcastDashboardCountsChanged(ctx context.Context, eduGroupI
 	}
 }
 
-// eduGroupIDsOf returns the educational group id of a student as a slice for
-// tenant invalidations / EventData.GroupIDs, or nil when unknown
-// (nil student — e.g. a repository error during routing-data lookup — or a student
-// without an OGS group). nil keeps the field absent so clients fall back to a
-// broad refresh instead of scoping to nothing.
-func eduGroupIDsOf(student *userModels.Student) []string {
-	if student == nil || student.GroupID == nil {
+// eduGroupIDsOf formats the known routing group for tenant invalidations.
+// Nil keeps the field absent so clients fall back to a broad refresh.
+func eduGroupIDsOf(groupID *int64) []string {
+	if groupID == nil {
 		return nil
 	}
-	return []string{strconv.FormatInt(*student.GroupID, 10)}
+	return []string{strconv.FormatInt(*groupID, 10)}
 }

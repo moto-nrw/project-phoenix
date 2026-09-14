@@ -124,6 +124,37 @@ func (e engine) StaffAbsenceTypeInUse(ctx context.Context, id int64) (bool, erro
 	return value, mapError(err)
 }
 
+func (e engine) SetAllowance(ctx context.Context, input workforce.SetAbsenceTypeAllowance) (workforce.AbsenceTypeAllowanceSummary, error) {
+	value, err := e.service.SetAllowance(ctx, domain.SetAbsenceTypeAllowance{
+		StaffID: input.StaffID, AbsenceTypeID: input.AbsenceTypeID, Year: input.Year,
+		EntitledDays: input.EntitledDays, Reason: input.Reason, ChangedBy: input.ChangedBy,
+	})
+	return workforce.AbsenceTypeAllowanceSummary{
+		StaffID: value.StaffID, AbsenceTypeID: value.AbsenceTypeID, Year: value.Year,
+		EntitledDays: value.EntitledDays, TakenDays: value.TakenDays, ReservedDays: value.ReservedDays, RemainingDays: value.RemainingDays,
+	}, mapError(err)
+}
+
+func (e engine) AllowanceSummary(ctx context.Context, staffID, absenceTypeID int64, year int) (workforce.AbsenceTypeAllowanceSummary, error) {
+	value, err := e.service.AllowanceSummary(ctx, staffID, absenceTypeID, year)
+	return workforce.AbsenceTypeAllowanceSummary{
+		StaffID: value.StaffID, AbsenceTypeID: value.AbsenceTypeID, Year: value.Year,
+		EntitledDays: value.EntitledDays, TakenDays: value.TakenDays, ReservedDays: value.ReservedDays, RemainingDays: value.RemainingDays,
+	}, mapError(err)
+}
+
+func (e engine) CreateAbsenceType(ctx context.Context, input workforce.CreateAbsenceType) (workforce.StaffAbsenceType, error) {
+	value, err := e.service.CreateAbsenceType(ctx, domain.StaffAbsenceTypeFields{
+		Name: input.Name, AllowanceEnabled: input.AllowanceEnabled, OverrunPolicy: input.OverrunPolicy,
+	})
+	return absenceTypeToPublic(value), mapError(err)
+}
+
+func (e engine) UpdateAbsenceType(ctx context.Context, input workforce.UpdateAbsenceType) (workforce.StaffAbsenceType, error) {
+	value, err := e.service.UpdateAbsenceType(ctx, input.ID, input.Name, input.IsActive, input.AllowanceEnabled, input.OverrunPolicy)
+	return absenceTypeToPublic(value), mapError(err)
+}
+
 func (e engine) CreateStaffAbsenceType(ctx context.Context, fields workforce.StaffAbsenceTypeFields) (workforce.StaffAbsenceType, error) {
 	value, err := e.service.CreateStaffAbsenceType(ctx, domain.StaffAbsenceTypeFields{
 		Name: fields.Name, BaseType: fields.BaseType, IsActive: fields.IsActive,

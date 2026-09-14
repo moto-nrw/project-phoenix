@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"log"
 	"log/slog"
@@ -15,11 +16,25 @@ import (
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
-	"github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type cleanupTestDevices struct {
+	findDeviceID func(context.Context) (int64, error)
+	updateRoomID func(context.Context, int64, int64) error
+}
+
+func (d cleanupTestDevices) ManualAttendanceDeviceID(ctx context.Context) (int64, error) {
+	return d.findDeviceID(ctx)
+}
+
+func (d cleanupTestDevices) UpdateRoomID(ctx context.Context, id, roomID int64) error {
+	return d.updateRoomID(ctx, id, roomID)
+}
+
+func (cleanupTestDevices) OnlineWindow(context.Context) time.Duration { return 0 }
 
 // =============================================================================
 // Test Helpers
@@ -34,17 +49,7 @@ func render(fn func(io.Writer)) string {
 // setupTestCleanupContext creates a cleanupContext with test database
 func setupTestCleanupContext(t *testing.T) *cleanupContext {
 	db := testpkg.SetupTestDB(t)
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
-	require.NoError(t, err)
-	cleanupSvc := active.NewCleanupService(
-		presence,
-		repoFactory.GroupSupervisor,
-		repoFactory.PrivacyConsent,
-		repoFactory.DataDeletion,
-		users.NewPrivacyConsentService(nil, slog.Default()),
-		db,
-	)
+	cleanupSvc := buildRetentionCleanupService(&cleanupContext{DB: db, Audit: repositories.NewTestAuditStore(db)})
 	schools, err := repositories.NewOrganizationTenancy(db)
 	require.NoError(t, err)
 	return &cleanupContext{
@@ -64,10 +69,22 @@ func setupTestCleanupContextWithServices(t *testing.T) *cleanupContext {
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
 	sessionService := active.NewService(active.ServiceDependencies{
-		SchoolPresence:           presence,
-		GroupRepo:                repoFactory.ActiveGroup,
-		SupervisorRepo:           repoFactory.GroupSupervisor,
-		DeviceRepo:               repoFactory.Device,
+		SchoolPresence: presence,
+		GroupRepo:      repoFactory.ActiveGroup,
+		SupervisorRepo: repoFactory.GroupSupervisor,
+		DeviceRepo: cleanupTestDevices{
+			findDeviceID: func(ctx context.Context) (int64, error) {
+				device, err := repoFactory.Device.FindByDeviceID(ctx, "WEB-MANUAL-001")
+				if err != nil {
+					return 0, err
+				}
+				if device == nil {
+					return 0, fmt.Errorf("WEB-MANUAL-001 is not configured")
+				}
+				return device.ID, nil
+			},
+			updateRoomID: repoFactory.Device.UpdateRoomID,
+		},
 		TimetableBridgeCompleter: repoFactory.ActivityInstance,
 		DB:                       db,
 		Logger:                   slog.Default(),
@@ -75,14 +92,7 @@ func setupTestCleanupContextWithServices(t *testing.T) *cleanupContext {
 	sessionService.SetSettingsService(&configtest.Mock{ResolveStringFn: func(context.Context, string) (string, error) {
 		return active.PresenceModeDetailed, nil
 	}})
-	cleanupSvc := active.NewCleanupService(
-		presence,
-		repoFactory.GroupSupervisor,
-		repoFactory.PrivacyConsent,
-		repoFactory.DataDeletion,
-		users.NewPrivacyConsentService(nil, slog.Default()),
-		db,
-	)
+	cleanupSvc := buildRetentionCleanupService(&cleanupContext{DB: db, Audit: repositories.NewTestAuditStore(db)})
 	schools, err := repositories.NewOrganizationTenancy(db)
 	require.NoError(t, err)
 	return &cleanupContext{

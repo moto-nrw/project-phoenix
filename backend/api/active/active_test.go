@@ -29,18 +29,17 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// init seeds JWT viper defaults before any test constructs a Resource via
-// jwt.MustNewTokenAuth() (Router() → tokenAuth.Verifier()) and before
-// MintTestJWT signs a request. CI runs without a .env so AUTH_JWT_SECRET is
-// unset; without a secret jwx refuses HMAC signing.
-func init() {
-	testutil.SeedTestJWTConfig()
-}
-
 // testContext holds shared test resources
 type testContext struct {
 	db       *bun.DB
 	resource *activeAPI.Resource
+	settings testSettingsWriter
+}
+
+type testSettingsWriter struct {
+	SetString  func(context.Context, string, string, *int64, []string) error
+	SetBool    func(context.Context, string, bool, *int64, []string) error
+	ResetValue func(context.Context, string, *int64, []string) error
 }
 
 type recordingEndActiveGroupService struct {
@@ -58,12 +57,21 @@ func setupActiveRoute(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupActiveModule(t)
-	resource := activeAPI.NewResource(svc.Active, svc.Users, svc.Education, svc.Schulhof, svc.UserContext, svc.Settings, db, slog.Default(), testPresenceQueries(t, db))
+	resource := activeAPI.NewResource(svc.Active, activePeople{source: svc.AttendancePeople()}, svc.TeacherGroupIDs, svc.Schulhof, activeStaffAccess{source: svc.AttendanceStaff()}, svc.Settings, common.ProtectedTenantRoutes, slog.Default(), testPresenceQueries(t, db), requestRuntimeForTest(svc.WithAttendanceStaff), authorizationForTest())
 	resource.SupervisionDashboardService = svc.SupervisionDashboard
 
 	return &testContext{
 		db:       db,
 		resource: resource,
+		settings: testSettingsWriter{
+			SetString: func(ctx context.Context, key, value string, actor *int64, permissions []string) error {
+				return svc.Settings.SetValue(ctx, key, value, actor, permissions)
+			},
+			SetBool: func(ctx context.Context, key string, value bool, actor *int64, permissions []string) error {
+				return svc.Settings.SetValue(ctx, key, value, actor, permissions)
+			},
+			ResetValue: svc.Settings.ResetValue,
+		},
 	}
 }
 
@@ -278,9 +286,11 @@ func TestEndActiveGroup(t *testing.T) {
 			tc.resource.SchulhofService,
 			tc.resource.UserContextService,
 			disabledSettings,
-			tc.db,
+			common.ProtectedTenantRoutes,
 			slog.Default(),
 			tc.resource.Presence,
+			requestRuntimeForTest(func(context.Context, int64, int64) context.Context { panic("disabled attendance must not bind staff") }),
+			authorizationForTest(),
 		)
 		disabledRouter := chi.NewRouter()
 		disabledRouter.Mount("/active", disabledResource.Router())
@@ -1302,9 +1312,23 @@ func TestUpdateVisit(t *testing.T) {
 
 func TestAddGroupToCombination(t *testing.T) {
 	t.Parallel()
-	_, router := setupExtendedProtectedRouter(t)
+	tc, router := setupExtendedProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
+
+	t.Run("rejects a duplicate mapping", func(t *testing.T) {
+		activity := testpkg.CreateTestActivityGroup(t, tc.db, "duplicate mapping")
+		room := testpkg.CreateTestRoom(t, tc.db, "Duplicate Mapping Room")
+		group := testpkg.CreateTestActiveGroup(t, tc.db, activity.ID, room.ID)
+		combination, err := testPresenceQueries(t, tc.db).RecordCombination(testpkg.Ctx(t), time.Now(), nil)
+		require.NoError(t, err)
+		body := map[string]interface{}{"active_group_id": group.ID, "combined_group_id": combination.ID}
+		first := testutil.ExecuteWithAuthPermissions(t, router, testutil.NewJSONRequest(t, "POST", "/active/mappings/add", body), adminClaims, []string{permissions.GroupsUpdate})
+		require.Equal(t, http.StatusOK, first.Code, first.Body.String())
+		second := testutil.ExecuteWithAuthPermissions(t, router, testutil.NewJSONRequest(t, "POST", "/active/mappings/add", body), adminClaims, []string{permissions.GroupsUpdate})
+		assert.Equal(t, http.StatusBadRequest, second.Code, second.Body.String())
+		assert.Contains(t, second.Body.String(), "Group Already In Combination")
+	})
 
 	t.Run("error with invalid combined group id", func(t *testing.T) {
 		body := map[string]interface{}{
@@ -2205,7 +2229,7 @@ func TestClaimGroup(t *testing.T) {
 func TestGetActiveGroupVisitsWithDisplay(t *testing.T) {
 	t.Parallel()
 	tc, router := setupFullCoverageRouter(t)
-	require.NoError(t, tc.resource.SettingsService.SetValue(
+	require.NoError(t, tc.settings.SetString(
 		testpkg.Ctx(t), configModel.KeyOperationalOverviewScope, configModel.OverviewScopeOwn, nil, nil,
 	))
 

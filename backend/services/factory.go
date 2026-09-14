@@ -135,7 +135,6 @@ type Factory struct {
 	Holidays                  schedule.HolidayService
 	ClosingDays               schedule.ClosingDayService
 	StaffAbsence              active.StaffAbsenceService
-	StaffAbsenceType          active.StaffAbsenceTypeService
 	StaffBalanceAdjust        active.StaffBalanceAdjustmentService
 	StaffMonthClose           active.StaffMonthCloseService
 	StaffOverview             active.StaffOverviewService
@@ -880,9 +879,9 @@ func newFactory(
 	guardianProfileLoader := users.NewGuardianProfileLoader(repos.GuardianProfile, db, logger.With("service", "guardian-profile-loader"))
 
 	// Initialize work session service (before active service - needed for NFC auto-check-in)
-	workSessionService := active.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, repos.WorkSessionEdit, repos.StaffAbsence, repos.GroupSupervisor, repos.ActiveGroup, repos.Staff, repos.StaffWorkSchedule, repos.WorkTimeModel, settingsService, activeLogger, db)
+	workSessionService := active.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, NewWorkSessionAudit(repos.WorkSessionEdit), repos.StaffAbsence, repos.GroupSupervisor, repos.ActiveGroup, WorkSessionStaff(repos.Staff), repos.StaffWorkSchedule, repos.WorkTimeModel, settingsService, activeLogger, db, RenderTimeTrackingPDF, RenderTimeTrackingWorkbook)
 	// Planned-shift lookups for the auto-checkout job (#1798).
-	workSessionService.SetStaffShiftRepo(repos.StaffShift)
+	workSessionService.SetStaffShiftRepo(NewTimeTrackingShifts(repos.StaffShift))
 	if broadcastAware, ok := workSessionService.(interface {
 		SetBroadcaster(realtime.Broadcaster)
 	}); ok {
@@ -896,10 +895,10 @@ func newFactory(
 		repos.WorkSession,
 		repos.WorkSessionBreak,
 		repos.StaffAbsence,
-		repos.Staff,
-		repos.StaffWorkSchedule,
-		repos.WorkTimeModel,
-		repos.StaffShift,
+		StaffScheduleAssignments(repos.Staff),
+		NewWorkScheduleTargets(repos.StaffWorkSchedule),
+		NewWorkTimeTargetModels(repos.WorkTimeModel),
+		NewTimeTrackingShifts(repos.StaffShift),
 		settingsService,
 		activeLogger,
 	)
@@ -918,7 +917,7 @@ func newFactory(
 	workTimeMonthService.SetAdjustmentReader(repos.StaffBalanceAdjust)
 	// Frozen months (#1417) short-circuit the carry chain so a retroactive
 	// correction can no longer rewrite a closed month's Übertrag.
-	workTimeMonthService.SetSnapshotReader(repos.StaffMonthSnapshot)
+	workTimeMonthService.SetSnapshotReader(MonthSnapshotCapability(repos.StaffMonthSnapshot))
 	// The session service's weekly summaries reduce their Soll by holidays
 	// too. The setter is not part of the WorkSessionService interface (it
 	// would break external mocks), hence the assertion.
@@ -931,22 +930,9 @@ func newFactory(
 	// School-defined Abwesenheitsarten (#2403). Constructed before the absence
 	// service so it can be injected there and resolve custom names on both the
 	// write path (which base type an art inherits) and the read paths.
-	staffAbsenceTypeService := active.NewStaffAbsenceTypeService(repos.StaffAbsenceType, activeLogger)
-	if allowanceAware, ok := staffAbsenceTypeService.(interface {
-		SetAllowanceRepositories(
-			activeModels.StaffAbsenceTypeAllowanceRepository,
-			activeModels.StaffAbsenceTypeAllowanceChangeRepository,
-			activeModels.StaffAbsenceRepository,
-		)
-	}); ok {
-		allowanceAware.SetAllowanceRepositories(
-			repos.StaffAbsenceTypeAllowance,
-			repos.StaffAbsenceTypeAllowanceChange,
-			repos.StaffAbsence,
-		)
-	}
+	staffAbsenceTypeService := AbsenceTypes(repos.StaffAbsenceType)
 	if typeAware, ok := workSessionService.(interface {
-		SetAbsenceTypeService(active.StaffAbsenceTypeService)
+		SetAbsenceTypeService(active.AbsenceTypeReader)
 	}); ok {
 		typeAware.SetAbsenceTypeService(staffAbsenceTypeService)
 	}
@@ -954,7 +940,7 @@ func newFactory(
 	// Initialize staff absence service
 	staffAbsenceService := active.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession, repos.StaffVacationQuota, repos.StaffAbsenceAudit, settingsService, workTimeMonthService)
 	if typeAware, ok := staffAbsenceService.(interface {
-		SetAbsenceTypeService(active.StaffAbsenceTypeService)
+		SetAbsenceTypeService(active.AbsenceTypeReader)
 	}); ok {
 		typeAware.SetAbsenceTypeService(staffAbsenceTypeService)
 	}
@@ -979,18 +965,18 @@ func newFactory(
 	}
 	// A booking inside a closed month (#1417) could not move its frozen
 	// closing balance, so the ledger rejects it.
-	staffBalanceAdjustService.SetSnapshotReader(repos.StaffMonthSnapshot)
+	staffBalanceAdjustService.SetSnapshotReader(MonthSnapshotCapability(repos.StaffMonthSnapshot))
 	// Deletes leave an append-only tombstone in the cross-staff audit log
 	// (#1417). Both services fail their delete paths without this wiring.
 	if deletionAware, ok := staffBalanceAdjustService.(interface {
-		SetDeletionAudit(auditModels.TimeTrackingDeletionRepository)
+		SetDeletionAudit(active.TimeTrackingDeletionAudit)
 	}); ok {
-		deletionAware.SetDeletionAudit(repos.TimeTrackingDeletion)
+		deletionAware.SetDeletionAudit(NewTimeTrackingDeletionAudit(repos.TimeTrackingDeletion))
 	}
 	if deletionAware, ok := staffAbsenceService.(interface {
-		SetDeletionAudit(auditModels.TimeTrackingDeletionRepository)
+		SetDeletionAudit(active.TimeTrackingDeletionAudit)
 	}); ok {
-		deletionAware.SetDeletionAudit(repos.TimeTrackingDeletion)
+		deletionAware.SetDeletionAudit(NewTimeTrackingDeletionAudit(repos.TimeTrackingDeletion))
 	}
 	// Vacation takeover at the moto introduction (#2132): the summary
 	// subtracts pre-introduction days, the write paths book/delete them.
@@ -1003,9 +989,9 @@ func newFactory(
 	// Monatsabschluss (#1417): freezes a month's closing balance so a
 	// retroactive correction can no longer rewrite every later Übertrag.
 	staffMonthCloseService := active.NewStaffMonthCloseService(
-		repos.StaffMonthSnapshot,
+		MonthSnapshotCapability(repos.StaffMonthSnapshot),
 		workTimeMonthService,
-		repos.Staff,
+		MonthCloseStaff(repos.Staff),
 		settingsService,
 		activeLogger,
 	)
@@ -1019,16 +1005,16 @@ func newFactory(
 	// and runs the SAME per-staff month math over in-memory readers, so the
 	// list can never drift from the /staff/{id} detail view.
 	staffOverviewService := active.NewStaffOverviewService(
-		repos.Staff,
+		OverviewStaff(repos.Staff),
 		repos.WorkSession,
 		repos.WorkSessionBreak,
 		repos.StaffAbsence,
 		repos.StaffBalanceAdjust,
 		repos.StaffVacationQuota,
-		repos.StaffMonthSnapshot,
-		repos.StaffWorkSchedule,
-		repos.WorkTimeModel,
-		repos.StaffShift,
+		MonthSnapshotCapability(repos.StaffMonthSnapshot),
+		NewWorkScheduleTargets(repos.StaffWorkSchedule),
+		NewWorkTimeTargetModels(repos.WorkTimeModel),
+		NewTimeTrackingShifts(repos.StaffShift),
 		settingsService,
 		activeLogger,
 	)
@@ -1059,17 +1045,18 @@ func newFactory(
 	staffTimeExportService := active.NewStaffTimeExportService(
 		staffOverviewService,
 		workSessionService,
-		repos.Staff,
-		repos.DataAccessLog,
-		payrollStatusService,
+		TimeExportStaff(repos.Staff),
+		NewDataAccessAudit(repos.DataAccessLog),
+		PayrollExportSettings{Source: payrollStatusService},
 		activeLogger,
+		RenderTimeTrackingWorkbook,
 	)
 
 	// Cross-staff audit feed (#1417): merges the four change trails into one
 	// keyset-paginated view. Read-only; permission gating at the route.
 	timeTrackingAuditLogService := active.NewTimeTrackingAuditLogService(
-		repos.TimeTrackingAuditLog,
-		repos.Staff,
+		NewTimeTrackingAuditReader(repos.TimeTrackingAuditLog),
+		StaffDisplayNames(repos.Staff),
 		settingsService,
 	)
 
@@ -1080,14 +1067,12 @@ func newFactory(
 		SetAbsenceEmailDeps(active.AbsenceEmailDeps)
 	}); ok {
 		emailAware.SetAbsenceEmailDeps(active.AbsenceEmailDeps{
-			Settings:     settingsService,
-			Dispatcher:   dispatcher,
-			StaffRepo:    repos.Staff,
-			SchoolRepo:   repos.School,
-			DefaultFrom:  defaultFrom,
-			FrontendURL:  frontendURL,
-			MailIdentity: tenantMailIdentity,
-			Logger:       activeLogger,
+			Settings:    settingsService,
+			Dispatcher:  absenceEmailDispatcher{dispatcher: dispatcher, from: defaultFrom, identity: tenantMailIdentity, logger: activeLogger},
+			StaffRepo:   absenceEmailStaffDirectory{source: repos.Staff},
+			SchoolRepo:  absenceEmailSchoolDirectory{schools: repos.School},
+			FrontendURL: frontendURL,
+			Logger:      activeLogger,
 		})
 	}
 
@@ -1148,27 +1133,24 @@ func newFactory(
 
 	// Initialize active service with SSE broadcaster
 	activeServiceDeps := active.ServiceDependencies{
+		PrincipalReader:          AttendancePrincipal,
 		SchoolPresence:           newStudentPresence(db, logger),
 		StudentDisplay:           studentDisplayProjection{students: persons, groups: groups},
 		GroupRepo:                repos.ActiveGroup,
 		SessionStartLock:         repos.SessionStartLock,
 		SupervisorRepo:           repos.GroupSupervisor,
-		CombinedGroupRepo:        repos.CombinedGroup,
-		GroupMappingRepo:         repos.GroupMapping,
 		StudentStatusRepo:        repos.StudentStatusDay,
 		CrossTenantRepo:          repos.CrossTenant,
 		Schools:                  newActiveSchoolQuery(organizations),
 		StudentRepo:              repos.Student,
-		PersonRepo:               repos.Person,
-		TeacherRepo:              repos.Teacher,
-		StaffRepo:                repos.Staff,
-		RoomRepo:                 repos.Room,
-		ActivityGroupRepo:        repos.ActivityGroup,
-		ActivityCatRepo:          repos.ActivityCategory,
-		EducationGroupRepo:       repos.Group,
-		DeviceRepo:               repos.Device,
-		EducationService:         educationService,
-		UsersService:             usersService,
+		StaffRepo:                NewAttendanceStaffDirectory(repos.Staff),
+		RoomRepo:                 NewAttendanceRooms(repos.Room),
+		YardRoomColor:            yardRoomColorQuery(rooms),
+		ActivityGroupRepo:        repositories.NewSessionActivities(repos.ActivityGroup),
+		ActivityCatRepo:          NewAttendanceActivityCategories(repos.ActivityCategory),
+		EducationGroupRepo:       NewAttendanceEducationGroups(repos.Group, repos.Student),
+		DeviceRepo:               NewSessionDeviceDirectory(repos.Device, settingsService, activeLogger),
+		StaffNames:               NewAttendanceStaffNames(repos.Staff, usersService),
 		DB:                       db,
 		Broadcaster:              realtimeHub,           // Pass SSE broadcaster
 		Tracker:                  tracker,               // Product analytics (PostHog)
@@ -1240,8 +1222,8 @@ func newFactory(
 	// Initialize facilities service
 	facilitiesService := facilities.NewServiceWithConfig(facilities.ServiceConfig{
 		Rooms:     rooms,
-		Occupancy: facilitiesLegacy.OccupancyProjection(repos.ActiveGroup, repos.ActivityGroup, membership, persons),
-		History:   facilitiesLegacy.HistoryProjection(repos.ActiveGroup),
+		Occupancy: facilitiesLegacy.OccupancyProjection(roomOccupancyPresence{newStudentPresence(db, logger)}, repos.ActivityGroup, membership, persons),
+		History:   facilitiesLegacy.HistoryProjection(roomHistoryPresence{newStudentPresence(db, logger)}, repos.ActivityGroup, membership, persons),
 		ValidateDeletion: func(ctx context.Context, roomID int64) error {
 			activeGroups, err := repos.ActiveGroup.FindActiveByRoomID(ctx, roomID)
 			if err != nil {
@@ -1264,7 +1246,7 @@ func newFactory(
 	schulhofService := facilities.NewSchulhofService(
 		facilitiesService,
 		facilitiesLegacy.ActivityCatalog(activitiesService),
-		facilitiesLegacy.OpenGroupCatalog(activeService),
+		facilitiesLegacy.OpenGroupCatalog(facilitiesGroupSupervisions(newStudentPresence(db, logger)), facilitiesRoomSessions(newStudentPresence(db, logger)), facilitiesGroupVisits(newStudentPresence(db, logger))),
 		facilitiesLogger,
 	)
 
@@ -1523,7 +1505,7 @@ func newFactory(
 	timeTrackingCleanupService := active.NewTimeTrackingCleanupService(
 		repos.WorkSession,
 		repos.StaffAbsence,
-		repos.DataDeletion,
+		NewDeletionAudit(repos.DataDeletion),
 		settingsService,
 		logger.With("service", "time-tracking-cleanup"),
 	)
@@ -1546,7 +1528,6 @@ func newFactory(
 		InstanceService:   instanceService,
 		RoomRepo:          repos.Room,
 		ActiveGroupRepo:   repos.ActiveGroup,
-		SupervisorRepo:    repos.GroupSupervisor,
 		Presence:          newStudentPresence(db, logger),
 		Logger:            logger.With("service", "timetable-auto-start"),
 	})
@@ -1823,7 +1804,7 @@ func newFactory(
 		ProfileRepo:        repos.Profile,
 		SubstitutionRepo:   repos.GroupSubstitution,
 		ClassTeacherRepo:   repos.ClassTeacher,
-		ActiveService:      activeService,
+		ActiveService:      NewSSEPresence(newStudentPresence(db, logger)),
 		SSESettings:        settingsService,
 	}, usercontextLogger)
 	substitutionService := education.NewSubstitutionModule(education.SubstitutionDependencies{
@@ -1876,14 +1857,10 @@ func newFactory(
 	}, databaseLogger)
 
 	// Initialize cleanup service
-	privacyConsentService := users.NewPrivacyConsentService(settingsService, logger.With("service", "privacy-consent"))
 	activeCleanupService := active.NewCleanupService(
 		newStudentPresence(db, logger),
 		repos.GroupSupervisor,
-		repos.PrivacyConsent,
-		repos.DataDeletion,
-		privacyConsentService,
-		db,
+		NewDeletionAudit(repos.DataDeletion),
 		today,
 	)
 	unregisteredTagScanService, err := auditService.NewUnregisteredTagScanService(
@@ -2319,7 +2296,7 @@ func newFactory(
 	// the companion lock order through this service.
 	studentService := users.NewStudentService(
 		repos.Student,
-		repos.PrivacyConsent,
+		repositories.StudentPrivacyConsentCapability(newStudentPresence(db, logger)),
 		repos.StudentCompanion,
 		studentAuditService,
 	)
@@ -2851,7 +2828,7 @@ func newFactory(
 		Room:         reminderRoomReader{source: rooms},
 		Student:      reminderStudentReader{source: repos.Student},
 		Person:       reminderPersonReader{source: repos.Person},
-		Supervision:  reminderSupervisionReader{source: activeService},
+		Supervision:  reminderSupervisionReader{source: activeService, presence: newStudentPresence(db, logger)},
 		Visits:       reminderVisitReader{source: newStudentPresence(db, logger)},
 		Logger:       logger.With("service", "reminders"),
 
@@ -2864,8 +2841,9 @@ func newFactory(
 
 	studentStatusDayService := active.NewStudentStatusDayServiceWithPartialAbsences(
 		repos.StudentStatusDay,
-		repos.StudentPickupException,
+		NewManualPartialAbsenceDates(repos.CarePlan()),
 		db,
+		repos.CarePlan().LockExceptionDay,
 		now,
 	)
 	studentStatusDayOverviewService := active.NewStudentStatusDayOverviewService(repos.StudentStatusDay, usersService)
@@ -2893,7 +2871,7 @@ func newFactory(
 
 	supervisionDashboardService, err := supervisiondashboardlegacy.New(supervisiondashboardlegacy.Sources{
 		Active:       activeService,
-		ActiveGroups: repos.ActiveGroup,
+		ActiveGroups: openRoomSessionPresence{newStudentPresence(db, logger), timetableCapability},
 		OpenVisits:   active.NewVisitDisplayBatchReader(activeServiceDeps),
 		Rooms:        openRoomDirectory{rooms: rooms},
 		UserContext:  userContextService,
@@ -3022,7 +3000,6 @@ func newFactory(
 		Holidays:                holidayService,
 		ClosingDays:             closingDayService,
 		StaffAbsence:            staffAbsenceService,
-		StaffAbsenceType:        staffAbsenceTypeService,
 		StaffBalanceAdjust:      staffBalanceAdjustService,
 		StaffMonthClose:         staffMonthCloseService,
 		StaffOverview:           staffOverviewService,
@@ -3125,18 +3102,20 @@ func newFactory(
 		RequestReviewPolicy:  requestReviewPolicy,
 		StudentStatusDays:    studentStatusDayService,
 		AbsenceOverview:      studentStatusDayOverviewService,
-		StudentHistory:       active.NewStudentHistoryService(newStudentPresence(db, logger), historyRoomNames(rooms), repos.DataAccessLog, repos.InstanceStudent),
+		StudentHistory:       active.NewStudentHistoryService(newStudentPresence(db, logger), historyRoomNames(rooms), NewDataAccessAudit(repos.DataAccessLog), NewHistorySlots(repos.InstanceStudent)),
 		Statistics: statistics.NewService(statistics.Config{
-			Statistics:      repos.Statistics,
-			Courses:         repos.CourseStatistics,
+			Statistics:      statisticsRoomUtilization{newStudentPresence(db, logger)},
+			Attendance:      statisticsAttendance{newStudentPresence(db, logger)},
+			StatusDays:      statisticsStatusDays{repos.CarePlan()},
+			Courses:         statisticsReportCourses{timetableCapability},
 			Holidays:        holidayService,
 			ClosingDays:     closingDayService,
-			Periods:         repos.CalendarPeriod,
-			Students:        repos.Student,
-			Rooms:           repos.Room,
-			AccessLog:       repos.DataAccessLog,
-			Settings:        settingsService,
-			PrivacyConsents: repos.PrivacyConsent,
+			Periods:         statisticsReportPeriods{calendar},
+			Students:        statisticsReportStudents{repos.Student},
+			Rooms:           statisticsReportRooms{rooms},
+			AccessLog:       statisticsAuditLog{repos.DataAccessLog},
+			Retention:       statisticsRetention{settingsService},
+			PrivacyConsents: statisticsRetentionSettings{newStudentPresence(db, logger)},
 			Logger:          logger.With("service", "statistics"),
 			Now:             now,
 		}),

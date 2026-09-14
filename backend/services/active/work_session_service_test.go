@@ -2,7 +2,6 @@ package active
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -10,10 +9,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -73,7 +70,7 @@ func (m *wsMockWorkSessionRepository) FindByID(ctx context.Context, id any) (*ac
 	if m.findByIDFunc != nil {
 		return m.findByIDFunc(ctx, id)
 	}
-	return nil, sql.ErrNoRows
+	return nil, base.ErrNotFound
 }
 
 func (m *wsMockWorkSessionRepository) Update(ctx context.Context, entity *activeModels.WorkSession) error {
@@ -104,7 +101,7 @@ func (m *wsMockWorkSessionRepository) GetCurrentByStaffID(ctx context.Context, s
 	if m.getCurrentByStaffIDFunc != nil {
 		return m.getCurrentByStaffIDFunc(ctx, staffID)
 	}
-	return nil, sql.ErrNoRows
+	return nil, base.ErrNotFound
 }
 
 func (m *wsMockWorkSessionRepository) GetOpenByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*activeModels.WorkSession, error) {
@@ -141,11 +138,11 @@ func (m *wsMockWorkSessionRepository) LockOpenByIDForUpdate(ctx context.Context,
 			return nil, err
 		}
 		if session.CheckOutTime != nil {
-			return nil, sql.ErrNoRows
+			return nil, base.ErrNotFound
 		}
 		return session, nil
 	}
-	return nil, sql.ErrNoRows
+	return nil, base.ErrNotFound
 }
 
 func (m *wsMockWorkSessionRepository) GetHistoryByStaffID(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.WorkSession, error) {
@@ -252,7 +249,7 @@ func (m *wsMockWorkTimeModelRepository) FindByID(ctx context.Context, id int64) 
 	if m.findByIDFunc != nil {
 		return m.findByIDFunc(ctx, id)
 	}
-	return nil, sql.ErrNoRows
+	return nil, base.ErrNotFound
 }
 
 func (m *wsMockWorkTimeModelRepository) FindByIDs(context.Context, []int64) ([]*configModels.WorkTimeModel, error) {
@@ -322,7 +319,7 @@ func (m *wsMockWorkSessionBreakRepository) FindByID(ctx context.Context, id any)
 	if m.findByIDFunc != nil {
 		return m.findByIDFunc(ctx, id)
 	}
-	return nil, sql.ErrNoRows
+	return nil, base.ErrNotFound
 }
 
 func (m *wsMockWorkSessionBreakRepository) Update(ctx context.Context, entity *activeModels.WorkSessionBreak) error {
@@ -386,32 +383,24 @@ func (m *wsMockWorkSessionBreakRepository) GetExpiredBreaks(ctx context.Context,
 // ============================================================================
 
 type wsMockWorkSessionEditRepository struct {
-	createBatchFunc             func(ctx context.Context, edits []*auditModels.WorkSessionEdit) error
-	getBySessionIDFunc          func(ctx context.Context, sessionID int64) ([]*auditModels.WorkSessionEdit, error)
-	countBySessionIDFunc        func(ctx context.Context, sessionID int64) (int, error)
+	createBatchFunc             func(ctx context.Context, edits []*WorkSessionEdit) error
+	getBySessionIDFunc          func(ctx context.Context, sessionID int64) ([]*WorkSessionEdit, error)
 	countBySessionIDsFunc       func(ctx context.Context, sessionIDs []int64) (map[int64]int, error)
 	countManualBySessionIDsFunc func(ctx context.Context, sessionIDs []int64) (map[int64]int, error)
 }
 
-func (m *wsMockWorkSessionEditRepository) CreateBatch(ctx context.Context, edits []*auditModels.WorkSessionEdit) error {
+func (m *wsMockWorkSessionEditRepository) CreateBatch(ctx context.Context, edits []*WorkSessionEdit) error {
 	if m.createBatchFunc != nil {
 		return m.createBatchFunc(ctx, edits)
 	}
 	return nil
 }
 
-func (m *wsMockWorkSessionEditRepository) GetBySessionID(ctx context.Context, sessionID int64) ([]*auditModels.WorkSessionEdit, error) {
+func (m *wsMockWorkSessionEditRepository) GetBySessionID(ctx context.Context, sessionID int64) ([]*WorkSessionEdit, error) {
 	if m.getBySessionIDFunc != nil {
 		return m.getBySessionIDFunc(ctx, sessionID)
 	}
 	return nil, nil
-}
-
-func (m *wsMockWorkSessionEditRepository) CountBySessionID(ctx context.Context, sessionID int64) (int, error) {
-	if m.countBySessionIDFunc != nil {
-		return m.countBySessionIDFunc(ctx, sessionID)
-	}
-	return 0, nil
 }
 
 func (m *wsMockWorkSessionEditRepository) CountBySessionIDs(ctx context.Context, sessionIDs []int64) (map[int64]int, error) {
@@ -542,7 +531,6 @@ type wsMockGroupSupervisorRepository struct {
 	findByIDFunc                        func(ctx context.Context, id any) (*activeModels.GroupSupervisor, error)
 	updateFunc                          func(ctx context.Context, entity *activeModels.GroupSupervisor) error
 	deleteFunc                          func(ctx context.Context, id any) error
-	listFunc                            func(ctx context.Context, options *base.QueryOptions) ([]*activeModels.GroupSupervisor, error)
 	findByStaffIDFunc                   func(ctx context.Context, staffID int64) ([]*activeModels.GroupSupervisor, error)
 	findActiveByStaffIDFunc             func(ctx context.Context, staffID int64) ([]*activeModels.GroupSupervisor, error)
 	findByActiveGroupIDFunc             func(ctx context.Context, activeGroupID int64, activeOnly bool) ([]*activeModels.GroupSupervisor, error)
@@ -559,7 +547,7 @@ func (m *wsMockGroupSupervisorRepository) Create(ctx context.Context, entity *ac
 	return nil
 }
 
-func (m *wsMockGroupSupervisorRepository) FindByID(ctx context.Context, id any) (*activeModels.GroupSupervisor, error) {
+func (m *wsMockGroupSupervisorRepository) FindByID(ctx context.Context, id int64) (*activeModels.GroupSupervisor, error) {
 	if m.findByIDFunc != nil {
 		return m.findByIDFunc(ctx, id)
 	}
@@ -573,18 +561,11 @@ func (m *wsMockGroupSupervisorRepository) Update(ctx context.Context, entity *ac
 	return nil
 }
 
-func (m *wsMockGroupSupervisorRepository) Delete(ctx context.Context, id any) error {
+func (m *wsMockGroupSupervisorRepository) Delete(ctx context.Context, id int64) error {
 	if m.deleteFunc != nil {
 		return m.deleteFunc(ctx, id)
 	}
 	return nil
-}
-
-func (m *wsMockGroupSupervisorRepository) List(ctx context.Context, options *base.QueryOptions) ([]*activeModels.GroupSupervisor, error) {
-	if m.listFunc != nil {
-		return m.listFunc(ctx, options)
-	}
-	return nil, nil
 }
 
 func (m *wsMockGroupSupervisorRepository) FindByStaffID(ctx context.Context, staffID int64) ([]*activeModels.GroupSupervisor, error) {
@@ -940,8 +921,8 @@ func TestWSCreateSessionAsAdmin_IgnoresPlannedStartEnforcement(t *testing.T) {
 		return nil
 	}
 
-	var capturedEdits []*auditModels.WorkSessionEdit
-	auditRepo.createBatchFunc = func(_ context.Context, edits []*auditModels.WorkSessionEdit) error {
+	var capturedEdits []*WorkSessionEdit
+	auditRepo.createBatchFunc = func(_ context.Context, edits []*WorkSessionEdit) error {
 		capturedEdits = edits
 		return nil
 	}
@@ -1074,7 +1055,7 @@ func TestWSCheckOut_ClosesBlockOpenedOnAnEarlierDay(t *testing.T) {
 		if day == yesterday {
 			return open, nil
 		}
-		return nil, sql.ErrNoRows
+		return nil, base.ErrNotFound
 	}
 	breakRepo.getActiveBySessionIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSessionBreak, error) {
 		return nil, nil
@@ -1177,7 +1158,7 @@ func TestWSCheckIn_SecondBlockWithDifferentStatus(t *testing.T) {
 		t.Fatal("the first block must stay untouched")
 		return nil
 	}
-	auditRepo.createBatchFunc = func(_ context.Context, _ []*auditModels.WorkSessionEdit) error {
+	auditRepo.createBatchFunc = func(_ context.Context, _ []*WorkSessionEdit) error {
 		t.Fatal("a new block with its own status needs no audit edit")
 		return nil
 	}
@@ -1315,7 +1296,7 @@ func TestWSCheckOut_NoActiveSession(t *testing.T) {
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 
 	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
-		return nil, sql.ErrNoRows
+		return nil, base.ErrNotFound
 	}
 
 	session, err := svc.CheckOut(context.Background(), 100, "")
@@ -1532,7 +1513,7 @@ func TestWSStartBreak_NoActiveSession(t *testing.T) {
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 
 	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
-		return nil, sql.ErrNoRows
+		return nil, base.ErrNotFound
 	}
 
 	brk, err := svc.StartBreak(context.Background(), 100, nil)
@@ -1577,7 +1558,7 @@ func TestWSStartBreak_FollowsBlockOpenedOnAnEarlierDay(t *testing.T) {
 	svc.nowFunc = func() time.Time { return time.Date(2026, time.July, 22, 1, 0, 0, 0, timezone.Berlin) }
 
 	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
-		return nil, sql.ErrNoRows // nothing is filed on today
+		return nil, base.ErrNotFound // nothing is filed on today
 	}
 	sessionRepo.getLatestOpenByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
 		return &activeModels.WorkSession{
@@ -1625,7 +1606,7 @@ func TestWSEndBreak_FollowsBlockOpenedOnAnEarlierDay(t *testing.T) {
 		CheckInTime: time.Date(2026, time.July, 21, 22, 0, 0, 0, timezone.Berlin),
 	}
 	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
-		return nil, sql.ErrNoRows // nothing is filed on today
+		return nil, base.ErrNotFound // nothing is filed on today
 	}
 	sessionRepo.getLatestOpenByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
 		return open, nil
@@ -1804,7 +1785,7 @@ func TestWSEndBreak_NoActiveSession(t *testing.T) {
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 
 	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
-		return nil, sql.ErrNoRows
+		return nil, base.ErrNotFound
 	}
 
 	session, err := svc.EndBreak(context.Background(), 100)
@@ -1840,7 +1821,7 @@ func TestWSGetCurrentSession_NotFound(t *testing.T) {
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 
 	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
-		return nil, sql.ErrNoRows
+		return nil, base.ErrNotFound
 	}
 
 	session, err := svc.GetCurrentSession(context.Background(), 100)
@@ -2238,10 +2219,9 @@ func TestWSGetHistory_UsesTemplateScheduleSnapshotTargets(t *testing.T) {
 	checkOutWeekZero := weekZero.Add(6 * time.Hour)
 	checkOutWeekOne := weekOne.Add(7 * time.Hour)
 
-	svc.staffRepo = &testpkg.StaffRepoMock{
-		FindByIDFn: func(_ context.Context, _ any) (*userModels.Staff, error) {
-			return &userModels.Staff{
-				Model:              base.Model{ID: staffID},
+	svc.staffRepo = &wsStaffAccessMock{
+		ScheduleFn: func(_ context.Context, _ int64) (*StaffScheduleAssignment, error) {
+			return &StaffScheduleAssignment{
 				WorkTimeModelID:    &modelID,
 				RotationAnchorDate: &anchor,
 			}, nil
@@ -2250,7 +2230,7 @@ func TestWSGetHistory_UsesTemplateScheduleSnapshotTargets(t *testing.T) {
 	svc.workModelRepo = &wsMockWorkTimeModelRepository{
 		findByIDFunc: func(_ context.Context, id int64) (*configModels.WorkTimeModel, error) {
 			t.Fatalf("template-assigned staff with schedule snapshot must not read current model %d", id)
-			return nil, sql.ErrNoRows
+			return nil, base.ErrNotFound
 		},
 	}
 	svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
@@ -2376,8 +2356,8 @@ func TestWSGetSessionEdits_Success(t *testing.T) {
 		}, nil
 	}
 
-	auditRepo.getBySessionIDFunc = func(_ context.Context, _ int64) ([]*auditModels.WorkSessionEdit, error) {
-		return []*auditModels.WorkSessionEdit{
+	auditRepo.getBySessionIDFunc = func(_ context.Context, _ int64) ([]*WorkSessionEdit, error) {
+		return []*WorkSessionEdit{
 			{SessionID: 1, FieldName: "check_in_time"},
 		}, nil
 	}
@@ -2564,7 +2544,7 @@ func TestWSEnsureCheckedIn_AlreadyCheckedOutToday(t *testing.T) {
 	checkOut := time.Now().Add(-1 * time.Hour)
 
 	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
-		return nil, sql.ErrNoRows
+		return nil, base.ErrNotFound
 	}
 
 	sessionRepo.listByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) ([]*activeModels.WorkSession, error) {
@@ -2586,7 +2566,7 @@ func TestWSEnsureCheckedIn_CreatesNew(t *testing.T) {
 	staffID := int64(100)
 
 	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
-		return nil, sql.ErrNoRows
+		return nil, base.ErrNotFound
 	}
 
 	sessionRepo.listByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) ([]*activeModels.WorkSession, error) {
@@ -2616,7 +2596,7 @@ func TestWSEnsureCheckedIn_ForwardsAppSource(t *testing.T) {
 	staffID := int64(100)
 
 	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
-		return nil, sql.ErrNoRows
+		return nil, base.ErrNotFound
 	}
 	sessionRepo.listByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) ([]*activeModels.WorkSession, error) {
 		return nil, nil
@@ -2664,9 +2644,9 @@ func TestWSUpdateSession_CheckInTimeChange(t *testing.T) {
 		return nil
 	}
 
-	auditRepo.createBatchFunc = func(_ context.Context, edits []*auditModels.WorkSessionEdit) error {
+	auditRepo.createBatchFunc = func(_ context.Context, edits []*WorkSessionEdit) error {
 		assert.Len(t, edits, 1)
-		assert.Equal(t, auditModels.FieldCheckInTime, edits[0].FieldName)
+		assert.Equal(t, "check_in_time", edits[0].FieldName)
 		return nil
 	}
 
@@ -2711,7 +2691,7 @@ func TestWSUpdateSession_NotFound(t *testing.T) {
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 
 	sessionRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.WorkSession, error) {
-		return nil, sql.ErrNoRows
+		return nil, base.ErrNotFound
 	}
 
 	session, err := svc.UpdateSession(context.Background(), 100, 999, SessionUpdateRequest{})
@@ -2763,9 +2743,9 @@ func TestWSUpdateSession_BreakDurationUpdate(t *testing.T) {
 		return nil
 	}
 
-	auditRepo.createBatchFunc = func(_ context.Context, edits []*auditModels.WorkSessionEdit) error {
+	auditRepo.createBatchFunc = func(_ context.Context, edits []*WorkSessionEdit) error {
 		assert.Len(t, edits, 1)
-		assert.Equal(t, auditModels.FieldBreakDuration, edits[0].FieldName)
+		assert.Equal(t, "break_duration", edits[0].FieldName)
 		require.NotNil(t, edits[0].OldValue)
 		require.NotNil(t, edits[0].NewValue)
 		assert.Equal(t, "30", *edits[0].OldValue)
@@ -2888,7 +2868,7 @@ func (m *wsMockStaffAbsenceRepository) DeleteOlderThan(context.Context, string, 
 	return 0, nil
 }
 
-func (m *wsMockGroupSupervisorRepository) ListActiveSupervisionBlockers(context.Context, int64, int64) ([]userModels.BlockerSupervision, error) {
+func (m *wsMockGroupSupervisorRepository) ListActiveSupervisionBlockers(context.Context, int64) ([]activeModels.SupervisionBlocker, error) {
 	return nil, nil
 }
 
@@ -2896,7 +2876,7 @@ func (m *wsMockGroupSupervisorRepository) FindStaleOpen(context.Context, timezon
 	return nil, nil
 }
 
-func (m *wsMockGroupSupervisorRepository) UpdateColumns(context.Context, *activeModels.GroupSupervisor, ...string) (int64, error) {
+func (m *wsMockGroupSupervisorRepository) SetEndDate(context.Context, *activeModels.GroupSupervisor) (int64, error) {
 	return 0, nil
 }
 
@@ -2926,7 +2906,7 @@ func TestWSCheckOut_DeviationGate(t *testing.T) {
 	tests := []struct {
 		name         string
 		now          time.Time
-		shifts       []*scheduleModels.StaffShift
+		shifts       []*TimeTrackingShift
 		settings     *wsMockSettingsResolver
 		reason       string
 		wantErr      bool
@@ -2938,13 +2918,13 @@ func TestWSCheckOut_DeviationGate(t *testing.T) {
 		{
 			name:     "within tolerance saves without reason",
 			now:      time.Date(2026, time.July, 6, 16, 10, 0, 0, timezone.Berlin),
-			shifts:   []*scheduleModels.StaffShift{shift},
+			shifts:   []*TimeTrackingShift{shift},
 			settings: wsDeviationSettings(15),
 		},
 		{
 			name:        "outside tolerance without reason rejects",
 			now:         time.Date(2026, time.July, 6, 16, 30, 0, 0, timezone.Berlin),
-			shifts:      []*scheduleModels.StaffShift{shift},
+			shifts:      []*TimeTrackingShift{shift},
 			settings:    wsDeviationSettings(15),
 			wantErr:     true,
 			wantMinutes: 30,
@@ -2952,7 +2932,7 @@ func TestWSCheckOut_DeviationGate(t *testing.T) {
 		{
 			name:         "outside tolerance with reason saves and audits",
 			now:          time.Date(2026, time.July, 6, 16, 30, 0, 0, timezone.Berlin),
-			shifts:       []*scheduleModels.StaffShift{shift},
+			shifts:       []*TimeTrackingShift{shift},
 			settings:     wsDeviationSettings(15),
 			reason:       "Elterngespräch lief länger",
 			wantAudit:    true,
@@ -2970,13 +2950,13 @@ func TestWSCheckOut_DeviationGate(t *testing.T) {
 			// gates "später gehen".
 			name:     "early leave is not gated",
 			now:      time.Date(2026, time.July, 6, 15, 0, 0, 0, timezone.Berlin),
-			shifts:   []*scheduleModels.StaffShift{shift},
+			shifts:   []*TimeTrackingShift{shift},
 			settings: wsDeviationSettings(15),
 		},
 		{
 			name:   "latest shift end is the reference",
 			now:    time.Date(2026, time.July, 6, 16, 30, 0, 0, timezone.Berlin),
-			shifts: []*scheduleModels.StaffShift{shiftFor(100, day, 8, 12), shift},
+			shifts: []*TimeTrackingShift{shiftFor(100, day, 8, 12), shift},
 			// 16:30 vs latest end 16:00 = 30 min > 15 → reject without reason
 			settings:    wsDeviationSettings(15),
 			wantErr:     true,
@@ -2990,9 +2970,9 @@ func TestWSCheckOut_DeviationGate(t *testing.T) {
 			svc.nowFunc = func() time.Time { return tt.now }
 			svc.settings = tt.settings
 			shiftRepo := &wsMockStaffShiftRepository{}
-			shiftRepo.findByStaffIDsAndDateFunc = func(_ context.Context, staffIDs []int64, date scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
+			shiftRepo.findByStaffIDsAndDateFunc = func(_ context.Context, staffIDs []int64, date timezone.Date) ([]*TimeTrackingShift, error) {
 				assert.Equal(t, []int64{100}, staffIDs)
-				assert.Equal(t, scheduleModels.Date(day), date)
+				assert.Equal(t, timezone.Date(day), date)
 				return tt.shifts, nil
 			}
 			svc.SetStaffShiftRepo(shiftRepo)
@@ -3026,8 +3006,8 @@ func TestWSCheckOut_DeviationGate(t *testing.T) {
 					CheckOutTime: &checkOut,
 				}, nil
 			}
-			var capturedEdits []*auditModels.WorkSessionEdit
-			auditRepo.createBatchFunc = func(_ context.Context, edits []*auditModels.WorkSessionEdit) error {
+			var capturedEdits []*WorkSessionEdit
+			auditRepo.createBatchFunc = func(_ context.Context, edits []*WorkSessionEdit) error {
 				capturedEdits = edits
 				return nil
 			}
@@ -3053,7 +3033,7 @@ func TestWSCheckOut_DeviationGate(t *testing.T) {
 			if tt.wantAudit {
 				require.Len(t, capturedEdits, 1)
 				edit := capturedEdits[0]
-				assert.Equal(t, auditModels.FieldDeviationReason, edit.FieldName)
+				assert.Equal(t, "deviation_reason", edit.FieldName)
 				require.NotNil(t, edit.OldValue)
 				assert.Equal(t, tt.wantAuditOld, *edit.OldValue)
 				require.NotNil(t, edit.NewValue)
@@ -3074,7 +3054,7 @@ func TestWSCheckOut_DeviationGateOffSkipsShiftLookup(t *testing.T) {
 	svc.settings = &wsMockSettingsResolver{} // setting resolves to false
 	lookedUp := false
 	shiftRepo := &wsMockStaffShiftRepository{}
-	shiftRepo.findByStaffIDsAndDateFunc = func(_ context.Context, _ []int64, _ scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
+	shiftRepo.findByStaffIDsAndDateFunc = func(_ context.Context, _ []int64, _ timezone.Date) ([]*TimeTrackingShift, error) {
 		lookedUp = true
 		return nil, nil
 	}
@@ -3163,8 +3143,8 @@ func TestWSCheckIn_DeviationGate(t *testing.T) {
 			svc.nowFunc = func() time.Time { return tt.now }
 			svc.settings = wsDeviationSettings(15)
 			shiftRepo := &wsMockStaffShiftRepository{}
-			shiftRepo.findByStaffIDsAndDateFunc = func(_ context.Context, _ []int64, _ scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
-				shifts := []*scheduleModels.StaffShift{shift}
+			shiftRepo.findByStaffIDsAndDateFunc = func(_ context.Context, _ []int64, _ timezone.Date) ([]*TimeTrackingShift, error) {
+				shifts := []*TimeTrackingShift{shift}
 				if tt.extraShift {
 					shifts = append(shifts, shiftFor(100, day, 13, 16))
 				}
@@ -3181,8 +3161,8 @@ func TestWSCheckIn_DeviationGate(t *testing.T) {
 				entity.ID = 10
 				return nil
 			}
-			var capturedEdits []*auditModels.WorkSessionEdit
-			auditRepo.createBatchFunc = func(_ context.Context, edits []*auditModels.WorkSessionEdit) error {
+			var capturedEdits []*WorkSessionEdit
+			auditRepo.createBatchFunc = func(_ context.Context, edits []*WorkSessionEdit) error {
 				capturedEdits = edits
 				return nil
 			}
@@ -3207,7 +3187,7 @@ func TestWSCheckIn_DeviationGate(t *testing.T) {
 			assert.True(t, created)
 			if tt.wantAudit {
 				require.Len(t, capturedEdits, 1)
-				assert.Equal(t, auditModels.FieldDeviationReason, capturedEdits[0].FieldName)
+				assert.Equal(t, "deviation_reason", capturedEdits[0].FieldName)
 				require.NotNil(t, capturedEdits[0].Notes)
 				assert.Equal(t, tt.reason, *capturedEdits[0].Notes)
 			} else {
@@ -3229,7 +3209,7 @@ func TestWSCheckIn_SecondBlockSkipsDeviationGate(t *testing.T) {
 	svc.nowFunc = func() time.Time { return now }
 	svc.settings = wsDeviationSettings(15)
 	shiftRepo := &wsMockStaffShiftRepository{}
-	shiftRepo.findByStaffIDsAndDateFunc = func(_ context.Context, _ []int64, _ scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
+	shiftRepo.findByStaffIDsAndDateFunc = func(_ context.Context, _ []int64, _ timezone.Date) ([]*TimeTrackingShift, error) {
 		t.Fatal("a second block must not consult the deviation gate")
 		return nil, nil
 	}
@@ -3361,14 +3341,14 @@ func TestWSEnsureCheckedIn_SkipsDeviationGate(t *testing.T) {
 	svc.nowFunc = func() time.Time { return now }
 	svc.settings = wsDeviationSettings(15)
 	shiftRepo := &wsMockStaffShiftRepository{}
-	shiftRepo.findByStaffIDsAndDateFunc = func(_ context.Context, _ []int64, _ scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
+	shiftRepo.findByStaffIDsAndDateFunc = func(_ context.Context, _ []int64, _ timezone.Date) ([]*TimeTrackingShift, error) {
 		t.Fatal("EnsureCheckedIn must not consult the deviation gate")
 		return nil, nil
 	}
 	svc.SetStaffShiftRepo(shiftRepo)
 
 	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
-		return nil, sql.ErrNoRows
+		return nil, base.ErrNotFound
 	}
 	sessionRepo.listByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) ([]*activeModels.WorkSession, error) {
 		return nil, nil
@@ -3471,7 +3451,7 @@ func TestWSUpdateSession_TimeChangeNotesGate(t *testing.T) {
 			}
 			sessionRepo.updateBreakMinutesFunc = func(_ context.Context, _ int64, _ int) error { return nil }
 			breakRepo.updateFunc = func(_ context.Context, _ *activeModels.WorkSessionBreak) error { return nil }
-			auditRepo.createBatchFunc = func(_ context.Context, _ []*auditModels.WorkSessionEdit) error { return nil }
+			auditRepo.createBatchFunc = func(_ context.Context, _ []*WorkSessionEdit) error { return nil }
 
 			session, err := svc.UpdateSession(context.Background(), staffID, sessionID, tt.updates)
 
@@ -3497,7 +3477,7 @@ func TestWSUpdateScheduleBroadcastsTimeTrackingChangeAfterCommit(t *testing.T) {
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc.SetBroadcaster(broadcaster)
 	svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{}
-	svc.staffRepo = &testpkg.StaffRepoMock{
+	svc.staffRepo = &wsStaffAccessMock{
 		UpdateFn: func(_ context.Context, _ *userModels.Staff) error { return nil },
 	}
 	ctx, commit := tenant.WithAfterCommitHooksForTest(
@@ -3542,7 +3522,7 @@ func TestWSApplyCustomScheduleRows_StampsAnchorForFirstRotation(t *testing.T) {
 			return nil
 		},
 	}
-	svc.staffRepo = &testpkg.StaffRepoMock{
+	svc.staffRepo = &wsStaffAccessMock{
 		UpdateFn: func(_ context.Context, _ *userModels.Staff) error { return nil },
 	}
 
@@ -3570,7 +3550,7 @@ func TestWSApplyCustomScheduleRows_SingleWeekKeepsAnchorUnset(t *testing.T) {
 			return nil
 		},
 	}
-	svc.staffRepo = &testpkg.StaffRepoMock{
+	svc.staffRepo = &wsStaffAccessMock{
 		UpdateFn: func(_ context.Context, _ *userModels.Staff) error { return nil },
 	}
 
@@ -3598,7 +3578,7 @@ func TestWSApplyCustomScheduleRows_ExistingStaffAnchorWins(t *testing.T) {
 			return nil
 		},
 	}
-	svc.staffRepo = &testpkg.StaffRepoMock{
+	svc.staffRepo = &wsStaffAccessMock{
 		UpdateFn: func(_ context.Context, _ *userModels.Staff) error { return nil },
 	}
 
@@ -3769,7 +3749,7 @@ func TestWSCreateSessionAsAdmin_AllowsTouchingBlock(t *testing.T) {
 		entity.ID = 2
 		return nil
 	}
-	auditRepo.createBatchFunc = func(_ context.Context, _ []*auditModels.WorkSessionEdit) error {
+	auditRepo.createBatchFunc = func(_ context.Context, _ []*WorkSessionEdit) error {
 		return nil
 	}
 

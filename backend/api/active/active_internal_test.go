@@ -13,8 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
-	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 )
 
@@ -298,8 +297,8 @@ func TestCheckinRequest_Fields(t *testing.T) {
 func TestCheckinContext_Fields(t *testing.T) {
 	t.Parallel()
 
-	group := &active.Group{GroupID: ptrtest.Ptr(int64(100))}
-	staff := &users.Staff{PersonID: 200}
+	group := &studentpresence.LiveGroup{ActivityGroupID: ptrtest.Ptr(int64(100))}
+	staff := &StaffIdentity{ID: 200}
 	request := CheckinRequest{ActiveGroupID: 300}
 
 	ctx := &checkinContext{

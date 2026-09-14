@@ -2,18 +2,41 @@ package active
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestAuthorizeCheckoutPreservesIdentityErrorClassification(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name      string
+		lookupErr error
+		want      error
+	}{
+		{name: "unlinked person", lookupErr: usercontext.ErrUserNotLinkedToPerson, want: ErrNotAuthorized},
+		{name: "wrapped unlinked staff", lookupErr: errors.Join(errors.New("lookup"), usercontext.ErrUserNotLinkedToStaff), want: ErrNotAuthorized},
+		{name: "lookup failure", lookupErr: errors.New("database unavailable"), want: ErrStaffNotFound},
+		{name: "missing staff without error", want: ErrNotAuthorized},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			rs := resourceForTest(Resource{UserContextService: &mockUserContextService{getCurrentStaffFunc: func(context.Context) (*StaffIdentity, error) {
+				return nil, tc.lookupErr
+			}}})
+			staff, err := rs.authorizeStudentCheckout(context.Background())
+			assert.Nil(t, staff)
+			assert.ErrorIs(t, err, tc.want)
+		})
+	}
+}
 
 type checkoutActiveServiceStub struct {
 	*stubActiveService
@@ -103,7 +126,7 @@ func TestCheckoutStudent_RejectsNonStaffBeforeReadingAttendance(t *testing.T) {
 	t.Parallel()
 
 	attendanceCalls := 0
-	rs := &Resource{
+	rs := resourceForTest(Resource{
 		ActiveService: &checkoutActiveServiceStub{
 			stubActiveService: &stubActiveService{},
 			getStudentAttendanceStatus: func(_ context.Context, _ int64) (*activeService.AttendanceStatus, error) {
@@ -112,18 +135,18 @@ func TestCheckoutStudent_RejectsNonStaffBeforeReadingAttendance(t *testing.T) {
 			},
 		},
 		UserContextService: &mockUserContextService{
-			getCurrentStaffFunc: func(_ context.Context) (*users.Staff, error) {
+			getCurrentStaffFunc: func(_ context.Context) (*StaffIdentity, error) {
 				return nil, usercontext.ErrUserNotLinkedToStaff
 			},
 		},
-	}
+	})
 
 	router := chi.NewRouter()
 	router.Post("/student/{studentId}/checkout", rs.checkoutStudent)
-	req := httptest.NewRequest(http.MethodPost, "/student/123/checkout", nil)
-	req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 11}))
+	claims := staffClaims()
+	claims.ID = 11
+	req := newRequestWithClaims(http.MethodPost, "/student/123/checkout", claims)
 	rr := httptest.NewRecorder()
-
 	router.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusForbidden, rr.Code)
@@ -222,7 +245,7 @@ func TestCheckoutErrorVariables(t *testing.T) {
 func TestHandleCheckoutContextError_NotCheckedIn(t *testing.T) {
 	t.Parallel()
 
-	rs := &Resource{}
+	rs := resourceForTest(Resource{})
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/test", nil)
 
@@ -234,7 +257,7 @@ func TestHandleCheckoutContextError_NotCheckedIn(t *testing.T) {
 func TestHandleCheckoutContextError_OtherError(t *testing.T) {
 	t.Parallel()
 
-	rs := &Resource{}
+	rs := resourceForTest(Resource{})
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/test", nil)
 
@@ -250,7 +273,7 @@ func TestHandleCheckoutContextError_OtherError(t *testing.T) {
 func TestHandleAuthorizationError_NotAuthorized(t *testing.T) {
 	t.Parallel()
 
-	rs := &Resource{}
+	rs := resourceForTest(Resource{})
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/test", nil)
 
@@ -262,7 +285,7 @@ func TestHandleAuthorizationError_NotAuthorized(t *testing.T) {
 func TestHandleAuthorizationError_OtherError(t *testing.T) {
 	t.Parallel()
 
-	rs := &Resource{}
+	rs := resourceForTest(Resource{})
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/test", nil)
 

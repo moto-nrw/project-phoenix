@@ -46,31 +46,31 @@ func TestPresenceAttendance_DateRange(t *testing.T) {
 	threeDaysAgo := today.AddDays(-3)
 
 	// Create records for 4 days
-	createAttendanceForDate(t, ctx, repo, data.Student1.ID, data.Staff1.ID, data.Device1.ID, threeDaysAgo)
-	createAttendanceForDate(t, ctx, repo, data.Student1.ID, data.Staff1.ID, data.Device1.ID, twoDaysAgo)
-	createAttendanceForDate(t, ctx, repo, data.Student1.ID, data.Staff1.ID, data.Device1.ID, yesterday)
-	createAttendanceForDate(t, ctx, repo, data.Student1.ID, data.Staff1.ID, data.Device1.ID, today)
+	createAttendanceForDate(t, ctx, repo, data.Student1ID, data.Staff1ID, data.Device1ID, threeDaysAgo)
+	createAttendanceForDate(t, ctx, repo, data.Student1ID, data.Staff1ID, data.Device1ID, twoDaysAgo)
+	createAttendanceForDate(t, ctx, repo, data.Student1ID, data.Staff1ID, data.Device1ID, yesterday)
+	createAttendanceForDate(t, ctx, repo, data.Student1ID, data.Staff1ID, data.Device1ID, today)
 
 	// Also create one for Student2 to verify student isolation
-	createAttendanceForDate(t, ctx, repo, data.Student2.ID, data.Staff1.ID, data.Device1.ID, today)
+	createAttendanceForDate(t, ctx, repo, data.Student2ID, data.Staff1ID, data.Device1ID, today)
 
 	t.Run("returns_all_records_in_range", func(t *testing.T) {
-		results, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{data.Student1.ID}, FromDate: threeDaysAgo.String(), UntilDate: today.String(), NewestFirst: true})
+		results, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{data.Student1ID}, FromDate: threeDaysAgo.String(), UntilDate: today.String(), NewestFirst: true})
 		require.NoError(t, err)
 		assert.Len(t, results, 4)
 	})
 
 	t.Run("includes_today_correctly", func(t *testing.T) {
 		// Today's record must be included when the range ends today.
-		results, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{data.Student1.ID}, FromDate: today.String(), UntilDate: today.String(), NewestFirst: true})
+		results, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{data.Student1ID}, FromDate: today.String(), UntilDate: today.String(), NewestFirst: true})
 		require.NoError(t, err)
 		require.Len(t, results, 1)
-		assert.Equal(t, data.Student1.ID, results[0].StudentID)
+		assert.Equal(t, data.Student1ID, results[0].StudentID)
 	})
 
 	t.Run("narrows_range_correctly", func(t *testing.T) {
 		// Only yesterday and twoDaysAgo
-		results, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{data.Student1.ID}, FromDate: twoDaysAgo.String(), UntilDate: yesterday.String(), NewestFirst: true})
+		results, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{data.Student1ID}, FromDate: twoDaysAgo.String(), UntilDate: yesterday.String(), NewestFirst: true})
 		require.NoError(t, err)
 		assert.Len(t, results, 2)
 	})
@@ -78,19 +78,19 @@ func TestPresenceAttendance_DateRange(t *testing.T) {
 	t.Run("returns_empty_for_no_matches", func(t *testing.T) {
 		futureStart := today.AddDays(10)
 		futureEnd := today.AddDays(15)
-		results, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{data.Student1.ID}, FromDate: futureStart.String(), UntilDate: futureEnd.String(), NewestFirst: true})
+		results, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{data.Student1ID}, FromDate: futureStart.String(), UntilDate: futureEnd.String(), NewestFirst: true})
 		require.NoError(t, err)
 		assert.Empty(t, results)
 	})
 
 	t.Run("isolates_by_student_id", func(t *testing.T) {
-		results, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{data.Student2.ID}, FromDate: threeDaysAgo.String(), UntilDate: today.String(), NewestFirst: true})
+		results, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{data.Student2ID}, FromDate: threeDaysAgo.String(), UntilDate: today.String(), NewestFirst: true})
 		require.NoError(t, err)
 		assert.Len(t, results, 1, "should only return Student2's record")
 	})
 
 	t.Run("ordered_by_date_desc", func(t *testing.T) {
-		results, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{data.Student1.ID}, FromDate: threeDaysAgo.String(), UntilDate: today.String(), NewestFirst: true})
+		results, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{data.Student1ID}, FromDate: threeDaysAgo.String(), UntilDate: today.String(), NewestFirst: true})
 		require.NoError(t, err)
 		require.Len(t, results, 4)
 		// First result should be the most recent date

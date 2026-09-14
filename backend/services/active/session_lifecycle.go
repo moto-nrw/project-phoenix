@@ -87,12 +87,3 @@ func IsSupervisorActive(supervisor *active.GroupSupervisor, now time.Time) bool 
 	return !supervisor.StartDate.After(today) &&
 		(supervisor.EndDate == nil || today.Before(*supervisor.EndDate))
 }
-
-// IsCombinedGroupActive decides whether a combined group is still active as of
-// now, using the same open-ended-until-EndTime rule as supervisions.
-func IsCombinedGroupActive(group *active.CombinedGroup, now time.Time) bool {
-	if group.EndTime == nil {
-		return true
-	}
-	return now.Before(*group.EndTime)
-}

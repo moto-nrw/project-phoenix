@@ -59,14 +59,18 @@ var AbsenceTypePriority = map[string]int{
 }
 
 var (
-	ErrStaffAbsenceNotFound      = errors.New("staff absence not found")
-	ErrInvalidStaffAbsence       = errors.New("invalid staff absence input")
-	ErrAbsenceTypeNotFound       = errors.New("staff absence type not found")
-	ErrAbsenceTypeNameTaken      = errors.New("staff absence type name is already taken")
-	ErrAbsenceTypeInvalid        = errors.New("invalid staff absence type")
-	ErrGroupSubstitutionNotFound = errors.New("group substitution not found")
-	ErrGroupSubstitutionExists   = errors.New("group substitution already exists")
-	ErrInvalidGroupSubstitution  = errors.New("invalid group substitution input")
+	ErrStaffAbsenceNotFound         = errors.New("staff absence not found")
+	ErrInvalidStaffAbsence          = errors.New("invalid staff absence input")
+	ErrAbsenceTypeNotFound          = errors.New("staff absence type not found")
+	ErrAbsenceTypeNameTaken         = errors.New("staff absence type name is already taken")
+	ErrAbsenceTypeNameReserved      = errors.New("staff absence type name is a standard type")
+	ErrAbsenceTypeInUse             = errors.New("staff absence type is in use")
+	ErrAbsenceTypeAllowanceInvalid  = errors.New("invalid staff absence type allowance")
+	ErrAbsenceTypeAllowanceExceeded = errors.New("staff absence type allowance exceeded")
+	ErrAbsenceTypeInvalid           = errors.New("invalid staff absence type")
+	ErrGroupSubstitutionNotFound    = errors.New("group substitution not found")
+	ErrGroupSubstitutionExists      = errors.New("group substitution already exists")
+	ErrInvalidGroupSubstitution     = errors.New("invalid group substitution input")
 )
 
 // InvalidStaffAbsenceError carries the caller-facing validation reason.

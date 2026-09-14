@@ -11,8 +11,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
@@ -35,11 +33,9 @@ var (
 // repository for "the newest snapshot at all" without a second query shape.
 const maxSnapshotYear = 2100
 
-// monthCloseStaffLister is implemented by users.StaffRepository. Narrow on
-// purpose: the close service needs the tenant's staff members, not the staff
-// domain service (which would pull in a service-to-service dependency).
-type monthCloseStaffLister interface {
-	ListAllWithPerson(ctx context.Context) ([]*userModels.Staff, error)
+// MonthCloseStaffQuery selects the tenant's staff participating in month close.
+type MonthCloseStaffQuery interface {
+	ListStaffIDs(context.Context) ([]int64, error)
 }
 
 // MonthCloseResult reports what a school-wide close did.
@@ -48,9 +44,9 @@ type MonthCloseResult struct {
 	Month int `json:"month"`
 	// ClosedStaff counts newly written snapshots, SkippedStaff the ones that
 	// were already frozen (a second click is idempotent, not an error).
-	ClosedStaff  int                                       `json:"closed_staff"`
-	SkippedStaff int                                       `json:"skipped_staff"`
-	Snapshots    []*activeModels.StaffMonthBalanceSnapshot `json:"snapshots"`
+	ClosedStaff  int              `json:"closed_staff"`
+	SkippedStaff int              `json:"skipped_staff"`
+	Snapshots    []*MonthSnapshot `json:"snapshots"`
 }
 
 // StaffMonthCloseService owns the Monatsabschluss (#1417): freezing a month's
@@ -72,22 +68,22 @@ type StaffMonthCloseService interface {
 	// concerns one person.
 	ReopenMonth(ctx context.Context, staffID, reopenedBy int64, year, month int, reason string) error
 	// ListMonthStatus returns the active snapshots of one month.
-	ListMonthStatus(ctx context.Context, year, month int) ([]*activeModels.StaffMonthBalanceSnapshot, error)
+	ListMonthStatus(ctx context.Context, year, month int) ([]*MonthSnapshot, error)
 }
 
 type staffMonthCloseService struct {
-	snapshotRepo activeModels.StaffMonthBalanceSnapshotRepository
+	snapshotRepo MonthSnapshots
 	monthService WorkTimeMonthService
-	staffLister  monthCloseStaffLister
+	staffLister  MonthCloseStaffQuery
 	settings     monthSettingsResolver
 	broadcaster  realtime.Broadcaster
 	logger       *slog.Logger
 }
 
 func NewStaffMonthCloseService(
-	snapshotRepo activeModels.StaffMonthBalanceSnapshotRepository,
+	snapshotRepo MonthSnapshots,
 	monthService WorkTimeMonthService,
-	staffLister monthCloseStaffLister,
+	staffLister MonthCloseStaffQuery,
 	settings monthSettingsResolver,
 	logger *slog.Logger,
 ) StaffMonthCloseService {
@@ -171,28 +167,19 @@ func (s *staffMonthCloseService) CloseMonth(ctx context.Context, closedBy int64,
 		return nil, err
 	}
 
-	staffMembers, err := s.staffLister.ListAllWithPerson(ctx)
+	staffIDs, err := s.staffLister.ListStaffIDs(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list staff for month close: %w", err)
 	}
 	// Ascending staff ID: every other holder of the per-staff advisory lock
 	// takes exactly one, so a consistent order here rules out deadlocks
 	// against a concurrent payout or schedule edit.
-	slices.SortFunc(staffMembers, func(a, b *userModels.Staff) int {
-		switch {
-		case a.ID < b.ID:
-			return -1
-		case a.ID > b.ID:
-			return 1
-		default:
-			return 0
-		}
-	})
+	slices.Sort(staffIDs)
 
 	result := &MonthCloseResult{Year: year, Month: month}
 	closedAt := time.Now()
-	for _, staff := range staffMembers {
-		snapshot, alreadyClosed, err := s.closeStaffMonth(ctx, staff.ID, closedBy, key, trimmedReason, closedAt)
+	for _, staffID := range staffIDs {
+		snapshot, alreadyClosed, err := s.closeStaffMonth(ctx, staffID, closedBy, key, trimmedReason, closedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -227,18 +214,18 @@ func (s *staffMonthCloseService) closeStaffMonth(
 	key monthKey,
 	reason string,
 	closedAt time.Time,
-) (*activeModels.StaffMonthBalanceSnapshot, bool, error) {
+) (*MonthSnapshot, bool, error) {
 	if err := s.snapshotRepo.LockStaffBalanceWrites(ctx, staffID); err != nil {
 		return nil, false, fmt.Errorf("failed to lock staff balance writes: %w", err)
 	}
-	existing, err := s.snapshotRepo.GetLatestClosedThrough(ctx, staffID, key.Year, key.Month)
+	existing, err := s.snapshotRepo.LatestClosedMonth(ctx, staffID, key.Year, key.Month)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to check existing month snapshot for staff %d: %w", staffID, err)
 	}
 	if existing != nil && existing.Year == key.Year && existing.Month == key.Month {
 		return nil, true, nil
 	}
-	latest, err := s.snapshotRepo.GetLatestClosedThrough(ctx, staffID, maxSnapshotYear, 12)
+	latest, err := s.snapshotRepo.LatestClosedMonth(ctx, staffID, maxSnapshotYear, 12)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to check later month snapshots for staff %d: %w", staffID, err)
 	}
@@ -252,7 +239,7 @@ func (s *staffMonthCloseService) closeStaffMonth(
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to compute month summary for staff %d: %w", staffID, err)
 	}
-	snapshot := &activeModels.StaffMonthBalanceSnapshot{
+	snapshot := &MonthSnapshot{
 		StaffID:               staffID,
 		Year:                  key.Year,
 		Month:                 key.Month,
@@ -267,9 +254,10 @@ func (s *staffMonthCloseService) closeStaffMonth(
 		ClosedAt:          closedAt,
 		ClosedBy:          closedBy,
 		CloseReason:       reason,
-		Source:            activeModels.SnapshotSourceAdmin,
+		Source:            SnapshotSourceAdmin,
 	}
-	if err := s.snapshotRepo.Create(ctx, snapshot); err != nil {
+	created, err := s.snapshotRepo.RecordClosedMonth(ctx, *snapshot)
+	if err != nil {
 		return nil, false, fmt.Errorf("failed to create month snapshot for staff %d: %w", staffID, err)
 	}
 	s.getLogger().Debug("month balance snapshot written",
@@ -278,7 +266,7 @@ func (s *staffMonthCloseService) closeStaffMonth(
 		"month", key.Month,
 		"closing_balance_minutes", snapshot.ClosingBalanceMinutes,
 	)
-	return snapshot, false, nil
+	return &created, false, nil
 }
 
 func (s *staffMonthCloseService) ReopenMonth(ctx context.Context, staffID, reopenedBy int64, year, month int, reason string) error {
@@ -296,7 +284,7 @@ func (s *staffMonthCloseService) ReopenMonth(ctx context.Context, staffID, reope
 		return fmt.Errorf("failed to lock staff balance writes: %w", err)
 	}
 
-	snapshot, err := s.snapshotRepo.GetLatestClosedThrough(ctx, staffID, year, month)
+	snapshot, err := s.snapshotRepo.LatestClosedMonth(ctx, staffID, year, month)
 	if err != nil {
 		return fmt.Errorf("failed to load month snapshot: %w", err)
 	}
@@ -308,7 +296,7 @@ func (s *staffMonthCloseService) ReopenMonth(ctx context.Context, staffID, reope
 	// stays frozen would change that later month's drift while everything
 	// after it remains pinned to a value derived from the old history — a
 	// state no admin can reason about.
-	latest, err := s.snapshotRepo.GetLatestClosedThrough(ctx, staffID, maxSnapshotYear, 12)
+	latest, err := s.snapshotRepo.LatestClosedMonth(ctx, staffID, maxSnapshotYear, 12)
 	if err != nil {
 		return fmt.Errorf("failed to check later month snapshots: %w", err)
 	}
@@ -323,7 +311,7 @@ func (s *staffMonthCloseService) ReopenMonth(ctx context.Context, staffID, reope
 	snapshot.ReopenedAt = &now
 	snapshot.ReopenedBy = &reopenedBy
 	snapshot.ReopenReason = trimmedReason
-	if _, err := s.snapshotRepo.UpdateColumns(ctx, snapshot, "reopened_at", "reopened_by", "reopen_reason"); err != nil {
+	if _, err := s.snapshotRepo.ReopenMonthSnapshot(ctx, snapshot.ID, reopenedBy, now, trimmedReason); err != nil {
 		return fmt.Errorf("failed to reopen month snapshot: %w", err)
 	}
 
@@ -338,9 +326,9 @@ func (s *staffMonthCloseService) ReopenMonth(ctx context.Context, staffID, reope
 	return nil
 }
 
-func (s *staffMonthCloseService) ListMonthStatus(ctx context.Context, year, month int) ([]*activeModels.StaffMonthBalanceSnapshot, error) {
+func (s *staffMonthCloseService) ListMonthStatus(ctx context.Context, year, month int) ([]*MonthSnapshot, error) {
 	if err := validateMonth(year, month); err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrMonthCloseInvalid, err.Error())
 	}
-	return s.snapshotRepo.GetByMonth(ctx, year, month)
+	return s.snapshotRepo.ClosedMonthSnapshots(ctx, year, month)
 }

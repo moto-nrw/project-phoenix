@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
 	"github.com/stretchr/testify/assert"
@@ -114,29 +116,25 @@ func checkinEventsOnTopic(b *testpkg.RecordingBroadcaster, topic string) []realt
 // newDailyCheckoutService is setupServiceWithBroadcaster plus the PersonService
 // the daily-checkout entry point needs: ConfirmDailyCheckout reads the
 // attendance status first, and resolving its staff names goes through
-// UsersService.
+// staff-name query.
 func newDailyCheckoutService(t *testing.T, db *bun.DB) (active.Service, *testpkg.RecordingBroadcaster) {
 	t.Helper()
 
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
-	svc := active.NewService(active.ServiceDependencies{
+	svc := active.NewService(active.ServiceDependencies{PrincipalReader: services.AttendancePrincipal,
 		GroupRepo:          repos.ActiveGroup,
 		SupervisorRepo:     repos.GroupSupervisor,
-		CombinedGroupRepo:  repos.CombinedGroup,
-		GroupMappingRepo:   repos.GroupMapping,
 		SchoolPresence:     testSchoolPresence(t, db),
 		StudentRepo:        repos.Student,
-		PersonRepo:         repos.Person,
-		TeacherRepo:        repos.Teacher,
-		StaffRepo:          repos.Staff,
-		RoomRepo:           repos.Room,
-		ActivityGroupRepo:  repos.ActivityGroup,
-		ActivityCatRepo:    repos.ActivityCategory,
-		EducationGroupRepo: repos.Group,
-		DeviceRepo:         repos.Device,
-		UsersService: usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
+		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
+		RoomRepo:           services.NewAttendanceRooms(repos.Room),
+		ActivityGroupRepo:  repositories.NewSessionActivities(repos.ActivityGroup),
+		ActivityCatRepo:    services.NewAttendanceActivityCategories(repos.ActivityCategory),
+		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student),
+		DeviceRepo:         services.NewSessionDeviceDirectory(repos.Device, nil, nil),
+		StaffNames: services.NewAttendanceStaffNames(repos.Staff, usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
 			PersonRepo:  repos.Person,
 			RFIDRepo:    repos.RFIDCard,
 			AccountRepo: repos.Account,
@@ -144,7 +142,7 @@ func newDailyCheckoutService(t *testing.T, db *bun.DB) (active.Service, *testpkg
 			StaffRepo:   repos.Staff,
 			TeacherRepo: repos.Teacher,
 			DB:          db,
-		}),
+		})),
 		DB:          db,
 		Broadcaster: broadcaster,
 		Logger:      slog.Default(),
@@ -352,7 +350,7 @@ func TestCheckout_DailyCheckoutBroadcastsExactlyOnce(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	// Own service instance rather than setupServiceWithBroadcaster: the daily
 	// checkout reads the attendance status first, which resolves staff names
-	// through UsersService — the shared helper leaves that dependency nil.
+	// through the staff-name query; the shared helper leaves that dependency nil.
 	svc, broadcaster := newDailyCheckoutService(t, db)
 
 	// No visit: by the time the kiosk asks "nach Hause oder unterwegs?", the
