@@ -47,6 +47,8 @@ import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
+import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
+import { EditActions } from "~/components/ui/edit-actions";
 import { EmptyState } from "~/components/ui/empty-state";
 import { useFormError } from "~/components/ui/form-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
@@ -230,7 +232,9 @@ export function AbwesenheitenTab({
   const [questionModal, setQuestionModal] = useState<StaffAbsenceRow | null>(
     null,
   );
-  const [quotaModal, setQuotaModal] = useState(false);
+  // Der Urlaubsanspruch wird am Objekt bearbeitet (BAUARTEN-SPEC Bauart 2
+  // Regel 3, #3119): die Kennzahl-Kacheln weichen dem Bearbeiten-Zustand.
+  const [quotaEditing, setQuotaEditing] = useState(false);
   const [openingModal, setOpeningModal] = useState(false);
   // Vacation takeover deletion (#2132) runs through the shared
   // ConfirmDeleteModal at tab level instead of nesting a dialog inside the
@@ -443,40 +447,61 @@ export function AbwesenheitenTab({
         }
         bodyClassName="mt-4 space-y-4"
       >
-        {/* Quota KPI cards */}
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <QuotaTile
-            label="Resturlaub"
-            value={`${quota?.remaining_days ?? 0}`}
-            hint="Tage"
-            tone="primary"
+        {quotaEditing && quota ? (
+          <QuotaEditForm
+            staffId={staffId}
+            quota={quota}
+            year={year}
+            onCancel={() => setQuotaEditing(false)}
+            onSaved={async () => {
+              setQuotaEditing(false);
+              await reload();
+            }}
           />
-          <QuotaTile
-            label="Anspruch"
-            value={`${(quota?.entitled_days ?? 0) + (quota?.carryover_days ?? 0)}`}
-            hint={
-              (quota?.carryover_days ?? 0) > 0
-                ? `${quota?.entitled_days ?? 0} + ${quota?.carryover_days ?? 0} Übertrag`
-                : "Tage"
-            }
-            tone="primary"
-            onEdit={canEditQuota ? () => setQuotaModal(true) : undefined}
-          />
-          <QuotaTile
-            label="Genommen"
-            value={`${quota?.taken_days ?? 0}`}
-            hint="genehmigt"
-            tone="success"
-          />
-          <QuotaTile
-            label="Beantragt"
-            value={`${quota?.reserved_days ?? 0}`}
-            hint="offene Anträge"
-            tone={(quota?.reserved_days ?? 0) > 0 ? "amber" : "primary"}
-          />
-        </div>
+        ) : (
+          <>
+            {/* Quota KPI cards */}
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <QuotaTile
+                label="Resturlaub"
+                value={`${quota?.remaining_days ?? 0}`}
+                hint="Tage"
+                tone="primary"
+              />
+              <QuotaTile
+                label="Anspruch"
+                value={`${(quota?.entitled_days ?? 0) + (quota?.carryover_days ?? 0)}`}
+                hint={
+                  (quota?.carryover_days ?? 0) > 0
+                    ? `${quota?.entitled_days ?? 0} + ${quota?.carryover_days ?? 0} Übertrag`
+                    : "Tage"
+                }
+                tone="primary"
+                onEdit={
+                  canEditQuota && quota
+                    ? () => setQuotaEditing(true)
+                    : undefined
+                }
+              />
+              <QuotaTile
+                label="Genommen"
+                value={`${quota?.taken_days ?? 0}`}
+                hint="genehmigt"
+                tone="success"
+              />
+              <QuotaTile
+                label="Beantragt"
+                value={`${quota?.reserved_days ?? 0}`}
+                hint="offene Anträge"
+                tone={(quota?.reserved_days ?? 0) > 0 ? "amber" : "primary"}
+              />
+            </div>
 
-        {quota?.opening && <VacationOpeningSummary opening={quota.opening} />}
+            {quota?.opening && (
+              <VacationOpeningSummary opening={quota.opening} />
+            )}
+          </>
+        )}
       </SectionCard>
 
       {customAllowances.length > 0 ? (
@@ -699,18 +724,6 @@ export function AbwesenheitenTab({
           }}
         />
       )}
-      {quotaModal && quota && (
-        <EditQuotaModal
-          staffId={staffId}
-          quota={quota}
-          year={year}
-          onClose={() => setQuotaModal(false)}
-          onSaved={async () => {
-            setQuotaModal(false);
-            await reload();
-          }}
-        />
-      )}
       {allowanceModal ? (
         <EditCustomAllowanceModal
           staffId={staffId}
@@ -815,7 +828,7 @@ function PendingAbsences({
   if (rows.length === 0) {
     return (
       <div className="moto-content-surface flex items-center gap-3 rounded-2xl border px-5 py-4 shadow-sm">
-        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#83CD2D]/15 text-[#4a7a15]">
+        <span className="bg-moto-green/15 text-moto-green-strong inline-flex h-7 w-7 items-center justify-center rounded-full">
           <Check className="h-4 w-4" aria-hidden />
         </span>
         <div>
@@ -1106,34 +1119,26 @@ function VacationOpeningModal({
             läuft über Löschen und neues Anlegen, damit die Historie
             nachvollziehbar bleibt.
           </p>
-          <dl className="space-y-2 rounded-xl bg-gray-50 px-3 py-2 text-sm text-gray-700">
-            <div className="flex justify-between gap-3">
-              <dt className="text-gray-500">Stichtag</dt>
-              <dd className="font-medium">
-                {formatDate(existing.effective_date)}
-              </dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-gray-500">Resturlaub zum Stichtag</dt>
-              <dd className="font-medium tabular-nums">
+          <DataGrid>
+            <DataField label="Stichtag">
+              {formatDate(existing.effective_date)}
+            </DataField>
+            <DataField label="Resturlaub zum Stichtag">
+              <span className="tabular-nums">
                 {formatDayCount(existing.entered_remaining_days)}
-              </dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-gray-500">Vor Einführung genommen</dt>
-              <dd className="font-medium tabular-nums">
+              </span>
+            </DataField>
+            <DataField label="Vor Einführung genommen">
+              <span className="tabular-nums">
                 {formatDayCount(existing.taken_before_days)}
-              </dd>
-            </div>
-          </dl>
-          {existing.note && (
-            <div>
-              <p className="mb-1 text-xs font-semibold tracking-wider text-gray-500 uppercase">
-                Begründung
-              </p>
-              <p className="text-sm text-gray-700">{existing.note}</p>
-            </div>
-          )}
+              </span>
+            </DataField>
+            {existing.note && (
+              <DataField label="Begründung" fullWidth>
+                {existing.note}
+              </DataField>
+            )}
+          </DataGrid>
         </div>
       </Modal>
     );
@@ -1233,10 +1238,10 @@ function VacationOpeningModal({
               </span>
             </p>
           )}
-          {/* Brand orange (LOCATION_COLORS.SCHOOLYARD) statt einer generischen
-              Tailwind-Warnfarbe. */}
+          {/* Brand-Orange als lesbare Textstufe (moto-orange-strong) statt
+              einer generischen Tailwind-Warnfarbe. */}
           {computedTakenBefore !== null && computedTakenBefore < 0 && (
-            <p className="text-xs text-[#F78C10]">
+            <p className="text-moto-orange-strong text-xs">
               Der eingegebene Resturlaub liegt über dem Jahresanspruch. moto
               schreibt die Differenz zusätzlich gut.
             </p>
@@ -1262,122 +1267,123 @@ function VacationOpeningModal({
   );
 }
 
-function EditQuotaModal({
+const QUOTA_RANGE_ERROR = "Bitte eine Zahl zwischen 0 und 366 eingeben.";
+
+function quotaFieldError(raw: string): string | undefined {
+  const value = Number.parseFloat(raw);
+  return Number.isNaN(value) || value < 0 || value > 366
+    ? QUOTA_RANGE_ERROR
+    : undefined;
+}
+
+/**
+ * Der Bearbeiten-Zustand des Urlaubsanspruchs (BAUARTEN-SPEC Bauart 2 Regeln
+ * 3 bis 5, #3119): an Ort und Stelle der Kennzahl-Kacheln, zwei Felder, ein
+ * `EditActions` unten. Fehler stehen im Alert oben und am Feld; der
+ * Erfolgs-Toast bleibt. Nur eingehängt, solange bearbeitet wird, deshalb
+ * liest der Entwurf seinen Ausgangsstand beim Einhängen aus `quota`.
+ */
+function QuotaEditForm({
   staffId,
   quota,
   year,
-  onClose,
+  onCancel,
   onSaved,
 }: {
   readonly staffId: string;
   readonly quota: StaffVacationQuotaSummary;
   readonly year: number;
-  readonly onClose: () => void;
+  readonly onCancel: () => void;
   readonly onSaved: () => void | Promise<void>;
 }) {
   const [entitled, setEntitled] = useState(String(quota.entitled_days));
   const [carryover, setCarryover] = useState(String(quota.carryover_days));
-  const [submitting, setSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<{
+    entitled?: string;
+    carryover?: string;
+  }>({});
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useFormError();
   const toast = useToast();
 
-  const handleSubmit = async () => {
+  const handleSave = async () => {
     setError(null);
-    const e = Number.parseFloat(entitled);
-    const c = Number.parseFloat(carryover);
-    if (Number.isNaN(e) || e < 0 || e > 366) {
-      setError("Anspruch ungültig (0-366).");
+    const nextFieldErrors = {
+      entitled: quotaFieldError(entitled),
+      carryover: quotaFieldError(carryover),
+    };
+    setFieldErrors(nextFieldErrors);
+    if (nextFieldErrors.entitled || nextFieldErrors.carryover) {
+      setError("Bitte prüfen Sie die markierten Felder.");
       return;
     }
-    if (Number.isNaN(c) || c < 0 || c > 366) {
-      setError("Übertrag ungültig (0-366).");
-      return;
-    }
-    setSubmitting(true);
+    setSaving(true);
     try {
       await staffAbsenceService.setVacationQuota(staffId, {
         year,
-        entitled_days: e,
-        carryover_days: c,
+        entitled_days: Number.parseFloat(entitled),
+        carryover_days: Number.parseFloat(carryover),
       });
       toast.success("Urlaubsanspruch gespeichert.");
       await onSaved();
     } catch (err) {
+      logger.error("quota_save_failed", {
+        staff_id: staffId,
+        error: err instanceof Error ? err.message : String(err),
+      });
       setError(
-        err instanceof Error ? err.message : "Speichern fehlgeschlagen.",
+        err instanceof Error && err.message
+          ? err.message
+          : "Der Urlaubsanspruch konnte nicht gespeichert werden.",
       );
     } finally {
-      setSubmitting(false);
+      setSaving(false);
     }
   };
 
   return (
-    <Modal
-      isOpen
-      onClose={() => !submitting && onClose()}
-      title={`Urlaubsanspruch ${year} bearbeiten`}
-      footer={
-        <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            onClick={onClose}
-            disabled={submitting}
-          >
-            Abbrechen
-          </Button>
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={handleSubmit}
-            disabled={submitting}
-          >
-            {submitting ? "…" : "Speichern"}
-          </Button>
-        </div>
-      }
+    <form
+      className="space-y-4"
+      noValidate
+      aria-label={`Urlaubsanspruch ${year}`}
+      onSubmit={(event) => {
+        event.preventDefault();
+        void handleSave();
+      }}
     >
-      <div className="space-y-4">
-        <FormErrorAlert message={error} />
-        <div>
-          <label
-            htmlFor="quota-entitled"
-            className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
-          >
-            Jahresanspruch (Tage)
-          </label>
-          <Input
-            id="quota-entitled"
-            type="number"
-            min="0"
-            max="366"
-            step="0.5"
-            controlSize="compact"
-            value={entitled}
-            onChange={(e) => setEntitled(e.target.value)}
-          />
-        </div>
-        <div>
-          <label
-            htmlFor="quota-carryover"
-            className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
-          >
-            Übertrag aus Vorjahr (Tage)
-          </label>
-          <Input
-            id="quota-carryover"
-            type="number"
-            min="0"
-            max="366"
-            step="0.5"
-            controlSize="compact"
-            value={carryover}
-            onChange={(e) => setCarryover(e.target.value)}
-          />
-        </div>
+      <FormErrorAlert message={error} />
+      <h4 className="text-sm font-semibold text-gray-900">
+        Urlaubsanspruch {year}
+      </h4>
+      <div className="grid gap-3 md:grid-cols-2">
+        <Input
+          id="quota-entitled"
+          label="Jahresanspruch (Tage)"
+          type="number"
+          min="0"
+          max="366"
+          step="0.5"
+          controlSize="compact"
+          value={entitled}
+          onChange={(e) => setEntitled(e.target.value)}
+          error={fieldErrors.entitled}
+          disabled={saving}
+        />
+        <Input
+          id="quota-carryover"
+          label="Übertrag aus Vorjahr (Tage)"
+          type="number"
+          min="0"
+          max="366"
+          step="0.5"
+          controlSize="compact"
+          value={carryover}
+          onChange={(e) => setCarryover(e.target.value)}
+          error={fieldErrors.carryover}
+          disabled={saving}
+        />
       </div>
-    </Modal>
+      <EditActions onCancel={onCancel} saving={saving} />
+    </form>
   );
 }

@@ -4,24 +4,20 @@ import { useEffect, useMemo, useState } from "react";
 import { useSWRConfig } from "swr";
 
 import { Button } from "~/components/ui/button";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { EditActions } from "~/components/ui/edit-actions";
 import { useFormError } from "~/components/ui/form-error";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
-import {
-  SlideOver,
-  SlideOverBody,
-  SlideOverCloseButton,
-  SlideOverContent,
-  SlideOverFooter,
-  SlideOverHeader,
-  SlideOverTitle,
-} from "~/components/ui/slide-over";
 import {
   CardGridSkeleton,
   SkeletonRegion,
 } from "~/components/ui/page-skeletons";
+import { Radio } from "~/components/ui/radio";
 import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { staffScheduleService, workTimeModelService } from "~/lib/staff-api";
@@ -124,8 +120,10 @@ type EditableScheduleEntry = {
 // which can either come from a tenant-level template (mode=template) or
 // from per-staff custom entries (mode=custom). Both paths support 1-4 week
 // rotations. The read view summarises the active model and previews the
-// next four calendar weeks; the editor lets admins switch between template
-// assignment and a custom pattern.
+// next four calendar weeks. Bearbeitet wird am Objekt (BAUARTEN-SPEC Bauart 2
+// Regeln 3 und 4, #3119): „Bearbeiten“ schaltet den Reiter in den
+// Bearbeiten-Zustand, der die Anzeige durch den Editor (Vorlage oder eigenes
+// Modell) ersetzt und mit EINEM „Speichern“ unten schließt.
 export function ArbeitszeitmodellTab({
   staffId,
   canEdit,
@@ -133,7 +131,7 @@ export function ArbeitszeitmodellTab({
   readonly staffId: string;
   readonly canEdit: boolean;
 }) {
-  const [editorOpen, setEditorOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   const {
     data: schedule,
@@ -176,7 +174,26 @@ export function ArbeitszeitmodellTab({
   const handleScheduleSaved = () => {
     mutateSchedule();
     void mutate(isStaleAfterModelSave);
+    setEditing(false);
   };
+
+  if (editing) {
+    // Der Editor ist nur im Bearbeiten-Zustand eingehängt und liest seinen
+    // Ausgangsstand beim Einhängen aus `schedule`; Abbrechen hängt ihn aus,
+    // also braucht es keinen Reset-Effekt wie im früheren Slide-over.
+    return (
+      <div className="space-y-5">
+        <SectionCard title="Arbeitszeitmodell" headingLevel={3}>
+          <ArbeitszeitmodellEditor
+            staffId={staffId}
+            schedule={schedule}
+            onCancel={() => setEditing(false)}
+            onSaved={handleScheduleSaved}
+          />
+        </SectionCard>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -195,9 +212,8 @@ export function ArbeitszeitmodellTab({
             <Button
               type="button"
               variant="outline"
-              size="compact"
-              className="bg-white"
-              onClick={() => setEditorOpen(true)}
+              size="md"
+              onClick={() => setEditing(true)}
             >
               Bearbeiten
             </Button>
@@ -226,7 +242,7 @@ export function ArbeitszeitmodellTab({
                   const minutes = entry?.targetMinutes ?? 0;
                   return (
                     <div key={d} className="space-y-0.5">
-                      <div className="text-[10px] tracking-wider text-gray-400 uppercase">
+                      <div className="text-xs tracking-wider text-gray-400 uppercase">
                         {dayLabels[d]}
                       </div>
                       <div
@@ -239,7 +255,7 @@ export function ArbeitszeitmodellTab({
                         {minutes > 0 ? formatDuration(minutes) : "-"}
                       </div>
                       {minutes > 0 && entry?.startTime && (
-                        <div className="text-[10px] text-gray-400 tabular-nums">
+                        <div className="text-xs text-gray-400 tabular-nums">
                           ab {entry.startTime}
                         </div>
                       )}
@@ -253,14 +269,6 @@ export function ArbeitszeitmodellTab({
       </SectionCard>
 
       <FourWeekPreview schedule={schedule} today={today} />
-
-      <EditArbeitszeitmodellModal
-        isOpen={editorOpen}
-        onClose={() => setEditorOpen(false)}
-        staffId={staffId}
-        schedule={schedule}
-        onSaved={handleScheduleSaved}
-      />
     </div>
   );
 }
@@ -313,7 +321,7 @@ function FourWeekPreview({
               key={toDateKey(week.monday)}
               className={`flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 shadow-sm ${
                 week.isCurrent
-                  ? "border-[#F78C10]/40 bg-[#FFF4E6]"
+                  ? "border-moto-orange/40 bg-moto-orange-soft"
                   : "moto-content-surface"
               }`}
             >
@@ -321,9 +329,7 @@ function FourWeekPreview({
                 {week.label}
               </span>
               {schedule.rotationLength > 1 && (
-                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-bold tracking-wider text-gray-600 uppercase">
-                  Woche {badge}
-                </span>
+                <StatusBadge tone="gray" label={`Woche ${badge}`} />
               )}
               <div className="flex flex-1 flex-wrap items-center gap-3 text-xs text-gray-600">
                 {week.days.map((d) => (
@@ -349,17 +355,20 @@ function FourWeekPreview({
   );
 }
 
-function EditArbeitszeitmodellModal({
-  isOpen,
-  onClose,
+/**
+ * Der Bearbeiten-Zustand des Reiters: Modus (Vorlage oder eigenes Modell),
+ * darunter die Vorlagenwahl bzw. der Wocheneditor, unten `EditActions`.
+ * Fehler stehen im Alert oben (Regel 5); Feldfehler am Dezimalstunden-Feld.
+ */
+function ArbeitszeitmodellEditor({
   staffId,
   schedule,
+  onCancel,
   onSaved,
 }: {
-  readonly isOpen: boolean;
-  readonly onClose: () => void;
   readonly staffId: string;
   readonly schedule: StaffSchedule;
+  readonly onCancel: () => void;
   readonly onSaved: () => void;
 }) {
   const toast = useToast();
@@ -373,7 +382,7 @@ function EditArbeitszeitmodellModal({
     schedule.rotationLength,
   );
   const [customEntries, setCustomEntries] = useState<EditableScheduleEntry[]>(
-    initialiseCustomEntries(schedule),
+    () => initialiseCustomEntries(schedule),
   );
   const [decimalHourInputs, setDecimalHourInputs] = useState<
     Record<string, string>
@@ -385,25 +394,9 @@ function EditArbeitszeitmodellModal({
   const [saveAsTemplateName, setSaveAsTemplateName] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const { data: templates } = useSWRAuth(
-    isOpen ? "work-time-models" : null,
-    () => workTimeModelService.list(),
+  const { data: templates } = useSWRAuth("work-time-models", () =>
+    workTimeModelService.list(),
   );
-
-  // Reset local state every time the modal opens so it always reflects the
-  // server's current truth, not whatever the previous edit session left
-  // behind.
-  useEffect(() => {
-    if (!isOpen) return;
-    setMode(schedule.mode);
-    setSelectedModelId(schedule.model?.id ?? "");
-    setRotationLength(schedule.rotationLength);
-    setCustomEntries(initialiseCustomEntries(schedule));
-    setDecimalHourInputs(initialiseDecimalHourInputs(schedule));
-    setInvalidDecimalHourInputs(new Set());
-    setActiveWeekTab(0);
-    setSaveAsTemplateName("");
-  }, [isOpen, schedule]);
 
   // Reshape custom entries when the rotation_length toggle changes so the
   // edit grid is always exactly rotation × WORK_DAYS slots.
@@ -512,13 +505,14 @@ function EditArbeitszeitmodellModal({
       await staffScheduleService.updateSchedule(staffId, payload);
       toast.success("Arbeitszeitmodell gespeichert");
       onSaved();
-      onClose();
     } catch (error) {
       logger.error("schedule_save_failed", {
         error: error instanceof Error ? error.message : String(error),
         staff_id: staffId,
       });
-      setSaveError("Fehler beim Speichern");
+      setSaveError(
+        "Das Arbeitszeitmodell konnte nicht gespeichert werden. Bitte versuchen Sie es noch einmal.",
+      );
     } finally {
       setSaving(false);
     }
@@ -588,134 +582,109 @@ function EditArbeitszeitmodellModal({
     0,
   );
 
-  const footer = (
-    <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
-      <Button
-        type="button"
-        variant="outline"
-        size="md"
-        onClick={onClose}
-        disabled={saving}
-      >
-        Abbrechen
-      </Button>
-      <Button
-        type="button"
-        variant="primary"
-        size="md"
-        onClick={() => {
-          handleSave();
-        }}
-        disabled={saving}
-      >
-        {saving ? "Speichern..." : "Speichern"}
-      </Button>
-    </div>
-  );
-
   return (
-    <SlideOver
-      open={isOpen}
-      onOpenChange={(next) => {
-        if (!next) onClose();
-      }}
-    >
-      <SlideOverContent widthClass="sm:w-[760px]">
-        <SlideOverHeader className="flex-row items-start justify-between gap-3">
-          <div className="min-w-0">
-            <SlideOverTitle>Arbeitszeitmodell bearbeiten</SlideOverTitle>
-          </div>
-          <SlideOverCloseButton />
-        </SlideOverHeader>
-        <SlideOverBody error={saveError} className="space-y-5">
-          <ModeRadioGroup mode={mode} onChange={setMode} />
+    <div className="space-y-5">
+      <FormErrorAlert message={saveError} />
 
-          {mode === "template" ? (
-            <TemplateSelector
-              templates={templates ?? []}
-              selectedId={selectedModelId}
-              onSelect={setSelectedModelId}
-            />
-          ) : (
-            <CustomEditor
-              rotationLength={rotationLength}
-              onRotationChange={setRotationLength}
-              activeWeekTab={activeWeekTab}
-              onActiveWeekTabChange={setActiveWeekTab}
-              entries={customEntries}
-              decimalHourInputs={decimalHourInputs}
-              invalidDecimalHourInputs={invalidDecimalHourInputs}
-              onDecimalHoursChange={updateDecimalHours}
-              onStartTimeChange={updateEntryStartTime}
-              totalForWeek={totalForWeek}
-              rotationTotal={rotationTotal}
-              saveAsTemplateName={saveAsTemplateName}
-              onSaveAsTemplateNameChange={setSaveAsTemplateName}
-            />
-          )}
-        </SlideOverBody>
-        <SlideOverFooter className="flex-row justify-end gap-2">
-          {footer}
-        </SlideOverFooter>
-      </SlideOverContent>
-    </SlideOver>
+      <ModeChoice mode={mode} onChange={setMode} disabled={saving} />
+
+      {mode === "template" ? (
+        <TemplateSelector
+          templates={templates ?? []}
+          selectedId={selectedModelId}
+          onSelect={setSelectedModelId}
+        />
+      ) : (
+        <CustomEditor
+          rotationLength={rotationLength}
+          onRotationChange={setRotationLength}
+          activeWeekTab={activeWeekTab}
+          onActiveWeekTabChange={setActiveWeekTab}
+          entries={customEntries}
+          decimalHourInputs={decimalHourInputs}
+          invalidDecimalHourInputs={invalidDecimalHourInputs}
+          onDecimalHoursChange={updateDecimalHours}
+          onStartTimeChange={updateEntryStartTime}
+          totalForWeek={totalForWeek}
+          rotationTotal={rotationTotal}
+          saveAsTemplateName={saveAsTemplateName}
+          onSaveAsTemplateNameChange={setSaveAsTemplateName}
+        />
+      )}
+
+      <EditActions
+        onCancel={onCancel}
+        onSave={() => void handleSave()}
+        saving={saving}
+      />
+    </div>
   );
 }
 
-function ModeRadioGroup({
+const MODE_OPTIONS: ReadonlyArray<{
+  readonly value: "template" | "custom";
+  readonly label: string;
+  readonly description: string;
+}> = [
+  {
+    value: "template",
+    label: "Vorlage zuweisen",
+    description:
+      "Eine Vorlage der Schule auswählen. Änderungen an der Vorlage gelten später für alle Personen mit dieser Vorlage.",
+  },
+  {
+    value: "custom",
+    label: "Eigenes Modell",
+    description:
+      "Eigene Soll-Stunden nur für diese Person. Optional als neue Vorlage speichern.",
+  },
+];
+
+// Zwei Kacheln nebeneinander: der Reiter hat die volle Seitenbreite, anders
+// als das frühere Slide-over.
+function ModeChoice({
   mode,
   onChange,
+  disabled,
 }: {
   readonly mode: "template" | "custom";
   readonly onChange: (next: "template" | "custom") => void;
+  readonly disabled: boolean;
 }) {
   return (
-    <div className="space-y-2">
-      <label
-        htmlFor="mode-template"
-        className={`flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-2 ${
-          mode === "template" ? "border-gray-900 bg-gray-50" : "border-gray-200"
-        }`}
-      >
-        <input
-          id="mode-template"
-          type="radio"
-          checked={mode === "template"}
-          onChange={() => onChange("template")}
-          aria-label="Vorlage zuweisen"
-          className="mt-1 accent-gray-900"
-        />
-        <div>
-          <p className="text-sm font-medium text-gray-800">Vorlage zuweisen</p>
-          <p className="mt-1 text-xs text-gray-500">
-            Schulweite Vorlage aus der Liste auswählen. Änderungen an der
-            Vorlage wirken zukünftig auf alle Mitarbeitenden mit dieser
-            Zuordnung.
-          </p>
-        </div>
-      </label>
-      <label
-        htmlFor="mode-custom"
-        className={`flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-2 ${
-          mode === "custom" ? "border-gray-900 bg-gray-50" : "border-gray-200"
-        }`}
-      >
-        <input
-          id="mode-custom"
-          type="radio"
-          checked={mode === "custom"}
-          onChange={() => onChange("custom")}
-          aria-label="Eigenes Modell"
-          className="mt-1 accent-gray-900"
-        />
-        <div>
-          <p className="text-sm font-medium text-gray-800">Eigenes Modell</p>
-          <p className="mt-1 text-xs text-gray-500">
-            Individuelles Arbeitszeitmodell für diesen Mitarbeiter, optional als
-            neue Vorlage speichern.
-          </p>
-        </div>
-      </label>
+    <div
+      role="radiogroup"
+      aria-label="Art des Arbeitszeitmodells"
+      className="grid gap-3 md:grid-cols-2"
+    >
+      {MODE_OPTIONS.map((option) => {
+        const id = `arbeitszeitmodell-mode-${option.value}`;
+        return (
+          <ChoiceTile
+            key={option.value}
+            htmlFor={id}
+            selected={mode === option.value}
+            disabled={disabled}
+            className="items-start p-3"
+          >
+            <Radio
+              id={id}
+              name="arbeitszeitmodell-mode"
+              value={option.value}
+              checked={mode === option.value}
+              disabled={disabled}
+              onChange={() => onChange(option.value)}
+              className="mt-0.5"
+            />
+            <span className="min-w-0">
+              <span className="block text-sm font-medium">{option.label}</span>
+              <span className="mt-1 block text-xs font-normal text-gray-500">
+                {option.description}
+              </span>
+            </span>
+          </ChoiceTile>
+        );
+      })}
     </div>
   );
 }
@@ -732,8 +701,8 @@ function TemplateSelector({
   if (templates.length === 0) {
     return (
       <p className="rounded-xl bg-gray-50 px-3 py-2 text-xs text-gray-500">
-        Es sind noch keine Vorlagen angelegt. Wechsle zu &quot;Eigenes
-        Modell&quot; und speichere das Pattern als Vorlage.
+        Es gibt noch keine Vorlagen. Wählen Sie „Eigenes Modell“ und speichern
+        Sie das Modell dort als Vorlage.
       </p>
     );
   }
@@ -998,22 +967,17 @@ function CustomEditor({
       </div>
 
       <div className="border-t border-gray-100 pt-4">
-        <label
-          htmlFor="arbeitszeitmodell-save-as-input"
-          className="mb-2 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
-        >
-          Optional als Vorlage speichern
-        </label>
-        <input
+        <Input
           id="arbeitszeitmodell-save-as-input"
+          label="Optional als Vorlage speichern"
           type="text"
+          controlSize="compact"
           value={saveAsTemplateName}
           onChange={(e) => onSaveAsTemplateNameChange(e.target.value)}
-          placeholder="z.B. Teilzeit 30h A/B"
-          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
+          placeholder="z. B. Teilzeit 30h A/B"
         />
-        <p className="mt-1 text-[11px] text-gray-400">
-          Leer lassen, um nur das Modell dieses Mitarbeiters zu ändern.
+        <p className="mt-1 text-xs text-gray-500">
+          Leer lassen, um nur das Modell dieser Person zu ändern.
         </p>
       </div>
     </div>
