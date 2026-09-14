@@ -67,14 +67,14 @@ export interface WeeklyRow {
   readonly pickupNotes: string;
 }
 
-export type WeeklyRowField =
+type WeeklyRowField =
   "arrivalTime" | "pickupTime" | "arrivalNotes" | "pickupNotes";
 
 const TIME_PATTERN = /^([01]?\d|2[0-3]):[0-5]\d$/;
 
 // --- pure helpers -----------------------------------------------------------
 
-export function buildWeeklyRows(
+function buildWeeklyRows(
   arrival: readonly ArrivalScheduleFormEntry[],
   pickup: readonly PickupScheduleFormData[],
 ): WeeklyRow[] {
@@ -124,7 +124,7 @@ export function validateWeeklyRows(rows: readonly WeeklyRow[]): string | null {
  * this is what the warning and the confirmation are built from, so a mistyped
  * Friday cannot vanish silently.
  */
-export function collectWeeklyRemovals(
+function collectWeeklyRemovals(
   rows: readonly WeeklyRow[],
   arrival: readonly ArrivalScheduleFormEntry[],
   pickup: readonly PickupScheduleFormData[],
