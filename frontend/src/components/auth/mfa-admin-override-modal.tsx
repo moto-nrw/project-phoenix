@@ -516,7 +516,7 @@ export function MFAAdminOverrideModal({
           )}
 
           {scope === "operator" && (
-            <section className="mt-6 rounded-lg border-2 border-[#FFCDB8] bg-[#FFFBEB] p-4">
+            <section className="border-moto-orange/30 bg-moto-orange-soft mt-6 rounded-lg border-2 p-4">
               <h3 className="mb-1 text-sm font-semibold text-gray-900">
                 Notfall: 2FA Account-weit verwalten
               </h3>
@@ -560,7 +560,7 @@ export function MFAAdminOverrideModal({
                     aria-label={opt.title}
                     className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
                       selectedGlobalOverride === opt.value
-                        ? "border-[#FFCDB8] bg-white"
+                        ? "border-moto-orange/30 bg-white"
                         : "border-gray-200 bg-white hover:bg-gray-50"
                     }`}
                   >

@@ -137,13 +137,13 @@ const desktopStylesByType: Record<
   info: {
     bg: "bg-moto-blue/10",
     border: "border-moto-blue/20",
-    text: "text-[#4070C8]",
+    text: "text-moto-blue-strong",
     iconPath: "M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
   },
   warning: {
     bg: "bg-moto-orange/10",
     border: "border-moto-orange/20",
-    text: "text-[#C56F0D]",
+    text: "text-moto-orange-strong",
     iconPath:
       "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z",
   },
@@ -256,7 +256,9 @@ function ToastRow({
         variant="surface"
         size="card"
         aria-label={`${modalTitles[item.type]}: ${item.message}. ${
-          item.action ? `Tippen zum ${item.action.label}` : "Tippen zum Schließen"
+          item.action
+            ? `Tippen zum ${item.action.label}`
+            : "Tippen zum Schließen"
         }`}
         onClick={handleAction}
         className={`${mobileStyles.bg} ${mobileStyles.border} border text-center shadow-none`}
@@ -365,9 +367,8 @@ export function ToastProvider({
   const locale =
     typeof document === "undefined" ? "de" : document.documentElement.lang;
   const modalLabels =
-    mobileToastModalLabels[
-      locale as keyof typeof mobileToastModalLabels
-    ] ?? mobileToastModalLabels.de;
+    mobileToastModalLabels[locale as keyof typeof mobileToastModalLabels] ??
+    mobileToastModalLabels.de;
 
   // Track last shown timestamps for simple de-duplication
   const lastShownRef = useRef<Map<string, number>>(new Map());

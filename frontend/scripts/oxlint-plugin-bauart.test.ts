@@ -324,20 +324,28 @@ describe("bauart/no-row-action-buttons", () => {
     ).toContain(ROW_ACTION);
   });
 
-  it("tolerates only the baselined row action at its recorded location", () => {
-    const path = "src/components/planning/calendar-periods-editor.tsx";
+  it("tolerates only the form-internal exception at its recorded location", () => {
+    // Since #3119 the exception list holds no object action any more; the
+    // remaining entries are chip removers inside forms, bound to their line.
+    const path = "src/app/[tenant]/(protected)/meal-plan/page.tsx";
     const source = readFileSync(resolve(path), "utf8");
 
     expect(lintSource(source, path).output).not.toContain(ROW_ACTION);
-    expect(
-      lintSource(
-        source.replace(
-          />\s*Bearbeiten\s*<\//,
-          ">\\n            Archivieren\\n          </",
-        ),
-        path,
-      ).output,
-    ).toContain(ROW_ACTION);
+    // Moving the button by one line loses its tolerance.
+    expect(lintSource(`\n${source}`, path).output).toContain(ROW_ACTION);
+  });
+
+  it("no longer tolerates the object actions #3111 deferred", () => {
+    const path = "src/components/planning/calendar-periods-editor.tsx";
+    const source = `import { Button } from "~/components/ui/button";
+      export function Probe({ rows }: { rows: { id: string }[] }) {
+        return rows.map((row) => (
+          <Button key={row.id} type="button" onClick={() => {}}>
+            Bearbeiten
+          </Button>
+        ));
+      }`;
+    expect(lintSource(source, path).output).toContain(ROW_ACTION);
   });
 });
 
@@ -1079,8 +1087,9 @@ describe("bauart/no-local-field-grid", () => {
     }
   });
 
-  it("tolerates exactly the baselined count per file and no more", () => {
-    // custom-allowance-editor.tsx carries one <dt> in the baseline.
+  it("keeps no per-file tolerance: a formerly baselined file fails on its first <dt>", () => {
+    // custom-allowance-editor.tsx carried one <dt> until #3119; the baseline
+    // is gone, so the first hand-written label cell fails again.
     const one = `export function Probe() {
         return (
           <dl>
@@ -1089,27 +1098,12 @@ describe("bauart/no-local-field-grid", () => {
           </dl>
         );
       }`;
-    expect(
-      lintSource(one, "src/components/staff/custom-allowance-editor.tsx")
-        .output,
-    ).not.toContain("bauart(no-local-field-grid)");
-
-    const two = `export function Probe() {
-        return (
-          <dl>
-            <dt>Zuschlag</dt>
-            <dd>3 h</dd>
-            <dt>Grund</dt>
-            <dd>Nachtdienst</dd>
-          </dl>
-        );
-      }`;
-    const grown = lintSource(
-      two,
+    const regrown = lintSource(
+      one,
       "src/components/staff/custom-allowance-editor.tsx",
     );
-    expect(grown.status).toBe(1);
-    expect(grown.output).toContain("bauart(no-local-field-grid)");
+    expect(regrown.status).toBe(1);
+    expect(regrown.output).toContain("bauart(no-local-field-grid)");
   });
 });
 
@@ -1195,26 +1189,18 @@ describe("bauart/no-own-skeleton", () => {
     }
   });
 
-  it("tolerates exactly the baselined count per file and no more", () => {
-    // birthday-list.tsx carries one pulse block in the baseline.
+  it("keeps no per-file tolerance: a formerly baselined file fails on its first block", () => {
+    // birthday-list.tsx carried one pulse block until #3119; the baseline is
+    // gone, so the first hand-written placeholder fails again.
     const one = `export function Probe() {
         return <div className="h-12 animate-pulse rounded-xl bg-gray-100" />;
       }`;
-    expect(
-      lintSource(one, "src/components/dashboard/birthday-list.tsx").output,
-    ).not.toContain("bauart(no-own-skeleton)");
-
-    const two = `export function Probe() {
-        return (
-          <>
-            <div className="h-12 animate-pulse rounded-xl bg-gray-100" />
-            <div className="h-12 animate-pulse rounded-xl bg-gray-100" />
-          </>
-        );
-      }`;
-    const grown = lintSource(two, "src/components/dashboard/birthday-list.tsx");
-    expect(grown.status).toBe(1);
-    expect(grown.output).toContain("bauart(no-own-skeleton)");
+    const regrown = lintSource(
+      one,
+      "src/components/dashboard/birthday-list.tsx",
+    );
+    expect(regrown.status).toBe(1);
+    expect(regrown.output).toContain("bauart(no-own-skeleton)");
   });
 });
 
@@ -1310,21 +1296,16 @@ describe("bauart/no-raw-status-hex", () => {
     }
   });
 
-  it("tolerates exactly the baselined count per file and no more", () => {
-    // timetable-style.ts carries one hex literal in the baseline.
+  it("keeps no per-file tolerance: a formerly baselined file fails on its first literal", () => {
+    // timetable-style.ts carried one hex literal until #3119; the baseline is
+    // gone, so the first raw value fails again.
     const one = `export const EDGE = "#D1D5DB";`;
-    expect(
-      lintSource(one, "src/components/timetable/timetable-style.ts").output,
-    ).not.toContain("bauart(no-raw-status-hex)");
-
-    const two = `export const EDGE = "#D1D5DB";
-      export const FILL = "#F3F4F6";`;
-    const grown = lintSource(
-      two,
+    const regrown = lintSource(
+      one,
       "src/components/timetable/timetable-style.ts",
     );
-    expect(grown.status).toBe(1);
-    expect(grown.output).toContain("bauart(no-raw-status-hex)");
+    expect(regrown.status).toBe(1);
+    expect(regrown.output).toContain("bauart(no-raw-status-hex)");
   });
 });
 

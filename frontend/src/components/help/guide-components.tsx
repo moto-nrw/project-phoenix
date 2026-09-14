@@ -180,9 +180,9 @@ const toneClasses: Record<
     border: "border-moto-red/20",
   },
   purple: {
-    soft: "bg-[#7C3AED]/10",
-    text: "text-[#6D28D9]",
-    border: "border-[#7C3AED]/20",
+    soft: "bg-moto-purple/10",
+    text: "text-moto-purple-strong",
+    border: "border-moto-purple/20",
   },
   gray: {
     soft: "bg-gray-100",

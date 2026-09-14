@@ -1103,7 +1103,7 @@ function WithdrawAllSection({
     <section className="moto-content-surface rounded-xl border p-5 shadow-sm sm:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#FF3130]/30 bg-[#FF3130]/5 text-[#CC2626] shadow-sm">
+          <span className="border-moto-red/30 bg-moto-red/5 text-moto-red flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border shadow-sm">
             <AlertTriangle className="h-5 w-5" aria-hidden="true" />
           </span>
           <div>

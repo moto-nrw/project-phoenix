@@ -31,6 +31,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
+import { TIMETABLE_UNTYPED_EDGE_COLOR } from "~/components/timetable/timetable-style";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { berlinTodayISO, formatDate, isValidISODate } from "~/lib/date-helpers";
 import { GROUP_ROOM_SHADES, LOCATION_COLORS } from "~/lib/location-helper";
@@ -250,7 +251,7 @@ function TagesplanRow({
   const edgeStyle = {
     borderLeftColor: cancelled
       ? LOCATION_COLORS.DANGER
-      : (instance.planningTrackColor ?? "#E5E7EB"),
+      : (instance.planningTrackColor ?? TIMETABLE_UNTYPED_EDGE_COLOR),
     ...(over ? { opacity: 0.9 } : {}),
   };
 

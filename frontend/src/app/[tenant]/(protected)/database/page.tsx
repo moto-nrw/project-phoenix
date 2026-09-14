@@ -8,6 +8,7 @@ import Link from "~/components/ui/navigation-link";
 import { redirect } from "next/navigation";
 import { CollectionGrid } from "~/components/ui/collection-grid";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { Skeleton } from "~/components/ui/skeleton";
 import { TileCard } from "~/components/ui/tile-card";
 import useSWR from "swr";
 import { ChevronRight } from "lucide-react";
@@ -362,15 +363,17 @@ function DatabaseContent() {
                         size={36}
                       />
                     </div>
-                    <span
-                      className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors duration-200 ${
-                        badgeLoading
-                          ? "animate-pulse bg-gray-200 text-gray-400"
-                          : "bg-gray-100 text-gray-600"
-                      }`}
-                    >
-                      {countText}
-                    </span>
+                    {badgeLoading ? (
+                      // Platzhalter in der Höhe der fertigen Zahl (Text +
+                      // py-1.5), damit die Kachel beim Laden nicht springt.
+                      <Skeleton className="h-7 w-20 rounded-full">
+                        <span className="sr-only">{countText}</span>
+                      </Skeleton>
+                    ) : (
+                      <span className="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-600">
+                        {countText}
+                      </span>
+                    )}
                   </div>
 
                   <h3 className="mb-2 text-base font-bold text-gray-900">

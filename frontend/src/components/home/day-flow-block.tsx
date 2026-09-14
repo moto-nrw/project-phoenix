@@ -4,6 +4,7 @@ import Link from "~/components/ui/navigation-link";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
+import { Skeleton } from "~/components/ui/skeleton";
 import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { formatMinutesAhead, minutesBetween } from "~/lib/home-clock";
@@ -99,8 +100,8 @@ export function DayFlowBlock() {
                   key={i}
                   className="flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2"
                 >
-                  <div className="h-4 w-24 animate-pulse rounded bg-gray-200"></div>
-                  <div className="h-4 flex-1 animate-pulse rounded bg-gray-200"></div>
+                  <Skeleton className="h-4 w-24 rounded" />
+                  <Skeleton className="h-4 flex-1 rounded" />
                 </div>
               ))}
             </div>

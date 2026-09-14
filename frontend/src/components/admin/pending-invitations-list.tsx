@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Mail } from "lucide-react";
+import { AlertTriangle, Mail, Send, Trash2 } from "lucide-react";
 import { useToast } from "~/contexts/ToastContext";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import {
   listPendingInvitations,
   resendInvitation,
@@ -237,25 +238,34 @@ export function PendingInvitationsList({
                       )}
                     </td>
                     <td className="px-3 py-2 text-right whitespace-nowrap md:px-4 md:py-3">
-                      <div className="flex justify-end gap-1 md:gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleResend(invitation.id)}
-                          disabled={
-                            isExpired || actionLoading === invitation.id
-                          }
-                          className="min-h-[32px] rounded-lg bg-gray-100 px-2 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50 md:min-h-0 md:px-3 md:py-1.5"
-                        >
-                          {actionLoading === invitation.id ? "…" : "Erneut"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setRevokeTarget(invitation)}
-                          disabled={actionLoading === invitation.id}
-                          className="bg-moto-red-soft text-moto-red-strong hover:bg-moto-red/20 min-h-[32px] rounded-lg px-2 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 md:min-h-0 md:px-3 md:py-1.5"
-                        >
-                          Löschen
-                        </button>
+                      {/* Zeilenaktionen nur im Kebab der Zeile (BAUARTEN-SPEC
+                          Bauart 1 Regel 4). Löschen fragt weiter im
+                          ConfirmationModal nach. */}
+                      <div className="flex justify-end">
+                        <OverflowMenu
+                          ariaLabel={`Aktionen für ${invitation.email}`}
+                          items={[
+                            ...(isExpired
+                              ? []
+                              : [
+                                  {
+                                    label: "Erneut senden",
+                                    icon: (
+                                      <Send className="h-4 w-4" aria-hidden />
+                                    ),
+                                    disabled: actionLoading === invitation.id,
+                                    onClick: () => handleResend(invitation.id),
+                                  },
+                                ]),
+                            {
+                              label: "Löschen",
+                              icon: <Trash2 className="h-4 w-4" aria-hidden />,
+                              destructive: true,
+                              disabled: actionLoading === invitation.id,
+                              onClick: () => setRevokeTarget(invitation),
+                            },
+                          ]}
+                        />
                       </div>
                     </td>
                   </tr>

@@ -139,6 +139,10 @@ describe("ClassArrivalExceptionPanel", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Unterricht fällt aus")).toBeInTheDocument();
     expect(screen.queryByLabelText("Kommt um")).not.toBeInTheDocument();
+    // Ohne Bearbeitungsrecht gibt es kein Zeilenmenü (Bauart 1 Regel 4).
+    expect(
+      screen.queryByRole("button", { name: /^Aktionen für/ }),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Entfernen" }),
     ).not.toBeInTheDocument();
@@ -415,7 +419,10 @@ describe("ClassArrivalExceptionPanel", () => {
 
     // #3109: the row button opens the ConfirmDeleteModal; the day is only
     // removed after the two-step confirmation inside the dialog.
-    fireEvent.click(await screen.findByRole("button", { name: "Entfernen" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: /^Aktionen für/ }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Entfernen" }));
     expect(mockDelete).not.toHaveBeenCalled();
     expect(
       screen.getByRole("heading", { name: "Abweichung entfernen?" }),
@@ -454,7 +461,10 @@ describe("ClassArrivalExceptionPanel", () => {
       />,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "Entfernen" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: /^Aktionen für/ }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Entfernen" }));
     expect(onConfirmationVisibilityChange).toHaveBeenLastCalledWith(true);
 
     fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
@@ -473,7 +483,10 @@ describe("ClassArrivalExceptionPanel", () => {
       <ClassArrivalExceptionPanel schoolClass="4a" classLabel="Klasse 4a" />,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "Entfernen" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: /^Aktionen für/ }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Entfernen" }));
     fireEvent.click(screen.getByRole("button", { name: "Ja, entfernen" }));
     fireEvent.click(
       screen.getByRole("button", { name: "Endgültig entfernen" }),

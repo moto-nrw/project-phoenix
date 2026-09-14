@@ -7,6 +7,7 @@ import { PushInstallSteps } from "~/components/settings/push-install-steps";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
+import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useShellAuthSafe } from "~/lib/shell-auth-context";
@@ -384,21 +385,15 @@ export function PushNotificationSection({
       )}
 
       {installed !== null && (
-        <dl className="mb-4 grid gap-2 sm:grid-cols-2">
-          <div className="flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2">
-            <dt className="text-sm text-gray-700">{t("statusInstallLabel")}</dt>
-            <dd>
+        <div className="mb-4">
+          <DataGrid>
+            <DataField inline label={t("statusInstallLabel")}>
               <StatusBadge
                 label={installed ? t("statusInstallYes") : t("statusInstallNo")}
                 tone={installed ? "green" : "orange"}
               />
-            </dd>
-          </div>
-          <div className="flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2">
-            <dt className="text-sm text-gray-700">
-              {t("statusPermissionLabel")}
-            </dt>
-            <dd>
+            </DataField>
+            <DataField inline label={t("statusPermissionLabel")}>
               <StatusBadge
                 label={
                   permission === "granted"
@@ -415,9 +410,9 @@ export function PushNotificationSection({
                       : "orange"
                 }
               />
-            </dd>
-          </div>
-        </dl>
+            </DataField>
+          </DataGrid>
+        </div>
       )}
 
       {/* Ein "Nein" ohne nächsten Schritt ist eine Sackgasse. Wo weder eine

@@ -4,6 +4,7 @@ import { Suspense, use, useEffect, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- public page; tenant-router not needed
 import { useRouter, useSearchParams } from "next/navigation";
 import { Check, Mail } from "lucide-react";
+import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useLocale, useTranslations } from "next-intl";
 import {
@@ -184,27 +185,21 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
               {phase?.name ?? t("sideTitleFallback")}
             </h2>
             {phase ? (
-              <dl className="mt-4 space-y-3 text-sm text-gray-600">
-                <div>
-                  <dt className="font-semibold text-gray-900">
-                    {t("carePeriod")}
-                  </dt>
-                  <dd>
+              <div className="mt-4">
+                <DataGrid columns={1}>
+                  <DataField label={t("carePeriod")}>
                     {t("dateRange", {
                       from: formatDate(phase.service_start_date, false, locale),
                       to: formatDate(phase.service_end_date, false, locale),
                     })}
-                  </dd>
-                </div>
-                {phase.enrollment_close_at && (
-                  <div>
-                    <dt className="font-semibold text-gray-900">
-                      {t("deadline")}
-                    </dt>
-                    <dd>{formatDateTime(phase.enrollment_close_at, locale)}</dd>
-                  </div>
-                )}
-              </dl>
+                  </DataField>
+                  {phase.enrollment_close_at && (
+                    <DataField label={t("deadline")}>
+                      {formatDateTime(phase.enrollment_close_at, locale)}
+                    </DataField>
+                  )}
+                </DataGrid>
+              </div>
             ) : (
               <p className="mt-3 text-sm leading-6 text-gray-600">
                 {error ? t("detailsLoadFailed") : t("detailsLoading")}

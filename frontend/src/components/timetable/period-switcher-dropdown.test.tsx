@@ -55,7 +55,6 @@ describe("PeriodSwitcherDropdown", () => {
         periods={[]}
         weekDays={weekDays}
         onCreate={onCreate}
-        onEdit={vi.fn()}
         onSelect={vi.fn()}
       />,
     );
@@ -65,9 +64,8 @@ describe("PeriodSwitcherDropdown", () => {
     expect(onCreate).toHaveBeenCalledOnce();
   });
 
-  it("shows week assignments and selects or edits periods", () => {
+  it("shows week assignments, selects periods and links to the management route", () => {
     const onCreate = vi.fn();
-    const onEdit = vi.fn();
     const onSelect = vi.fn();
 
     render(
@@ -75,7 +73,6 @@ describe("PeriodSwitcherDropdown", () => {
         periods={basePeriods}
         weekDays={weekDays}
         onCreate={onCreate}
-        onEdit={onEdit}
         onSelect={onSelect}
       />,
     );
@@ -87,12 +84,15 @@ describe("PeriodSwitcherDropdown", () => {
       1,
     );
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /Schuljahr 2026\/2027 bearbeiten/ }),
-    );
-    expect(onEdit).toHaveBeenCalledWith(basePeriods[0]);
+    // Kalenderzeiträume sind Stammdaten: kein Bearbeiten je Zeitraum in der
+    // Auswahl (Bauart 1 Regel 9), stattdessen der Link auf die Route.
+    expect(
+      screen.queryByRole("button", { name: /bearbeiten/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Zeiträume verwalten/ }),
+    ).toHaveAttribute("href", expect.stringContaining("/calendar-periods"));
 
-    fireEvent.click(screen.getByRole("button", { name: /Schuljahr/ }));
     fireEvent.click(screen.getByText("Sommerferien"));
     expect(onSelect).toHaveBeenCalledWith(basePeriods[1]);
 
@@ -110,7 +110,6 @@ describe("PeriodSwitcherDropdown", () => {
         selectedPeriodId="2"
         isLoading
         onCreate={vi.fn()}
-        onEdit={vi.fn()}
         onSelect={vi.fn()}
       />,
     );
@@ -126,7 +125,6 @@ describe("PeriodSwitcherDropdown", () => {
         view="series"
         selectedPeriodId="2"
         onCreate={vi.fn()}
-        onEdit={vi.fn()}
         onSelect={vi.fn()}
       />,
     );
@@ -154,7 +152,6 @@ describe("PeriodSwitcherDropdown", () => {
         periods={[fourWeekPeriod]}
         weekDays={slotCWeek}
         onCreate={vi.fn()}
-        onEdit={vi.fn()}
         onSelect={vi.fn()}
       />,
     );
@@ -179,7 +176,6 @@ describe("PeriodSwitcherDropdown", () => {
         periods={[twoWeekPeriod]}
         weekDays={weekDays}
         onCreate={vi.fn()}
-        onEdit={vi.fn()}
         onSelect={vi.fn()}
       />,
     );
@@ -202,7 +198,6 @@ describe("PeriodSwitcherDropdown", () => {
         weekDays={fullMonthDays}
         view="month"
         onCreate={vi.fn()}
-        onEdit={vi.fn()}
         onSelect={vi.fn()}
       />,
     );
@@ -217,7 +212,6 @@ describe("PeriodSwitcherDropdown", () => {
         weekDays={[new Date("2026-06-01T00:00:00")]}
         view="month"
         onCreate={vi.fn()}
-        onEdit={vi.fn()}
         onSelect={vi.fn()}
       />,
     );
@@ -239,7 +233,6 @@ describe("PeriodSwitcherDropdown", () => {
         view="month"
         selectedPeriodId="1"
         onCreate={vi.fn()}
-        onEdit={vi.fn()}
         onSelect={vi.fn()}
       />,
     );

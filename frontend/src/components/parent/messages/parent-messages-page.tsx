@@ -270,7 +270,7 @@ function ConversationRow({ row }: Readonly<{ row: ChildConversation }>) {
       <ConceptIconTile
         concept="messages"
         variant="page"
-        className="rounded-full bg-[#EDF3FD]"
+        className="bg-moto-blue-soft rounded-full"
       />
       <span className="min-w-0 flex-1 space-y-0.5">
         <span className="flex min-w-0 items-center justify-between gap-2">
