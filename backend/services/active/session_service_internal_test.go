@@ -132,22 +132,6 @@ func (w *workSessionServiceForSessionUnitTest) AutoEndExpiredBreaks(context.Cont
 func (w *workSessionServiceForSessionUnitTest) GetStaffIDsWithSupervisionToday(context.Context) ([]int64, error) {
 	return nil, nil
 }
-func (w *workSessionServiceForSessionUnitTest) GetWorkTimeModelByID(context.Context, int64) (*configModels.WorkTimeModel, error) {
-	return nil, nil
-}
-func (w *workSessionServiceForSessionUnitTest) GetCurrentScheduleRows(context.Context, int64) ([]*configModels.StaffWorkSchedule, error) {
-	return nil, nil
-}
-func (w *workSessionServiceForSessionUnitTest) AssignScheduleTemplate(context.Context, *StaffScheduleBinding, int64) error {
-	return nil
-}
-func (w *workSessionServiceForSessionUnitTest) ApplyCustomScheduleRows(context.Context, *StaffScheduleBinding, []*configModels.StaffWorkSchedule, timezone.Date) error {
-	return nil
-}
-func (w *workSessionServiceForSessionUnitTest) SaveCustomScheduleAsTemplate(context.Context, *StaffScheduleBinding, string, int, timezone.Date, []*configModels.WorkTimeModelEntry) error {
-	return nil
-}
-
 func (w *workSessionServiceForSessionUnitTest) UpdateSchedule(context.Context, *StaffScheduleBinding, ScheduleUpdateInput) error {
 	return nil
 }

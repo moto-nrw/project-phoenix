@@ -307,19 +307,13 @@ type WorkSessionService interface {
 	AutoEndExpiredBreaks(ctx context.Context) (int, error)
 
 	// Staff work-schedule operations (issue #584: moved out of api/staff).
-	// The three Get* lookups return repository results verbatim.
 	GetStaffIDsWithSupervisionToday(ctx context.Context) ([]int64, error)
-	GetWorkTimeModelByID(ctx context.Context, id int64) (*configModels.WorkTimeModel, error)
-	GetCurrentScheduleRows(ctx context.Context, staffID int64) ([]*configModels.StaffWorkSchedule, error)
-	// AssignScheduleTemplate snapshots the template's entries as the staff
-	// member's schedule and binds the template (model id + rotation anchor).
-	AssignScheduleTemplate(ctx context.Context, staff *StaffScheduleBinding, modelID int64) error
-	// ApplyCustomScheduleRows replaces the schedule with custom rows and
-	// unbinds any assigned template.
-	ApplyCustomScheduleRows(ctx context.Context, staff *StaffScheduleBinding, entries []*configModels.StaffWorkSchedule, anchor timezone.Date) error
-	// SaveCustomScheduleAsTemplate persists the rows as a new reusable work
-	// time model and binds it to the staff member.
-	SaveCustomScheduleAsTemplate(ctx context.Context, staff *StaffScheduleBinding, name string, rotation int, anchor timezone.Date, entries []*configModels.WorkTimeModelEntry) error
+	// UpdateSchedule is the whole schedule-write surface this interface
+	// exposes. The template, custom-rows and save-as-template steps it
+	// dispatches to are implementation detail: nothing outside this package
+	// called them, and each carried the legacy work-schedule row types through
+	// the contract (#2737).
+	//
 	// UpdateSchedule resolves the requested mode (template vs custom, with the
 	// legacy empty-mode fallback), validates and applies the change. Validation
 	// failures wrap ErrScheduleValidation so callers can map them to 400.
