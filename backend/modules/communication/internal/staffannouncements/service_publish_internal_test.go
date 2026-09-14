@@ -134,6 +134,8 @@ type fakeOutbox struct {
 	enqueueErr         error
 }
 
+type fakePushOutbox struct{ cancelRelatedTypes []string }
+
 type fakeNotifier struct {
 	events []notifications.Event
 	err    error
@@ -153,6 +155,11 @@ func (f *fakeOutbox) Enqueue(_ context.Context, req platformService.EnqueueReque
 }
 
 func (f *fakeOutbox) CancelPendingByRelatedEntity(_ context.Context, relatedType string, _ int64, _ string) (int64, error) {
+	f.cancelRelatedTypes = append(f.cancelRelatedTypes, relatedType)
+	return 0, nil
+}
+
+func (f *fakePushOutbox) CancelPendingByRelatedEntity(_ context.Context, relatedType string, _ int64, _ string) (int64, error) {
 	f.cancelRelatedTypes = append(f.cancelRelatedTypes, relatedType)
 	return 0, nil
 }
@@ -261,7 +268,28 @@ func TestUnpublish_CancelsPendingEmails(t *testing.T) {
 	}
 }
 
-func TestDelete_CancelsPendingEmails(t *testing.T) {
+func TestUnpublish_CancelsPendingReminderPushes(t *testing.T) {
+	t.Parallel()
+
+	published := draftAnnouncement(true)
+	now := time.Now()
+	published.PublishedAt = &now
+	repo := &fakeAnnouncementRepo{announcement: published}
+	pushOutbox := &fakePushOutbox{}
+	svc := NewService(ServiceConfig{
+		Repo: repo, Settings: &fakeSettings{enabled: true}, Outbox: &fakeOutbox{},
+		PushOutbox: pushOutbox, Notifier: &fakeNotifier{}, Logger: slog.Default(),
+	})
+
+	if _, err := svc.Unpublish(context.Background(), published.ID); err != nil {
+		t.Fatalf("unpublish failed: %v", err)
+	}
+	if got, want := pushOutbox.cancelRelatedTypes, []string{relatedEntityTypeReminder}; !slices.Equal(got, want) {
+		t.Fatalf("unpublish cancelled push related types %v, want %v", got, want)
+	}
+}
+
+func TestDelete_CancelsPendingDeliveries(t *testing.T) {
 	t.Parallel()
 
 	published := draftAnnouncement(true)
@@ -269,13 +297,21 @@ func TestDelete_CancelsPendingEmails(t *testing.T) {
 	published.PublishedAt = &now
 	repo := &fakeAnnouncementRepo{announcement: published}
 	outbox := &fakeOutbox{}
-	svc := newTestService(repo, outbox)
+	pushOutbox := &fakePushOutbox{}
+	svc := NewService(ServiceConfig{
+		Repo: repo, Settings: &fakeSettings{enabled: true}, Outbox: outbox,
+		PushOutbox: pushOutbox, Notifier: &fakeNotifier{}, Logger: slog.Default(),
+	})
+	svc.SetAttachmentPurger(&stubPurger{})
 
 	if err := svc.Delete(context.Background(), published.ID); err != nil {
 		t.Fatalf("delete failed: %v", err)
 	}
 	if got, want := outbox.cancelRelatedTypes, []string{relatedEntityTypeAnnouncement, relatedEntityTypePollReminder, relatedEntityTypeReminder}; !slices.Equal(got, want) {
 		t.Fatalf("delete cancelled related types %v, want %v", got, want)
+	}
+	if got, want := pushOutbox.cancelRelatedTypes, []string{relatedEntityTypeReminder}; !slices.Equal(got, want) {
+		t.Fatalf("delete cancelled push related types %v, want %v", got, want)
 	}
 	if repo.deleteCalls != 1 {
 		t.Fatalf("expected exactly one repo delete, got %d", repo.deleteCalls)

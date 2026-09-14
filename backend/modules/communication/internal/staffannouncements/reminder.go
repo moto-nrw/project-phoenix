@@ -33,7 +33,7 @@ const (
 
 	// relatedEntityTypeReminder ties the reminder's outbox rows and push intents
 	// to the announcement, separately from the publish rows, so a retraction
-	// can cancel pending reminder mail alongside the publish mail.
+	// can cancel pending reminder delivery alongside the publish delivery.
 	relatedEntityTypeReminder = "parent_announcement_reminder"
 
 	reminderEmailKicker       = "Erinnerung"

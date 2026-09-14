@@ -24,6 +24,10 @@ type ParentAnnouncementOutbox interface {
 	CancelPendingByRelatedEntity(context.Context, string, int64, string) (int64, error)
 }
 
+type ParentAnnouncementPushOutbox interface {
+	CancelPendingByRelatedEntity(context.Context, string, int64, string) (int64, error)
+}
+
 type ParentAnnouncementDeliveryRecorder interface {
 	ReplaceForEntity(context.Context, int64, string, int64, []communication.ParentAnnouncementEmailDelivery) error
 	DeleteForEntity(context.Context, int64, string, int64) (int64, error)
@@ -36,6 +40,7 @@ type ParentAnnouncementConfig struct {
 	Repo        usersModels.ParentAnnouncementRepository
 	Settings    configService.SettingsService
 	Outbox      ParentAnnouncementOutbox
+	PushOutbox  ParentAnnouncementPushOutbox
 	Notifier    notifications.Service
 	Preferences notifications.PreferenceService
 	Deliveries  ParentAnnouncementDeliveryRecorder
@@ -51,7 +56,7 @@ func NewParentAnnouncements(cfg ParentAnnouncementConfig) communication.ParentAn
 		deliveries = parentAnnouncementDeliveryAdapter{recorder: cfg.Deliveries}
 	}
 	return &parentAnnouncements{service: staff.NewService(staff.ServiceConfig{
-		Repo: cfg.Repo, Settings: cfg.Settings, Outbox: cfg.Outbox, Notifier: cfg.Notifier,
+		Repo: cfg.Repo, Settings: cfg.Settings, Outbox: cfg.Outbox, PushOutbox: cfg.PushOutbox, Notifier: cfg.Notifier,
 		Preferences: cfg.Preferences, Deliveries: deliveries,
 		ParentsURL: cfg.ParentsURL, Logger: cfg.Logger,
 	})}

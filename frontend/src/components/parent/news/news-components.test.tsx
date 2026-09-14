@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NewsCard, NewsDetailModal, isOpenPoll } from "./news-components";
 import type { ParentAnnouncement } from "~/lib/parent-api";
 import * as parentApi from "~/lib/parent-api";
+import * as dateHelpers from "~/lib/date-helpers";
 
 // Poll (Umfrage, #1371) behaviour in the parent portal: the feed card only
 // flags that an answer is due. The detail view is where it is given, one row
@@ -577,5 +578,20 @@ describe("scheduled reminder in the parent feed (#3162)", () => {
     expect(
       screen.queryByRole("button", { name: "Gelesen bestätigen" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("uses the school's Berlin date for the reminder note", () => {
+    vi.spyOn(dateHelpers, "formatDate").mockReturnValue("20.07.2026");
+    vi.spyOn(dateHelpers, "formatBerlinDate").mockReturnValue("21.07.2026");
+
+    render(
+      <NewsDetailModal
+        item={announcement({ reminder_sent_at: "2026-07-20T22:30:00Z" })}
+        onClose={vi.fn()}
+        onUpdated={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/Erinnerung vom 21\.07\.2026/)).toBeInTheDocument();
   });
 });

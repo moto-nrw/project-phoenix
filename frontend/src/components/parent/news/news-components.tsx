@@ -646,7 +646,7 @@ function NewsReminderNote({
   return (
     <div className="bg-moto-blue-soft mt-4 rounded-xl px-4 py-3">
       <p className="text-moto-blue-strong text-xs font-semibold tracking-wide uppercase">
-        {t("newsReminderFrom", { date: formatDate(sentAt, false, locale) })}
+        {t("newsReminderFrom", { date: formatBerlinDate(sentAt, locale) })}
       </p>
       {text && (
         <p className="mt-1 text-base leading-7 whitespace-pre-line text-gray-900">

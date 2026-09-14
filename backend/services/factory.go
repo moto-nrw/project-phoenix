@@ -2702,6 +2702,7 @@ func newFactory(
 		Repo:        repos.ParentAnnouncement,
 		Settings:    settingsService,
 		Outbox:      emailOutboxService,
+		PushOutbox:  durablePushAdapter{module: deliveryRuntime.Module},
 		Notifier:    notificationsService,
 		Preferences: notificationPreferencesService,
 		Deliveries:  announcementDeliveryAdapter{module: deliveryRuntime.Module},

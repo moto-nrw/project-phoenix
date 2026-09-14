@@ -247,17 +247,29 @@ func (s *AnnouncementStore) ListForTenant(ctx context.Context, includeInactive b
 		return nil, fmt.Errorf("list parent announcements for tenant: %w", err)
 	}
 	announcements := make([]*domain.ParentAnnouncement, 0, len(rows))
-	if len(rows) == 0 {
-		return announcements, nil
-	}
-	ids := make([]int64, 0, len(rows))
-	byID := make(map[int64]*domain.ParentAnnouncement, len(rows))
 	for i := range rows {
 		value := rows[i].value()
-		value.Targets = []*domain.ParentAnnouncementTarget{}
 		announcements = append(announcements, value)
-		ids = append(ids, value.ID)
-		byID[value.ID] = value
+	}
+	if err := s.attachTargets(ctx, db, tenantID, announcements); err != nil {
+		return nil, err
+	}
+	return announcements, nil
+}
+
+// attachTargets attaches target rows for a set of announcements in one query.
+// Both list views use it so scheduler scans do not issue one target query per
+// due reminder.
+func (s *AnnouncementStore) attachTargets(ctx context.Context, db bun.IDB, tenantID int64, announcements []*domain.ParentAnnouncement) error {
+	if len(announcements) == 0 {
+		return nil
+	}
+	ids := make([]int64, 0, len(announcements))
+	byID := make(map[int64]*domain.ParentAnnouncement, len(announcements))
+	for _, announcement := range announcements {
+		announcement.Targets = []*domain.ParentAnnouncementTarget{}
+		ids = append(ids, announcement.ID)
+		byID[announcement.ID] = announcement
 	}
 	var targets []parentTargetRow
 	targetQuery := db.NewSelect().
@@ -267,14 +279,14 @@ func (s *AnnouncementStore) ListForTenant(ctx context.Context, includeInactive b
 		OrderExpr(`"pat".id ASC`)
 	targetQuery = withTenant(targetQuery, "pat", tenantID)
 	if err := targetQuery.Scan(ctx); err != nil {
-		return nil, fmt.Errorf("list parent announcement targets for tenant: %w", err)
+		return fmt.Errorf("list parent announcement targets for tenant: %w", err)
 	}
 	for i := range targets {
 		if announcement, ok := byID[targets[i].AnnouncementID]; ok {
 			announcement.Targets = append(announcement.Targets, targets[i].value())
 		}
 	}
-	return announcements, nil
+	return nil
 }
 
 // UpdateDraft writes only the editable content columns of a DRAFT and is
@@ -471,13 +483,10 @@ func (s *AnnouncementStore) ListDueReminders(ctx context.Context, notBefore, due
 	}
 	announcements := make([]*domain.ParentAnnouncement, 0, len(rows))
 	for i := range rows {
-		value := rows[i].value()
-		targets, err := s.ListTargets(ctx, value.ID)
-		if err != nil {
-			return nil, err
-		}
-		value.Targets = targets
-		announcements = append(announcements, value)
+		announcements = append(announcements, rows[i].value())
+	}
+	if err := s.attachTargets(ctx, db, tenantID, announcements); err != nil {
+		return nil, err
 	}
 	return announcements, nil
 }

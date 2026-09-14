@@ -184,6 +184,38 @@ func TestParentAnnouncementReminderDueScanAndClaim(t *testing.T) {
 	assert.False(t, claimed, "an expired announcement cannot be claimed")
 }
 
+func TestParentAnnouncementReminderDueScanBatchLoadsTargets(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
+	ctx := tenantCtx(t)
+	now := databaseTimestamp(t, db)
+	window := now.Add(-time.Hour)
+	addDue := func(title string) {
+		reminderAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
+			title, now.Add(-10*time.Minute), true, nil)
+	}
+	readDue := func(counter *testpkg.QueryCounter, want int) []string {
+		counter.Reset()
+		rows, err := repo.ListDueReminders(counter.Context(ctx), window, now)
+		require.NoError(t, err)
+		require.Len(t, rows, want)
+		return counter.Queries()
+	}
+
+	addDue("Erste fällige Erinnerung")
+	counter := testpkg.CaptureQueriesForContext(t, db)
+	small := readDue(counter, 1)
+	addDue("Zweite fällige Erinnerung")
+	addDue("Dritte fällige Erinnerung")
+	large := readDue(counter, 3)
+
+	assert.Equal(t, len(small), len(large), "due scan reads must not grow with the number of reminders")
+	testpkg.AssertQueryBudget(t, "repositories.parent_announcements.due_reminders", large)
+}
+
 // TestParentAnnouncementReminderFeedOrderAndTenantIsolation pins what the
 // portal sees: a reminded announcement carries its reminder fields, sorts back
 // to the top of the feed, keeps the guardian's read state, and a reminder of

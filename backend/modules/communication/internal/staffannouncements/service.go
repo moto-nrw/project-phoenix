@@ -35,6 +35,13 @@ type OutboxEnqueuer interface {
 	CancelPendingByRelatedEntity(ctx context.Context, relatedType string, relatedID int64, reason string) (int64, error)
 }
 
+// PushOutboxCanceller is the narrow durable-push operation needed when an
+// announcement is retracted. Pending reminder intents otherwise carry a link
+// to an announcement that staff has already made unavailable.
+type PushOutboxCanceller interface {
+	CancelPendingByRelatedEntity(ctx context.Context, relatedType string, relatedID int64, reason string) (int64, error)
+}
+
 // DeliveryRecorder is the slice of the delivery repository this package needs:
 // write the per-recipient rows behind the staff matrix, and drop them when an
 // announcement is retracted. Declared here (rather than importing the repository
@@ -180,10 +187,11 @@ type Service interface {
 // ServiceConfig is the dependency bundle. Outbox, Notifier and ParentsURL are
 // optional: nil delivery dependencies leave the in-app feed working.
 type ServiceConfig struct {
-	Repo     usersModels.ParentAnnouncementRepository
-	Settings configService.SettingsService
-	Outbox   OutboxEnqueuer
-	Notifier notifications.Service
+	Repo       usersModels.ParentAnnouncementRepository
+	Settings   configService.SettingsService
+	Outbox     OutboxEnqueuer
+	PushOutbox PushOutboxCanceller
+	Notifier   notifications.Service
 	// Preferences gates the push by the guardian's own consent. Optional; when
 	// absent no guardian is notified at all, which is the safe direction.
 	Preferences notifications.PreferenceService
@@ -199,6 +207,7 @@ type service struct {
 	repo        usersModels.ParentAnnouncementRepository
 	settings    configService.SettingsService
 	outbox      OutboxEnqueuer
+	pushOutbox  PushOutboxCanceller
 	notifier    notifications.Service
 	preferences notifications.PreferenceService
 	deliveries  DeliveryRecorder
@@ -219,6 +228,7 @@ func NewService(cfg ServiceConfig) Service {
 		repo:        cfg.Repo,
 		settings:    cfg.Settings,
 		outbox:      cfg.Outbox,
+		pushOutbox:  cfg.PushOutbox,
 		notifier:    cfg.Notifier,
 		preferences: cfg.Preferences,
 		deliveries:  cfg.Deliveries,
@@ -438,11 +448,14 @@ func (s *service) Delete(ctx context.Context, id int64) error {
 	if a.IsSystem() {
 		return ErrSystemAnnouncementImmutable
 	}
-	// Cancel any not-yet-sent e-mails before removing the announcement: outbox
-	// rows reference it only by related_entity_id (no FK), so a delete would
-	// otherwise leave pending rows that still deliver a notification for an
+	// Cancel any not-yet-sent e-mails and reminder pushes before removing the
+	// announcement: their outbox rows reference it only by related_entity_id
+	// (no FK), so a delete would otherwise leave pending notifications for an
 	// announcement that no longer exists.
 	if err := s.cancelPendingEmails(ctx, id); err != nil {
+		return err
+	}
+	if err := s.cancelPendingReminderPushes(ctx, id); err != nil {
 		return err
 	}
 	// Delivery rows carry the same weak link (related_entity_id, no FK), so they
@@ -928,6 +941,27 @@ func (s *service) cancelPendingEmails(ctx context.Context, id int64) error {
 	return nil
 }
 
+// cancelPendingReminderPushes removes durable reminder pushes that have not
+// been claimed by the delivery worker yet. Like the e-mail cancellation, it
+// runs in the retract/delete transaction so a rolled-back lifecycle change
+// cannot cancel a still-live announcement's reminder.
+func (s *service) cancelPendingReminderPushes(ctx context.Context, id int64) error {
+	if s.pushOutbox == nil {
+		return nil
+	}
+	cancelled, err := s.pushOutbox.CancelPendingByRelatedEntity(ctx, relatedEntityTypeReminder, id, "announcement no longer available")
+	if err != nil {
+		return fmt.Errorf("announcement: cancel pending reminder pushes: %w", err)
+	}
+	if cancelled > 0 {
+		s.logger.Info("parent announcement pending reminder pushes cancelled",
+			slog.Int64("announcement_id", id),
+			slog.Int64("cancelled", cancelled),
+		)
+	}
+	return nil
+}
+
 // dropDeliveryRows removes the recipient matrix of a retracted or deleted
 // announcement. A republish resolves the audience live and writes a fresh set,
 // so keeping the old rows would only show a matrix for a wording parents never
@@ -964,10 +998,13 @@ func (s *service) Unpublish(ctx context.Context, id int64) (*usersModels.ParentA
 		if err := s.repo.SetPublished(ctx, id, nil); err != nil {
 			return nil, fmt.Errorf("announcement: unpublish: %w", err)
 		}
-		// Retract the queued opt-in e-mails too: the correction path is
-		// unpublish -> edit -> republish, so a still-pending mail with the old
-		// wording must not go out after the announcement is pulled.
+		// Retract queued opt-in e-mails and reminder pushes too: the correction
+		// path is unpublish -> edit -> republish, so a pending notification with
+		// the old wording must not go out after the announcement is pulled.
 		if err := s.cancelPendingEmails(ctx, id); err != nil {
+			return nil, err
+		}
+		if err := s.cancelPendingReminderPushes(ctx, id); err != nil {
 			return nil, err
 		}
 		if err := s.dropDeliveryRows(ctx, a.GetTenantID(), id); err != nil {
