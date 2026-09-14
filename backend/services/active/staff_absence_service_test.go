@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -3005,7 +3004,7 @@ func (m absSettingsMock) ResolveBool(context.Context, string) (bool, error) {
 	return m.enabled, nil
 }
 
-func newAbsEmailTestService(t *testing.T, absRepo *absStaffAbsenceRepoMock, enabled bool, staffRepo *testpkg.StaffRepoMock) (*staffAbsenceService, *capturingAbsenceEmails) {
+func newAbsEmailTestService(t *testing.T, absRepo *absStaffAbsenceRepoMock, enabled bool, staffRepo *absenceEmailStaffStub) (*staffAbsenceService, *capturingAbsenceEmails) {
 	t.Helper()
 	mailer := newCapturingAbsenceEmails()
 	svc := &staffAbsenceService{
@@ -3015,25 +3014,25 @@ func newAbsEmailTestService(t *testing.T, absRepo *absStaffAbsenceRepoMock, enab
 	svc.SetAbsenceEmailDeps(AbsenceEmailDeps{
 		Settings:    absSettingsMock{enabled: enabled},
 		Dispatcher:  mailer,
-		StaffRepo:   absenceEmailStaffDirectoryStub{staffRepo},
+		StaffRepo:   staffRepo,
 		SchoolRepo:  absenceEmailSchoolFinderStub{subdomain: "tenant", found: true},
 		FrontendURL: "http://localhost:3000",
 	})
 	return svc, mailer
 }
 
-func absEmailStaffRepoMock() *testpkg.StaffRepoMock {
-	return &testpkg.StaffRepoMock{
-		GetStaffContactInfoFn: func(_ context.Context, staffID int64) (*usersModels.StaffWithRoleInfo, error) {
-			return &usersModels.StaffWithRoleInfo{
+func absEmailStaffRepoMock() *absenceEmailStaffStub {
+	return &absenceEmailStaffStub{
+		ContactFn: func(_ context.Context, staffID int64) (*AbsenceEmailContact, error) {
+			return &AbsenceEmailContact{
 				StaffID:   staffID,
 				FirstName: "Mila",
 				LastName:  "Muster",
 				Email:     "mila@example.test",
 			}, nil
 		},
-		ListStaffWithPermissionFn: func(_ context.Context, permissionName string) ([]*usersModels.StaffWithRoleInfo, error) {
-			return []*usersModels.StaffWithRoleInfo{
+		ApproversFn: func(context.Context) ([]*AbsenceEmailContact, error) {
+			return []*AbsenceEmailContact{
 				{StaffID: int64(8100), FirstName: "Lena", LastName: "Leitung", Email: "lena@example.test"},
 			}, nil
 		},
