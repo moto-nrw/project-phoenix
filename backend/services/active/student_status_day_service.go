@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/uptrace/bun"
 )
 
 // StudentStatusDayService owns status-day persistence and the absence-overview
@@ -17,7 +16,7 @@ import (
 type StudentStatusDayService struct {
 	repo             activeModels.StudentStatusDayRepository
 	pickupExceptions ManualPartialAbsenceReader
-	db               *bun.DB
+	db               DatabaseHandle
 	now              func() time.Time
 	lockExceptionDay func(context.Context, int64, string) error
 }
@@ -27,7 +26,7 @@ type StudentStatusDayService struct {
 func NewStudentStatusDayServiceWithPartialAbsences(
 	repo activeModels.StudentStatusDayRepository,
 	pickupExceptions ManualPartialAbsenceReader,
-	db *bun.DB,
+	db DatabaseHandle,
 	lockExceptionDay func(context.Context, int64, string) error,
 	clocks ...func() time.Time,
 ) *StudentStatusDayService {

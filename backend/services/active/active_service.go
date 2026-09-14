@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 // Broadcaster exposes only the tenant-scoped delivery used by attendance.
@@ -115,7 +114,7 @@ type ServiceDependencies struct {
 	StaffNames AttendanceStaffNames
 
 	// Infrastructure
-	DB          *bun.DB
+	DB          DatabaseHandle
 	Broadcaster Broadcaster // SSE event broadcaster (optional - can be nil for testing)
 
 	// Optional: Product analytics tracker (nil-safe, no student PII)

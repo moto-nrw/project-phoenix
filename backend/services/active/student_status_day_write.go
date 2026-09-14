@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 // ErrStudentStatusDayReassigned signals that a student left the caller's scope
@@ -74,7 +73,7 @@ func (e *StudentStatusDayConflictError) SampleConflicts() []*activeModels.Studen
 // composition lives in the service. Durable notifications run inside the
 // transaction; after-commit runs only the ephemeral SSE fan-out.
 type StatusDayWriteContext struct {
-	DB             *bun.DB
+	DB             DatabaseHandle
 	TenantID       int64
 	StudentService StatusDayStudents
 	Authorize      func(ctx context.Context, student *userModels.Student, status string) bool
@@ -101,7 +100,7 @@ func (s *StudentStatusDayService) CreateForDates(ctx context.Context, wc StatusD
 	if note := strings.TrimSpace(reason); note != "" {
 		notePtr = &note
 	}
-	return tenant.WithTenantTx(ctx, wc.DB, wc.TenantID, func(ctx context.Context, _ bun.Tx) error {
+	return tenant.WithTenantTx(ctx, wc.DB, wc.TenantID, func(ctx context.Context, _ any) error {
 		fresh, err := wc.StudentService.GetByIDForUpdate(ctx, studentID)
 		if err != nil {
 			return err
@@ -153,7 +152,7 @@ func (s *StudentStatusDayService) BulkCreateForDates(ctx context.Context, wc Sta
 	if note := strings.TrimSpace(reason); note != "" {
 		notePtr = &note
 	}
-	return tenant.WithTenantTx(ctx, wc.DB, wc.TenantID, func(ctx context.Context, _ bun.Tx) error {
+	return tenant.WithTenantTx(ctx, wc.DB, wc.TenantID, func(ctx context.Context, _ any) error {
 		// Phase 1: lock and authorize every student before writing any row.
 		// Order by ID for stable lock acquisition across concurrent bulk ops.
 		sortedIDs := append([]int64(nil), studentIDs...)
@@ -317,7 +316,7 @@ func dedupeStudentIDs(studentIDs []int64) []int64 {
 func (s *StudentStatusDayService) DeleteByID(ctx context.Context, wc StatusDayWriteContext, statusDayID, studentID int64) error {
 	now := s.now()
 	today := timezone.DateFromTime(now)
-	return tenant.WithTenantTx(ctx, wc.DB, wc.TenantID, func(ctx context.Context, _ bun.Tx) error {
+	return tenant.WithTenantTx(ctx, wc.DB, wc.TenantID, func(ctx context.Context, _ any) error {
 		row, err := s.repo.FindActiveByID(ctx, statusDayID)
 		if err != nil {
 			return err

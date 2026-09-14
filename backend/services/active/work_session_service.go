@@ -21,7 +21,6 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 // Error message constants to avoid duplication
@@ -384,7 +383,7 @@ type workSessionService struct {
 	absenceTypes   AbsenceTypeReader
 	supervisorRepo activeModels.GroupSupervisorRepository
 	groupRepo      activeModels.GroupRepository
-	db             *bun.DB
+	db             DatabaseHandle
 	staffRepo      WorkSessionStaff
 	scheduleRepo   WorkSessionSchedules
 	workModelRepo  WorkSessionTimeModels
@@ -457,7 +456,7 @@ func (s *workSessionService) SetAbsenceTypeService(svc AbsenceTypeReader) {
 	s.absenceTypes = svc
 }
 
-func NewWorkSessionService(repo activeModels.WorkSessionRepository, breakRepo activeModels.WorkSessionBreakRepository, auditRepo WorkSessionAudit, absenceRepo activeModels.StaffAbsenceRepository, supervisorRepo activeModels.GroupSupervisorRepository, groupRepo activeModels.GroupRepository, staffRepo WorkSessionStaff, scheduleRepo WorkSessionSchedules, workModelRepo WorkSessionTimeModels, settings settingsResolver, logger *slog.Logger, db *bun.DB, renderPDF TimeTrackingPDFRenderer, renderWorkbook TimeTrackingWorkbookRenderer) WorkSessionService {
+func NewWorkSessionService(repo activeModels.WorkSessionRepository, breakRepo activeModels.WorkSessionBreakRepository, auditRepo WorkSessionAudit, absenceRepo activeModels.StaffAbsenceRepository, supervisorRepo activeModels.GroupSupervisorRepository, groupRepo activeModels.GroupRepository, staffRepo WorkSessionStaff, scheduleRepo WorkSessionSchedules, workModelRepo WorkSessionTimeModels, settings settingsResolver, logger *slog.Logger, db DatabaseHandle, renderPDF TimeTrackingPDFRenderer, renderWorkbook TimeTrackingWorkbookRenderer) WorkSessionService {
 	return &workSessionService{repo: repo, breakRepo: breakRepo, auditRepo: auditRepo, absenceRepo: absenceRepo, supervisorRepo: supervisorRepo, groupRepo: groupRepo, staffRepo: staffRepo, scheduleRepo: scheduleRepo, workModelRepo: workModelRepo, settings: settings, logger: logger, db: db, renderPDF: renderPDF, renderWorkbook: renderWorkbook}
 }
 
