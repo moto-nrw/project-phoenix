@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/active"
@@ -60,8 +61,18 @@ func (p presenceStudents) UpdateLiveStatus(ctx context.Context, record *active.S
 	row := &users.Student{Sick: record.Sick, SickSince: record.SickSince, Excused: record.Excused, ExcusedSince: record.ExcusedSince}
 	row.ID = record.ID
 	row.TenantID = record.TenantID
-	_, err := p.source.UpdateColumns(ctx, row, "sick", "sick_since", "excused", "excused_since")
-	return err
+	affected, err := p.source.UpdateColumns(ctx, row, "sick", "sick_since", "excused", "excused_since")
+	if err != nil {
+		return err
+	}
+	// The owner's full-row update failed loudly when the primary key matched
+	// nothing, and the check-in rollback path depends on that: a student that
+	// vanished or moved tenant mid-transaction must abort the visit rather
+	// than leave the flags stale behind a silent no-op.
+	if affected == 0 {
+		return fmt.Errorf("update student live status: student %d not found", record.ID)
+	}
+	return nil
 }
 
 // StudentLiveStatusUpdate copies the presence flags onto the owner's row so a

@@ -5318,6 +5318,26 @@
     },
     {
       "scope": "test",
+      "file": "services/active/presence_students_test.go",
+      "declaration": "TestPresenceStudents_UpdateLiveStatusFailsOnUnknownStudent",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        24
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/active/presence_students_test.go",
+      "declaration": "TestPresenceStudents_UpdateLiveStatusPersistsFlags",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        46
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "services/active/session_conflict_test.go",
       "declaration": "TestForceStartActivitySessionWithSupervisors",
       "target": "database/repositories.NewFactory",
