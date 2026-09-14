@@ -3631,7 +3631,7 @@ describe("EnrollmentForm restrictToOfferings (#2251)", () => {
 
     // Add the flexible offering and pick a day.
     fireEvent.click(screen.getByText("Flexible Betreuung"));
-    fireEvent.click(screen.getByRole("button", { name: "Mo" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Mo" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
 
