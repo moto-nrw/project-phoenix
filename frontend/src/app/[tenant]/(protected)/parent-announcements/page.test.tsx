@@ -270,4 +270,23 @@ describe("ParentAnnouncementsPage: scheduled reminder (#3162)", () => {
 
     await waitFor(() => expect(updateAnnouncement).toHaveBeenCalledTimes(1));
   });
+
+  it("shows a validation error for an incomplete reminder time in a draft", async () => {
+    listState.data = [
+      {
+        ...base,
+        reminder_at: "2026-09-24T06:00:00Z",
+      },
+    ];
+    searchParams.set("bearbeiten", "1");
+    render(<ParentAnnouncementsPage />);
+
+    fireEvent.change(await screen.findByRole("textbox", { name: /Uhrzeit/ }), {
+      target: { value: "8" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Uhrzeit");
+    expect(updateAnnouncement).not.toHaveBeenCalled();
+  });
 });

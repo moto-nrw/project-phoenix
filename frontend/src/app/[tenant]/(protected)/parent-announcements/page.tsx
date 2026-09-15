@@ -41,6 +41,7 @@ import {
   DEFAULT_REMINDER_TIME,
   MAX_REMINDER_TEXT_LENGTH,
   reminderError,
+  reminderTimeError,
 } from "~/components/announcements/announcement-reminder-dialog";
 import {
   AnnouncementStatusBadge,
@@ -875,6 +876,14 @@ function AnnouncementFormModal({
         return false;
       }
     }
+    const reminderTimeProblem = reminderTimeError(
+      isPollForm ? null : reminderDay,
+      reminderTime,
+    );
+    if (reminderTimeProblem) {
+      setFormError(reminderTimeProblem);
+      return false;
+    }
     if (forPublication) {
       const reminderProblem = reminderError(
         isPollForm ? null : reminderDay,
@@ -1378,9 +1387,9 @@ function AnnouncementFormModal({
                         className="block w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400"
                       />
                       <p className="mt-1.5 text-xs text-gray-500">
-                        Ohne eigenen Text schickt moto den Text{" "}
-                        {isLetterForm ? "des Elternbriefs" : "der Mitteilung"}{" "}
-                        noch einmal.
+                        {isLetterForm
+                          ? "Ohne eigenen Text schickt moto den Text des Elternbriefs noch einmal."
+                          : "Die E-Mail hat nur Titel und Link. Den Text sehen Eltern im Eltern-Portal."}
                       </p>
                     </div>
                   )}

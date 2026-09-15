@@ -26,6 +26,28 @@ export const DEFAULT_REMINDER_TIME = "08:00";
 export const MAX_REMINDER_TEXT_LENGTH = 500;
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+export function reminderTimeError(
+  day: Date | null,
+  time: string,
+): string | null {
+  if (!day) return null;
+  if (!TIME_PATTERN.test(time)) {
+    return "Bitte eine Uhrzeit für die Erinnerung eingeben, z. B. 08:00.";
+  }
+  try {
+    berlinDateTimeISO(day, time);
+  } catch (error) {
+    if (error instanceof RangeError) {
+      if (error.message === "ambiguous Berlin wall-clock time") {
+        return "Diese Uhrzeit kommt an diesem Tag in Berlin zweimal vor. Bitte eine andere Uhrzeit wählen.";
+      }
+      return "Diese Uhrzeit gibt es an diesem Tag in Berlin nicht. Bitte eine andere Uhrzeit wählen.";
+    }
+    throw error;
+  }
+  return null;
+}
+
 /**
  * The reminder rules the backend enforces, said before the request: a valid
  * clock time, a moment still ahead of us, and never after the expiry (the
@@ -37,22 +59,10 @@ export function reminderError(
   expiresAt: Date | null,
   now: Date = new Date(),
 ): string | null {
+  const timeProblem = reminderTimeError(day, time);
+  if (timeProblem) return timeProblem;
   if (!day) return null;
-  if (!TIME_PATTERN.test(time)) {
-    return "Bitte eine Uhrzeit für die Erinnerung eingeben, z. B. 08:00.";
-  }
-  let moment: Date;
-  try {
-    moment = new Date(berlinDateTimeISO(day, time));
-  } catch (error) {
-    if (error instanceof RangeError) {
-      if (error.message === "ambiguous Berlin wall-clock time") {
-        return "Diese Uhrzeit kommt an diesem Tag in Berlin zweimal vor. Bitte eine andere Uhrzeit wählen.";
-      }
-      return "Diese Uhrzeit gibt es an diesem Tag in Berlin nicht. Bitte eine andere Uhrzeit wählen.";
-    }
-    throw error;
-  }
+  const moment = new Date(berlinDateTimeISO(day, time));
   if (moment <= now) {
     return "Die Erinnerung muss in der Zukunft liegen.";
   }
@@ -232,8 +242,9 @@ export function AnnouncementReminderDialog({
               className="block w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400"
             />
             <p className="mt-1.5 text-xs text-gray-500">
-              Ohne eigenen Text schickt moto den Text der Mitteilung noch
-              einmal.
+              {announcement.delivery_mode === "letter"
+                ? "Ohne eigenen Text schickt moto den Text des Elternbriefs noch einmal."
+                : "Die E-Mail hat nur Titel und Link. Den Text sehen Eltern im Eltern-Portal."}
             </p>
           </div>
         </div>
