@@ -10,9 +10,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/dataimport/fileformat"
 
-	importAPI "github.com/moto-nrw/project-phoenix/api/import"
-	importCompose "github.com/moto-nrw/project-phoenix/api/import/compose"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	importAPI "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound"
+	importCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -22,9 +22,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	importAPI "github.com/moto-nrw/project-phoenix/api/import"
-	importCompose "github.com/moto-nrw/project-phoenix/api/import/compose"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	importAPI "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound"
+	importCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound/compose"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	testpkg "github.com/moto-nrw/project-phoenix/test"

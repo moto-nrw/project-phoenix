@@ -35,4 +35,4 @@ When touching X.509 material (`config/ssl/`, PEM strings, crypto calls): flag ex
 
 ## File uploads
 
-New upload endpoints must validate like the existing canonical implementation in `backend/api/import/file_upload.go`: size limit, extension check AND content (magic-number) verification — never trust the extension alone.
+New upload endpoints must validate like the existing canonical implementation in `backend/modules/dataimport/inbound/file_upload.go`: size limit, extension check AND content (magic-number) verification — never trust the extension alone.
