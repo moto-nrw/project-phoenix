@@ -115,6 +115,18 @@ func (s *Service) CountAttendanceRecords(ctx context.Context, studentID int64) (
 	return result, err
 }
 
+func (s *Service) CountStudentVisitsForDeletion(ctx context.Context, studentID int64) (result int, err error) {
+	err = s.run("count_student_visits_for_deletion", func() (ports.Stats, error) {
+		if studentID <= 0 {
+			return ports.Stats{}, errors.New("student presence: invalid student ID")
+		}
+		var stats ports.Stats
+		result, stats, err = s.store.CountStudentVisitsForDeletion(ctx, studentID)
+		return stats, err
+	})
+	return result, err
+}
+
 func (s *Service) LockOpenPresence(ctx context.Context, ids []int64) error {
 	return s.run("lock_open_presence", func() (ports.Stats, error) {
 		if !validIDs(ids) {

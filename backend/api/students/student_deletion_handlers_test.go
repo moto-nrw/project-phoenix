@@ -8,11 +8,9 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	userService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,25 +27,6 @@ func TestStudentDeletionHandlers_RequirePreviewAndExplicitConfirmation(t *testin
 	t.Parallel()
 
 	tc := setupStudentsRoute(t)
-	repos := newStudentTestRepositories(tc.db)
-	studentService := userService.NewStudentService(
-		repos.Student,
-		repositories.NewStudentPrivacyConsentStore(tc.db),
-		repos.StudentCompanion,
-		nil,
-	)
-	tc.resource.StudentDeletionService = userService.NewStudentDeletionService(
-		studentService,
-		repos.Student,
-		repos.Person,
-		repos.StudentDeletion,
-		repos.GradeTransition,
-		repos.DataDeletion,
-		repos.StudentDeletionAudit,
-		&testpkg.FeedbackEntryCounterMock{},
-		tc.db,
-	)
-
 	target := testpkg.CreateTestStudent(t, tc.db, "DeleteApi", "Target", "1a")
 	spared := testpkg.CreateTestStudent(t, tc.db, "DeleteApi", "Spared", "1a")
 	room := testpkg.CreateTestRoom(t, tc.db, "delete-api-room")
@@ -69,10 +48,10 @@ func TestStudentDeletionHandlers_RequirePreviewAndExplicitConfirmation(t *testin
 	require.Equal(t, http.StatusOK, previewResponse.Code, "Body: %s", previewResponse.Body.String())
 	var previewBody struct {
 		Data struct {
-			ConfirmationName string                           `json:"confirmation_name"`
-			Fingerprint      string                           `json:"fingerprint"`
-			Total            int                              `json:"total"`
-			Counts           userModels.StudentDeletionCounts `json:"counts"`
+			ConfirmationName string                 `json:"confirmation_name"`
+			Fingerprint      string                 `json:"fingerprint"`
+			Total            int                    `json:"total"`
+			Counts           studentdeletion.Counts `json:"counts"`
 			Preserved        struct {
 				OtherStudents   bool `json:"other_students"`
 				SharedInstances bool `json:"shared_instances"`
@@ -95,7 +74,7 @@ func TestStudentDeletionHandlers_RequirePreviewAndExplicitConfirmation(t *testin
 	wrongNameRequest := testutil.NewAuthenticatedRequest(t, http.MethodDelete, fmt.Sprintf("/%d", target.ID), map[string]any{
 		"expected_fingerprint": previewBody.Data.Fingerprint,
 		"confirmation_name":    "Wrong Name",
-		"reason":               userService.StudentDeletionReasonTestData,
+		"reason":               studentdeletion.ReasonTestData,
 		"acknowledged":         true,
 	})
 	wrongNameResponse := authExec(t, tc, wrongNameRequest, claims, []string{"admin:*"})
@@ -105,7 +84,7 @@ func TestStudentDeletionHandlers_RequirePreviewAndExplicitConfirmation(t *testin
 	deleteRequest := testutil.NewAuthenticatedRequest(t, http.MethodDelete, fmt.Sprintf("/%d", target.ID), map[string]any{
 		"expected_fingerprint": previewBody.Data.Fingerprint,
 		"confirmation_name":    previewBody.Data.ConfirmationName,
-		"reason":               userService.StudentDeletionReasonTestData,
+		"reason":               studentdeletion.ReasonTestData,
 		"acknowledged":         true,
 	})
 	deleteResponse := authExec(t, tc, deleteRequest, claims, []string{"admin:*"})

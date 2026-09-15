@@ -11,7 +11,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/uptrace/bun"
 )
@@ -37,7 +36,6 @@ type StudentTestRepositories struct {
 	CareExitCleanup              usersModels.CareExitCleanupRepository
 	CareWithdrawal               usersModels.CareWithdrawalCompletionRepository
 	GradeTransition              educationModels.GradeTransitionRepository
-	StudentDeletion              usersModels.StudentDeletionRepository
 	StudentDeletionAudit         auditModels.StudentDeletionRepository
 	StudentFieldEdit             auditModels.StudentFieldEditRepository
 	StudentConsentChange         auditModels.StudentConsentChangeRepository
@@ -83,7 +81,6 @@ func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (Studen
 		DataDeletion:                 auditRepo.NewDataDeletionRepository(newTestAuditRuntime(db)),
 		CareExitCleanup:              lifecycle.CareExitCleanup,
 	}
-	r.StudentDeletion = usersRepo.NewStudentDeletionRepository(db, r.StudentDeletionAudit.CountStudentReferences, r.countPrivacyConsents, enrollmentCompose.New().CountStudentReferences, enrollment.Timetable, parentStore.NewStudentConversations(db), newStudentPresence(db).CountAttendanceRecords)
 	r.BindPeopleDirectory(people)
 	r.bindCarePlanAdapters(care)
 	r.BindAppointments(appointments)
@@ -105,7 +102,7 @@ func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (Studen
 		SubstitutionChange:           r.SubstitutionChange,
 		EnrollmentTestRepositories:   enrollment, CareExit: lifecycle.CareExit, CareExitCleanup: lifecycle.CareExitCleanup,
 		CareWithdrawal: lifecycle.CareWithdrawal, GradeTransition: lifecycle.GradeTransition,
-		StudentDeletion: r.StudentDeletion, StudentDeletionAudit: r.StudentDeletionAudit, StudentFieldEdit: lifecycle.StudentFieldEdit,
+		StudentDeletionAudit: r.StudentDeletionAudit, StudentFieldEdit: lifecycle.StudentFieldEdit,
 		StudentConsentChange: r.StudentConsentChange, DataDeletion: r.DataDeletion,
 		ParentMessageThread: parentStore.NewParentMessageThreadRepository(db, usersRepo.NewMessageableGuardianRepository(db)),
 		ParentMessage:       parentStore.NewParentMessageRepository(db),

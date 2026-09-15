@@ -1964,26 +1964,3 @@ func (s *GradeTransitionService) GetHistoryWithStudentStates(
 	}
 	return history, states, nil
 }
-
-// ErrGraduateStillPresent is returned when the ledger anonymization is asked to
-// run for a student whose row still exists.
-var ErrGraduateStillPresent = errors.New("student row still exists, refusing to anonymize its ledger")
-
-// AnonymizePurgedGraduate strips the child's name from the transition ledger
-// after the student and person rows have been hard-deleted.
-//
-// It verifies the row is really gone first, because that is the whole
-// justification for losing the name: while the student still exists the ledger
-// name is the only human-readable label a revert or an Abgänge list has, and
-// blanking it there would break both for a child who is still restorable.
-// Callers run this INSIDE the delete transaction, so the check sees the delete.
-func (s *GradeTransitionService) AnonymizePurgedGraduate(ctx context.Context, studentID int64) error {
-	statuses, err := s.transitionRepo.FindStudentStatesByIDs(ctx, []int64{studentID})
-	if err != nil {
-		return err
-	}
-	if _, stillThere := statuses[studentID]; stillThere {
-		return ErrGraduateStillPresent
-	}
-	return s.transitionRepo.AnonymizeHistoryForStudent(ctx, studentID)
-}

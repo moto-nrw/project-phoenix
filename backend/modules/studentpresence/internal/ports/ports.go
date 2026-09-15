@@ -59,6 +59,7 @@ type Store interface {
 	PrivacyConsentStore
 	LatestPresenceDate(context.Context, int64) (*string, Stats, error)
 	CountAttendanceRecords(context.Context, int64) (int, Stats, error)
+	CountStudentVisitsForDeletion(context.Context, int64) (int, Stats, error)
 	LockOpenPresence(context.Context, []int64) (Stats, error)
 	CloseOpenPresence(context.Context, []int64, time.Time) (Stats, error)
 	ListOpenPresence(context.Context, []int64) ([]int64, Stats, error)

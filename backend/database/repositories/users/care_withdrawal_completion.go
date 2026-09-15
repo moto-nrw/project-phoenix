@@ -304,35 +304,6 @@ func (r *CareWithdrawalCompletionRepository) MarkDeleted(ctx context.Context, id
 	return affected == 1, nil
 }
 
-// MarkStudentDeleted redacts every completion still linked to a student. This
-// also covers deletion started from the ordinary child-data screen, so that
-// route cannot orphan an invisible pending task or retain withdrawal PII.
-func (r *CareWithdrawalCompletionRepository) MarkStudentDeleted(ctx context.Context, studentID, actorAccountID int64, at time.Time) (int, error) {
-	result, err := base.GetDB(ctx, r.DB).NewUpdate().
-		Model((*userModels.CareWithdrawalCompletion)(nil)).
-		ModelTableExpr(tableExprCareWithdrawalCompletions).
-		Set("state = CASE WHEN state = ? THEN ? ELSE state END",
-			userModels.CareWithdrawalStatePending, userModels.CareWithdrawalStateResolved).
-		Set("outcome = CASE WHEN state = ? THEN ? ELSE outcome END",
-			userModels.CareWithdrawalStatePending, userModels.CareWithdrawalOutcomeDeleted).
-		Set("student_id = NULL").
-		Set("source_adjustment_id = NULL").
-		Set("source_request_child_id = NULL").
-		Set("source_offerings = '[]'::jsonb").
-		Set("obsolete_reason = CASE WHEN state = ? THEN NULL ELSE obsolete_reason END", userModels.CareWithdrawalStatePending).
-		Set("resolved_by = CASE WHEN state = ? THEN ? ELSE resolved_by END", userModels.CareWithdrawalStatePending, actorAccountID).
-		Set("resolved_at = CASE WHEN state = ? THEN ? ELSE resolved_at END", userModels.CareWithdrawalStatePending, at).
-		Set("updated_at = ?", at).
-		Where(`"care_withdrawal_completion".tenant_id = ?`, tenant.FromContext(ctx)).
-		Where(`"care_withdrawal_completion".student_id = ?`, studentID).
-		Exec(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "redact care withdrawal completions for deleted student", Err: base.TranslateNotFound(err)}
-	}
-	affected, _ := result.RowsAffected()
-	return int(affected), nil
-}
-
 // MarkObsoleteForRebooking atomically applies the no-gap domain predicate.
 func (r *CareWithdrawalCompletionRepository) MarkObsoleteForRebooking(
 	ctx context.Context,

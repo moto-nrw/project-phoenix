@@ -860,12 +860,6 @@ func (r *GradeTransitionRepository) RestoreStudentTag(context.Context, int64, st
 	return false, fmt.Errorf("restore student tag through the people directory composition")
 }
 
-// PurgedStudentPlaceholder replaces a graduate's name in the ledger once the
-// child has been hard-deleted. The row itself stays: it is what makes the
-// applied transition's own count ("11 Abgänge") still add up afterwards, and
-// the revert reads it to know which children it must NOT try to restore.
-const PurgedStudentPlaceholder = "Gelöschtes Kind"
-
 // FindStudentStatesByIDs maps each given student id to its current lifecycle
 // status. Ids missing from the result no longer have a row at all — they were
 // hard-deleted after graduation.
@@ -890,33 +884,4 @@ func (r *GradeTransitionRepository) FindStudentStatesByIDs(ctx context.Context, 
 		states[row.ID] = row.Status
 	}
 	return states, nil
-}
-
-// AnonymizeHistoryForStudent replaces the stored name and clears the stored
-// RFID identifier on every ledger row of a student that has just been
-// hard-deleted.
-//
-// Without it the "endgültig löschen" the UI promises would be a half-truth:
-// grade_transition_history.person_name is a denormalized copy of the child's
-// name that carries no foreign key, so it survives the delete of both the
-// student and the person row and would keep identifying the child indefinitely.
-func (r *GradeTransitionRepository) AnonymizeHistoryForStudent(ctx context.Context, studentID int64) error {
-	updQuery := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*struct{})(nil)).
-		ModelTableExpr(`education.grade_transition_history AS "history"`).
-		Set("person_name = ?", PurgedStudentPlaceholder).
-		Set("rfid_tag = NULL").
-		Set("updated_at = NOW()").
-		Where(`"history".student_id = ?`, studentID).
-		Where(`("history".person_name <> ? OR "history".rfid_tag IS NOT NULL)`, PurgedStudentPlaceholder)
-
-	updQuery = base.WithTenantFilter(ctx, updQuery, "history")
-
-	if _, err := updQuery.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "anonymize grade transition history for student",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-	return nil
 }

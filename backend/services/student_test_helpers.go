@@ -219,27 +219,6 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		Logger: logger.With("service", "enrollment-decision"),
 		Today:  today,
 	})
-	studentService := users.NewStudentService(
-		repos.Student,
-		repositories.StudentPrivacyConsentCapability(newStudentPresence(db, logger)),
-		repos.StudentCompanion,
-		studentAuditService,
-	)
-	studentDeletionService := users.NewStudentDeletionService(
-		studentService,
-		repos.Student,
-		repos.Person,
-		repos.StudentDeletion,
-		repos.GradeTransition,
-		repos.DataDeletion,
-		repos.StudentDeletionAudit,
-		feedbackCounter,
-		db,
-	)
-	pillEmitter.WithDecisionNotifications(delivery.Notifications, delivery.NotificationPreferences)
-	users.WireStudentDocumentCleanup(studentDeletionService, repos.StudentDocument)
-	users.WireStudentDeletionCareWithdrawals(studentDeletionService, repos.CareWithdrawal)
-	users.WireCareWithdrawalDeletion(careLifecycleService, studentDeletionService)
 	grade.GradeTransition.SetOfferingSourceResyncer(enrollmentDecisionService.(education.OfferingSourceResyncer))
 	enrollmentDecisionApplier := enrollmentDecisionService.(enrollment.ChangeRequestDecisionApplier)
 	directOfferingApplier := enrollmentDecisionService.(enrollment.DirectOfferingAdjustmentApplier)

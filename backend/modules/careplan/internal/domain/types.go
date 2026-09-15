@@ -13,6 +13,8 @@ var (
 	ErrOfferingChangeAlreadyOpen  = errors.New("offering change request already pending")
 	ErrCareOfferingTriggerInvalid = errors.New("care offering auto trigger is outside the tenant")
 	ErrCareDocumentNotFound       = errors.New("student care document not found")
+	ErrWithdrawalNotFound         = errors.New("care withdrawal completion not found")
+	ErrWithdrawalNotPending       = errors.New("care withdrawal completion is not pending")
 )
 
 type CareOffering struct {

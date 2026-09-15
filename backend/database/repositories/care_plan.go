@@ -160,35 +160,11 @@ func (f *Factory) bindCarePlanAdapters(capability careplan.Capability) {
 	if repository, ok := f.CareExit.(*usersRepo.CareExitRepository); ok {
 		repository.BindCarePlan(careExitDirectory{capability: capability})
 	}
-	if repository, ok := f.StudentDeletion.(*usersRepo.StudentDeletionRepository); ok {
-		repository.BindCarePlan(studentDeletionCarePlanDirectory{capability: capability})
-	}
 	if repository, ok := f.InstanceStudent.(interface {
 		BindCarePlan(scheduleRepo.PickupExceptionDirectory)
 	}); ok {
 		repository.BindCarePlan(pickupExceptionDirectory{query: capability})
 	}
-}
-
-type studentDeletionCarePlanDirectory struct{ capability careplan.Capability }
-
-func (d studentDeletionCarePlanDirectory) CountCompanionLinks(ctx context.Context, studentID int64) (int, error) {
-	return d.capability.CountCompanionLinks(ctx, studentID)
-}
-
-func (d studentDeletionCarePlanDirectory) CountStudentScheduleRows(ctx context.Context, studentID int64) (int, error) {
-	return d.capability.CountStudentScheduleRows(ctx, studentID)
-}
-
-func (d studentDeletionCarePlanDirectory) CountCarePlanDeletionRecords(ctx context.Context, studentID int64) (usersRepo.CarePlanDeletionCounts, error) {
-	counts, err := d.capability.CountCarePlanDeletionRecords(ctx, studentID)
-	if err != nil {
-		return usersRepo.CarePlanDeletionCounts{}, err
-	}
-	return usersRepo.CarePlanDeletionCounts{
-		StatusDays: counts.StatusDays, ExcusedRequests: counts.ExcusedRequests,
-		CareRequests: counts.CareRequests, DataRequests: counts.DataRequests,
-	}, nil
 }
 
 type pickupExceptionDirectory struct {

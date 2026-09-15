@@ -22,6 +22,10 @@ type Store interface {
 	Search(context.Context, domain.Filter) ([]domain.Person, domain.OperationStats, error)
 	CountByTenant(context.Context) (map[int64]int, domain.OperationStats, error)
 	SoftDelete(context.Context, int64) (domain.OperationStats, error)
+	// AnonymizeIfUnchanged replaces the direct identifiers of a deleted
+	// child's person with placeholders and tombstones the row, only while its
+	// updated_at still equals the previewed value. False means the row moved.
+	AnonymizeIfUnchanged(ctx context.Context, personID int64, updatedAt time.Time) (bool, domain.OperationStats, error)
 	SetAccount(ctx context.Context, personID int64, accountID *int64) (domain.OperationStats, error)
 	SetTag(ctx context.Context, personID int64, tagID *string) (domain.OperationStats, error)
 	LockHeldTags(context.Context, []int64) ([]domain.ReleasedTag, domain.OperationStats, error)

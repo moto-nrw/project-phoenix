@@ -41,6 +41,9 @@ type Store interface {
 	RecordCareExitRemovals(context.Context, []domain.CareExitRemoval) (domain.OperationStats, error)
 	RecordCareExitSourceRemovals(context.Context, []domain.CareExitSourceRemoval) (domain.OperationStats, error)
 	DiscardCareExitRemovals(context.Context, []int64) (domain.OperationStats, error)
+	FindPendingWithdrawalStudent(ctx context.Context, completionID int64, lock bool) (int64, domain.OperationStats, error)
+	ResolvePendingWithdrawalAsDeleted(ctx context.Context, completionID, actorAccountID int64, at time.Time) (bool, domain.OperationStats, error)
+	RedactWithdrawalsForDeletedStudent(ctx context.Context, studentID, actorAccountID int64, at time.Time) (int, domain.OperationStats, error)
 
 	FindCareOffering(context.Context, int64) (domain.CareOffering, bool, domain.OperationStats, error)
 	ListCareOfferings(context.Context, domain.CareOfferingFilter) ([]domain.CareOffering, domain.OperationStats, error)

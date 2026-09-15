@@ -29,6 +29,7 @@ type Query interface {
 	ListOpenPresence(context.Context, []int64) ([]int64, error)
 	LatestPresenceDate(context.Context, int64) (*string, error)
 	CountAttendanceRecords(context.Context, int64) (int, error)
+	CountStudentVisitsForDeletion(context.Context, int64) (int, error)
 }
 
 // LockStaffSupervision returns the supervision IDs active on the given school
@@ -82,6 +83,14 @@ func (m *Module) LatestPresenceDate(ctx context.Context, studentID int64) (*stri
 // checkouts; the deletion preview reports both as attendance records.
 func (m *Module) CountAttendanceRecords(ctx context.Context, studentID int64) (int, error) {
 	return m.engine.CountAttendanceRecords(ctx, studentID)
+}
+
+// CountStudentVisitsForDeletion counts every visit of the child, including
+// holiday-care visits hosted by another tenant that the home tenant's RLS
+// hides. The permanent-deletion preview reports them because the cascade
+// removes them with the child.
+func (m *Module) CountStudentVisitsForDeletion(ctx context.Context, studentID int64) (int, error) {
+	return m.engine.CountStudentVisitsForDeletion(ctx, studentID)
 }
 
 func (m *Module) LockOpenPresence(ctx context.Context, studentIDs []int64) error {

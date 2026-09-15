@@ -327,35 +327,6 @@ func TestStudentDocumentService_UploadIntentIsSettledOnSuccess(t *testing.T) {
 	}
 }
 
-// TestStudentDocumentService_QueueCleanupForAllDocuments covers the child
-// deletion path. Documents cascade away with the child, so the intents queued
-// here are the only thing left that can get the bytes off disk.
-func TestStudentDocumentService_QueueCleanupForAllDocuments(t *testing.T) {
-	t.Parallel()
-
-	s := newStudentDocumentScenario(t)
-	office := s.actor("users:update")
-
-	first := s.create(t, userModels.StudentDocumentCategorySonstiges, office)
-	second := s.create(t, userModels.StudentDocumentCategoryAbholvollmacht, office)
-
-	require.NoError(t, s.svc.QueueCleanupForAllDocuments(s.ctx, s.studentID))
-
-	queued, err := s.svc.ListQueuedStudentDocumentFileCleanups(s.ctx)
-	require.NoError(t, err)
-	names := make([]string, 0, len(queued))
-	for _, cleanup := range queued {
-		names = append(names, cleanup.FilenameStored)
-	}
-	assert.Contains(t, names, first.FilenameStored)
-	assert.Contains(t, names, second.FilenameStored)
-}
-
-// TestStudentDocumentService_NonStaffCallerIsUnreachable covers the per-child
-// gate. The route permissions only say the caller may open documents at all;
-// whether the caller is staff of this tenant is a separate question, and
-// without this a guest or guardian account holding users:update could read and
-// delete the paperwork of every child in the school.
 func TestStudentDocumentService_NonStaffCallerIsUnreachable(t *testing.T) {
 	t.Parallel()
 

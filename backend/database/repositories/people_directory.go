@@ -1,7 +1,6 @@
 package repositories
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -33,15 +32,4 @@ func (f *Factory) bindDefaultPeopleDirectory(db *bun.DB) {
 	f.students = students
 	f.bindStudentDirectories(students, students)
 	f.bindGuardianDirectories(students)
-}
-
-// countPrivacyConsents serves the student-deletion preview through the
-// consent owner (student-presence, #2662). A child carries a handful of
-// consent rows at most, so the existing listing is the count.
-func (f *Factory) countPrivacyConsents(ctx context.Context, studentID int64) (int, error) {
-	consents, err := newStudentPresence(f.db).ListPrivacyConsents(ctx, studentID)
-	if err != nil {
-		return 0, err
-	}
-	return len(consents), nil
 }

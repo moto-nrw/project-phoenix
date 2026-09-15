@@ -70,6 +70,8 @@ still has no owner: the retained generic document repository reaches it only
 dynamically, so the baseline records no `tables.unclassified` finding to adopt
 it from, and the File Storage composition binds its intent operations to that
 repository as a compatibility permission until the table can be adopted.
+#2710 adopts `users.persons_guardians` under `people-directory` the same way
+(policy epoch 7 to 8); the remaining #2727 tables stay unclassified debt.
 `target.svg` shows File Storage as domain and Document Rendering as platform;
 do not commit the generated diagram.
 
@@ -497,6 +499,43 @@ without one fail before mutations. Daily checkout reads tenant overrides or
 the registry default, never a process environment fallback. Before deployment,
 any intended prior environment value must be stored as an explicit per-school
 setting. This integration does not inspect or modify deployed settings.
+
+The student deletion workflow (`workflows/studentdeletion`, owner
+`student-deletion`, kind `workflow`, #2710,
+[ADR 0016](../../docs/adr/0016-student-deletion-is-an-application-workflow.md))
+is the one coordinator of a permanent child deletion: the confirmed deletion
+of an active child, the graduate purge from the Abgänge view and the deletion
+behind a pending care withdrawal. Its public package exposes the preview and
+the commands over the People Directory and Care Plan contracts
+(`student-deletion.to.*`); `compose` binds the remaining owners (Timetable,
+School Structure, Student Presence, Communication, Enrollment, Appointments,
+Feedback, Identity & Access, Audit), the tenant UnitOfWork, the permission
+principal and the realtime broadcaster. Every owner performs its own read and
+mutation: People Directory counts guardian links, hard-deletes the student
+row and anonymizes the person tombstone; Care Plan resolves and redacts
+withdrawal tasks and records the document cleanup intents before the cascade;
+Timetable deletes the child's assignments and counts the archived roster
+removals; School Structure anonymizes the grade-transition ledger; Identity
+counts guardian invitations; Student Presence counts attendance and the
+cross-tenant holiday visits; the Audit command appends the two tombstones.
+The workflow contains no SQL and no repository import. The retained
+`services/users` deletion service, the cross-schema
+`database/repositories/users` deletion repository and the handler-side purge
+transaction of `api/students` are deleted; the legacy composition builds the
+workflow once (`legacy-composition.compose.deletion.*`) and the students HTTP
+adapter calls exactly its public commands. The
+`student-deletion.compose.deletion.timetable-legacy-view.postgres` rule is a
+compatibility binding for the activity-enrollment count, not a target
+dependency: rebind it when the Timetable owner exposes the count publicly.
+The `people-directory.module-behavior-test.deletion.*` permissions bind the
+real composition in the workflow's hermetic tests; they are test-only.
+
+Under ADR 0013 this data-less workflow registration raises the policy epoch
+from 7 to 8 and uses only candidate-created packages. The same epoch adopts
+`users.persons_guardians` into People Directory through the ADR 0015 path:
+its one recorded `tables.unclassified` finding named a package already
+classified under that owner, and the deletion unlinks the legacy guardian rows
+through the owner command. Existing owner/import guards remain unchanged.
 
 The emergency snapshot read projection (`modules/emergencysnapshot`,
 `emergency-snapshot`/`public`, #2704) builds the Notfallliste, the present

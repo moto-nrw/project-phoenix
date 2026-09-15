@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "policy_epoch": 7,
+  "policy_epoch": 8,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -412,6 +412,10 @@
     },
     {
       "id": "staff-offboarding",
+      "kind": "workflow"
+    },
+    {
+      "id": "student-deletion",
       "kind": "workflow"
     }
   ],
@@ -3131,6 +3135,20 @@
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
+    },
+    {
+      "path": "workflows/studentdeletion",
+      "owner": "student-deletion",
+      "role": "public",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/studentdeletion/compose",
+      "owner": "student-deletion",
+      "role": "compose",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
     }
   ],
   "data_objects": [
@@ -4013,6 +4031,10 @@
     {
       "name": "documents.folders",
       "write_owner": "file-storage"
+    },
+    {
+      "name": "users.persons_guardians",
+      "write_owner": "people-directory"
     }
   ],
   "read_projections": [
@@ -19868,6 +19890,279 @@
       "source_role": "test-support",
       "target_owner": "file-storage",
       "target_role": "public"
+    },
+    {
+      "id": "student-deletion.to.people-directory",
+      "description": "Student Deletion coordinates the public owner capability required by #2710.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-deletion",
+      "source_role": "public",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "student-deletion.to.care-plan",
+      "description": "Student Deletion coordinates the public owner capability required by #2710.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-deletion",
+      "source_role": "public",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "student-deletion.compose.deletion.student-deletion.public",
+      "description": "Wire the child lifecycle owner workflow required by #2710 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-deletion",
+      "source_role": "compose",
+      "target_owner": "student-deletion",
+      "target_role": "public"
+    },
+    {
+      "id": "student-deletion.compose.deletion.security-runtime.contract",
+      "description": "Wire the child lifecycle owner workflow required by #2710 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-deletion",
+      "source_role": "compose",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "student-deletion.compose.deletion.audit-platform.postgres",
+      "description": "Wire the child lifecycle owner workflow required by #2710 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-deletion",
+      "source_role": "compose",
+      "target_owner": "audit-platform",
+      "target_role": "postgres"
+    },
+    {
+      "id": "student-deletion.compose.deletion.audit-platform.domain",
+      "description": "Wire the child lifecycle owner workflow required by #2710 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-deletion",
+      "source_role": "compose",
+      "target_owner": "audit-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "student-deletion.compose.deletion.audit-platform.application",
+      "description": "Wire the child lifecycle owner workflow required by #2710 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-deletion",
+      "source_role": "compose",
+      "target_owner": "audit-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "student-deletion.compose.deletion.legacy-shared.domain",
+      "description": "Wire the child lifecycle owner workflow required by #2710 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-deletion",
+      "source_role": "compose",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "student-deletion.compose.deletion.delivery-platform.public",
+      "description": "Wire the child lifecycle owner workflow required by #2710 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-deletion",
+      "source_role": "compose",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "student-deletion.compose.deletion.tenant-runtime.public",
+      "description": "Wire the child lifecycle owner workflow required by #2710 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-deletion",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "student-deletion.compose.deletion.appointments.compose",
+      "description": "Wire the child lifecycle owner workflow required by #2710 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-deletion",
+      "source_role": "compose",
+      "target_owner": "appointments",
+      "target_role": "compose"
+    },
+    {
+      "id": "student-deletion.compose.deletion.communication.compose",
+      "description": "Wire the child lifecycle owner workflow required by #2710 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-deletion",
+      "source_role": "compose",
+      "target_owner": "communication",
+      "target_role": "compose"
+    },
+    {
+      "id": "student-deletion.compose.deletion.enrollment.compose",
+      "description": "Wire the child lifecycle owner workflow required by #2710 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-deletion",
+      "source_role": "compose",
+      "target_owner": "enrollment",
+      "target_role": "compose"
+    },
+    {
+      "id": "student-deletion.compose.deletion.identity-access.compose",
+      "description": "Wire the child lifecycle owner workflow required by #2710 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-deletion",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "compose"
+    },
+    {
+      "id": "student-deletion.compose.deletion.school-structure.compose",
+      "description": "Wire the child lifecycle owner workflow required by #2710 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-deletion",
+      "source_role": "compose",
+      "target_owner": "school-structure",
+      "target_role": "compose"
+    },
+    {
+      "id": "student-deletion.compose.deletion.student-presence.compose",
+      "description": "Wire the child lifecycle owner workflow required by #2710 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-deletion",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "student-deletion.compose.deletion.timetable-legacy-view.postgres",
+      "description": "Compatibility binding, not a target dependency: the activity-enrollment count still lives in the timetable legacy projection; rebind it to the Timetable owner when it exposes the count publicly (#2710).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-deletion",
+      "source_role": "compose",
+      "target_owner": "timetable-legacy-view",
+      "target_role": "postgres"
+    },
+    {
+      "id": "legacy-composition.compose.deletion.student-deletion.public",
+      "description": "Wire the child lifecycle owner workflow required by #2710 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "student-deletion",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.compose.deletion.student-deletion.compose",
+      "description": "Wire the child lifecycle owner workflow required by #2710 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "student-deletion",
+      "target_role": "compose"
+    },
+    {
+      "id": "inbound-students.http.deletion.student-deletion.public",
+      "description": "The students HTTP surface runs the permanent deletion, the graduate purge and the withdrawal deletion through the owner workflow (#2710).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "http",
+      "target_owner": "student-deletion",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-students.adapter-test.deletion.student-deletion.compose",
+      "description": "Student HTTP fixtures construct the production deletion workflow (#2710).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "adapter-test",
+      "target_owner": "student-deletion",
+      "target_role": "compose"
+    },
+    {
+      "id": "people-directory.module-behavior-test.deletion.student-deletion.public",
+      "description": "Student Deletion integration tests use real owner composition and the outer tenant UnitOfWork (#2710).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-deletion",
+      "target_role": "public"
+    },
+    {
+      "id": "people-directory.module-behavior-test.deletion.student-deletion.compose",
+      "description": "Student Deletion integration tests use real owner composition and the outer tenant UnitOfWork (#2710).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-deletion",
+      "target_role": "compose"
+    },
+    {
+      "id": "student-deletion.compose.database-binding",
+      "description": "Bind owner adapters to the shared database and ambient UnitOfWork; no workflow SQL (#2710).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-deletion",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "student-deletion.public.crypto",
+      "description": "The deletion preview fingerprint is a SHA-256 digest compared in constant time (#2710).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-deletion",
+      "source_role": "public",
+      "target_class": "crypto"
     }
   ]
 }

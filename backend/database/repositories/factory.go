@@ -114,7 +114,6 @@ type Factory struct {
 	Staff               userModels.StaffRepository
 	Student             userModels.StudentRepository
 	ClassListEntry      userModels.ClassListEntryRepository
-	StudentDeletion     userModels.StudentDeletionRepository
 	CareExit            userModels.CareExitRepository
 	CareExitCleanup     userModels.CareExitCleanupRepository
 	CareWithdrawal      userModels.CareWithdrawalCompletionRepository
@@ -342,13 +341,6 @@ func (f *Factory) ConfigureAuditRuntime(runtime audit.Runtime) {
 	f.BookingConsistency = audit.NewBookingConsistencyRepository(runtime, NewEnrollmentBookingProjection(enrollmentCompose.New()))
 	f.bindAuditStudentDirectory()
 	f.bindCarePlanAuditDirectory()
-	f.StudentDeletion = users.NewStudentDeletionRepository(f.db, f.StudentDeletionAudit.CountStudentReferences, f.countPrivacyConsents, enrollmentCompose.New().CountStudentReferences, f.InstanceStudent.(timetableInstanceStudentRepository).timetable, parentStore.NewStudentConversations(f.db), newStudentPresence(f.db).CountAttendanceRecords)
-	if repository, ok := f.StudentDeletion.(*users.StudentDeletionRepository); ok && f.carePlan != nil {
-		repository.BindCarePlan(studentDeletionCarePlanDirectory{capability: f.carePlan})
-	}
-	if repository, ok := f.StudentDeletion.(*users.StudentDeletionRepository); ok && f.appointments != nil {
-		repository.BindAppointments(f.appointments)
-	}
 	if f.students != nil {
 		f.bindGuardianDirectories(f.students)
 	}
@@ -790,7 +782,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		},
 		substitutionStaffResolver(lazyStaffLookup{get: func() schoolmembership.Capability { return factory.schoolMembership }}),
 	)
-	factory.StudentDeletion = users.NewStudentDeletionRepository(db, studentDeletionAudit.CountStudentReferences, factory.countPrivacyConsents, enrollmentModule.CountStudentReferences, timetableCapability, parentStore.NewStudentConversations(db), presenceCapability.CountAttendanceRecords)
 	factory.bindAppointments(appointmentsModule)
 	// Bind student ports while their repositories are still raw. The staff
 	// projections below wrap some of the same repositories.

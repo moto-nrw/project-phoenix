@@ -4335,44 +4335,6 @@
     },
     {
       "scope": "test",
-      "file": "database/repositories/users/student_deletion_test.go",
-      "declaration": "TestStudentDeletionRepository_DeletesOnlyTargetAssignments",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        89,
-        110
-      ],
-      "tables": [
-        "schedule.activity_instances",
-        "schedule.instance_students",
-        "users.persons"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/student_deletion_test.go",
-      "declaration": "TestStudentDeletionRepository_LockMessageThreadsBlocksNewRead",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        58
-      ],
-      "tables": [
-        "users.parent_message_reads",
-        "users.parent_message_threads"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/student_deletion_test.go",
-      "declaration": "TestStudentDeletionRepository_RequiresTenantContext",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        21
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "database/repositories/users/student_departure_days_test.go",
       "declaration": "TestStudentRepository_CompanionNoteSchemaCompatibility",
       "target": "database/repositories.NewFactory",
@@ -9525,7 +9487,7 @@
       "declaration": "TestCareLifecycle_CancelPutsThePlanBack",
       "target": "database/repositories.NewFactory",
       "lines": [
-        712
+        661
       ],
       "tables": [
         "schedule.instance_students"
@@ -9549,7 +9511,7 @@
       "declaration": "TestCareLifecycle_ChangingTheDayReplansFromTheBaseline",
       "target": "database/repositories.NewFactory",
       "lines": [
-        838
+        787
       ],
       "tables": []
     },
@@ -9593,7 +9555,7 @@
       "declaration": "TestCareLifecycle_ResumeDoesNotBringThePlanBack",
       "target": "database/repositories.NewFactory",
       "lines": [
-        906
+        855
       ],
       "tables": [
         "users.students"
@@ -9624,18 +9586,6 @@
     {
       "scope": "test",
       "file": "services/users/care_lifecycle_service_test.go",
-      "declaration": "TestStudentDeletion_RetentionReasonOnlyForEndedCare",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        657
-      ],
-      "tables": [
-        "users.students"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/users/care_lifecycle_service_test.go",
       "declaration": "loadStudent",
       "target": "database/repositories.NewFactory",
       "lines": [
@@ -9649,7 +9599,7 @@
       "declaration": "TestCareWithdrawalLifecycle_CompletionEndsBookingsFromEveryEnrollmentRequest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        107
+        106
       ],
       "tables": [
         "enrollment.request_children"
@@ -9658,30 +9608,10 @@
     {
       "scope": "test",
       "file": "services/users/care_withdrawal_lifecycle_test.go",
-      "declaration": "TestCareWithdrawalLifecycle_DeletesStudentAndRedactsCompletionAtomically",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        142
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/care_withdrawal_lifecycle_test.go",
       "declaration": "TestCareWithdrawalLifecycle_ResolvedCompletionIsAConflict",
       "target": "database/repositories.NewFactory",
       "lines": [
-        312
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/care_withdrawal_lifecycle_test.go",
-      "declaration": "TestStudentDeletion_RedactsPendingWithdrawalOutsideCompletionFlow",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        184
+        190
       ],
       "tables": []
     },
@@ -9691,17 +9621,7 @@
       "declaration": "createWithdrawalCompletion",
       "target": "database/repositories.NewFactory",
       "lines": [
-        35
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/care_withdrawal_lifecycle_test.go",
-      "declaration": "newCareLifecycleServiceWithDeletion",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        247
+        34
       ],
       "tables": []
     },
@@ -10242,146 +10162,11 @@
     },
     {
       "scope": "test",
-      "file": "services/users/student_deletion_documents_test.go",
-      "declaration": "TestStudentDeletionService_QueuesDocumentCleanupInsideTheTransaction",
+      "file": "services/users/student_deletion_workflow_test.go",
+      "declaration": "newDeletionFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        33
-      ],
-      "tables": [
-        "audit.student_deletions",
-        "users.student_document_file_cleanup",
-        "users.student_documents",
-        "users.students"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/users/student_deletion_service_test.go",
-      "declaration": "TestGraduatePurgeAuditIncludesFeedbackOwnerCount",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        105
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/student_deletion_service_test.go",
-      "declaration": "TestStudentDeletionService_DeleteCountsCrossTenantVisits",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        303
-      ],
-      "tables": [
-        "active.visits"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/users/student_deletion_service_test.go",
-      "declaration": "TestStudentDeletionService_DeletePreservesSharedInstanceAndAnonymizesPerson",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        136
-      ],
-      "tables": [
-        "audit.student_deletions",
-        "auth.accounts",
-        "education.grade_transition_history",
-        "schedule.activity_instances",
-        "schedule.instance_students",
-        "users.parent_message_reads",
-        "users.parent_message_threads",
-        "users.parent_messages",
-        "users.persons",
-        "users.students"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/users/student_deletion_service_test.go",
-      "declaration": "TestStudentDeletionService_DeleteRejectsStalePreview",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        389
-      ],
-      "tables": [
-        "schedule.instance_students",
-        "users.students"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/users/student_deletion_service_test.go",
-      "declaration": "TestStudentDeletionService_DeleteRejectsStalePreviewAfterMessageRead",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        422
-      ],
-      "tables": [
-        "users.parent_message_reads",
-        "users.parent_message_threads",
-        "users.students"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/users/student_deletion_service_test.go",
-      "declaration": "TestStudentDeletionService_DeleteRollsBackWhenAuditFails",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        527
-      ],
-      "tables": [
-        "schedule.instance_students",
-        "users.persons",
-        "users.students"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/users/student_deletion_service_test.go",
-      "declaration": "TestStudentDeletionService_DeleteRollsBackWhenAuditRepositoryIsMissing",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        504
-      ],
-      "tables": [
-        "users.students"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/users/student_deletion_service_test.go",
-      "declaration": "TestStudentDeletionService_PreviewExcludesPreservedDeletionAudits",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        332
-      ],
-      "tables": [
-        "audit.data_access_log",
-        "audit.data_deletions",
-        "audit.student_deletions"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/users/student_deletion_service_test.go",
-      "declaration": "TestStudentDeletionWithFeedbackRowsPassesLockedCountRecheck",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        80
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/student_deletion_service_test.go",
-      "declaration": "newStudentDeletionTestService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        41
+        49
       ],
       "tables": []
     },
@@ -10391,7 +10176,7 @@
       "declaration": "TestStudentDocumentService_AuthorizeUploadWritesNothing",
       "target": "database/repositories.NewFactory",
       "lines": [
-        724
+        695
       ],
       "tables": []
     },
@@ -10401,7 +10186,7 @@
       "declaration": "TestStudentDocumentService_NonStaffCallerIsUnreachable",
       "target": "database/repositories.NewFactory",
       "lines": [
-        365
+        336
       ],
       "tables": []
     },
@@ -10411,7 +10196,7 @@
       "declaration": "TestStudentDocumentService_RefusesToWriteWithoutAnAuditTrail",
       "target": "database/repositories.NewFactory",
       "lines": [
-        450
+        421
       ],
       "tables": []
     },
@@ -26942,12 +26727,12 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 448,
+          "line": 450,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 498,
+          "line": 500,
           "declaration": "newFactory"
         },
         {

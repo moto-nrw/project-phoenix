@@ -318,6 +318,10 @@ func mapError(err error) error {
 		return fmt.Errorf("%w: %w", careplan.ErrCareOfferingTriggerInvalid, err)
 	case errors.Is(err, domain.ErrCareDocumentNotFound):
 		return careplan.ErrCareDocumentNotFound
+	case errors.Is(err, domain.ErrWithdrawalNotFound):
+		return careplan.ErrWithdrawalNotFound
+	case errors.Is(err, domain.ErrWithdrawalNotPending):
+		return careplan.ErrWithdrawalNotPending
 	default:
 		return err
 	}

@@ -1443,8 +1443,7 @@ func TestDeleteStudent(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Delete", "Me", "DM1")
 		// No cleanup needed - we're deleting
 
-		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d", student.ID), nil)
-		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := deleteStudentConfirmed(t, tc, testutil.AdminTestClaims(1), student.ID)
 
 		// Handler returns 200 OK with success message (not 204 NoContent)
 		assert.Equal(t, http.StatusOK, rr.Code)
