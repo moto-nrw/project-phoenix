@@ -2,8 +2,11 @@
 
 import { Hand, RefreshCw, SplitSquareHorizontal } from "lucide-react";
 
+import {
+  StatusBadge,
+  type StatusBadgeTone,
+} from "~/components/ui/status-badge";
 import { Tooltip } from "~/components/ui/tooltip";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { describeRosterMaintenance } from "~/lib/roster-maintenance";
 import type {
   RosterMaintenanceMode,
@@ -11,19 +14,10 @@ import type {
 } from "~/lib/timetable-types";
 import { cn } from "~/lib/utils";
 
-const TONES: Record<RosterMaintenanceMode, { bg: string; text: string }> = {
-  automatic: {
-    bg: MOTO_COLOR_PALETTE.green.soft,
-    text: MOTO_COLOR_PALETTE.green.strong,
-  },
-  partial: {
-    bg: MOTO_COLOR_PALETTE.blue.soft,
-    text: MOTO_COLOR_PALETTE.blue.strong,
-  },
-  manual: {
-    bg: MOTO_COLOR_PALETTE.neutral.soft,
-    text: MOTO_COLOR_PALETTE.neutral.strong,
-  },
+const TONES: Record<RosterMaintenanceMode, StatusBadgeTone> = {
+  automatic: "green",
+  partial: "blue",
+  manual: "gray",
 };
 
 const ICONS: Record<RosterMaintenanceMode, typeof RefreshCw> = {
@@ -57,14 +51,13 @@ export function RosterMaintenanceBadge({
       className={cn("align-middle", className)}
       bubbleClassName={cn("max-w-[16rem] font-normal", bubbleClassName)}
     >
-      <span
-        className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap"
-        style={{ backgroundColor: tone.bg, color: tone.text }}
-      >
-        <Icon className="h-3 w-3 shrink-0" aria-hidden="true" />
-        <span className="sr-only">Teilnehmerpflege: </span>
-        {description.label}
-      </span>
+      <StatusBadge
+        label={description.label}
+        tone={tone}
+        icon={Icon}
+        accessibleLabel="Teilnehmerpflege: "
+        compact
+      />
     </Tooltip>
   );
 }

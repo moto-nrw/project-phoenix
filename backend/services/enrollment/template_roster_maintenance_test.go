@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -70,6 +71,20 @@ func TestDeriveTemplateRosterMaintenance(t *testing.T) {
 		assert.Equal(t, enrollmentService.RosterMaintenanceAutomatic, got.Mode)
 		assert.Equal(t, []enrollmentService.RosterMaintenanceOffering{{ID: 3, Name: "Mittagessen"}}, got.Offerings)
 		assert.Empty(t, got.GradeLevels, "a linked offering carries no source filter")
+	})
+
+	t.Run("invalid offering link is manual", func(t *testing.T) {
+		t.Parallel()
+		got := enrollmentService.DeriveTemplateRosterMaintenance(enrollmentService.TemplateRosterMaintenanceInput{
+			Feeds: enrollmentService.TemplateRosterFeeds{
+				CareOfferingsEnabled: true,
+				LinkedOfferings: []enrollmentService.TemplateRosterFeedOffering{{
+					ID: 3, Name: "Mittagessen", IsActive: true, IsInvalid: true,
+				}},
+			},
+		})
+		assert.Equal(t, enrollmentService.RosterMaintenanceManual, got.Mode)
+		assert.Equal(t, []enrollmentService.RosterMaintenanceOffering{{ID: 3, Name: "Mittagessen"}}, got.InvalidOfferings)
 	})
 
 	t.Run("offering link plus class target is partial", func(t *testing.T) {
@@ -282,6 +297,37 @@ func TestTemplateRosterMaintenanceFeeds_RejectsSourceOutsideTemplatePeriod(t *te
 	})
 	assert.Equal(t, enrollmentService.RosterMaintenanceManual, maintenance.Mode)
 	assert.Equal(t, []enrollmentService.RosterMaintenanceOffering{{ID: source.ID, Name: source.Name}}, maintenance.InvalidOfferings)
+}
+
+func TestTemplateRosterMaintenanceFeeds_RejectsLinkedOfferingOutsideTemplatePeriod(t *testing.T) {
+	t.Parallel()
+
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.Ctx(t)
+
+	period := createCareOfferingTestPeriod(t, env.db, "linked-feed-too-short",
+		timezone.Date(env.sourcePhase.ServiceStartDate),
+		timezone.Date(env.sourcePhase.ServiceEndDate).AddDays(-1))
+	template := createCareOfferingTemplateGroup(t, env.db, "FeedLinkedAusserhalbZeitraum")
+	template.CalendarPeriodID = &period.ID
+	require.NoError(t, env.repos.ActivityGroup.Update(ctx, template))
+	createCareOfferingTemplateSchedule(t, env.db, template.ID, activitiesModels.WeekdayMonday, &period.ID)
+	linked := createSourceOffering(t, env, "FeedLinkedAusserhalbZeitraum", &template.ID)
+	reader, ok := env.decision.(enrollmentService.OfferingSourceOptionLister)
+	require.True(t, ok)
+
+	feeds, err := reader.TemplateRosterMaintenanceFeeds(ctx, []enrollmentService.TemplateRosterFeedQuery{{
+		TemplateID:       template.ID,
+		CalendarPeriodID: &period.ID,
+	}})
+	require.NoError(t, err)
+
+	maintenance := enrollmentService.DeriveTemplateRosterMaintenance(enrollmentService.TemplateRosterMaintenanceInput{
+		Feeds: feeds[template.ID],
+	})
+	assert.Equal(t, enrollmentService.RosterMaintenanceManual, maintenance.Mode)
+	assert.Equal(t, []enrollmentService.RosterMaintenanceOffering{{ID: linked.ID, Name: linked.Name}}, maintenance.InvalidOfferings)
 }
 
 func TestTemplateRosterMaintenanceFeeds_RejectsSourcesFromDifferentPhases(t *testing.T) {

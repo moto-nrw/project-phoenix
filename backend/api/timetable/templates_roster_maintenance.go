@@ -80,6 +80,13 @@ func (rs *Resource) attachRosterMaintenance(
 // resolution used for materialization. When a period-scoped read supplied no
 // pin, its requested period is still the period in which the template appears.
 func rosterMaintenanceCalendarPeriodID(template templateResponse, requestedPeriodID *int64) *int64 {
+	if requestedPeriodID != nil {
+		for _, schedule := range template.Schedules {
+			if schedule.CalendarPeriodID != nil && *schedule.CalendarPeriodID == *requestedPeriodID {
+				return schedule.CalendarPeriodID
+			}
+		}
+	}
 	if len(template.Schedules) > 0 && template.Schedules[0].CalendarPeriodID != nil {
 		return template.Schedules[0].CalendarPeriodID
 	}

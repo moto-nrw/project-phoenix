@@ -124,6 +124,8 @@ func TestAttachRosterMaintenance_UsesVisibleCalendarPeriod(t *testing.T) {
 			SourceCareOfferingIDs: []int64{7},
 			Schedules: []templateScheduleResponse{{
 				CalendarPeriodID: &schedulePeriodID,
+			}, {
+				CalendarPeriodID: &requestedPeriodID,
 			}},
 		},
 		{ID: 302, CalendarPeriodID: &templatePeriodID, SourceCareOfferingIDs: []int64{8}},
@@ -133,8 +135,8 @@ func TestAttachRosterMaintenance_UsesVisibleCalendarPeriod(t *testing.T) {
 	resource.attachRosterMaintenance(context.Background(), templates, &requestedPeriodID)
 
 	require.Len(t, lister.queries, 3)
-	assert.Equal(t, &schedulePeriodID, lister.queries[0].CalendarPeriodID,
-		"the schedule pin is more specific than the template pin")
+	assert.Equal(t, &requestedPeriodID, lister.queries[0].CalendarPeriodID,
+		"the schedule matching the requested period is the visible one")
 	assert.Equal(t, &templatePeriodID, lister.queries[1].CalendarPeriodID,
 		"the template pin is used when schedules have no pin")
 	assert.Equal(t, &requestedPeriodID, lister.queries[2].CalendarPeriodID,
