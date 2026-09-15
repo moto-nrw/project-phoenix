@@ -29,7 +29,11 @@ func TestLiveGroupBatchReadIsTenantScoped(t *testing.T) {
 	require.Equal(t, group.RoomID, rows[0].RoomID)
 	require.Equal(t, group.GroupID, rows[0].ActivityGroupID)
 	require.Equal(t, group.TimeoutMinutes, rows[0].TimeoutMinutes)
-	require.True(t, group.StartTime.Equal(rows[0].StartTime))
+	// The column stores microseconds, so the read-back instant is the fixture's
+	// to the precision PostgreSQL keeps - anything coarser would be a mapping or
+	// timezone fault, which this tolerance still catches.
+	require.WithinDuration(t, group.StartTime, rows[0].StartTime, time.Microsecond,
+		"start time must survive the round trip")
 	require.Equal(t, testpkg.Tenant(t), rows[0].TenantID)
 	rows, err = module.ListLiveGroups(ctx, nil)
 	require.NoError(t, err)
