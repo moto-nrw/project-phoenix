@@ -4017,6 +4017,18 @@
       "write_owner": "people-directory"
     },
     {
+      "name": "users.student_guardian_relationships",
+      "write_owner": "people-directory"
+    },
+    {
+      "name": "users.student_guardian_pickup_permissions",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "auth.guardian_student_access",
+      "write_owner": "identity-access"
+    },
+    {
       "name": "users.teachers",
       "write_owner": "school-membership"
     },
