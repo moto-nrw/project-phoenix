@@ -1,4 +1,4 @@
-package api
+package presence_test
 
 import (
 	"context"

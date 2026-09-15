@@ -127,10 +127,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-active",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-activities",
       "kind": "inbound"
     },
@@ -547,6 +543,13 @@
       "external_test_role": "workflow-integration-test"
     },
     {
+      "path": "modules/studentpresence/inbound/presence",
+      "owner": "student-presence",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
       "path": "modules/studentpresence/internal/application",
       "owner": "student-presence",
       "role": "application",
@@ -626,13 +629,6 @@
     {
       "path": "api/absence-types",
       "owner": "inbound-absence-types",
-      "role": "http",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
-    },
-    {
-      "path": "api/active",
-      "owner": "inbound-active",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -4895,12 +4891,12 @@
       "target_role": "compose"
     },
     {
-      "id": "inbound-active.adapter-test.student-presence-compose",
-      "description": "Active HTTP contract tests use the production presence facade.",
+      "id": "student-presence.adapter-test.student-presence-compose",
+      "description": "Presence HTTP contract tests use the production presence facade.",
       "scopes": [
         "external_test"
       ],
-      "source_owner": "inbound-active",
+      "source_owner": "student-presence",
       "source_role": "adapter-test",
       "target_owner": "student-presence",
       "target_role": "compose"
@@ -7321,15 +7317,95 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-active.to.student-presence",
-      "description": "inbound-active calls exactly one public capability.",
+      "id": "student-presence.http.public",
+      "description": "The presence HTTP composition calls exactly one public capability.",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-active",
+      "source_owner": "student-presence",
       "source_role": "http",
       "target_owner": "student-presence",
       "target_role": "public"
+    },
+    {
+      "id": "student-presence.http.inbound-common",
+      "description": "The presence HTTP composition binds the shared tenant middleware, response rendering and error helpers (#3207). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "http",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "student-presence.http.legacy-shared-domain",
+      "description": "The presence HTTP composition parses and renders the retained calendar-date signatures while the date type migrates (#3207). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "http",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "root-composition.to.student-presence-http",
+      "description": "The root API composition mounts the presence route adapter (#3207). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "http"
+    },
+    {
+      "id": "student-presence.adapter-test.inbound-common",
+      "description": "Presence HTTP tests assert the shared response rendering the adapter binds (#3207). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "adapter-test",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "student-presence.adapter-test.legacy-shared-domain",
+      "description": "Presence HTTP tests build fixed calendar dates for the retained date type (#3207). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "adapter-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "student-presence.adapter-test.settings-platform-domain",
+      "description": "Presence HTTP tests name the tenant setting keys the routes resolve (#3207). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "adapter-test",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "student-presence.adapter-test.identity-access-application",
+      "description": "The presence checkout test constructs the retained user-context service its authorization path consults (#3207). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "adapter-test",
+      "target_owner": "identity-access",
+      "target_role": "application"
     },
     {
       "id": "inbound-activities.to.timetable-activities",
@@ -16588,12 +16664,12 @@
       "target_role": "domain"
     },
     {
-      "id": "inbound-active.to.calendar-view",
-      "description": "The active HTTP surface reads the supervision projection through its one public capability (#2703).",
+      "id": "student-presence.http.calendar-view",
+      "description": "The presence HTTP surface reads the supervision projection through its one public capability (#2703).",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-active",
+      "source_owner": "student-presence",
       "source_role": "http",
       "target_owner": "calendar-view",
       "target_role": "public"

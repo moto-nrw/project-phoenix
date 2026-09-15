@@ -3,25 +3,25 @@ package api
 import (
 	"context"
 
-	activeAPI "github.com/moto-nrw/project-phoenix/api/active"
+	presenceAPI "github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence"
 	"github.com/moto-nrw/project-phoenix/services"
 )
 
-func authorizeActiveVisit(ctx context.Context, accountID int64, readAll bool, visitID int64, facts activeAPI.VisitAccessQuery) (bool, error) {
+func authorizeActiveVisit(ctx context.Context, accountID int64, readAll bool, visitID int64, facts presenceAPI.VisitAccessQuery) (bool, error) {
 	return services.AuthorizeVisit(ctx, accountID, readAll, visitID, facts)
 }
 
-func activeAuthorization() activeAPI.Authorization {
-	return activeAPI.Authorization{
+func activeAuthorization() presenceAPI.Authorization {
+	return presenceAPI.Authorization{
 		Visit: authorizeActiveVisit,
-		OperationalOverview: func(ctx context.Context, settings activeAPI.Settings, staff activeAPI.StaffAccess, assignmentBound, admin bool) (bool, error) {
+		OperationalOverview: func(ctx context.Context, settings presenceAPI.Settings, staff presenceAPI.StaffAccess, assignmentBound, admin bool) (bool, error) {
 			return services.AuthorizeOperationalOverview(ctx, settings, staff, assignmentBound, admin)
 		},
 	}
 }
 
-func activeRequestRuntime() activeAPI.RequestRuntime {
-	return activeAPI.RequestRuntime{
+func activeRequestRuntime() presenceAPI.RequestRuntime {
+	return presenceAPI.RequestRuntime{
 		WithStaff:    services.WithAttendanceStaff,
 		TenantID:     services.AttendanceTenantID,
 		MarkRollback: services.MarkAttendanceRollback,

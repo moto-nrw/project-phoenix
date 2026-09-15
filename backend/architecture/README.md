@@ -327,6 +327,21 @@ takes, the Document Rendering renderer and, as compatibility binding, the
 retained `services/statistics`), including their `*.adapter-test.*`
 permissions.
 
+The presence HTTP composition (`modules/studentpresence/inbound/presence`) is
+classified `student-presence`/`http` for the same reason (#3207). It replaced
+`api/active` and serves the visit, check-in, check-out, group, supervision and
+Schulhof routes from the public Student Presence contract and the public
+supervision projection, with unchanged paths, status codes and error strings.
+Its `student-presence.http.inbound-common` and
+`student-presence.http.legacy-shared-domain` rules, the
+`root-composition.to.student-presence-http` mount and every
+`student-presence.adapter-test.*` rule are compatibility permissions, not
+target dependencies: the shared HTTP rendering edge goes when the inbound
+common package moves, the calendar-date edge with the retained
+`internal/timezone` type, and the settings and user-context test edges with the
+fixtures that still name them. Convert them to exact debt with the rule above
+once the package exists at a base SHA.
+
 The Identity & Access guardian-access capability (`modules/identityaccess`,
 `identity-access`/`public`) is the first just-in-time slice of the late
 Identity & Access migration (#2580 sequencing, #2699): it resolves platform
