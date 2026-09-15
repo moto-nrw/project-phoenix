@@ -61,6 +61,8 @@ type fakeParentService struct {
 	gotCarePickup    *time.Time
 	gotCareReason    string
 
+	childFeatures parentService.ChildFeatureFlags
+
 	todayStatus     *parentService.TodayStatus
 	todayStatusErr  error
 	gotTodayAccount int64
@@ -170,7 +172,7 @@ func (f *fakeParentService) ListRequestEvents(context.Context, int64, int64, str
 	return nil, nil
 }
 func (f *fakeParentService) ChildFeatures(context.Context, int64, int64) (parentService.ChildFeatureFlags, error) {
-	return parentService.ChildFeatureFlags{}, nil
+	return f.childFeatures, nil
 }
 func (f *fakeParentService) MealPlanWeek(context.Context, int64, int64, timezone.Date) ([]parentService.MealPlanEntry, error) {
 	return f.mealPlanRows, f.mealPlanErr
@@ -493,6 +495,45 @@ func TestSubmitCareException_MapsMissingReasonToStableCode(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), `"code":"care_exception_reason_required"`)
+}
+
+// #3163: after the same-day cutoff the submit answers 409 with its own code,
+// so the portal can explain the lock instead of a generic failure.
+func TestSubmitCareException_MapsCutoffPassedToConflictCode(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeParentService{careExceptionErr: parentService.ErrPickupChangeCutoffPassed}
+	rs := &Resource{ParentService: service}
+	w := httptest.NewRecorder()
+
+	rs.submitCareException(w, careExceptionRequest(`{"date":"2026-08-18","pickup_time":"14:30","reason":"Arzttermin"}`))
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"pickup_change_cutoff_passed"`)
+}
+
+// The features response carries the cutoff and today's lock state to the
+// portal before anyone types (#3163).
+func TestGetChildFeatures_ReportsPickupChangeCutoff(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeParentService{childFeatures: parentService.ChildFeatureFlags{
+		PickupChangeEnabled:     true,
+		PickupChangeCutoffTime:  "11:00",
+		PickupChangeTodayClosed: true,
+	}}
+	rs := &Resource{ParentService: service}
+	w := httptest.NewRecorder()
+	req := withClaims(httptest.NewRequest(http.MethodGet, "/me/children/77/features", nil), 1234)
+	route := chi.NewRouteContext()
+	route.URLParams.Add("studentId", "77")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, route))
+
+	rs.getChildFeatures(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), `"pickup_change_cutoff_time":"11:00"`)
+	assert.Contains(t, w.Body.String(), `"pickup_change_today_closed":true`)
 }
 
 func TestGetMyProfile_Unauthorized_WhenNoClaims(t *testing.T) {

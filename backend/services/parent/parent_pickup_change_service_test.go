@@ -53,8 +53,10 @@ func buildPickupChangeService(t *testing.T, pickupChangeEnabled bool) (parentSer
 }
 
 // buildPickupChangeServiceWithRequests adds the real request service, so the
-// submit/list/withdraw round trip runs against actual rows.
-func buildPickupChangeServiceWithRequests(t *testing.T) (parentService.Service, *bun.DB, *repositories.Factory) {
+// submit/list/withdraw round trip runs against actual rows. configure adjusts
+// the service configuration before the service is built (#3163 uses it to pin
+// the clock and to reuse the wiring for further services).
+func buildPickupChangeServiceWithRequests(t *testing.T, configure ...func(*parentService.ServiceConfig)) (parentService.Service, *bun.DB, *repositories.Factory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
@@ -86,7 +88,7 @@ func buildPickupChangeServiceWithRequests(t *testing.T) (parentService.Service, 
 		sf.StudentAudit,
 	)
 
-	svc := parentService.NewService(parentService.ServiceConfig{
+	cfg := parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,
 		StatusDayRepo:       repos.StudentStatusDay,
 		StudentRepo:         repos.Student,
@@ -103,7 +105,11 @@ func buildPickupChangeServiceWithRequests(t *testing.T) (parentService.Service, 
 		},
 		DB:     db,
 		Logger: slog.Default(),
-	})
+	}
+	for _, apply := range configure {
+		apply(&cfg)
+	}
+	svc := parentService.NewService(cfg)
 	return svc, db, repos
 }
 
