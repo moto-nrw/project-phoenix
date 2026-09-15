@@ -2,7 +2,7 @@
   "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737",
   "status": "incomplete",
   "evidence_date": "2026-09-15",
-  "evidence_scope": "Current worktree after the presence inbound relocation and the work-schedule port cut: the active routes are served from the presence inbound package, and the retained work-session service names its schedule rows, work-time templates and Soll derivations in the presence vocabulary, bound to the retained settings repositories by the services root.",
+  "evidence_scope": "Current worktree after the presence inbound relocation, the work-schedule port cut and the settings-stub cut: the active routes are served from the presence inbound package, the retained work-session service names its schedule rows, work-time templates and Soll derivations in the presence vocabulary, and the package-internal tests ask the settings ports by question instead of by registry key.",
   "remaining_keys": [
     "external_test|database/repositories/active -> database/repositories",
     "external_test|database/repositories/active -> database/repositories/active",
@@ -25,7 +25,6 @@
     "internal_test|models/active -> internal/timezone",
     "internal_test|services/active -> internal/timezone",
     "internal_test|services/active -> models/base",
-    "internal_test|services/active -> models/config",
     "internal_test|services/active -> tenant",
     "internal_test|services/statistics -> internal/timezone",
     "production|database/repositories/active -> internal/timezone",
@@ -61,17 +60,17 @@
     "verification": "Current Go declarations and call sites must be checked per symbol; historical error operation strings and HTTP route names can remain. This list is incomplete for the entire migration."
   },
   "latest_verification": {
-    "scope": "packages touched by the relocation and the port cut",
+    "scope": "packages touched by the relocation, the port cut and the settings-stub cut",
     "tests": "go test ./modules/studentpresence/... ./api/... ./services/... ./modules/workforce/... ./test/... -count=1: all green",
     "architecture": {
-      "legacy_keys": 1455,
+      "legacy_keys": 1454,
       "composition_field_setter_targets": 779
     },
     "lint": {
       "issues": 0,
-      "scope": "services, api and student-presence packages"
+      "scope": "services, test, api and student-presence packages"
     },
-    "limitation": "No full-suite run since the port cut; the before-push changed-test run is outstanding."
+    "limitation": "Full-suite and before-push changed-test runs recorded in the pull request, not here."
   },
   "incomplete_requirements": [
     "Remove all 68 remaining exact keys without new keys or ownership widening.",
@@ -80,10 +79,10 @@
     "Run the final required checks after the last implementation edit, including before-push test-changed when pushing.",
     "Complete code review and commit the implementation on the current branch."
   ],
-  "next_boundary": "The internal-test settings edge is down to registry-key constants in five stubs (presence_gate_test.go, session_lifecycle_test.go, session_service_internal_test.go, visit_helpers_clear_internal_test.go, work_session_service_test.go). Those stubs implement the question-based presence settings ports and only dispatch internally by key, so their key assertions are self-referential; the key-to-question mapping is owned and tested in the services root. The external-test settings edge additionally needs the DB-writing schedule fixtures (staff overview, work-time month snapshot/integration/query-budget) to create staff work-schedule rows through a test fixture helper instead of the ORM row type.",
+  "next_boundary": "The external-test settings edge is down to the DATEV export test, which drives the real payroll status service and therefore names the payroll registry keys. Stubbing the presence-side PayrollConfigurationReader instead would move the completeness derivation out of this test, so the honest cut is a settings-owned test-support package that may name those keys; test-support itself may not import the settings models. The other remaining edges are the internal/timezone programme decision (7 keys here, 70 across the baseline), the two external test packages importing the package they test (unremovable by construction), and the models/base, models/active, models/audit, models/schedule, tenant, repositories and sibling-service edges, each of which is a capability cut of its own.",
   "reassessment": {
     "reason": "User requested a credible completion estimate after prolonged incremental work.",
-    "remaining_key_count": 31,
+    "remaining_key_count": 30,
     "production_keys": 11,
     "test_keys": 47,
     "import_locations": 650,
@@ -154,6 +153,7 @@
     "settings: all five presence settings ports now name their questions; the registry keys live in services/presence_settings.go, clearing 9 of the 11 models/config files",
     "work session contract: five zero-caller schedule methods removed from the public interface",
     "the active HTTP adapter moved into the Student Presence module as student-presence/http (authorised by the relocation subissue): nine exact keys and the root-composition entry of the root-api ticket left the baseline; routes, status codes and error strings are unchanged and the remaining legacy edges are recorded as compatibility permissions with their conversion condition",
-    "production services/active to the settings models package removed: WorkScheduleRow, WorkTimeTemplate and the pure Soll derivations are presence-owned on timezone.Date, and the services root binds the schedule and template ports to the retained repositories"
+    "production services/active to the settings models package removed: WorkScheduleRow, WorkTimeTemplate and the pure Soll derivations are presence-owned on timezone.Date, and the services root binds the schedule and template ports to the retained repositories",
+    "internal_test services/active to the settings models package removed: the presence and time-tracking settings stubs answer questions instead of registry keys, and the DB-writing schedule fixtures create their rows through CreateTestStaffWorkScheduleForTenant"
   ]
 }
