@@ -199,6 +199,7 @@ type Engine interface {
 	RFIDQuery
 	SchoolAccountQuery
 	InvitedPersonQuery
+	StudentGuardianInvitationQuery
 	SchoolRoleQuery
 	RolePermissionQuery
 	SchoolMembershipQuery
@@ -217,6 +218,24 @@ func (m *Module) FindInvitedPersonIDs(ctx context.Context, email string) ([]int6
 		return nil, fmt.Errorf("identity access: find invited people: %w", err)
 	}
 	return ids, nil
+}
+
+// StudentGuardianInvitationQuery counts the guardian invitations that name a
+// child. A permanent child deletion reports them as removed communications;
+// the rows cascade with the student, so Identity owns only the count.
+type StudentGuardianInvitationQuery interface {
+	CountStudentGuardianInvitations(context.Context, int64) (int, error)
+}
+
+func (m *Module) CountStudentGuardianInvitations(ctx context.Context, studentID int64) (int, error) {
+	if studentID <= 0 {
+		return 0, fmt.Errorf("identity access: count student guardian invitations: student ID is required")
+	}
+	count, err := m.engine.CountStudentGuardianInvitations(ctx, studentID)
+	if err != nil {
+		return 0, fmt.Errorf("identity access: count student guardian invitations: %w", err)
+	}
+	return count, nil
 }
 
 // SchoolAccountQuery resolves login identities with active membership in the

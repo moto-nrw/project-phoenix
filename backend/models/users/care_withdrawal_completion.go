@@ -143,7 +143,6 @@ type CareWithdrawalCompletionRepository interface {
 	ListPendingStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]bool, error)
 	MarkResolved(ctx context.Context, id, actorAccountID int64, at time.Time) (bool, error)
 	MarkDeleted(ctx context.Context, id, actorAccountID int64, at time.Time) (bool, error)
-	MarkStudentDeleted(ctx context.Context, studentID, actorAccountID int64, at time.Time) (int, error)
 	MarkObsoleteForRebooking(ctx context.Context, studentID int64, careStartsOn timezone.Date, at time.Time) (bool, error)
 	MarkPendingObsoleteForWeeklyPlans(ctx context.Context, at time.Time) (int, error)
 	ReopenAfterCancelledExit(ctx context.Context, completionID, studentID int64, at time.Time) (bool, error)

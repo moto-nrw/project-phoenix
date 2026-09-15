@@ -112,11 +112,6 @@ type StudentDocumentService interface {
 	// QueueStudentDocumentFileCleanup durably records the cleanup intent
 	// before the object is written.
 	QueueStudentDocumentFileCleanup(ctx context.Context, studentID int64, storedName string) error
-	// QueueCleanupForAllDocuments queues an immediately-eligible intent for
-	// every document of a child whose bytes still exist. It is the step that
-	// keeps deleting a child from stranding their documents on disk: the
-	// document rows cascade away, the intents do not.
-	QueueCleanupForAllDocuments(ctx context.Context, studentID int64) error
 	// ListQueuedStudentDocumentFileCleanups returns orphaned upload objects in
 	// the tenant so retries do not depend on the referenced child.
 	ListQueuedStudentDocumentFileCleanups(ctx context.Context) ([]*userModels.StudentDocumentFileCleanup, error)
@@ -462,21 +457,6 @@ func (s *studentDocumentService) QueueStudentDocumentFileCleanup(ctx context.Con
 		return fmt.Errorf("%w: cleanup file details are required", ErrStudentDocumentInvalid)
 	}
 	return s.queueCleanup(ctx, studentID, storedName, time.Now().Add(studentDocumentCleanupDelay))
-}
-
-func (s *studentDocumentService) QueueCleanupForAllDocuments(ctx context.Context, studentID int64) error {
-	docs, err := s.documents.ListPendingFileCleanupByOwnerID(ctx, studentID)
-	if err != nil {
-		return err
-	}
-	for _, doc := range docs {
-		// Eligible immediately: the child is being deleted, so no upload for
-		// these objects can still be in flight.
-		if err := s.queueCleanup(ctx, studentID, doc.FilenameStored, time.Now()); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (s *studentDocumentService) queueCleanup(ctx context.Context, studentID int64, storedName string, retryAfter time.Time) error {

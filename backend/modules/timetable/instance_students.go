@@ -189,6 +189,7 @@ type InstanceStudentQuery interface {
 	ListOpenStudentAssignments(ctx context.Context, studentIDs []int64) ([]int64, error)
 	LatestStudentAssignmentAttendanceDate(ctx context.Context, studentID int64) (*string, error)
 	CountStudentAssignments(context.Context, int64) (int, error)
+	CountStudentRosterRemovals(context.Context, int64) (int, error)
 	FindInstanceStudent(context.Context, int64) (InstanceStudent, error)
 	ListInstanceStudents(context.Context, InstanceStudentFilter) ([]InstanceStudent, error)
 	CountNonAbsentInstanceStudents(context.Context, []int64) (map[int64]int, error)

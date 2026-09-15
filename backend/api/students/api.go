@@ -30,6 +30,7 @@ import (
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 	"github.com/uptrace/bun"
 )
 
@@ -41,14 +42,9 @@ type Resource struct {
 // ResourceConfig holds all dependencies for creating a students Resource.
 // Using a config struct instead of individual parameters improves maintainability.
 type ResourceConfig struct {
-	PersonService    userService.PersonService
-	PeopleDirectory  peopleModule.Capability
-	EducationService educationService.Service
-	// GradeTransitionService is required by the purge route only: it strips the
-	// child's name from the transition ledger in the same transaction as the
-	// delete. Optional so bare test Resources still compile; the purge handler
-	// refuses rather than silently skipping the anonymization when it is nil.
-	GradeTransitionService *educationService.GradeTransitionService
+	PersonService          userService.PersonService
+	PeopleDirectory        peopleModule.Capability
+	EducationService       educationService.Service
 	UserContextService     userContextService.UserContextService
 	ActiveService          activeService.Service
 	IoTService             iotSvc.Service
@@ -68,8 +64,12 @@ type ResourceConfig struct {
 	// ClassListEntryService supplies the class-list-only entries (#2382) the
 	// "Klassenliste" export merges into the Klassenverband. Optional: nil
 	// exports without entries (bare test Resources).
-	ClassListEntryService  userService.ClassListEntryService
-	StudentDeletionService userService.StudentDeletionService
+	ClassListEntryService userService.ClassListEntryService
+	// StudentDeletion is the owner workflow behind the permanent deletion
+	// routes (#2710): delete-impact, DELETE /{id}, the graduate purge and the
+	// withdrawal deletion. Optional so bare test Resources still compile; the
+	// routes answer 500 rather than deleting through a second path when nil.
+	StudentDeletion *studentdeletion.Workflow
 	// CareLifecycleService backs "Betreuung beenden" (#2487) — the regular
 	// exit, which is deliberately NOT a deletion.
 	CareLifecycleService    userService.CareLifecycleService

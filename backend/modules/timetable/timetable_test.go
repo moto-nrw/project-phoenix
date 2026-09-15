@@ -75,6 +75,11 @@ func (e *recordingEngine) CountStudentAssignments(ctx context.Context, studentID
 	return 0, nil
 }
 
+func (e *recordingEngine) CountStudentRosterRemovals(ctx context.Context, studentID int64) (int, error) {
+	e.calls++
+	return 0, nil
+}
+
 func (e *recordingEngine) DeleteStudentAssignments(ctx context.Context, studentID int64) (int64, error) {
 	e.calls++
 	return 0, nil

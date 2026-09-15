@@ -23,6 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 )
 
 func wireCareLifecycle(t *testing.T, tc *testContext) {
@@ -33,28 +34,15 @@ func wireCareLifecycleWithBookingMode(t *testing.T, tc *testContext, authoritati
 	t.Helper()
 	repos := newStudentTestRepositories(tc.db)
 	repos.BindTimetable(timetabletest.New(t, tc.db))
-	deletion := userService.NewStudentDeletionService(
-		tc.resource.StudentService,
-		repos.Student,
-		repos.Person,
-		repos.StudentDeletion,
-		repos.GradeTransition,
-		repos.DataDeletion,
-		repos.StudentDeletionAudit,
-		&testpkg.FeedbackEntryCounterMock{},
-		tc.db,
-	)
-	userService.WireStudentDeletionCareWithdrawals(deletion, repos.CareWithdrawal)
 	tc.resource.CareLifecycleService = userService.NewCareLifecycleService(
 		userService.CareLifecycleDependencies{
-			StudentRepo:     repos.Student,
-			PersonRepo:      repos.Person,
-			CareExitRepo:    repos.CareExit,
-			CleanupRepo:     repos.CareExitCleanup,
-			WithdrawalRepo:  repos.CareWithdrawal,
-			TagReleaser:     repos.GradeTransition,
-			AuditService:    userService.NewStudentAuditService(repos.StudentFieldEdit, slog.Default()),
-			StudentDeletion: deletion,
+			StudentRepo:    repos.Student,
+			PersonRepo:     repos.Person,
+			CareExitRepo:   repos.CareExit,
+			CleanupRepo:    repos.CareExitCleanup,
+			WithdrawalRepo: repos.CareWithdrawal,
+			TagReleaser:    repos.GradeTransition,
+			AuditService:   userService.NewStudentAuditService(repos.StudentFieldEdit, slog.Default()),
 			BookingsAuthoritative: func(context.Context) (bool, error) {
 				return authoritative, nil
 			},
@@ -183,7 +171,7 @@ func TestCareWithdrawalHandlers_StaleDeletionRollsBackCompletion(t *testing.T) {
 		t, http.MethodDelete, fmt.Sprintf("/care-withdrawals/%d", completion.ID), map[string]any{
 			"expected_fingerprint": "stale",
 			"confirmation_name":    preview.Data.ConfirmationName,
-			"reason":               userService.StudentDeletionReasonPrivacyRequest,
+			"reason":               studentdeletion.ReasonPrivacyRequest,
 			"acknowledged":         true,
 		},
 	)

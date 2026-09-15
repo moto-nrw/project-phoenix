@@ -2,6 +2,7 @@ package peopledirectory_test
 
 import (
 	"context"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/enrollment"
 
@@ -129,4 +130,26 @@ func (e *recordingEngine) ReactivateStudents(_ context.Context, ids []int64, sta
 	e.calls++
 	e.student = studentCall{ids: ids, status: status}
 	return ids, nil
+}
+
+func (e *recordingEngine) CountStudentGuardianLinks(_ context.Context, studentID, _ int64) (int, error) {
+	e.calls++
+	e.student = studentCall{ids: []int64{studentID}}
+	return 0, nil
+}
+
+func (e *recordingEngine) DeleteLegacyGuardianLinks(context.Context, int64) (int64, error) {
+	e.calls++
+	return 0, nil
+}
+
+func (e *recordingEngine) DeleteStudent(_ context.Context, id int64) (int64, error) {
+	e.calls++
+	e.student = studentCall{ids: []int64{id}}
+	return 1, nil
+}
+
+func (e *recordingEngine) AnonymizeDeletedStudentPerson(context.Context, int64, time.Time) (bool, error) {
+	e.calls++
+	return true, nil
 }

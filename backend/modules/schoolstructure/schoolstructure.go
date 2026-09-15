@@ -10,8 +10,9 @@ import (
 )
 
 var (
-	ErrGroupNotFound = errors.New("group not found")
-	ErrInvalidGroup  = errors.New("invalid group")
+	ErrGroupNotFound  = errors.New("group not found")
+	ErrInvalidGroup   = errors.New("invalid group")
+	ErrInvalidStudent = errors.New("invalid student")
 )
 
 // Group is the structure view of one education group (Klasse/Gruppe).
@@ -40,10 +41,42 @@ type GroupListing interface {
 	ListGroups(context.Context, int) ([]Group, error)
 }
 
+// StudentTransitionHistory is the School Structure half of a permanent child
+// deletion (#2710): education.grade_transition_history keeps a denormalized
+// copy of the child's name without a foreign key, so the owner counts and
+// anonymizes those rows inside the deletion's transaction.
+type StudentTransitionHistory interface {
+	// CountStudentTransitionHistory counts the ledger rows that still carry
+	// the child's name; anonymized rows are retained history, not impact.
+	CountStudentTransitionHistory(context.Context, int64) (int, error)
+	// AnonymizeStudentTransitionHistory replaces the stored name with the
+	// placeholder and clears the stored RFID tag on every ledger row of the
+	// child. It returns the number of rows changed.
+	AnonymizeStudentTransitionHistory(context.Context, int64) (int64, error)
+}
+
+// PurgedStudentPlaceholder is the name the ledger keeps for a deleted child.
+const PurgedStudentPlaceholder = "Gelöschtes Kind"
+
 type engine interface {
 	FindGroup(context.Context, int64) (Group, error)
 	ListGroupsByID(context.Context, []int64) ([]Group, error)
 	ListGroups(context.Context, int) ([]Group, error)
+	StudentTransitionHistory
+}
+
+func (m *Module) CountStudentTransitionHistory(ctx context.Context, studentID int64) (int, error) {
+	if studentID <= 0 {
+		return 0, ErrInvalidStudent
+	}
+	return m.engine.CountStudentTransitionHistory(ctx, studentID)
+}
+
+func (m *Module) AnonymizeStudentTransitionHistory(ctx context.Context, studentID int64) (int64, error) {
+	if studentID <= 0 {
+		return 0, ErrInvalidStudent
+	}
+	return m.engine.AnonymizeStudentTransitionHistory(ctx, studentID)
 }
 
 type Module struct{ engine engine }

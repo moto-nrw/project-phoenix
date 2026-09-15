@@ -190,6 +190,7 @@ type Query interface {
 type Command interface {
 	OfferingBookingCommands
 	CareRecordsCommand
+	StudentDeletionCommand
 	StudentSchedulesCommand
 	CareRequestsCommand
 	StudentStatusDaysCommand

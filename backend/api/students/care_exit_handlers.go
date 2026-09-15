@@ -1,7 +1,6 @@
 package students
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -359,7 +358,11 @@ func (rs *Resource) previewWithdrawalDeletion(w http.ResponseWriter, r *http.Req
 	if _, ok := rs.authorizeWithdrawalDeletion(w, r, id); !ok {
 		return
 	}
-	impact, err := rs.CareLifecycleService.PreviewWithdrawalDeletion(r.Context(), id)
+	if rs.StudentDeletion == nil {
+		renderError(w, r, common.ErrorInternalServer(errors.New("student deletion workflow not configured")))
+		return
+	}
+	impact, err := rs.StudentDeletion.PreviewWithdrawal(r.Context(), id)
 	if err != nil {
 		renderError(w, r, withdrawalDeletionErrorRenderer(err))
 		return
@@ -381,44 +384,21 @@ func (rs *Resource) deleteWithdrawalStudent(w http.ResponseWriter, r *http.Reque
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	completion, ok := rs.authorizeWithdrawalDeletion(w, r, id)
-	if !ok {
+	if _, ok := rs.authorizeWithdrawalDeletion(w, r, id); !ok {
 		return
 	}
-	studentID := *completion.StudentID
-	result, err := rs.CareLifecycleService.DeleteWithdrawal(r.Context(), id, userService.StudentDeletionInput{
-		ActorAccountID:      int64(jwt.ClaimsFromCtx(r.Context()).ID),
-		ExpectedFingerprint: body.ExpectedFingerprint,
-		ConfirmationName:    body.ConfirmationName,
-		Reason:              body.Reason,
-		Acknowledged:        body.Acknowledged,
-	})
-	if err != nil {
-		// The route middleware owns the ambient transaction. The service cannot
-		// roll it back itself when the delete re-check fails.
+	if rs.StudentDeletion == nil {
+		renderError(w, r, common.ErrorInternalServer(errors.New("student deletion workflow not configured")))
+		return
+	}
+	if _, err := rs.StudentDeletion.ExecuteWithdrawal(r.Context(), id, body.confirmation()); err != nil {
+		// The route middleware owns the ambient transaction. The workflow
+		// cannot roll it back itself when the delete re-check fails.
 		tenant.MarkRollback(r.Context())
 		renderError(w, r, withdrawalDeletionErrorRenderer(err))
 		return
 	}
-	rs.scheduleWithdrawalDeletionEffects(r.Context(), studentID, result)
 	common.Respond(w, r, http.StatusOK, nil, "Kind und verknüpfte Daten gelöscht")
-}
-
-func (rs *Resource) scheduleWithdrawalDeletionEffects(
-	ctx context.Context,
-	studentID int64,
-	result *userService.StudentDeletionResult,
-) {
-	if rs.StudentPhotos != nil {
-		rs.StudentPhotos.ScheduleUnlinkAfterCommit(ctx, result.PhotoPath)
-	}
-	if len(result.CompanionIDs) == 0 {
-		return
-	}
-	tenantID := tenant.FromContext(ctx)
-	tenant.RegisterAfterCommit(ctx, func() {
-		rs.broadcastStudentCompanionsChanged(tenantID, studentID)
-	})
 }
 
 func (rs *Resource) authorizeWithdrawalDeletion(

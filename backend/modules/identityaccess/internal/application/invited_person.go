@@ -17,3 +17,14 @@ func (s *Service) FindInvitedPersonIDs(ctx context.Context, email string) (ids [
 	})
 	return ids, err
 }
+
+func (s *Service) CountStudentGuardianInvitations(ctx context.Context, studentID int64) (count int, err error) {
+	err = s.run(ctx, s.withinSchoolRead, "count_student_guardian_invitations", func(txCtx context.Context, stats *domain.OperationStats) error {
+		var queryStats domain.OperationStats
+		var queryErr error
+		count, queryStats, queryErr = s.store.CountStudentGuardianInvitations(txCtx, studentID, s.tenantOf(txCtx))
+		stats.Add(queryStats)
+		return queryErr
+	})
+	return count, err
+}

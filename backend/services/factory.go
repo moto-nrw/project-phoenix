@@ -88,6 +88,8 @@ import (
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 	reminderPorts "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
+	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
+	studentdeletioncompose "github.com/moto-nrw/project-phoenix/workflows/studentdeletion/compose"
 )
 
 type substitutionIdentity interface {
@@ -219,7 +221,7 @@ type Factory struct {
 	Schools              platform.SchoolService
 	Students             users.StudentService
 	ClassListEntries     users.ClassListEntryService
-	StudentDeletion      users.StudentDeletionService
+	StudentDeletion      *studentdeletion.Workflow
 	CareLifecycle        users.CareLifecycleService
 	StudentAudit         users.StudentAuditService
 	MasterDataReview     users.MasterDataReviewService
@@ -2310,20 +2312,6 @@ func newFactory(
 		repos.StudentCompanion,
 		studentAuditService,
 	)
-	studentDeletionService := users.NewStudentDeletionService(
-		studentService,
-		repos.Student,
-		repos.Person,
-		repos.StudentDeletion,
-		repos.GradeTransition,
-		repos.DataDeletion,
-		repos.StudentDeletionAudit,
-		feedbackCounter,
-		db,
-	)
-	users.WireStudentDocumentCleanup(studentDeletionService, repos.StudentDocument)
-	users.WireStudentDeletionCareWithdrawals(studentDeletionService, repos.CareWithdrawal)
-	users.WireCareWithdrawalDeletion(careLifecycleService, studentDeletionService)
 
 	// Child documents (#777): metadata, per-category authority and the
 	// per-child access gate for the Dokumente tab. Needs the user context to
@@ -3112,7 +3100,6 @@ func newFactory(
 		Schools:              platform.NewSchoolService(repos.School),
 		Students:             studentService,
 		ClassListEntries:     users.NewClassListEntryService(repos.ClassListEntry, repos.Student, repos.ClassListEntryChange),
-		StudentDeletion:      studentDeletionService,
 		CareLifecycle:        careLifecycleService,
 		StudentAudit:         studentAuditService,
 		StudentConsents:      studentConsentService,
@@ -3209,6 +3196,25 @@ func newFactory(
 	// The People Directory serves guardians through the owner's legacy
 	// guardian service (#2663); bind it now that the service exists.
 	factory.bindGuardianDirectory(persons, db)
+	// Permanent child deletion is the owner workflow of #2710. It runs over
+	// the bound People Directory, Care Plan and Timetable capabilities; the
+	// photo unlink resolves lazily because EnableStudentPhotos runs later in
+	// the API bootstrap.
+	studentDeletion, err := studentdeletioncompose.New(studentdeletioncompose.Dependencies{
+		DB: db, Directory: persons, CarePlan: repos.CarePlan(), Timetable: timetableCapability,
+		Feedback: feedbackCounterOrUnconfigured(feedbackCounter), IsVerifiedStaff: userContextService.HasCurrentStaff,
+		LockCareBookingWrites: func(ctx context.Context) error { return schedule.LockTenantRecurrenceWrites(ctx, db) },
+		UnlinkPhoto: func(ctx context.Context, path string) {
+			if factory.StudentPhotos != nil {
+				factory.StudentPhotos.ScheduleUnlinkAfterCommit(ctx, path)
+			}
+		},
+		Broadcaster: realtimeHub, Logger: logger.With("workflow", "student_deletion"), Audit: auditCommand,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("compose student deletion workflow: %w", err)
+	}
+	factory.StudentDeletion = studentDeletion
 	return factory, nil
 }
 
@@ -3257,4 +3263,21 @@ func (f *Factory) EnableStudentPhotos(deps StudentPhotoBootstrap) {
 		setter.SetStudentPhotos(f.StudentPhotos)
 	}
 	users.RegisterStudentPhotoSettingsSideEffects(f.SettingsSideEffects, f.StudentPhotos)
+}
+
+// feedbackCounterOrUnconfigured keeps the reduced test graph constructible:
+// the composition requires a Feedback owner, and a graph built without one
+// fails at the first deletion preview instead of at startup, exactly as the
+// retired provider did.
+func feedbackCounterOrUnconfigured(counter users.FeedbackEntryCounter) users.FeedbackEntryCounter {
+	if counter != nil {
+		return counter
+	}
+	return unconfiguredFeedbackCounter{}
+}
+
+type unconfiguredFeedbackCounter struct{}
+
+func (unconfiguredFeedbackCounter) CountForStudent(context.Context, int64) (int, error) {
+	return 0, errors.New("student deletion: feedback counter is not configured")
 }
