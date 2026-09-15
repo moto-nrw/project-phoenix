@@ -7,6 +7,7 @@ package filestore_test
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -468,4 +469,65 @@ func TestDeleteFolderQueuesCleanupForItsFiles(t *testing.T) {
 	removed, err := resource.CleanupOrphanedFiles(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 1, removed)
+}
+
+// TestFileMetadataTablesEnforceRLS proves the document metadata File Storage
+// keeps (#2706, ADR 0010) stays inside the tenant: two schools each store one
+// file and queue one cleanup intent, and neither documents.files nor
+// documents.file_cleanup is visible across the tenant boundary under the
+// least-privilege role.
+func TestFileMetadataTablesEnforceRLS(t *testing.T) {
+	t.Parallel()
+	type side struct {
+		ctx      context.Context
+		db       *bun.DB
+		tenantID int64
+		rows     map[string]int64
+	}
+	var sides []side
+	for _, name := range []string{"own", "foreign"} {
+		t.Run(name, func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			c := setupFileStoreRoute(t)
+			kept := c.createFolder(folderPayload{Name: "Vorlagen", Visibility: "all_staff"})
+			rec := c.upload(kept, "Elternbrief.pdf", fakePDF, c.admin, permissions.AdminWildcard)
+			require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+			var uploaded struct {
+				Data struct {
+					ID common.JSONID `json:"id"`
+				} `json:"data"`
+			}
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &uploaded))
+
+			dropped := c.createFolder(folderPayload{Name: "Temporär", Visibility: "all_staff"})
+			rec = c.upload(dropped, "Alt.pdf", fakePDF, c.admin, permissions.AdminWildcard)
+			require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+			rec = c.do(http.MethodDelete, fmt.Sprintf("/files/folders/%d", dropped), nil, "", c.admin, permissions.AdminWildcard)
+			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+			var cleanupID int64
+			require.NoError(t, c.db.NewSelect().TableExpr("documents.file_cleanup").Column("id").Where("owner_id = ?", dropped).Scan(testpkg.Ctx(t), &cleanupID))
+
+			sides = append(sides, side{
+				ctx: testpkg.Ctx(t), db: c.db, tenantID: testpkg.Tenant(t),
+				rows: map[string]int64{"documents.files": int64(uploaded.Data.ID), "documents.file_cleanup": cleanupID},
+			})
+		})
+	}
+	require.Len(t, sides, 2)
+	for table, firstID := range sides[0].rows {
+		secondID := sides[1].rows[table]
+		t.Run(table, func(t *testing.T) {
+			for _, s := range sides {
+				require.NoError(t, testpkg.WithTenantTx(t, s.ctx, s.db, s.tenantID, func(txCtx context.Context, tx bun.Tx) error {
+					var bypass bool
+					require.NoError(t, tx.NewRaw("SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user").Scan(txCtx, &bypass))
+					require.False(t, bypass, "the tenant transaction must run under the least-privilege role")
+					var ids []int64
+					require.NoError(t, tx.NewSelect().Table(table).Column("id").Where("id IN (?, ?)", firstID, secondID).Scan(txCtx, &ids))
+					require.Equal(t, []int64{s.rows[table]}, ids, "%s leaks across the tenant boundary", table)
+					return nil
+				}))
+			}
+		})
+	}
 }
