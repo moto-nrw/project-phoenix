@@ -250,6 +250,7 @@
   },
   "pushNotifications": {
     "title": "Njoftimet në këtë pajisje",
+    "moreActions": "Veprime të tjera",
     "installIntro": "Në iPhone dhe iPad, njoftimet funksionojnë vetëm kur e hapni moto nga ekrani kryesor.",
     "installStepsLabel": "Shtoni moto në ekranin kryesor",
     "installStep1": "Prekni „Ndaj“ në menu.",
