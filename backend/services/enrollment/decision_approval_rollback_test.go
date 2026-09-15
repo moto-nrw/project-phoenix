@@ -162,7 +162,9 @@ func TestDecisionService_ApprovalRollsBackEveryOwnerAfterMaterialization(t *test
 	require.NoError(t, err)
 	require.Len(t, submitted.Children, 1)
 
-	instance := testpkg.CreateTestActivityInstance(t, env.db, timezone.NewDate(2026, 9, 15), room.ID, testpkg.ActivityInstanceOpts{
+	// Roster reconciliation never rewrites history, so the occurrence must
+	// fall on a future offering weekday (Tue/Thu) inside the period.
+	instance := testpkg.CreateTestActivityInstance(t, env.db, timezone.NewDate(2026, 12, 1), room.ID, testpkg.ActivityInstanceOpts{
 		ActivityGroupID: &group.ID, CalendarPeriodID: &period.ID,
 	})
 	registerSourcedInstanceCleanup(t, env, instance.ID)
