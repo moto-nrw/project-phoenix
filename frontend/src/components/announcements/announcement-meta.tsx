@@ -85,11 +85,18 @@ export function AnnouncementStatusBadge({
  *
  *   - geplant: der Termin liegt noch vor uns (oder die Mitteilung ist noch
  *     ein Entwurf, dann zählt der Termin ab dem Veröffentlichen)
+ *   - wird versendet: der Termin ist fällig; der Tick kann noch zustellen
  *   - versendet: die Erinnerung ist raus
- *   - verpasst: der Termin ist vorbei, ohne dass gesendet wurde (etwa weil
- *     die Mitteilung zu dem Zeitpunkt zurückgezogen oder abgeschaltet war)
+ *   - verpasst: die Zustellung ist endgültig ausgeschlossen (etwa weil die
+ *     Mitteilung zurückgezogen, abgelaufen oder länger als das Tick-Fenster
+ *     überfällig ist)
  */
-export type ReminderState = "planned" | "sent" | "missed";
+export type ReminderState = "planned" | "pending" | "sent" | "missed";
+
+// Must match announcementReminderMaxLookback in the scheduler. During this
+// window a due reminder can still be retried after a temporary suppression;
+// only afterwards has the scheduler deliberately abandoned it as stale.
+const REMINDER_DELIVERY_WINDOW_MS = 12 * 60 * 60 * 1_000;
 
 export function reminderStateOf(
   announcement: Pick<
@@ -103,7 +110,12 @@ export function reminderStateOf(
   if (announcement.status === "draft") return "planned";
   if (!announcement.active || announcement.status === "expired")
     return "missed";
-  return new Date(announcement.reminder_at) <= now ? "missed" : "planned";
+  const reminderAtMs = new Date(announcement.reminder_at).getTime();
+  const nowMs = now.getTime();
+  if (reminderAtMs > nowMs) return "planned";
+  return nowMs - reminderAtMs >= REMINDER_DELIVERY_WINDOW_MS
+    ? "missed"
+    : "pending";
 }
 
 export function describeReminder(
@@ -125,6 +137,8 @@ export function describeReminder(
       return `Erinnert am ${when}`;
     case "missed":
       return `Erinnerung am ${when} nicht versendet`;
+    case "pending":
+      return `Erinnerung vom ${when} wird versendet`;
     default:
       return `Erinnerung am ${when}`;
   }

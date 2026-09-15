@@ -143,6 +143,23 @@ describe("describeReminder (#3162)", () => {
     expect(describeReminder(draft)).toBe("Erinnerung am 08.09.2026, 08:00 Uhr");
   });
 
+  it("shows a due live reminder as pending during the scheduler retry window", () => {
+    const pending = {
+      ...base,
+      status: "published" as const,
+      reminder_at: "2026-09-09T09:55:00Z",
+    };
+    const now = new Date("2026-09-09T10:00:00Z");
+
+    expect(reminderStateOf(pending, now)).toBe("pending");
+    expect(describeReminder(pending, now)).toBe(
+      "Erinnerung vom 09.09.2026, 11:55 Uhr wird versendet",
+    );
+
+    const stale = { ...pending, reminder_at: "2026-09-08T22:00:00Z" };
+    expect(reminderStateOf(stale, now)).toBe("missed");
+  });
+
   it("marks reminders suppressed for inactive or expired publications as missed", () => {
     const inactive = {
       ...base,
@@ -163,7 +180,7 @@ describe("describeReminder (#3162)", () => {
     expect(reminderStateOf(expired)).toBe("missed");
   });
 
-  it("flags a reminder whose moment passed without a send", () => {
+  it("flags a reminder whose delivery window passed without a send", () => {
     const missed = {
       ...base,
       status: "published" as const,
