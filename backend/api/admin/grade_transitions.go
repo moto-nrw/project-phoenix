@@ -374,7 +374,9 @@ func (rs *GradeTransitionResource) list(w http.ResponseWriter, r *http.Request) 
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid after_id")))
 			return
 		}
-		filter.AfterID = afterID
+		// after_id=0 is a real cursor: the first keyset window (id > 0, id ASC).
+		// A zero int64 would look like "no cursor" and keep newest-first order.
+		filter.AfterID = &afterID
 		// A cursor request is always the first offset window of its remainder.
 		page = 1
 	}

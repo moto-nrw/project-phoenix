@@ -102,12 +102,13 @@ type TransitionUpdate struct {
 	Mappings     []TransitionMappingInput
 }
 
-// TransitionFilter narrows a listing. AfterID switches to an ascending id
-// window; otherwise the newest transition comes first.
+// TransitionFilter narrows a listing. A non-nil AfterID (including 0) switches
+// to an ascending id window starting after that cursor; otherwise the newest
+// transition comes first. The admin list client always starts with after_id=0.
 type TransitionFilter struct {
 	Status       string
 	AcademicYear string
-	AfterID      int64
+	AfterID      *int64
 	Limit        int
 	Offset       int
 }
@@ -227,7 +228,7 @@ func (m *Module) FindTransition(ctx context.Context, id int64) (Transition, erro
 }
 
 func (m *Module) ListTransitions(ctx context.Context, filter TransitionFilter) ([]Transition, int, error) {
-	if filter.Limit < 0 || filter.Offset < 0 || filter.AfterID < 0 {
+	if filter.Limit < 0 || filter.Offset < 0 || (filter.AfterID != nil && *filter.AfterID < 0) {
 		return nil, 0, invalidTransition("invalid transition listing window")
 	}
 	filter.Status = strings.TrimSpace(filter.Status)

@@ -120,12 +120,13 @@ type DraftPatch struct {
 	Mappings     []Mapping
 }
 
-// ListFilter narrows a listing. AfterID switches to an ascending id window
-// and resets the page to the first one.
+// ListFilter narrows a listing. A non-nil AfterID (including 0) switches to
+// an ascending id window and resets the page to the first one. The admin
+// list client always starts with after_id=0.
 type ListFilter struct {
 	Status       string
 	AcademicYear string
-	AfterID      int64
+	AfterID      *int64
 	Page         int
 	PageSize     int
 }
@@ -405,7 +406,7 @@ func (w *Workflow) ListTransitions(ctx context.Context, filter ListFilter) (resu
 		if pageSize < 1 {
 			pageSize = 20
 		}
-		if filter.AfterID > 0 {
+		if filter.AfterID != nil {
 			page = 1
 		}
 		transitions, count, err := w.deps.Structure.ListTransitions(txCtx, schoolstructure.TransitionFilter{

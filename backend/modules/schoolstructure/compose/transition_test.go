@@ -193,10 +193,20 @@ func TestListTransitionsFiltersPaginatesAndOrders(t *testing.T) {
 		assert.Equal(t, 3, total, "the total counts every match, not the page")
 		assert.Equal(t, []int64{second.ID}, transitionIDs(page))
 
-		window, total, err := module.ListTransitions(ctx, schoolstructure.TransitionFilter{AfterID: first.ID})
+		window, total, err := module.ListTransitions(ctx, schoolstructure.TransitionFilter{AfterID: testpkg.Int64Ptr(first.ID)})
 		require.NoError(t, err)
 		assert.Equal(t, 2, total)
 		assert.Equal(t, []int64{second.ID, third.ID}, transitionIDs(window), "the keyset window runs ascending")
+
+		fromStart, total, err := module.ListTransitions(ctx, schoolstructure.TransitionFilter{AfterID: testpkg.Int64Ptr(0), Limit: 1})
+		require.NoError(t, err)
+		assert.Equal(t, 3, total)
+		assert.Equal(t, []int64{first.ID}, transitionIDs(fromStart), "after_id=0 starts at the oldest id")
+
+		fullKeyset, total, err := module.ListTransitions(ctx, schoolstructure.TransitionFilter{AfterID: testpkg.Int64Ptr(0)})
+		require.NoError(t, err)
+		assert.Equal(t, 3, total)
+		assert.Equal(t, []int64{first.ID, second.ID, third.ID}, transitionIDs(fullKeyset), "after_id=0 lists every row ascending")
 
 		_, _, err = module.ListTransitions(ctx, schoolstructure.TransitionFilter{Limit: -1})
 		require.ErrorIs(t, err, schoolstructure.ErrInvalidTransition)

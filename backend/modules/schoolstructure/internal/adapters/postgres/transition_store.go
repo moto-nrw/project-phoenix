@@ -143,8 +143,8 @@ func (s *Store) ListTransitions(ctx context.Context, tenantID int64, filter doma
 		if filter.AcademicYear != "" {
 			query = query.Where(`"transition".academic_year = ?`, filter.AcademicYear)
 		}
-		if filter.AfterID > 0 {
-			query = query.Where(`"transition".id > ?`, filter.AfterID)
+		if filter.AfterID != nil {
+			query = query.Where(`"transition".id > ?`, *filter.AfterID)
 		}
 		return query
 	}
@@ -157,7 +157,7 @@ func (s *Store) ListTransitions(ctx context.Context, tenantID int64, filter doma
 	}
 	rows := []transitionRow{}
 	query := apply(db.NewSelect().Model(&rows).ModelTableExpr(transitionsTable))
-	if filter.AfterID > 0 {
+	if filter.AfterID != nil {
 		query = query.OrderExpr(`"transition".id ASC`)
 	} else {
 		query = query.OrderExpr(`"transition".created_at DESC, "transition".id DESC`)

@@ -185,6 +185,65 @@ func TestGradeTransitionResource_List(t *testing.T) {
 		assert.True(t, foundT2, "the row created after the cursor row must be in the window")
 	})
 
+	t.Run("list with after_id=0 starts the keyset ascending", func(t *testing.T) {
+		// The admin client always sends after_id=0 for the first window
+		// (`frontend/src/lib/grade-transition-api.ts`). That must list from
+		// the oldest id, not fall through to created_at DESC: a newest-first
+		// page of 100 would then cursor from its oldest row and hide every
+		// earlier transition.
+		req := testutil.NewAuthenticatedRequest(t, "GET", "/?after_id=0&page_size=50", nil,
+			testutil.WithJWTBearer(token),
+		)
+
+		rr := testutil.ExecuteRequest(router, req)
+		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+		rows, ok := response["data"].([]interface{})
+		require.True(t, ok, "data must be a list")
+		require.NotEmpty(t, rows)
+
+		ids := make([]int64, 0, len(rows))
+		t1Index, t2Index := -1, -1
+		for _, raw := range rows {
+			row, ok := raw.(map[string]interface{})
+			require.True(t, ok)
+			idStr, ok := row["id"].(string)
+			require.True(t, ok, "ids serialize as strings")
+			id, err := strconv.ParseInt(idStr, 10, 64)
+			require.NoError(t, err)
+			if len(ids) > 0 {
+				assert.Greater(t, id, ids[len(ids)-1], "after_id=0 must be strictly ascending")
+			}
+			if id == t1.ID {
+				t1Index = len(ids)
+			}
+			if id == t2.ID {
+				t2Index = len(ids)
+			}
+			ids = append(ids, id)
+		}
+		require.GreaterOrEqual(t, t1Index, 0, "oldest fixture must be in the first keyset window")
+		require.GreaterOrEqual(t, t2Index, 0, "newer fixture must be in the first keyset window")
+		assert.Less(t, t1Index, t2Index, "older id must precede newer id")
+
+		firstPage := testutil.NewAuthenticatedRequest(t, "GET", "/?after_id=0&page_size=1", nil,
+			testutil.WithJWTBearer(token),
+		)
+		firstRR := testutil.ExecuteRequest(router, firstPage)
+		testutil.AssertSuccessResponse(t, firstRR, http.StatusOK)
+		firstRows, ok := testutil.ParseJSONResponse(t, firstRR.Body.Bytes())["data"].([]interface{})
+		require.True(t, ok)
+		require.Len(t, firstRows, 1)
+		firstRow, ok := firstRows[0].(map[string]interface{})
+		require.True(t, ok)
+		firstIDStr, ok := firstRow["id"].(string)
+		require.True(t, ok, "ids serialize as strings")
+		firstID, err := strconv.ParseInt(firstIDStr, 10, 64)
+		require.NoError(t, err)
+		assert.Equal(t, ids[0], firstID, "the first keyset page is the oldest row, not the newest")
+	})
+
 	t.Run("list with invalid after_id is rejected", func(t *testing.T) {
 		req := testutil.NewAuthenticatedRequest(t, "GET", "/?after_id=abc", nil,
 			testutil.WithJWTBearer(token),

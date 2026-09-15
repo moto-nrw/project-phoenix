@@ -89,8 +89,9 @@ type TransitionUpdate struct {
 type TransitionFilter struct {
 	Status       string
 	AcademicYear string
-	// AfterID switches the listing to an ascending id window.
-	AfterID int64
+	// AfterID, when non-nil (including 0), switches the listing to an
+	// ascending id window starting after that cursor.
+	AfterID *int64
 	Limit   int
 	Offset  int
 }
