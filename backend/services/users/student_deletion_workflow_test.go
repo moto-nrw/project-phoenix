@@ -788,6 +788,46 @@ func TestStudentDeletionWorkflow_WithdrawalDeletesStudentAndRedactsCompletionAto
 	require.ErrorIs(t, err, studentdeletion.ErrWithdrawalNotFound)
 }
 
+// Withdrawal deletion used to take the exclusive recurrence gate and only
+// later the shared class-writes gate (inside a locked student read). A
+// concurrent grade-transition apply takes those two the other way around, so
+// PostgreSQL can deadlock the pair. The shared class-writes gate must come
+// first; the later locked reads re-acquire it as a no-op.
+func TestStudentDeletionWorkflow_WithdrawalTakesClassWritesBeforeRecurrence(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	f := newDeletionFixture(t, db)
+	student := testpkg.CreateTestStudent(t, db, "Lock", "Order", "2a")
+	completion := createWithdrawalCompletion(t, db, student.ID, f.actorID, timezone.TodayDate())
+
+	order := &[]string{}
+	f.deps.Directory = recordingClassWritesDirectory{Directory: f.deps.Directory, order: order}
+	innerRecurrence := f.deps.LockCareBookingWrites
+	f.deps.LockCareBookingWrites = func(ctx context.Context) error {
+		*order = append(*order, "recurrence")
+		return innerRecurrence(ctx)
+	}
+	workflow := f.workflow(t)
+
+	preview, err := workflow.PreviewWithdrawal(ctx, completion.ID)
+	require.NoError(t, err)
+	_, err = workflow.ExecuteWithdrawal(ctx, completion.ID, confirm(preview, studentdeletion.ReasonPrivacyRequest))
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(*order), 2)
+	assert.Equal(t, []string{"class-writes", "recurrence"}, (*order)[:2])
+}
+
+type recordingClassWritesDirectory struct {
+	studentdeletion.Directory
+	order *[]string
+}
+
+func (d recordingClassWritesDirectory) LockEnrollmentClassWrites(ctx context.Context) error {
+	*d.order = append(*d.order, "class-writes")
+	return d.Directory.LockEnrollmentClassWrites(ctx)
+}
+
 // The retention reason describes a record whose keeping period has run out.
 // For a child still in care nothing is running out yet, so choosing it would
 // put a false statement into the deletion audit (#2487).
@@ -864,6 +904,11 @@ type refusingDirectory struct {
 func (d refusingDirectory) ReadEnrollmentStudent(context.Context, int64, string) (peopledirectory.EnrollmentRecord, error) {
 	d.t.Fatal("unauthorized request reached an owner query")
 	return peopledirectory.EnrollmentRecord{}, nil
+}
+
+func (d refusingDirectory) LockEnrollmentClassWrites(context.Context) error {
+	d.t.Fatal("unauthorized request reached an owner query")
+	return nil
 }
 
 // Deleting a child drops every "läuft mit" edge, which edits the other

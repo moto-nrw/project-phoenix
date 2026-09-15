@@ -133,6 +133,10 @@ type Result struct {
 // lock, and the owner's deletion commands.
 type Directory interface {
 	ReadEnrollmentStudent(ctx context.Context, id int64, lock string) (peopledirectory.EnrollmentRecord, error)
+	// LockEnrollmentClassWrites takes the shared class-writes gate. Withdrawal
+	// deletion holds it before the recurrence gate so a concurrent grade
+	// transition cannot deadlock against the locked student re-read.
+	LockEnrollmentClassWrites(ctx context.Context) error
 	FindPerson(ctx context.Context, id int64) (peopledirectory.Person, error)
 	FindPersonForMutation(ctx context.Context, id int64) (peopledirectory.Person, error)
 	peopledirectory.StudentDeletionCommand
@@ -198,9 +202,10 @@ type Dependencies struct {
 	CountAuditReferences      Counter
 	CountGuardianInvitations  Counter
 
-	// LockCareBookingWrites is the tenant-wide gate every care-booking writer
-	// takes first; the withdrawal path holds it so a stale task cannot commit
-	// beside newly booked care.
+	// LockCareBookingWrites is the tenant-wide recurrence gate every
+	// care-booking writer takes. The withdrawal path holds it after the shared
+	// class-writes gate so a stale task cannot commit beside newly booked care
+	// and a concurrent grade-transition apply cannot deadlock.
 	LockCareBookingWrites func(context.Context) error
 	AppendAudit           func(context.Context, Actor, Result) error
 	PhotoRemoved          func(context.Context, Actor, string)
@@ -314,9 +319,15 @@ func (w *Workflow) ExecuteWithdrawal(ctx context.Context, completionID int64, co
 		return Result{}, err
 	}
 	err = w.run(ctx, "execute_withdrawal", func(txCtx context.Context, actor Actor) (Result, error) {
-		// Care-booking writers take this gate first; holding it here makes
-		// deletion and rebooking a total order instead of letting a stale task
-		// commit beside newly booked care.
+		// Shared class-writes gate BEFORE the recurrence gate: a grade
+		// transition takes class-writes exclusively first, then recurrence
+		// (lockRecurrenceThenTransitions). Taking recurrence here and the
+		// shared class gate only later (inside a locked ReadEnrollmentStudent)
+		// would let the two transactions wait on each other until PostgreSQL
+		// aborts one. Re-entrant, so the later locked student reads stay a no-op.
+		if err := w.deps.Directory.LockEnrollmentClassWrites(txCtx); err != nil {
+			return Result{}, err
+		}
 		if err := w.deps.LockCareBookingWrites(txCtx); err != nil {
 			return Result{}, err
 		}
