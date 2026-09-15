@@ -356,6 +356,18 @@ common package moves, the calendar-date edge with the retained
 fixtures that still name them. Convert them to exact debt with the rule above
 once the package exists at a base SHA.
 
+The import HTTP composition (`modules/dataimport/inbound`, with its runtime
+binding in `modules/dataimport/inbound/compose`) keeps the `inbound-import`
+owner and its `http` / `compose` roles after replacing `api/import` (#3217).
+It serves the student, staff, class-list and opening-balance preview, import
+and template routes from the public Data Import contract with unchanged paths,
+status codes, error strings, multipart handling, file-size limit and
+permission checks. The `root-composition.to.import-http` mount replaces the
+`api -> api/import` debt entry that fell with the old package; it and the
+`inbound-import.compose.*` rules that bind `api/common`, `auth/jwt`, `tenant`
+and the ORM are compatibility permissions, not target dependencies. Convert
+them to exact debt with the rule above once the package exists at a base SHA.
+
 The settings test support (`services/config/settingstest`, `settings-platform`/
 `test-support`) scripts the payroll and work-schedule settings that presence
 behaviour tests drive through their real services, so those tests name a school's

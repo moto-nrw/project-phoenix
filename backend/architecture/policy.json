@@ -484,7 +484,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "api/import/compose",
+      "path": "modules/dataimport/inbound/compose",
       "owner": "inbound-import",
       "role": "compose",
       "internal_test_role": "adapter-test",
@@ -799,7 +799,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/import",
+      "path": "modules/dataimport/inbound",
       "owner": "inbound-import",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -4966,6 +4966,17 @@
       "source_role": "compose",
       "target_owner": "inbound-import",
       "target_role": "compose"
+    },
+    {
+      "id": "root-composition.to.import-http",
+      "description": "The root API composition mounts the relocated import route adapter (#3217). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "inbound-import",
+      "target_role": "http"
     },
     {
       "id": "inbound-import.compose.orm-sql",
