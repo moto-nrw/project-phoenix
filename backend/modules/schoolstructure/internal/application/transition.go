@@ -84,6 +84,9 @@ func (s *Service) UpdateTransition(ctx context.Context, tenantID int64, update d
 		if !found {
 			return domain.ErrTransitionNotFound
 		}
+		if current.Status != domain.TransitionStatusDraft {
+			return domain.ErrTransitionStateConflict
+		}
 		year := current.AcademicYear
 		if update.AcademicYear != nil {
 			validated, validateErr := domain.ValidateAcademicYear(*update.AcademicYear)
@@ -113,7 +116,9 @@ func (s *Service) UpdateTransition(ctx context.Context, tenantID int64, update d
 			return writeErr
 		}
 		if rows == 0 {
-			return domain.ErrTransitionNotFound
+			// The row was read as a draft moments ago; a zero-row update means
+			// it left the draft status in between.
+			return domain.ErrTransitionStateConflict
 		}
 		current.AcademicYear, current.Notes = year, notes
 		if update.Mappings != nil {
@@ -140,10 +145,20 @@ func (s *Service) DeleteTransition(ctx context.Context, tenantID, id int64) erro
 		if writeErr != nil {
 			return writeErr
 		}
-		if rows == 0 {
-			return domain.ErrTransitionNotFound
+		if rows > 0 {
+			return nil
 		}
-		return nil
+		// Only a draft may be deleted: the delete cascades the history and
+		// ledgers a revert needs. Tell a missing row apart from a protected one.
+		_, found, queryStats, findErr := s.store.FindTransition(ctx, tenantID, id, "")
+		stats.Add(queryStats)
+		if findErr != nil {
+			return findErr
+		}
+		if found {
+			return domain.ErrTransitionStateConflict
+		}
+		return domain.ErrTransitionNotFound
 	})
 }
 

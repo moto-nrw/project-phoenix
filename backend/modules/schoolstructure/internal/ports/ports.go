@@ -31,10 +31,12 @@ type TransitionStore interface {
 	FindTransition(ctx context.Context, tenantID, id int64, lock string) (domain.Transition, bool, domain.OperationStats, error)
 	ListTransitions(ctx context.Context, tenantID int64, filter domain.TransitionFilter) ([]domain.Transition, int, domain.OperationStats, error)
 	InsertTransition(ctx context.Context, tenantID int64, draft domain.TransitionDraft) (domain.Transition, domain.OperationStats, error)
-	// UpdateTransitionFields rewrites academic year and notes; rows is 0
-	// when the transition does not exist.
+	// UpdateTransitionFields rewrites academic year and notes of a DRAFT;
+	// rows is 0 when the transition does not exist or is no longer a draft.
 	UpdateTransitionFields(ctx context.Context, tenantID, id int64, academicYear string, notes *string) (int64, domain.OperationStats, error)
 	ReplaceMappings(ctx context.Context, tenantID, transitionID int64, mappings []domain.TransitionMappingInput) ([]domain.TransitionMapping, domain.OperationStats, error)
+	// DeleteTransition removes a DRAFT with its mappings; rows is 0 when the
+	// transition does not exist or is no longer a draft.
 	DeleteTransition(ctx context.Context, tenantID, id int64) (int64, domain.OperationStats, error)
 	// LockTransitions takes the tenant-wide transaction-scoped transition
 	// gate shared with the timetable materializer.

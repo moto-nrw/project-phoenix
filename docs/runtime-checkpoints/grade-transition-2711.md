@@ -12,8 +12,16 @@ It is not a staging or production observation window.
 `workflows/gradetransition` is the only grade-transition coordinator. The
 admin HTTP surface (`/api/admin/grade-transitions`: list, create, get,
 update, delete, `/classes`, `/suggest`, `/{id}/preview`, `/{id}/history`,
-`/{id}/apply`, `/{id}/revert`) calls its public queries and commands; every
-path, status code, error code and message is unchanged. The previous
+`/{id}/apply`, `/{id}/revert`) calls its public queries and commands. Every
+path, request and response field, error code (`not_draft`,
+`graduates_checked_in`, `preview_stale`, `not_latest_transition`,
+`not_applied`) and the conflict messages are unchanged. Deliberate
+differences: a principal refused by the workflow answers 403 instead of the
+former unreachable 401 "no account ID in context"; the list, classes,
+suggest and create routes classify not-found, conflict and forbidden
+outcomes instead of answering 500; `unmapped_classes` and the classes route
+serialize an empty list as `[]` instead of `null`; and the list order breaks
+equal timestamps by id descending. The previous
 `services/education` grade transition service with its class-ledger
 helpers, the cross-schema `database/repositories/education` transition
 repository, the `models/education` repository contract and the

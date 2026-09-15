@@ -2211,9 +2211,7 @@ func newFactory(
 	// School Membership, the Timetable roster reconciliation and the
 	// recurrence gate, and builds School Structure and Student Presence over
 	// the shared database itself (#2711).
-	gradeTransitionResyncer, ok := enrollmentDecisionService.(interface {
-		ResyncOfferingSourcedTemplates(ctx context.Context, effectiveFrom timezone.Date) error
-	})
+	gradeTransitionResyncer, ok := enrollmentDecisionService.(education.OfferingSourceResyncer)
 	if !ok {
 		return nil, fmt.Errorf("enrollment decision service does not implement the grade-transition offering resync")
 	}

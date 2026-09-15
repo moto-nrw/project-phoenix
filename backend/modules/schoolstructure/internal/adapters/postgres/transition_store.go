@@ -276,7 +276,8 @@ func (s *Store) UpdateTransitionFields(ctx context.Context, tenantID, id int64, 
 	started := time.Now()
 	result, err := db.NewUpdate().TableExpr(transitionsTable).
 		Set(`academic_year = ?`, academicYear).Set(`notes = ?`, notes).Set(`updated_at = NOW()`).
-		Where(`"transition".tenant_id = ?`, tenantID).Where(`"transition".id = ?`, id).Exec(ctx)
+		Where(`"transition".tenant_id = ?`, tenantID).Where(`"transition".id = ?`, id).
+		Where(`"transition".status = ?`, domain.TransitionStatusDraft).Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return 0, stats, storeError("update transition", err)
@@ -317,7 +318,8 @@ func (s *Store) DeleteTransition(ctx context.Context, tenantID, id int64) (int64
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	result, err := db.NewDelete().TableExpr(transitionsTable).
-		Where(`"transition".tenant_id = ?`, tenantID).Where(`"transition".id = ?`, id).Exec(ctx)
+		Where(`"transition".tenant_id = ?`, tenantID).Where(`"transition".id = ?`, id).
+		Where(`"transition".status = ?`, domain.TransitionStatusDraft).Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return 0, stats, storeError("delete transition", err)

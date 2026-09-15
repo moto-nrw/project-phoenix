@@ -20417,6 +20417,17 @@
       "target_role": "public"
     },
     {
+      "id": "grade-transition.workflow-decision-test.student-presence.public",
+      "description": "Grade Transition decision tests stub the Student Presence port with the owner's public types (#2711).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "workflow-decision-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
       "id": "grade-transition.workflow-decision-test.school-structure.public",
       "description": "Grade Transition decision tests stub the School Structure port with the owner's public types (#2711).",
       "scopes": [

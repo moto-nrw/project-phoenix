@@ -167,9 +167,11 @@ type TransitionQuery interface {
 }
 
 // TransitionCommand changes the transition rows inside the caller's tenant
-// transaction. Status guards make MarkTransitionApplied and
-// MarkTransitionReverted refuse a row that left the expected status with
-// ErrTransitionStateConflict.
+// transaction. Status guards refuse a row that is not in the expected status
+// with ErrTransitionStateConflict: UpdateTransition and DeleteTransition act
+// on drafts only (the delete cascades the history and ledgers a revert
+// needs), MarkTransitionApplied on a draft, MarkTransitionReverted on an
+// applied transition.
 type TransitionCommand interface {
 	CreateTransition(context.Context, TransitionDraft) (Transition, error)
 	UpdateTransition(context.Context, TransitionUpdate) (Transition, error)

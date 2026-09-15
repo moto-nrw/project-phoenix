@@ -123,7 +123,7 @@ func lockEnrollmentClassWritesExclusive(ctx context.Context, db bun.IDB, tenantI
 		return err
 	}
 	if tenantID > 0x7fffffff {
-		return fmt.Errorf("lockClassWrites: tenant_id %d exceeds advisory-lock obj id range", tenantID)
+		return fmt.Errorf("lockClassWritesExclusive: tenant_id %d exceeds advisory-lock obj id range", tenantID)
 	}
 	_, err := db.NewRaw("SELECT pg_advisory_xact_lock(?, ?)", enrollmentClassWritesLockClass, int32(tenantID)).Exec(ctx)
 	return err

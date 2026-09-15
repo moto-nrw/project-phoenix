@@ -510,6 +510,10 @@ func translateStructureError(err error) error {
 		return nil
 	case errors.Is(err, schoolstructure.ErrTransitionNotFound):
 		return ErrTransitionNotFound
+	case errors.Is(err, schoolstructure.ErrTransitionStateConflict):
+		// The owner refused a draft-only command on a row that left the draft
+		// status behind the workflow's own check.
+		return fmt.Errorf("cannot modify transition: %w", ErrTransitionNotDraft)
 	case errors.As(err, &invalid):
 		return fmt.Errorf("%w: %s", ErrInvalidTransitionData, invalid.Reason)
 	}

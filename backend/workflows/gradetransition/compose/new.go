@@ -134,12 +134,24 @@ func Assemble(deps Dependencies) (gradetransition.Dependencies, error) {
 	if err != nil {
 		return gradetransition.Dependencies{}, err
 	}
+	runner := tenant.NewTransactionRunner()
 	return gradetransition.Dependencies{
-		UnitOfWork: tenant.NewTransactionRunner().RunInTx,
-		Authorize:  Authorize,
-		Today:      func() string { return timezone.DateFromTime(clock()).String() },
-		Now:        clock,
-		Structure:  structure, Directory: deps.Directory, Membership: deps.Membership, Presence: presence, Rosters: deps.Rosters,
+		// Joining an ambient request transaction hands the commit to the route
+		// middleware, which commits on every non-5xx response. A refused
+		// command after partial owner writes (a stale preview seen late, a
+		// status conflict) therefore requests the rollback here, so the
+		// guarantee does not depend on the HTTP adapter remembering to.
+		UnitOfWork: func(ctx context.Context, fn func(context.Context) error) error {
+			err := runner.RunInTx(ctx, fn)
+			if err != nil {
+				tenant.MarkRollback(ctx)
+			}
+			return err
+		},
+		Authorize: Authorize,
+		Today:     func() string { return timezone.DateFromTime(clock()).String() },
+		Now:       clock,
+		Structure: structure, Directory: deps.Directory, Membership: deps.Membership, Presence: presence, Rosters: deps.Rosters,
 		LockRecurrenceWrites: deps.LockRecurrenceWrites,
 		ResyncOfferingRosters: func(ctx context.Context, effectiveFrom string) error {
 			day, err := timezone.ParseDate(effectiveFrom)
