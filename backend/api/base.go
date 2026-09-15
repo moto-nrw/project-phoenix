@@ -40,8 +40,6 @@ import (
 	calendarAPI "github.com/moto-nrw/project-phoenix/modules/staffcalendar/http"
 	presenceAPI "github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence"
 
-	importAPI "github.com/moto-nrw/project-phoenix/api/import"
-	importCompose "github.com/moto-nrw/project-phoenix/api/import/compose"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot/compose"
 	remindersAPI "github.com/moto-nrw/project-phoenix/api/reminders"
 	shifttypesAPI "github.com/moto-nrw/project-phoenix/api/shift-types"
@@ -51,6 +49,8 @@ import (
 	timetableAPI "github.com/moto-nrw/project-phoenix/api/timetable"
 	usercontextAPI "github.com/moto-nrw/project-phoenix/api/usercontext"
 	worktimemodelsAPI "github.com/moto-nrw/project-phoenix/api/work-time-models"
+	importAPI "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound"
+	importCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound/compose"
 	notificationsAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
 	sseAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/sse"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
