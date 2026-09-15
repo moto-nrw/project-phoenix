@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NewsCard, NewsDetailModal, isOpenPoll } from "./news-components";
 import type { ParentAnnouncement } from "~/lib/parent-api";
 import * as parentApi from "~/lib/parent-api";
+import * as dateHelpers from "~/lib/date-helpers";
 
 // Poll (Umfrage, #1371) behaviour in the parent portal: the feed card only
 // flags that an answer is due. The detail view is where it is given, one row
@@ -517,5 +518,80 @@ describe("isOpenPoll", () => {
       isOpenPoll(poll({ response_deadline: "2020-01-01T00:00:00Z" })),
     ).toBe(false);
     expect(isOpenPoll(poll({ response_type: "none" }))).toBe(false);
+  });
+});
+
+describe("scheduled reminder in the parent feed (#3162)", () => {
+  it("marks a reminded message and leads with the reminder wording", () => {
+    render(
+      <NewsCard
+        item={announcement({
+          reminder_sent_at: "2026-09-08T06:00:00Z",
+          reminder_text: "Morgen endet die Betreuung um 13:00 Uhr.",
+        })}
+        onOpen={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Erinnerung")).toBeInTheDocument();
+    expect(
+      screen.getByText("Morgen endet die Betreuung um 13:00 Uhr."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Das Sommerfest beginnt am Freitag um 15 Uhr."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the message text on the card when the reminder has no own wording", () => {
+    render(
+      <NewsCard
+        item={announcement({ reminder_sent_at: "2026-09-08T06:00:00Z" })}
+        onOpen={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Erinnerung")).toBeInTheDocument();
+    expect(
+      screen.getByText("Das Sommerfest beginnt am Freitag um 15 Uhr."),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the reminder above the full text in the detail view without asking for anything", () => {
+    render(
+      <NewsDetailModal
+        item={announcement({
+          reminder_sent_at: "2026-09-08T06:00:00Z",
+          reminder_text: "Morgen endet die Betreuung um 13:00 Uhr.",
+        })}
+        onClose={vi.fn()}
+        onUpdated={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/Erinnerung vom 08\.09\.2026/)).toBeInTheDocument();
+    expect(
+      screen.getByText("Morgen endet die Betreuung um 13:00 Uhr."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Das Sommerfest beginnt am Freitag um 15 Uhr."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Gelesen bestätigen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("uses the school's Berlin date for the reminder note", () => {
+    vi.spyOn(dateHelpers, "formatDate").mockReturnValue("20.07.2026");
+    vi.spyOn(dateHelpers, "formatBerlinDate").mockReturnValue("21.07.2026");
+
+    render(
+      <NewsDetailModal
+        item={announcement({ reminder_sent_at: "2026-07-20T22:30:00Z" })}
+        onClose={vi.fn()}
+        onUpdated={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/Erinnerung vom 21\.07\.2026/)).toBeInTheDocument();
   });
 });

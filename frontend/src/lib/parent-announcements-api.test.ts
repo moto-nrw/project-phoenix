@@ -13,6 +13,7 @@ import {
   remindUnanswered,
   unpublishAnnouncement,
   updateAnnouncement,
+  updateAnnouncementReminder,
   type Announcement,
   type AnnouncementInput,
 } from "./parent-announcements-api";
@@ -407,5 +408,49 @@ describe("poll endpoints", () => {
     await expect(remindUnanswered("7")).rejects.toThrow(
       "Erinnerung konnte nicht gesendet werden",
     );
+  });
+});
+
+describe("updateAnnouncementReminder (#3162)", () => {
+  it("PUTs the reminder to the id-scoped reminder path", async () => {
+    let seenURL = "";
+    let seenMethod = "";
+    let seenBody = "";
+    mockFetch(async (input, init) => {
+      seenURL = String(input);
+      seenMethod = init?.method ?? "";
+      seenBody = String(init?.body ?? "");
+      return jsonResponse({
+        data: announcement({
+          status: "published",
+          reminder_at: "2026-09-24T06:00:00Z",
+          reminder_text: "Morgen um 13:00 Uhr.",
+        }),
+      });
+    });
+
+    const saved = await updateAnnouncementReminder("7", {
+      reminder_at: "2026-09-24T06:00:00Z",
+      reminder_text: "Morgen um 13:00 Uhr.",
+    });
+    expect(seenURL).toBe("/api/parent-announcements/7/reminder");
+    expect(seenMethod).toBe("PUT");
+    expect(JSON.parse(seenBody)).toEqual({
+      reminder_at: "2026-09-24T06:00:00Z",
+      reminder_text: "Morgen um 13:00 Uhr.",
+    });
+    expect(saved.reminder_at).toBe("2026-09-24T06:00:00Z");
+  });
+
+  it("removes with an explicit null and surfaces the German fallback", async () => {
+    let seenBody = "";
+    mockFetch(async (_input, init) => {
+      seenBody = String(init?.body ?? "");
+      return jsonResponse({}, { status: 409 });
+    });
+    await expect(
+      updateAnnouncementReminder("7", { reminder_at: null }),
+    ).rejects.toThrow("Erinnerung konnte nicht gespeichert werden");
+    expect(JSON.parse(seenBody)).toEqual({ reminder_at: null });
   });
 });

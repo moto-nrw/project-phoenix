@@ -88,7 +88,7 @@ const emailClaimSQL = `
 	WHERE id IN (
 		SELECT id FROM platform.email_outbox
 		WHERE (status = 'pending' AND next_retry_at <= ?)
-			OR (status = 'claimed' AND lease_expires_at <= ?)
+			OR (status = 'claimed' AND lease_expires_at <= ? AND lease_token NOT LIKE 'dispatch:%')
 		ORDER BY next_retry_at, id FOR UPDATE SKIP LOCKED LIMIT ?
 	) RETURNING *`
 
@@ -99,17 +99,33 @@ const pushClaimSQL = `
 	WHERE id IN (
 		SELECT id FROM platform.push_outbox
 		WHERE (status = 'pending' AND next_retry_at <= ?)
-			OR (status = 'claimed' AND lease_expires_at <= ?)
+			OR (status = 'claimed' AND lease_expires_at <= ? AND lease_token NOT LIKE 'dispatch:%')
 		ORDER BY next_retry_at, id FOR UPDATE SKIP LOCKED LIMIT ?
 	) RETURNING *`
 
-const emailRenewLeaseSQL = `UPDATE platform.email_outbox
-	SET lease_expires_at = ?, updated_at = ?
-	WHERE id = ? AND status = 'claimed' AND lease_token = ?`
+const emailDeadLetterExpiredDispatchSQL = `UPDATE platform.email_outbox
+	SET status = 'dead_letter', attempts = attempts + 1, last_error = ?, dead_letter_at = ?,
+		lease_token = NULL, lease_expires_at = NULL, updated_at = ?
+	WHERE status = 'claimed' AND lease_expires_at <= ? AND lease_token LIKE 'dispatch:%'`
 
-const pushRenewLeaseSQL = `UPDATE platform.push_outbox
-	SET lease_expires_at = ?, updated_at = ?
-	WHERE id = ? AND status = 'claimed' AND lease_token = ?`
+const pushDeadLetterExpiredDispatchSQL = `UPDATE platform.push_outbox
+	SET status = 'dead_letter', attempts = attempts + 1, last_error = ?, dead_letter_at = ?,
+		lease_token = NULL, lease_expires_at = NULL, updated_at = ?
+	WHERE status = 'claimed' AND lease_expires_at <= ? AND lease_token LIKE 'dispatch:%'`
+
+// dispatchOutcomeUnknown explains a dead letter whose worker stopped between
+// the dispatch fence and finalization.
+const dispatchOutcomeUnknown = "delivery outcome unknown: worker stopped during provider call"
+
+const emailStartDeliverySQL = `UPDATE platform.email_outbox
+	SET lease_token = CONCAT('dispatch:', lease_token), lease_expires_at = ?, updated_at = ?
+	WHERE id = ? AND status = 'claimed' AND lease_token = ?
+	RETURNING lease_token`
+
+const pushStartDeliverySQL = `UPDATE platform.push_outbox
+	SET lease_token = CONCAT('dispatch:', lease_token), lease_expires_at = ?, updated_at = ?
+	WHERE id = ? AND status = 'claimed' AND lease_token = ?
+	RETURNING lease_token`
 
 const emailFinalizeSentSQL = `UPDATE platform.email_outbox
 	SET status = 'sent', provider_result = ?, sent_at = ?, last_error = NULL,
@@ -147,13 +163,15 @@ const emailCancelSQL = `UPDATE platform.email_outbox
 	SET status = 'cancelled', last_error = ?, cancelled_at = ?,
 		lease_token = NULL, lease_expires_at = NULL, updated_at = ?
 	WHERE tenant_id = ? AND related_entity_type = ? AND related_entity_id = ?
-	AND status = 'pending'`
+	AND status IN ('pending', 'claimed')
+	AND COALESCE(lease_token, '') NOT LIKE 'dispatch:%'`
 
 const pushCancelSQL = `UPDATE platform.push_outbox
 	SET status = 'cancelled', last_error = ?, cancelled_at = ?,
 		lease_token = NULL, lease_expires_at = NULL, updated_at = ?
 	WHERE tenant_id = ? AND related_entity_type = ? AND related_entity_id = ?
-	AND status = 'pending'`
+	AND status IN ('pending', 'claimed')
+	AND COALESCE(lease_token, '') NOT LIKE 'dispatch:%'`
 
 const emailStatusesSQL = `SELECT * FROM platform.email_outbox
 	WHERE tenant_id = ? AND related_entity_type = ? AND related_entity_id = ?
@@ -286,30 +304,67 @@ func (s *Store) Claim(ctx context.Context, transport domain.Transport, limit int
 	return toDomainRows(transport, rows), nil
 }
 
-func (s *Store) RenewLease(ctx context.Context, transport domain.Transport, id int64, token string, leaseExpiresAt time.Time) (bool, error) {
-	var renewed bool
+// DeadLetterExpiredDispatches ends intents whose dispatch fence expired without
+// finalization. SMTP and Web Push offer no idempotency key, so the provider may
+// already have accepted the message: retrying could deliver it twice. A dead
+// letter keeps the intent visible for operators instead of leaving it claimed.
+func (s *Store) DeadLetterExpiredDispatches(ctx context.Context, transport domain.Transport, now time.Time) (int64, error) {
+	var affected int64
 	err := s.adminTx(ctx, func(txCtx context.Context, db bun.IDB) error {
-		var result interface{ RowsAffected() (int64, error) }
-		var execErr error
+		var result sql.Result
+		var err error
 		switch transport {
 		case domain.TransportEmail:
-			result, execErr = db.NewRaw(emailRenewLeaseSQL, leaseExpiresAt, time.Now(), id, token).Exec(txCtx)
+			result, err = db.NewRaw(emailDeadLetterExpiredDispatchSQL, dispatchOutcomeUnknown, now, now, now).Exec(txCtx)
 		case domain.TransportPush:
-			result, execErr = db.NewRaw(pushRenewLeaseSQL, leaseExpiresAt, time.Now(), id, token).Exec(txCtx)
+			result, err = db.NewRaw(pushDeadLetterExpiredDispatchSQL, dispatchOutcomeUnknown, now, now, now).Exec(txCtx)
 		default:
 			return unknownTransport(transport)
 		}
-		if execErr != nil {
-			return execErr
+		if err != nil {
+			return err
 		}
-		rows, rowsErr := result.RowsAffected()
-		renewed = rows == 1
-		return rowsErr
+		affected, err = result.RowsAffected()
+		return err
 	})
 	if err != nil {
-		return false, fmt.Errorf("delivery postgres: renew %s lease for intent %d: %w", transport, id, err)
+		return 0, fmt.Errorf("delivery postgres: dead-letter expired %s dispatches: %w", transport, err)
 	}
-	return renewed, nil
+	return affected, nil
+}
+
+// StartDelivery advances the lease to a durable dispatch fence in one short
+// transaction. The provider call happens only after that transaction commits,
+// so a slow provider never holds a database connection or row lock. Cancellation
+// can invalidate ordinary claims, but not a committed dispatch fence: that
+// fence is the linearization point at which external delivery has begun.
+func (s *Store) StartDelivery(ctx context.Context, transport domain.Transport, id int64, token string, leaseExpiresAt time.Time) (string, bool, error) {
+	var dispatchToken string
+	err := s.adminTx(ctx, func(txCtx context.Context, db bun.IDB) error {
+		var scanErr error
+		switch transport {
+		case domain.TransportEmail:
+			scanErr = db.NewRaw(emailStartDeliverySQL, leaseExpiresAt, time.Now(), id, token).Scan(txCtx, &dispatchToken)
+		case domain.TransportPush:
+			scanErr = db.NewRaw(pushStartDeliverySQL, leaseExpiresAt, time.Now(), id, token).Scan(txCtx, &dispatchToken)
+		default:
+			return unknownTransport(transport)
+		}
+		if scanErr != nil {
+			if errors.Is(scanErr, sql.ErrNoRows) {
+				return nil
+			}
+			return scanErr
+		}
+		if dispatchToken == "" {
+			return nil
+		}
+		return nil
+	})
+	if err != nil {
+		return "", false, fmt.Errorf("delivery postgres: start %s delivery for intent %d: %w", transport, id, err)
+	}
+	return dispatchToken, dispatchToken != "", nil
 }
 
 func (s *Store) FinalizeSent(ctx context.Context, transport domain.Transport, id int64, token string, providerResult json.RawMessage, sentAt time.Time) (bool, error) {

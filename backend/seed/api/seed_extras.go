@@ -134,6 +134,44 @@ func seedParentLetter(rt *Runtime) error {
 		rt.Client.BindAuth(rt.TenantAuth)
 	}
 	fmt.Println("  1 parent letter published")
+	return seedReminderAnnouncement(rt)
+}
+
+// seedReminderAnnouncement publishes the announcement the reminder feature
+// (#3162) was asked for: written early so families can plan, reminded the
+// morning before it matters. Without it the reminder fields are empty on
+// every development machine and nobody ever sees the "Erinnerung" state.
+func seedReminderAnnouncement(rt *Runtime) error {
+	berlin, err := time.LoadLocation("Europe/Berlin")
+	if err != nil {
+		return fmt.Errorf("load Berlin location: %w", err)
+	}
+	now := time.Now().In(berlin)
+	// Tomorrow 08:00 Berlin: in the future on every machine, so the create
+	// validation accepts it, and the tick delivers it the next morning.
+	reminderAt := time.Date(now.Year(), now.Month(), now.Day()+1, 8, 0, 0, 0, berlin)
+	raw, err := rt.Client.Post("/api/parent-announcements/", map[string]any{
+		"title":         "Betreuung endet am letzten Schultag um 13:00 Uhr",
+		"body":          "Liebe Eltern, am letzten Schultag vor den Ferien endet die Betreuung bereits um 13:00 Uhr. Bitte holen Sie Ihr Kind bis dahin ab oder geben Sie uns Bescheid, wenn es allein nach Hause gehen darf.",
+		"priority":      "info",
+		"send_email":    true,
+		"reminder_at":   reminderAt.Format(time.RFC3339),
+		"reminder_text": "Morgen endet die Betreuung um 13:00 Uhr. Bitte holen Sie Ihr Kind bis dahin ab.",
+		"targets": []map[string]any{
+			{"target_type": "school_all"},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("create reminder announcement: %w", err)
+	}
+	id, err := parseEnvelopeStringID(raw)
+	if err != nil {
+		return fmt.Errorf("parse reminder announcement response: %w", err)
+	}
+	if _, err := rt.Client.Post(fmt.Sprintf("/api/parent-announcements/%d/publish", id), nil); err != nil {
+		return fmt.Errorf("publish reminder announcement: %w", err)
+	}
+	fmt.Println("  1 parent announcement with scheduled reminder published")
 	return nil
 }
 

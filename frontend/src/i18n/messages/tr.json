@@ -225,6 +225,8 @@
     "newsAttachmentsRetry": "Tekrar dene",
     "newsClose": "Kapat",
     "newsLetterBadge": "Onay gerekli",
+    "newsReminder": "Hatırlatma",
+    "newsReminderFrom": "{date} tarihli hatırlatma",
     "newsLetterBindingHint": "Bu e-posta yalnızca bilgilendirme amaçlıdır. Geçerli olan, buradaki veli portalındaki onaydır. Her çocuk için bir veli yeterlidir."
   },
   "parentNotificationSetup": {

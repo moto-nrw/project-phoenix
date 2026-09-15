@@ -14,24 +14,38 @@ import (
 )
 
 type workerStore struct {
-	claimed            []domain.Intent
-	finalizeSent       bool
-	finalizeSentErr    error
-	failureResult      domain.FinalizeResult
-	finalizeCancelled  bool
-	sentToken          string
-	cancelledToken     string
-	failureToken       string
-	failureAttempts    int
-	failureMaxAttempts int
-	renewed            bool
-	renewToken         string
-	statuses           []domain.EmailDeliveryStatus
+	claimed             []domain.Intent
+	finalizeSent        bool
+	finalizeSentErr     error
+	failureResult       domain.FinalizeResult
+	finalizeCancelled   bool
+	sentToken           string
+	cancelledToken      string
+	failureToken        string
+	failureAttempts     int
+	failureMaxAttempts  int
+	renewed             bool
+	renewToken          string
+	cancelledBeforeSend bool
+	statuses            []domain.EmailDeliveryStatus
+	expiredDispatches   int64
+	expiredDispatchErr  error
 }
 
-func (s *workerStore) RenewLease(_ context.Context, _ domain.Transport, _ int64, token string, _ time.Time) (bool, error) {
-	s.renewToken = token
-	return s.renewed, nil
+func (s *workerStore) DeadLetterExpiredDispatches(_ context.Context, transport domain.Transport, _ time.Time) (int64, error) {
+	if transport != domain.TransportEmail {
+		return 0, nil
+	}
+	return s.expiredDispatches, s.expiredDispatchErr
+}
+
+// StartDelivery is the cancellation-aware durable fence used by the worker.
+func (s *workerStore) StartDelivery(_ context.Context, _ domain.Transport, _ int64, token string, _ time.Time) (string, bool, error) {
+	if !s.renewed || s.cancelledBeforeSend {
+		return "", false, nil
+	}
+	s.renewToken = "dispatch:" + token
+	return s.renewToken, true, nil
 }
 
 func (*workerStore) Enqueue(context.Context, domain.Intent) (domain.Enqueued, error) {
@@ -138,7 +152,7 @@ func TestWorkerCountsStaleFinalizeAsLeaseLoss(t *testing.T) {
 	assert.Zero(t, stats.Sent)
 }
 
-func TestWorkerSkipsIntentWhenLeaseRenewalIsStale(t *testing.T) {
+func TestWorkerSkipsIntentWhenLeaseFenceIsStale(t *testing.T) {
 	t.Parallel()
 	store := &workerStore{claimed: []domain.Intent{claimedEmail(0)}}
 	provider := &workerProvider{}
@@ -149,6 +163,24 @@ func TestWorkerSkipsIntentWhenLeaseRenewalIsStale(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, stats.LeaseLost)
 	assert.Zero(t, provider.calls)
+}
+
+func TestWorkerDoesNotSendWhenCancellationWinsBeforeProvider(t *testing.T) {
+	t.Parallel()
+
+	store := &workerStore{
+		claimed:             []domain.Intent{claimedEmail(0)},
+		renewed:             true,
+		cancelledBeforeSend: true,
+	}
+	provider := &workerProvider{}
+	worker := NewWorker(store, provider, func(domain.Observation) {})
+
+	stats, err := worker.RunOnce(context.Background(), 1, 6)
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, stats.LeaseLost)
+	assert.Zero(t, provider.calls, "a cancellation between claim and provider delivery must win")
 }
 
 func TestWorkerRetriesProviderTimeout(t *testing.T) {
@@ -198,6 +230,38 @@ func TestWorkerDeadLettersAtAttemptLimit(t *testing.T) {
 	assert.Equal(t, 2, store.failureMaxAttempts)
 }
 
+func TestWorkerDeadLettersExpiredDispatchFencesBeforeClaim(t *testing.T) {
+	t.Parallel()
+	store := &workerStore{expiredDispatches: 2}
+	var unknown []domain.Observation
+	worker := NewWorker(store, &workerProvider{}, func(observation domain.Observation) {
+		if observation.Operation == "dispatch_outcome_unknown" {
+			unknown = append(unknown, observation)
+		}
+	})
+
+	stats, err := worker.RunOnce(context.Background(), 1, 6)
+
+	require.NoError(t, err)
+	assert.Equal(t, 2, stats.DeadLettered)
+	require.Len(t, unknown, 1)
+	assert.Equal(t, 2, unknown[0].Count)
+	assert.Error(t, unknown[0].Err, "an unknown provider outcome must be observable as an error")
+}
+
+func TestWorkerStopsWhenExpiredDispatchRecoveryFails(t *testing.T) {
+	t.Parallel()
+	store := &workerStore{claimed: []domain.Intent{claimedEmail(0)}, renewed: true, expiredDispatchErr: errors.New("database unavailable")}
+	provider := &workerProvider{}
+	worker := NewWorker(store, provider, func(domain.Observation) {})
+
+	stats, err := worker.RunOnce(context.Background(), 1, 6)
+
+	require.ErrorContains(t, err, "dead-letter expired email dispatches")
+	assert.Zero(t, stats.Claimed)
+	assert.Zero(t, provider.calls)
+}
+
 // A provider may accept a message and the process may die before finalize.
 // The expired lease is reclaimed and the provider sees the intent again: this
 // is intentionally at-least-once delivery, fenced against stale state writes.
@@ -244,8 +308,8 @@ func (*concurrentRetryStore) Claim(_ context.Context, transport domain.Transport
 	return []domain.Intent{intent}, nil
 }
 
-func (*concurrentRetryStore) RenewLease(context.Context, domain.Transport, int64, string, time.Time) (bool, error) {
-	return true, nil
+func (*concurrentRetryStore) StartDelivery(_ context.Context, _ domain.Transport, _ int64, token string, _ time.Time) (string, bool, error) {
+	return "dispatch:" + token, true, nil
 }
 
 func (*concurrentRetryStore) FinalizeFailure(_ context.Context, _ domain.Transport, _ int64, _ string, attempts int, _ string, _ time.Time, maxAttempts int) (domain.FinalizeResult, error) {

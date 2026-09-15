@@ -30,6 +30,7 @@ type announcementContract struct {
 	calls    []string
 	row      communication.ParentAnnouncement
 	input    communication.ParentAnnouncementInput
+	reminder communication.ParentAnnouncementReminderInput
 }
 
 func (s *announcementContract) call(ctx context.Context, name string, id int64) error {
@@ -84,6 +85,13 @@ func (s *announcementContract) RemindParentAnnouncement(c context.Context, id in
 func (s *announcementContract) ResendParentAnnouncementEmails(c context.Context, id int64) (int, error) {
 	return 3, s.call(c, "resend-failed", id)
 }
+func (s *announcementContract) UpdateParentAnnouncementReminder(c context.Context, id int64, v communication.ParentAnnouncementReminderInput) (*communication.ParentAnnouncement, error) {
+	s.reminder = v
+	row := s.row
+	row.ReminderAt = v.ReminderAt
+	row.ReminderText = v.ReminderText
+	return &row, s.call(c, "reminder", id)
+}
 func (s *announcementContract) ParentAnnouncementLetterStatus(c context.Context, id int64) (*communication.ParentAnnouncementLetterStatus, error) {
 	now := time.Date(2026, 9, 21, 9, 0, 0, 0, time.UTC)
 	return &communication.ParentAnnouncementLetterStatus{Recipients: []communication.ParentAnnouncementLetterRecipient{{EmailStatus: "failed", Reachability: "email"}}, Children: []communication.ParentAnnouncementLetterChild{{StudentID: id, CanConfirm: true}, {StudentID: id, AcknowledgedAt: &now, AckFirstName: "Ada", AckLastName: "Lovelace"}}, Summary: communication.ParentAnnouncementLetterSummary{ChildrenTotal: 2, ChildrenFulfilled: 1}}, s.call(c, "letter-status", id)
@@ -130,6 +138,7 @@ func TestAnnouncementRoutesPreserveAuthoringAndResponseContracts(t *testing.T) {
 		{"GET", "/" + id + "/letter-status", "letter-status", `"acknowledged_by":"Ada Lovelace"`, 200, nil},
 		{"POST", "/" + id + "/remind", "remind", `"reminded_count":2`, 200, nil},
 		{"POST", "/" + id + "/resend-failed", "resend-failed", `"resent_count":3`, 200, nil},
+		{"PUT", "/" + id + "/reminder", "reminder", `"reminder_at":"2026-09-24T06:00:00Z"`, 200, map[string]any{"reminder_at": "2026-09-24T06:00:00Z", "reminder_text": "Morgen um 13:00 Uhr."}},
 	} {
 		t.Run(tc.call, func(t *testing.T) {
 			before := len(s.calls)
@@ -144,6 +153,23 @@ func TestAnnouncementRoutesPreserveAuthoringAndResponseContracts(t *testing.T) {
 	require.Equal(t, []string{"Ja"}, s.input.Options)
 }
 
+func TestReminderRouteRequiresReminderAtButAcceptsExplicitRemoval(t *testing.T) {
+	t.Parallel()
+	s, r, token := announcementRoute(t)
+	id := strconv.FormatInt(s.id, 10)
+
+	for _, body := range []any{map[string]any{}, map[string]any{"reminder_text": "Morgen"}} {
+		status, out := announcementRequest(t, r, token, "PUT", "/"+id+"/reminder", body)
+		require.Equal(t, 400, status, out)
+		require.Empty(t, s.calls)
+	}
+
+	status, out := announcementRequest(t, r, token, "PUT", "/"+id+"/reminder", map[string]any{"reminder_at": nil})
+	require.Equal(t, 200, status, out)
+	require.Equal(t, []string{"reminder"}, s.calls)
+	require.Nil(t, s.reminder.ReminderAt)
+}
+
 func TestAnnouncementRoutesRejectUnauthorisedAndMalformedRequests(t *testing.T) {
 	t.Parallel()
 	s, r, token := announcementRoute(t)
@@ -152,7 +178,7 @@ func TestAnnouncementRoutesRejectUnauthorisedAndMalformedRequests(t *testing.T) 
 	claims.IsAdmin = false
 	claims.Permissions = []string{permissions.CommunicationsAnnounce}
 	limited := testutil.MintTestJWT(t, claims)
-	for _, tc := range []struct{ method, path string }{{"GET", "/" + id}, {"POST", "/"}, {"PUT", "/" + id}, {"DELETE", "/" + id}, {"POST", "/" + id + "/publish"}, {"POST", "/" + id + "/unpublish"}, {"GET", "/" + id + "/recipients"}, {"GET", "/" + id + "/stats"}, {"GET", "/" + id + "/poll-results"}, {"GET", "/" + id + "/poll-children"}, {"GET", "/" + id + "/letter-status"}, {"POST", "/" + id + "/remind"}, {"POST", "/" + id + "/resend-failed"}} {
+	for _, tc := range []struct{ method, path string }{{"GET", "/" + id}, {"POST", "/"}, {"PUT", "/" + id}, {"DELETE", "/" + id}, {"POST", "/" + id + "/publish"}, {"POST", "/" + id + "/unpublish"}, {"GET", "/" + id + "/recipients"}, {"GET", "/" + id + "/stats"}, {"GET", "/" + id + "/poll-results"}, {"GET", "/" + id + "/poll-children"}, {"GET", "/" + id + "/letter-status"}, {"POST", "/" + id + "/remind"}, {"POST", "/" + id + "/resend-failed"}, {"PUT", "/" + id + "/reminder"}} {
 		status, body := announcementRequest(t, r, limited, tc.method, tc.path, nil)
 		require.Equal(t, 403, status, body)
 		if tc.path != "/" {
@@ -182,7 +208,7 @@ func TestAnnouncementRoutesKeepServiceFailuresAndSystemImmutability(t *testing.T
 		status  int
 		code    string
 	}{
-		{communication.ErrParentAnnouncementNotFound, 404, ""}, {communication.ErrParentNewsDisabled, 403, "parent_news_disabled"}, {communication.ErrPublishedParentAnnouncement, 409, "announcement_published_immutable"}, {communication.ErrSystemParentAnnouncementImmutable, 409, "system_announcement_immutable"}, {communication.ErrParentAnnouncementNotPoll, 400, ""}, {communication.ErrParentAnnouncementPollClosed, 409, "poll_not_open"}, {communication.ErrParentAnnouncementNotPublished, 409, "announcement_not_published"}, {communication.ErrParentAnnouncementNothingDue, 400, ""}, {communication.ErrParentAnnouncementValidation, 400, ""}, {errors.New("database unavailable"), 500, ""},
+		{communication.ErrParentAnnouncementNotFound, 404, ""}, {communication.ErrParentNewsDisabled, 403, "parent_news_disabled"}, {communication.ErrPublishedParentAnnouncement, 409, "announcement_published_immutable"}, {communication.ErrSystemParentAnnouncementImmutable, 409, "system_announcement_immutable"}, {communication.ErrParentAnnouncementNotPoll, 400, ""}, {communication.ErrParentAnnouncementPollClosed, 409, "poll_not_open"}, {communication.ErrParentAnnouncementNotPublished, 409, "announcement_not_published"}, {communication.ErrParentAnnouncementNothingDue, 400, ""}, {communication.ErrParentAnnouncementValidation, 400, ""}, {communication.ErrParentAnnouncementReminderSent, 409, "announcement_reminder_sent"}, {errors.New("database unavailable"), 500, ""},
 	} {
 		s.failure = tc.failure
 		status, body := announcementRequest(t, r, token, "DELETE", "/"+id, nil)
@@ -192,8 +218,12 @@ func TestAnnouncementRoutesKeepServiceFailuresAndSystemImmutability(t *testing.T
 		}
 	}
 	s.failure = communication.ErrParentAnnouncementNotFound
-	for _, tc := range []struct{ method, path string }{{"GET", "/?include_inactive=true"}, {"GET", "/" + id}, {"POST", "/"}, {"PUT", "/" + id}, {"POST", "/" + id + "/publish"}, {"POST", "/" + id + "/unpublish"}, {"GET", "/" + id + "/stats"}, {"GET", "/" + id + "/recipients"}, {"GET", "/" + id + "/poll-results"}, {"GET", "/" + id + "/poll-children"}, {"GET", "/" + id + "/letter-status"}, {"POST", "/" + id + "/remind"}, {"POST", "/" + id + "/resend-failed"}} {
-		status, body := announcementRequest(t, r, token, tc.method, tc.path, map[string]any{"title": "Info", "body": "Text"})
-		require.Equal(t, 404, status, body)
+	for _, tc := range []struct{ method, path string }{{"GET", "/?include_inactive=true"}, {"GET", "/" + id}, {"POST", "/"}, {"PUT", "/" + id}, {"POST", "/" + id + "/publish"}, {"POST", "/" + id + "/unpublish"}, {"GET", "/" + id + "/stats"}, {"GET", "/" + id + "/recipients"}, {"GET", "/" + id + "/poll-results"}, {"GET", "/" + id + "/poll-children"}, {"GET", "/" + id + "/letter-status"}, {"POST", "/" + id + "/remind"}, {"POST", "/" + id + "/resend-failed"}, {"PUT", "/" + id + "/reminder"}} {
+		body := map[string]any{"title": "Info", "body": "Text"}
+		if tc.path == "/"+id+"/reminder" {
+			body = map[string]any{"reminder_at": nil}
+		}
+		status, out := announcementRequest(t, r, token, tc.method, tc.path, body)
+		require.Equal(t, 404, status, out)
 	}
 }

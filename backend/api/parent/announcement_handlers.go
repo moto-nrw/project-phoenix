@@ -43,6 +43,12 @@ type AnnouncementResponse struct {
 	// SystemKind marks a row the school's system wrote, e.g. the cancellation
 	// notice (#2601). The portal labels it instead of "Elternbrief".
 	SystemKind *string `json:"system_kind,omitempty"`
+
+	// Scheduled reminder (#3162): set once the school's reminder went out. The
+	// portal shows the announcement as reminded, with the reminder wording, and
+	// the feed sorts it back to the top; read/acknowledged stay as they were.
+	ReminderSentAt *time.Time `json:"reminder_sent_at,omitempty"`
+	ReminderText   *string    `json:"reminder_text,omitempty"`
 }
 
 // AnnouncementOption is one answer choice of a poll.
@@ -99,6 +105,8 @@ func toAnnouncementResponse(item *usersModels.AnnouncementFeedItem) Announcement
 		ExpiresAt:               item.ExpiresAt,
 		Read:                    item.ReadAt != nil,
 		Acknowledged:            item.AcknowledgedAt != nil,
+		ReminderSentAt:          item.ReminderSentAt,
+		ReminderText:            item.ReminderText,
 	}
 }
 

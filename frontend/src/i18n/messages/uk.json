@@ -225,6 +225,8 @@
     "newsAttachmentsRetry": "Спробувати ще раз",
     "newsClose": "Закрити",
     "newsLetterBadge": "Потрібне підтвердження",
+    "newsReminder": "Нагадування",
+    "newsReminderFrom": "Нагадування від {date}",
     "newsLetterBindingHint": "Цей лист на ел. пошту лише для інформації. Зараховується підтвердження тут, у батьківському порталі. Достатньо одного законного представника на дитину."
   },
   "parentNotificationSetup": {

@@ -225,6 +225,8 @@
     "newsAttachmentsRetry": "Provoni përsëri",
     "newsClose": "Mbyll",
     "newsLetterBadge": "Kërkohet konfirmim",
+    "newsReminder": "Kujtesë",
+    "newsReminderFrom": "Kujtesë nga {date}",
     "newsLetterBindingHint": "Ky e-mail është vetëm për informim. Vlen konfirmimi këtu në portalin e prindërve. Mjafton një person kujdestar për çdo fëmijë."
   },
   "parentNotificationSetup": {

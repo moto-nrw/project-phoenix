@@ -111,6 +111,30 @@ func (r *announcementRepository) PublishIfDraft(ctx context.Context, id int64, p
 	return r.store.PublishIfDraft(ctx, id, publishedAt)
 }
 
+func (r *announcementRepository) SetReminder(ctx context.Context, id int64, reminderAt *time.Time, reminderText *string) (bool, error) {
+	return r.store.SetReminder(ctx, id, reminderAt, reminderText)
+}
+
+func (r *announcementRepository) ListDueReminders(ctx context.Context, notBefore, dueBefore time.Time) ([]*usersModels.ParentAnnouncement, error) {
+	values, err := r.store.ListDueReminders(ctx, notBefore, dueBefore)
+	if err != nil {
+		return nil, err
+	}
+	rows := make([]*usersModels.ParentAnnouncement, 0, len(values))
+	for _, value := range values {
+		rows = append(rows, announcementModel(value))
+	}
+	return rows, nil
+}
+
+func (r *announcementRepository) ClaimReminder(ctx context.Context, id int64, sentAt time.Time) (bool, error) {
+	return r.store.ClaimReminder(ctx, id, sentAt)
+}
+
+func (r *announcementRepository) ReleaseReminderClaim(ctx context.Context, id int64, sentAt time.Time) (bool, error) {
+	return r.store.ReleaseReminderClaim(ctx, id, sentAt)
+}
+
 func (r *announcementRepository) ReplaceTargets(ctx context.Context, tenantID, announcementID int64, targets []*usersModels.ParentAnnouncementTarget) error {
 	values := make([]*domain.ParentAnnouncementTarget, 0, len(targets))
 	for _, target := range targets {
@@ -347,6 +371,7 @@ func (r *announcementRepository) ListFeedForAccount(ctx context.Context, account
 			LinkURL: value.LinkURL, RequiresAcknowledgement: value.RequiresAcknowledgement,
 			PublishedAt: value.PublishedAt, ExpiresAt: value.ExpiresAt, ResponseType: value.ResponseType,
 			DeliveryMode: value.DeliveryMode, ResponseDeadline: value.ResponseDeadline, SystemKind: value.SystemKind,
+			ReminderSentAt: value.ReminderSentAt, ReminderText: value.ReminderText,
 			ReadAt: value.ReadAt, AcknowledgedAt: value.AcknowledgedAt,
 		})
 	}
@@ -402,6 +427,7 @@ func announcementValue(a *usersModels.ParentAnnouncement) *domain.ParentAnnounce
 		PublishedAt: a.PublishedAt, ExpiresAt: a.ExpiresAt, Active: a.Active, CreatedBy: a.CreatedBy,
 		ResponseType: a.ResponseType, ResponseDeadline: a.ResponseDeadline,
 		DeliveryMode: a.DeliveryMode, EmailAudience: a.EmailAudience, SystemKind: a.SystemKind,
+		ReminderAt: a.ReminderAt, ReminderText: a.ReminderText, ReminderSentAt: a.ReminderSentAt,
 		CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt,
 	}
 }
@@ -416,6 +442,7 @@ func announcementModel(value *domain.ParentAnnouncement) *usersModels.ParentAnno
 		PublishedAt: value.PublishedAt, ExpiresAt: value.ExpiresAt, Active: value.Active,
 		CreatedBy: value.CreatedBy, ResponseType: value.ResponseType, ResponseDeadline: value.ResponseDeadline,
 		DeliveryMode: value.DeliveryMode, EmailAudience: value.EmailAudience, SystemKind: value.SystemKind,
+		ReminderAt: value.ReminderAt, ReminderText: value.ReminderText, ReminderSentAt: value.ReminderSentAt,
 	}
 	a.ID = value.ID
 	a.CreatedAt = value.CreatedAt

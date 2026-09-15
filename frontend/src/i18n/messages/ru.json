@@ -225,6 +225,8 @@
     "newsAttachmentsRetry": "Попробовать снова",
     "newsClose": "Закрыть",
     "newsLetterBadge": "Требуется подтверждение",
+    "newsReminder": "Напоминание",
+    "newsReminderFrom": "Напоминание от {date}",
     "newsLetterBindingHint": "Это письмо только для информации. Засчитывается подтверждение здесь, в родительском портале. Достаточно одного законного представителя на ребёнка."
   },
   "parentNotificationSetup": {
