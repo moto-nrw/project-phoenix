@@ -56,8 +56,8 @@ function inactiveSentence(names: readonly string[]): string | null {
 function invalidSourceSentence(names: readonly string[]): string | null {
   if (names.length === 0) return null;
   return names.length === 1
-    ? `Das Betreuungsangebot „${names[0]}“ gilt nicht für diesen Zeitraum.`
-    : `Die Betreuungsangebote ${joinNames(names.map((name) => `„${name}“`))} gelten nicht für diesen Zeitraum.`;
+    ? `Das Betreuungsangebot „${names[0]}“ passt nicht zu diesem Regeltermin.`
+    : `Die Betreuungsangebote ${joinNames(names.map((name) => `„${name}“`))} passen nicht zu diesem Regeltermin.`;
 }
 
 const TARGETS_SENTENCE =

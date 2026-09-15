@@ -22,8 +22,8 @@ type templateRosterMaintenanceResponse struct {
 	// InactiveOfferings are switched-off source offerings; they stop the
 	// source rule until the offering is active again or removed.
 	InactiveOfferings []templateRosterMaintenanceOfferingResponse `json:"inactive_offerings,omitempty"`
-	// InvalidOfferings are active sources whose enrollment phase does not fit
-	// the template's planning period, so resync cannot maintain their roster.
+	// InvalidOfferings are active sources that resync cannot use for this
+	// Regeltermin.
 	InvalidOfferings []templateRosterMaintenanceOfferingResponse `json:"invalid_offerings,omitempty"`
 	// DynamicTargets: a Klasse, Jahrgang or Gruppe target exists. Children who
 	// join it later are not added to occurrences that already exist.
@@ -41,7 +41,11 @@ type templateRosterMaintenanceOfferingResponse struct {
 // attachRosterMaintenance fills RosterMaintenance on every template with a
 // constant number of reads. A failed read leaves the field empty instead of
 // failing the Regeltermin list: the indicator is information, not a gate.
-func (rs *Resource) attachRosterMaintenance(ctx context.Context, templates []templateResponse) {
+func (rs *Resource) attachRosterMaintenance(
+	ctx context.Context,
+	templates []templateResponse,
+	requestedPeriodID *int64,
+) {
 	if rs.OfferingSourceOptions == nil || len(templates) == 0 {
 		return
 	}
@@ -49,7 +53,7 @@ func (rs *Resource) attachRosterMaintenance(ctx context.Context, templates []tem
 	for _, template := range templates {
 		queries = append(queries, enrollmentSvc.TemplateRosterFeedQuery{
 			TemplateID:            template.ID,
-			CalendarPeriodID:      template.CalendarPeriodID,
+			CalendarPeriodID:      rosterMaintenanceCalendarPeriodID(template, requestedPeriodID),
 			SourceCareOfferingIDs: template.SourceCareOfferingIDs,
 		})
 	}
@@ -70,6 +74,19 @@ func (rs *Resource) attachRosterMaintenance(ctx context.Context, templates []tem
 		})
 		templates[i].RosterMaintenance = rosterMaintenanceResponse(derived)
 	}
+}
+
+// rosterMaintenanceCalendarPeriodID mirrors the schedule-first period
+// resolution used for materialization. When a period-scoped read supplied no
+// pin, its requested period is still the period in which the template appears.
+func rosterMaintenanceCalendarPeriodID(template templateResponse, requestedPeriodID *int64) *int64 {
+	if len(template.Schedules) > 0 && template.Schedules[0].CalendarPeriodID != nil {
+		return template.Schedules[0].CalendarPeriodID
+	}
+	if template.CalendarPeriodID != nil {
+		return template.CalendarPeriodID
+	}
+	return requestedPeriodID
 }
 
 func templateHasDynamicTargets(template templateResponse) bool {

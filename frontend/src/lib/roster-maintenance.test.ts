@@ -94,7 +94,7 @@ describe("describeRosterMaintenance", () => {
     );
 
     expect(result.explanation).toBe(
-      "Neue Kinder müssen Sie selbst ergänzen. Das Betreuungsangebot „Musik“ gilt nicht für diesen Zeitraum.",
+      "Neue Kinder müssen Sie selbst ergänzen. Das Betreuungsangebot „Musik“ passt nicht zu diesem Regeltermin.",
     );
   });
 

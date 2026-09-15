@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -281,4 +282,37 @@ func TestTemplateRosterMaintenanceFeeds_RejectsSourceOutsideTemplatePeriod(t *te
 	})
 	assert.Equal(t, enrollmentService.RosterMaintenanceManual, maintenance.Mode)
 	assert.Equal(t, []enrollmentService.RosterMaintenanceOffering{{ID: source.ID, Name: source.Name}}, maintenance.InvalidOfferings)
+}
+
+func TestTemplateRosterMaintenanceFeeds_RejectsSourcesFromDifferentPhases(t *testing.T) {
+	t.Parallel()
+
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.Ctx(t)
+
+	period := offeringSourcePeriod(t, env)
+	first := createSourceOffering(t, env, "FeedErstePhase", nil)
+	second := createSourceOffering(t, env, "FeedZweitePhase", nil)
+	otherPhase := *env.sourcePhase
+	otherPhase.ID = 0
+	otherPhase.Name = uniqueSchemaName("FeedAnderePhase-" + t.Name())
+	require.NoError(t, enrollmentTest.New().InsertPhase(ctx, &otherPhase))
+	_, err := env.db.NewRaw(`UPDATE enrollment.care_offerings SET phase_id = ? WHERE id = ?`, otherPhase.ID, second.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	reader, ok := env.decision.(enrollmentService.OfferingSourceOptionLister)
+	require.True(t, ok)
+	feeds, err := reader.TemplateRosterMaintenanceFeeds(ctx, []enrollmentService.TemplateRosterFeedQuery{{
+		TemplateID:            987654322,
+		CalendarPeriodID:      &period.ID,
+		SourceCareOfferingIDs: []int64{first.ID, second.ID},
+	}})
+	require.NoError(t, err)
+
+	maintenance := enrollmentService.DeriveTemplateRosterMaintenance(enrollmentService.TemplateRosterMaintenanceInput{
+		Feeds: feeds[987654322],
+	})
+	assert.Equal(t, enrollmentService.RosterMaintenanceManual, maintenance.Mode,
+		"resync rejects source offerings from different enrollment phases")
 }

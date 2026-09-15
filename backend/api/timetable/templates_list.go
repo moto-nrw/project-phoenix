@@ -361,7 +361,7 @@ func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
 	}
 
 	templates := mapTemplateRows(rows, childrenPerStaffRatio, weekdayRoster)
-	rs.attachRosterMaintenance(r.Context(), templates)
+	rs.attachRosterMaintenance(r.Context(), templates, periodID)
 	if periodID == nil {
 		// Period-free reads support the enrollment catalog, which only needs
 		// template metadata. A nil slice serializes as null and makes clear that

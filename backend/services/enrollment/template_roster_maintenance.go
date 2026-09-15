@@ -67,8 +67,9 @@ type TemplateRosterFeedOffering struct {
 	ID       int64
 	Name     string
 	IsActive bool
-	// IsInvalid is true for a source whose enrollment phase does not fit the
-	// template's selected planning period. Resync rejects the same source.
+	// IsInvalid is true for a source that resync rejects because its enrollment
+	// phase does not fit the selected planning period or the source rule mixes
+	// enrollment phases.
 	IsInvalid bool
 }
 
@@ -87,8 +88,7 @@ type TemplateRosterMaintenance struct {
 	// resync rejects it. An inactive link also prevents it from maintaining
 	// later approvals.
 	InactiveOfferings []RosterMaintenanceOffering
-	// InvalidOfferings are active configured sources that cannot feed this
-	// template because their enrollment phase lies outside its period.
+	// InvalidOfferings are active configured sources that resync cannot use.
 	InvalidOfferings []RosterMaintenanceOffering
 	// DynamicTargetsManual is true when a Klasse/Jahrgang/Gruppe target
 	// exists; children joining it later are not added to existing occurrences.
@@ -243,19 +243,33 @@ func (s *decisionService) TemplateRosterMaintenanceFeeds(ctx context.Context, te
 			}
 		}
 		for _, template := range templates {
-			if template.CalendarPeriodID == nil || len(template.SourceCareOfferingIDs) == 0 {
+			if len(template.SourceCareOfferingIDs) == 0 {
 				continue
 			}
-			period := periodsByID[*template.CalendarPeriodID]
-			if period == nil {
-				return nil, fmt.Errorf("template roster maintenance: calendar period %d not found", *template.CalendarPeriodID)
+			var period *scheduleModels.CalendarPeriod
+			if template.CalendarPeriodID != nil {
+				period = periodsByID[*template.CalendarPeriodID]
+				if period == nil {
+					return nil, fmt.Errorf("template roster maintenance: calendar period %d not found", *template.CalendarPeriodID)
+				}
 			}
+			var sourcePhaseID int64
 			for _, id := range template.SourceCareOfferingIDs {
 				offering := offeringsByID[id]
 				if offering == nil {
 					continue
 				}
-				if phasesByID[offering.PhaseID] == nil || validatePhaseWithinTemplatePeriod(phasesByID[offering.PhaseID], period) != nil {
+				invalid := phasesByID[offering.PhaseID] == nil
+				if sourcePhaseID != 0 && sourcePhaseID != offering.PhaseID {
+					invalid = true
+				}
+				if sourcePhaseID == 0 {
+					sourcePhaseID = offering.PhaseID
+				}
+				if !invalid && period != nil && validatePhaseWithinTemplatePeriod(phasesByID[offering.PhaseID], period) != nil {
+					invalid = true
+				}
+				if invalid {
 					if invalidSources[template.TemplateID] == nil {
 						invalidSources[template.TemplateID] = make(map[int64]bool)
 					}
