@@ -49,6 +49,13 @@ func (s *stubOfferingSourceLister) CombinedOfferingSourceCounts(
 	return nil, nil
 }
 
+func (s *stubOfferingSourceLister) TemplateRosterMaintenanceFeeds(
+	_ context.Context,
+	_ []enrollmentSvc.TemplateRosterFeedQuery,
+) (map[int64]enrollmentSvc.TemplateRosterFeeds, error) {
+	return nil, nil
+}
+
 type listSetup struct {
 	res       *Resource
 	db        *bun.DB

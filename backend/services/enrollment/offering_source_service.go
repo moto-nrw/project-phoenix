@@ -1494,6 +1494,9 @@ func ExplainEmptyOfferingRoster(
 type OfferingSourceOptionLister interface {
 	ListOfferingSourceOptions(ctx context.Context, calendarPeriodID *int64) ([]OfferingSourceOption, error)
 	CombinedOfferingSourceCounts(ctx context.Context, offeringIDs []int64, calendarPeriodID *int64) (*OfferingSourceCombinedCounts, error)
+	// TemplateRosterMaintenanceFeeds backs the Regeltermin indicator for
+	// automatic versus manual roster upkeep (#3140).
+	TemplateRosterMaintenanceFeeds(ctx context.Context, templates []TemplateRosterFeedQuery) (map[int64]TemplateRosterFeeds, error)
 }
 
 // CombinedOfferingSourceCounts validates the selection exactly like a save

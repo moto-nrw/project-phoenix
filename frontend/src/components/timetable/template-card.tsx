@@ -18,6 +18,7 @@ import { Button } from "~/components/ui/button";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { getGermanWeekdayShort } from "~/lib/timetable-helpers";
 import type { TimetableTemplate } from "~/lib/timetable-types";
+import { RosterMaintenanceBadge } from "./roster-maintenance-badge";
 import { capacityTone, TimetableRatioPill } from "./timetable-ratio-pill";
 import {
   TIMETABLE_NEUTRAL_COLOR,
@@ -96,10 +97,12 @@ export function TemplateCard({
 
   return (
     <article
-      className={`${timetableSurface} group relative flex flex-col overflow-hidden transition-[border-color,box-shadow] hover:border-gray-300 hover:shadow-md`}
+      className={`${timetableSurface} relative flex flex-col transition-[border-color,box-shadow] hover:border-gray-300 hover:shadow-md`}
     >
+      {/* No overflow clipping on the card: the roster-maintenance tooltip
+          must be able to leave it. The colour bar follows the radius itself. */}
       <div
-        className="absolute top-0 left-0 h-full w-1"
+        className="absolute top-0 left-0 h-full w-1 rounded-l-2xl"
         style={{ backgroundColor: color }}
         aria-hidden
       />
@@ -114,6 +117,12 @@ export function TemplateCard({
               {TYPE_LABELS[template.type]}
               {template.categoryName ? ` · ${template.categoryName}` : ""}
             </p>
+            {template.rosterMaintenance ? (
+              <RosterMaintenanceBadge
+                state={template.rosterMaintenance}
+                className="mt-1 mr-1.5"
+              />
+            ) : null}
             {template.shiftTypeName ? (
               <span
                 className="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"

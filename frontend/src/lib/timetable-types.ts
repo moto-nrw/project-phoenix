@@ -500,6 +500,38 @@ export interface TimetableTemplate {
    * originally requested.
    */
   resolvedFromTemplateId?: string;
+  /**
+   * Whether later children reach the Regeltermin without staff action
+   * (#3140). Undefined when the backend could not derive it.
+   */
+  rosterMaintenance?: TemplateRosterMaintenance;
+}
+
+export type RosterMaintenanceMode = "automatic" | "partial" | "manual";
+
+/** How children reach a Regeltermin after it exists (#3140). */
+export interface TemplateRosterMaintenance {
+  mode: RosterMaintenanceMode;
+  /** Betreuungsangebote that feed the roster effectively. */
+  offeringNames: string[];
+  gradeLevels: number[];
+  schoolClasses: string[];
+  /** Source offerings that are switched off and feed nothing. */
+  inactiveOfferingNames: string[];
+  /** A Klasse, Jahrgang or Gruppe target that only reaches new occurrences. */
+  dynamicTargets: boolean;
+  /** Offerings are configured, but the school switched them off. */
+  careOfferingsDisabled: boolean;
+}
+
+interface BackendTemplateRosterMaintenance {
+  mode: RosterMaintenanceMode;
+  offerings?: Array<{ id: number; name: string }> | null;
+  grade_levels?: number[] | null;
+  school_classes?: string[] | null;
+  inactive_offerings?: Array<{ id: number; name: string }> | null;
+  dynamic_targets: boolean;
+  care_offerings_disabled: boolean;
 }
 
 /** One weekday's staff and child roster of a Regeltermin (#2129). */
@@ -577,6 +609,7 @@ export interface BackendTimetableTemplate {
   protected_student_assignments?:
     BackendTemplateProtectedStudentAssignment[] | null;
   resolved_from_template_id?: number | null;
+  roster_maintenance?: BackendTemplateRosterMaintenance | null;
 }
 
 interface BackendTemplateWeekdayAssignment {

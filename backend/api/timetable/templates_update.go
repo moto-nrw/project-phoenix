@@ -264,6 +264,7 @@ func (rs *Resource) getTemplate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	rs.attachRosterMaintenance(r.Context(), templates[:1])
 	common.Respond(w, r, http.StatusOK, templates[0], "Template retrieved")
 }
 

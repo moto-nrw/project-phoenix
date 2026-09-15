@@ -1156,6 +1156,22 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
         template.resolved_from_template_id !== null
           ? String(template.resolved_from_template_id)
           : undefined,
+      rosterMaintenance: template.roster_maintenance
+        ? {
+            mode: template.roster_maintenance.mode,
+            offeringNames: (template.roster_maintenance.offerings ?? []).map(
+              (offering) => offering.name,
+            ),
+            gradeLevels: template.roster_maintenance.grade_levels ?? [],
+            schoolClasses: template.roster_maintenance.school_classes ?? [],
+            inactiveOfferingNames: (
+              template.roster_maintenance.inactive_offerings ?? []
+            ).map((offering) => offering.name),
+            dynamicTargets: template.roster_maintenance.dynamic_targets,
+            careOfferingsDisabled:
+              template.roster_maintenance.care_offerings_disabled,
+          }
+        : undefined,
     })),
   };
 }
