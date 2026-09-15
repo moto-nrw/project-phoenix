@@ -824,3 +824,14 @@ all their packages are candidate-created and the policy epoch increases
 [#3130](https://github.com/moto-nrw/project-phoenix/issues/3130)). This does not
 permit adopting existing packages, expanding existing-owner permissions, or
 owning writable data. Those guards are checked independently.
+
+A reviewed epoch may also add owner-agnostic test-infrastructure rules
+([ADR 0014](../../docs/adr/0014-test-roles-may-import-test-infrastructure.md),
+[#3215](https://github.com/moto-nrw/project-phoenix/issues/3215)): a rule with
+no `source_owner`, a test role (`*-test` or `test-support`), and a
+`target_class` of `orm-sql`, `http-router` or `test`. A `*-test` role may not
+carry the production scope under this path. Everything else — owner-specific
+grants, first-party targets, production roles, other external classes — is still
+a loosening. Epoch 6 registered `external.<class>.<role>` for every test role,
+replacing the 65 owner-specific rules they subsume, so a per-owner test-role
+rule for these classes would now overlap and fail to load.
