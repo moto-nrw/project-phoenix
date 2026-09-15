@@ -341,6 +341,26 @@ var (
 		prometheus.HistogramOpts{Name: "phoenix_facilities_statement_duration_seconds", Help: "Cumulative Facilities database-statement duration by operation.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
 		[]string{"operation"},
 	)
+	fileStorageOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_file_storage_operations_total", Help: "File Storage operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	fileStorageDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_file_storage_operation_duration_seconds", Help: "File Storage operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5}},
+		[]string{"operation"},
+	)
+	fileStorageQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_file_storage_queries_total", Help: "Persistence queries issued by File Storage operations."},
+		[]string{"operation"},
+	)
+	fileStorageRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_file_storage_rows_total", Help: "Rows returned or changed by File Storage operations."},
+		[]string{"operation"},
+	)
+	fileStorageStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_file_storage_statement_duration_seconds", Help: "Cumulative File Storage database-statement duration by operation.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
 	deviceFleetOperations = prometheus.NewCounterVec(
 		prometheus.CounterOpts{Name: "phoenix_device_fleet_operations_total", Help: "Device Fleet operations by operation, outcome, and stable error code."},
 		[]string{"operation", "outcome", "code"},
@@ -800,6 +820,11 @@ func init() {
 		facilitiesQueries,
 		facilitiesRows,
 		facilitiesStatementDuration,
+		fileStorageOperations,
+		fileStorageDuration,
+		fileStorageQueries,
+		fileStorageRows,
+		fileStorageStatementDuration,
 		deviceFleetOperations,
 		deviceFleetDuration,
 		deviceFleetQueries,
@@ -1124,6 +1149,29 @@ func ObserveFacilitiesOperation(operation string, duration time.Duration, querie
 	}
 	if statementDuration > 0 {
 		facilitiesStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
+// ObserveFileStorageOperation records one File Storage operation: its
+// outcome, duration, statement count, rows, and statement duration (#2707).
+func ObserveFileStorageOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	fileStorageOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	fileStorageDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		fileStorageQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		fileStorageRows.WithLabelValues(operation).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		fileStorageStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
 	}
 }
 

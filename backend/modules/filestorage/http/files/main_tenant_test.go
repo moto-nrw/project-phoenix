@@ -1,4 +1,4 @@
-package filestore_test
+package files_test
 
 import (
 	"testing"

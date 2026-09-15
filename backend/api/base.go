@@ -58,13 +58,13 @@ import (
 	statisticsAPI "github.com/moto-nrw/project-phoenix/modules/statistics/http"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 
-	filestoreAPI "github.com/moto-nrw/project-phoenix/api/filestore"
 	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
 	parentAPI "github.com/moto-nrw/project-phoenix/api/parent"
 	platformAPI "github.com/moto-nrw/project-phoenix/api/platform"
 	announcementAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/parentannouncements"
 	messagingAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/parentmessages"
 	staffMessagingAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/staffmessages"
+	filestoreAPI "github.com/moto-nrw/project-phoenix/modules/filestorage/http/files"
 
 	projectJWT "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database"
@@ -90,6 +90,8 @@ import (
 	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
 	feedbackCompose "github.com/moto-nrw/project-phoenix/modules/feedback/compose"
 	feedbackAPI "github.com/moto-nrw/project-phoenix/modules/feedback/http"
+	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
+	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	reviewidentity "github.com/moto-nrw/project-phoenix/modules/identityaccess/requestreview"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
@@ -367,40 +369,60 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 	if err != nil {
 		return moduleServices{}, err
 	}
-	factory, err := services.NewFactoryWithModules(
-		repoFactory, db, logger, publicAPIURL, tenantRuntime,
-		organizations, persons, groups, rooms, membership, calendar, timetableCapability, appointmentCapability,
-		communicationCapability,
-		func(observation communicationCompose.Observation) {
-			observability.ObserveCommunicationOperation(
-				observation.Operation,
-				observation.Duration,
-				int64(observation.Stats.Queries),
-				observation.Stats.Rows,
-				int64(observation.Stats.DuplicatePreventionConflicts),
-				observation.Stats.StatementDuration,
-				communicationModule.ErrorCode(observation.Err),
-				observation.Err,
-			)
-		},
-		func(observation carePlanCompose.Observation) {
-			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
-		},
-		mealPlan, mealPlanSettings.Bind,
-		feedbackCapability, feedbackSettings.Bind,
-		observability.ObserveAuditAppend,
-		observability.ObserveSynchronousDelivery,
-		observability.ObserveDurableDelivery,
-		observability.ObserveDeviceFleetOperation,
-		observability.ObserveIdentityAccessOperation,
-		workTime,
-		observeDataImport,
-	)
+	factory, err := withFileStorageWiring(func(fileStorageWiring services.FileStorageWiring) (*services.Factory, error) {
+		return services.NewFactoryWithModules(
+			repoFactory, db, logger, publicAPIURL, tenantRuntime,
+			organizations, persons, groups, rooms, membership, calendar, timetableCapability, appointmentCapability,
+			communicationCapability,
+			func(observation communicationCompose.Observation) {
+				observability.ObserveCommunicationOperation(
+					observation.Operation,
+					observation.Duration,
+					int64(observation.Stats.Queries),
+					observation.Stats.Rows,
+					int64(observation.Stats.DuplicatePreventionConflicts),
+					observation.Stats.StatementDuration,
+					communicationModule.ErrorCode(observation.Err),
+					observation.Err,
+				)
+			},
+			func(observation carePlanCompose.Observation) {
+				observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
+			},
+			mealPlan, mealPlanSettings.Bind,
+			feedbackCapability, feedbackSettings.Bind,
+			observability.ObserveAuditAppend,
+			observability.ObserveSynchronousDelivery,
+			observability.ObserveDurableDelivery,
+			observability.ObserveDeviceFleetOperation,
+			observability.ObserveIdentityAccessOperation,
+			workTime,
+			observeDataImport,
+			fileStorageWiring,
+		)
+	})
 	if err != nil {
 		return moduleServices{}, err
 	}
 	legacyFacilities = factory.Facilities
 	return moduleServices{repositories: repoFactory, services: factory, communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, membership: membership, workforce: workTime}, nil
+}
+
+// withFileStorageWiring resolves what the File Storage module needs from the
+// root and cannot compose itself (#2707): the uploads object store, rooted at
+// the uploads directory every document feature shares, and the metrics sink.
+// It hands both to the service factory, which composes the module where the
+// announcement ports live.
+func withFileStorageWiring(build func(services.FileStorageWiring) (*services.Factory, error)) (*services.Factory, error) {
+	uploads, err := apiCommon.UploadsBackend()
+	if err != nil {
+		return nil, fmt.Errorf("resolve uploads backend: %w", err)
+	}
+	return build(services.FileStorageWiring{Objects: uploads, Observe: observeFileStorage})
+}
+
+func observeFileStorage(observation filestorageCompose.Observation) {
+	observability.ObserveFileStorageOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, filestorageModule.ErrorCode(observation.Err), observation.Err)
 }
 
 func observeDataImport(observation services.DataImportObservation) {

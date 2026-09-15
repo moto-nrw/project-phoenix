@@ -12,13 +12,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	"github.com/moto-nrw/project-phoenix/database/repositories/config"
 	"github.com/moto-nrw/project-phoenix/database/repositories/education"
-	"github.com/moto-nrw/project-phoenix/database/repositories/filestore"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	"github.com/moto-nrw/project-phoenix/database/repositories/pwausage"
 	"github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/database/repositories/users"
-	filestoreModels "github.com/moto-nrw/project-phoenix/models/filestore"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
@@ -145,13 +143,10 @@ type Factory struct {
 	StaffDocument   userModels.StaffDocumentRepository
 	StudentDocument userModels.StudentDocumentRepository
 
-	// School file storage (#2596) and the attachments of Elternmitteilungen
-	// (#2890), which reuse its document primitives.
-	FileFolder             filestoreModels.FolderRepository
-	File                   filestoreModels.FileRepository
-	AnnouncementAttachment filestoreModels.AnnouncementAttachmentRepository
-	FileEvent              auditModels.FileEventRepository
-	SubstitutionChange     auditModels.SubstitutionChangeCreator
+	// School file storage trail (#2596); folders, files and attachments are
+	// owned by modules/filestorage (#2707).
+	FileEvent          auditModels.FileEventRepository
+	SubstitutionChange auditModels.SubstitutionChangeCreator
 
 	// Facilities domain
 	Room facilityModels.RoomRepository
@@ -602,12 +597,9 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		// bindStaffMembershipDecorators, it needs the membership owner.
 		StudentDocument: nil, // bound to Care Plan below
 
-		// School file storage (#2596)
-		FileFolder:             filestore.NewFolderRepository(db),
-		File:                   filestore.NewFileRepository(db),
-		AnnouncementAttachment: filestore.NewAnnouncementAttachmentRepository(db),
-		FileEvent:              audit.NewFileEventRepository(auditRepositoryRuntime),
-		SubstitutionChange:     audit.NewSubstitutionChangeRepository(auditRepositoryRuntime),
+		// School file storage trail (#2596)
+		FileEvent:          audit.NewFileEventRepository(auditRepositoryRuntime),
+		SubstitutionChange: audit.NewSubstitutionChangeRepository(auditRepositoryRuntime),
 
 		// Facilities repositories
 		Room: facilitiesRepositoryAdapter.New(),

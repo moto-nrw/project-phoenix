@@ -62,13 +62,16 @@ Communication retains announcement-access rules, including for attachments.
 Document Rendering produces output without owning its audience or storage;
 rendering alone neither saves a file nor grants access.
 
-This decision does not change runtime write owners or ratchet entries.
-Missing mappings for `documents.files`, `documents.folders`,
-`documents.folder_roles`, `documents.folder_accounts`, and
-`documents.file_cleanup` remain migration work in #2707. Existing announcement
-attachment and cleanup ownership stays unchanged. `target.svg` is generated
-from the unchanged policy and shows File Storage as domain and Document
-Rendering as platform; do not commit the generated diagram.
+#2707 registers `documents.files`, `documents.folders`,
+`documents.folder_roles` and `documents.folder_accounts` under `file-storage`
+through the ADR 0015 adoption path (policy epoch 6 to 7); the announcement
+attachment and cleanup tables were owned before. `documents.file_cleanup`
+still has no owner: the retained generic document repository reaches it only
+dynamically, so the baseline records no `tables.unclassified` finding to adopt
+it from, and the File Storage composition binds its intent operations to that
+repository as a compatibility permission until the table can be adopted.
+`target.svg` shows File Storage as domain and Document Rendering as platform;
+do not commit the generated diagram.
 
 ## Commands
 
@@ -531,18 +534,55 @@ The same change moves the birthday routes to `modules/birthdays/http`
 compatibility bindings, the birthday handlers' retained user-context, birthday
 service and birthday row imports and the coordinator's retained storage
 backend, are exact debt under #2706 as well; the remaining `inbound-birthdays.*`
-permissions are the inbound target shape. The `inbound-filestore.to.file-storage-adapter` and
-`inbound-students.to.file-storage-adapter` bindings are different: their
-source packages existed before the move and imported the old path as debt
-under #2707 and #2731, which PR mode cannot carry over to the new target. They
-are a
+permissions are the inbound target shape. The
+`inbound-students.to.file-storage-adapter` binding is different: its source
+package existed before the move and imported the old path as debt under
+#2731, which PR mode cannot carry over to the new target. It is a
 [named exception](https://github.com/moto-nrw/project-phoenix/issues/2580#issuecomment-5638973300)
-to rule 5 of `backend/CLAUDE.md`, still tracked by #2707 and #2731; each goes
-when its caller moves to the public File Storage capability, and no new caller
-may rely on them. The generic file-metadata
-repository (`database/repositories/documents`) and model (`models/documents`)
-keep their five `document-rendering` debt entries under #2706: their tables
-belong to File Storage (ADR 0010) and move with #2707.
+to rule 5 of `backend/CLAUDE.md`, still tracked by #2731; it goes when the
+student document handlers move to the public File Storage capability, and no
+new caller may rely on it. The file store handlers' equivalent exception went
+with #2707. The generic file-metadata repository
+(`database/repositories/documents`) and model (`models/documents`) keep their
+five `document-rendering` debt entries under #2706: their tables belong to
+File Storage (ADR 0010); the student and staff document handlers are their
+remaining consumers.
+
+The File Storage capability (`modules/filestorage`, `file-storage`/`public`,
+#2707) owns the school file storage and the attachments of
+Elternmitteilungen: folders with their visibility rule and share lists, the
+files inside them, the storage quota, the audit trail, the intent protocol
+that makes an interrupted upload recoverable, and the sweep the worker runs.
+`internal/application` holds the authority and upload rules,
+`internal/adapters/postgres` serves `documents.folders`,
+`documents.folder_roles`, `documents.folder_accounts`, `documents.files`,
+`documents.announcement_attachments` and
+`documents.announcement_attachment_cleanup` with static table names, and
+`compose` binds the ports: membership, account roles and shareable roles to
+the public Identity & Access capability, the audience picker's names to the
+public People Directory query (both target shape), and, as compatibility
+permissions, the two file settings, the retained Audit file-event contract,
+the shared permission matcher, the retained storage backend and the retained
+generic document repository for the `documents.file_cleanup` intents. The
+folder visibility rule is now owner SQL over the owner's own tables with the
+viewer's membership and role ids supplied by Identity & Access; the former
+foreign reads of `auth.account_tenants`, `auth.account_roles` and
+`auth.roles` are gone. The HTTP adapter (`modules/filestorage/http/files`,
+`inbound-filestore`/`http`) serves the unchanged `/api/files`,
+`/api/announcement-attachments` and `/parent-news-attachments` contracts
+through the public capability only; multipart parsing and magic-byte
+validation stay in the adapter, bytes and intents are the owner's. Every
+`file-storage.compose.*` compatibility permission, the
+`inbound-filestore.*` shared HTTP permissions, the `root-composition.to.*`,
+`legacy-composition.to.*` and `test-support.to.file-storage-public` bindings
+exist only because PR mode cannot record debt for a package the candidate
+creates: convert them to exact debt with the rule above once the packages
+exist at a base SHA, and rebind each port to its owner's public capability as
+it appears. The legacy service factory composes the module because the
+announcement guard and the guardian audience it binds live there; the root
+supplies the uploads backend and the metrics sink. The retired
+`api/filestore`, `services/filestore`, `database/repositories/filestore` and
+`models/filestore` packages are deleted with their 36 baseline entries.
 
 The shared request-review projection (`modules/requestreview`,
 `request-review-view`/`public`, #2705) is the one staff-facing list of every
