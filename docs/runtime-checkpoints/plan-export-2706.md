@@ -67,15 +67,48 @@ instance-staff batch read sorts 80 rows, the room read returns one row; local
 execution stays under 0.13 ms per statement. The candidate binds the retained
 repositories unchanged, so the plans are the baseline's plans.
 
+## Dienstplan
+
+Run from the repository root:
+
+```bash
+CGO_ENABLED=0 scripts/run-go-toolchain.sh go -C backend test ./modules/planexport/legacy -run '^TestDienstplanRuntimeEvidence$' -parallel 8 -count=1 -v
+```
+
+The Dienstplan reads the retained staff schedule overview, whose shift and
+staff sources are Workforce adapters composed only by the legacy repository
+factory. The harness therefore reconstructs those two reads over the tenant
+transaction the export runs in (one shift range read, one staff read, one
+person read per staff member) and binds the instance, assignment and room
+reads to the same retained sources as above. Fixtures are one room and four
+staff members; each printed week adds one shift per staff member per
+weekday and one supervised block per shift, so 20 shifts and 20 blocks per
+week. Same sampling as above: five warmups, 30 samples, concurrency one. No
+pre-cutover baseline exists for this path because the retained service had
+no fixture-only composition either.
+
+| Scenario | p50 / p95 (ms) | Queries | Returned driver rows |
+|---|---:|---:|---:|
+| Empty week | 3.277 / 3.692 | 11 | 9 |
+| One week, 20 shifts, 20 blocks | 4.010 / 4.689 | 13 | 70 |
+| Four weeks, 80 shifts, 80 blocks | 4.561 / 5.115 | 13 | 250 |
+| Four weeks, 80 shifts, 80 blocks, PDF | 38.737 / 40.274 | 13 | 250 |
+
+Counts include the transaction-scope statements and the commit; the four
+per-staff person reads are the harness's substitute for the retained staff
+join. All 140 measured exports succeeded with zero DML rows, zero pool waits
+and zero deadlocks, with no sampled lock waiters.
+[Raw samples](plan-export-2706.dienstplan.raw.json) retain every duration,
+query count, driver row count, pool delta and lock-sampling result.
+
 ## Scope and limits
 
-The Dienstplan reads the retained staff schedule overview, whose staff-shift
-and shift-type sources are Workforce adapters composed only by the legacy
-repository factory; that path has no fixture-only composition and is not
-measured here. Its statements are unchanged: the adapter maps the overview
-the same service produces for the Dienstplan screen. The birthday HTTP
-adapter and the File Storage object-store adapter moved packages without a
-code change to their queries; their route tests pin the wire contract.
+The Dienstplan numbers above measure the capability and the overview
+service over reconstructed shift and staff reads, not the Workforce-backed
+repositories the production root composes; their statements are unchanged
+by this ticket. The birthday HTTP adapter and the File Storage object-store
+adapter moved packages without a code change to their queries; their route
+tests pin the wire contract.
 
 ## Correctness
 
@@ -89,4 +122,11 @@ schedule.instance_students, schedule.staff_shifts, schedule.shift_types,
 schedule.planning_tracks and schedule.closing_days in two schools, proves
 each table invisible across the boundary under the least-privilege role, and
 renders each school's Betreuungsplan over the real instance, staff and room
-sources with only its own block, room and staff member on the sheet.
+sources with only its own block, room and staff member on the sheet. The same
+test renders each school's Dienstplan through the retained staff schedule
+overview, with the shift and staff reads bound to the tenant transaction under
+test, and finds only the school's own staff member, shift and block on the
+sheet. A second two-tenant test in `api/filestore` stores one file and queues
+one cleanup intent per school through the public routes and proves
+`documents.files` and `documents.file_cleanup` invisible across the boundary
+under the least-privilege role.

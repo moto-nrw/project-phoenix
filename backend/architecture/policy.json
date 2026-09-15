@@ -18914,39 +18914,6 @@
       "target_role": "public"
     },
     {
-      "id": "document-rendering.adapter.timetable-application",
-      "description": "Compatibility binding (#2706): the plan export adapter reads the staff schedule overview, the materialized blocks, their staff, the rooms, the closing days and the holidays from the retained schedule services until Timetable & Activities exposes them publicly.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "adapter",
-      "target_owner": "timetable-activities",
-      "target_role": "application"
-    },
-    {
-      "id": "document-rendering.adapter.timetable-domain",
-      "description": "Compatibility binding (#2706): the plan export adapter maps the retained shift-type, planning-track, instance and activity-group rows and their calendar-date column type.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "adapter",
-      "target_owner": "timetable-activities",
-      "target_role": "domain"
-    },
-    {
-      "id": "document-rendering.adapter.calendar-date",
-      "description": "The plan export adapter translates the port's day strings into the retained calendar-date signatures (#2706).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "adapter",
-      "target_owner": "legacy-shared",
-      "target_role": "domain"
-    },
-    {
       "id": "document-rendering.decision-test.public",
       "description": "Plan export rendering tests drive the public capability with in-memory port records (#2706).",
       "scopes": [
@@ -18969,17 +18936,6 @@
       "target_role": "application"
     },
     {
-      "id": "document-rendering.decision-test.calendar-date",
-      "description": "Plan export rendering tests pin calendar weeks with the repository calendar-date value type (#2706).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "workflow-decision-test",
-      "target_owner": "legacy-shared",
-      "target_role": "domain"
-    },
-    {
       "id": "document-rendering.adapter-test.adapter",
       "description": "Plan export adapter tests construct the compatibility bindings under test (#2706).",
       "scopes": [
@@ -18991,50 +18947,6 @@
       "target_role": "adapter"
     },
     {
-      "id": "document-rendering.adapter-test.timetable-application",
-      "description": "Plan export adapter tests build the retained staff schedule overview and holiday rows (#2706).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "adapter-test",
-      "target_owner": "timetable-activities",
-      "target_role": "application"
-    },
-    {
-      "id": "document-rendering.adapter-test.timetable-domain",
-      "description": "Plan export adapter tests build retained shift, instance, shift-type, planning-track, closing-day and activity-group rows (#2706).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "adapter-test",
-      "target_owner": "timetable-activities",
-      "target_role": "domain"
-    },
-    {
-      "id": "document-rendering.adapter-test.people-directory-domain",
-      "description": "Plan export adapter tests build retained staff rows with and without a person record (#2706).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "adapter-test",
-      "target_owner": "people-directory",
-      "target_role": "domain"
-    },
-    {
-      "id": "document-rendering.adapter-test.facilities-domain",
-      "description": "Plan export adapter tests build retained room rows (#2706).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "adapter-test",
-      "target_owner": "facilities",
-      "target_role": "domain"
-    },
-    {
       "id": "document-rendering.adapter-test.document-rendering-application",
       "description": "Plan export adapter tests inspect the rendered Document Rendering document and render the runtime evidence through the real renderer (#2706).",
       "scopes": [
@@ -19044,39 +18956,6 @@
       "source_role": "adapter-test",
       "target_owner": "document-rendering",
       "target_role": "application"
-    },
-    {
-      "id": "document-rendering.adapter-test.timetable-postgres",
-      "description": "Plan export adapter tests construct the retained instance and instance-staff repositories for the two-tenant RLS proof and the runtime evidence (#2706).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "adapter-test",
-      "target_owner": "timetable-activities",
-      "target_role": "postgres"
-    },
-    {
-      "id": "document-rendering.adapter-test.facilities-compose",
-      "description": "Plan export adapter tests construct the Facilities facade for the real room names (#2706).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "adapter-test",
-      "target_owner": "facilities",
-      "target_role": "compose"
-    },
-    {
-      "id": "document-rendering.adapter-test.calendar-date",
-      "description": "Plan export adapter tests pin calendar days with the repository calendar-date value type (#2706).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "adapter-test",
-      "target_owner": "legacy-shared",
-      "target_role": "domain"
     },
     {
       "id": "inbound-timetable.to.document-rendering",
@@ -19110,28 +18989,6 @@
       "source_role": "compose",
       "target_owner": "document-rendering",
       "target_role": "public"
-    },
-    {
-      "id": "legacy-composition.compose.to.document-rendering.adapter",
-      "description": "The legacy root constructs the plan export compatibility adapter over the retained schedule services (#2706).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "document-rendering",
-      "target_role": "adapter"
-    },
-    {
-      "id": "file-storage.adapter.delivery-adapter",
-      "description": "Compatibility binding (#2706): the File Storage object-store adapter writes, streams and removes document bytes through the retained storage backend until Delivery exposes it publicly.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "file-storage",
-      "source_role": "adapter",
-      "target_owner": "delivery-platform",
-      "target_role": "adapter"
     },
     {
       "id": "inbound-filestore.to.file-storage-adapter",
@@ -19198,39 +19055,6 @@
       "source_role": "http",
       "target_owner": "identity-access",
       "target_role": "adapter"
-    },
-    {
-      "id": "inbound-birthdays.identity-application",
-      "description": "Compatibility binding (#2706): the birthday handlers resolve the caller's student data scope through the retained user context service.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-birthdays",
-      "source_role": "http",
-      "target_owner": "identity-access",
-      "target_role": "application"
-    },
-    {
-      "id": "inbound-birthdays.people-directory-application",
-      "description": "Compatibility binding (#2706): the birthday handlers call the retained birthday service until People Directory exposes the birthday display publicly.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-birthdays",
-      "source_role": "http",
-      "target_owner": "people-directory",
-      "target_role": "application"
-    },
-    {
-      "id": "inbound-birthdays.people-directory-domain",
-      "description": "Compatibility binding (#2706): the staff Geburtstagsliste export lays out the retained birthday entry rows.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-birthdays",
-      "source_role": "http",
-      "target_owner": "people-directory",
-      "target_role": "domain"
     },
     {
       "id": "inbound-birthdays.document-rendering",

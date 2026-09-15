@@ -496,25 +496,30 @@ The plan export capability (`modules/planexport`, `document-rendering`/`public`,
 through consumer-owned ports declared in the same package; it owns no table
 and never writes. Its compatibility adapter (`modules/planexport/legacy`,
 `document-rendering`/`adapter`) binds those ports to the retained schedule
-services and repositories and maps their rows field by field. Every
-`document-rendering.adapter.*`, `document-rendering.adapter-test.*` and
-`document-rendering.decision-test.*` rule and the
-`legacy-composition.compose.to.document-rendering.*` root edges are
-compatibility permissions that exist only because PR mode cannot record debt
-for a package the candidate creates: convert them to exact debt with the rule
-above once the packages exist at a base SHA, rebind each port to its owner's
-public capability as it appears, and delete the adapter with the last legacy
-source. The retained `services/listexport` renderer keeps its
+services and repositories and maps their rows field by field. The
+temporary permissions for the adapter's legacy imports, its tests, the
+capability's calendar-date test import and the root-composition call into the
+adapter are recorded as exact `imports.forbidden` debt in `legacy.jsonl` under
+#2706. The adapter's own public-capability binding, the public capability's
+calendar-date value type and the tests' imports of the owner's public and
+application packages remain target-allowed. Rebind each legacy port to its
+owner's public capability as it appears, remove each tuple with its import,
+and delete the adapter with the last legacy source. The two-tenant RLS test
+binds the Dienstplan's shift and staff reads to the tenant transaction under
+test, because their retained sources are Workforce adapters composed only by
+the legacy repository factory. The retained `services/listexport` renderer keeps its
 `module-internal-test` seam, so the capability's rendering tests declare the
 `workflow-decision-test` seam and the adapter tests the `adapter-test` seam.
 The `inbound-timetable.to.document-rendering` and
 `workforce.http.document-rendering-public` edges are the target shape (an
 inbound adapter calling the public capability) and stay.
 The same change moves the birthday routes to `modules/birthdays/http`
-(`inbound-birthdays`/`http`, `inbound-birthdays.*` permissions) and the
-document upload coordinator to `modules/filestorage/documents`
-(`file-storage`/`adapter`, `file-storage.adapter.delivery-adapter`), under the
-same conversion rule. The `inbound-filestore.to.file-storage-adapter` and
+(`inbound-birthdays`/`http`) and the document upload coordinator to
+`modules/filestorage/documents` (`file-storage`/`adapter`). Their
+compatibility bindings, the birthday handlers' retained user-context, birthday
+service and birthday row imports and the coordinator's retained storage
+backend, are exact debt under #2706 as well; the remaining `inbound-birthdays.*`
+permissions are the inbound target shape. The `inbound-filestore.to.file-storage-adapter` and
 `inbound-students.to.file-storage-adapter` bindings are different: their
 source packages existed before the move and imported the old path as debt
 under #2707 and #2731, which PR mode cannot carry over to the new target. They
