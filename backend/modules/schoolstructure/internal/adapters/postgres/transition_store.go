@@ -229,7 +229,7 @@ func (s *Store) InsertTransition(ctx context.Context, tenantID int64, draft doma
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
-	_, err = db.NewInsert().Model(&row).ModelTableExpr(`education.grade_transitions`).Returning("*").Exec(ctx)
+	_, err = db.NewInsert().Model(&row).ModelTableExpr(`education.grade_transitions`).Returning("id, created_at, updated_at").Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return domain.Transition{}, stats, storeError("insert transition", err)
@@ -254,7 +254,7 @@ func (s *Store) insertMappings(ctx context.Context, db bun.IDB, tenantID, transi
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
-	_, err := db.NewInsert().Model(&rows).ModelTableExpr(`education.grade_transition_mappings`).Returning("*").Exec(ctx)
+	_, err := db.NewInsert().Model(&rows).ModelTableExpr(`education.grade_transition_mappings`).Returning("id").Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return nil, stats, storeError("insert transition mappings", err)

@@ -1651,18 +1651,6 @@ func (r *StudentRepository) LockPhotoFeature(ctx context.Context) error {
 	return nil
 }
 
-// LockStudentClassWrites takes the EXCLUSIVE per-tenant class-writes gate, so
-// no student can be created in — or moved into — a class while the caller runs.
-// Only the grade transition apply/revert takes it; every ordinary student write
-// takes the shared form (see studentClassWritesLockClass for the race, the lock
-// order, and why row locks cannot cover it).
-//
-// Transaction-scoped: releases at COMMIT/ROLLBACK, so the caller must already be
-// inside the tenant transaction.
-func (r *StudentRepository) LockStudentClassWrites(ctx context.Context) error {
-	return r.lockClassWrites(ctx, false)
-}
-
 // LockStudentClassWritesShared exposes the shared class-writes gate for the
 // one caller that must take it explicitly: a write path that acquires another
 // tenant-wide gate (the recurrence gate) before its first student row lock.

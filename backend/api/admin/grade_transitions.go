@@ -12,7 +12,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
 	"github.com/uptrace/bun"
@@ -254,15 +253,15 @@ func toHistoryResponses(rows []gradetransition.HistoryEntry) []HistoryResponse {
 	return out
 }
 
-func mappingAction(mapping schoolstructure.TransitionMapping) string {
+func mappingAction(mapping gradetransition.TransitionMapping) string {
 	if mapping.IsGraduating() {
-		return schoolstructure.TransitionActionGraduated
+		return gradetransition.ActionGraduated
 	}
-	return schoolstructure.TransitionActionPromoted
+	return gradetransition.ActionPromoted
 }
 
 // toTransitionResponse converts an owner transition to its wire shape.
-func toTransitionResponse(t schoolstructure.Transition) TransitionResponse {
+func toTransitionResponse(t gradetransition.Transition) TransitionResponse {
 	resp := TransitionResponse{
 		ID:           t.ID,
 		AcademicYear: t.AcademicYear,
@@ -323,7 +322,7 @@ func toPreviewResponse(preview gradetransition.Preview) PreviewResponse {
 
 // previewAction renders the mapping action in the verb form the UI expects.
 func previewAction(action string) string {
-	if action == schoolstructure.TransitionActionGraduated {
+	if action == gradetransition.ActionGraduated {
 		return "graduate"
 	}
 	return "promote"
@@ -381,7 +380,7 @@ func (rs *GradeTransitionResource) list(w http.ResponseWriter, r *http.Request) 
 	}
 	filter.Page, filter.PageSize = page, pageSize
 
-	transitions, total, err := rs.workflow.List(r.Context(), filter)
+	transitions, total, err := rs.workflow.ListTransitions(r.Context(), filter)
 	if err != nil {
 		rs.renderReadError(w, r, err)
 		return
@@ -413,7 +412,7 @@ func (rs *GradeTransitionResource) create(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	transition, err := rs.workflow.Create(r.Context(), gradetransition.Draft{
+	transition, err := rs.workflow.CreateDraft(r.Context(), gradetransition.Draft{
 		AcademicYear: req.AcademicYear,
 		Notes:        req.Notes,
 		Mappings:     toMappings(req.Mappings),
@@ -434,7 +433,7 @@ func (rs *GradeTransitionResource) getByID(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	transition, err := rs.workflow.Get(r.Context(), id)
+	transition, err := rs.workflow.FindTransition(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New(errMsgTransitionNotFound)))
 		return
@@ -468,7 +467,7 @@ func (rs *GradeTransitionResource) update(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	transition, err := rs.workflow.Update(r.Context(), id, patch)
+	transition, err := rs.workflow.UpdateDraft(r.Context(), id, patch)
 	if err != nil {
 		tenant.MarkRollback(r.Context())
 		rs.renderDraftMutationError(w, r, err)
@@ -485,7 +484,7 @@ func (rs *GradeTransitionResource) delete(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := rs.workflow.Delete(r.Context(), id); err != nil {
+	if err := rs.workflow.DeleteDraft(r.Context(), id); err != nil {
 		tenant.MarkRollback(r.Context())
 		rs.renderDraftMutationError(w, r, err)
 		return

@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
-	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
 	gradetransitioncompose "github.com/moto-nrw/project-phoenix/workflows/gradetransition/compose"
@@ -18,25 +17,18 @@ import (
 // GradeTransitionTestModule composes the grade transition workflow (#2711)
 // the way the production root does, over the real People Directory, School
 // Membership, School Structure, Student Presence and the Timetable roster
-// reconciliation. The offering-roster resync is a no-op until
-// BindOfferingResync installs the enrollment decision service, which the
-// student test module constructs after this one.
+// reconciliation.
 type GradeTransitionTestModule struct {
 	GradeTransition *gradetransition.Workflow
-	resync          *offeringResyncSlot
 }
 
-type offeringResyncSlot struct {
-	fn func(context.Context, timezone.Date) error
-}
+// OfferingResync is the offering-roster resync the workflow runs after the
+// class rewrite. A nil resync is a no-op: the HTTP tests exercise the
+// transition contract, and the resync has its own hermetic coverage with the
+// real enrollment decision service.
+type OfferingResync func(ctx context.Context, effectiveFrom timezone.Date) error
 
-// BindOfferingResync routes the workflow's offering-roster resync through
-// the given enrollment decision service.
-func (m GradeTransitionTestModule) BindOfferingResync(resyncer education.OfferingSourceResyncer) {
-	m.resync.fn = resyncer.ResyncOfferingSourcedTemplates
-}
-
-func NewGradeTransitionTestModule(db *bun.DB, clocks ...func() time.Time) (GradeTransitionTestModule, error) {
+func NewGradeTransitionTestModule(db *bun.DB, resync OfferingResync, clocks ...func() time.Time) (GradeTransitionTestModule, error) {
 	command, err := auditSvc.NewCommand(repositories.NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
 	if err != nil {
 		return GradeTransitionTestModule{}, err
@@ -53,22 +45,19 @@ func NewGradeTransitionTestModule(db *bun.DB, clocks ...func() time.Time) (Grade
 	if err != nil {
 		return GradeTransitionTestModule{}, err
 	}
+	if resync == nil {
+		resync = func(context.Context, timezone.Date) error { return nil }
+	}
 	clock := optionalClock(clocks)
-	slot := &offeringResyncSlot{}
 	workflow, err := gradetransitioncompose.New(gradetransitioncompose.Dependencies{
 		DB: db, Directory: people, Membership: membership,
-		Rosters:              schedule.NewRosterReconciler(tt.ActivityInstance, tt.InstanceStudent, tt.StudentEnrollment, slog.Default(), clock),
-		LockRecurrenceWrites: func(ctx context.Context) error { return schedule.LockTenantRecurrenceWrites(ctx, db) },
-		ResyncOfferingRosters: func(ctx context.Context, effectiveFrom timezone.Date) error {
-			if slot.fn == nil {
-				return nil
-			}
-			return slot.fn(ctx, effectiveFrom)
-		},
-		Audit: command, Clock: clock,
+		Rosters:               schedule.NewRosterReconciler(tt.ActivityInstance, tt.InstanceStudent, tt.StudentEnrollment, slog.Default(), clock),
+		LockRecurrenceWrites:  func(ctx context.Context) error { return schedule.LockTenantRecurrenceWrites(ctx, db) },
+		ResyncOfferingRosters: resync,
+		Audit:                 command, Clock: clock,
 	})
 	if err != nil {
 		return GradeTransitionTestModule{}, err
 	}
-	return GradeTransitionTestModule{GradeTransition: workflow, resync: slot}, nil
+	return GradeTransitionTestModule{GradeTransition: workflow}, nil
 }

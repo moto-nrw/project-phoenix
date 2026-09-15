@@ -72,6 +72,27 @@ const (
 // longer exists at apply time; it matches the School Structure placeholder.
 const PurgedStudentName = schoolstructure.PurgedStudentPlaceholder
 
+// The transition rows the workflow returns are School Structure's public
+// types; the aliases and constants let an HTTP adapter depend on the
+// workflow alone.
+type (
+	Transition                  = schoolstructure.Transition
+	TransitionMapping           = schoolstructure.TransitionMapping
+	TransitionHistoryEntry      = schoolstructure.TransitionHistoryEntry
+	TransitionClassTeacherEntry = schoolstructure.TransitionClassTeacherEntry
+	TransitionClassListEntry    = schoolstructure.TransitionClassListEntry
+	ReleasedTag                 = peopledirectory.ReleasedTag
+)
+
+const (
+	StatusDraft    = schoolstructure.TransitionStatusDraft
+	StatusApplied  = schoolstructure.TransitionStatusApplied
+	StatusReverted = schoolstructure.TransitionStatusReverted
+
+	ActionPromoted  = schoolstructure.TransitionActionPromoted
+	ActionGraduated = schoolstructure.TransitionActionGraduated
+)
+
 // Actor is the authenticated principal an operation is attributed to.
 type Actor struct {
 	TenantID  int64
@@ -284,8 +305,8 @@ func (w *Workflow) run(ctx context.Context, operation, permission string, transi
 	})
 }
 
-// Create stores a new draft with its mappings.
-func (w *Workflow) Create(ctx context.Context, draft Draft) (result schoolstructure.Transition, err error) {
+// CreateDraft stores a new draft with its mappings.
+func (w *Workflow) CreateDraft(ctx context.Context, draft Draft) (result schoolstructure.Transition, err error) {
 	if draft.AcademicYear == "" {
 		return schoolstructure.Transition{}, fmt.Errorf("%w: academic_year is required", ErrInvalidTransitionData)
 	}
@@ -305,13 +326,14 @@ func (w *Workflow) Create(ctx context.Context, draft Draft) (result schoolstruct
 	return result, nil
 }
 
-// Update edits a draft. It takes the tenant transition gate BEFORE reading
-// the row: an apply validates the confirmed fingerprint against the mappings
-// and then writes history from that same set without locking the mapping
-// rows, so a concurrent mapping replacement must wait for it (or be seen by
-// it). Only the transition gate is taken here, keeping the acquisition order
-// acyclic against apply and revert, which take the recurrence gate first.
-func (w *Workflow) Update(ctx context.Context, id int64, patch DraftPatch) (result schoolstructure.Transition, err error) {
+// UpdateDraft edits a draft. It takes the tenant transition gate BEFORE
+// reading the row: an apply validates the confirmed fingerprint against the
+// mappings and then writes history from that same set without locking the
+// mapping rows, so a concurrent mapping replacement must wait for it (or be
+// seen by it). Only the transition gate is taken here, keeping the
+// acquisition order acyclic against apply and revert, which take the
+// recurrence gate first.
+func (w *Workflow) UpdateDraft(ctx context.Context, id int64, patch DraftPatch) (result schoolstructure.Transition, err error) {
 	err = w.run(ctx, "update", OperationUpdate, id, func(txCtx context.Context, _ Actor) error {
 		if err := w.deps.Structure.LockTransitions(txCtx); err != nil {
 			return err
@@ -338,9 +360,9 @@ func (w *Workflow) Update(ctx context.Context, id int64, patch DraftPatch) (resu
 	return result, nil
 }
 
-// Delete removes a draft under the same gate as Update: an apply that
-// already read the mappings must not find the row gone underneath it.
-func (w *Workflow) Delete(ctx context.Context, id int64) error {
+// DeleteDraft removes a draft under the same gate as UpdateDraft: an apply
+// that already read the mappings must not find the row gone underneath it.
+func (w *Workflow) DeleteDraft(ctx context.Context, id int64) error {
 	return w.run(ctx, "delete", OperationDelete, id, func(txCtx context.Context, _ Actor) error {
 		if err := w.deps.Structure.LockTransitions(txCtx); err != nil {
 			return err
@@ -356,9 +378,9 @@ func (w *Workflow) Delete(ctx context.Context, id int64) error {
 	})
 }
 
-// Get returns one transition with its mappings.
-func (w *Workflow) Get(ctx context.Context, id int64) (result schoolstructure.Transition, err error) {
-	err = w.run(ctx, "get", OperationRead, id, func(txCtx context.Context, _ Actor) error {
+// FindTransition returns one transition with its mappings.
+func (w *Workflow) FindTransition(ctx context.Context, id int64) (result schoolstructure.Transition, err error) {
+	err = w.run(ctx, "find", OperationRead, id, func(txCtx context.Context, _ Actor) error {
 		found, err := w.deps.Structure.FindTransition(txCtx, id)
 		if err != nil {
 			return translateStructureError(err)
@@ -372,8 +394,9 @@ func (w *Workflow) Get(ctx context.Context, id int64) (result schoolstructure.Tr
 	return result, nil
 }
 
-// List returns a page of transitions with their mappings and the total.
-func (w *Workflow) List(ctx context.Context, filter ListFilter) (result []schoolstructure.Transition, total int, err error) {
+// ListTransitions returns a page of transitions with their mappings and the
+// total.
+func (w *Workflow) ListTransitions(ctx context.Context, filter ListFilter) (result []schoolstructure.Transition, total int, err error) {
 	err = w.run(ctx, "list", OperationRead, 0, func(txCtx context.Context, _ Actor) error {
 		page, pageSize := filter.Page, filter.PageSize
 		if page < 1 {

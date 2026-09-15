@@ -537,6 +537,41 @@ its one recorded `tables.unclassified` finding named a package already
 classified under that owner, and the deletion unlinks the legacy guardian rows
 through the owner command. Existing owner/import guards remain unchanged.
 
+The grade transition workflow (`workflows/gradetransition`, owner
+`grade-transition`, kind `workflow`, #2711,
+[ADR 0017](../../docs/adr/0017-grade-transition-is-an-application-workflow.md))
+is the one coordinator of the school-year rollover: the draft and its
+mappings, the preview with its cohort fingerprint, the apply and the revert.
+Its public package exposes the queries and commands over the School
+Structure, People Directory, School Membership and Student Presence
+contracts (`grade-transition.to.*`); `compose` binds the tenant UnitOfWork,
+the permission principal per operation, the Audit command for the class-list
+rewrites, and composes School Structure and Student Presence over the shared
+database. The Timetable roster reconciliation, the recurrence gate and the
+enrollment offering-roster resync are consumer-owned ports the legacy
+composition binds from the retained application services of those owners.
+Every owner performs its own read and mutation: School Structure stores the
+draft, the transition gate, the status transitions and the three ledgers
+(history, class-teacher, class-list) through its new transition capability;
+People Directory takes the exclusive class-writes gate, locks and
+re-validates the cohort, promotes, graduates and reactivates the children
+and releases or restores their bracelets; School Membership rewrites the
+class-teacher assignments and the class-list entries; Timetable archives
+and replays the materialized rosters; Student Presence answers the check-in
+guard. The workflow contains no SQL and no repository import. The retained
+`services/education` grade transition service, its class-ledger helpers, the
+cross-schema `database/repositories/education` transition repository and the
+`models/education` repository contract are deleted; the legacy composition
+builds the workflow once (`legacy-composition.compose.transition.*`) and the
+admin HTTP adapter calls exactly its public commands. The
+`school-structure.module-behavior-test.transition.*` permissions bind the
+real composition in the workflow's hermetic tests; they are test-only.
+
+Under ADR 0013 this data-less workflow registration raises the policy epoch
+from 9 to 10 and uses only candidate-created packages. The School Structure
+capability grows inside its existing owner and roles; no table changes
+owner and no existing-owner import guard is expanded.
+
 The emergency snapshot read projection (`modules/emergencysnapshot`,
 `emergency-snapshot`/`public`, #2704) builds the Notfallliste, the present
 children with location, reachable adults and the optional health note, from

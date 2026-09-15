@@ -48,18 +48,20 @@ func TestTransitionModuleForwardsValidCallsToTheEngine(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 9, 1, 8, 0, 0, 0, time.UTC)
 
-	transition, err := module.FindTransition(ctx, 9)
+	// The recording engine echoes ids; they are not database rows.
+	const echoedID, actorID, studentID = 42, 7, 3
+	transition, err := module.FindTransition(ctx, echoedID)
 	require.NoError(t, err)
-	assert.Equal(t, int64(9), transition.ID)
+	assert.Equal(t, int64(echoedID), transition.ID)
 	assert.True(t, transition.IsDraft())
 	assert.False(t, transition.CanApply(), "a draft without mappings cannot be applied")
 
-	_, err = module.LockTransitionForMutation(ctx, 9)
+	_, err = module.LockTransitionForMutation(ctx, echoedID)
 	require.NoError(t, err)
 	require.NoError(t, module.LockTransitions(ctx))
-	require.NoError(t, module.MarkTransitionApplied(ctx, 9, 4, now, nil))
-	require.NoError(t, module.MarkTransitionReverted(ctx, 9, 4, now))
-	require.NoError(t, module.AppendTransitionHistory(ctx, []schoolstructure.TransitionHistoryEntry{{TransitionID: 9, StudentID: 1}}))
+	require.NoError(t, module.MarkTransitionApplied(ctx, echoedID, actorID, now, nil))
+	require.NoError(t, module.MarkTransitionReverted(ctx, echoedID, actorID, now))
+	require.NoError(t, module.AppendTransitionHistory(ctx, []schoolstructure.TransitionHistoryEntry{{TransitionID: echoedID, StudentID: studentID}}))
 	assert.Equal(t, 6, engine.calls)
 }
 
