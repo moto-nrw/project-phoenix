@@ -267,6 +267,7 @@ func (s *decisionService) TemplateRosterMaintenanceFeeds(ctx context.Context, te
 				}
 			}
 			var sourcePhaseID int64
+			mixedPhases := false
 			for _, id := range query.SourceCareOfferingIDs {
 				offering := offeringsByID[id]
 				if offering == nil {
@@ -274,6 +275,7 @@ func (s *decisionService) TemplateRosterMaintenanceFeeds(ctx context.Context, te
 				}
 				invalid := phasesByID[offering.PhaseID] == nil
 				if sourcePhaseID != 0 && sourcePhaseID != offering.PhaseID {
+					mixedPhases = true
 					invalid = true
 				}
 				if sourcePhaseID == 0 {
@@ -287,6 +289,16 @@ func (s *decisionService) TemplateRosterMaintenanceFeeds(ctx context.Context, te
 						invalidOfferings[query.TemplateID] = make(map[int64]bool)
 					}
 					invalidOfferings[query.TemplateID][id] = true
+				}
+			}
+			if mixedPhases {
+				if invalidOfferings[query.TemplateID] == nil {
+					invalidOfferings[query.TemplateID] = make(map[int64]bool)
+				}
+				for _, id := range query.SourceCareOfferingIDs {
+					if offeringsByID[id] != nil {
+						invalidOfferings[query.TemplateID][id] = true
+					}
 				}
 			}
 		}

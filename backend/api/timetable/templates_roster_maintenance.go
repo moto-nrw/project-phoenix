@@ -46,7 +46,7 @@ func (rs *Resource) attachRosterMaintenance(
 	templates []templateResponse,
 	requestedPeriodID *int64,
 ) {
-	if rs.OfferingSourceOptions == nil || len(templates) == 0 {
+	if rs.OfferingSourceOptions == nil || len(templates) == 0 || requestedPeriodID == nil {
 		return
 	}
 	queries := make([]enrollmentSvc.TemplateRosterFeedQuery, 0, len(templates))
@@ -77,8 +77,7 @@ func (rs *Resource) attachRosterMaintenance(
 }
 
 // rosterMaintenanceCalendarPeriodID mirrors the schedule-first period
-// resolution used for materialization. When a period-scoped read supplied no
-// pin, its requested period is still the period in which the template appears.
+// resolution used for materialization for a period-scoped read.
 func rosterMaintenanceCalendarPeriodID(template templateResponse, requestedPeriodID *int64) *int64 {
 	if requestedPeriodID != nil {
 		for _, schedule := range template.Schedules {

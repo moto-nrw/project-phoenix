@@ -361,4 +361,9 @@ func TestTemplateRosterMaintenanceFeeds_RejectsSourcesFromDifferentPhases(t *tes
 	})
 	assert.Equal(t, enrollmentService.RosterMaintenanceManual, maintenance.Mode,
 		"resync rejects source offerings from different enrollment phases")
+	assert.Equal(t, []enrollmentService.RosterMaintenanceOffering{
+		{ID: first.ID, Name: first.Name},
+		{ID: second.ID, Name: second.Name},
+	}, maintenance.InvalidOfferings,
+		"the explanation names every source rejected by the mixed-phase rule")
 }

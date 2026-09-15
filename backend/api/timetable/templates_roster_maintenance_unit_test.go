@@ -74,7 +74,7 @@ func TestAttachRosterMaintenance_DerivesEveryTemplateInOneRead(t *testing.T) {
 		},
 	}
 
-	resource.attachRosterMaintenance(context.Background(), templates, nil)
+	resource.attachRosterMaintenance(context.Background(), templates, &schedulePeriodID)
 
 	assert.Equal(t, 1, lister.calls, "the indicator must not cost one read per template")
 	require.Len(t, lister.queries, 3)
@@ -102,11 +102,30 @@ func TestAttachRosterMaintenance_ReadFailureOmitsIndicator(t *testing.T) {
 	lister := &rosterMaintenanceLister{err: errors.New("database unavailable")}
 	resource := NewResource(Dependencies{OfferingSourceOptions: lister})
 	templates := []templateResponse{{ID: 201}}
+	periodID := int64(42)
 
-	resource.attachRosterMaintenance(context.Background(), templates, nil)
+	resource.attachRosterMaintenance(context.Background(), templates, &periodID)
 
 	assert.Nil(t, templates[0].RosterMaintenance,
 		"a failed read must not claim a maintenance mode")
+}
+
+func TestAttachRosterMaintenance_PeriodFreeReadOmitsIndicator(t *testing.T) {
+	t.Parallel()
+
+	periodID := int64(42)
+	lister := &rosterMaintenanceLister{feeds: map[int64]enrollmentSvc.TemplateRosterFeeds{}}
+	resource := NewResource(Dependencies{OfferingSourceOptions: lister})
+	templates := []templateResponse{{
+		ID:                    202,
+		SourceCareOfferingIDs: []int64{7},
+		Schedules:             []templateScheduleResponse{{CalendarPeriodID: &periodID}},
+	}}
+
+	resource.attachRosterMaintenance(context.Background(), templates, nil)
+
+	assert.Zero(t, lister.calls, "a period-free read has no unambiguous maintenance state")
+	assert.Nil(t, templates[0].RosterMaintenance)
 }
 
 func TestAttachRosterMaintenance_UsesVisibleCalendarPeriod(t *testing.T) {
