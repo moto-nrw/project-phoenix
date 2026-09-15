@@ -280,7 +280,7 @@
       "declaration": "TestActiveGroupRepository_FindByIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        858
+        903
       ],
       "tables": []
     },
@@ -300,7 +300,7 @@
       "declaration": "TestActiveGroupRepository_FindWithSupervisors",
       "target": "database/repositories.NewFactory",
       "lines": [
-        910
+        955
       ],
       "tables": [
         "active.group_supervisors"
@@ -8555,7 +8555,7 @@
       "declaration": "TestDetectStartConflicts_EmptyInstance_NoWarnings",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2321
+        2370
       ],
       "tables": []
     },
@@ -8565,7 +8565,7 @@
       "declaration": "TestInstance_Cancel_FromActive_DoesNotTouchAttendance",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2296
+        2345
       ],
       "tables": []
     },
@@ -8575,7 +8575,7 @@
       "declaration": "TestInstance_Complete_MarksRemainingExpectedAsAbsent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2165
+        2214
       ],
       "tables": []
     },
