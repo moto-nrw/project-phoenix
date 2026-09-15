@@ -76,6 +76,10 @@ var (
 	// ErrPickupChangeDisabled means operations.parent_pickup_change_enabled is
 	// off for the child's tenant.
 	ErrPickupChangeDisabled = errors.New("parent: pickup-time change disabled for this school")
+	// ErrPickupChangeCutoffPassed means the school's same-day cutoff
+	// (operations.parent_pickup_change_cutoff_time) has passed, so today's
+	// pickup time is closed for guardians (#3163). Later days stay open.
+	ErrPickupChangeCutoffPassed = errors.New("parent: same-day pickup change cutoff has passed")
 	// ErrNoCareException means the request carried neither a pickup nor an
 	// arrival time.
 	ErrNoCareException = errors.New("parent: at least one of pickup or arrival time is required")
@@ -688,6 +692,10 @@ func (s *service) EditPickupChangeRequest(
 	if s.CareRequests == nil {
 		return nil, errors.New("parent: pickup change request service not configured")
 	}
+	cutoff, err := s.pickupChangeCutoff(ctx, child.tenantID)
+	if err != nil {
+		return nil, err
+	}
 	var out *scheduleModels.CareScheduleChangeRequest
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
@@ -708,6 +716,7 @@ func (s *service) EditPickupChangeRequest(
 			// The reason is mandatory only while the school asks the family
 			// for one (#2267, story 28).
 			ReasonRequired: s.guardianReasonRequired(ctx, child.tenantID),
+			Cutoff:         cutoff,
 		})
 		if editErr != nil {
 			return editErr
@@ -736,6 +745,7 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 		configModels.KeyParentExcusedRequiresApproval,
 		configModels.KeyParentNotesEnabled,
 		configModels.KeyParentPickupChangeEnabled,
+		configModels.KeyParentPickupChangeCutoffTime,
 		configModels.KeyGuardianParentInviteMode,
 		configModels.KeyGuardianParentCanRemove,
 		configModels.KeyParentMasterDataEditEnabled,
@@ -793,6 +803,17 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 	pickupChange, err := resolveBool(configModels.KeyParentPickupChangeEnabled)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve pickup-change setting: %w", err)
+	}
+	pickupCutoffClock, err := resolveString(configModels.KeyParentPickupChangeCutoffTime)
+	if err != nil {
+		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve pickup-change cutoff: %w", err)
+	}
+	if !pickupChange {
+		pickupCutoffClock = ""
+	}
+	pickupCutoff, err := scheduleService.NewSameDayCutoff(pickupCutoffClock, s.now())
+	if err != nil {
+		return ChildFeatureFlags{}, fmt.Errorf("parent: %w", err)
 	}
 	inviteMode, err := resolveString(configModels.KeyGuardianParentInviteMode)
 	if err != nil {
@@ -860,6 +881,8 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 		NotesEnabled:                 notes && child.hasPermission(authorize.GuardianPermissionNotesWrite),
 		RequestSubmitEnabled:         notes && child.hasPermission(authorize.GuardianPermissionRequestSubmit),
 		PickupChangeEnabled:          pickupChange && canManagePickup,
+		PickupChangeCutoffTime:       pickupCutoff.Clock,
+		PickupChangeTodayClosed:      pickupCutoff.Closed(timezone.DateFromTime(pickupCutoff.Now)),
 		PickupManageAllowed:          guardianManagement && canManagePickup,
 		GuardianContactManageAllowed: guardianManagement && canManageGuardianContacts,
 		RelatedAccountsInviteEnabled: inviteMode != configModels.ParentInviteModeDisabled,
@@ -1227,6 +1250,10 @@ func (s *service) SubmitPickupChangeRequest(ctx context.Context, accountID, stud
 	if s.CareRequests == nil {
 		return nil, errors.New("parent: pickup change request service not configured")
 	}
+	cutoff, err := s.pickupChangeCutoff(ctx, child.tenantID)
+	if err != nil {
+		return nil, err
+	}
 
 	var result *scheduleModels.CareScheduleChangeRequest
 	err = tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
@@ -1263,6 +1290,7 @@ func (s *service) SubmitPickupChangeRequest(ctx context.Context, accountID, stud
 			// The reason is mandatory only while the school asks the family
 			// for one (#2267, story 28).
 			ReasonRequired: reasonRequired,
+			Cutoff:         cutoff,
 		})
 		if createErr != nil {
 			return createErr
@@ -1392,6 +1420,13 @@ func (s *service) submitCareException(ctx context.Context, accountID, studentID 
 	maxDate := timezone.NewDate(today.Year(), today.Month()+2, today.Day())
 	if date.After(maxDate) {
 		return nil, ErrCareDateTooFar
+	}
+	cutoff, err := s.pickupChangeCutoff(ctx, child.tenantID)
+	if err != nil {
+		return nil, err
+	}
+	if cutoff.Closed(date) {
+		return nil, ErrPickupChangeCutoffPassed
 	}
 
 	guardianID := accountID
@@ -1686,6 +1721,16 @@ func (s *service) DeleteCareException(ctx context.Context, accountID, studentID 
 	today := s.todayDate()
 	if date.Before(today) {
 		return ErrPastCareDate
+	}
+	// Removing an approved exception takes effect at once, without a staff
+	// decision, so after the school's cutoff it is closed for today like every
+	// other guardian pickup write (#3163).
+	cutoff, err := s.pickupChangeCutoff(ctx, child.tenantID)
+	if err != nil {
+		return err
+	}
+	if cutoff.Closed(date) {
+		return ErrPickupChangeCutoffPassed
 	}
 
 	pickupDeleted := false

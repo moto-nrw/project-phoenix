@@ -257,6 +257,12 @@ export interface ChildFeatures {
   // actions for a chat-only guardian instead of dead-ending on a backend 403.
   readonly request_submit_enabled: boolean;
   readonly pickup_change_enabled: boolean;
+  // Die Schule kann eine Uhrzeit festlegen, bis zu der Eltern die Abholzeit
+  // für heute ändern dürfen (operations.parent_pickup_change_cutoff_time,
+  // #3163). Leer oder fehlend heißt: keine Frist. today_closed sagt, dass die
+  // Frist vorbei ist; der Server entscheidet das, der Client rechnet nicht nach.
+  readonly pickup_change_cutoff_time?: string;
+  readonly pickup_change_today_closed?: boolean;
   readonly pickup_manage_allowed?: boolean;
   readonly guardian_contact_manage_allowed: boolean;
   readonly related_accounts_invite_enabled: boolean;

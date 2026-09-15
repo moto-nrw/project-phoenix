@@ -773,6 +773,25 @@ func init() {
 		SortOrder:       65,
 	})
 
+	// Same-day cutoff for the one-day pickup change (#3163). Empty (the
+	// default) means no cutoff, so existing schools keep today's behaviour.
+	// Only today is ever locked; later days stay open. The key names the
+	// request kind on purpose: another parent request kind gets its own
+	// cutoff key instead of sharing this one.
+	config.Register(config.Definition{
+		Key:             config.KeyParentPickupChangeCutoffTime,
+		Label:           "Änderungsfrist für die Abholzeit am selben Tag",
+		Description:     "Bis zu dieser Uhrzeit können Eltern die Abholzeit für heute ändern. Danach ist heute für Eltern gesperrt. Für morgen und spätere Tage gilt keine Frist. Das Team kann die Abholzeit jederzeit ändern. Leer bedeutet: keine Frist.",
+		Type:            config.FieldTime,
+		Default:         "",
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       66,
+		DependsOn:       config.DependsOnEq(config.KeyParentPickupChangeEnabled, true),
+	})
+
 	config.Register(config.Definition{
 		Key:             config.KeyParentMasterDataEditEnabled,
 		Label:           "Stammdaten über Elternportal bearbeiten",

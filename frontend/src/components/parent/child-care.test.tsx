@@ -510,6 +510,169 @@ describe("PickupTimeModal — Änderung zurücknehmen", () => {
   });
 });
 
+// #3163: die Schule legt eine Uhrzeit fest, bis zu der Eltern die Abholzeit für
+// heute ändern dürfen. Die Frist steht im Dialog, bevor jemand etwas eintippt;
+// danach ist heute gesperrt, andere Tage bleiben offen.
+describe("PickupTimeModal — Änderungsfrist für heute", () => {
+  const tomorrow = (() => {
+    const d = parseISODate(todayISO());
+    d.setDate(d.getDate() + 1);
+    return toISODate(d);
+  })();
+
+  function renderLocked(
+    overrides: Partial<React.ComponentProps<typeof PickupTimeModal>> = {},
+  ) {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const onRemove = vi.fn().mockResolvedValue(undefined);
+    render(
+      <PickupTimeModal
+        careExceptions={[]}
+        careExceptionsLoaded
+        pickupChangeEnabled
+        cutoffTime="11:00"
+        todayClosed
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        onRemove={onRemove}
+        {...overrides}
+      />,
+    );
+    return { onSubmit, onRemove };
+  }
+
+  it("zeigt die Frist vor der Eingabe, solange heute offen ist", () => {
+    renderModal({ cutoffTime: "11:00", todayClosed: false });
+
+    expect(
+      screen.getByText(
+        "Die Abholzeit für heute können Sie bis 11:00 Uhr ändern.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Anfrage senden" }),
+    ).toBeEnabled();
+  });
+
+  it("zeigt ohne Frist keinen Hinweis und keine Sperre", () => {
+    renderModal();
+
+    expect(screen.queryByText(/bis .* Uhr/)).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Anfrage senden" }),
+    ).toBeEnabled();
+  });
+
+  it("sperrt heute nach der Frist und nennt die Uhrzeit", () => {
+    renderLocked();
+
+    expect(
+      screen.getByText(
+        "Für heute geht das nur bis 11:00 Uhr. Bitte wenden Sie sich an die OGS. Andere Tage können Sie weiter ändern.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText(/^Abholzeit/, { selector: "input" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Anfrage senden" }),
+    ).toBeDisabled();
+  });
+
+  it("bietet nach der Frist kein Zurücknehmen einer heutigen Änderung an", () => {
+    renderLocked({
+      careExceptions: [
+        {
+          date: todayISO(),
+          pickup_time: "14:00",
+          source: "guardian",
+          pickup_source: "guardian",
+          updated_at: "2026-09-09T08:00:00Z",
+        },
+      ],
+    });
+
+    expect(
+      screen.queryByRole("button", { name: "Änderung zurücknehmen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("bietet nach der Frist kein Bearbeiten einer offenen heutigen Anfrage an", () => {
+    vi.spyOn(parentApi, "listParentRequestEvents").mockResolvedValue([]);
+    renderLocked({
+      studentId: "7",
+      pickupChangeRequests: [
+        {
+          id: "41",
+          date: todayISO(),
+          pickup_time: "14:00",
+          reason: "Arzttermin",
+          status: "pending",
+          created_at: "2026-09-09T08:00:00Z",
+          is_self: true,
+        },
+      ],
+    });
+
+    expect(
+      screen.queryByRole("button", { name: "Anfrage bearbeiten" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("lässt nach der Frist einen anderen Tag zu", async () => {
+    const { onSubmit } = renderLocked();
+    const dateInput =
+      document.querySelector<HTMLInputElement>('input[type="date"]')!;
+
+    fireEvent.change(dateInput, { target: { value: tomorrow } });
+    // Nach der Frist steht bei einem anderen Tag kein „bis 11:00 Uhr ändern“.
+    expect(screen.queryByText(/bis 11:00 Uhr/)).not.toBeInTheDocument();
+    fireEvent.change(
+      screen.getByLabelText<HTMLInputElement>(/^Abholzeit/, {
+        selector: "input",
+      }),
+      { target: { value: "14:00" } },
+    );
+    fireEvent.change(document.querySelector("textarea")!, {
+      target: { value: "Arzttermin" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ date: tomorrow, pickupTime: "14:00" }),
+      ),
+    );
+  });
+
+  it("sperrt heute, wenn der Server die abgelaufene Frist meldet", async () => {
+    const onCutoffPassed = vi.fn();
+    const onSubmit = vi
+      .fn()
+      .mockRejectedValue(
+        new parentApi.ParentApiError("x", 409, "pickup_change_cutoff_passed"),
+      );
+    const { pickupInput, reasonInput } = renderModal({
+      cutoffTime: "11:00",
+      todayClosed: false,
+      onSubmit,
+      onCutoffPassed,
+    });
+
+    fireEvent.change(pickupInput, { target: { value: "14:00" } });
+    fireEvent.change(reasonInput!, { target: { value: "Arzttermin" } });
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
+
+    expect(
+      await screen.findByText(/Für heute geht das nur bis 11:00 Uhr/),
+    ).toBeInTheDocument();
+    expect(onCutoffPassed).toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", { name: "Anfrage senden" }),
+    ).toBeDisabled();
+  });
+});
+
 // Issue #1735: the former "Krank melden" modal became a generic "Abmelden" modal
 // with a Krank/Entschuldigt choice. These pin that the chosen kind reaches the
 // submit handler as the status argument, which is the heart of the feature.
