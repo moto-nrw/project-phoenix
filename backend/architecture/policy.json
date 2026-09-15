@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "policy_epoch": 5,
+  "policy_epoch": 6,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -4843,26 +4843,6 @@
       "target_role": "contract"
     },
     {
-      "id": "inbound-import.e2e-test.orm-sql",
-      "description": "Exercise import HTTP requests and persisted audit checkpoints (#2744).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-import",
-      "source_role": "e2e-test",
-      "target_class": "orm-sql"
-    },
-    {
-      "id": "inbound-import.e2e-test.http-router",
-      "description": "Exercise import HTTP requests and persisted audit checkpoints (#2744).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-import",
-      "source_role": "e2e-test",
-      "target_class": "http-router"
-    },
-    {
       "id": "inbound-import.e2e-test.people-directory.public",
       "description": "Exercise composed import routes and verify native owner records (#2744).",
       "scopes": [
@@ -5211,16 +5191,6 @@
       "target_role": "domain"
     },
     {
-      "id": "audit-platform.checkpoint-adapter-test.orm-sql",
-      "description": "Checkpoint adapter tests supply the real authoritative transaction (#2708).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "audit-platform",
-      "source_role": "adapter-test",
-      "target_class": "orm-sql"
-    },
-    {
       "id": "request-review-view.integration.care-plan-public",
       "description": "Native queue contract and tenant-isolation tests use Care Plan review facts (#3179).",
       "scopes": [
@@ -5241,16 +5211,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "care-plan",
       "target_role": "contract"
-    },
-    {
-      "id": "request-review-view.integration.orm",
-      "description": "The two-tenant integration proof inspects RLS inside least-privilege transactions (#3179).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "request-review-view",
-      "source_role": "workflow-integration-test",
-      "target_class": "orm-sql"
     },
     {
       "id": "care-plan.application.native-enrollment-selection",
@@ -6120,16 +6080,6 @@
       "target_role": "test-support"
     },
     {
-      "id": "enrollment.integration-test.orm-sql",
-      "description": "Enrollment integration tests arrange and verify PostgreSQL fixtures.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "workflow-integration-test",
-      "target_class": "orm-sql"
-    },
-    {
       "id": "legacy-composition.compose.to.enrollment.public",
       "description": "legacy-composition compose uses the Enrollment cutover's enrollment public boundary.",
       "scopes": [
@@ -6974,16 +6924,6 @@
       "target_role": "adapter"
     },
     {
-      "id": "reminder-delivery.adapter-test.router",
-      "description": "Reminder contract tests drive HTTP requests and middleware.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "reminder-delivery",
-      "source_role": "adapter-test",
-      "target_class": "http-router"
-    },
-    {
       "id": "reminder-delivery.application.public",
       "description": "Reminder evaluation uses its model-free public query contract.",
       "scopes": [
@@ -7389,16 +7329,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "test-support",
       "target_role": "test-support"
-    },
-    {
-      "id": "data-import.integration-test.orm-sql",
-      "description": "Data import integration tests arrange and verify PostgreSQL fixtures (#2708).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "data-import",
-      "source_role": "workflow-integration-test",
-      "target_class": "orm-sql"
     },
     {
       "id": "data-import.application.ports",
@@ -7840,6 +7770,111 @@
       ],
       "source_role": "test-support",
       "target_class": "orm-sql"
+    },
+    {
+      "id": "external.orm-sql.adapter-test",
+      "description": "Adapter tests of any owner may use ORM and SQL dependencies (#3215).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "adapter-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "external.http-router.adapter-test",
+      "description": "Adapter tests of any owner may use the HTTP router and request helpers (#3215).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "adapter-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "external.orm-sql.e2e-test",
+      "description": "End-to-end tests of any owner may use ORM and SQL dependencies (#3215).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "e2e-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "external.http-router.e2e-test",
+      "description": "End-to-end tests of any owner may use the HTTP router and request helpers (#3215).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "e2e-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "external.orm-sql.module-internal-test",
+      "description": "Module-internal tests of any owner may use ORM and SQL dependencies (#3215).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_role": "module-internal-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "external.http-router.module-internal-test",
+      "description": "Module-internal tests of any owner may use the HTTP router and request helpers (#3215).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_role": "module-internal-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "external.orm-sql.module-behavior-test",
+      "description": "Module behaviour tests of any owner may use ORM and SQL dependencies (#3215).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_role": "module-behavior-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "external.http-router.module-behavior-test",
+      "description": "Module behaviour tests of any owner may use the HTTP router and request helpers (#3215).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_role": "module-behavior-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "external.orm-sql.workflow-integration-test",
+      "description": "Workflow integration tests of any owner may use ORM and SQL dependencies (#3215).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "workflow-integration-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "external.http-router.workflow-integration-test",
+      "description": "Workflow integration tests of any owner may use the HTTP router and request helpers (#3215).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "workflow-integration-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "external.test.test-support",
+      "description": "test-support packages may use the test-framework dependencies they wrap in production scope; external.test covers the test scopes (#3215).",
+      "scopes": [
+        "production"
+      ],
+      "source_role": "test-support",
+      "target_class": "test"
     },
     {
       "id": "external.compiler-tooling.architecture",
@@ -8631,26 +8666,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "settings-platform",
       "target_role": "domain"
-    },
-    {
-      "id": "communication.messages.http-workflow-router",
-      "description": "The cross-portal workflow test uses HTTP requests and recorders.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-messaging",
-      "source_role": "workflow-integration-test",
-      "target_class": "http-router"
-    },
-    {
-      "id": "communication.messages.http-adapter-test-router",
-      "description": "The parent-message adapter contract test uses HTTP requests and recorders.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-messaging",
-      "source_role": "adapter-test",
-      "target_class": "http-router"
     },
     {
       "id": "communication.messages.workflow-identity-adapter",
@@ -9461,16 +9476,6 @@
       "target_role": "public"
     },
     {
-      "id": "feedback.internal-test.orm-sql",
-      "description": "Feedback composition tests supply the concrete Bun test database.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "feedback",
-      "source_role": "module-internal-test",
-      "target_class": "orm-sql"
-    },
-    {
       "id": "feedback.postgres.calendar-date",
       "description": "Feedback persistence maps PostgreSQL DATE columns with the repository calendar-date type.",
       "scopes": [
@@ -9513,26 +9518,6 @@
       "source_role": "http",
       "target_owner": "security-runtime",
       "target_role": "contract"
-    },
-    {
-      "id": "inbound-feedback.adapter-test.http-router",
-      "description": "Feedback adapter tests exercise the real router and response renderer.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-feedback",
-      "source_role": "adapter-test",
-      "target_class": "http-router"
-    },
-    {
-      "id": "care-plan.request-feed-http-test.http-router",
-      "description": "Request-feed adapter tests exercise the real router and HTTP response contract.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "adapter-test",
-      "target_class": "http-router"
     },
     {
       "id": "inbound-iot-data.to.feedback",
@@ -9752,16 +9737,6 @@
       "source_role": "compose",
       "target_owner": "tenant-runtime",
       "target_role": "public"
-    },
-    {
-      "id": "meal-plan.internal-test.orm-sql",
-      "description": "Meal Plan composition tests supply the concrete Bun test database.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "meal-plan",
-      "source_role": "module-internal-test",
-      "target_class": "orm-sql"
     },
     {
       "id": "meal-plan.postgres.calendar-date",
@@ -9994,16 +9969,6 @@
       "target_role": "public"
     },
     {
-      "id": "organization-tenancy.internal-test.orm-sql",
-      "description": "Organization and Tenancy composition tests supply the concrete Bun test database.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "organization-tenancy",
-      "source_role": "workflow-integration-test",
-      "target_class": "orm-sql"
-    },
-    {
       "id": "organization-tenancy.internal-test.tenant-runtime",
       "description": "Organization and Tenancy composition tests verify transaction and lock behavior through the shared tenant runtime.",
       "scopes": [
@@ -10177,16 +10142,6 @@
       "source_role": "compose",
       "target_owner": "tenant-runtime",
       "target_role": "public"
-    },
-    {
-      "id": "school-structure.internal-test.orm-sql",
-      "description": "School Structure composition tests supply the concrete Bun test database.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "school-structure",
-      "source_role": "workflow-integration-test",
-      "target_class": "orm-sql"
     },
     {
       "id": "school-structure.internal-test.tenant-runtime",
@@ -10495,16 +10450,6 @@
       "target_role": "compose"
     },
     {
-      "id": "timetable-activities.internal-test.orm-sql",
-      "description": "Timetable & Activities composition tests supply the concrete Bun test database.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "workflow-integration-test",
-      "target_class": "orm-sql"
-    },
-    {
       "id": "timetable-activities.internal-test.tenant-runtime",
       "description": "Timetable & Activities composition tests verify rollback and tenant isolation through the shared runtime.",
       "scopes": [
@@ -10571,16 +10516,6 @@
       "target_role": "domain"
     },
     {
-      "id": "timetable-activities.http-integration-test.router",
-      "description": "Timetable HTTP integration tests exercise the real router and response contracts.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "workflow-integration-test",
-      "target_class": "http-router"
-    },
-    {
       "id": "timetable-activities.http-integration-test.common",
       "description": "Timetable HTTP integration tests inspect shared error rendering contracts.",
       "scopes": [
@@ -10645,16 +10580,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "timetable-activities",
       "target_role": "application"
-    },
-    {
-      "id": "timetable-activities.http-integration-test.orm-sql",
-      "description": "Timetable HTTP integration tests verify tenant persistence through the concrete test database.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "workflow-integration-test",
-      "target_class": "orm-sql"
     },
     {
       "id": "timetable-activities.http-integration-test.compose",
@@ -10776,16 +10701,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "legacy-shared",
       "target_role": "domain"
-    },
-    {
-      "id": "timetable-legacy-view.test.orm-sql",
-      "description": "Projection regression tests verify isolation in real elevated transactions and preserve SQL errors.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "timetable-legacy-view",
-      "source_role": "workflow-integration-test",
-      "target_class": "orm-sql"
     },
     {
       "id": "timetable-legacy-view.shared-date",
@@ -11160,16 +11075,6 @@
       "target_role": "compose"
     },
     {
-      "id": "facilities.internal-test.orm-sql",
-      "description": "Facilities composition tests supply the concrete Bun test database.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "facilities",
-      "source_role": "workflow-integration-test",
-      "target_class": "orm-sql"
-    },
-    {
       "id": "facilities.internal-test.tenant-runtime",
       "description": "Facilities composition tests verify transaction and RLS behavior through the shared tenant runtime.",
       "scopes": [
@@ -11278,16 +11183,6 @@
       "source_role": "e2e-test",
       "target_owner": "facilities",
       "target_role": "compose"
-    },
-    {
-      "id": "facilities.integration-test.http-router",
-      "description": "Facilities HTTP integration tests exercise the real router.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "facilities",
-      "source_role": "workflow-integration-test",
-      "target_class": "http-router"
     },
     {
       "id": "facilities.integration-test.identity-adapter",
@@ -11574,26 +11469,6 @@
       "target_role": "test-support"
     },
     {
-      "id": "workforce.integration-test.orm-sql",
-      "description": "Workforce integration tests supply the concrete Bun test database.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "workforce",
-      "source_role": "workflow-integration-test",
-      "target_class": "orm-sql"
-    },
-    {
-      "id": "workforce.integration-test.http-router",
-      "description": "Workforce HTTP integration tests exercise the real router.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "workforce",
-      "source_role": "workflow-integration-test",
-      "target_class": "http-router"
-    },
-    {
       "id": "workforce.integration-test.identity-adapter",
       "description": "Workforce HTTP integration tests mint authenticated tenant requests.",
       "scopes": [
@@ -11854,16 +11729,6 @@
       "target_role": "public"
     },
     {
-      "id": "delivery.adapter-test.orm-sql",
-      "description": "Delivery Postgres adapter tests supply the concrete Bun test database.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "adapter-test",
-      "target_class": "orm-sql"
-    },
-    {
       "id": "delivery.adapter-test.domain",
       "description": "Delivery Postgres adapter tests construct owned domain values.",
       "scopes": [
@@ -12072,16 +11937,6 @@
       "target_role": "public"
     },
     {
-      "id": "people-directory.internal-test.orm-sql",
-      "description": "People Directory composition tests supply the concrete Bun test database.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "workflow-integration-test",
-      "target_class": "orm-sql"
-    },
-    {
       "id": "people-directory.internal-test.tenant-runtime",
       "description": "People Directory composition tests verify transaction, rollback, and tenant isolation through the shared tenant runtime.",
       "scopes": [
@@ -12124,16 +11979,6 @@
       "source_role": "http",
       "target_owner": "security-runtime",
       "target_role": "contract"
-    },
-    {
-      "id": "inbound-users.adapter-test.http-router",
-      "description": "People Directory adapter tests exercise the real router and response renderer.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-users",
-      "source_role": "adapter-test",
-      "target_class": "http-router"
     },
     {
       "id": "root-composition.to.people-directory-compose",
@@ -12362,16 +12207,6 @@
       "target_class": "crypto"
     },
     {
-      "id": "export-transfer.test-support.test",
-      "description": "The test counterpart binds its lifetime to the running test. Only the production scope needs the grant: the test scopes already carry it through the shared external.test rule.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "export-transfer",
-      "source_role": "test-support",
-      "target_class": "test"
-    },
-    {
       "id": "export-transfer.e2e-test.test-support",
       "description": "The transport's end-to-end tests drive the shared in-process counterpart.",
       "scopes": [
@@ -12403,16 +12238,6 @@
       "source_role": "module-internal-test",
       "target_owner": "tenant-runtime",
       "target_role": "public"
-    },
-    {
-      "id": "export-transfer.internal-test.orm-sql",
-      "description": "The capability's integration test reads audit.export_transfers back through the tenant role to prove the row landed under RLS.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "export-transfer",
-      "source_role": "module-internal-test",
-      "target_class": "orm-sql"
     },
     {
       "id": "export-transfer.adapter.delivery",
@@ -12609,16 +12434,6 @@
       "target_role": "application"
     },
     {
-      "id": "inbound-notifications.adapter-test.http-router",
-      "description": "Notification handler tests exercise HTTP requests and responses.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-notifications",
-      "source_role": "adapter-test",
-      "target_class": "http-router"
-    },
-    {
       "id": "inbound-sse.security-runtime",
       "description": "SSE handlers authorize audiences before attaching streams.",
       "scopes": [
@@ -12673,17 +12488,6 @@
       "target_class": "orm-sql"
     },
     {
-      "id": "inbound-sse.adapter-test.http-router",
-      "description": "SSE adapter tests exercise HTTP and router contracts.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "inbound-sse",
-      "source_role": "adapter-test",
-      "target_class": "http-router"
-    },
-    {
       "id": "inbound-sse.adapter-test.crypto",
       "description": "SSE adapter tests mint signed JWT fixtures.",
       "scopes": [
@@ -12703,17 +12507,6 @@
       "source_role": "adapter-test",
       "target_owner": "identity-access",
       "target_role": "adapter"
-    },
-    {
-      "id": "inbound-sse.adapter-test.orm-sql",
-      "description": "SSE adapter tests use Bun-backed authorization fixtures.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "inbound-sse",
-      "source_role": "adapter-test",
-      "target_class": "orm-sql"
     },
     {
       "id": "delivery-cutover.001",
@@ -12824,27 +12617,6 @@
       "source_role": "application",
       "target_owner": "student-presence",
       "target_role": "domain"
-    },
-    {
-      "id": "delivery-cutover.011",
-      "description": "Allows one dependency introduced by the Delivery package cutover.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "workflow-integration-test",
-      "target_class": "http-router"
-    },
-    {
-      "id": "delivery-cutover.012",
-      "description": "Allows one dependency introduced by the Delivery package cutover.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "workflow-integration-test",
-      "target_class": "orm-sql"
     },
     {
       "id": "delivery-cutover.013",
@@ -13431,16 +13203,6 @@
       "target_role": "public"
     },
     {
-      "id": "school-membership.internal-test.orm-sql",
-      "description": "School Membership composition tests supply the concrete Bun test database.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "school-membership",
-      "source_role": "workflow-integration-test",
-      "target_class": "orm-sql"
-    },
-    {
       "id": "school-membership.internal-test.tenant-runtime",
       "description": "School Membership composition tests verify transaction, rollback, and tenant isolation through the shared tenant runtime.",
       "scopes": [
@@ -13485,16 +13247,6 @@
       "target_role": "contract"
     },
     {
-      "id": "inbound-staff.adapter-test.http-router",
-      "description": "School Membership adapter tests exercise the real router and response renderer.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-staff",
-      "source_role": "adapter-test",
-      "target_class": "http-router"
-    },
-    {
       "id": "inbound-classlistentries.http.security-contract",
       "description": "The School Membership class-list adapter binds its established permission contract.",
       "scopes": [
@@ -13504,16 +13256,6 @@
       "source_role": "http",
       "target_owner": "security-runtime",
       "target_role": "contract"
-    },
-    {
-      "id": "inbound-classlistentries.adapter-test.http-router",
-      "description": "School Membership class-list adapter tests exercise the real router and response renderer.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-classlistentries",
-      "source_role": "adapter-test",
-      "target_class": "http-router"
     },
     {
       "id": "root-composition.to.school-membership-compose",
@@ -13635,16 +13377,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "communication",
       "target_role": "adapter"
-    },
-    {
-      "id": "communication.parent-compatibility.behavior-test-orm",
-      "description": "Parent-announcement compatibility tests inspect retained users.parent_* fixtures until #2675.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "communication",
-      "source_role": "workflow-integration-test",
-      "target_class": "orm-sql"
     },
     {
       "id": "communication.parent-compatibility.behavior-test-delivery-application",
@@ -13919,16 +13651,6 @@
       "source_owner": "inbound-announcement",
       "source_role": "http",
       "target_class": "orm-sql"
-    },
-    {
-      "id": "communication.parent-http.adapter-test-router",
-      "description": "The parent-announcement adapter test uses net/http recorders.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-announcement",
-      "source_role": "adapter-test",
-      "target_class": "http-router"
     },
     {
       "id": "root-composition.to.parent-announcement-http",
@@ -14381,16 +14103,6 @@
       "target_role": "test-support"
     },
     {
-      "id": "communication.integration-test.orm-sql",
-      "description": "Communication integration tests inspect fixture and rollback state with Bun.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "communication",
-      "source_role": "workflow-integration-test",
-      "target_class": "orm-sql"
-    },
-    {
       "id": "communication.integration-test.parent-compatibility-domain",
       "description": "Communication facade tests verify mapping from retained users.parent_* values until #2675.",
       "scopes": [
@@ -14487,16 +14199,6 @@
       "source_role": "compose",
       "target_owner": "tenant-runtime",
       "target_role": "public"
-    },
-    {
-      "id": "appointments.internal-test.orm-sql",
-      "description": "Appointments composition tests supply the concrete Bun test database.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "appointments",
-      "source_role": "workflow-integration-test",
-      "target_class": "orm-sql"
     },
     {
       "id": "appointments.internal-test.tenant-runtime",
@@ -14694,16 +14396,6 @@
       "source_role": "compose",
       "target_owner": "tenant-runtime",
       "target_role": "public"
-    },
-    {
-      "id": "school-calendar.internal-test.orm-sql",
-      "description": "School Calendar composition tests supply the concrete Bun test database.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "school-calendar",
-      "source_role": "workflow-integration-test",
-      "target_class": "orm-sql"
     },
     {
       "id": "school-calendar.internal-test.tenant-runtime",
@@ -14914,16 +14606,6 @@
       "target_role": "test-support"
     },
     {
-      "id": "care-plan.integration-test.orm-sql",
-      "description": "Care Plan integration tests use Bun for fixture rows outside the owner tables.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "workflow-integration-test",
-      "target_class": "orm-sql"
-    },
-    {
       "id": "root-composition.to.care-plan-compose",
       "description": "The production root constructs the Care Plan module once.",
       "scopes": [
@@ -15010,16 +14692,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "test-support",
       "target_role": "test-support"
-    },
-    {
-      "id": "parent-request-feed-view.integration-test.orm-sql",
-      "description": "The request-feed projection integration test executes against a tenant Bun transaction.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "parent-request-feed-view",
-      "source_role": "workflow-integration-test",
-      "target_class": "orm-sql"
     },
     {
       "id": "care-plan.domain.public",
@@ -15428,26 +15100,6 @@
       "target_role": "compose"
     },
     {
-      "id": "workforce.adapter-test.http-router",
-      "description": "Workforce HTTP composition tests exercise the real router.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "workforce",
-      "source_role": "adapter-test",
-      "target_class": "http-router"
-    },
-    {
-      "id": "workforce.adapter-test.orm-sql",
-      "description": "Workforce HTTP composition tests supply the concrete Bun test database.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "workforce",
-      "source_role": "adapter-test",
-      "target_class": "orm-sql"
-    },
-    {
       "id": "workforce.adapter-test.substitutions-http",
       "description": "Workforce HTTP composition tests render the substitutions failure contract.",
       "scopes": [
@@ -15810,28 +15462,6 @@
       "target_role": "test-support"
     },
     {
-      "id": "device-fleet.integration-test.orm-sql",
-      "description": "Device Fleet integration tests supply the concrete Bun test database.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "workflow-integration-test",
-      "target_class": "orm-sql"
-    },
-    {
-      "id": "device-fleet.integration-test.http-router",
-      "description": "Device Fleet HTTP integration tests exercise the real router.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "workflow-integration-test",
-      "target_class": "http-router"
-    },
-    {
       "id": "device-fleet.integration-test.identity-adapter",
       "description": "Device Fleet HTTP integration tests mint authenticated tenant requests.",
       "scopes": [
@@ -16139,16 +15769,6 @@
       "target_role": "postgres"
     },
     {
-      "id": "observability.integration-test.orm-sql",
-      "description": "PWA usage integration tests supply the concrete Bun test database.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "observability",
-      "source_role": "workflow-integration-test",
-      "target_class": "orm-sql"
-    },
-    {
       "id": "device-fleet.device-auth.device-fleet-adapter",
       "description": "The device authentication composition constructs the device adapter over its consumer-owned ports.",
       "scopes": [
@@ -16214,17 +15834,6 @@
       "target_class": "orm-sql"
     },
     {
-      "id": "device-fleet.device-auth-test.http-router",
-      "description": "Device authentication tests drive the composed middleware over the real HTTP contract.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "adapter-test",
-      "target_class": "http-router"
-    },
-    {
       "id": "device-fleet.device-auth-test.device-fleet-adapter",
       "description": "Device authentication tests read the principals the adapter binds to the request.",
       "scopes": [
@@ -16247,17 +15856,6 @@
       "source_role": "adapter-test",
       "target_owner": "organization-tenancy",
       "target_role": "domain"
-    },
-    {
-      "id": "device-fleet.device-auth-test.orm-sql",
-      "description": "Device authentication tests exercise the driver-level failure classification.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "adapter-test",
-      "target_class": "orm-sql"
     },
     {
       "id": "root-composition.to.device-fleet-device-auth",
@@ -16643,16 +16241,6 @@
       "target_role": "compose"
     },
     {
-      "id": "inbound-classday.adapter-test.http-router",
-      "description": "Class-day handler tests exercise HTTP requests and responses (#2701).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-classday",
-      "source_role": "adapter-test",
-      "target_class": "http-router"
-    },
-    {
       "id": "inbound-school.http-common",
       "description": "School-portal handlers reuse common HTTP rendering, request binding and the security principal middleware (#2701).",
       "scopes": [
@@ -16726,26 +16314,6 @@
       ],
       "source_owner": "inbound-school",
       "source_role": "http",
-      "target_class": "orm-sql"
-    },
-    {
-      "id": "inbound-school.adapter-test.http-router",
-      "description": "School-portal handler tests exercise HTTP requests, routers and responses (#2701).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-school",
-      "source_role": "adapter-test",
-      "target_class": "http-router"
-    },
-    {
-      "id": "inbound-school.adapter-test.orm-sql",
-      "description": "School-portal handler tests verify persisted rows on the test database (#2701).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-school",
-      "source_role": "adapter-test",
       "target_class": "orm-sql"
     },
     {
@@ -17066,16 +16634,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "enrollment",
       "target_role": "application"
-    },
-    {
-      "id": "class-day-view.integration-test.orm-sql",
-      "description": "Class-day integration tests seed rows and open tenant transactions on the test database (#2701).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "class-day-view",
-      "source_role": "workflow-integration-test",
-      "target_class": "orm-sql"
     },
     {
       "id": "inbound-timetable.to.class-day-view",
@@ -17847,16 +17405,6 @@
       "target_role": "application"
     },
     {
-      "id": "inbound-calendar.adapter-test.http-router",
-      "description": "Staff calendar handler tests exercise HTTP requests, responses and routes (#2703).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-calendar",
-      "source_role": "adapter-test",
-      "target_class": "http-router"
-    },
-    {
       "id": "inbound-calendar.adapter-test.calendar-date",
       "description": "Staff calendar handler tests pin calendar days (#2703).",
       "scopes": [
@@ -17985,26 +17533,6 @@
       ],
       "source_owner": "inbound-statistics",
       "source_role": "http",
-      "target_class": "orm-sql"
-    },
-    {
-      "id": "inbound-statistics.adapter-test.http-router",
-      "description": "Statistics handler tests exercise HTTP requests and responses (#2703).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-statistics",
-      "source_role": "adapter-test",
-      "target_class": "http-router"
-    },
-    {
-      "id": "inbound-statistics.adapter-test.orm-sql",
-      "description": "Statistics handler tests seed rows on the test database (#2703).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-statistics",
-      "source_role": "adapter-test",
       "target_class": "orm-sql"
     },
     {
@@ -18192,16 +17720,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "test-support",
       "target_role": "test-support"
-    },
-    {
-      "id": "identity-access.internal-test.orm-sql",
-      "description": "Identity & Access integration tests arrange and verify PostgreSQL fixtures.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "identity-access",
-      "source_role": "workflow-integration-test",
-      "target_class": "orm-sql"
     },
     {
       "id": "enrollment.application.to.identity-access.public",
@@ -18629,16 +18147,6 @@
       "source_role": "e2e-test",
       "target_owner": "identity-access",
       "target_role": "application"
-    },
-    {
-      "id": "calendar-portal.external_test.school-calendar.e2e-test.orm-sql",
-      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "school-calendar",
-      "source_role": "e2e-test",
-      "target_class": "orm-sql"
     },
     {
       "id": "staff-offboarding.to.people-directory",
@@ -19113,16 +18621,6 @@
       "target_role": "application"
     },
     {
-      "id": "emergency-snapshot.adapter-test.orm-sql",
-      "description": "Emergency snapshot adapter tests seed rows and open tenant transactions through the Bun database (#2704).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "emergency-snapshot",
-      "source_role": "adapter-test",
-      "target_class": "orm-sql"
-    },
-    {
       "id": "inbound-emergency.http-common",
       "description": "Emergency snapshot handlers reuse common HTTP rendering, the tenant middleware chain and the permission gates (#2704).",
       "scopes": [
@@ -19153,16 +18651,6 @@
       "source_owner": "inbound-emergency",
       "source_role": "http",
       "target_class": "orm-sql"
-    },
-    {
-      "id": "inbound-emergency.adapter-test.http-router",
-      "description": "Emergency snapshot handler tests exercise HTTP requests and responses (#2704).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-emergency",
-      "source_role": "adapter-test",
-      "target_class": "http-router"
     },
     {
       "id": "root-composition.to.inbound-emergency-http",
@@ -19348,16 +18836,6 @@
       "source_role": "compose",
       "target_owner": "inbound-iot",
       "target_role": "compose"
-    },
-    {
-      "id": "inbound-iot.compose-test.http-router",
-      "description": "IoT composition tests exercise the assembled route and middleware graph (#2739).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "module-internal-test",
-      "target_class": "http-router"
     },
     {
       "id": "inbound-iot.compose-test.device-fleet",
@@ -19590,16 +19068,6 @@
       "target_role": "compose"
     },
     {
-      "id": "document-rendering.adapter-test.orm-sql",
-      "description": "Plan export adapter tests seed shift-type and planning-track rows and open tenant transactions through the Bun database (#2706).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "adapter-test",
-      "target_class": "orm-sql"
-    },
-    {
       "id": "document-rendering.adapter-test.calendar-date",
       "description": "Plan export adapter tests pin calendar days with the repository calendar-date value type (#2706).",
       "scopes": [
@@ -19783,26 +19251,6 @@
       ],
       "source_owner": "inbound-birthdays",
       "source_role": "http",
-      "target_class": "orm-sql"
-    },
-    {
-      "id": "inbound-birthdays.adapter-test.http-router",
-      "description": "Birthday handler tests exercise HTTP requests and responses (#2706).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-birthdays",
-      "source_role": "adapter-test",
-      "target_class": "http-router"
-    },
-    {
-      "id": "inbound-birthdays.adapter-test.orm-sql",
-      "description": "Birthday handler tests stamp birth dates on fixture rows through the Bun database (#2706).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-birthdays",
-      "source_role": "adapter-test",
       "target_class": "orm-sql"
     },
     {
