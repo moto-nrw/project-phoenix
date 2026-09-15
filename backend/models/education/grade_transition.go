@@ -1,10 +1,7 @@
 package education
 
 import (
-	"errors"
 	"fmt"
-	"regexp"
-	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -22,8 +19,9 @@ const (
 // tenant. It lives on the model because it has TWO independent holders that
 // must agree on the exact string:
 //
-//   - GradeTransitionRepository.LockTenantTransitions — taken by Apply and
-//     Revert before reading any class or lifecycle state.
+//   - The School Structure transition gate (modules/schoolstructure), taken
+//     by the grade transition workflow's apply and revert before reading any
+//     class or lifecycle state, and by draft edits.
 //   - The timetable materializer (services/schedule) — taken for the whole
 //     materialization pass.
 //
@@ -46,7 +44,9 @@ func TenantTransitionsLockKey(tenantID int64) string {
 	return fmt.Sprintf("education.grade_transitions:%d", tenantID)
 }
 
-// GradeTransition represents a bulk grade level change operation
+// GradeTransition is the persistence shape of a school-year rollover draft.
+// The owner capability lives in modules/schoolstructure (#2711); this struct
+// remains for direct row fixtures.
 type GradeTransition struct {
 	base.Model `bun:"schema:education,table:grade_transitions"`
 	base.TenantModel
@@ -75,65 +75,3 @@ type GradeTransition struct {
 
 // JSONMap is a helper type for JSONB columns
 type JSONMap map[string]interface{}
-
-// academicYearPattern validates the academic year format (e.g., "2025-2026")
-var academicYearPattern = regexp.MustCompile(`^\d{4}-\d{4}$`)
-
-// Validate ensures grade transition data is valid
-func (t *GradeTransition) Validate() error {
-	t.AcademicYear = strings.TrimSpace(t.AcademicYear)
-
-	if t.AcademicYear == "" {
-		return errors.New("academic year is required")
-	}
-
-	if !academicYearPattern.MatchString(t.AcademicYear) {
-		return errors.New("academic year must be in format YYYY-YYYY (e.g., 2025-2026)")
-	}
-
-	if t.Status == "" {
-		t.Status = TransitionStatusDraft
-	}
-
-	if t.Status != TransitionStatusDraft &&
-		t.Status != TransitionStatusApplied &&
-		t.Status != TransitionStatusReverted {
-		return errors.New("invalid status: must be draft, applied, or reverted")
-	}
-
-	if t.CreatedBy <= 0 {
-		return errors.New("created_by is required")
-	}
-
-	return nil
-}
-
-// IsDraft returns true if the transition is in draft status
-func (t *GradeTransition) IsDraft() bool {
-	return t.Status == TransitionStatusDraft
-}
-
-// IsApplied returns true if the transition has been applied
-func (t *GradeTransition) IsApplied() bool {
-	return t.Status == TransitionStatusApplied
-}
-
-// IsReverted returns true if the transition has been reverted
-func (t *GradeTransition) IsReverted() bool {
-	return t.Status == TransitionStatusReverted
-}
-
-// CanModify returns true if the transition can be modified (only drafts)
-func (t *GradeTransition) CanModify() bool {
-	return t.IsDraft()
-}
-
-// CanApply returns true if the transition can be applied
-func (t *GradeTransition) CanApply() bool {
-	return t.IsDraft() && len(t.Mappings) > 0
-}
-
-// CanRevert returns true if the transition can be reverted
-func (t *GradeTransition) CanRevert() bool {
-	return t.IsApplied()
-}
