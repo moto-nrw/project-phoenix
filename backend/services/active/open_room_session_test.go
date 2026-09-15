@@ -250,3 +250,53 @@ func TestEndingAnActivityLeavesIndependentRoomStays(t *testing.T) {
 	assert.Empty(t, openVisitSessions(t, presence, all), "the daily close must not keep yesterday's room stays")
 	assertStillAttending(t, presence, all)
 }
+
+// TestStartingAnActivityLeavesIndependentRoomStays is the reverse of the
+// eight-plus-three scenario: the independent stay is already in the released
+// gym when football starts. Occupancy must not 409, and the stay must not be
+// pulled into football.
+func TestStartingAnActivityLeavesIndependentRoomStays(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	svc, openRoom := openRoomService(t, db)
+	presence := testSchoolPresence(t, db)
+	ctx := testpkg.Ctx(t)
+
+	gym := testpkg.CreateTestRoom(t, db, "Turnhalle Start danach")
+	roomActivity := testpkg.CreateTestActivityGroup(t, db, "Offener Raum Start danach")
+	markActivitySystem(t, db, roomActivity.ID)
+	staff := testpkg.CreateTestStaff(t, db, "Start", "Danach")
+	device := testpkg.CreateTestDevice(t, db, "open-room-start-after")
+	elsewhereRoom := testpkg.CreateTestRoom(t, db, "Hof Start danach")
+	play := testpkg.CreateTestActivityGroup(t, db, "Freispiel Start danach")
+	elsewhere := testpkg.CreateTestActiveGroup(t, db, play.ID, elsewhereRoom.ID)
+	child := presentChild(t, db, "Unabhängig", staff.ID, device.ID, elsewhere.ID)
+
+	roomSession, err := openRoom.EnsureOpenRoomSession(ctx, gym.ID, roomActivity.ID)
+	require.NoError(t, err)
+	moved, err := openRoom.MoveStudentsToOpenRoomSessionAuthorized(ctx, []int64{child}, roomSession.ID, activeSvcBypassAuth)
+	require.NoError(t, err)
+	require.Equal(t, []int64{child}, moved.Moved)
+
+	football := testpkg.CreateTestActivityGroup(t, db, "Fußball Start danach")
+	footballDevice := testpkg.CreateTestDevice(t, db, "open-room-football-start")
+	footballSession, err := svc.StartActivitySessionWithSupervisors(ctx, football.ID, footballDevice.ID, []int64{staff.ID}, &gym.ID)
+	require.NoError(t, err, "an independent stay must not occupy the room against a later activity")
+	require.NotEqual(t, roomSession.ID, footballSession.ID)
+
+	assert.Equal(t, roomSession.ID, openVisitSessions(t, presence, []int64{child})[child], "starting football must not absorb the independent stay")
+	require.NoError(t, svc.EndActivitySession(ctx, footballSession.ID))
+	assert.Equal(t, roomSession.ID, openVisitSessions(t, presence, []int64{child})[child], "ending football must leave the independent stay")
+	assertStillAttending(t, presence, []int64{child})
+}
+
+func markActivitySystem(t *testing.T, db *bun.DB, activityID int64) {
+	t.Helper()
+	_, err := db.NewUpdate().
+		TableExpr("activities.groups").
+		Set("is_system = TRUE").
+		Where("id = ?", activityID).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+}
