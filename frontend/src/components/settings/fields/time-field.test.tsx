@@ -38,6 +38,20 @@ describe("SettingsTimeField", () => {
     expect(onChange).toHaveBeenCalledWith("16:30");
   });
 
+  it("calls onChange with an empty value for optional times", () => {
+    const onChange = vi.fn();
+    render(
+      <SettingsTimeField
+        value="18:00"
+        onChange={onChange}
+        emptyLabel="Jederzeit"
+      />,
+    );
+    const input = screen.getByPlaceholderText("HH:MM");
+    fireEvent.change(input, { target: { value: "" } });
+    expect(onChange).toHaveBeenCalledWith("");
+  });
+
   it("does not call onChange with incomplete input", () => {
     const onChange = vi.fn();
     render(<SettingsTimeField value="18:00" onChange={onChange} />);

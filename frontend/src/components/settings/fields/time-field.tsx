@@ -56,11 +56,15 @@ export function SettingsTimeField({
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const formatted = normalizeTimeInput(e.target.value);
       setDisplay(formatted);
+      if (formatted === "" && emptyLabel) {
+        onChange("");
+        return;
+      }
       if (isValidTime(formatted)) {
         onChange(formatted);
       }
     },
-    [onChange],
+    [emptyLabel, onChange],
   );
 
   const handleBlur = useCallback(() => {
