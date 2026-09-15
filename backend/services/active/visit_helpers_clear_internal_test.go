@@ -10,7 +10,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -105,7 +104,7 @@ func TestCheckinPlannedStatusReadFailuresPropagate(t *testing.T) {
 	t.Parallel()
 	injected := errors.New("planned status read failed")
 	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, StudentStatusRepo: &failingPlannedStatusRead{err: injected}}}
-	svc.settings = &fakeSettingsResolver{resolved: configModel.ClearModeManual}
+	svc.settings = &fakeSettingsResolver{resolved: "manual"}
 	require.ErrorIs(t, svc.autoClearPlannedStudentStatuses(context.Background(), 42), injected)
 	require.ErrorIs(t, svc.autoClearOnBatchCheckin(context.Background(), []int64{42}, nil, time.Now(), timezone.TodayDate()), injected)
 }
@@ -146,17 +145,18 @@ func (f *fakeSettingsResolver) SessionInactivityTimeoutMinutes(context.Context) 
 	return 0, nil
 }
 
-// registryDefaultSettings answers each clear-mode question with the value the
-// settings registry declares, which is what the auto-clear tests relied on
-// when the service still resolved by key.
+// registryDefaultSettings answers both clear-mode questions with the value an
+// unconfigured tenant gets: a sick note ends at the next check-in, an excuse
+// at the end of the day. That the registry declares these defaults is asserted
+// where the settings ports are bound.
 type registryDefaultSettings struct{ *fakeSettingsResolver }
 
 func (registryDefaultSettings) SickClearMode(context.Context) (string, error) {
-	return configModel.GetDefinition(configModel.KeySickClearMode).Default.(string), nil
+	return ClearModeNextCheckin, nil
 }
 
 func (registryDefaultSettings) ExcusedClearMode(context.Context) (string, error) {
-	return configModel.GetDefinition(configModel.KeyExcusedClearMode).Default.(string), nil
+	return "end_of_day", nil
 }
 
 func TestResolveClearModeUsesResolvedValueAndPropagatesErrors(t *testing.T) {

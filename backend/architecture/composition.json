@@ -5190,7 +5190,7 @@
       "declaration": "newDailyCheckoutService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        119
+        117
       ],
       "tables": []
     },
@@ -5200,7 +5200,7 @@
       "declaration": "TestCreateVisit_EnrichesCheckInEventWithAttendance",
       "target": "database/repositories.NewFactory",
       "lines": [
-        54
+        51
       ],
       "tables": [
         "schedule.activity_instances"
@@ -5212,7 +5212,7 @@
       "declaration": "TestCreateVisit_WalkInLeavesAttendanceFieldsUnset",
       "target": "database/repositories.NewFactory",
       "lines": [
-        216
+        211
       ],
       "tables": []
     },
@@ -5222,7 +5222,7 @@
       "declaration": "TestBroadcast_UpdateVisitMoveSendsMovementEvents",
       "target": "database/repositories.NewFactory",
       "lines": [
-        224
+        220
       ],
       "tables": []
     },
@@ -5232,7 +5232,7 @@
       "declaration": "newServiceWithPresenceSync",
       "target": "database/repositories.NewFactory",
       "lines": [
-        51
+        49
       ],
       "tables": []
     },
@@ -5397,7 +5397,7 @@
       "declaration": "newOverviewFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        56
+        55
       ],
       "tables": [
         "active.staff_absences",
@@ -5580,7 +5580,7 @@
       "declaration": "TestWorkTimeMonthSummary_DB",
       "target": "database/repositories.NewFactory",
       "lines": [
-        39
+        38
       ],
       "tables": [
         "active.staff_absences",
@@ -5594,11 +5594,9 @@
       "declaration": "TestFutureCompTimeCommitmentQueryBudget",
       "target": "database/repositories.NewFactory",
       "lines": [
-        24
+        22
       ],
-      "tables": [
-        "config.staff_work_schedules"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -5606,7 +5604,7 @@
       "declaration": "newSnapshotFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        79
+        78
       ],
       "tables": [
         "active.staff_absences",

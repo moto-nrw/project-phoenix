@@ -12,9 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	active "github.com/moto-nrw/project-phoenix/services/active"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
@@ -72,9 +70,7 @@ func newServiceWithPresenceSync(t *testing.T, db *testpkg.DB, presence active.St
 		deps.Now = now[0]
 	}
 	svc := active.NewService(deps)
-	svc.SetSettingsService(services.PresenceSettings(&configtest.Mock{ResolveStringFn: func(_ context.Context, key string) (string, error) {
-		return configModel.GetDefinition(key).Default.(string), nil
-	}}))
+	svc.SetSettingsService(defaultPresenceSettings())
 
 	return svc, broadcaster
 }

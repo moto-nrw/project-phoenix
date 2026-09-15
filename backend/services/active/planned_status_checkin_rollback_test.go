@@ -11,10 +11,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -128,27 +126,28 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 	})
 	testpkg.SetTenantRuntime(t, svc, db)
 	var settingsErr error
-	svc.SetSettingsService(services.PresenceSettings(&configtest.Mock{
-		HasTenantOverrideFn: func(context.Context, string) (bool, error) { return true, nil },
-		ResolveStringFn: func(_ context.Context, key string) (string, error) {
-			if settingsErr != nil && stage == "presence setting" && key == configModel.KeyPresenceMode {
+	clearMode := func(failingStage string) (string, error) {
+		if settingsErr != nil && stage == failingStage {
+			return "", settingsErr
+		}
+		if kind != "planned" {
+			return activeService.ClearModeNextCheckin, nil
+		}
+		return "manual", nil
+	}
+	svc.SetSettingsService(presenceSettingsStub{
+		presenceModeFn: func() (string, error) {
+			if settingsErr != nil && stage == "presence setting" {
 				return "", settingsErr
 			}
-			if settingsErr != nil && ((stage == "sick setting" && key == configModel.KeySickClearMode) || (stage == "excused setting" && key == configModel.KeyExcusedClearMode)) {
-				return "", settingsErr
+			if mode == "visit" {
+				return activeService.PresenceModeDetailed, nil
 			}
-			if key == configModel.KeyPresenceMode {
-				if mode == "visit" {
-					return "detailed", nil
-				}
-				return "binary", nil
-			}
-			if kind != "planned" {
-				return "next_checkin", nil
-			}
-			return "manual", nil
+			return activeService.PresenceModeBinary, nil
 		},
-	}))
+		sickClearModeFn:    func() (string, error) { return clearMode("sick setting") },
+		excusedClearModeFn: func() (string, error) { return clearMode("excused setting") },
+	})
 	device := testpkg.EnsureWebManualDevice(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Planned", "Rollback")
 	ctx = services.WithAttendanceDevice(ctx, device.ID, device.TenantID)

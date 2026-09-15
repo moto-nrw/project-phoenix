@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services"
 	active "github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -50,16 +49,7 @@ func TestWorkTimeMonthSummary_DB(t *testing.T) {
 	})
 
 	// Contract: Mondays 480 minutes since 2020.
-	scheduleRow := &configModels.StaffWorkSchedule{
-		TenantID:      tenantID,
-		StaffID:       staff.ID,
-		DayOfWeek:     configModels.DayMonday,
-		TargetMinutes: 480,
-		WeekIndex:     0, RotationLength: 1,
-		ValidFrom: configModels.NewCalendarDate(2020, time.January, 1),
-	}
-	_, err := db.NewInsert().Model(scheduleRow).ModelTableExpr("config.staff_work_schedules").Exec(ctx)
-	require.NoError(t, err)
+	testpkg.CreateTestStaffWorkScheduleForTenant(t, db, tenantID, staff.ID, active.DayMonday, 480, scheduleValidFrom)
 
 	// One 480-minute session on Monday June 1, 2026.
 	checkIn := time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC)

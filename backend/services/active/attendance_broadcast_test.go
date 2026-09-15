@@ -15,9 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services/active"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -144,9 +142,7 @@ func newDailyCheckoutService(t *testing.T, db *testpkg.DB) (active.Service, *tes
 		Logger:      slog.Default(),
 	})
 
-	svc.SetSettingsService(services.PresenceSettings(&configtest.Mock{ResolveStringFn: func(_ context.Context, key string) (string, error) {
-		return configModel.GetDefinition(key).Default.(string), nil
-	}}))
+	svc.SetSettingsService(defaultPresenceSettings())
 	return svc, broadcaster
 }
 

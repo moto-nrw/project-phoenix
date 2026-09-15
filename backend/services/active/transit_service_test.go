@@ -1,19 +1,14 @@
 package active_test
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,18 +37,11 @@ func TestActiveService_AssignTransitAttendanceScope(t *testing.T) {
 			ctx := testpkg.OwnCtx(t)
 			db := testpkg.SetupTestDB(t)
 			service := setupActiveService(t, db)
-			service.SetSettingsService(services.PresenceSettings(&configtest.Mock{ResolveStringFn: func(_ context.Context, key string) (string, error) {
-				switch key {
-				case configModel.KeyAttendanceEditScope:
-					return tc.scope, nil
-				case configModel.KeyOperationalOverviewScope:
-					return "all_staff", nil
-				case configModel.KeyPresenceMode:
-					return "detailed", nil
-				default:
-					return "", nil
-				}
-			}}))
+			service.SetSettingsService(presenceSettingsStub{
+				attendanceEditScope:      tc.scope,
+				operationalOverviewScope: "all_staff",
+				presenceMode:             activeSvc.PresenceModeDetailed,
+			})
 			staff := testpkg.CreateTestStaff(t, db, "TransitScope", "Staff")
 			device := testpkg.CreateTestDevice(t, db, "transit-scope-device")
 			target := testpkg.CreateTestActiveGroup(t, db,
@@ -117,18 +105,13 @@ func TestActiveService_SchoolWideAttendanceMove(t *testing.T) {
 			ctx := testpkg.OwnCtx(t)
 			db := testpkg.SetupTestDB(t)
 			service := setupActiveService(t, db)
-			service.SetSettingsService(services.PresenceSettings(&configtest.Mock{ResolveStringFn: func(_ context.Context, key string) (string, error) {
-				switch key {
-				case configModel.KeyAttendanceEditScope:
-					return tc.scope, tc.settingsErr
-				case configModel.KeyOperationalOverviewScope:
-					return tc.visibility, tc.settingsErr
-				case configModel.KeyPresenceMode:
-					return configModel.PresenceModeDetailed, nil
-				default:
-					return "", nil
-				}
-			}}))
+			service.SetSettingsService(presenceSettingsStub{
+				attendanceEditScope:         tc.scope,
+				attendanceEditScopeErr:      tc.settingsErr,
+				operationalOverviewScope:    tc.visibility,
+				operationalOverviewScopeErr: tc.settingsErr,
+				presenceMode:                activeSvc.PresenceModeDetailed,
+			})
 			staff := testpkg.CreateTestStaff(t, db, "MoveScope", "Staff")
 			device := testpkg.CreateTestDevice(t, db, "move-scope-device")
 			source := testpkg.CreateTestActiveGroup(t, db,

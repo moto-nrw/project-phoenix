@@ -2,12 +2,10 @@ package active_test
 
 import (
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services"
 	active "github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -24,13 +22,7 @@ func TestFutureCompTimeCommitmentQueryBudget(t *testing.T) {
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.TenantContext(tenantID)
 
-	schedule := &configModels.StaffWorkSchedule{
-		TenantID: tenantID, StaffID: staff.ID, DayOfWeek: configModels.DayMonday,
-		TargetMinutes: 480, WeekIndex: 0, RotationLength: 1,
-		ValidFrom: configModels.NewCalendarDate(2020, time.January, 1),
-	}
-	_, err := db.NewInsert().Model(schedule).ModelTableExpr("config.staff_work_schedules").Exec(ctx)
-	require.NoError(t, err)
+	testpkg.CreateTestStaffWorkScheduleForTenant(t, db, tenantID, staff.ID, active.DayMonday, 480, scheduleValidFrom)
 	service := active.NewWorkTimeMonthService(
 		repos.WorkSession, repos.WorkSessionBreak, repos.StaffAbsence, services.StaffScheduleAssignments(repos.Staff),
 		services.NewWorkScheduleTargets(repos.StaffWorkSchedule), services.NewWorkTimeTargetModels(repos.WorkTimeModel), services.NewTimeTrackingShifts(repos.StaffShift),

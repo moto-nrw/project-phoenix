@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	active "github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -29,7 +28,7 @@ type snapshotFixture struct {
 	staff     int64
 	admin     int64
 	session   *activeModels.WorkSession
-	schedule  *configModels.StaffWorkSchedule
+	schedule  *testpkg.StaffWorkScheduleFixture
 	repos     *repositories.Factory
 	db        *testpkg.DB
 	ctx       context.Context
@@ -93,16 +92,7 @@ func newSnapshotFixture(t *testing.T) *snapshotFixture {
 	})
 
 	// Contract: Mondays 480 minutes.
-	schedule := &configModels.StaffWorkSchedule{
-		TenantID:      tenantID,
-		StaffID:       staff.ID,
-		DayOfWeek:     configModels.DayMonday,
-		TargetMinutes: 480,
-		WeekIndex:     0, RotationLength: 1,
-		ValidFrom: configModels.NewCalendarDate(2020, time.January, 1),
-	}
-	_, err := db.NewInsert().Model(schedule).ModelTableExpr("config.staff_work_schedules").Exec(ctx)
-	require.NoError(t, err)
+	schedule := testpkg.CreateTestStaffWorkScheduleForTenant(t, db, tenantID, staff.ID, active.DayMonday, 480, scheduleValidFrom)
 
 	checkIn := time.Date(snapshotYear, time.August, snapshotSessionDay, 8, 0, 0, 0, time.UTC)
 	checkOut := checkIn.Add(8 * time.Hour)
@@ -222,13 +212,7 @@ func TestMonthClose_FreezesBalanceAgainstRetroactiveScheduleChange(t *testing.T)
 	require.NoError(t, err)
 
 	// Retroactively halve the contractual Soll of every Monday.
-	_, err = f.db.NewUpdate().
-		Model((*configModels.StaffWorkSchedule)(nil)).
-		ModelTableExpr("config.staff_work_schedules AS t").
-		Set("target_minutes = ?", 240).
-		Where("t.id = ?", f.schedule.ID).
-		Exec(f.ctx)
-	require.NoError(t, err)
+	testpkg.SetStaffWorkScheduleTargetMinutes(t, f.db, f.ctx, f.schedule.ID, 240)
 
 	augustAfter, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff, snapshotYear, snapshotMonth)
 	require.NoError(t, err)

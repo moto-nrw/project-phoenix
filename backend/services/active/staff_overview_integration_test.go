@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	active "github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -108,21 +107,16 @@ func (f *overviewFixture) newOverviewService(settings wtmIntSettings) active.Sta
 	)
 }
 
+// scheduleValidFrom is the start of every scheduled contract in these tests:
+// far enough in the past that no fixture month falls outside it.
+var scheduleValidFrom = timezone.NewDate(2020, time.January, 1)
+
 // addSchedule gives the staff member the same contractual Soll on all seven
 // weekdays, so the expected values do not depend on which day the test runs.
 func (f *overviewFixture) addSchedule(t *testing.T, staffID int64, targetMinutes int) {
 	t.Helper()
 	for day := range 7 {
-		row := &configModels.StaffWorkSchedule{
-			TenantID:      f.tenantID,
-			StaffID:       staffID,
-			DayOfWeek:     day,
-			TargetMinutes: targetMinutes,
-			WeekIndex:     0, RotationLength: 1,
-			ValidFrom: configModels.NewCalendarDate(2020, time.January, 1),
-		}
-		_, err := f.db.NewInsert().Model(row).ModelTableExpr("config.staff_work_schedules").Exec(f.ctx)
-		require.NoError(t, err)
+		testpkg.CreateTestStaffWorkScheduleForTenant(t, f.db, f.tenantID, staffID, day, targetMinutes, scheduleValidFrom)
 	}
 }
 
@@ -448,9 +442,7 @@ func TestDashboardSummary_WeekExcludesAdjustmentsOutsideRange(t *testing.T) {
 	before, err := f.svc.GetDashboardSummary(f.ctx, active.OverviewPeriodWeek)
 	require.NoError(t, err)
 
-	workforceWeekStart := configModels.MondayOf(configModels.NewCalendarDate(f.today.Year(), f.today.Month(), f.today.Day()))
-	weekStartValue := workforceWeekStart.UTCMidnight()
-	weekStart := timezone.NewDate(weekStartValue.Year(), weekStartValue.Month(), weekStartValue.Day())
+	weekStart := f.today.StartOfISOWeek()
 	effectiveDate := timezone.NewDate(f.today.Year(), f.today.Month(), 1)
 	if !effectiveDate.Before(weekStart) {
 		effectiveDate = f.today.AddDays(1)

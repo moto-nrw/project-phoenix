@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -1555,7 +1554,7 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 		}},
 		}
 
-		svc.settings = &stubSettingsResolver{stringValues: map[string]string{configModels.KeyPresenceMode: PresenceModeDetailed}}
+		svc.settings = &stubSettingsResolver{stringValues: map[string]string{presenceModeQuestion: PresenceModeDetailed}}
 		result, err := svc.EndDailySessions(ctx)
 
 		require.Error(t, err)
@@ -1578,7 +1577,7 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 		}, SupervisorRepo: &mockGroupSupervisorRepository{}},
 		}
 
-		svc.settings = &stubSettingsResolver{stringValues: map[string]string{configModels.KeyPresenceMode: PresenceModeDetailed}}
+		svc.settings = &stubSettingsResolver{stringValues: map[string]string{presenceModeQuestion: PresenceModeDetailed}}
 		result, err := svc.EndDailySessions(withSessionTestRuntime(t, ctx, db))
 
 		require.Error(t, err)
@@ -1602,7 +1601,7 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 		}, SupervisorRepo: &mockGroupSupervisorRepository{}},
 		}
 
-		svc.settings = &stubSettingsResolver{stringValues: map[string]string{configModels.KeyPresenceMode: PresenceModeDetailed}}
+		svc.settings = &stubSettingsResolver{stringValues: map[string]string{presenceModeQuestion: PresenceModeDetailed}}
 		result, err := svc.EndDailySessions(ctx)
 
 		require.Error(t, err)
@@ -1626,7 +1625,7 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 		}, SupervisorRepo: &mockGroupSupervisorRepository{}},
 		}
 
-		svc.settings = &stubSettingsResolver{stringValues: map[string]string{configModels.KeyPresenceMode: PresenceModeDetailed}}
+		svc.settings = &stubSettingsResolver{stringValues: map[string]string{presenceModeQuestion: PresenceModeDetailed}}
 		result, err := svc.EndDailySessions(ctx)
 
 		require.NoError(t, err)

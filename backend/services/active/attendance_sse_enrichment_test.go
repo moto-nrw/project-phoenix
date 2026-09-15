@@ -14,7 +14,6 @@
 package active_test
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"testing"
@@ -25,11 +24,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	active "github.com/moto-nrw/project-phoenix/services/active"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -80,9 +77,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 		AttendanceSyncer:   syncer,
 		Logger:             slog.Default(),
 	})
-	svc.SetSettingsService(services.PresenceSettings(&configtest.Mock{ResolveStringFn: func(_ context.Context, key string) (string, error) {
-		return configModel.GetDefinition(key).Default.(string), nil
-	}}))
+	svc.SetSettingsService(defaultPresenceSettings())
 
 	// Fixtures: activity + room + active.group + student + staff + device.
 	// CreateVisit requires staff + device on ctx for attendance FK.
@@ -238,9 +233,7 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 		AttendanceSyncer:   syncer,
 		Logger:             slog.Default(),
 	})
-	svc.SetSettingsService(services.PresenceSettings(&configtest.Mock{ResolveStringFn: func(_ context.Context, key string) (string, error) {
-		return configModel.GetDefinition(key).Default.(string), nil
-	}}))
+	svc.SetSettingsService(defaultPresenceSettings())
 
 	// NO instance bridges to this active.group — it's a walk-in session.
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("E2E-Walk-%d", suffix))

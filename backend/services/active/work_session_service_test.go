@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -271,12 +270,21 @@ func (m *wsMockWorkTimeModelRepository) Delete(ctx context.Context, id int64) er
 }
 
 type wsMockSettingsResolver struct {
-	resolveBoolFunc func(ctx context.Context, key string) (bool, error)
-	resolveIntFunc  func(ctx context.Context, key string) (int, error)
+	resolveBoolFunc func(ctx context.Context, question string) (bool, error)
+	resolveIntFunc  func(ctx context.Context, question string) (int, error)
 }
 
-// The hooks still take the registry key the setting used to be read by, so the
-// existing table tests keep scripting per-key answers unchanged.
+// The time-tracking questions the work-session service asks.
+const (
+	enforcePlannedStartQuestion    = "enforce planned start"
+	requireDeviationReasonQuestion = "require deviation reason"
+	deviationToleranceQuestion     = "deviation tolerance minutes"
+	timeTrackingRetentionQuestion  = "time tracking retention days"
+)
+
+// The hooks take the question the service asks, so the table tests keep
+// scripting per-question answers. The registry keys these questions resolve
+// to are named and tested where the settings ports are bound.
 func (m *wsMockSettingsResolver) resolveBool(ctx context.Context, key string) (bool, error) {
 	if m.resolveBoolFunc != nil {
 		return m.resolveBoolFunc(ctx, key)
@@ -292,19 +300,19 @@ func (m *wsMockSettingsResolver) resolveInt(ctx context.Context, key string) (in
 }
 
 func (m *wsMockSettingsResolver) EnforcePlannedStart(ctx context.Context) (bool, error) {
-	return m.resolveBool(ctx, configModels.KeyTimeTrackingEnforcePlannedStart)
+	return m.resolveBool(ctx, enforcePlannedStartQuestion)
 }
 
 func (m *wsMockSettingsResolver) RequireDeviationReason(ctx context.Context) (bool, error) {
-	return m.resolveBool(ctx, configModels.KeyTimeTrackingRequireDeviationReason)
+	return m.resolveBool(ctx, requireDeviationReasonQuestion)
 }
 
 func (m *wsMockSettingsResolver) DeviationToleranceMinutes(ctx context.Context) (int, error) {
-	return m.resolveInt(ctx, configModels.KeyTimeTrackingDeviationToleranceMinutes)
+	return m.resolveInt(ctx, deviationToleranceQuestion)
 }
 
 func (m *wsMockSettingsResolver) TimeTrackingRetentionDays(ctx context.Context) (int, error) {
-	return m.resolveInt(ctx, configModels.KeyGDPRTimeTrackingRetentionDays)
+	return m.resolveInt(ctx, timeTrackingRetentionQuestion)
 }
 
 // ============================================================================
@@ -879,7 +887,7 @@ func TestWSCheckIn_PlannedStartEnforcement(t *testing.T) {
 			svc, sessionRepo, _, _, _ := wsCreateTestService()
 			svc.nowFunc = func() time.Time { return tt.now }
 			svc.settings = &wsMockSettingsResolver{resolveBoolFunc: func(_ context.Context, key string) (bool, error) {
-				assert.Equal(t, configModels.KeyTimeTrackingEnforcePlannedStart, key)
+				assert.Equal(t, enforcePlannedStartQuestion, key)
 				return true, nil
 			}}
 			svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
@@ -2906,7 +2914,7 @@ func (m *wsMockGroupSupervisorRepository) SetEndDate(context.Context, *activeMod
 func wsDeviationSettings(toleranceMinutes int) *wsMockSettingsResolver {
 	return &wsMockSettingsResolver{
 		resolveBoolFunc: func(_ context.Context, key string) (bool, error) {
-			return key == configModels.KeyTimeTrackingRequireDeviationReason, nil
+			return key == requireDeviationReasonQuestion, nil
 		},
 		resolveIntFunc: func(_ context.Context, key string) (int, error) {
 			return toleranceMinutes, nil

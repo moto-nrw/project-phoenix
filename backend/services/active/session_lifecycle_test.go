@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -60,7 +59,7 @@ func TestResolveSessionTimeout(t *testing.T) {
 
 	t.Run("tenant override resolved from settings", func(t *testing.T) {
 		s := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, Logger: slog.Default()}, settings: &stubSettingsResolver{
-			intValues: map[string]int{configModel.KeySessionInactivityTimeoutMin: 20},
+			intValues: map[string]int{sessionInactivityTimeoutQuestion: 20},
 		},
 		}
 		group := &activeModels.Group{TimeoutMinutes: 0}
@@ -69,7 +68,7 @@ func TestResolveSessionTimeout(t *testing.T) {
 
 	t.Run("zero from settings degrades to default", func(t *testing.T) {
 		s := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, Logger: slog.Default()}, settings: &stubSettingsResolver{
-			intValues: map[string]int{configModel.KeySessionInactivityTimeoutMin: 0},
+			intValues: map[string]int{sessionInactivityTimeoutQuestion: 0},
 		},
 		}
 		group := &activeModels.Group{TimeoutMinutes: 0}
