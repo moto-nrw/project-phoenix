@@ -69,27 +69,21 @@ describe("BrandLink", () => {
     expect(link).toHaveAttribute("href", "/home");
   });
 
-  it("applies smaller text size when scrolled", () => {
-    render(<BrandLink isScrolled={true} />);
+  it("renders the wordmark in one fixed size for the 48px topbar", () => {
+    // Seit #2827 gibt es keinen Scroll-Zustand mehr, in den das Logo
+    // schrumpfen könnte: eine Größe, keine Übergangsklassen.
+    render(<BrandLink />);
 
     const brandText = screen.getByText("moto");
     expect(brandText).toHaveClass("text-xl");
-    expect(brandText).toHaveClass("lg:text-[22px]");
-  });
-
-  it("applies normal text size when not scrolled", () => {
-    render(<BrandLink isScrolled={false} />);
-
-    const brandText = screen.getByText("moto");
-    expect(brandText).toHaveClass("text-[22px]");
+    expect(brandText).not.toHaveClass("transition-all");
   });
 
   it("uses compact UI font sizes for tenant labels", () => {
-    render(<BrandLink isScrolled={true} label="Demo School" />);
+    render(<BrandLink label="Demo School" />);
 
     const brandText = screen.getByText("Demo School");
-    expect(brandText).toHaveClass("text-sm");
-    expect(brandText).toHaveClass("lg:text-base");
+    expect(brandText).toHaveClass("text-base");
     expect(brandText).not.toHaveClass("[font-family:var(--font-moto)]");
   });
 });

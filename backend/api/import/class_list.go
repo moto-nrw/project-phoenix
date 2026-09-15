@@ -1,33 +1,17 @@
 package importapi
 
 import (
-	"encoding/csv"
 	"fmt"
 	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/render"
-	"github.com/xuri/excelize/v2"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
-	importService "github.com/moto-nrw/project-phoenix/services/import"
+	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 )
 
 // Class-list entry import (#2382): the bulk form of the minimal
 // Klassenlisteneintrag — Vorname, Nachname, Klasse, nothing else.
-
-// getClassListImportHeaders returns the header row for the template.
-func getClassListImportHeaders() []string {
-	return []string{"Vorname", "Nachname", "Klasse"}
-}
-
-// The class-list template deliberately ships NO example data rows (#2399
-// review round 10): a class-list row is nothing but a name and a class, so
-// any rule that recognizes example rows again on upload is a name blocklist
-// that would silently drop a real child of the same name. The columns are
-// explained on the "Hinweise" sheet instead, and an unchanged template upload
-// is rejected as "keine Datenzeilen" because it carries none.
 
 // ClassListFileUploadResult carries the parsed rows plus the original
 // filename for the audit trail.
@@ -49,16 +33,10 @@ func (rs *Resource) validateAndParseClassListFile(w http.ResponseWriter, r *http
 		}
 	}()
 
-	var rows []importModels.ClassListEntryImportRow
-	var err error
-	if isExcel {
-		rows, err = importService.ParseClassListXLSX(file)
-	} else {
-		rows, err = importService.ParseClassListCSV(file)
-	}
+	rows, err := rs.files.ClassList(file, uploadFormat(isExcel))
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
-		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("Datei-Fehler: %s", err.Error())))
+		rs.runtime.Failure(w, r, Failure{Status: http.StatusBadRequest, Cause: fmt.Errorf("Datei-Fehler: %s", err.Error())})
 		return nil, false
 	}
 
@@ -70,82 +48,7 @@ func (rs *Resource) validateAndParseClassListFile(w http.ResponseWriter, r *http
 
 // DownloadClassListTemplate handles the template download (CSV or Excel).
 func (rs *Resource) DownloadClassListTemplate(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Query().Get("format") == "xlsx" {
-		rs.downloadClassListTemplateXLSX(w, r)
-		return
-	}
-	rs.downloadClassListTemplateCSV(w, r)
-}
-
-func (rs *Resource) downloadClassListTemplateCSV(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
-	w.Header().Set("Content-Disposition", "attachment; filename=klassenliste-import-vorlage.csv")
-
-	csvWriter := csv.NewWriter(w)
-	if err := csvWriter.Write(getClassListImportHeaders()); err != nil {
-		slog.Default().Error("Error writing CSV headers", slog.String("error", err.Error()))
-		http.Error(w, errTemplateCreation, http.StatusInternalServerError)
-		return
-	}
-	csvWriter.Flush()
-}
-
-func (rs *Resource) downloadClassListTemplateXLSX(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	w.Header().Set("Content-Disposition", "attachment; filename=klassenliste-import-vorlage.xlsx")
-
-	f := excelize.NewFile()
-	defer func() {
-		if err := f.Close(); err != nil {
-			slog.Default().Error("Error closing Excel file", slog.String("error", err.Error()))
-		}
-	}()
-
-	sheetName := "Klassenliste"
-	if err := setupExcelSheet(f, sheetName); err != nil {
-		slog.Default().Error("Error setting up sheet", slog.String("error", err.Error()))
-		http.Error(w, errTemplateCreation, http.StatusInternalServerError)
-		return
-	}
-
-	headers := getClassListImportHeaders()
-	writeExcelHeaders(f, sheetName, headers)
-	setExcelColumnWidths(f, sheetName, len(headers), 20)
-	writeClassListHinweiseSheet(f)
-
-	if err := f.Write(w); err != nil {
-		slog.Default().Error("Error writing Excel file", slog.String("error", err.Error()))
-		http.Error(w, errTemplateCreation, http.StatusInternalServerError)
-	}
-}
-
-// writeClassListHinweiseSheet adds a "Hinweise" sheet describing the columns.
-func writeClassListHinweiseSheet(f *excelize.File) {
-	sheetName := "Hinweise"
-	if _, err := f.NewSheet(sheetName); err != nil {
-		slog.Default().Error("Error creating Hinweise sheet", slog.String("error", err.Error()))
-		return
-	}
-
-	rows := [][]string{
-		{"Spalte", "Pflicht?", "Beschreibung"},
-		{"Vorname", "Ja", "Vorname des Kindes"},
-		{"Nachname", "Ja", "Nachname des Kindes"},
-		{"Klasse", "Ja", "Schulklasse (z.B. 1a) — wie bei den regulären Kindern geschrieben"},
-		{"", "", ""},
-		{"Hinweis", "", "Klassenlisteneinträge sind Kinder OHNE OGS-Betreuung: Sie erscheinen nur auf Klassenlisten und in der Klassenansicht, nie in Anwesenheit oder Betreuungsplanung."},
-		{"Hinweis", "", "Kinder, die bereits in moto angelegt sind, werden übersprungen — sie stehen schon auf der Klassenliste."},
-		{"Hinweis", "", "Die Vorlage enthält nur die Kopfzeile: Bitte tragen Sie die Kinder ab Zeile 2 des Tabellenblatts \"Klassenliste\" ein, eine Zeile pro Kind."},
-	}
-	for rowIdx, row := range rows {
-		for colIdx, val := range row {
-			cell, _ := excelize.CoordinatesToCellName(colIdx+1, rowIdx+1)
-			_ = f.SetCellValue(sheetName, cell, val)
-		}
-	}
-	_ = f.SetColWidth(sheetName, "A", "A", 14)
-	_ = f.SetColWidth(sheetName, "B", "B", 10)
-	_ = f.SetColWidth(sheetName, "C", "C", 80)
+	rs.downloadTemplate(w, r, importModels.ClassListTemplate, "klassenliste-import-vorlage")
 }
 
 // PreviewClassListImport handles the class-list import preview (dry-run).
@@ -166,22 +69,22 @@ func (rs *Resource) runClassListImport(w http.ResponseWriter, r *http.Request, d
 		return
 	}
 
-	accountID, err := getAccountIDFromContext(r.Context())
+	accountID, err := rs.runtime.AccountID(r.Context())
 	if err != nil {
-		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		rs.runtime.Failure(w, r, Failure{Status: http.StatusUnauthorized, Cause: err})
 		return
 	}
 
 	result, err := rs.classListImportService.ImportBatches(r.Context(), importModels.ImportRequest[importModels.ClassListEntryImportRow]{
 		Rows: uploadResult.Rows, Mode: importModels.ImportModeCreate, DryRun: dryRun, UserID: accountID, SkipInvalidRows: !dryRun,
-	}, importService.BatchAudit{EntityType: "class_list_entries", Filename: uploadResult.Filename, AccountID: accountID})
+	}, importModels.BatchAudit{EntityType: "class_list_entries", Filename: uploadResult.Filename, AccountID: accountID})
 	if err != nil {
-		renderBatchImportError(w, r, result, err)
+		renderBatchImportError(rs.runtime, w, r, result, err)
 		return
 	}
 
 	if dryRun {
-		common.Respond(w, r, http.StatusOK, result, "Import-Vorschau erfolgreich")
+		rs.runtime.Success(w, r, http.StatusOK, result, "Import-Vorschau erfolgreich")
 		return
 	}
 
@@ -193,5 +96,5 @@ func (rs *Resource) runClassListImport(w http.ResponseWriter, r *http.Request, d
 	message := fmt.Sprintf("Import abgeschlossen: %d erstellt, %d Fehler",
 		result.CreatedCount, result.ErrorCount)
 
-	common.Respond(w, r, http.StatusOK, result, message)
+	rs.runtime.Success(w, r, http.StatusOK, result, message)
 }

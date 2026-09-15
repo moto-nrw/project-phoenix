@@ -12,7 +12,6 @@ import {
   formatWeekLabel,
   formatYearLabel,
   getActivityColor,
-  getActivityLightTint,
   getActivityTypeBadge,
   getCurrentTimeOffset,
   getEventBlockPosition,
@@ -304,9 +303,6 @@ describe("activity/status helpers", () => {
     expect(getActivityColor("care")).toBe("#5080D8");
     expect(getActivityColor("activity")).toBe("#83CD2D");
     expect(getActivityColor("external")).toBe("#F78C10");
-    expect(getActivityLightTint("care")).toBe("#EBF0FB");
-    expect(getActivityLightTint("activity")).toBe("#ECF7DA");
-    expect(getActivityLightTint("external")).toBe("#FCEFD9");
     expect(getActivityTypeBadge("care")).toBeNull();
     expect(getActivityTypeBadge("activity")).toEqual({
       label: "AG",

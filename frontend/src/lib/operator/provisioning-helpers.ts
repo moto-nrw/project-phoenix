@@ -403,7 +403,7 @@ export interface CreateAccountRequest {
   last_name: string;
   password: string;
   confirm_password: string;
-  role_id?: number;
+  role_id?: string;
   position?: string;
   caregiver_enabled?: boolean;
 }

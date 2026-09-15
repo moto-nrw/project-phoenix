@@ -47,7 +47,7 @@
       "declaration": "initializeModuleServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        295
+        298
       ],
       "tables": []
     },
@@ -2264,7 +2264,7 @@
       "declaration": "TestRoleRepository_AssignRoleToAccount",
       "target": "database/repositories.NewFactory",
       "lines": [
-        243
+        264
       ],
       "tables": []
     },
@@ -2326,7 +2326,7 @@
       "declaration": "TestRoleRepository_FindRoleNamesByAccountIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        283
+        304
       ],
       "tables": [
         "auth.account_roles"
@@ -2348,7 +2348,7 @@
       "declaration": "TestRoleRepository_RemoveRoleFromAccount",
       "target": "database/repositories.NewFactory",
       "lines": [
-        261
+        282
       ],
       "tables": []
     },
@@ -7729,21 +7729,21 @@
     },
     {
       "scope": "test",
-      "file": "services/import/stammdaten_import_test.go",
+      "file": "services/import/integration/stammdaten_import_test.go",
       "declaration": "newStammdatenStaffConfig",
       "target": "database/repositories.NewFactory",
       "lines": [
-        32
+        29
       ],
       "tables": []
     },
     {
       "scope": "test",
-      "file": "services/import/stammdaten_import_test.go",
+      "file": "services/import/integration/stammdaten_import_test.go",
       "declaration": "newStammdatenStudentConfig",
       "target": "database/repositories.NewFactory",
       "lines": [
-        304
+        235
       ],
       "tables": []
     },
@@ -27216,27 +27216,27 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 174,
+          "line": 177,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 476,
+          "line": 479,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 639,
+          "line": 642,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 877,
+          "line": 880,
           "declaration": "initializeAPIResourcesWithRequestFeed"
         },
         {
           "file": "api/base.go",
-          "line": 1281,
+          "line": 1284,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -27246,7 +27246,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 296,
+          "line": 299,
           "declaration": "initializeModuleServices"
         }
       ]
@@ -27256,12 +27256,12 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 175,
+          "line": 178,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 636,
+          "line": 639,
           "declaration": "type API"
         },
         {

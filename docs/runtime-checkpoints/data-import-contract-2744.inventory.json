@@ -1,0 +1,304 @@
+{
+  "base_commit": "93e9f5f2cca74716b39a28fe37248e3bd3ff9999",
+  "scope": "Working-tree #2744 cutover; import-header-qualified symbol scan plus successful Go compilation and architecture check",
+  "legacy_before": 1594,
+  "legacy_after": 1544,
+  "new_keys": [],
+  "ticket_keys_removed": [
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/import|github.com/go-chi/chi/v5",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/import|github.com/moto-nrw/project-phoenix/models/audit",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/import|github.com/moto-nrw/project-phoenix/models/users",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/import|github.com/uptrace/bun",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/import|net/http",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/import|github.com/moto-nrw/project-phoenix/services/import",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/import|database/sql",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/import|github.com/moto-nrw/project-phoenix/auth/authorize",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/import|github.com/moto-nrw/project-phoenix/database/repositories",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/import|github.com/moto-nrw/project-phoenix/internal/strutil",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/import|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/import|github.com/moto-nrw/project-phoenix/models/active",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/import|github.com/moto-nrw/project-phoenix/models/audit",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/import|github.com/moto-nrw/project-phoenix/models/auth",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/import|github.com/moto-nrw/project-phoenix/models/base",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/import|github.com/moto-nrw/project-phoenix/models/education",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/import|github.com/moto-nrw/project-phoenix/models/facilities",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/import|github.com/moto-nrw/project-phoenix/models/platform",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/import|github.com/moto-nrw/project-phoenix/models/users",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/import|github.com/moto-nrw/project-phoenix/services/auth",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/import|github.com/moto-nrw/project-phoenix/tenant",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/import|github.com/uptrace/bun",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/import|github.com/xuri/excelize/v2",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/import|github.com/moto-nrw/project-phoenix/api/common",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/import|github.com/moto-nrw/project-phoenix/auth/jwt",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/import|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/import|github.com/moto-nrw/project-phoenix/models/import",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/import|github.com/moto-nrw/project-phoenix/services/import",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/import|github.com/moto-nrw/project-phoenix/services/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/import|github.com/moto-nrw/project-phoenix/tenant",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/import|github.com/uptrace/bun",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/import|github.com/xuri/excelize/v2",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/import|database/sql",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/import|github.com/moto-nrw/project-phoenix/auth/authorize",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/import|github.com/moto-nrw/project-phoenix/internal/strutil",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/import|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/import|github.com/moto-nrw/project-phoenix/models/active",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/import|github.com/moto-nrw/project-phoenix/models/audit",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/import|github.com/moto-nrw/project-phoenix/models/auth",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/import|github.com/moto-nrw/project-phoenix/models/base",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/import|github.com/moto-nrw/project-phoenix/models/education",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/import|github.com/moto-nrw/project-phoenix/models/facilities",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/import|github.com/moto-nrw/project-phoenix/models/import",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/import|github.com/moto-nrw/project-phoenix/models/platform",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/import|github.com/moto-nrw/project-phoenix/models/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/import|github.com/moto-nrw/project-phoenix/services/auth",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/import|github.com/moto-nrw/project-phoenix/services/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/import|github.com/moto-nrw/project-phoenix/tenant",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/import|github.com/xuri/excelize/v2"
+  ],
+  "ticket_keys_remaining": [],
+  "owners_unchanged": true,
+  "data_objects_unchanged": true,
+  "existing_package_classification_changes": [],
+  "removed_symbols": [
+    {
+      "package": "models/import",
+      "symbol": "ArrivalScheduleImportData",
+      "remaining_callers": []
+    },
+    {
+      "package": "models/import",
+      "symbol": "AutoFix",
+      "remaining_callers": []
+    },
+    {
+      "package": "models/import",
+      "symbol": "BatchValidator",
+      "remaining_callers": []
+    },
+    {
+      "package": "models/import",
+      "symbol": "BulkAction",
+      "remaining_callers": []
+    },
+    {
+      "package": "models/import",
+      "symbol": "ClassListEntryImportRow",
+      "remaining_callers": []
+    },
+    {
+      "package": "models/import",
+      "symbol": "ErrorSeverity",
+      "remaining_callers": []
+    },
+    {
+      "package": "models/import",
+      "symbol": "GuardianImportData",
+      "remaining_callers": []
+    },
+    {
+      "package": "models/import",
+      "symbol": "ImportConfig",
+      "remaining_callers": []
+    },
+    {
+      "package": "models/import",
+      "symbol": "ImportError",
+      "remaining_callers": []
+    },
+    {
+      "package": "models/import",
+      "symbol": "ImportMode",
+      "remaining_callers": []
+    },
+    {
+      "package": "models/import",
+      "symbol": "ImportRequest",
+      "remaining_callers": []
+    },
+    {
+      "package": "models/import",
+      "symbol": "ImportResult",
+      "remaining_callers": []
+    },
+    {
+      "package": "models/import",
+      "symbol": "OpeningBalanceImportRow",
+      "remaining_callers": []
+    },
+    {
+      "package": "models/import",
+      "symbol": "ParseImportMode",
+      "remaining_callers": []
+    },
+    {
+      "package": "models/import",
+      "symbol": "PhoneImportData",
+      "remaining_callers": []
+    },
+    {
+      "package": "models/import",
+      "symbol": "PickupScheduleImportData",
+      "remaining_callers": []
+    },
+    {
+      "package": "models/import",
+      "symbol": "ProcessingOrderer",
+      "remaining_callers": []
+    },
+    {
+      "package": "models/import",
+      "symbol": "StaffImportRow",
+      "remaining_callers": []
+    },
+    {
+      "package": "models/import",
+      "symbol": "StudentImportRow",
+      "remaining_callers": []
+    },
+    {
+      "package": "models/import",
+      "symbol": "ValidationError",
+      "remaining_callers": []
+    },
+    {
+      "package": "services/import",
+      "symbol": "BatchAudit",
+      "remaining_callers": []
+    },
+    {
+      "package": "services/import",
+      "symbol": "CSVParser",
+      "remaining_callers": []
+    },
+    {
+      "package": "services/import",
+      "symbol": "ColumnMapper",
+      "remaining_callers": []
+    },
+    {
+      "package": "services/import",
+      "symbol": "ContextWithImporterPermissions",
+      "remaining_callers": []
+    },
+    {
+      "package": "services/import",
+      "symbol": "DefaultPhoneMappings",
+      "remaining_callers": []
+    },
+    {
+      "package": "services/import",
+      "symbol": "ErrImportModeForbidden",
+      "remaining_callers": []
+    },
+    {
+      "package": "services/import",
+      "symbol": "FileParser",
+      "remaining_callers": []
+    },
+    {
+      "package": "services/import",
+      "symbol": "ImporterPermissionsFromContext",
+      "remaining_callers": []
+    },
+    {
+      "package": "services/import",
+      "symbol": "LegacyReads",
+      "remaining_callers": []
+    },
+    {
+      "package": "services/import",
+      "symbol": "MapClassListRow",
+      "remaining_callers": []
+    },
+    {
+      "package": "services/import",
+      "symbol": "MapGuardianRole",
+      "remaining_callers": []
+    },
+    {
+      "package": "services/import",
+      "symbol": "MapOpeningBalanceRow",
+      "remaining_callers": []
+    },
+    {
+      "package": "services/import",
+      "symbol": "MapStaffRow",
+      "remaining_callers": []
+    },
+    {
+      "package": "services/import",
+      "symbol": "MapStudentRow",
+      "remaining_callers": []
+    },
+    {
+      "package": "services/import",
+      "symbol": "NewCSVParser",
+      "remaining_callers": []
+    },
+    {
+      "package": "services/import",
+      "symbol": "NewColumnMapper",
+      "remaining_callers": []
+    },
+    {
+      "package": "services/import",
+      "symbol": "NewXLSXParser",
+      "remaining_callers": []
+    },
+    {
+      "package": "services/import",
+      "symbol": "ParseBool",
+      "remaining_callers": []
+    },
+    {
+      "package": "services/import",
+      "symbol": "ParseClassListCSV",
+      "remaining_callers": []
+    },
+    {
+      "package": "services/import",
+      "symbol": "ParseClassListXLSX",
+      "remaining_callers": []
+    },
+    {
+      "package": "services/import",
+      "symbol": "ParseGuardianPhoneNumbers",
+      "remaining_callers": []
+    },
+    {
+      "package": "services/import",
+      "symbol": "ParseOpeningBalanceCSV",
+      "remaining_callers": []
+    },
+    {
+      "package": "services/import",
+      "symbol": "ParseOpeningBalanceXLSX",
+      "remaining_callers": []
+    },
+    {
+      "package": "services/import",
+      "symbol": "ParseStaffCSV",
+      "remaining_callers": []
+    },
+    {
+      "package": "services/import",
+      "symbol": "ParseStaffXLSX",
+      "remaining_callers": []
+    },
+    {
+      "package": "services/import",
+      "symbol": "PhoneMapping",
+      "remaining_callers": []
+    },
+    {
+      "package": "services/import",
+      "symbol": "XLSXParser",
+      "remaining_callers": []
+    },
+    {
+      "package": "api/import",
+      "symbol": "(*Resource).SetOpeningBalanceImportFactory",
+      "remaining_callers": []
+    }
+  ]
+}

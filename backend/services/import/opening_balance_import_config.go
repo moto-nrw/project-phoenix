@@ -9,32 +9,21 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 	"github.com/moto-nrw/project-phoenix/services/import/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // maxOpeningHours mirrors the ledger's carryover bound (10.000 h).
 const maxOpeningHours = 10_000.0
-
-// openingRowLister is the read side of a ledger repository: the preload only
-// lists already-booked openings so the preview can report duplicates.
-type openingRowLister[T any] interface {
-	List(ctx context.Context, options *modelBase.QueryOptions) ([]T, error)
-}
 
 // OpeningBalanceImportDeps contains the request-independent dependencies for
 // the opening balance import (#2132). The service dependencies are declared as
 // the narrow slices used here rather than the full service interfaces — the
 // import consumes four ledger operations, not the absence workflow.
 type OpeningBalanceImportDeps struct {
-	StaffRepo            userModels.StaffRepository
-	AdjustmentRepo       openingRowLister[*activeModels.StaffBalanceAdjustment]
-	VacationOpeningRepo  openingRowLister[*activeModels.StaffVacationOpening]
+	Transactions         importModels.Transactions
+	References           importModels.OpeningReferences
 	BalanceAdjustService ports.OpeningBalanceBookings
 	StaffAbsenceService  ports.VacationTakeovers
 }
@@ -54,8 +43,8 @@ type OpeningBalanceImportConfig struct {
 	Note             string
 	DecidedByStaffID int64
 
-	staffByPersonnelNumber map[string]*userModels.Staff
-	staffByName            map[string][]*userModels.Staff
+	staffByPersonnelNumber map[string]*importModels.OpeningStaff
+	staffByName            map[string][]*importModels.OpeningStaff
 	staffWithHoursOpening  map[int64]bool
 	staffWithVacOpening    map[int64]bool
 }
@@ -63,7 +52,30 @@ type OpeningBalanceImportConfig struct {
 // OpeningBalanceImportFactory builds a request-scoped import service: the
 // Stichtag, note, and acting staff member come from the upload form, so the
 // config cannot be a shared singleton like the student/staff ones.
-type OpeningBalanceImportFactory func(effectiveDate timezone.Date, note string, decidedByStaffID int64) *ImportService[importModels.OpeningBalanceImportRow]
+type OpeningBalanceImportFactory func(effectiveDate timezone.Date, note string, decidedByStaffID int64) importModels.RowImporter[importModels.OpeningBalanceImportRow]
+
+func (f OpeningBalanceImportFactory) ForUpload(raw, note string, staffID int64) (importModels.RowImporter[importModels.OpeningBalanceImportRow], error) {
+	date, err := timezone.ParseDate(raw)
+	if err != nil {
+		return nil, err
+	}
+	return f(date, note, staffID), nil
+}
+
+func (OpeningBalanceImportFactory) ValidateDate(raw string) (string, error) {
+	date, err := timezone.ParseDate(raw)
+	if err != nil {
+		return "", fmt.Errorf("ungültiger Stichtag (erwartet JJJJ-MM-TT)")
+	}
+	today := timezone.TodayDate()
+	if !date.Before(today) {
+		return "", fmt.Errorf("stichtag muss vor dem heutigen Tag liegen")
+	}
+	if date.Year() != today.Year() {
+		return "", fmt.Errorf("stichtag muss im aktuellen Urlaubsjahr liegen")
+	}
+	return date.String(), nil
+}
 
 // NewOpeningBalanceImportConfig creates a request-scoped import configuration.
 func NewOpeningBalanceImportConfig(deps OpeningBalanceImportDeps, effectiveDate timezone.Date, note string, decidedByStaffID int64) *OpeningBalanceImportConfig {
@@ -80,12 +92,12 @@ func NewOpeningBalanceImportConfig(deps OpeningBalanceImportDeps, effectiveDate 
 // PreloadReferenceData loads the tenant's staff (for row matching) and the
 // already-booked openings on both sides (for duplicate errors in the preview).
 func (c *OpeningBalanceImportConfig) PreloadReferenceData(ctx context.Context) error {
-	staffMembers, err := c.StaffRepo.ListAllWithPerson(ctx)
+	staffMembers, err := c.References.Staff(ctx)
 	if err != nil {
 		return fmt.Errorf("preload staff: %w", err)
 	}
-	c.staffByPersonnelNumber = make(map[string]*userModels.Staff)
-	c.staffByName = make(map[string][]*userModels.Staff)
+	c.staffByPersonnelNumber = make(map[string]*importModels.OpeningStaff)
+	c.staffByName = make(map[string][]*importModels.OpeningStaff)
 	for _, staff := range staffMembers {
 		if staff.PersonnelNumber != nil {
 			if pn := strings.TrimSpace(*staff.PersonnelNumber); pn != "" {
@@ -98,26 +110,22 @@ func (c *OpeningBalanceImportConfig) PreloadReferenceData(ctx context.Context) e
 		}
 	}
 
-	options := modelBase.NewQueryOptions()
-	options.Filter.Equal("type", activeModels.BalanceAdjustmentTypeOpening)
-	hoursOpenings, err := c.AdjustmentRepo.List(ctx, options)
+	hoursOpenings, err := c.References.Hours(ctx)
 	if err != nil {
 		return fmt.Errorf("preload hours openings: %w", err)
 	}
 	c.staffWithHoursOpening = make(map[int64]bool, len(hoursOpenings))
 	for _, opening := range hoursOpenings {
-		c.staffWithHoursOpening[opening.StaffID] = true
+		c.staffWithHoursOpening[opening] = true
 	}
 
-	vacOptions := modelBase.NewQueryOptions()
-	vacOptions.Filter.Equal("year", c.EffectiveDate.Year())
-	vacOpenings, err := c.VacationOpeningRepo.List(ctx, vacOptions)
+	vacOpenings, err := c.References.Vacation(ctx, c.EffectiveDate.Year())
 	if err != nil {
 		return fmt.Errorf("preload vacation openings: %w", err)
 	}
 	c.staffWithVacOpening = make(map[int64]bool, len(vacOpenings))
 	for _, opening := range vacOpenings {
-		c.staffWithVacOpening[opening.StaffID] = true
+		c.staffWithVacOpening[opening] = true
 	}
 	return nil
 }
@@ -214,10 +222,10 @@ func (c *OpeningBalanceImportConfig) validateDerivedVacationOpening(ctx context.
 	if row.VacationCarryoverDays != nil {
 		carryover = *row.VacationCarryoverDays
 	}
-	opening := &activeModels.StaffVacationOpening{
+	opening := &ports.VacationOpeningValues{
 		StaffID:              row.StaffID,
 		Year:                 c.EffectiveDate.Year(),
-		EffectiveDate:        c.EffectiveDate,
+		EffectiveDate:        c.EffectiveDate.String(),
 		TakenBeforeDays:      entitled + carryover - *row.VacationRemainingDays,
 		EnteredRemainingDays: *row.VacationRemainingDays,
 		DecidedBy:            c.DecidedByStaffID,
@@ -471,7 +479,7 @@ func (c *OpeningBalanceImportConfig) Create(ctx context.Context, row importModel
 	}
 
 	var createdID int64
-	err := tenant.WithSavepoint(ctx, func(ctx context.Context) error {
+	err := c.Transactions.Savepoint(ctx, func(ctx context.Context) error {
 		var err error
 		createdID, err = c.create(ctx, row)
 		return err

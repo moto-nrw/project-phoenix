@@ -175,7 +175,7 @@ type ScheduleCapability interface {
 }
 
 type Query interface {
-	CountPlannedSupervisorsByCalendarPeriod(context.Context) (map[int64]int, error)
+	CountCalendarPeriodReferences(context.Context) (map[int64]CalendarPeriodReferences, error)
 	CourseInstances(context.Context, string, string, string) ([]CourseInstanceRow, error)
 	CourseParticipation(context.Context, string, string, string) ([]CourseParticipationRow, error)
 	CourseGroupQuery

@@ -2,7 +2,6 @@ package importpkg
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"net/mail"
@@ -10,15 +9,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	authsvc "github.com/moto-nrw/project-phoenix/services/auth"
+	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 	"github.com/moto-nrw/project-phoenix/services/import/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // systemRoleDisplayNames maps system role raw names to their German display
@@ -55,27 +48,29 @@ func roleDisplayName(rawName string) string {
 // genderAliases maps the German (and English) spellings accepted in the
 // "Geschlecht" column to the stored values.
 var genderAliases = map[string]string{
-	"w": userModels.GenderFemale, "weiblich": userModels.GenderFemale, "female": userModels.GenderFemale, "f": userModels.GenderFemale,
-	"m": userModels.GenderMale, "männlich": userModels.GenderMale, "maennlich": userModels.GenderMale, "male": userModels.GenderMale,
-	"d": userModels.GenderDiverse, "divers": userModels.GenderDiverse, "diverse": userModels.GenderDiverse,
+	"w": ports.GenderFemale, "weiblich": ports.GenderFemale, "female": ports.GenderFemale, "f": ports.GenderFemale,
+	"m": ports.GenderMale, "männlich": ports.GenderMale, "maennlich": ports.GenderMale, "male": ports.GenderMale,
+	"d": ports.GenderDiverse, "divers": ports.GenderDiverse, "diverse": ports.GenderDiverse,
 }
 
 // employmentTypeAliases maps the "Beschäftigungsart" column to users.staff.employment_type.
 var employmentTypeAliases = map[string]string{
-	"vollzeit": userModels.EmploymentTypeFullTime, "full_time": userModels.EmploymentTypeFullTime, "fulltime": userModels.EmploymentTypeFullTime,
-	"teilzeit": userModels.EmploymentTypePartTime, "part_time": userModels.EmploymentTypePartTime, "parttime": userModels.EmploymentTypePartTime,
-	"minijob": userModels.EmploymentTypeMinijob, "geringfügig": userModels.EmploymentTypeMinijob, "geringfuegig": userModels.EmploymentTypeMinijob,
+	"vollzeit": ports.EmploymentTypeFullTime, "full_time": ports.EmploymentTypeFullTime, "fulltime": ports.EmploymentTypeFullTime,
+	"teilzeit": ports.EmploymentTypePartTime, "part_time": ports.EmploymentTypePartTime, "parttime": ports.EmploymentTypePartTime,
+	"minijob": ports.EmploymentTypeMinijob, "geringfügig": ports.EmploymentTypeMinijob, "geringfuegig": ports.EmploymentTypeMinijob,
 }
 
 // StaffImportDeps contains the dependencies for StaffImportConfig.
 type StaffImportDeps struct {
-	InvitationService authsvc.InvitationService
-	InvitationRepo    authModels.InvitationTokenRepository
-	AccountRepo       authModels.AccountRepository
-	AccountTenantRepo authModels.AccountTenantRepository
-	RoleRepo          authModels.RoleRepository
-	PermissionRepo    authModels.PermissionRepository
-	SchoolRepo        platformModels.SchoolRepository
+	Authorization       importModels.Authorization
+	Transactions        importModels.Transactions
+	Invitations         importModels.StaffInviter
+	FindInvitedPeople   func(context.Context, string) ([]int64, error)
+	FindSchoolAccount   func(context.Context, string) (int64, bool, error)
+	Roles               importModels.SchoolRoleQuery
+	RolePolicy          importModels.SchoolRolePolicy
+	FindRolePermissions func(context.Context, int64) ([]string, error)
+	SchoolName          func(context.Context) (string, error)
 
 	// Stammdaten owners (#2600, #2708): People Directory files the person,
 	// School Membership the staff and caregiver rows, Workforce the master
@@ -84,27 +79,6 @@ type StaffImportDeps struct {
 	Membership ports.StaffMembership
 	Records    ports.StaffRecords
 }
-
-// importerPermissionsKey keeps the authenticated importer's permissions
-// available while the generic import service processes individual rows.
-type importerPermissionsKey struct{}
-
-// ContextWithImporterPermissions stores the authenticated importer's
-// permissions for staff invitation authorization.
-func ContextWithImporterPermissions(ctx context.Context, permissions []string) context.Context {
-	return context.WithValue(ctx, importerPermissionsKey{}, permissions)
-}
-
-// ImporterPermissionsFromContext returns the authenticated importer's
-// permissions, or nil when no authenticated importer was supplied.
-func ImporterPermissionsFromContext(ctx context.Context) []string {
-	permissions, _ := ctx.Value(importerPermissionsKey{}).([]string)
-	return permissions
-}
-
-// ErrImportModeForbidden reports that the importer lacks a permission the
-// requested import mode needs. Handlers map it to 403.
-var ErrImportModeForbidden = errors.New("import mode not permitted")
 
 // staffUpdateImportPermissions are the permissions an importer needs before
 // the staff import may change existing records (#2906). Update and upsert
@@ -125,10 +99,10 @@ func (c *StaffImportConfig) AuthorizeImportMode(ctx context.Context, mode import
 	if mode == importModels.ImportModeCreate {
 		return nil
 	}
-	importerPermissions := ImporterPermissionsFromContext(ctx)
+	importerPermissions := importModels.ImporterPermissionsFromContext(ctx)
 	for _, required := range staffUpdateImportPermissions {
-		if !authorize.HasPermission(required, importerPermissions) {
-			return fmt.Errorf("%w: mode %q requires %s", ErrImportModeForbidden, mode, required)
+		if c.Authorization == nil || !c.Authorization.HasPermission(required, importerPermissions) {
+			return fmt.Errorf("%w: mode %q requires %s", importModels.ErrImportModeForbidden, mode, required)
 		}
 	}
 	return nil
@@ -154,7 +128,7 @@ type StaffImportConfig struct {
 	roleDisplayNames []string
 	// rolesByID keeps the resolved roles so Create can decide whether the row
 	// needs a caregiver profile without a second lookup.
-	rolesByID map[int64]*authModels.Role
+	rolesByID map[int64]*importModels.SchoolRole
 	// schoolName is the tenant's display name, shown in invitation emails.
 	schoolName string
 
@@ -182,7 +156,7 @@ func NewStaffImportConfig(deps StaffImportDeps) *StaffImportConfig {
 	return &StaffImportConfig{StaffImportDeps: deps, importMu: &sync.Mutex{}}
 }
 
-func (c *StaffImportConfig) NewRequestScoped() importModels.ImportConfig[importModels.StaffImportRow] {
+func (c *StaffImportConfig) NewRequestScoped() ImportConfig[importModels.StaffImportRow] {
 	return &StaffImportConfig{StaffImportDeps: c.StaffImportDeps, importMu: c.importMu}
 }
 
@@ -374,7 +348,7 @@ func validateStaffMasterFields(row *importModels.StaffImportRow) []importModels.
 		{row.Phone, "phone", "Telefon"},
 		{row.EmergencyContactPhone, "emergency_contact_phone", "Notfallkontakt Telefon"},
 	} {
-		if phone.value != "" && userModels.ValidateOptionalPhone(phone.value) != nil {
+		if phone.value != "" && ports.ValidateOptionalPhone(phone.value) != nil {
 			errs = append(errs, importModels.ValidationError{
 				Field:    phone.field,
 				Message:  fmt.Sprintf("Ungültiges Telefon-Format für '%s': %s", phone.label, phone.value),
@@ -384,7 +358,7 @@ func validateStaffMasterFields(row *importModels.StaffImportRow) []importModels.
 		}
 	}
 
-	if row.ContactEmail != "" && !userModels.IsValidEmailFormat(row.ContactEmail) {
+	if row.ContactEmail != "" && !ports.IsValidEmailFormat(row.ContactEmail) {
 		errs = append(errs, importModels.ValidationError{
 			Field:    "contact_email",
 			Message:  fmt.Sprintf("Ungültige Kontakt-E-Mail: %s", row.ContactEmail),
@@ -544,9 +518,9 @@ func (c *StaffImportConfig) validateRole(ctx context.Context, row *importModels.
 		lookup = raw
 	}
 
-	role, err := c.RoleRepo.FindByName(ctx, lookup)
+	role, err := c.Roles.FindSchoolRoleByName(ctx, lookup)
 	if err == nil && role != nil {
-		role, err = authsvc.ValidateResolvedAssignableSchoolRole(role, tenant.FromContext(ctx))
+		err = c.RolePolicy.Validate(role, c.Transactions.TenantID(ctx))
 		if err != nil {
 			return []importModels.ValidationError{{
 				Field:    "role",
@@ -556,8 +530,8 @@ func (c *StaffImportConfig) validateRole(ctx context.Context, row *importModels.
 			}}
 		}
 		row.RoleID = role.ID
-		if c.PermissionRepo != nil {
-			role.Permissions, err = c.PermissionRepo.FindByRoleID(ctx, role.ID)
+		if c.FindRolePermissions != nil {
+			role.Permissions, err = c.FindRolePermissions(ctx, role.ID)
 			if err != nil {
 				return []importModels.ValidationError{{
 					Field:    "role",
@@ -575,7 +549,7 @@ func (c *StaffImportConfig) validateRole(ctx context.Context, row *importModels.
 			}
 			skipGrantCheck = existing != nil
 		}
-		if !skipGrantCheck && !authorize.CanGrantRole(role, ImporterPermissionsFromContext(ctx)) {
+		if !skipGrantCheck && (c.Authorization == nil || !c.Authorization.CanGrantRole(role, importModels.ImporterPermissionsFromContext(ctx))) {
 			return []importModels.ValidationError{{
 				Field:    "role",
 				Message:  "Du darfst diese Rolle nicht vergeben",
@@ -584,12 +558,12 @@ func (c *StaffImportConfig) validateRole(ctx context.Context, row *importModels.
 			}}
 		}
 		if c.rolesByID == nil {
-			c.rolesByID = make(map[int64]*authModels.Role)
+			c.rolesByID = make(map[int64]*importModels.SchoolRole)
 		}
 		c.rolesByID[role.ID] = role
 		return nil
 	}
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, importModels.ErrRoleNotFound) {
 		return []importModels.ValidationError{{
 			Field:    "role",
 			Message:  fmt.Sprintf("Rolle konnte nicht geprüft werden: %s", err.Error()),

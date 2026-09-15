@@ -69,6 +69,7 @@ import { getSettingValue } from "~/lib/settings-api";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { NotificationBadge } from "~/components/ui/notification-badge";
+import { Skeleton } from "~/components/ui/skeleton";
 import {
   getActivePlanningSubPageHref,
   isPlanningPageHref,
@@ -521,8 +522,9 @@ function asideClasses(collapsed: boolean, className: string): string {
   } ${SIDEBAR_WIDTH_TRANSITION} ${className}`;
 }
 
-// Der klebende Innenbereich beginnt unter der 73px hohen Kopfzeile und trägt
-// dieselbe Breite und dieselbe Bewegung wie die Hülle.
+// Der klebende Innenbereich beginnt unter der Kopfzeile (48px + 1px Rand,
+// #2827) plus 8px Luft und trägt dieselbe Breite und dieselbe Bewegung wie
+// die Hülle.
 //
 // Mitarbeiter-Vorschau (#2893): der feste Hinweisstreifen (h-12 = 48px)
 // schiebt die Kopfzeile nach unten. Die klebende Seitennavigation muss um
@@ -533,8 +535,8 @@ function stickyClasses(
   isPreview: boolean | undefined,
 ): string {
   const offset = isPreview
-    ? "top-[121px] h-[calc(100vh-121px)]"
-    : "top-[73px] h-[calc(100vh-73px)]";
+    ? "top-[105px] h-[calc(100vh-105px)]"
+    : "top-[57px] h-[calc(100vh-57px)]";
   return `sticky ${offset} flex flex-col ${
     collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED
   } ${SIDEBAR_WIDTH_TRANSITION}`;
@@ -1893,18 +1895,16 @@ export function Sidebar({ className = "" }: SidebarProps) {
     <Suspense
       fallback={
         <aside className={asideClasses(collapsed, className)}>
-          <div className={`sticky top-[73px] ${SIDEBAR_NAV_PADDING}`}>
+          <div className={`sticky top-[57px] ${SIDEBAR_NAV_PADDING}`}>
             {/* Platzhalter im selben Raster wie die fertigen Zeilen: 40px
                 hoch, Icon an derselben Stelle — der Wechsel vom Platzhalter
                 zur Navigation verschiebt nichts. */}
             <nav className={SIDEBAR_NAV_GAP}>
               {["w-24", "w-28", "w-20", "w-24"].map((widthClass, index) => (
                 <div key={index} className="flex h-10 items-center px-3">
-                  <div className="h-5 w-5 shrink-0 animate-pulse rounded bg-gray-200" />
+                  <Skeleton className="h-5 w-5 shrink-0 rounded" />
                   {!collapsed && (
-                    <div
-                      className={`ml-3 h-4 ${widthClass} animate-pulse rounded bg-gray-200`}
-                    />
+                    <Skeleton className={`ml-3 h-4 ${widthClass} rounded`} />
                   )}
                 </div>
               ))}

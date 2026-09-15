@@ -1,5 +1,5 @@
-import { createGetHandler } from "@/lib/route-wrapper.server";
-import { apiGet } from "~/lib/api-helpers.server";
+import { createGetHandler, createPutHandler } from "@/lib/route-wrapper.server";
+import { apiGet, apiPut } from "~/lib/api-helpers.server";
 import type { BackendRole } from "@/lib/auth-helpers";
 import { createLogger } from "~/lib/logger";
 
@@ -26,3 +26,21 @@ export const GET = createGetHandler(async (request, token, params) => {
     token,
   );
 });
+
+interface ReplaceAccountRoleBody {
+  role_id: string;
+}
+
+export const PUT = createPutHandler<unknown, ReplaceAccountRoleBody>(
+  async (_request, body, token, params) => {
+    const accountId = params.accountId as string;
+    if (!accountId) {
+      throw new Error("Account ID is required");
+    }
+    return await apiPut<unknown>(
+      `/auth/accounts/${accountId}/roles`,
+      token,
+      body,
+    );
+  },
+);

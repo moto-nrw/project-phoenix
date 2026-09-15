@@ -4,6 +4,7 @@ import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import Link from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
+import { Skeleton } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
 import {
@@ -96,14 +97,14 @@ export function MyGroupBlock() {
         if (isLoading && !group) {
           return (
             <div className="space-y-2" aria-hidden="true">
-              <div className="h-4 w-3/5 animate-pulse rounded bg-gray-200"></div>
+              <Skeleton className="h-4 w-3/5 rounded" />
               {[1, 2].map((i) => (
                 <div
                   key={i}
                   className="flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2"
                 >
-                  <div className="h-4 w-24 animate-pulse rounded bg-gray-200"></div>
-                  <div className="h-4 w-16 animate-pulse rounded bg-gray-200"></div>
+                  <Skeleton className="h-4 w-24 rounded" />
+                  <Skeleton className="h-4 w-16 rounded" />
                 </div>
               ))}
             </div>

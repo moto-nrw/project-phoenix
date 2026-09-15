@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/classlist"
+	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 	"github.com/moto-nrw/project-phoenix/services/import/ports"
 )
 
@@ -23,7 +23,7 @@ func classListRow(firstName, lastName, schoolClass string) importModels.ClassLis
 func TestClassListImportConfig_Validate(t *testing.T) {
 	t.Parallel()
 
-	config := NewClassListImportConfig(ClassListImportDeps{})
+	config := NewClassListImportConfig(ClassListImportDeps{Transactions: newTestTransactions()})
 
 	require.NoError(t, config.PreloadReferenceData(context.Background()))
 	assert.Equal(t, "Klassenlisteneintrag", config.EntityName())
@@ -45,7 +45,7 @@ func TestClassListImportConfig_Validate(t *testing.T) {
 func TestClassListImportConfig_ValidateBatchFlagsInFileDuplicates(t *testing.T) {
 	t.Parallel()
 
-	config := NewClassListImportConfig(ClassListImportDeps{})
+	config := NewClassListImportConfig(ClassListImportDeps{Transactions: newTestTransactions()})
 
 	rows := []importModels.ClassListEntryImportRow{
 		classListRow("Zoe", "Aalders", "1a"),
@@ -67,7 +67,7 @@ func TestClassListImportConfig_FindExisting(t *testing.T) {
 	t.Parallel()
 
 	entries := &fakeClassList{entries: []ports.ClassListEntry{{ID: 77, FirstName: "Zoe", LastName: "Aalders", SchoolClass: "1a"}}}
-	config := NewClassListImportConfig(ClassListImportDeps{
+	config := NewClassListImportConfig(ClassListImportDeps{Transactions: newTestTransactions(),
 		Membership: entries, Persons: newFakePersons(), Students: &fakeStudents{},
 	})
 
@@ -80,7 +80,7 @@ func TestClassListImportConfig_FindExisting(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, id)
 
-	failing := NewClassListImportConfig(ClassListImportDeps{Membership: &fakeClassList{listErr: errFakeOwner}})
+	failing := NewClassListImportConfig(ClassListImportDeps{Transactions: newTestTransactions(), Membership: &fakeClassList{listErr: errFakeOwner}})
 	_, err = failing.FindExisting(context.Background(), classListRow("Zoe", "Aalders", "1a"))
 	require.Error(t, err)
 }
@@ -103,7 +103,7 @@ func TestClassListImportConfig_FindExistingReportsMatchingStudent(t *testing.T) 
 		{ID: 42, PersonID: 2, SchoolClass: "1a", Status: ports.StudentStatusAlumnus},
 		{ID: 43, PersonID: 3, SchoolClass: "1a", Status: "active"},
 	}}
-	config := NewClassListImportConfig(ClassListImportDeps{Membership: &fakeClassList{}, Persons: persons, Students: students})
+	config := NewClassListImportConfig(ClassListImportDeps{Transactions: newTestTransactions(), Membership: &fakeClassList{}, Persons: persons, Students: students})
 
 	id, err := config.FindExisting(context.Background(), classListRow("Zoe", "Aalders", "1a"))
 	require.NoError(t, err)
@@ -114,7 +114,7 @@ func TestClassListImportConfig_FindExistingReportsMatchingStudent(t *testing.T) 
 	require.NoError(t, err)
 	assert.Nil(t, id)
 
-	failing := NewClassListImportConfig(ClassListImportDeps{Membership: &fakeClassList{}, Persons: persons, Students: &fakeStudents{err: errFakeOwner}})
+	failing := NewClassListImportConfig(ClassListImportDeps{Transactions: newTestTransactions(), Membership: &fakeClassList{}, Persons: persons, Students: &fakeStudents{err: errFakeOwner}})
 	_, err = failing.FindExisting(context.Background(), classListRow("Zoe", "Aalders", "1a"))
 	require.Error(t, err)
 }
@@ -124,7 +124,7 @@ func TestClassListImportConfig_CreateThroughMembershipWithAuditTrail(t *testing.
 
 	entries := &fakeClassList{}
 	audit := &fakeAudit{}
-	config := NewClassListImportConfig(ClassListImportDeps{Membership: entries, Persons: newFakePersons(), Students: &fakeStudents{}, Audit: audit})
+	config := NewClassListImportConfig(ClassListImportDeps{Transactions: newTestTransactions(), Membership: entries, Persons: newFakePersons(), Students: &fakeStudents{}, Audit: audit})
 	importerID := fakeImporterID()
 	ctx := ContextWithImporterID(context.Background(), importerID)
 
@@ -157,13 +157,13 @@ func TestClassListImportConfig_CreateMapsOwnerErrors(t *testing.T) {
 	// A regular student with the name already exists: the row needs no entry.
 	persons := newFakePersons(ports.Person{ID: 1, FirstName: "Zoe", LastName: "Aalders"})
 	students := &fakeStudents{students: []ports.Student{{ID: 41, PersonID: 1, SchoolClass: "1a", Status: "active"}}}
-	config := NewClassListImportConfig(ClassListImportDeps{Membership: &fakeClassList{}, Persons: persons, Students: students})
+	config := NewClassListImportConfig(ClassListImportDeps{Transactions: newTestTransactions(), Membership: &fakeClassList{}, Persons: persons, Students: students})
 	_, err := config.Create(context.Background(), classListRow("Zoe", "Aalders", "1a"))
 	assert.ErrorIs(t, err, ErrClassListEntryStudentExists)
 
 	// The owner's unique index is the race-safe backstop; its sentinel is
 	// reported as the duplicate it is, not as a server error.
-	raced := NewClassListImportConfig(ClassListImportDeps{
+	raced := NewClassListImportConfig(ClassListImportDeps{Transactions: newTestTransactions(),
 		Membership: &fakeClassList{create: func(ports.CreateClassListEntry) (ports.ClassListEntry, error) {
 			return ports.ClassListEntry{}, ports.ErrMembershipClassListEntryDuplicate
 		}},
@@ -172,7 +172,7 @@ func TestClassListImportConfig_CreateMapsOwnerErrors(t *testing.T) {
 	_, err = raced.Create(context.Background(), classListRow("Zoe", "Aalders", "1a"))
 	assert.ErrorIs(t, err, ErrClassListEntryDuplicate)
 
-	broken := NewClassListImportConfig(ClassListImportDeps{
+	broken := NewClassListImportConfig(ClassListImportDeps{Transactions: newTestTransactions(),
 		Membership: &fakeClassList{create: func(ports.CreateClassListEntry) (ports.ClassListEntry, error) {
 			return ports.ClassListEntry{}, errFakeOwner
 		}},
@@ -183,7 +183,7 @@ func TestClassListImportConfig_CreateMapsOwnerErrors(t *testing.T) {
 	assert.Contains(t, err.Error(), "create class list entry")
 
 	// A failed audit append fails the row: the trail is part of the write.
-	unaudited := NewClassListImportConfig(ClassListImportDeps{Membership: &fakeClassList{}, Persons: newFakePersons(), Students: &fakeStudents{}, Audit: &fakeAudit{err: errFakeOwner}})
+	unaudited := NewClassListImportConfig(ClassListImportDeps{Transactions: newTestTransactions(), Membership: &fakeClassList{}, Persons: newFakePersons(), Students: &fakeStudents{}, Audit: &fakeAudit{err: errFakeOwner}})
 	_, err = unaudited.Create(context.Background(), classListRow("Zoe", "Aalders", "1a"))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "record class list entry change")
@@ -192,7 +192,7 @@ func TestClassListImportConfig_CreateMapsOwnerErrors(t *testing.T) {
 func TestClassListImportConfig_UpdateIsRefused(t *testing.T) {
 	t.Parallel()
 
-	config := NewClassListImportConfig(ClassListImportDeps{})
+	config := NewClassListImportConfig(ClassListImportDeps{Transactions: newTestTransactions()})
 	err := config.Update(context.Background(), 1, classListRow("Zoe", "Aalders", "1a"))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "nicht aktualisiert")

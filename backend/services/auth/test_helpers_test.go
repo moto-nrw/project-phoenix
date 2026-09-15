@@ -785,6 +785,10 @@ func (noopRoleRepository) FindByID(context.Context, interface{}) (*authModel.Rol
 	panic("FindByID not implemented")
 }
 
+func (noopRoleRepository) FindByIDForUpdate(context.Context, int64) (*authModel.Role, error) {
+	panic("FindByIDForUpdate not implemented")
+}
+
 func (noopRoleRepository) Update(context.Context, *authModel.Role) error {
 	panic("Update not implemented")
 }
@@ -843,6 +847,10 @@ func (r *stubRoleRepository) FindByID(_ context.Context, id interface{}) (*authM
 		}
 	}
 	return nil, sql.ErrNoRows
+}
+
+func (r *stubRoleRepository) FindByIDForUpdate(ctx context.Context, id int64) (*authModel.Role, error) {
+	return r.FindByID(ctx, id)
 }
 
 func (r *stubRoleRepository) FindByName(_ context.Context, name string) (*authModel.Role, error) {

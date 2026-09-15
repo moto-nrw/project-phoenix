@@ -11,6 +11,7 @@ import React, {
 } from "react";
 import { Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
+import { normalizeLocale, type AppLocale } from "~/i18n/locales";
 import { createLogger } from "~/lib/logger";
 import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
 
@@ -46,28 +47,109 @@ interface ToastAPI {
 
 const ToastContext = createContext<ToastAPI | undefined>(undefined);
 
-const mobileToastModalLabels = {
+const toastLabelsByLocale = {
   de: {
     title: "Benachrichtigungen",
     close: "Schließen",
     backdrop: "Benachrichtigung schließen",
+    typeTitles: {
+      success: "Erfolgreich!",
+      error: "Fehler",
+      info: "Information",
+      warning: "Warnung",
+    },
+    dismissInstruction: "Tippen zum Schließen",
+    actionInstruction: (label: string) => `Tippen zum ${label}`,
   },
   en: {
     title: "Notifications",
     close: "Close",
     backdrop: "Close notification",
+    typeTitles: {
+      success: "Success!",
+      error: "Error",
+      info: "Information",
+      warning: "Warning",
+    },
+    dismissInstruction: "Tap to close",
+    actionInstruction: (label: string) => `Tap to ${label}`,
   },
   ru: {
     title: "Уведомления",
     close: "Закрыть",
     backdrop: "Закрыть уведомление",
+    typeTitles: {
+      success: "Успешно!",
+      error: "Ошибка",
+      info: "Информация",
+      warning: "Предупреждение",
+    },
+    dismissInstruction: "Нажмите, чтобы закрыть",
+    actionInstruction: (label: string) => `Нажмите: ${label}`,
   },
   sq: {
     title: "Njoftimet",
     close: "Mbyll",
     backdrop: "Mbyll njoftimin",
+    typeTitles: {
+      success: "Me sukses!",
+      error: "Gabim",
+      info: "Informacion",
+      warning: "Paralajmërim",
+    },
+    dismissInstruction: "Prekni për ta mbyllur",
+    actionInstruction: (label: string) => `Prekni: ${label}`,
   },
-} as const;
+  pl: {
+    title: "Powiadomienia",
+    close: "Zamknij",
+    backdrop: "Zamknij powiadomienie",
+    typeTitles: {
+      success: "Sukces!",
+      error: "Błąd",
+      info: "Informacja",
+      warning: "Ostrzeżenie",
+    },
+    dismissInstruction: "Dotknij, aby zamknąć",
+    actionInstruction: (label: string) => `Dotknij: ${label}`,
+  },
+  tr: {
+    title: "Bildirimler",
+    close: "Kapat",
+    backdrop: "Bildirimi kapat",
+    typeTitles: {
+      success: "Başarılı!",
+      error: "Hata",
+      info: "Bilgi",
+      warning: "Uyarı",
+    },
+    dismissInstruction: "Kapatmak için dokunun",
+    actionInstruction: (label: string) => `Dokunun: ${label}`,
+  },
+  uk: {
+    title: "Сповіщення",
+    close: "Закрити",
+    backdrop: "Закрити сповіщення",
+    typeTitles: {
+      success: "Успішно!",
+      error: "Помилка",
+      info: "Інформація",
+      warning: "Попередження",
+    },
+    dismissInstruction: "Торкніться, щоб закрити",
+    actionInstruction: (label: string) => `Торкніться: ${label}`,
+  },
+} as const satisfies Record<
+  AppLocale,
+  {
+    readonly title: string;
+    readonly close: string;
+    readonly backdrop: string;
+    readonly typeTitles: Readonly<Record<ToastType, string>>;
+    readonly dismissInstruction: string;
+    actionInstruction: (label: string) => string;
+  }
+>;
 
 export function useToast() {
   const ctx = useContext(ToastContext);
@@ -137,23 +219,16 @@ const desktopStylesByType: Record<
   info: {
     bg: "bg-moto-blue/10",
     border: "border-moto-blue/20",
-    text: "text-[#4070C8]",
+    text: "text-moto-blue-strong",
     iconPath: "M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
   },
   warning: {
     bg: "bg-moto-orange/10",
     border: "border-moto-orange/20",
-    text: "text-[#C56F0D]",
+    text: "text-moto-orange-strong",
     iconPath:
       "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z",
   },
-};
-
-const modalTitles: Record<ToastType, string> = {
-  success: "Erfolgreich!",
-  error: "Fehler",
-  info: "Information",
-  warning: "Warnung",
 };
 
 function useReducedMotion() {
@@ -180,13 +255,16 @@ function ToastRow({
   onClose,
   reducedMotion,
   isMobile,
+  locale,
 }: Readonly<{
   item: ToastItemData;
   onClose: (id: string) => void;
   reducedMotion: boolean;
   isMobile: boolean;
+  locale: AppLocale;
 }>) {
   const desktopStyles = desktopStylesByType[item.type];
+  const labels = toastLabelsByLocale[locale];
 
   const [visible, setVisible] = useState(false);
   const [exiting, setExiting] = useState(false);
@@ -255,8 +333,10 @@ function ToastRow({
         type="button"
         variant="surface"
         size="card"
-        aria-label={`${modalTitles[item.type]}: ${item.message}. ${
-          item.action ? `Tippen zum ${item.action.label}` : "Tippen zum Schließen"
+        aria-label={`${labels.typeTitles[item.type]}: ${item.message}. ${
+          item.action
+            ? labels.actionInstruction(item.action.label)
+            : labels.dismissInstruction
         }`}
         onClick={handleAction}
         className={`${mobileStyles.bg} ${mobileStyles.border} border text-center shadow-none`}
@@ -283,7 +363,7 @@ function ToastRow({
           </div>
           <div>
             <p className={`text-lg font-semibold ${mobileStyles.text}`}>
-              {modalTitles[item.type]}
+              {labels.typeTitles[item.type]}
             </p>
             <p className={`mt-1 text-sm ${mobileStyles.text} opacity-80`}>
               {item.message}
@@ -333,7 +413,7 @@ function ToastRow({
         )}
         <button
           type="button"
-          aria-label="Schließen"
+          aria-label={labels.close}
           onClick={() => onClose(item.id)}
           className={`flex-shrink-0 ${desktopStyles.text} transition-opacity hover:opacity-70`}
         >
@@ -362,12 +442,10 @@ export function ToastProvider({
   const [items, setItems] = useState<ToastItemData[]>([]);
   const reducedMotion = useReducedMotion();
   const isMobile = useMediaQuery(BELOW_MD);
-  const locale =
-    typeof document === "undefined" ? "de" : document.documentElement.lang;
-  const modalLabels =
-    mobileToastModalLabels[
-      locale as keyof typeof mobileToastModalLabels
-    ] ?? mobileToastModalLabels.de;
+  const locale = normalizeLocale(
+    typeof document === "undefined" ? "de" : document.documentElement.lang,
+  );
+  const labels = toastLabelsByLocale[locale];
 
   // Track last shown timestamps for simple de-duplication
   const lastShownRef = useRef<Map<string, number>>(new Map());
@@ -446,10 +524,10 @@ export function ToastProvider({
           dismissedToastIdRef.current = undefined;
           if (dismissedToastId) remove(dismissedToastId);
         }}
-        title={modalLabels.title}
+        title={labels.title}
         widthClass="mx-4 w-[calc(100%-2rem)] max-w-xs"
-        closeLabel={modalLabels.close}
-        backdropLabel={modalLabels.backdrop}
+        closeLabel={labels.close}
+        backdropLabel={labels.backdrop}
       >
         <div className="space-y-2">
           {items.map((item) => (
@@ -459,6 +537,7 @@ export function ToastProvider({
               onClose={remove}
               reducedMotion={reducedMotion}
               isMobile={isMobile}
+              locale={locale}
             />
           ))}
         </div>
@@ -473,6 +552,7 @@ export function ToastProvider({
               onClose={remove}
               reducedMotion={reducedMotion}
               isMobile={isMobile}
+              locale={locale}
             />
           ))}
       </div>

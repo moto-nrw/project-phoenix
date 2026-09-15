@@ -11,6 +11,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/uptrace/bun"
 )
 
@@ -42,6 +43,23 @@ func (f *Factory) BindSchoolCalendar(capability schoolcalendar.Capability) {
 
 // SchoolCalendar returns the capability the calendar adapters read through.
 func (f *Factory) SchoolCalendar() schoolcalendar.Capability { return f.schoolCalendar }
+
+// NewCalendarPeriodUsage composes the School Calendar usage read from the
+// two owners that hold calendar-period references: Enrollment (phases) and
+// Timetable (planning tables), one statement each (#3124).
+func NewCalendarPeriodUsage(enrollment scheduleRepo.EnrollmentPhaseQueries, planning timetable.Capability) *scheduleRepo.CalendarPeriodUsageRepository {
+	return scheduleRepo.NewCalendarPeriodUsageRepository(enrollment, func(ctx context.Context) (map[int64]scheduleRepo.CalendarPeriodReferences, error) {
+		references, err := planning.CountCalendarPeriodReferences(ctx)
+		if err != nil {
+			return nil, err
+		}
+		counts := make(map[int64]scheduleRepo.CalendarPeriodReferences, len(references))
+		for id, entry := range references {
+			counts[id] = scheduleRepo.CalendarPeriodReferences(entry)
+		}
+		return counts, nil
+	})
+}
 
 // bindSchoolCalendarAdapters points every calendar-derived repository at the
 // given capability. The raw activities and users repositories are reached

@@ -187,6 +187,11 @@ export const MOTO_COLOR_PALETTE = {
   },
   neutral: {
     soft: "#F3F4F6",
+    // Tailwind gray-300: die neutrale Blockkante für Termine ohne
+    // Planungsspur (timetable-style, ui/plan-block). Liegt wie green.muted
+    // zwischen soft und light; als Token, weil die Kante über style-Props
+    // läuft und keine Klasse tragen kann.
+    muted: "#D1D5DB",
     light: "#9CA3AF",
     base: "#6B7280",
     strong: "#374151",
@@ -196,6 +201,15 @@ export const MOTO_COLOR_PALETTE = {
     light: "#A8A29E",
     base: "#78716C",
     strong: "#44403C",
+  },
+  // Akzent je Raumkategorie (lib/room-helpers.ts): Raumkarte und
+  // Belegungshistorie zeigen dieselbe Farbe. Keine Duotone-Familie, sondern
+  // drei Bestandswerte, die nirgends sonst in der Palette liegen; „Normaler
+  // Raum“ ist indigo.base und steht darum nicht noch einmal hier.
+  roomCategory: {
+    group: "#10B981",
+    theme: "#8B5CF6",
+    sport: "#EC4899",
   },
 } as const;
 

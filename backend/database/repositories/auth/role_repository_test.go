@@ -192,6 +192,27 @@ func TestRoleRepository_FindByAccountID(t *testing.T) {
 		assert.True(t, found)
 	})
 
+	t.Run("orders roles like the primary role lookup", func(t *testing.T) {
+		account := testpkg.CreateTestAccount(t, db, "orderedroles")
+		firstRole := testpkg.CreateTestRole(t, db, "FirstAccountRole")
+		secondRole := testpkg.CreateTestRole(t, db, "SecondAccountRole")
+
+		_, err := db.ExecContext(ctx,
+			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+			account.ID, firstRole.ID, testpkg.Tenant(t))
+		require.NoError(t, err)
+		_, err = db.ExecContext(ctx,
+			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+			account.ID, secondRole.ID, testpkg.Tenant(t))
+		require.NoError(t, err)
+
+		roles, err := repo.FindByAccountID(ctx, account.ID)
+		require.NoError(t, err)
+		require.Len(t, roles, 2)
+		assert.Equal(t, firstRole.ID, roles[0].ID)
+		assert.Equal(t, secondRole.ID, roles[1].ID)
+	})
+
 	t.Run("returns empty for account with no roles", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "noroles")
 
@@ -321,7 +342,7 @@ func TestRoleRepository_FindRoleNamesByAccountIDs(t *testing.T) {
 		role1 := testpkg.CreateTestRole(t, db, fmt.Sprintf("MultiFirst_%d", time.Now().UnixNano()))
 		role2 := testpkg.CreateTestRole(t, db, fmt.Sprintf("MultiSecond_%d", time.Now().UnixNano()))
 
-		// Assign two roles — first inserted should be returned (ORDER BY created_at ASC)
+		// Assign two roles — first inserted should be returned (ORDER BY created_at, id ASC).
 		_, err := db.ExecContext(ctx,
 			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
 			account.ID, role1.ID, testpkg.Tenant(t))

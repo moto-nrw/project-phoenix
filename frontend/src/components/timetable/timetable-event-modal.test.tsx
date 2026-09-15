@@ -4922,7 +4922,7 @@ describe("TimetableEventModal", () => {
   // "Wiederholung" or "Personal und Kinder", and the grey "Weiter" drew less
   // attention than the dark "Speichern".
   it("offers Speichern only on the last step", async () => {
-    renderModal();
+    renderModal({ initialInstance: savedInstance });
 
     await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
     expect(

@@ -40,7 +40,7 @@ func ErrorCode(err error) string {
 	switch {
 	case err == nil:
 		return "none"
-	case errors.Is(err, ErrAccountNotFound), errors.Is(err, ErrGuardianRoleMissing),
+	case errors.Is(err, ErrAccountNotFound), errors.Is(err, ErrRoleNotFound), errors.Is(err, ErrGuardianRoleMissing),
 		errors.Is(err, ErrOperatorNotFound), errors.Is(err, ErrOperatorSessionNotFound):
 		return "not_found"
 	case errors.Is(err, ErrOperatorSessionRotated):
@@ -196,6 +196,54 @@ type OperatorAccess interface {
 type Engine interface {
 	GuardianAccess
 	OperatorAccess
+	RFIDQuery
+	SchoolAccountQuery
+	InvitedPersonQuery
+	SchoolRoleQuery
+	RolePermissionQuery
+}
+
+// InvitedPersonQuery retains the person identities of unused invitations in
+// the current tenant. Expired invitations remain identity links until used or
+// revoked; this query does not authorize accepting an expired invitation.
+type InvitedPersonQuery interface {
+	FindInvitedPersonIDs(context.Context, string) ([]int64, error)
+}
+
+func (m *Module) FindInvitedPersonIDs(ctx context.Context, email string) ([]int64, error) {
+	ids, err := m.engine.FindInvitedPersonIDs(ctx, email)
+	if err != nil {
+		return nil, fmt.Errorf("identity access: find invited people: %w", err)
+	}
+	return ids, nil
+}
+
+// SchoolAccountQuery resolves login identities with active membership in the
+// current tenant. Unknown accounts and inactive/foreign mappings are not found.
+type SchoolAccountQuery interface {
+	FindSchoolAccountByEmail(context.Context, string) (Account, error)
+}
+
+func (m *Module) FindSchoolAccountByEmail(ctx context.Context, email string) (Account, error) {
+	account, err := m.engine.FindSchoolAccountByEmail(ctx, email)
+	if err != nil {
+		return Account{}, fmt.Errorf("identity access: find school account: %w", err)
+	}
+	return account, nil
+}
+
+// RFIDQuery resolves the canonical ID of a card belonging to the current
+// tenant. Missing cards return found=false. A tenant is always required.
+type RFIDQuery interface {
+	FindRFIDCard(ctx context.Context, tag string) (id string, found bool, err error)
+}
+
+func (m *Module) FindRFIDCard(ctx context.Context, tag string) (string, bool, error) {
+	id, found, err := m.engine.FindRFIDCard(ctx, tag)
+	if err != nil {
+		return "", false, fmt.Errorf("identity access: find RFID card: %w", err)
+	}
+	return id, found, nil
 }
 
 // Module is the public Identity & Access facade.

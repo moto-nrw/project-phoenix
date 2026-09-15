@@ -49,7 +49,7 @@ function filesStatusLine(folders: readonly FileFolder[]): string {
   const fileCount = folders.reduce((sum, folder) => sum + folder.fileCount, 0);
   return `${fileCount} ${fileCount === 1 ? "Datei" : "Dateien"} · ${
     folders.length
-  } ${folders.length === 1 ? "Ordner" : "Ordner"}`;
+  } Ordner`;
 }
 
 const ACCEPTED_FILE_TYPES = ".pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg";

@@ -20,6 +20,7 @@ import {
 } from "~/lib/enrollment-submission-api";
 import { createLogger } from "~/lib/logger";
 import { Button, ButtonLink } from "~/components/ui/button";
+import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { EnrollmentChangeRequestDiff } from "~/components/enrollment/enrollment-change-request-diff";
 import type { EnrollmentChangeRequestDiffCopy } from "~/lib/enrollment-change-request-diff";
@@ -1038,43 +1039,24 @@ function GuardianSection({
 function GuardianDetails({ status }: Readonly<{ status: StatusResponse }>) {
   const t = useTranslations("enrollmentStatus");
   return (
-    <dl className="grid gap-3 text-sm text-gray-700 sm:grid-cols-3">
-      <div className="moto-content-surface rounded-xl border p-4 shadow-sm">
-        <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          {t("nameLabel")}
-        </dt>
-        <dd className="mt-1 font-semibold text-gray-900">
-          {status.guardian_first_name} {status.guardian_last_name}
-        </dd>
-      </div>
-      <div className="moto-content-surface rounded-xl border p-4 shadow-sm">
-        <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          {t("emailLabel")}
-        </dt>
-        <dd className="mt-1 font-semibold break-all text-gray-900">
-          {status.guardian_email}
-        </dd>
-      </div>
-      <div className="moto-content-surface rounded-xl border p-4 shadow-sm">
-        <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          {t("phoneLabel")}
-        </dt>
-        <dd className="mt-1 font-semibold text-gray-900">
-          {status.guardian_phone ?? t("notProvided")}
-        </dd>
-      </div>
+    <DataGrid>
+      <DataField label={t("nameLabel")}>
+        {status.guardian_first_name} {status.guardian_last_name}
+      </DataField>
+      <DataField label={t("emailLabel")}>
+        <span className="break-all">{status.guardian_email}</span>
+      </DataField>
+      <DataField label={t("phoneLabel")}>
+        {status.guardian_phone ?? t("notProvided")}
+      </DataField>
       {status.additional_guardians?.map((guardian: StatusGuardian) => (
-        <div
+        <DataField
           key={`${guardian.first_name}-${guardian.last_name}-${guardian.email ?? ""}-${guardian.phone ?? ""}`}
-          className="moto-content-surface rounded-xl border p-4 shadow-sm sm:col-span-3"
+          label={t("additionalGuardiansLabel")}
+          fullWidth
         >
-          <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            {t("additionalGuardiansLabel")}
-          </dt>
-          <dd className="mt-1 font-semibold text-gray-900">
-            {guardian.first_name} {guardian.last_name}
-          </dd>
-          <dd className="mt-1 text-sm text-gray-600">
+          {guardian.first_name} {guardian.last_name}
+          <span className="block font-normal text-gray-600">
             {guardian.email && guardian.email.trim() !== ""
               ? guardian.email
               : t("notProvided")}
@@ -1082,10 +1064,10 @@ function GuardianDetails({ status }: Readonly<{ status: StatusResponse }>) {
             {guardian.phone && guardian.phone.trim() !== ""
               ? guardian.phone
               : t("notProvided")}
-          </dd>
-        </div>
+          </span>
+        </DataField>
       ))}
-    </dl>
+    </DataGrid>
   );
 }
 
@@ -1121,7 +1103,7 @@ function WithdrawAllSection({
     <section className="moto-content-surface rounded-xl border p-5 shadow-sm sm:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#FF3130]/30 bg-[#FF3130]/5 text-[#CC2626] shadow-sm">
+          <span className="border-moto-red/30 bg-moto-red/5 text-moto-red flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border shadow-sm">
             <AlertTriangle className="h-5 w-5" aria-hidden="true" />
           </span>
           <div>

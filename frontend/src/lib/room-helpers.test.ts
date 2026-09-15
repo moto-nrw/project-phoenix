@@ -11,10 +11,12 @@ import {
   formatRoomCapacity,
   getRoomUtilization,
   getRoomStatusColor,
+  getRoomCategoryColor,
   isColorLockedRoom,
   isSchulhofRoom,
   isSystemRoom,
 } from "./room-helpers";
+import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { suppressConsole } from "~/test/helpers/console";
 import { buildBackendRoom } from "~/test/fixtures/rooms";
 
@@ -653,5 +655,38 @@ describe("isSystemRoom", () => {
 
   it("returns false for undefined", () => {
     expect(isSystemRoom(undefined)).toBe(false);
+  });
+});
+
+describe("getRoomCategoryColor", () => {
+  it("resolves every known category to its palette token", () => {
+    expect(getRoomCategoryColor("Normaler Raum")).toBe(
+      MOTO_COLOR_PALETTE.indigo.base,
+    );
+    expect(getRoomCategoryColor("Gruppenraum")).toBe(
+      MOTO_COLOR_PALETTE.roomCategory.group,
+    );
+    expect(getRoomCategoryColor("Themenraum")).toBe(
+      MOTO_COLOR_PALETTE.roomCategory.theme,
+    );
+    expect(getRoomCategoryColor("Sport")).toBe(
+      MOTO_COLOR_PALETTE.roomCategory.sport,
+    );
+  });
+
+  it("keeps the four categories visually distinct", () => {
+    const colors = ["Normaler Raum", "Gruppenraum", "Themenraum", "Sport"].map(
+      (category) => getRoomCategoryColor(category),
+    );
+    expect(new Set(colors).size).toBe(colors.length);
+  });
+
+  it("falls back to the neutral palette gray for unknown or missing categories", () => {
+    expect(getRoomCategoryColor("Aula")).toBe(MOTO_COLOR_PALETTE.neutral.base);
+    expect(getRoomCategoryColor(null)).toBe(MOTO_COLOR_PALETTE.neutral.base);
+    expect(getRoomCategoryColor(undefined)).toBe(
+      MOTO_COLOR_PALETTE.neutral.base,
+    );
+    expect(getRoomCategoryColor("")).toBe(MOTO_COLOR_PALETTE.neutral.base);
   });
 });

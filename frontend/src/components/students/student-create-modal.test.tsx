@@ -911,7 +911,7 @@ describe("StudentCreateModal", () => {
     });
     expect(screen.getByText("2× Ankunft · 1× Abholung")).toBeInTheDocument();
     expect(screen.getByText("2 Tage")).toBeInTheDocument();
-    expect(screen.getByText("Wochenplan bearbeiten")).toBeInTheDocument();
+    expect(screen.getByText("Wochenplan ändern")).toBeInTheDocument();
     // Sub-modal closes after collecting.
     expect(
       screen.queryByTestId("care-weekly-plan-modal"),

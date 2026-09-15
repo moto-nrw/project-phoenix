@@ -2,12 +2,14 @@ package importpkg
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/dataimport/fileformat"
+
+	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,9 +31,9 @@ const (
 	openingEffectiveDay   = 1
 )
 
-func openingStaff(id int64, personnelNumber, firstName, lastName string) *userModels.Staff {
-	staff := &userModels.Staff{
-		Person: &userModels.Person{FirstName: firstName, LastName: lastName},
+func openingStaff(id int64, personnelNumber, firstName, lastName string) *importModels.OpeningStaff {
+	staff := &importModels.OpeningStaff{
+		Person: &importModels.OpeningPerson{FirstName: firstName, LastName: lastName},
 	}
 	staff.ID = id
 	if personnelNumber != "" {
@@ -51,15 +53,16 @@ func newOpeningConfig() *OpeningBalanceImportConfig {
 	twinB := openingStaff(openingStaffTwinBID, "P-201", "Maria", "Müller")
 
 	return &OpeningBalanceImportConfig{
-		EffectiveDate:    timezone.NewDate(openingEffectiveYear, openingEffectiveMonth, openingEffectiveDay),
-		Note:             "Übernahme aus Altsystem",
-		DecidedByStaffID: openingDecidedByID,
-		staffByPersonnelNumber: map[string]*userModels.Staff{
+		OpeningBalanceImportDeps: OpeningBalanceImportDeps{Transactions: newTestTransactions()},
+		EffectiveDate:            timezone.NewDate(openingEffectiveYear, openingEffectiveMonth, openingEffectiveDay),
+		Note:                     "Übernahme aus Altsystem",
+		DecidedByStaffID:         openingDecidedByID,
+		staffByPersonnelNumber: map[string]*importModels.OpeningStaff{
 			"p-100": anna,
 			"p-200": twinA,
 			"p-201": twinB,
 		},
-		staffByName: map[string][]*userModels.Staff{
+		staffByName: map[string][]*importModels.OpeningStaff{
 			staffNameKey("Anna", "Lehmann"): {anna},
 			staffNameKey("Bernd", "Schulz"): {bernd},
 			staffNameKey("Maria", "Müller"): {twinA, twinB},
@@ -487,4 +490,32 @@ func TestOpeningBalanceConfig_CreateRejectsUnresolvedRow(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ohne aufgelöste Person")
+}
+
+const openingBalanceCSVHeader = "Personalnummer,Vorname,Nachname,Stundensaldo,Jahresanspruch,Vorjahresübertrag,Resturlaub\n"
+
+// TestParseOpeningBalanceCSV_NegativeValuesSurviveTheSanitizer is the
+// end-to-end check for the case the whole takeover exists for: a staff member
+// who arrives with a MINUS on the Stundenkonto (or an overdrawn vacation
+// account). The value must reach Validate parseable.
+func TestParseOpeningBalanceCSV_NegativeValuesSurviveTheSanitizer(t *testing.T) {
+	t.Parallel()
+
+	csvData := openingBalanceCSVHeader + "P-100,Anna,Lehmann,\"-3,25\",30,,\"-2\""
+
+	rows, err := fileformat.ParseOpeningBalanceCSV(strings.NewReader(csvData))
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, "-3,25", rows[0].HoursBalance)
+	assert.Equal(t, "-2", rows[0].VacationRemaining)
+
+	c := newOpeningConfig()
+	row := rows[0]
+	errs := c.Validate(t.Context(), &row)
+
+	require.Empty(t, errs, "a negative opening balance must import without a validation error")
+	require.NotNil(t, row.HoursBalanceMinutes)
+	assert.Equal(t, -195, *row.HoursBalanceMinutes)
+	require.NotNil(t, row.VacationRemainingDays)
+	assert.InDelta(t, -2, *row.VacationRemainingDays, 0.0001)
 }

@@ -168,18 +168,6 @@ const DENSITY_OPTIONS: Array<{ value: WeekDensity; label: string }> = [
   { value: "comfortable", label: "Komfortabel" },
 ];
 
-function calendarPeriodUsage(period: CalendarPeriod | null) {
-  if (!period) return undefined;
-  return {
-    enrollmentPhaseCount: period.enrollmentPhaseCount ?? 0,
-    activityGroupCount: period.activityGroupCount ?? 0,
-    scheduleCount: period.scheduleCount ?? 0,
-    studentEnrollmentCount: period.studentEnrollmentCount ?? 0,
-    supervisorCount: period.supervisorCount ?? 0,
-    activityInstanceCount: period.activityInstanceCount ?? 0,
-  };
-}
-
 function schoolYearPeriodDefaults(anchor: Date): {
   name: string;
   startDate: string;
@@ -281,11 +269,8 @@ function TimetablesContent() {
   const [archiveLoading, setArchiveLoading] = useState(false);
   const [convertingInstance, setConvertingInstance] =
     useState<EnrichedInstance | null>(null);
+  // Anlegen eines Kalenderzeitraums; bearbeitet wird auf /calendar-periods.
   const [periodModalOpen, setPeriodModalOpen] = useState(false);
-  // null = create mode (no active period yet); otherwise edit the named period.
-  const [editingPeriod, setEditingPeriod] = useState<CalendarPeriod | null>(
-    null,
-  );
   // StrictMode double-invokes effects; the ref keeps the (idempotent)
   // bootstrap POST from firing twice per mount.
   const bootstrapAttemptedRef = useRef(false);
@@ -297,11 +282,6 @@ function TimetablesContent() {
   const { dayStartHour, dayEndHour } = useTimetableDayHours();
 
   const openPeriodCreate = useCallback(() => {
-    setEditingPeriod(null);
-    setPeriodModalOpen(true);
-  }, []);
-  const openPeriodEdit = useCallback((period: CalendarPeriod) => {
-    setEditingPeriod(period);
     setPeriodModalOpen(true);
   }, []);
 
@@ -1566,7 +1546,7 @@ function TimetablesContent() {
       <CalendarPeriodModal
         isOpen={periodModalOpen}
         onClose={() => setPeriodModalOpen(false)}
-        initial={editingPeriod}
+        initial={null}
         onSaved={() => {
           // Refresh both caches: the period header button and the week grid
           // can pick up the new state without a manual reload.
@@ -1578,7 +1558,6 @@ function TimetablesContent() {
           void tenantMutate(swrKey);
         }}
         createDefaults={periodCreateDefaults}
-        usage={calendarPeriodUsage(editingPeriod)}
       />
 
       <ConfirmationModal
@@ -1680,7 +1659,6 @@ function TimetablesContent() {
               selectedPeriodId={focusedPeriodID}
               isLoading={periodsLoading}
               onCreate={openPeriodCreate}
-              onEdit={openPeriodEdit}
               onSelect={jumpToPeriod}
               canManage={canManageSchedules}
             />

@@ -144,6 +144,15 @@ base-commit SHA. Debt is shrink-only, except when a policy tightening exposes
 an exact import already present and allowed at that SHA (see below). The required
 status is `Backend architecture ratchet`.
 
+Release promotion (`development` to `main`, same repository) uses the exact
+development head as its accepted comparison point. It requires a successful
+complete push CI run for that SHA, main ancestry, and an identical release
+tree. The current graph still has to match its exact baseline. This avoids
+retroactively applying newer ratchet mechanics to all historical cutovers in
+one release. Diverged main must first be merged into development and pass CI.
+Other PRs retain the strict base-SHA comparison. The promotion guard is
+`scripts/check-release-architecture.mjs`; missing CI evidence fails closed.
+
 ## Generated projections
 
 `diagram` evaluates the real graph once, loads the committed baseline by

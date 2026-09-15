@@ -16,6 +16,22 @@ type recordingEngine struct {
 	calls   int
 }
 
+func (e *recordingEngine) ListGroups(context.Context, int) ([]schoolstructure.Group, error) {
+	e.calls++
+	return nil, nil
+}
+
+func TestModuleRejectsInvalidListingLimitsBeforeReachingTheEngine(t *testing.T) {
+	t.Parallel()
+	engine := &recordingEngine{}
+	module := schoolstructure.NewModule(engine)
+	for _, limit := range []int{-1, 0, 1001} {
+		_, err := module.ListGroups(t.Context(), limit)
+		require.ErrorIs(t, err, schoolstructure.ErrInvalidGroup)
+	}
+	assert.Zero(t, engine.calls)
+}
+
 func (e *recordingEngine) FindGroup(_ context.Context, id int64) (schoolstructure.Group, error) {
 	e.calls++
 	e.findID = id

@@ -9,12 +9,14 @@
 // Routen des anderen kennt.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Trash2 } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { DatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { useToast } from "~/contexts/ToastContext";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
@@ -526,15 +528,21 @@ function ClassArrivalExceptionPanelBody({
                       ) : null}
                     </div>
                     {canEdit ? (
-                      <Button
-                        type="button"
-                        variant="outline_danger"
-                        size="compact"
-                        onClick={() => openRemoveConfirmation(exception)}
-                        disabled={removing === exception.date}
-                      >
-                        Entfernen
-                      </Button>
+                      // Zeilenaktion nur im Kebab der Zeile (BAUARTEN-SPEC
+                      // Bauart 1 Regel 4); Entfernen fragt weiter im
+                      // ConfirmDeleteModal nach.
+                      <OverflowMenu
+                        ariaLabel={`Aktionen für ${exceptionDateLabel(exception.date)}`}
+                        items={[
+                          {
+                            label: "Entfernen",
+                            icon: <Trash2 className="h-4 w-4" aria-hidden />,
+                            destructive: true,
+                            disabled: removing === exception.date,
+                            onClick: () => openRemoveConfirmation(exception),
+                          },
+                        ]}
+                      />
                     ) : null}
                   </li>
                 );

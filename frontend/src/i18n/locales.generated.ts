@@ -15,5 +15,17 @@ export const localeDefinitions = [
   {
     code: "sq",
     label: "Shqip"
+  },
+  {
+    code: "pl",
+    label: "Polski"
+  },
+  {
+    code: "tr",
+    label: "Türkçe"
+  },
+  {
+    code: "uk",
+    label: "Українська"
   }
 ] as const;

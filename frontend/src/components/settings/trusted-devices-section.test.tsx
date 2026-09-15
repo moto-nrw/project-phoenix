@@ -85,8 +85,12 @@ describe("TrustedDevicesSection", () => {
       expect(screen.getByText("Chrome auf macOS")).toBeInTheDocument();
     });
     expect(screen.getByText(/203\.0\.113\.7/)).toBeInTheDocument();
+    // Zeilenaktionen liegen im Kebab der Zeile (Bauart 1 Regel 4).
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Chrome auf macOS" }),
+    );
     expect(
-      screen.getByRole("button", { name: /Entfernen/ }),
+      screen.getByRole("menuitem", { name: /Entfernen/ }),
     ).toBeInTheDocument();
   });
 
@@ -121,9 +125,12 @@ describe("TrustedDevicesSection", () => {
       expect(screen.getByText("Chrome auf macOS")).toBeInTheDocument();
     });
 
-    // #3109: the row button opens the ConfirmDeleteModal; the device is only
-    // revoked after the two-step confirmation inside the dialog.
-    fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
+    // #3109: the row menu entry opens the ConfirmDeleteModal; the device is
+    // only revoked after the two-step confirmation inside the dialog.
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Chrome auf macOS" }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Entfernen" }));
     expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(
       screen.getByRole("heading", { name: "Gerät entfernen?" }),

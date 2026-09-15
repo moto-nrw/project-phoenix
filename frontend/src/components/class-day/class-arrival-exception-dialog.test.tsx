@@ -192,9 +192,12 @@ describe("ClassArrivalExceptionDialog", () => {
     expect(
       await screen.findByText("Eingetragen von der OGS"),
     ).toBeInTheDocument();
-    // #3109: the row button opens the ConfirmDeleteModal; the day is only
-    // removed after the two-step confirmation inside the dialog.
-    fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
+    // #3109/#3119: the row's kebab entry opens the ConfirmDeleteModal; the
+    // day is only removed after the two-step confirmation inside the dialog.
+    fireEvent.click(
+      await screen.findByRole("button", { name: /^Aktionen für/ }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Entfernen" }));
     expect(mockRemove).not.toHaveBeenCalled();
     expect(
       screen.getByRole("dialog", {

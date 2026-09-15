@@ -10,9 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 	"github.com/moto-nrw/project-phoenix/services"
-	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -29,7 +28,7 @@ func TestImportBatches_RollbackResumeAndIdempotentReplay(t *testing.T) {
 	}
 	rows[150].FirstName = "Refused"
 	request := importModels.ImportRequest[importModels.ClassListEntryImportRow]{Rows: rows, Mode: importModels.ImportModeCreate, UserID: actor.staffID, SkipInvalidRows: true}
-	audit := importService.BatchAudit{EntityType: "class_list_entries", Filename: "batch.csv", AccountID: actor.accountID}
+	audit := importModels.BatchAudit{EntityType: "class_list_entries", Filename: "batch.csv", AccountID: actor.accountID}
 	_, err = db.ExecContext(context.Background(), `ALTER TABLE users.class_list_entries ADD CONSTRAINT refuse_import_batch CHECK (first_name <> 'Refused')`)
 	require.NoError(t, err)
 	removeFailure := func() {
@@ -101,7 +100,7 @@ func TestImportBatches_ConcurrentIdenticalUploadsCommitOnce(t *testing.T) {
 		rows[i] = importModels.ClassListEntryImportRow{FirstName: fmt.Sprintf("Concurrent%d", i), LastName: "Upload", SchoolClass: "1a"}
 	}
 	request := importModels.ImportRequest[importModels.ClassListEntryImportRow]{Rows: rows, Mode: importModels.ImportModeCreate, UserID: actor.staffID, SkipInvalidRows: true}
-	audit := importService.BatchAudit{EntityType: "class_list_entries", Filename: "concurrent.csv", AccountID: actor.accountID}
+	audit := importModels.BatchAudit{EntityType: "class_list_entries", Filename: "concurrent.csv", AccountID: actor.accountID}
 	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 	validated := make(chan struct{}, 2)
@@ -177,7 +176,7 @@ func TestImportBatches_PreviewAndStableRejectedRows(t *testing.T) {
 	rows[0].FirstName = "  Kind0  "
 	rows[204].SchoolClass = ""
 	request := importModels.ImportRequest[importModels.ClassListEntryImportRow]{Rows: rows, Mode: importModels.ImportModeCreate, DryRun: true, UserID: actor.staffID, SkipInvalidRows: true}
-	audit := importService.BatchAudit{EntityType: "class_list_entries", Filename: "validation.csv", AccountID: actor.accountID}
+	audit := importModels.BatchAudit{EntityType: "class_list_entries", Filename: "validation.csv", AccountID: actor.accountID}
 	count := func(table string) int {
 		t.Helper()
 		var n int
@@ -258,7 +257,7 @@ func TestImportBatches_RetriesWholeTransactionAfterDatabaseConflict(t *testing.T
 					{FirstName: "Conflict", LastName: "Retry", SchoolClass: "1a"},
 				},
 				Mode: importModels.ImportModeCreate, UserID: actor.staffID, SkipInvalidRows: true,
-			}, importService.BatchAudit{EntityType: "class_list_entries", Filename: "conflict.csv", AccountID: actor.accountID})
+			}, importModels.BatchAudit{EntityType: "class_list_entries", Filename: "conflict.csv", AccountID: actor.accountID})
 			require.NoError(t, err)
 			assert.Equal(t, 2, result.CreatedCount)
 			assert.Zero(t, result.ErrorCount, "the failed attempt's errors are not part of the committed result")

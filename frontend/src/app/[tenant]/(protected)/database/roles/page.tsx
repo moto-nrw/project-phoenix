@@ -20,9 +20,9 @@ import { createCrudService } from "@/lib/database/service-factory";
 import { rolesConfig } from "@/components/database/configs/roles.config";
 import type { Role } from "@/lib/auth-helpers";
 import { getRoleDisplayName } from "@/lib/auth-helpers";
+import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { RolesMasterDetail } from "@/components/roles/roles-master-detail";
 import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
-import { RolePermissionManagementModal } from "@/components/auth/role-permission-management-modal";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { useToast } from "~/contexts/ToastContext";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
@@ -52,7 +52,6 @@ function RolesPageContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [selectedRoleDetail, setSelectedRoleDetail] = useState<Role | null>(
     null,
   );
@@ -67,12 +66,16 @@ function RolesPageContent() {
 
   const { success: toastSuccess, error: toastError } = useToast();
 
-  const { status } = useSession({
+  const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
       redirect("/");
     },
   });
+  const canManagePermissions =
+    (isAdmin(session) || hasPermission(session, "roles:manage")) &&
+    (isAdmin(session) || hasPermission(session, "roles:read")) &&
+    (isAdmin(session) || hasPermission(session, "permissions:read"));
 
   const service = useMemo(() => createCrudService(rolesConfig), []);
 
@@ -154,9 +157,10 @@ function RolesPageContent() {
         : null,
     [filteredRoles, selectedId],
   );
+  const selectedRoleId = selectedRoleSummary?.id;
 
   const selectedRole =
-    selectedRoleDetail?.id === selectedRoleSummary?.id
+    selectedRoleDetail?.id === selectedRoleId
       ? selectedRoleDetail
       : selectedRoleSummary;
 
@@ -168,21 +172,17 @@ function RolesPageContent() {
   );
 
   useEffect(() => {
-    if (!selectedId || !selectedRoleSummary) {
+    if (!selectedRoleId) {
       setSelectedRoleDetail(null);
       setDetailLoading(false);
       return;
     }
 
-    setSelectedRoleDetail((current) =>
-      current?.id === selectedRoleSummary.id ? current : selectedRoleSummary,
-    );
-
     let cancelled = false;
     setDetailLoading(true);
 
     void service
-      .getOne(selectedRoleSummary.id)
+      .getOne(selectedRoleId)
       .then((fresh) => {
         if (!cancelled) {
           setSelectedRoleDetail(fresh);
@@ -190,7 +190,7 @@ function RolesPageContent() {
       })
       .catch((fetchError: unknown) => {
         logger.error("failed to fetch role detail", {
-          role_id: selectedRoleSummary.id,
+          role_id: selectedRoleId,
           error:
             fetchError instanceof Error
               ? fetchError.message
@@ -206,12 +206,16 @@ function RolesPageContent() {
     return () => {
       cancelled = true;
     };
-  }, [selectedId, selectedRoleSummary, service]);
+  }, [selectedRoleId, service]);
 
-  const handleManagePermissions = useCallback(
-    () => setShowPermissionModal(true),
-    [],
-  );
+  // Nach dem Speichern der Berechtigungen im Reiter (#3116): die Zahl in der
+  // Liste und das Detail neu laden.
+  const handlePermissionsSaved = useCallback(async () => {
+    if (!selectedRole) return;
+    await fetchRoles();
+    const refreshed = await service.getOne(selectedRole.id);
+    setSelectedRoleDetail(refreshed);
+  }, [fetchRoles, selectedRole, service]);
 
   const handleCreateRole = useCallback(
     async (data: Partial<Role>) => {
@@ -380,19 +384,6 @@ function RolesPageContent() {
               error=""
             />
           )}
-
-          {selectedRole && (
-            <RolePermissionManagementModal
-              isOpen={showPermissionModal}
-              onClose={() => setShowPermissionModal(false)}
-              role={selectedRole}
-              onUpdate={async () => {
-                await fetchRoles();
-                const refreshed = await service.getOne(selectedRole.id);
-                setSelectedRoleDetail(refreshed);
-              }}
-            />
-          )}
         </>
       }
       className="flex w-full flex-col"
@@ -456,10 +447,11 @@ function RolesPageContent() {
             selectedId={selectedId}
             selectedRole={selectedRole}
             detailLoading={detailLoading}
+            canManagePermissions={canManagePermissions}
             onSelect={handleSelectRole}
             onSaveRole={handleUpdateRole}
             onDeleteClick={handleDeleteClick}
-            onManagePermissions={handleManagePermissions}
+            onPermissionsSaved={handlePermissionsSaved}
           />
         </div>
       ) : null}

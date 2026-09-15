@@ -173,6 +173,7 @@ describe("MOTO_COLOR_PALETTE", () => {
       },
       neutral: {
         soft: "#F3F4F6",
+        muted: "#D1D5DB",
         light: "#9CA3AF",
         base: "#6B7280",
         strong: "#374151",
@@ -182,6 +183,11 @@ describe("MOTO_COLOR_PALETTE", () => {
         light: "#A8A29E",
         base: "#78716C",
         strong: "#44403C",
+      },
+      roomCategory: {
+        group: "#10B981",
+        theme: "#8B5CF6",
+        sport: "#EC4899",
       },
     });
   });

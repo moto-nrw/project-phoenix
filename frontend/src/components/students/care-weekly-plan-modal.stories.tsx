@@ -25,6 +25,7 @@ export const Empty: Story = {
     initialArrivalSchedules: [],
     initialPickupSchedules: [],
     onSubmit: async () => {},
+    successMessage: "Betreuungszeiten übernommen",
   },
 };
 
@@ -47,5 +48,6 @@ export const WithSchedules: Story = {
       { weekday: 3, pickupTime: "15:30" },
     ],
     onSubmit: async () => {},
+    successMessage: "Betreuungszeiten übernommen",
   },
 };
