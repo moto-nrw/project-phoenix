@@ -250,6 +250,7 @@
   },
   "pushNotifications": {
     "title": "Benachrichtigungen auf diesem Gerät",
+    "moreActions": "Weitere Aktionen",
     "installIntro": "Auf iPhone und iPad funktionieren Benachrichtigungen nur, wenn Sie moto vom Home-Bildschirm öffnen.",
     "installStepsLabel": "moto zum Home-Bildschirm hinzufügen",
     "installStep1": "Tippen Sie im Menü auf Teilen.",

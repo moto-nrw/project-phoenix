@@ -250,6 +250,7 @@
   },
   "pushNotifications": {
     "title": "Сповіщення на цьому пристрої",
+    "moreActions": "Інші дії",
     "installIntro": "На iPhone та iPad сповіщення працюють, лише якщо ви відкриваєте moto з головного екрана.",
     "installStepsLabel": "Додати moto на головний екран",
     "installStep1": "У меню торкніться «Поділитися».",
