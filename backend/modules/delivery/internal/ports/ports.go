@@ -15,6 +15,9 @@ type Store interface {
 	// fence. A cancellation that commits first prevents the provider call; once
 	// the fence is committed, the provider call has logically begun.
 	StartDelivery(context.Context, domain.Transport, int64, string, time.Time) (string, bool, error)
+	// DeadLetterExpiredDispatches ends dispatch fences that expired without
+	// finalization. Their provider outcome is unknown, so they are never retried.
+	DeadLetterExpiredDispatches(context.Context, domain.Transport, time.Time) (int64, error)
 	FinalizeSent(context.Context, domain.Transport, int64, string, json.RawMessage, time.Time) (bool, error)
 	FinalizeCancelled(context.Context, domain.Transport, int64, string, string, time.Time) (bool, error)
 	FinalizeFailure(context.Context, domain.Transport, int64, string, int, string, time.Time, int) (domain.FinalizeResult, error)

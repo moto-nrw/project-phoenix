@@ -103,6 +103,20 @@ const pushClaimSQL = `
 		ORDER BY next_retry_at, id FOR UPDATE SKIP LOCKED LIMIT ?
 	) RETURNING *`
 
+const emailDeadLetterExpiredDispatchSQL = `UPDATE platform.email_outbox
+	SET status = 'dead_letter', attempts = attempts + 1, last_error = ?, dead_letter_at = ?,
+		lease_token = NULL, lease_expires_at = NULL, updated_at = ?
+	WHERE status = 'claimed' AND lease_expires_at <= ? AND lease_token LIKE 'dispatch:%'`
+
+const pushDeadLetterExpiredDispatchSQL = `UPDATE platform.push_outbox
+	SET status = 'dead_letter', attempts = attempts + 1, last_error = ?, dead_letter_at = ?,
+		lease_token = NULL, lease_expires_at = NULL, updated_at = ?
+	WHERE status = 'claimed' AND lease_expires_at <= ? AND lease_token LIKE 'dispatch:%'`
+
+// dispatchOutcomeUnknown explains a dead letter whose worker stopped between
+// the dispatch fence and finalization.
+const dispatchOutcomeUnknown = "delivery outcome unknown: worker stopped during provider call"
+
 const emailStartDeliverySQL = `UPDATE platform.email_outbox
 	SET lease_token = CONCAT('dispatch:', lease_token), lease_expires_at = ?, updated_at = ?
 	WHERE id = ? AND status = 'claimed' AND lease_token = ?
@@ -288,6 +302,35 @@ func (s *Store) Claim(ctx context.Context, transport domain.Transport, limit int
 		return nil, fmt.Errorf("delivery postgres: claim %s: %w", transport, err)
 	}
 	return toDomainRows(transport, rows), nil
+}
+
+// DeadLetterExpiredDispatches ends intents whose dispatch fence expired without
+// finalization. SMTP and Web Push offer no idempotency key, so the provider may
+// already have accepted the message: retrying could deliver it twice. A dead
+// letter keeps the intent visible for operators instead of leaving it claimed.
+func (s *Store) DeadLetterExpiredDispatches(ctx context.Context, transport domain.Transport, now time.Time) (int64, error) {
+	var affected int64
+	err := s.adminTx(ctx, func(txCtx context.Context, db bun.IDB) error {
+		var result sql.Result
+		var err error
+		switch transport {
+		case domain.TransportEmail:
+			result, err = db.NewRaw(emailDeadLetterExpiredDispatchSQL, dispatchOutcomeUnknown, now, now, now).Exec(txCtx)
+		case domain.TransportPush:
+			result, err = db.NewRaw(pushDeadLetterExpiredDispatchSQL, dispatchOutcomeUnknown, now, now, now).Exec(txCtx)
+		default:
+			return unknownTransport(transport)
+		}
+		if err != nil {
+			return err
+		}
+		affected, err = result.RowsAffected()
+		return err
+	})
+	if err != nil {
+		return 0, fmt.Errorf("delivery postgres: dead-letter expired %s dispatches: %w", transport, err)
+	}
+	return affected, nil
 }
 
 // StartDelivery advances the lease to a durable dispatch fence in one short

@@ -59,6 +59,15 @@ func (w *Worker) RunOnce(ctx context.Context, batchSize, maxAttempts int) (stats
 
 func (w *Worker) runTransport(ctx context.Context, transport domain.Transport, limit, maxAttempts int, stats *domain.WorkerStats) error {
 	now := time.Now()
+	unknown, err := w.store.DeadLetterExpiredDispatches(ctx, transport, now)
+	if err != nil {
+		w.observe(domain.Observation{Operation: "dispatch_outcome_unknown", Transport: string(transport), Err: err})
+		return fmt.Errorf("delivery worker: dead-letter expired %s dispatches: %w", transport, err)
+	}
+	if unknown > 0 {
+		stats.DeadLettered += int(unknown)
+		w.observe(domain.Observation{Operation: "dispatch_outcome_unknown", Transport: string(transport), Count: int(unknown), Err: errors.New("dispatch fence expired without finalization")})
+	}
 	claimStarted := time.Now()
 	rows, err := w.store.Claim(ctx, transport, limit, now, now.Add(w.leaseDuration))
 	w.observe(domain.Observation{Operation: "claim", Transport: string(transport), Duration: time.Since(claimStarted), Count: len(rows), Err: err})

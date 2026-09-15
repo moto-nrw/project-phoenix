@@ -28,6 +28,15 @@ type workerStore struct {
 	renewToken          string
 	cancelledBeforeSend bool
 	statuses            []domain.EmailDeliveryStatus
+	expiredDispatches   int64
+	expiredDispatchErr  error
+}
+
+func (s *workerStore) DeadLetterExpiredDispatches(_ context.Context, transport domain.Transport, _ time.Time) (int64, error) {
+	if transport != domain.TransportEmail {
+		return 0, nil
+	}
+	return s.expiredDispatches, s.expiredDispatchErr
 }
 
 // StartDelivery is the cancellation-aware durable fence used by the worker.
@@ -219,6 +228,38 @@ func TestWorkerDeadLettersAtAttemptLimit(t *testing.T) {
 	assert.Equal(t, 1, stats.DeadLettered)
 	assert.Equal(t, 2, store.failureAttempts)
 	assert.Equal(t, 2, store.failureMaxAttempts)
+}
+
+func TestWorkerDeadLettersExpiredDispatchFencesBeforeClaim(t *testing.T) {
+	t.Parallel()
+	store := &workerStore{expiredDispatches: 2}
+	var unknown []domain.Observation
+	worker := NewWorker(store, &workerProvider{}, func(observation domain.Observation) {
+		if observation.Operation == "dispatch_outcome_unknown" {
+			unknown = append(unknown, observation)
+		}
+	})
+
+	stats, err := worker.RunOnce(context.Background(), 1, 6)
+
+	require.NoError(t, err)
+	assert.Equal(t, 2, stats.DeadLettered)
+	require.Len(t, unknown, 1)
+	assert.Equal(t, 2, unknown[0].Count)
+	assert.Error(t, unknown[0].Err, "an unknown provider outcome must be observable as an error")
+}
+
+func TestWorkerStopsWhenExpiredDispatchRecoveryFails(t *testing.T) {
+	t.Parallel()
+	store := &workerStore{claimed: []domain.Intent{claimedEmail(0)}, renewed: true, expiredDispatchErr: errors.New("database unavailable")}
+	provider := &workerProvider{}
+	worker := NewWorker(store, provider, func(domain.Observation) {})
+
+	stats, err := worker.RunOnce(context.Background(), 1, 6)
+
+	require.ErrorContains(t, err, "dead-letter expired email dispatches")
+	assert.Zero(t, stats.Claimed)
+	assert.Zero(t, provider.calls)
 }
 
 // A provider may accept a message and the process may die before finalize.

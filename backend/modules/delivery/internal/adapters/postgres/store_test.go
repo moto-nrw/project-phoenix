@@ -224,6 +224,72 @@ func TestStoreDoesNotReclaimExpiredDispatchFence(t *testing.T) {
 	assert.True(t, finalized)
 }
 
+func TestStoreDeadLettersExpiredDispatchFence(t *testing.T) {
+	t.Parallel()
+	for _, transport := range []domain.Transport{domain.TransportEmail, domain.TransportPush} {
+		t.Run(string(transport), func(t *testing.T) {
+			db := testpkg.SetupIsolatedTestDB(t)
+			store, ctx := testStore(t, db)
+			key := "dispatch-unknown-" + string(transport)
+			var enqueued domain.Enqueued
+			err := tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+				var err error
+				enqueued, err = store.Enqueue(txCtx, domain.Intent{
+					TenantID: testpkg.Tenant(t), Transport: transport, Template: "welcome", IdempotencyKey: &key,
+					Recipient: json.RawMessage(`{"address":"guardian@example.com"}`), Payload: json.RawMessage(`{}`),
+					Status: "pending", NextRetryAt: time.Now().Add(-time.Minute),
+				})
+				return err
+			})
+			require.NoError(t, err)
+			now := time.Now()
+			claimed, err := store.Claim(ctx, transport, 1, now, now.Add(time.Minute))
+			require.NoError(t, err)
+			require.Len(t, claimed, 1)
+			liveToken, active, err := store.StartDelivery(ctx, transport, enqueued.ID, *claimed[0].LeaseToken, now.Add(time.Minute))
+			require.NoError(t, err)
+			require.True(t, active)
+
+			affected, err := store.DeadLetterExpiredDispatches(ctx, transport, now)
+			require.NoError(t, err)
+			assert.Zero(t, affected, "a running provider call keeps its unexpired dispatch fence")
+
+			affected, err = store.DeadLetterExpiredDispatches(ctx, transport, now.Add(2*time.Minute))
+			require.NoError(t, err)
+			assert.EqualValues(t, 1, affected)
+
+			reclaimed, err := store.Claim(ctx, transport, 1, now.Add(2*time.Minute), now.Add(3*time.Minute))
+			require.NoError(t, err)
+			assert.Empty(t, reclaimed, "an unknown provider outcome must not be sent again")
+			finalized, err := store.FinalizeSent(ctx, transport, enqueued.ID, liveToken, json.RawMessage(`{}`), now.Add(2*time.Minute))
+			require.NoError(t, err)
+			assert.False(t, finalized, "the dead letter fences the stale worker")
+
+			var row struct {
+				Status       string     `bun:"status"`
+				Attempts     int        `bun:"attempts"`
+				LastError    *string    `bun:"last_error"`
+				DeadLetterAt *time.Time `bun:"dead_letter_at"`
+				LeaseToken   *string    `bun:"lease_token"`
+			}
+			table := "platform.email_outbox"
+			if transport == domain.TransportPush {
+				table = "platform.push_outbox"
+			}
+			err = tenant.WithAdminTx(ctx, db, func(txCtx context.Context, tx bun.Tx) error {
+				return tx.NewRaw("SELECT status, attempts, last_error, dead_letter_at, lease_token FROM "+table+" WHERE id = ?", enqueued.ID).Scan(txCtx, &row)
+			})
+			require.NoError(t, err)
+			assert.Equal(t, "dead_letter", row.Status)
+			assert.Equal(t, 1, row.Attempts)
+			require.NotNil(t, row.LastError)
+			assert.Contains(t, *row.LastError, "outcome unknown")
+			assert.NotNil(t, row.DeadLetterAt)
+			assert.Nil(t, row.LeaseToken)
+		})
+	}
+}
+
 func TestStoreRejectsCrossTenantEmailOutboxAttachment(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
