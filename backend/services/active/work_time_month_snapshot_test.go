@@ -54,7 +54,7 @@ func (snapshotSessionSettings) TimeTrackingRetentionDays(context.Context) (int, 
 func (f *snapshotFixture) newAdminSessionService() active.WorkSessionService {
 	return active.NewWorkSessionService(
 		f.repos.WorkSession, f.repos.WorkSessionBreak, services.NewWorkSessionAudit(f.repos.WorkSessionEdit), f.repos.StaffAbsence,
-		f.repos.GroupSupervisor, f.repos.ActiveGroup, services.WorkSessionStaff(f.repos.Staff), f.repos.StaffWorkSchedule, f.repos.WorkTimeModel,
+		f.repos.GroupSupervisor, f.repos.ActiveGroup, services.WorkSessionStaff(f.repos.Staff), services.NewWorkSessionSchedules(f.repos.StaffWorkSchedule), services.NewWorkSessionTimeModels(f.repos.WorkTimeModel),
 		snapshotSessionSettings{}, nil, f.db, services.RenderTimeTrackingPDF,
 		services.RenderTimeTrackingWorkbook,
 	)

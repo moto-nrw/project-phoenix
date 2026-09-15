@@ -35,7 +35,7 @@ func NewWorkSessionTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func
 		return WorkSessionTestModule{}, err
 	}
 	service := active.NewWorkSessionService(r.WorkSession, r.WorkSessionBreak, NewWorkSessionAudit(r.WorkSessionEdit),
-		r.StaffAbsence, r.GroupSupervisor, r.ActiveGroup, WorkSessionStaff(r.Staff), r.StaffWorkSchedule, r.WorkTimeModel, PresenceSettings(settings.Settings), slog.Default(), db, RenderTimeTrackingPDF, RenderTimeTrackingWorkbook)
+		r.StaffAbsence, r.GroupSupervisor, r.ActiveGroup, WorkSessionStaff(r.Staff), NewWorkSessionSchedules(r.StaffWorkSchedule), NewWorkSessionTimeModels(r.WorkTimeModel), PresenceSettings(settings.Settings), slog.Default(), db, RenderTimeTrackingPDF, RenderTimeTrackingWorkbook)
 	service.SetStaffShiftRepo(NewTimeTrackingShifts(r.StaffShift))
 	service.(interface{ SetBroadcaster(active.EventPublisher) }).SetBroadcaster(deliveryCompose.NewRealtimeHub(slog.Default()))
 	return WorkSessionTestModule{WorkSession: service, StaffClock: newStaffClockService(identity.Users, rfid.RFID.FindByID, service)}, nil

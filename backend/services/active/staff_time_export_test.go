@@ -41,7 +41,7 @@ func (f *overviewFixture) newWorkSessionService() active.WorkSessionService {
 	return active.NewWorkSessionService(
 		f.repos.WorkSession, f.repos.WorkSessionBreak, services.NewWorkSessionAudit(f.repos.WorkSessionEdit),
 		f.repos.StaffAbsence, f.repos.GroupSupervisor, f.repos.ActiveGroup, services.WorkSessionStaff(f.repos.Staff),
-		f.repos.StaffWorkSchedule, f.repos.WorkTimeModel,
+		services.NewWorkSessionSchedules(f.repos.StaffWorkSchedule), services.NewWorkSessionTimeModels(f.repos.WorkTimeModel),
 		nil,
 		nil,
 		f.db,

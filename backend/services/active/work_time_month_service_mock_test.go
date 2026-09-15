@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -103,7 +102,7 @@ func TestPrefetchedMonthService_RejectsUnloadedStaff(t *testing.T) {
 }
 
 type wtmMockScheduleReader struct {
-	entries []*configModels.StaffWorkSchedule
+	entries []*WorkScheduleRow
 	// hasHistory models snapshots that exist outside the queried range; the
 	// reader above ignores the range and always returns `entries`.
 	hasHistory bool
@@ -111,7 +110,7 @@ type wtmMockScheduleReader struct {
 
 func (m *wtmMockScheduleReader) TargetsForStaff(_ context.Context, _ int64, _, _ timezone.Date) (WorkScheduleTargets, error) {
 	return WorkScheduleTargets{HasEntries: len(m.entries) > 0, DailyTarget: func(anchor *timezone.Date, date timezone.Date) (int, bool) {
-		return configModels.DailyTargetFromSchedule(m.entries, workforceDatePointer(anchor), workforceDate(date))
+		return DailyTargetFromSchedule(m.entries, anchor, date)
 	}}, nil
 }
 
@@ -120,7 +119,7 @@ func (m *wtmMockScheduleReader) HasScheduleHistory(_ context.Context, _ int64) (
 }
 
 type wtmMockModelReader struct {
-	model  *configModels.WorkTimeModel
+	model  *WorkTimeTemplate
 	called bool
 }
 
@@ -129,13 +128,13 @@ func (m *wtmMockModelReader) FindByID(_ context.Context, _ int64) (*WorkTimeTarg
 	return targetModelFixture(m.model), nil
 }
 
-func targetModelFixture(model *configModels.WorkTimeModel) *WorkTimeTargetModel {
+func targetModelFixture(model *WorkTimeTemplate) *WorkTimeTargetModel {
 	if model == nil {
 		return nil
 	}
 	return &WorkTimeTargetModel{ID: model.ID, RotationAnchorDate: timezone.Date(model.RotationAnchorDate),
 		DailyTarget: func(anchor, date timezone.Date) (int, bool) {
-			return configModels.DailyTargetFromModel(model, configModels.CalendarDate(anchor), configModels.CalendarDate(date))
+			return DailyTargetFromTemplate(model, timezone.Date(anchor), timezone.Date(date))
 		},
 	}
 }
@@ -189,8 +188,8 @@ func newWTMFixture() *wtmFixture {
 		breaks:   &wtmMockBreakReader{breaks: map[int64][]*activeModels.WorkSessionBreak{}},
 		absences: &wtmMockAbsenceReader{},
 		shifts:   &wtmMockShiftReader{},
-		schedules: &wtmMockScheduleReader{entries: []*configModels.StaffWorkSchedule{
-			{StaffID: wtmStaffID, DayOfWeek: configModels.DayMonday, TargetMinutes: 480, RotationLength: 1, ValidFrom: configModels.NewCalendarDate(2020, time.January, 1)},
+		schedules: &wtmMockScheduleReader{entries: []*WorkScheduleRow{
+			{StaffID: wtmStaffID, DayOfWeek: DayMonday, TargetMinutes: 480, RotationLength: 1, ValidFrom: timezone.NewDate(2020, time.January, 1)},
 		}},
 		models:   &wtmMockModelReader{},
 		settings: &wtmMockSettings{accountStart: "2026-06-01"},
@@ -417,11 +416,11 @@ func TestWTMMonthSummary_ModelFallback(t *testing.T) {
 	modelID := int64(9)
 	staffReader := &wtmMockStaffReader{staff: &StaffScheduleAssignment{WorkTimeModelID: &modelID}}
 	f.svc.staffRepo = staffReader
-	f.models.model = &configModels.WorkTimeModel{
+	f.models.model = &WorkTimeTemplate{
 		RotationLength:     1,
-		RotationAnchorDate: configModels.NewCalendarDate(2020, time.January, 1),
-		Entries: []*configModels.WorkTimeModelEntry{
-			{WeekIndex: 0, DayOfWeek: configModels.DayMonday, TargetMinutes: 300},
+		RotationAnchorDate: timezone.NewDate(2020, time.January, 1),
+		Entries: []*WorkTimeTemplateEntry{
+			{WeekIndex: 0, DayOfWeek: DayMonday, TargetMinutes: 300},
 		},
 	}
 
@@ -613,18 +612,18 @@ func TestWTMMonthSummary_HistoricalRowAnchorWinsOverStaffAnchor(t *testing.T) {
 	// The staff-level anchor now sits one week off the version's own anchor,
 	// which flips A/B parity for every June week if it is applied.
 	staffAnchor := timezone.NewDate(2026, time.June, 8)
-	versionAnchor := configModels.NewCalendarDate(2026, time.June, 1)
+	versionAnchor := timezone.NewDate(2026, time.June, 1)
 	svc := NewWorkTimeMonthService(f.sessions, f.breaks, f.absences,
 		&wtmMockStaffReader{staff: &StaffScheduleAssignment{RotationAnchorDate: &staffAnchor}},
 		f.schedules, f.models, f.shifts, f.settings, nil).(*workTimeMonthService)
 	svc.todayFunc = func() timezone.Date { return timezone.NewDate(2026, time.July, 15) }
 
 	// 2-week rotation: week A Mondays = 480, week B Mondays = 0.
-	f.schedules.entries = []*configModels.StaffWorkSchedule{
+	f.schedules.entries = []*WorkScheduleRow{
 		{
-			StaffID: wtmStaffID, DayOfWeek: configModels.DayMonday, TargetMinutes: 480,
+			StaffID: wtmStaffID, DayOfWeek: DayMonday, TargetMinutes: 480,
 			WeekIndex: 0, RotationLength: 2,
-			ValidFrom:          configModels.NewCalendarDate(2020, time.January, 1),
+			ValidFrom:          timezone.NewDate(2020, time.January, 1),
 			RotationAnchorDate: &versionAnchor,
 		},
 	}
@@ -646,14 +645,14 @@ func TestWTMDailyTargets_UsesDateValidScheduleVersion(t *testing.T) {
 
 	// Old version: Mondays 480, closed on 2026-07-01. New version: Mondays 240.
 	closedAt := timezone.NewDate(2026, time.July, 1)
-	closedAtWorkforce := workforceDate(closedAt)
-	f.schedules.entries = []*configModels.StaffWorkSchedule{
+	closedAtWorkforce := closedAt
+	f.schedules.entries = []*WorkScheduleRow{
 		{
-			StaffID: wtmStaffID, DayOfWeek: configModels.DayMonday, TargetMinutes: 480, RotationLength: 1,
-			ValidFrom: configModels.NewCalendarDate(2020, time.January, 1), ValidUntil: &closedAtWorkforce,
+			StaffID: wtmStaffID, DayOfWeek: DayMonday, TargetMinutes: 480, RotationLength: 1,
+			ValidFrom: timezone.NewDate(2020, time.January, 1), ValidUntil: &closedAtWorkforce,
 		},
 		{
-			StaffID: wtmStaffID, DayOfWeek: configModels.DayMonday, TargetMinutes: 240, RotationLength: 1,
+			StaffID: wtmStaffID, DayOfWeek: DayMonday, TargetMinutes: 240, RotationLength: 1,
 			ValidFrom: closedAtWorkforce,
 		},
 	}
@@ -905,11 +904,11 @@ func TestWTMMonthSummary_NoModelFallbackBeforeFirstSnapshot(t *testing.T) {
 	f.schedules.hasHistory = true
 	modelID := int64(9)
 	f.svc.staffRepo = &wtmMockStaffReader{staff: &StaffScheduleAssignment{WorkTimeModelID: &modelID}}
-	f.models.model = &configModels.WorkTimeModel{
+	f.models.model = &WorkTimeTemplate{
 		RotationLength:     1,
-		RotationAnchorDate: configModels.NewCalendarDate(2020, time.January, 1),
-		Entries: []*configModels.WorkTimeModelEntry{
-			{WeekIndex: 0, DayOfWeek: configModels.DayMonday, TargetMinutes: 300},
+		RotationAnchorDate: timezone.NewDate(2020, time.January, 1),
+		Entries: []*WorkTimeTemplateEntry{
+			{WeekIndex: 0, DayOfWeek: DayMonday, TargetMinutes: 300},
 		},
 	}
 

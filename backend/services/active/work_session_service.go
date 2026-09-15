@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -653,7 +652,7 @@ func (s *workSessionService) ensurePlannedStartReached(ctx context.Context, staf
 		return fmt.Errorf("staff work schedule repository not configured")
 	}
 
-	entries, err := s.scheduleRepo.GetByStaffIDAndDate(ctx, staffID, workforceDate(today))
+	entries, err := s.scheduleRepo.GetByStaffIDAndDate(ctx, staffID, today)
 	if err != nil {
 		return fmt.Errorf("failed to load planned start schedule: %w", err)
 	}
@@ -662,12 +661,12 @@ func (s *workSessionService) ensurePlannedStartReached(ctx context.Context, staf
 	}
 
 	staff := s.resolveStaffForTargets(ctx, staffID)
-	anchor := configModels.ResolveScheduleAnchor(workforceDatePointer(staffAnchorOf(staff)), entries)
+	anchor := ResolveScheduleAnchor(staffAnchorOf(staff), entries)
 	if anchor.IsZero() {
 		return nil
 	}
-	rotationWeek := configModels.ResolveWeekIndex(configModels.ScheduleRotationLength(entries), configModels.MondayOf(anchor), configModels.MondayOf(workforceDate(today)))
-	dayIndex := configModels.ISODayIndex(workforceDate(today))
+	rotationWeek := ResolveRotationWeek(ScheduleRotationLength(entries), anchor.StartOfISOWeek(), today.StartOfISOWeek())
+	dayIndex := ISODayIndex(today)
 	for _, entry := range entries {
 		if entry.WeekIndex != rotationWeek || entry.DayOfWeek != dayIndex || entry.StartTime == nil {
 			continue
@@ -1916,17 +1915,13 @@ func (s *workSessionService) getWeeklyTargetsForSummaries(ctx context.Context, s
 		}
 		anchor := model.RotationAnchorDate
 		if staff.RotationAnchorDate != nil {
-			anchor = workforceDate(*staff.RotationAnchorDate)
+			anchor = *staff.RotationAnchorDate
 		}
-		targets := configModels.WeeklyTargetsFromModel(model, anchor, workforceDates(sessionWeekStarts(sessions)))
+		targets := WeeklyTargetsFromTemplate(model, anchor, sessionWeekStarts(sessions))
 		for weekStart, target := range targets {
-			targets[weekStart] = target - holidayModelMinutes(model, anchor, calendarDate(weekStart), holidaySet)
+			targets[weekStart] = target - holidayTemplateMinutes(model, anchor, weekStart, holidaySet)
 		}
-		converted := make(map[timezone.Date]int, len(targets))
-		for weekStart, target := range targets {
-			converted[calendarDate(weekStart)] = target
-		}
-		return summaryKeysOf(converted)
+		return summaryKeysOf(targets)
 	}
 	return nil
 }
@@ -1959,29 +1954,29 @@ func (s *workSessionService) holidayDatesForWeeks(ctx context.Context, weekStart
 
 // holidayScheduleMinutes sums the schedule Soll of the week's holiday days —
 // the amount a holiday week's target shrinks by.
-func holidayScheduleMinutes(entries []*configModels.StaffWorkSchedule, staffAnchor *timezone.Date, weekStart timezone.Date, holidaySet map[timezone.Date]bool) int {
+func holidayScheduleMinutes(entries []*WorkScheduleRow, staffAnchor *timezone.Date, weekStart timezone.Date, holidaySet map[timezone.Date]bool) int {
 	total := 0
 	for offset := 0; offset < 7; offset++ {
 		day := weekStart.AddDays(offset)
 		if !holidaySet[day] {
 			continue
 		}
-		dayTarget, _ := configModels.DailyTargetFromSchedule(entries, workforceDatePointer(staffAnchor), workforceDate(day))
+		dayTarget, _ := DailyTargetFromSchedule(entries, staffAnchor, day)
 		total += dayTarget
 	}
 	return total
 }
 
-// holidayModelMinutes is holidayScheduleMinutes for the work-time-model
+// holidayTemplateMinutes is holidayScheduleMinutes for the work-time-template
 // fallback path.
-func holidayModelMinutes(model *configModels.WorkTimeModel, anchor configModels.CalendarDate, weekStart timezone.Date, holidaySet map[timezone.Date]bool) int {
+func holidayTemplateMinutes(template *WorkTimeTemplate, anchor timezone.Date, weekStart timezone.Date, holidaySet map[timezone.Date]bool) int {
 	total := 0
 	for offset := 0; offset < 7; offset++ {
 		day := weekStart.AddDays(offset)
 		if !holidaySet[day] {
 			continue
 		}
-		dayTarget, _ := configModels.DailyTargetFromModel(model, anchor, workforceDate(day))
+		dayTarget, _ := DailyTargetFromTemplate(template, anchor, day)
 		total += dayTarget
 	}
 	return total
@@ -1999,9 +1994,9 @@ func (s *workSessionService) resolveStaffForTargets(ctx context.Context, staffID
 }
 
 // weeklyTargetsFromDateValidSchedule resolves the weekly Soll from date-valid
-// staff_work_schedules rows via the shared models/config helpers: one batched
+// staff_work_schedules rows via the presence-owned helpers: one batched
 // read over the span of all session weeks, then per-week in-memory resolution
-// (validity windows, rotation weeks) through config.WeeklyTargetFromSchedule —
+// (validity windows, rotation weeks) through WeeklyTargetFromSchedule —
 // the same helper the Dienstplan weekly summaries use.
 func (s *workSessionService) weeklyTargetsFromDateValidSchedule(
 	ctx context.Context,
@@ -2023,13 +2018,13 @@ func (s *workSessionService) weeklyTargetsFromDateValidSchedule(
 			to = weekStart
 		}
 	}
-	entries, err := s.scheduleRepo.FindByStaffIDsValidInRange(ctx, []int64{staffID}, workforceDate(from), workforceDate(to.AddDays(6)))
+	entries, err := s.scheduleRepo.FindByStaffIDsValidInRange(ctx, []int64{staffID}, from, to.AddDays(6))
 	if err != nil || len(entries) == 0 {
 		return nil
 	}
 	targetsByWeek := make(map[summaryWeekKey]int)
 	for _, weekStart := range weekStarts {
-		if target, ok := configModels.WeeklyTargetFromSchedule(entries, workforceDatePointer(staffAnchorOf(staff)), workforceDate(weekStart)); ok {
+		if target, ok := WeeklyTargetFromSchedule(entries, staffAnchorOf(staff), weekStart); ok {
 			target -= holidayScheduleMinutes(entries, staffAnchorOf(staff), weekStart, holidaySet)
 			targetsByWeek[summaryKeyOf(weekStart)] = target
 		}
@@ -2867,12 +2862,12 @@ func (s *workSessionService) GetStaffIDsWithSupervisionToday(ctx context.Context
 }
 
 // GetWorkTimeModelByID retrieves a work time model with its entries.
-func (s *workSessionService) GetWorkTimeModelByID(ctx context.Context, id int64) (*configModels.WorkTimeModel, error) {
+func (s *workSessionService) GetWorkTimeModelByID(ctx context.Context, id int64) (*WorkTimeTemplate, error) {
 	return s.workModelRepo.FindByID(ctx, id)
 }
 
 // GetCurrentScheduleRows retrieves the staff member's current schedule snapshot.
-func (s *workSessionService) GetCurrentScheduleRows(ctx context.Context, staffID int64) ([]*configModels.StaffWorkSchedule, error) {
+func (s *workSessionService) GetCurrentScheduleRows(ctx context.Context, staffID int64) ([]*WorkScheduleRow, error) {
 	return s.scheduleRepo.GetCurrentByStaffID(ctx, staffID)
 }
 
@@ -2891,7 +2886,7 @@ func (s *workSessionService) AssignScheduleTemplate(ctx context.Context, staff *
 	}
 
 	staff.WorkTimeModelID = &model.ID
-	staffAnchor := calendarDate(anchor)
+	staffAnchor := anchor
 	staff.RotationAnchorDate = &staffAnchor
 	if err := s.staffRepo.BindSchedule(ctx, *staff); err != nil {
 		return fmt.Errorf("bind template to staff: %w", err)
@@ -2901,7 +2896,7 @@ func (s *workSessionService) AssignScheduleTemplate(ctx context.Context, staff *
 
 // ApplyCustomScheduleRows replaces the schedule with custom rows and unbinds
 // any assigned template.
-func (s *workSessionService) ApplyCustomScheduleRows(ctx context.Context, staff *StaffScheduleBinding, entries []*configModels.StaffWorkSchedule, anchor timezone.Date) error {
+func (s *workSessionService) ApplyCustomScheduleRows(ctx context.Context, staff *StaffScheduleBinding, entries []*WorkScheduleRow, anchor timezone.Date) error {
 	// An omitted anchor keeps the staff-level one; the new version must be
 	// stamped with that same effective anchor, or it would silently re-parity
 	// once the staff anchor moves.
@@ -2917,7 +2912,7 @@ func (s *workSessionService) ApplyCustomScheduleRows(ctx context.Context, staff 
 	if effective.IsZero() && isRotationalSchedule(entries) {
 		effective = timezone.DateFromTime(s.now())
 	}
-	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, entries, workforceDate(effective)); err != nil {
+	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, entries, effective); err != nil {
 		return fmt.Errorf("write custom schedule: %w", err)
 	}
 
@@ -2934,20 +2929,20 @@ func (s *workSessionService) ApplyCustomScheduleRows(ctx context.Context, staff 
 
 // SaveCustomScheduleAsTemplate persists the rows as a new reusable work time
 // model and binds it to the staff member.
-func (s *workSessionService) SaveCustomScheduleAsTemplate(ctx context.Context, staff *StaffScheduleBinding, name string, rotation int, anchor timezone.Date, entries []*configModels.WorkTimeModelEntry) error {
+func (s *workSessionService) SaveCustomScheduleAsTemplate(ctx context.Context, staff *StaffScheduleBinding, name string, rotation int, anchor timezone.Date, entries []*WorkTimeTemplateEntry) error {
 	if anchor.IsZero() {
 		anchor = timezone.DateFromTime(s.now())
 	}
-	model := &configModels.WorkTimeModel{
+	model := &WorkTimeTemplate{
 		Name:               name,
 		RotationLength:     rotation,
-		RotationAnchorDate: workforceDate(anchor),
+		RotationAnchorDate: anchor,
 	}
 	if err := s.workModelRepo.Create(ctx, model, entries); err != nil {
 		return err
 	}
 	scheduleRows := modelEntriesToScheduleRows(entries, rotation)
-	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, scheduleRows, workforceDate(anchor)); err != nil {
+	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, scheduleRows, anchor); err != nil {
 		return fmt.Errorf("write saved template schedule snapshot: %w", err)
 	}
 
@@ -2995,8 +2990,8 @@ func (s *workSessionService) applyCustomSchedule(ctx context.Context, staff *Sta
 	if rotation == 0 {
 		rotation = 1
 	}
-	if rotation < 1 || rotation > configModels.WorkTimeModelMaxRotation {
-		return scheduleValidationErrorf("rotation_length must be between 1 and %d", configModels.WorkTimeModelMaxRotation)
+	if rotation < 1 || rotation > MaxScheduleRotation {
+		return scheduleValidationErrorf("rotation_length must be between 1 and %d", MaxScheduleRotation)
 	}
 
 	anchor := timezone.Date("")
@@ -3023,9 +3018,9 @@ func (s *workSessionService) applyCustomSchedule(ctx context.Context, staff *Sta
 	return s.ApplyCustomScheduleRows(ctx, staff, entries, anchor)
 }
 
-func buildScheduleEntries(reqEntries []ScheduleEntry, rotation int) ([]*configModels.StaffWorkSchedule, []*configModels.WorkTimeModelEntry, error) {
-	entries := make([]*configModels.StaffWorkSchedule, 0, len(reqEntries))
-	templateEntries := make([]*configModels.WorkTimeModelEntry, 0, len(reqEntries))
+func buildScheduleEntries(reqEntries []ScheduleEntry, rotation int) ([]*WorkScheduleRow, []*WorkTimeTemplateEntry, error) {
+	entries := make([]*WorkScheduleRow, 0, len(reqEntries))
+	templateEntries := make([]*WorkTimeTemplateEntry, 0, len(reqEntries))
 	seenSlots := make(map[string]struct{}, len(reqEntries))
 	for _, e := range reqEntries {
 		if e.TargetMinutes <= 0 {
@@ -3038,14 +3033,14 @@ func buildScheduleEntries(reqEntries []ScheduleEntry, rotation int) ([]*configMo
 		if err != nil {
 			return nil, nil, err
 		}
-		entries = append(entries, &configModels.StaffWorkSchedule{
+		entries = append(entries, &WorkScheduleRow{
 			WeekIndex:      e.WeekIndex,
 			RotationLength: rotation,
 			DayOfWeek:      e.DayOfWeek,
 			TargetMinutes:  e.TargetMinutes,
 			StartTime:      startTime,
 		})
-		templateEntries = append(templateEntries, &configModels.WorkTimeModelEntry{
+		templateEntries = append(templateEntries, &WorkTimeTemplateEntry{
 			WeekIndex:     e.WeekIndex,
 			DayOfWeek:     e.DayOfWeek,
 			TargetMinutes: e.TargetMinutes,
@@ -3071,7 +3066,7 @@ func validateScheduleEntryRequest(e ScheduleEntry, rotation int, seenSlots map[s
 	if e.WeekIndex < 0 || e.WeekIndex >= rotation {
 		return scheduleValidationErrorf("week_index %d outside rotation_length %d", e.WeekIndex, rotation)
 	}
-	if e.DayOfWeek < configModels.DayMonday || e.DayOfWeek > configModels.DaySunday {
+	if e.DayOfWeek < DayMonday || e.DayOfWeek > DaySunday {
 		return scheduleValidationErrorf("day_of_week must be between 0 and 6")
 	}
 	if e.TargetMinutes > scheduleEntryMaxTargetMinutes {
@@ -3088,7 +3083,7 @@ func validateScheduleEntryRequest(e ScheduleEntry, rotation int, seenSlots map[s
 // isRotationalSchedule reports whether the rows span more than one week, i.e.
 // whether their parity depends on a rotation anchor at all. Single-week
 // schedules have no parity, so they keep a NULL anchor.
-func isRotationalSchedule(entries []*configModels.StaffWorkSchedule) bool {
+func isRotationalSchedule(entries []*WorkScheduleRow) bool {
 	for _, e := range entries {
 		if e != nil && (e.RotationLength > 1 || e.WeekIndex > 0) {
 			return true
@@ -3099,13 +3094,13 @@ func isRotationalSchedule(entries []*configModels.StaffWorkSchedule) bool {
 
 // modelEntriesToScheduleRows converts work-time-model entries into schedule
 // snapshot rows, dropping non-positive target minutes.
-func modelEntriesToScheduleRows(modelEntries []*configModels.WorkTimeModelEntry, rotation int) []*configModels.StaffWorkSchedule {
-	rows := make([]*configModels.StaffWorkSchedule, 0, len(modelEntries))
+func modelEntriesToScheduleRows(modelEntries []*WorkTimeTemplateEntry, rotation int) []*WorkScheduleRow {
+	rows := make([]*WorkScheduleRow, 0, len(modelEntries))
 	for _, e := range modelEntries {
 		if e.TargetMinutes <= 0 {
 			continue
 		}
-		rows = append(rows, &configModels.StaffWorkSchedule{
+		rows = append(rows, &WorkScheduleRow{
 			WeekIndex:      e.WeekIndex,
 			RotationLength: rotation,
 			DayOfWeek:      e.DayOfWeek,
