@@ -2,7 +2,6 @@ package parent_test
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"strconv"
 	"testing"
@@ -42,9 +41,9 @@ func (cutoffPassedSettings) LockParentPickupChangePolicySharedForTenant(context.
 	return nil
 }
 
-// #3163: a client that skips the portal's lock still gets refused, with a
-// code of its own rather than a generic 400.
-func TestDeleteCareExceptionEndpoint_RejectsTodayAfterCutoff(t *testing.T) {
+// #3163: a repeated client request does not change a missing exception, so it
+// remains a successful no-op even when today's cutoff has passed.
+func TestDeleteCareExceptionEndpoint_IsNoopWithoutGuardianPickupAfterCutoff(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -61,10 +60,7 @@ func TestDeleteCareExceptionEndpoint_RejectsTodayAfterCutoff(t *testing.T) {
 
 	rr := doRequest(t, router, http.MethodDelete,
 		"/me/children/"+sid+"/care-exception?date="+today, token, nil)
-	require.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
-	var body map[string]any
-	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
-	assert.Equal(t, "pickup_change_cutoff_passed", body["code"])
+	assert.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 
 	// Tomorrow has no cutoff.
 	rr = doRequest(t, router, http.MethodDelete,

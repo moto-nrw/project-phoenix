@@ -293,6 +293,24 @@ func TestDeleteCareExceptionHonoursSameDayCutoff(t *testing.T) {
 	}
 }
 
+// A repeated or stale delete has no effective guardian exception to change,
+// so it remains a successful no-op even after today's cutoff.
+func TestDeleteCareExceptionWithoutGuardianPickupIsNoopAfterCutoff(t *testing.T) {
+	t.Parallel()
+
+	d := newCutoffServiceDeps(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, d.db)
+
+	err := d.service(t, cutoffStub(true, "11:00"), berlinClock(11, 1)).DeleteCareException(
+		testpkg.WithPackageTenantRuntime(context.Background()),
+		chain.AccountID,
+		chain.StudentID,
+		cutoffToday,
+	)
+	require.NoError(t, err)
+	assert.False(t, guardianPickupExists(t, d, chain, cutoffToday))
+}
+
 // The portal learns the cutoff and whether today is already closed from the
 // features response, before anyone types.
 func TestChildFeaturesReportPickupChangeCutoff(t *testing.T) {

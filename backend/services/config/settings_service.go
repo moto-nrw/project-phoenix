@@ -880,6 +880,10 @@ func validateValue(def *config.Definition, value any) error {
 		if !ok {
 			return fmt.Errorf("expected a time string")
 		}
+		defaultValue, optional := def.Default.(string)
+		if optional && defaultValue == "" && strings.TrimSpace(str) == "" {
+			return nil
+		}
 		if err := validateTimeFormat(str); err != nil {
 			return err
 		}

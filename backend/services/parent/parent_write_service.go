@@ -1748,6 +1748,19 @@ func (s *service) DeleteCareException(ctx context.Context, accountID, studentID 
 		if alreadyLeft {
 			return ErrCareExceptionAlreadyLeft
 		}
+		pickup, err := s.PickupExceptionRepo.FindByStudentIDAndDate(txCtx, studentID, scheduleModels.Date(date))
+		if err != nil {
+			return err
+		}
+		if pickup == nil {
+			return nil
+		}
+		if pickup.HasManualPartialAbsence() {
+			return ErrCareExceptionConflict
+		}
+		if pickup.Source != scheduleModels.ExceptionSourceGuardian {
+			return nil
+		}
 		cutoff, err := s.pickupChangeCutoffInTx(txCtx, child.tenantID)
 		if err != nil {
 			return err
@@ -1756,27 +1769,18 @@ func (s *service) DeleteCareException(ctx context.Context, accountID, studentID 
 			return ErrPickupChangeCutoffPassed
 		}
 
-		pickup, err := s.PickupExceptionRepo.FindByStudentIDAndDate(txCtx, studentID, scheduleModels.Date(date))
-		if err != nil {
-			return err
-		}
-		if pickup != nil && pickup.HasManualPartialAbsence() {
-			return ErrCareExceptionConflict
-		}
-		if pickup != nil && pickup.Source == scheduleModels.ExceptionSourceGuardian {
-			// An auto-derived excusal follows the pickup time: withdrawing the
-			// override releases the excused blocks before the row is removed
-			// (#2360).
-			if s.PickupAutoExcusal != nil {
-				if err := s.PickupAutoExcusal.ReleaseBeforeDelete(txCtx, pickup); err != nil {
-					return err
-				}
-			}
-			if err := s.PickupExceptionRepo.Delete(txCtx, pickup.ID); err != nil {
+		// An auto-derived excusal follows the pickup time: withdrawing the
+		// override releases the excused blocks before the row is removed
+		// (#2360).
+		if s.PickupAutoExcusal != nil {
+			if err := s.PickupAutoExcusal.ReleaseBeforeDelete(txCtx, pickup); err != nil {
 				return err
 			}
-			pickupDeleted = true
 		}
+		if err := s.PickupExceptionRepo.Delete(txCtx, pickup.ID); err != nil {
+			return err
+		}
+		pickupDeleted = true
 		if pickupDeleted {
 			capturedTenant := child.tenantID
 			pillBody := "Korrektur: Abholung " + date.Format("02.01.") + " zurückgezogen"
