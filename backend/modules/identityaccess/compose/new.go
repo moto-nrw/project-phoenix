@@ -27,12 +27,19 @@ type Dependencies struct {
 // New composes the Identity & Access module. Guardian operations run on the
 // caller's ambient transaction when one exists and otherwise open one for
 // the tenant in context, so the guardian-access writes commit with the
-// approval that requested them. Operator operations join an ambient
-// transaction and otherwise run on the root connection: operators and their
-// sessions are platform-wide rows without a tenant.
+// approval that requested them. Operator and account-session operations join
+// an ambient transaction and otherwise run on the root connection: operators
+// and their sessions are platform-wide rows without a tenant, and the
+// account-session flows (login, refresh, switch, logout) open the
+// administrative transaction their rotation and audit evidence must commit
+// in before a tenant is known. Account-session statements apply the tenant
+// filter the runtime scoped the caller to.
 func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("identity access compose: all dependencies are required")
+	}
+	scope := func(ctx context.Context) postgres.TenantScope {
+		return postgres.TenantScope{TenantID: tenant.FromContext(ctx), AdminTransaction: tenant.IsAdminTx(ctx)}
 	}
 	store := postgres.New(func(ctx context.Context) (bun.IDB, error) {
 		transaction, ok := tenant.TransactionFromContext(ctx)
@@ -50,8 +57,8 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 		default:
 			return nil, fmt.Errorf("identity access postgres: unsupported transaction %T", transaction)
 		}
-	})
-	service := application.New(store, store, transaction{}, tenant.FromContext, func(observation Observation) {
+	}, scope)
+	service := application.New(store, store, store, transaction{}, tenant.FromContext, func(observation Observation) {
 		observation.Err = mapError(observation.Err)
 		dependencies.Observe(observation)
 	})
@@ -200,6 +207,110 @@ func (e engine) DeleteExpiredOperatorSessions(ctx context.Context, now time.Time
 	return deleted, mapError(err)
 }
 
+func (e engine) FindAccountSession(ctx context.Context, token string) (identityaccess.AccountSession, error) {
+	value, err := e.service.FindAccountSession(ctx, token)
+	return identityaccess.AccountSession(value), mapError(err)
+}
+
+func (e engine) FindAccountSessionForUpdate(ctx context.Context, token string) (identityaccess.AccountSession, error) {
+	value, err := e.service.FindAccountSessionForUpdate(ctx, token)
+	return identityaccess.AccountSession(value), mapError(err)
+}
+
+func (e engine) LatestAccountSessionInFamily(ctx context.Context, familyID string) (identityaccess.AccountSession, error) {
+	value, err := e.service.LatestAccountSessionInFamily(ctx, familyID)
+	return identityaccess.AccountSession(value), mapError(err)
+}
+
+func (e engine) ListAccountSessions(ctx context.Context, filter identityaccess.AccountSessionFilter) ([]identityaccess.AccountSession, error) {
+	values, err := e.service.ListAccountSessions(ctx, domain.AccountSessionFilter{
+		AccountID: filter.AccountID, FamilyID: filter.FamilyID, Mobile: filter.Mobile, Liveness: domain.AccountSessionLiveness(filter.Liveness),
+	})
+	return accountSessions(values), mapError(err)
+}
+
+func (e engine) CountExpiredAccountSessions(ctx context.Context) (int, error) {
+	count, err := e.service.CountExpiredAccountSessions(ctx)
+	return count, mapError(err)
+}
+
+func (e engine) ListInactiveAccountIDsWithLiveSessions(ctx context.Context) ([]int64, error) {
+	ids, err := e.service.ListInactiveAccountIDsWithLiveSessions(ctx)
+	return ids, mapError(err)
+}
+
+func (e engine) HasLiveAccountSessionsCreatedAfter(ctx context.Context, accountID int64, since time.Time) (bool, error) {
+	exists, err := e.service.HasLiveAccountSessionsCreatedAfter(ctx, accountID, since)
+	return exists, mapError(err)
+}
+
+func (e engine) CreateAccountSession(ctx context.Context, session identityaccess.AccountSession) (identityaccess.AccountSession, error) {
+	value, err := e.service.CreateAccountSession(ctx, domain.AccountSession(session))
+	return identityaccess.AccountSession(value), mapError(err)
+}
+
+func (e engine) MarkAccountSessionRotated(ctx context.Context, id int64, replacementToken string, recoveryProofHash []byte, rotatedAt time.Time) error {
+	return mapError(e.service.MarkAccountSessionRotated(ctx, id, replacementToken, recoveryProofHash, rotatedAt))
+}
+
+func (e engine) DeleteExpiredRotatedAccountSessions(ctx context.Context, accountID int64, now time.Time) error {
+	return mapError(e.service.DeleteExpiredRotatedAccountSessions(ctx, accountID, now))
+}
+
+func (e engine) RetireAccountSessionFamily(ctx context.Context, accountID int64, familyID string, expiry time.Time) error {
+	return mapError(e.service.RetireAccountSessionFamily(ctx, accountID, familyID, expiry))
+}
+
+func (e engine) EnforceAccountSessionCap(ctx context.Context, accountID int64, portalScope string, keep int) ([]identityaccess.AccountSession, error) {
+	values, err := e.service.EnforceAccountSessionCap(ctx, accountID, portalScope, keep)
+	return accountSessions(values), mapError(err)
+}
+
+func (e engine) DeleteAccountSession(ctx context.Context, id int64) error {
+	return mapError(e.service.DeleteAccountSession(ctx, id))
+}
+
+func (e engine) RevokeAccountSessionFamily(ctx context.Context, familyID string) ([]identityaccess.AccountSession, error) {
+	values, err := e.service.RevokeAccountSessionFamily(ctx, familyID)
+	return accountSessions(values), mapError(err)
+}
+
+func (e engine) RevokeAccountSessionsInTenant(ctx context.Context, accountID int64) ([]identityaccess.AccountSession, error) {
+	values, err := e.service.RevokeAccountSessionsInTenant(ctx, accountID)
+	return accountSessions(values), mapError(err)
+}
+
+func (e engine) RevokeAllAccountSessions(ctx context.Context, accountID int64) ([]identityaccess.AccountSession, error) {
+	values, err := e.service.RevokeAllAccountSessions(ctx, accountID)
+	return accountSessions(values), mapError(err)
+}
+
+func (e engine) RevokeAccountSessionsCreatedAtOrBefore(ctx context.Context, accountID int64, cutoff time.Time) ([]identityaccess.AccountSession, error) {
+	values, err := e.service.RevokeAccountSessionsCreatedAtOrBefore(ctx, accountID, cutoff)
+	return accountSessions(values), mapError(err)
+}
+
+func (e engine) RevokeTenantAccountSessions(ctx context.Context, tenantID int64) ([]identityaccess.AccountSession, error) {
+	values, err := e.service.RevokeTenantAccountSessions(ctx, tenantID)
+	return accountSessions(values), mapError(err)
+}
+
+func (e engine) DeleteExpiredAccountSessions(ctx context.Context) (int, error) {
+	deleted, err := e.service.DeleteExpiredAccountSessions(ctx)
+	return deleted, mapError(err)
+}
+
+func accountSessions(values []domain.AccountSession) []identityaccess.AccountSession {
+	if values == nil {
+		return nil
+	}
+	result := make([]identityaccess.AccountSession, 0, len(values))
+	for _, value := range values {
+		result = append(result, identityaccess.AccountSession(value))
+	}
+	return result
+}
+
 func operatorSessions(values []domain.OperatorSession) []identityaccess.OperatorSession {
 	if values == nil {
 		return nil
@@ -229,6 +340,10 @@ func mapError(err error) error {
 		return identityaccess.ErrOperatorSessionNotFound
 	case errors.Is(err, domain.ErrOperatorSessionRotated):
 		return identityaccess.ErrOperatorSessionRotated
+	case errors.Is(err, domain.ErrAccountSessionNotFound):
+		return identityaccess.ErrAccountSessionNotFound
+	case errors.Is(err, domain.ErrAccountSessionRotated):
+		return identityaccess.ErrAccountSessionRotated
 	default:
 		return err
 	}

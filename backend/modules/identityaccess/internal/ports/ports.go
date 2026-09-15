@@ -73,6 +73,46 @@ type OperatorStore interface {
 	DeleteExpiredOperatorSessions(ctx context.Context, now time.Time) (int, domain.OperationStats, error)
 }
 
+// AccountSessionStore is the persistence port over auth.tokens, the
+// tenant-scoped refresh sessions of platform accounts. Reads and deletes that
+// name no explicit tenant apply the scope the composition resolves from the
+// caller's context, exactly as the retained repository did; the cap and
+// retirement writes skip that filter inside an administrative transaction.
+type AccountSessionStore interface {
+	FindAccountSessionByToken(ctx context.Context, token string, forUpdate bool) (domain.AccountSession, bool, domain.OperationStats, error)
+	LatestAccountSessionInFamily(ctx context.Context, familyID string) (domain.AccountSession, bool, domain.OperationStats, error)
+	ListAccountSessions(ctx context.Context, filter domain.AccountSessionFilter, now time.Time) ([]domain.AccountSession, domain.OperationStats, error)
+	// CountExpiredAccountSessions counts across every tenant; the cleanup
+	// preview reports the whole sweep.
+	CountExpiredAccountSessions(ctx context.Context, now time.Time) (int, domain.OperationStats, error)
+	ListInactiveAccountIDsWithLiveSessions(ctx context.Context, now time.Time) ([]int64, domain.OperationStats, error)
+	HasLiveAccountSessionsCreatedAfter(ctx context.Context, accountID int64, since, now time.Time) (bool, domain.OperationStats, error)
+
+	// InsertAccountSession stores a validated session and returns the row
+	// with its identity and timestamps.
+	InsertAccountSession(ctx context.Context, session domain.AccountSession) (domain.AccountSession, domain.OperationStats, error)
+	// MarkAccountSessionRotated records the hand-off on an un-rotated row and
+	// reports whether such a row existed.
+	MarkAccountSessionRotated(ctx context.Context, id int64, replacementToken string, recoveryProofHash []byte, rotatedAt time.Time) (bool, domain.OperationStats, error)
+	// DeleteExpiredRotatedAccountSessions removes rotated predecessors of the
+	// account whose refresh JWTs expired before now.
+	DeleteExpiredRotatedAccountSessions(ctx context.Context, accountID int64, now time.Time) (domain.OperationStats, error)
+	// RetireAccountSessionFamily caps the expiry of the family's live sessions.
+	RetireAccountSessionFamily(ctx context.Context, accountID int64, familyID string, expiry time.Time) (domain.OperationStats, error)
+	// ListLiveAccountSessionsForCap returns the account's live, un-rotated
+	// sessions in the cap's portal group, newest expiry first.
+	ListLiveAccountSessionsForCap(ctx context.Context, accountID int64, portalScopes []string, now time.Time) ([]domain.AccountSession, domain.OperationStats, error)
+	DeleteAccountSessionsByID(ctx context.Context, ids []int64) ([]domain.AccountSession, domain.OperationStats, error)
+	DeleteAccountSession(ctx context.Context, id int64) (domain.OperationStats, error)
+	DeleteAccountSessionsByFamily(ctx context.Context, familyID string) ([]domain.AccountSession, domain.OperationStats, error)
+	// DeleteAccountSessionsByAccount deletes the account's sessions: only the
+	// caller's tenant when tenantScoped, every tenant otherwise. A non-zero
+	// cutoff keeps sessions that only started after it.
+	DeleteAccountSessionsByAccount(ctx context.Context, accountID int64, tenantScoped bool, cutoff time.Time) ([]domain.AccountSession, domain.OperationStats, error)
+	DeleteAccountSessionsByTenant(ctx context.Context, tenantID int64) ([]domain.AccountSession, domain.OperationStats, error)
+	DeleteExpiredAccountSessions(ctx context.Context, now time.Time) (int, domain.OperationStats, error)
+}
+
 type Transaction interface {
 	// RunWrite joins the caller's transaction or opens one for the tenant
 	// in context.

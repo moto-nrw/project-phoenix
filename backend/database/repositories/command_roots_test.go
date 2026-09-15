@@ -34,8 +34,12 @@ func TestCleanupCommandRootsRouteAuditWritesThroughCommand(t *testing.T) {
 	t.Run("auth event", func(t *testing.T) {
 		t.Parallel()
 
+		// The token contract composes the Identity & Access owner, which needs
+		// the database at construction; the zero-value audit event must still
+		// route to the supplied command.
+		db := testpkg.SetupTestDB(t)
 		command := &recordingAuditCommand{}
-		repos := NewAuthCleanupRepositories(nil, command)
+		repos := NewAuthCleanupRepositories(db, command)
 		requireCreateRoutesThroughCommand(t, repos.AuthEvent, command)
 	})
 

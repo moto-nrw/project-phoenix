@@ -2,13 +2,16 @@
 // owners consume. The full Identity & Access migration comes late in #2580;
 // this package exposes the narrow facts and commands earlier cutovers need
 // just in time, starting with guardian portal access for enrollment
-// acceptance (#2699) and the platform operator identity and refresh
-// sessions behind operator login, refresh and revocation (#2720).
+// acceptance (#2699), the platform operator identity and refresh sessions
+// behind operator login, refresh and revocation, and the account refresh
+// sessions behind tenant, parent and school login, refresh, switching and
+// revocation (#2720).
 //
 // Accounts are platform-wide rows without a tenant. The school mapping
-// (`auth.account_tenants`) and the guardian base role assignment
-// (`auth.account_roles`) belong to the tenant in context. Operators and
-// their refresh sessions are platform-wide as well and never carry a tenant.
+// (`auth.account_tenants`), the guardian base role assignment
+// (`auth.account_roles`) and the account refresh sessions (`auth.tokens`)
+// belong to the tenant in context. Operators and their refresh sessions are
+// platform-wide as well and never carry a tenant.
 package identityaccess
 
 import (
@@ -33,6 +36,12 @@ var (
 	// ErrOperatorSessionRotated reports a rotation hand-off on a session that
 	// was already rotated or does not exist.
 	ErrOperatorSessionRotated = errors.New("operator session was already rotated or not found")
+	// ErrAccountSessionNotFound reports a lookup that matched no account
+	// refresh session in the caller's tenant scope.
+	ErrAccountSessionNotFound = errors.New("account session not found")
+	// ErrAccountSessionRotated reports a rotation hand-off on an account
+	// session that was already rotated or does not exist.
+	ErrAccountSessionRotated = errors.New("account session was already rotated or not found")
 )
 
 // ErrorCode maps a capability error to the stable code recorded in metrics.
@@ -41,9 +50,10 @@ func ErrorCode(err error) string {
 	case err == nil:
 		return "none"
 	case errors.Is(err, ErrAccountNotFound), errors.Is(err, ErrRoleNotFound), errors.Is(err, ErrGuardianRoleMissing),
-		errors.Is(err, ErrOperatorNotFound), errors.Is(err, ErrOperatorSessionNotFound):
+		errors.Is(err, ErrOperatorNotFound), errors.Is(err, ErrOperatorSessionNotFound),
+		errors.Is(err, ErrAccountSessionNotFound):
 		return "not_found"
-	case errors.Is(err, ErrOperatorSessionRotated):
+	case errors.Is(err, ErrOperatorSessionRotated), errors.Is(err, ErrAccountSessionRotated):
 		return "conflict"
 	case errors.Is(err, ErrTenantRequired):
 		return "tenant_required"
@@ -192,10 +202,122 @@ type OperatorAccess interface {
 	OperatorSessionCommand
 }
 
+// AccountSession is one persisted, revocable refresh session of a platform
+// account at one school. A family groups the generations one login produced
+// through rotation; the hand-off (RotatedAt, ReplacementToken,
+// RecoveryProofHash) lets a lost rotation response be recovered within the
+// rotation grace and a replay be detected. FamilyExpiryCap bounds every
+// successor of a family a tenant switch retired.
+type AccountSession struct {
+	ID                int64
+	TenantID          int64
+	AccountID         int64
+	Token             string
+	Expiry            time.Time
+	Mobile            bool
+	Identifier        *string
+	PortalScope       string
+	FamilyID          string
+	FamilyExpiryCap   *time.Time
+	Generation        int
+	RotatedAt         *time.Time
+	ReplacementToken  *string
+	RecoveryProofHash []byte
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
+// AccountSessionLiveness narrows a listing by expiry.
+type AccountSessionLiveness int
+
+const (
+	// AccountSessionsAny lists sessions regardless of expiry.
+	AccountSessionsAny AccountSessionLiveness = iota
+	// AccountSessionsLive lists sessions whose expiry is in the future.
+	AccountSessionsLive
+	// AccountSessionsExpired lists sessions whose expiry has passed.
+	AccountSessionsExpired
+)
+
+// AccountSessionFilter narrows ListAccountSessions. Zero values do not
+// filter; the caller's tenant scope always applies.
+type AccountSessionFilter struct {
+	AccountID int64
+	FamilyID  string
+	Mobile    *bool
+	Liveness  AccountSessionLiveness
+}
+
+// AccountSessionQuery resolves account refresh sessions. Reads that name no
+// tenant apply the caller's tenant scope: a tenantless caller (login,
+// refresh and logout run before a tenant is known) sees every school's rows.
+// Lookups return ErrAccountSessionNotFound when nothing matches.
+type AccountSessionQuery interface {
+	FindAccountSession(ctx context.Context, token string) (AccountSession, error)
+	// FindAccountSessionForUpdate locks the session row for the caller's
+	// transaction; refresh serializes on it before rotating.
+	FindAccountSessionForUpdate(ctx context.Context, token string) (AccountSession, error)
+	LatestAccountSessionInFamily(ctx context.Context, familyID string) (AccountSession, error)
+	ListAccountSessions(ctx context.Context, filter AccountSessionFilter) ([]AccountSession, error)
+	// CountExpiredAccountSessions counts across every school; the cleanup
+	// preview reports the whole sweep.
+	CountExpiredAccountSessions(ctx context.Context) (int, error)
+	// ListInactiveAccountIDsWithLiveSessions names deactivated accounts that
+	// still hold an un-rotated, unexpired session, so a failed account-wide
+	// wipe can be recovered.
+	ListInactiveAccountIDsWithLiveSessions(ctx context.Context) ([]int64, error)
+	HasLiveAccountSessionsCreatedAfter(ctx context.Context, accountID int64, since time.Time) (bool, error)
+}
+
+// AccountSessionCommand mints, rotates, caps and revokes account refresh
+// sessions. Every write joins the caller's transaction; the revocations
+// return the deleted sessions so the caller can record its audit evidence in
+// the same transaction.
+type AccountSessionCommand interface {
+	// CreateAccountSession validates the session and pins it to the caller's
+	// tenant when the session names none.
+	CreateAccountSession(ctx context.Context, session AccountSession) (AccountSession, error)
+	// MarkAccountSessionRotated records the hand-off exactly once and returns
+	// ErrAccountSessionRotated when the session was rotated before.
+	MarkAccountSessionRotated(ctx context.Context, id int64, replacementToken string, recoveryProofHash []byte, rotatedAt time.Time) error
+	// DeleteExpiredRotatedAccountSessions drops rotated predecessors of the
+	// account whose refresh JWTs expired before now; earlier ones stay as
+	// replay evidence.
+	DeleteExpiredRotatedAccountSessions(ctx context.Context, accountID int64, now time.Time) error
+	// RetireAccountSessionFamily caps the expiry of the family's live sessions
+	// so a tenant switch hands the replaced session a bounded grace.
+	RetireAccountSessionFamily(ctx context.Context, accountID int64, familyID string, expiry time.Time) error
+	// EnforceAccountSessionCap keeps at most keep live sessions in the portal
+	// group of portalScope and returns the evicted sessions.
+	EnforceAccountSessionCap(ctx context.Context, accountID int64, portalScope string, keep int) ([]AccountSession, error)
+	DeleteAccountSession(ctx context.Context, id int64) error
+	RevokeAccountSessionFamily(ctx context.Context, familyID string) ([]AccountSession, error)
+	// RevokeAccountSessionsInTenant deletes the account's sessions at the
+	// caller's school only and returns ErrTenantRequired without one.
+	RevokeAccountSessionsInTenant(ctx context.Context, accountID int64) ([]AccountSession, error)
+	// RevokeAllAccountSessions deletes the account's sessions at every school.
+	RevokeAllAccountSessions(ctx context.Context, accountID int64) ([]AccountSession, error)
+	// RevokeAccountSessionsCreatedAtOrBefore deletes the sessions that already
+	// existed at cutoff, including their later refresh successors, and keeps
+	// logins that only started afterwards.
+	RevokeAccountSessionsCreatedAtOrBefore(ctx context.Context, accountID int64, cutoff time.Time) ([]AccountSession, error)
+	RevokeTenantAccountSessions(ctx context.Context, tenantID int64) ([]AccountSession, error)
+	DeleteExpiredAccountSessions(ctx context.Context) (int, error)
+}
+
+// AccountSessionAccess is the capability tenant, parent and school login,
+// refresh, switching, logout, session validation and revocation consume
+// (#2720).
+type AccountSessionAccess interface {
+	AccountSessionQuery
+	AccountSessionCommand
+}
+
 // Engine is the composed implementation behind the public module.
 type Engine interface {
 	GuardianAccess
 	OperatorAccess
+	AccountSessionAccess
 	RFIDQuery
 	SchoolAccountQuery
 	InvitedPersonQuery
@@ -446,6 +568,154 @@ func (m *Module) DeleteExpiredOperatorSessions(ctx context.Context, now time.Tim
 	deleted, err := m.engine.DeleteExpiredOperatorSessions(ctx, now)
 	if err != nil {
 		return 0, fmt.Errorf("identity access: delete expired operator sessions: %w", err)
+	}
+	return deleted, nil
+}
+
+func (m *Module) FindAccountSession(ctx context.Context, token string) (AccountSession, error) {
+	session, err := m.engine.FindAccountSession(ctx, token)
+	if err != nil {
+		return AccountSession{}, fmt.Errorf("identity access: find account session: %w", err)
+	}
+	return session, nil
+}
+
+func (m *Module) FindAccountSessionForUpdate(ctx context.Context, token string) (AccountSession, error) {
+	session, err := m.engine.FindAccountSessionForUpdate(ctx, token)
+	if err != nil {
+		return AccountSession{}, fmt.Errorf("identity access: find account session for update: %w", err)
+	}
+	return session, nil
+}
+
+func (m *Module) LatestAccountSessionInFamily(ctx context.Context, familyID string) (AccountSession, error) {
+	session, err := m.engine.LatestAccountSessionInFamily(ctx, familyID)
+	if err != nil {
+		return AccountSession{}, fmt.Errorf("identity access: latest account session in family: %w", err)
+	}
+	return session, nil
+}
+
+func (m *Module) ListAccountSessions(ctx context.Context, filter AccountSessionFilter) ([]AccountSession, error) {
+	sessions, err := m.engine.ListAccountSessions(ctx, filter)
+	if err != nil {
+		return nil, fmt.Errorf("identity access: list account sessions: %w", err)
+	}
+	return sessions, nil
+}
+
+func (m *Module) CountExpiredAccountSessions(ctx context.Context) (int, error) {
+	count, err := m.engine.CountExpiredAccountSessions(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("identity access: count expired account sessions: %w", err)
+	}
+	return count, nil
+}
+
+func (m *Module) ListInactiveAccountIDsWithLiveSessions(ctx context.Context) ([]int64, error) {
+	ids, err := m.engine.ListInactiveAccountIDsWithLiveSessions(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("identity access: list inactive accounts with live sessions: %w", err)
+	}
+	return ids, nil
+}
+
+func (m *Module) HasLiveAccountSessionsCreatedAfter(ctx context.Context, accountID int64, since time.Time) (bool, error) {
+	exists, err := m.engine.HasLiveAccountSessionsCreatedAfter(ctx, accountID, since)
+	if err != nil {
+		return false, fmt.Errorf("identity access: has live account sessions created after: %w", err)
+	}
+	return exists, nil
+}
+
+func (m *Module) CreateAccountSession(ctx context.Context, session AccountSession) (AccountSession, error) {
+	stored, err := m.engine.CreateAccountSession(ctx, session)
+	if err != nil {
+		return AccountSession{}, fmt.Errorf("identity access: create account session: %w", err)
+	}
+	return stored, nil
+}
+
+func (m *Module) MarkAccountSessionRotated(ctx context.Context, id int64, replacementToken string, recoveryProofHash []byte, rotatedAt time.Time) error {
+	if err := m.engine.MarkAccountSessionRotated(ctx, id, replacementToken, recoveryProofHash, rotatedAt); err != nil {
+		return fmt.Errorf("identity access: mark account session rotated: %w", err)
+	}
+	return nil
+}
+
+func (m *Module) DeleteExpiredRotatedAccountSessions(ctx context.Context, accountID int64, now time.Time) error {
+	if err := m.engine.DeleteExpiredRotatedAccountSessions(ctx, accountID, now); err != nil {
+		return fmt.Errorf("identity access: delete expired rotated account sessions: %w", err)
+	}
+	return nil
+}
+
+func (m *Module) RetireAccountSessionFamily(ctx context.Context, accountID int64, familyID string, expiry time.Time) error {
+	if err := m.engine.RetireAccountSessionFamily(ctx, accountID, familyID, expiry); err != nil {
+		return fmt.Errorf("identity access: retire account session family: %w", err)
+	}
+	return nil
+}
+
+func (m *Module) EnforceAccountSessionCap(ctx context.Context, accountID int64, portalScope string, keep int) ([]AccountSession, error) {
+	evicted, err := m.engine.EnforceAccountSessionCap(ctx, accountID, portalScope, keep)
+	if err != nil {
+		return nil, fmt.Errorf("identity access: enforce account session cap: %w", err)
+	}
+	return evicted, nil
+}
+
+func (m *Module) DeleteAccountSession(ctx context.Context, id int64) error {
+	if err := m.engine.DeleteAccountSession(ctx, id); err != nil {
+		return fmt.Errorf("identity access: delete account session: %w", err)
+	}
+	return nil
+}
+
+func (m *Module) RevokeAccountSessionFamily(ctx context.Context, familyID string) ([]AccountSession, error) {
+	sessions, err := m.engine.RevokeAccountSessionFamily(ctx, familyID)
+	if err != nil {
+		return nil, fmt.Errorf("identity access: revoke account session family: %w", err)
+	}
+	return sessions, nil
+}
+
+func (m *Module) RevokeAccountSessionsInTenant(ctx context.Context, accountID int64) ([]AccountSession, error) {
+	sessions, err := m.engine.RevokeAccountSessionsInTenant(ctx, accountID)
+	if err != nil {
+		return nil, fmt.Errorf("identity access: revoke account sessions in tenant: %w", err)
+	}
+	return sessions, nil
+}
+
+func (m *Module) RevokeAllAccountSessions(ctx context.Context, accountID int64) ([]AccountSession, error) {
+	sessions, err := m.engine.RevokeAllAccountSessions(ctx, accountID)
+	if err != nil {
+		return nil, fmt.Errorf("identity access: revoke all account sessions: %w", err)
+	}
+	return sessions, nil
+}
+
+func (m *Module) RevokeAccountSessionsCreatedAtOrBefore(ctx context.Context, accountID int64, cutoff time.Time) ([]AccountSession, error) {
+	sessions, err := m.engine.RevokeAccountSessionsCreatedAtOrBefore(ctx, accountID, cutoff)
+	if err != nil {
+		return nil, fmt.Errorf("identity access: revoke account sessions created at or before: %w", err)
+	}
+	return sessions, nil
+}
+
+func (m *Module) RevokeTenantAccountSessions(ctx context.Context, tenantID int64) ([]AccountSession, error) {
+	sessions, err := m.engine.RevokeTenantAccountSessions(ctx, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("identity access: revoke tenant account sessions: %w", err)
+	}
+	return sessions, nil
+}
+
+func (m *Module) DeleteExpiredAccountSessions(ctx context.Context) (int, error) {
+	deleted, err := m.engine.DeleteExpiredAccountSessions(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("identity access: delete expired account sessions: %w", err)
 	}
 	return deleted, nil
 }
