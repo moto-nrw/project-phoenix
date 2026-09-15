@@ -209,6 +209,11 @@ describe("AnnouncementReminderDialog (#3162)", () => {
     expect(
       screen.queryByRole("button", { name: "Erinnerung entfernen" }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Die E-Mail hat nur Titel und Link. Den Text sehen Eltern im Eltern-Portal.",
+      ),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(

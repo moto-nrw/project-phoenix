@@ -233,7 +233,10 @@ describe("ParentAnnouncementsPage: scheduled reminder (#3162)", () => {
   });
 
   it("offers the reminder in the Mitteilung wizard but not in the Umfrage wizard", async () => {
-    listState.data = [base, draftPoll];
+    listState.data = [
+      { ...base, reminder_at: "2026-09-24T06:00:00Z" },
+      draftPoll,
+    ];
     searchParams.set("bearbeiten", "1");
     const { unmount } = render(<ParentAnnouncementsPage />);
 
@@ -241,6 +244,11 @@ describe("ParentAnnouncementsPage: scheduled reminder (#3162)", () => {
       await screen.findByText("Elternmitteilung bearbeiten"),
     ).toBeInTheDocument();
     expect(screen.getByText("Erinnern am (optional)")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Die E-Mail hat nur Titel und Link. Den Text sehen Eltern im Eltern-Portal.",
+      ),
+    ).toBeInTheDocument();
     unmount();
 
     searchParams.set("art", "umfragen");
