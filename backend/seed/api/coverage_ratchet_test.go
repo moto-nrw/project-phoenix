@@ -32,13 +32,18 @@ var seedCoverageExemptions = map[string]string{
 	"active.presence_backfill_batches":     "one-time migration evidence (#2761); empty unless an operator explicitly runs the backfill",
 	// Expand #2718 explicitly requires empty targets and forbids dual writes.
 	// Remove these exemptions when #2762 switches the real seed/API callers.
-	"active.activity_sessions":             "empty Expand target (#2718); old timetable rows remain authoritative until #2762",
-	"active.activity_session_attendance":   "empty Expand target (#2718); old participant rows remain authoritative until #2762",
-	"active.combined_groups":               "empty in prod too",
-	"active.group_mappings":                "empty in prod too",
-	"active.scheduled_checkouts":           "empty in prod too",
-	"active.staff_month_balance_snapshots": "empty in prod too",
-	"active.staff_vacation_openings":       "empty in prod too",
+	"active.activity_sessions":           "empty Expand target (#2718); old timetable rows remain authoritative until #2762",
+	"active.activity_session_attendance": "empty Expand target (#2718); old participant rows remain authoritative until #2762",
+	// Expand #2716 explicitly requires empty targets and forbids dual writes.
+	// Remove these exemptions when the guardian Cutover switches the real seed/API callers.
+	"users.student_guardian_relationships":      "empty Expand target (#2716); users.students_guardians remains authoritative until Cutover",
+	"users.student_guardian_pickup_permissions": "empty Expand target (#2716); users.students_guardians remains authoritative until Cutover",
+	"auth.guardian_student_access":              "empty Expand target (#2716); users.students_guardians remains authoritative until Cutover",
+	"active.combined_groups":                    "empty in prod too",
+	"active.group_mappings":                     "empty in prod too",
+	"active.scheduled_checkouts":                "empty in prod too",
+	"active.staff_month_balance_snapshots":      "empty in prod too",
+	"active.staff_vacation_openings":            "empty in prod too",
 
 	"audit.class_list_entry_changes":    "not in prod yet (migration newer than the deployed image)",
 	"audit.enrollment_restorations":     "empty in prod too",
