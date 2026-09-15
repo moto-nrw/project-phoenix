@@ -42,6 +42,8 @@ import (
 	emergencysnapshotlegacy "github.com/moto-nrw/project-phoenix/modules/emergencysnapshot/legacy"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
+	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
+	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	grouplivelegacy "github.com/moto-nrw/project-phoenix/modules/grouplive/legacy"
 	identityaccessModule "github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -71,7 +73,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
-	"github.com/moto-nrw/project-phoenix/services/filestore"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/services/iot"
 	staffclock "github.com/moto-nrw/project-phoenix/services/iot/staffclock"
@@ -180,7 +181,7 @@ type Factory struct {
 	Birthdays                 users.BirthdayService
 	StaffDocuments            users.StaffDocumentService
 	StudentDocuments          users.StudentDocumentService
-	FileStore                 filestore.Service
+	FileStore                 *filestorageModule.Module
 	CaregiverCapability       users.CaregiverCapabilityService
 	Guardian                  *users.GuardianService
 	PeopleDirectory           peopledirectory.Capability
@@ -471,16 +472,26 @@ func NewFactoryWithModules(
 	observeIdentityAccess IdentityAccessObserver,
 	workTime workforceModule.Capability,
 	observeDataImport DataImportObserver,
+	fileStorage FileStorageWiring,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
-	if organizations == nil || persons == nil || groups == nil || rooms == nil || membership == nil || calendar == nil || timetableCapability == nil || appointmentCapability == nil || communicationCapability == nil || observeCommunication == nil || observeCarePlan == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil || observeDeviceFleet == nil || observeIdentityAccess == nil || workTime == nil || observeDataImport == nil {
+	if organizations == nil || persons == nil || groups == nil || rooms == nil || membership == nil || calendar == nil || timetableCapability == nil || appointmentCapability == nil || communicationCapability == nil || observeCommunication == nil || observeCarePlan == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil || observeDeviceFleet == nil || observeIdentityAccess == nil || workTime == nil || observeDataImport == nil || fileStorage.Objects == nil || fileStorage.Observe == nil {
 		return nil, errors.New("organization tenancy, people directory, school structure, facilities, school membership, school calendar, timetable, appointments, communication, care plan, meal plan, feedback, Audit, Delivery, Identity & Access, Workforce, and Data Import capabilities with their binders and observers are required")
 	}
 	communicationCompose.InstallMessageQueryInstrumentation(db)
 	repos.BindAppointments(appointmentCapability)
 	cfg := currentFactoryConfig()
 	cfg.PublicAPIURL = publicAPIURL
-	return newFactory(repos, db, logger, cfg, tenantRuntime, organizations, persons, groups, rooms, membership, calendar, timetableCapability, communicationCapability, observeCommunication, observeCarePlan, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, observeDeviceFleet, observeIdentityAccess, workTime, observeDataImport, false, clocks...)
+	return newFactory(repos, db, logger, cfg, tenantRuntime, organizations, persons, groups, rooms, membership, calendar, timetableCapability, communicationCapability, observeCommunication, observeCarePlan, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, observeDeviceFleet, observeIdentityAccess, workTime, observeDataImport, fileStorage, false, clocks...)
+}
+
+// FileStorageWiring carries what the File Storage module needs from the root
+// and cannot compose itself: the uploads object store and the metrics sink.
+// Test factories that leave Objects nil get no file storage and no attachment
+// purger; production composition requires both.
+type FileStorageWiring struct {
+	Objects filestorageCompose.ObjectBackend
+	Observe func(filestorageCompose.Observation)
 }
 
 func newFactory(
@@ -510,6 +521,7 @@ func newFactory(
 	observeIdentityAccess IdentityAccessObserver,
 	workTime workforceModule.Capability,
 	observeDataImport DataImportObserver,
+	fileStorage FileStorageWiring,
 	allowAuditRootWrites bool,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
@@ -2326,17 +2338,6 @@ func newFactory(
 		logger.With("service", "student_documents"),
 	)
 
-	// School file storage (#2596): folders, visibility, quota, audit trail.
-	fileStoreService := filestore.NewService(
-		db,
-		repos.FileFolder,
-		repos.File,
-		repos.AnnouncementAttachment,
-		repos.FileEvent,
-		settingsService,
-		logger.With("service", "filestore"),
-	)
-
 	enrollmentChangeRequestService := enrollment.NewChangeRequestService(enrollment.ChangeRequestServiceConfig{
 		Bookings:             enrollmentCareBookingCommands{owner: repos.CarePlan()},
 		Requests:             repos.Enrollment(),
@@ -2701,15 +2702,32 @@ func newFactory(
 		setter.SetGuardianNoticePublisher(parentAnnouncementService)
 	}
 
-	// Anhänge an Elternmitteilungen (#2890). Die Datei gehört der Dateiablage,
-	// der Empfängerkreis der Mitteilung — beide Seiten zeigen aufeinander, also
-	// werden sie hier verbunden, wo alle drei Dienste existieren. Ohne diese
-	// Verdrahtung verweigern die Anhang-Pfade den Dienst, statt ohne Prüfung zu
-	// entscheiden.
-	if setter, ok := fileStoreService.(filestore.AnnouncementPortSetter); ok {
-		setter.SetAnnouncementPorts(parentAnnouncementService, parentService)
+	// School file storage (#2596) and the attachments of Elternmitteilungen
+	// (#2890) through the public File Storage capability (#2707). Die Datei
+	// gehört der Dateiablage, der Empfängerkreis der Mitteilung: beide Seiten
+	// zeigen aufeinander, also werden sie hier verbunden, wo alle drei Dienste
+	// existieren. Ohne diese Verdrahtung verweigern die Anhang-Pfade den
+	// Dienst, statt ohne Prüfung zu entscheiden.
+	var fileStoreService *filestorageModule.Module
+	if fileStorage.Objects != nil {
+		fileStoreService, err = filestorageCompose.New(filestorageCompose.Dependencies{
+			DB:               db,
+			Objects:          fileStorage.Objects,
+			Identity:         guardianAccess,
+			People:           persons,
+			Settings:         settingsService,
+			Events:           repos.FileEvent,
+			Announcements:    parentAnnouncementService,
+			GuardianAudience: parentService,
+			Observe:          fileStorage.Observe,
+			Logger:           logger.With("service", "filestore"),
+			Now:              now,
+		})
+		if err != nil {
+			return nil, err
+		}
+		parentAnnouncementService.SetAttachmentPurger(fileStoreService)
 	}
-	parentAnnouncementService.SetAttachmentPurger(fileStoreService)
 
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
 		Organizations:         organizations,

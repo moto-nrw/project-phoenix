@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "policy_epoch": 6,
+  "policy_epoch": 7,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -788,13 +788,6 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/filestore",
-      "owner": "inbound-filestore",
-      "role": "http",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
-    },
-    {
       "path": "api/groups",
       "owner": "inbound-groups",
       "role": "http",
@@ -1157,13 +1150,6 @@
       "role": "postgres",
       "internal_test_role": "module-internal-test",
       "external_test_role": "adapter-test"
-    },
-    {
-      "path": "database/repositories/filestore",
-      "owner": "file-storage",
-      "role": "postgres",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
     },
     {
       "path": "modules/mealplan/internal/adapters/postgres",
@@ -1530,13 +1516,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "models/filestore",
-      "owner": "file-storage",
-      "role": "domain",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "modules/dataimport/compose",
       "owner": "data-import",
       "role": "compose",
@@ -1882,13 +1861,6 @@
     {
       "path": "modules/delivery/internal/application",
       "owner": "delivery-platform",
-      "role": "application",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "services/filestore",
-      "owner": "file-storage",
       "role": "application",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
@@ -3110,6 +3082,55 @@
       "role": "contract",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/filestorage",
+      "owner": "file-storage",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/filestorage/compose",
+      "owner": "file-storage",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/filestorage/internal/application",
+      "owner": "file-storage",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/filestorage/internal/domain",
+      "owner": "file-storage",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/filestorage/internal/ports",
+      "owner": "file-storage",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/filestorage/internal/adapters/postgres",
+      "owner": "file-storage",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/filestorage/http/files",
+      "owner": "inbound-filestore",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
     }
   ],
   "data_objects": [
@@ -3976,6 +3997,22 @@
     {
       "name": "users.teachers",
       "write_owner": "school-membership"
+    },
+    {
+      "name": "documents.files",
+      "write_owner": "file-storage"
+    },
+    {
+      "name": "documents.folder_accounts",
+      "write_owner": "file-storage"
+    },
+    {
+      "name": "documents.folder_roles",
+      "write_owner": "file-storage"
+    },
+    {
+      "name": "documents.folders",
+      "write_owner": "file-storage"
     }
   ],
   "read_projections": [
@@ -18991,17 +19028,6 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-filestore.to.file-storage-adapter",
-      "description": "Named exception (https://github.com/moto-nrw/project-phoenix/issues/2580#issuecomment-5638973300), not a target dependency: the pre-existing file store handlers keep moving document bytes through the moved File Storage object-store adapter; delete this rule when #2707 moves them to the public File Storage capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-filestore",
-      "source_role": "http",
-      "target_owner": "file-storage",
-      "target_role": "adapter"
-    },
-    {
       "id": "inbound-students.to.file-storage-adapter",
       "description": "Named exception (https://github.com/moto-nrw/project-phoenix/issues/2580#issuecomment-5638973300), not a target dependency: the pre-existing student document handlers keep moving document bytes through the moved File Storage object-store adapter; delete this rule when #2731 moves them to the public File Storage capability.",
       "scopes": [
@@ -19503,6 +19529,334 @@
       "source_role": "workflow-integration-test",
       "target_owner": "data-import",
       "target_role": "compose"
+    },
+    {
+      "id": "file-storage.port-domain",
+      "description": "File Storage ports express persistence operations using their own domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "file-storage",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "file-storage.compose.application",
+      "description": "File Storage composition constructs its application service.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "file-storage",
+      "source_role": "compose",
+      "target_owner": "file-storage",
+      "target_role": "application"
+    },
+    {
+      "id": "file-storage.compose.domain",
+      "description": "File Storage composition maps its internal domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "file-storage",
+      "source_role": "compose",
+      "target_owner": "file-storage",
+      "target_role": "domain"
+    },
+    {
+      "id": "file-storage.compose.port",
+      "description": "File Storage composition binds its consumer-owned ports.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "file-storage",
+      "source_role": "compose",
+      "target_owner": "file-storage",
+      "target_role": "port"
+    },
+    {
+      "id": "file-storage.compose.postgres",
+      "description": "File Storage composition constructs its Postgres adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "file-storage",
+      "source_role": "compose",
+      "target_owner": "file-storage",
+      "target_role": "postgres"
+    },
+    {
+      "id": "file-storage.compose.public",
+      "description": "File Storage composition returns its public facade.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "file-storage",
+      "source_role": "compose",
+      "target_owner": "file-storage",
+      "target_role": "public"
+    },
+    {
+      "id": "file-storage.compose.orm-sql",
+      "description": "File Storage composition supplies the concrete Bun database dependency.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "file-storage",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "file-storage.compose.tenant-runtime",
+      "description": "File Storage composition resolves the ambient tenant transaction, advisory locks and after-commit hooks through the shared runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "file-storage",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "file-storage.compose.identity-public",
+      "description": "File Storage composition binds membership, role and shareable-role facts to the public Identity & Access capability (#2707).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "file-storage",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "public"
+    },
+    {
+      "id": "file-storage.compose.people-public",
+      "description": "File Storage composition resolves the names of the audience picker through the public People Directory query (#2707).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "file-storage",
+      "source_role": "compose",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "file-storage.compose.settings-domain",
+      "description": "File Storage composition names the two file storage setting keys. Compatibility permission (#2707): convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "file-storage",
+      "source_role": "compose",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "file-storage.compose.audit-domain",
+      "description": "File Storage composition appends the file trail through the retained Audit file-event repository contract. Compatibility permission (#2707): convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "file-storage",
+      "source_role": "compose",
+      "target_owner": "audit-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "file-storage.compose.security-application",
+      "description": "File Storage composition evaluates files:manage with the shared permission matcher. Compatibility permission (#2707): convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "file-storage",
+      "source_role": "compose",
+      "target_owner": "security-runtime",
+      "target_role": "application"
+    },
+    {
+      "id": "file-storage.compose.security-contract",
+      "description": "File Storage composition names the files:manage permission. Compatibility permission (#2707): convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "file-storage",
+      "source_role": "compose",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "file-storage.compose.delivery-adapter",
+      "description": "File Storage composition writes, opens and removes objects through the retained storage backend. Compatibility permission (#2707): convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "file-storage",
+      "source_role": "compose",
+      "target_owner": "delivery-platform",
+      "target_role": "adapter"
+    },
+    {
+      "id": "file-storage.compose.document-rendering-postgres",
+      "description": "File Storage composition binds the documents.file_cleanup intent operations to the retained generic document repository, because that table has no adoptable finding (ADR 0015). Compatibility permission (#2707): convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "file-storage",
+      "source_role": "compose",
+      "target_owner": "document-rendering",
+      "target_role": "postgres"
+    },
+    {
+      "id": "file-storage.compose.document-rendering-domain",
+      "description": "File Storage composition satisfies the retained generic document repository's entity constraint for the documents.file_cleanup binding. Compatibility permission (#2707): convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "file-storage",
+      "source_role": "compose",
+      "target_owner": "document-rendering",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-filestore.to.file-storage",
+      "description": "inbound-filestore calls exactly one public capability (#2707).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-filestore",
+      "source_role": "http",
+      "target_owner": "file-storage",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-filestore.http-common",
+      "description": "File handlers reuse common HTTP rendering, the tenant and parent route groups, the permission gates and the multipart document validation (#2707).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-filestore",
+      "source_role": "http",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "inbound-filestore.security-contract",
+      "description": "File handlers name the files:manage and admin permissions (#2707).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-filestore",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "inbound-filestore.identity-adapter",
+      "description": "File handlers read the acting account and its permissions from the JWT claims (#2707).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-filestore",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-filestore.orm-sql",
+      "description": "File HTTP composition passes the concrete Bun database to the shared tenant middleware (#2707).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-filestore",
+      "source_role": "http",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "inbound-filestore.adapter-test.inbound-common",
+      "description": "File route tests decode the string ids and resolve the uploads directory through the common HTTP helpers (#2707).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-filestore",
+      "source_role": "adapter-test",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "inbound-filestore.adapter-test.settings-domain",
+      "description": "File route tests name the staff upload setting key (#2707).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-filestore",
+      "source_role": "adapter-test",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "root-composition.to.inbound-filestore-http",
+      "description": "The production root constructs the file storage HTTP adapter (#2707).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "inbound-filestore",
+      "target_role": "http"
+    },
+    {
+      "id": "root-composition.to.file-storage-compose",
+      "description": "The production root supplies the uploads backend and the metrics sink to the File Storage composition (#2707).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "file-storage",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.to.file-storage-public",
+      "description": "The production root records stable File Storage capability outcomes (#2707).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "file-storage",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.to.file-storage-compose",
+      "description": "The legacy service factory composes the File Storage module where the announcement ports exist (#2707).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "file-storage",
+      "target_role": "compose"
+    },
+    {
+      "id": "legacy-composition.to.file-storage-public",
+      "description": "The legacy service factory holds the File Storage facade for the routes, the worker and the announcement purger (#2707).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "file-storage",
+      "target_role": "public"
+    },
+    {
+      "id": "test-support.to.file-storage-public",
+      "description": "The test-support composition returns the File Storage facade to the route tests (#2707).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "file-storage",
+      "target_role": "public"
     }
   ]
 }

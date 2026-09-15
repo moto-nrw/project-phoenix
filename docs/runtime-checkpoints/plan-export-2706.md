@@ -126,7 +126,8 @@ sources with only its own block, room and staff member on the sheet. The same
 test renders each school's Dienstplan through the retained staff schedule
 overview, with the shift and staff reads bound to the tenant transaction under
 test, and finds only the school's own staff member, shift and block on the
-sheet. A second two-tenant test in `api/filestore` stores one file and queues
-one cleanup intent per school through the public routes and proves
-`documents.files` and `documents.file_cleanup` invisible across the boundary
-under the least-privilege role.
+sheet. A second two-tenant test, since #2707 in
+`modules/filestorage/http/files`, stores one file and queues one cleanup
+intent per school through the public routes and proves `documents.files` and
+`documents.file_cleanup` (with #2707: every File Storage table) invisible
+across the boundary under the least-privilege role.

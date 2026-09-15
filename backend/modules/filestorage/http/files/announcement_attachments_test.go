@@ -2,12 +2,13 @@
 // upload, list, download and delete on a draft, the refusal to change a
 // published announcement, the file-type gate, and the cleanup intent that
 // keeps the bytes reachable after the row is soft-deleted.
-package filestore_test
+package files_test
 
 import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	filestoreAPI "github.com/moto-nrw/project-phoenix/modules/filestorage/http/files"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,7 +34,7 @@ type attachmentContext struct {
 func setupAttachmentRoute(t *testing.T) *attachmentContext {
 	t.Helper()
 	c := setupFileStoreRoute(t)
-	c.router.Mount("/announcement-attachments", c.resource.AnnouncementAttachmentRouter())
+	c.router.Mount("/announcement-attachments", filestoreAPI.NewResource(c.files, c.db, slog.Default()).AnnouncementAttachmentRouter())
 	t.Cleanup(func() {
 		if pubDir, err := common.ResolvePublicDir(); err == nil {
 			_ = os.RemoveAll(filepath.Join(pubDir, "uploads", "announcement-attachments",
