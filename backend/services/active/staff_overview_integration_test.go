@@ -124,6 +124,14 @@ func (f *overviewFixture) addSession(t *testing.T, staffID int64, date timezone.
 	t.Helper()
 	checkIn := time.Date(date.Year(), date.Month(), date.Day(), 8, 0, 0, 0, time.UTC)
 	checkOut := checkIn.Add(duration)
+	// A check-out in the future is a still-open block for the balance code: its
+	// Ist then grows with the clock, so two identical requests disagree. Before
+	// 08:00 + duration UTC that is every run, which is why this fixture has to
+	// anchor the block behind the current instant instead of the day's start.
+	if latest := time.Now().Add(-time.Minute); checkOut.After(latest) {
+		checkOut = latest
+		checkIn = checkOut.Add(-duration)
+	}
 	session := &activeModels.WorkSession{
 		StaffID:     staffID,
 		Date:        date,
