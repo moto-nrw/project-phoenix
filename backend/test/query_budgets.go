@@ -142,6 +142,9 @@ var queryBudgets = map[string]queryBudget{
 	// modules/communication — inbox reads remain fixed as thread count grows.
 	"modules.communication.parent_messages.list_inbox": {max: 1, exact: true},
 	"modules.communication.staff_messages.list_inbox":  {max: 2, exact: true},
+	// database/repositories/users — due announcement reminders read their rows
+	// and targets in two batches, regardless of the number due in one tick.
+	"repositories.parent_announcements.due_reminders": {max: 2, exact: true},
 	// modules/workforce/inbound/timetracking — GET
 	// /api/staff-notices/{id}/acknowledgements (#2208): four tenant-transaction
 	// statements (BEGIN, SET ROLE, set_config, COMMIT) plus one notice read, one
