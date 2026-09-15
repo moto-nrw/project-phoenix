@@ -307,6 +307,10 @@ type templateResponse struct {
 	// enrollment-owned selected_weekdays intact when the editor switches from a
 	// shared roster to explicit weekday lists.
 	ProtectedStudentAssignments []templateProtectedStudentAssignmentResponse `json:"protected_student_assignments"`
+	// RosterMaintenance tells whether later children reach this Regeltermin
+	// automatically (#3140). Omitted when the offering side is not wired or
+	// could not be read; the list itself still renders.
+	RosterMaintenance *templateRosterMaintenanceResponse `json:"roster_maintenance,omitempty"`
 }
 
 type listTemplatesResponse struct {
@@ -357,6 +361,7 @@ func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
 	}
 
 	templates := mapTemplateRows(rows, childrenPerStaffRatio, weekdayRoster)
+	rs.attachRosterMaintenance(r.Context(), templates, periodID)
 	if periodID == nil {
 		// Period-free reads support the enrollment catalog, which only needs
 		// template metadata. A nil slice serializes as null and makes clear that

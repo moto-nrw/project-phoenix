@@ -425,6 +425,8 @@ vi.mock("~/components/timetable/instance-detail-modal", () => ({
     canManageStaffPool,
     canManage,
     fetchParticipantNames,
+    seriesPeriodId,
+    seriesRosterMaintenance,
   }: {
     instance: { id: string } | null;
     onClose: () => void;
@@ -447,6 +449,8 @@ vi.mock("~/components/timetable/instance-detail-modal", () => ({
     canManageStaffPool: boolean;
     canManage?: boolean;
     fetchParticipantNames?: boolean;
+    seriesPeriodId?: string;
+    seriesRosterMaintenance?: unknown;
   }) =>
     instance ? (
       <div>
@@ -456,6 +460,10 @@ vi.mock("~/components/timetable/instance-detail-modal", () => ({
         <span data-testid="detail-can-manage">{String(canManage)}</span>
         <span data-testid="detail-fetch-participants">
           {String(fetchParticipantNames)}
+        </span>
+        <span data-testid="detail-series-period">{seriesPeriodId ?? ""}</span>
+        <span data-testid="detail-series-maintenance">
+          {seriesRosterMaintenance ? "known" : "missing"}
         </span>
         <button type="button" onClick={onClose}>
           detail-close
@@ -614,6 +622,7 @@ const instance = {
   isLive: false,
   activityType: "care" as const,
   activityGroupId: "7",
+  calendarPeriodId: "5",
   roomId: "3",
   roomName: "Mensa",
   staff: [
@@ -1712,6 +1721,43 @@ describe("BetreuungsplanView", () => {
           expect.objectContaining({ id: "6" }),
         ]),
       }),
+    );
+  });
+
+  it("uses an instance's pinned period for its Regeltermin indicator", () => {
+    const overlappingPeriod = {
+      ...period,
+      id: "9",
+      name: "Projektwoche",
+      startDate: "2026-05-04",
+      endDate: "2026-05-08",
+    };
+    setupSWR({
+      periods: [period, overlappingPeriod],
+      instances: [{ ...instance, activityGroupId: "7", calendarPeriodId: "9" }],
+      templates: [
+        {
+          ...template,
+          rosterMaintenance: {
+            mode: "automatic",
+            offeringNames: ["Mittagessen"],
+            gradeLevels: [],
+            schoolClasses: [],
+            inactiveOfferingNames: [],
+            invalidOfferingNames: [],
+            dynamicTargets: false,
+            careOfferingsDisabled: false,
+          },
+        },
+      ],
+    });
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByText("week-grid"));
+
+    expect(screen.getByTestId("detail-series-period")).toHaveTextContent("9");
+    expect(screen.getByTestId("detail-series-maintenance")).toHaveTextContent(
+      "missing",
     );
   });
 
