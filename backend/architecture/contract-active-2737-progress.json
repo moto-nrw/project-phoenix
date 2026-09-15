@@ -1,61 +1,38 @@
 {
   "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737",
   "status": "incomplete",
-  "evidence_date": "2026-09-14",
-  "evidence_scope": "Current worktree after the api/active cut: the active routes consume a consumer-owned presence operations port bound to the retained active service in the services composition root, presence sentinels live in the owner public package, and the two retained read providers with zero callers are deleted.",
+  "evidence_date": "2026-09-15",
+  "evidence_scope": "Current worktree after the presence inbound relocation and the work-schedule port cut: the active routes are served from the presence inbound package, and the retained work-session service names its schedule rows, work-time templates and Soll derivations in the presence vocabulary, bound to the retained settings repositories by the services root.",
   "remaining_keys": [
-    "external_test|api/active -> api/common",
-    "external_test|api/active -> auth/jwt",
-    "external_test|api/active -> github.com/go-chi/chi/v5",
-    "external_test|api/active -> github.com/uptrace/bun",
-    "external_test|api/active -> internal/timezone",
-    "external_test|api/active -> models/config",
-    "external_test|api/active -> net/http",
     "external_test|database/repositories/active -> database/repositories",
     "external_test|database/repositories/active -> database/repositories/active",
-    "external_test|database/repositories/active -> github.com/uptrace/bun",
     "external_test|database/repositories/active -> internal/timezone",
     "external_test|database/repositories/active -> models/active",
     "external_test|database/repositories/active -> models/base",
-    "external_test|services/active -> auth/device",
     "external_test|services/active -> database/repositories",
-    "external_test|services/active -> github.com/uptrace/bun",
     "external_test|services/active -> internal/timezone",
     "external_test|services/active -> models/active",
     "external_test|services/active -> models/audit",
     "external_test|services/active -> models/base",
     "external_test|services/active -> models/config",
     "external_test|services/active -> models/schedule",
-    "external_test|services/active -> realtime",
     "external_test|services/active -> services",
     "external_test|services/active -> services/active",
     "external_test|services/active -> services/config",
     "external_test|services/active -> services/schedule",
     "external_test|services/active -> services/users",
     "external_test|services/active -> tenant",
-    "internal_test|api/active -> api/common",
-    "internal_test|api/active -> auth/jwt",
-    "internal_test|api/active -> github.com/go-chi/chi/v5",
-    "internal_test|api/active -> internal/timezone",
-    "internal_test|api/active -> models/config",
-    "internal_test|api/active -> net/http",
-    "internal_test|api/active -> services/usercontext",
     "internal_test|models/active -> internal/timezone",
-    "internal_test|services/active -> github.com/uptrace/bun",
     "internal_test|services/active -> internal/timezone",
     "internal_test|services/active -> models/base",
     "internal_test|services/active -> models/config",
-    "internal_test|services/active -> realtime",
     "internal_test|services/active -> tenant",
     "internal_test|services/statistics -> internal/timezone",
-    "production|api/active -> api/common",
-    "production|api/active -> internal/timezone",
     "production|database/repositories/active -> internal/timezone",
     "production|models/active -> internal/timezone",
     "production|models/active -> models/base",
     "production|services/active -> internal/timezone",
     "production|services/active -> models/base",
-    "production|services/active -> models/config",
     "production|services/active -> tenant",
     "production|services/statistics -> internal/timezone"
   ],
@@ -84,16 +61,17 @@
     "verification": "Current Go declarations and call sites must be checked per symbol; historical error operation strings and HTTP route names can remain. This list is incomplete for the entire migration."
   },
   "latest_verification": {
-    "full_backend_suite": "full backend suite via scripts/test-backend.sh: 26278 tests, 2 skipped, 126s; the single failure (PyrePortal error string guard) was fixed by adding the relocated sentinel file to the guard corpus and api/active plus api/iot were rerun green",
+    "scope": "packages touched by the relocation and the port cut",
+    "tests": "go test ./modules/studentpresence/... ./api/... ./services/... ./modules/workforce/... ./test/... -count=1: all green",
     "architecture": {
-      "legacy_keys": 1479,
+      "legacy_keys": 1455,
       "composition_field_setter_targets": 779
     },
     "lint": {
       "issues": 0,
-      "scope": "touched packages"
+      "scope": "services, api and student-presence packages"
     },
-    "limitation": "Temporary local logs; green checks do not establish ticket completion."
+    "limitation": "No full-suite run since the port cut; the before-push changed-test run is outstanding."
   },
   "incomplete_requirements": [
     "Remove all 68 remaining exact keys without new keys or ownership widening.",
@@ -102,10 +80,10 @@
     "Run the final required checks after the last implementation edit, including before-push test-changed when pushing.",
     "Complete code review and commit the implementation on the current branch."
   ],
-  "next_boundary": "services/active -> models/config is down to two files: work_session_service.go and workforce_dates.go. Both hold the legacy work-schedule row types (StaffWorkSchedule, WorkTimeModel, WorkTimeModelEntry, CalendarDate) and the ~10 pure date helpers in models/config/weekly_targets.go and work_time_model.go. Those helpers are also called by services/schedule, the services root and api/operator, so the cut needs them relocated to modules/workforce first, which is a package move this ticket does not authorise. The settings half of this key is done.",
+  "next_boundary": "The internal-test settings edge is down to registry-key constants in five stubs (presence_gate_test.go, session_lifecycle_test.go, session_service_internal_test.go, visit_helpers_clear_internal_test.go, work_session_service_test.go). Those stubs implement the question-based presence settings ports and only dispatch internally by key, so their key assertions are self-referential; the key-to-question mapping is owned and tested in the services root. The external-test settings edge additionally needs the DB-writing schedule fixtures (staff overview, work-time month snapshot/integration/query-budget) to create staff work-schedule rows through a test fixture helper instead of the ORM row type.",
   "reassessment": {
     "reason": "User requested a credible completion estimate after prolonged incremental work.",
-    "remaining_key_count": 58,
+    "remaining_key_count": 31,
     "production_keys": 11,
     "test_keys": 47,
     "import_locations": 650,
@@ -174,6 +152,8 @@
     "services/active -> models/users removed in all three scopes: StudentRecord, StudentLifecycle, PersonName and StaffScheduleBinding are presence-owned; adapters live in services/student_records.go, services/status_day_students.go and api/students/status_day_students.go",
     "internal_test services/active -> database/repositories removed by moving the bulk status-day test to the external test package",
     "settings: all five presence settings ports now name their questions; the registry keys live in services/presence_settings.go, clearing 9 of the 11 models/config files",
-    "work session contract: five zero-caller schedule methods removed from the public interface"
+    "work session contract: five zero-caller schedule methods removed from the public interface",
+    "the active HTTP adapter moved into the Student Presence module as student-presence/http (authorised by the relocation subissue): nine exact keys and the root-composition entry of the root-api ticket left the baseline; routes, status codes and error strings are unchanged and the remaining legacy edges are recorded as compatibility permissions with their conversion condition",
+    "production services/active to the settings models package removed: WorkScheduleRow, WorkTimeTemplate and the pure Soll derivations are presence-owned on timezone.Date, and the services root binds the schedule and template ports to the retained repositories"
   ]
 }
