@@ -99,13 +99,15 @@ export function TemplateCard({
     <article
       className={`${timetableSurface} relative flex flex-col transition-[border-color,box-shadow] hover:border-gray-300 hover:shadow-md`}
     >
-      {/* No overflow clipping on the card: the roster-maintenance tooltip
-          must be able to leave it. The colour bar follows the radius itself. */}
+      {/* The card itself must not clip: the roster-maintenance tooltip has to
+          leave it. Only this layer clips, so the colour bar follows the card's
+          rounded edge exactly as before. */}
       <div
-        className="absolute top-0 left-0 h-full w-1 rounded-l-2xl"
-        style={{ backgroundColor: color }}
+        className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]"
         aria-hidden
-      />
+      >
+        <div className="h-full w-1" style={{ backgroundColor: color }} />
+      </div>
 
       <div className="flex flex-col gap-3 p-4 pl-5">
         <div className="flex items-start justify-between gap-2">
@@ -243,7 +245,7 @@ export function TemplateCard({
       </div>
 
       {canManage && (
-        <div className="border-t border-gray-100 px-4 py-2.5 pl-5">
+        <div className="mt-auto border-t border-gray-100 px-4 py-2.5 pl-5">
           <Button
             type="button"
             variant="primary"
