@@ -1288,7 +1288,7 @@ export function PickupTimeModal({
 
         {/* Der Hinweis nennt eine noch offene Möglichkeit; nach der Frist
             würde er an einem anderen Tag falsch klingen. */}
-        {cutoffTime && !todayClosed && !cutoffReported && (
+        {date === today && cutoffTime && !todayClosed && !cutoffReported && (
           <p className="text-sm text-gray-600">
             {t("pickup.cutoffHint", { time: cutoffTime })}
           </p>

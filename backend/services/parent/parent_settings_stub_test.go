@@ -2,6 +2,7 @@ package parent_test
 
 import (
 	"context"
+	"strconv"
 
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 
@@ -18,6 +19,7 @@ type parentSettingsStub struct {
 	boolErr      error // returned by every bool lookup when set
 	stringValues map[string]string
 	stringErr    error
+	stringInTxFn func(string) (string, error)
 }
 
 func (s parentSettingsStub) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
@@ -36,6 +38,19 @@ func (s parentSettingsStub) ResolveBoolForTenant(_ context.Context, _ int64, key
 func (s parentSettingsStub) ResolveStringForTenant(_ context.Context, _ int64, key string) (string, error) {
 	if s.stringErr != nil {
 		return "", s.stringErr
+	}
+	return s.stringValues[key], nil
+}
+
+func (s parentSettingsStub) ResolveStringForTenantInTx(_ context.Context, _ int64, key string) (string, error) {
+	if s.stringInTxFn != nil {
+		return s.stringInTxFn(key)
+	}
+	if s.stringErr != nil {
+		return "", s.stringErr
+	}
+	if value, ok := s.boolValues[key]; ok {
+		return strconv.FormatBool(value), nil
 	}
 	return s.stringValues[key], nil
 }

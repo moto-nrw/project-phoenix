@@ -60,6 +60,26 @@ func TestSameDayCutoffEmptyNeverCloses(t *testing.T) {
 	assert.False(t, schedule.SameDayCutoff{}.Closed(timezone.NewDate(2026, 8, 24)))
 }
 
+func TestSameDayCutoffTrimsResolvedClock(t *testing.T) {
+	t.Parallel()
+
+	cutoff := sameDayCutoff(t, " \t11:00\n", berlinAt(2026, 8, 24, 11, 1, 0))
+	assert.Equal(t, "11:00", cutoff.Clock)
+	assert.True(t, cutoff.Closed(timezone.NewDate(2026, 8, 24)))
+}
+
+func TestSameDayCutoffAtUsesTimeAtValidation(t *testing.T) {
+	t.Parallel()
+
+	now := berlinAt(2026, 8, 24, 10, 59, 0)
+	cutoff, err := schedule.NewSameDayCutoffAt("11:00", func() time.Time { return now })
+	require.NoError(t, err)
+
+	assert.False(t, cutoff.Closed(timezone.NewDate(2026, 8, 24)))
+	now = berlinAt(2026, 8, 24, 11, 1, 0)
+	assert.True(t, cutoff.Closed(timezone.NewDate(2026, 8, 24)))
+}
+
 // The cutoff is a Berlin wall-clock time. The same instant in UTC sits one
 // hour apart from it in winter and two hours in summer, and on both
 // changeover days the check still reads the Berlin clock.

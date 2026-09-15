@@ -135,6 +135,36 @@ func TestSubmitPickupChangeRequestHonoursSameDayCutoff(t *testing.T) {
 	}
 }
 
+// The cutoff is read after the transaction has acquired its locks. A request
+// that was open when it began must still be refused if the deadline passes
+// before the pickup-change row is validated.
+func TestSubmitPickupChangeRequestRechecksCutoffAtWriteBoundary(t *testing.T) {
+	t.Parallel()
+
+	d := newCutoffServiceDeps(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, d.db)
+	now := berlinClock(10, 59)
+	settings := cutoffStub(true, "11:00")
+	settings.stringInTxFn = func(key string) (string, error) {
+		if key == configModels.KeyParentPickupChangeEnabled {
+			now = berlinClock(11, 1)
+			return "true", nil
+		}
+		return settings.stringValues[key], nil
+	}
+
+	_, err := d.service(t, settings, func() time.Time { return now() }).SubmitPickupChangeRequest(
+		testpkg.WithPackageTenantRuntime(context.Background()),
+		chain.AccountID,
+		chain.StudentID,
+		cutoffToday,
+		cutoffPickupTime(),
+		"Arzttermin",
+		nil,
+	)
+	require.ErrorIs(t, err, parentService.ErrPickupChangeCutoffPassed)
+}
+
 // A request that came in before the cutoff cannot be edited afterwards; the
 // guardian's today is closed completely.
 func TestEditPickupChangeRequestHonoursSameDayCutoff(t *testing.T) {

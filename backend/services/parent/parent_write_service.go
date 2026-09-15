@@ -692,10 +692,6 @@ func (s *service) EditPickupChangeRequest(
 	if s.CareRequests == nil {
 		return nil, errors.New("parent: pickup change request service not configured")
 	}
-	cutoff, err := s.pickupChangeCutoff(ctx, child.tenantID)
-	if err != nil {
-		return nil, err
-	}
 	var out *scheduleModels.CareScheduleChangeRequest
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
@@ -704,6 +700,10 @@ func (s *service) EditPickupChangeRequest(
 		}
 		if student.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
+		}
+		cutoff, err := s.pickupChangeCutoffInTx(txCtx, child.tenantID)
+		if err != nil {
+			return err
 		}
 		req, editErr := s.CareRequests.EditRequest(txCtx, scheduleService.CareRequestEditInput{
 			RequestID:         requestID,
@@ -1250,11 +1250,6 @@ func (s *service) SubmitPickupChangeRequest(ctx context.Context, accountID, stud
 	if s.CareRequests == nil {
 		return nil, errors.New("parent: pickup change request service not configured")
 	}
-	cutoff, err := s.pickupChangeCutoff(ctx, child.tenantID)
-	if err != nil {
-		return nil, err
-	}
-
 	var result *scheduleModels.CareScheduleChangeRequest
 	err = tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
@@ -1280,6 +1275,10 @@ func (s *service) SubmitPickupChangeRequest(ctx context.Context, accountID, stud
 		}
 		if alreadyLeft {
 			return ErrCareExceptionAlreadyLeft
+		}
+		cutoff, err := s.pickupChangeCutoffInTx(txCtx, child.tenantID)
+		if err != nil {
+			return err
 		}
 		created, createErr := s.CareRequests.CreatePickupChange(txCtx, scheduleService.PickupChangeCreateInput{
 			StudentID:         studentID,
@@ -1421,14 +1420,6 @@ func (s *service) submitCareException(ctx context.Context, accountID, studentID 
 	if date.After(maxDate) {
 		return nil, ErrCareDateTooFar
 	}
-	cutoff, err := s.pickupChangeCutoff(ctx, child.tenantID)
-	if err != nil {
-		return nil, err
-	}
-	if cutoff.Closed(date) {
-		return nil, ErrPickupChangeCutoffPassed
-	}
-
 	guardianID := accountID
 	var result *CareException
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
@@ -1457,6 +1448,13 @@ func (s *service) submitCareException(ctx context.Context, accountID, studentID 
 		}
 		if staffOwned {
 			return ErrCareExceptionConflict
+		}
+		cutoff, err := s.pickupChangeCutoffInTx(txCtx, child.tenantID)
+		if err != nil {
+			return err
+		}
+		if cutoff.Closed(date) {
+			return ErrPickupChangeCutoffPassed
 		}
 
 		if err := s.applyGuardianPickupException(txCtx, studentID, child.tenantID, date, pickupTime, reason, guardianID); err != nil {
@@ -1725,14 +1723,6 @@ func (s *service) DeleteCareException(ctx context.Context, accountID, studentID 
 	// Removing an approved exception takes effect at once, without a staff
 	// decision, so after the school's cutoff it is closed for today like every
 	// other guardian pickup write (#3163).
-	cutoff, err := s.pickupChangeCutoff(ctx, child.tenantID)
-	if err != nil {
-		return err
-	}
-	if cutoff.Closed(date) {
-		return ErrPickupChangeCutoffPassed
-	}
-
 	pickupDeleted := false
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
@@ -1751,6 +1741,13 @@ func (s *service) DeleteCareException(ctx context.Context, accountID, studentID 
 		}
 		if alreadyLeft {
 			return ErrCareExceptionAlreadyLeft
+		}
+		cutoff, err := s.pickupChangeCutoffInTx(txCtx, child.tenantID)
+		if err != nil {
+			return err
+		}
+		if cutoff.Closed(date) {
+			return ErrPickupChangeCutoffPassed
 		}
 
 		pickup, err := s.PickupExceptionRepo.FindByStudentIDAndDate(txCtx, studentID, scheduleModels.Date(date))

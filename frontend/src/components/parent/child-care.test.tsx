@@ -554,6 +554,20 @@ describe("PickupTimeModal — Änderungsfrist für heute", () => {
     ).toBeEnabled();
   });
 
+  it("zeigt die Frist nicht für einen späteren Tag", () => {
+    renderModal({ cutoffTime: "11:00", todayClosed: false });
+    const dateInput =
+      document.querySelector<HTMLInputElement>('input[type="date"]')!;
+
+    fireEvent.change(dateInput, { target: { value: tomorrow } });
+
+    expect(
+      screen.queryByText(
+        "Die Abholzeit für heute können Sie bis 11:00 Uhr ändern.",
+      ),
+    ).not.toBeInTheDocument();
+  });
+
   it("zeigt ohne Frist keinen Hinweis und keine Sperre", () => {
     renderModal();
 
