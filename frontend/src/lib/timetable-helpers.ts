@@ -530,6 +530,10 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
       raw.activity_group_id !== undefined && raw.activity_group_id !== null
         ? String(raw.activity_group_id)
         : undefined,
+    calendarPeriodId:
+      raw.calendar_period_id !== undefined && raw.calendar_period_id !== null
+        ? String(raw.calendar_period_id)
+        : undefined,
     planningTrackId:
       raw.planning_track_id !== undefined && raw.planning_track_id !== null
         ? String(raw.planning_track_id)
@@ -1166,6 +1170,9 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
             schoolClasses: template.roster_maintenance.school_classes ?? [],
             inactiveOfferingNames: (
               template.roster_maintenance.inactive_offerings ?? []
+            ).map((offering) => offering.name),
+            invalidOfferingNames: (
+              template.roster_maintenance.invalid_offerings ?? []
             ).map((offering) => offering.name),
             dynamicTargets: template.roster_maintenance.dynamic_targets,
             careOfferingsDisabled:

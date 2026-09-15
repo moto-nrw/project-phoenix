@@ -1424,13 +1424,17 @@ function TimetablesContent() {
         seriesRosterMaintenance={
           selectedInstance?.activityGroupId
             ? templates.find(
-                (template) => template.id === selectedInstance.activityGroupId,
+                (template) =>
+                  template.id === selectedInstance.activityGroupId &&
+                  resolveTemplateCalendarPeriodId(template) ===
+                    selectedInstance.calendarPeriodId,
               )?.rosterMaintenance
             : undefined
         }
         seriesPeriodId={
           selectedInstance
-            ? findPeriodForDate(calendarPeriods, selectedInstance.date)?.id
+            ? (selectedInstance.calendarPeriodId ??
+              findPeriodForDate(calendarPeriods, selectedInstance.date)?.id)
             : undefined
         }
         onDeleteCancelled={

@@ -146,6 +146,8 @@ export interface EnrichedInstance {
   isSpontaneous: boolean;
   isLive: boolean;
   activityGroupId?: string;
+  /** The instance's pinned planning period, independent of date overlaps. */
+  calendarPeriodId?: string;
   planningTrackId?: string;
   planningTrackName?: string;
   planningTrackColor?: string;
@@ -247,6 +249,7 @@ export interface BackendEnrichedInstance {
   is_spontaneous: boolean;
   is_live: boolean;
   activity_group_id?: number;
+  calendar_period_id?: number;
   planning_track_id?: number;
   planning_track_name?: string;
   planning_track_color?: string;
@@ -518,6 +521,8 @@ export interface TemplateRosterMaintenance {
   schoolClasses: string[];
   /** Source offerings that are switched off and feed nothing. */
   inactiveOfferingNames: string[];
+  /** Active source offerings whose phase does not fit this planning period. */
+  invalidOfferingNames: string[];
   /** A Klasse, Jahrgang or Gruppe target that only reaches new occurrences. */
   dynamicTargets: boolean;
   /** Offerings are configured, but the school switched them off. */
@@ -530,6 +535,7 @@ interface BackendTemplateRosterMaintenance {
   grade_levels?: number[] | null;
   school_classes?: string[] | null;
   inactive_offerings?: Array<{ id: number; name: string }> | null;
+  invalid_offerings?: Array<{ id: number; name: string }> | null;
   dynamic_targets: boolean;
   care_offerings_disabled: boolean;
 }

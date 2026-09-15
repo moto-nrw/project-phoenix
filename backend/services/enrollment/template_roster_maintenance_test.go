@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -249,4 +250,35 @@ func TestTemplateRosterMaintenanceFeeds_ReportsSwitchedOffCareOfferings(t *testi
 	feeds, err := reader.TemplateRosterMaintenanceFeeds(testpkg.Ctx(t), []enrollmentService.TemplateRosterFeedQuery{{TemplateID: template.ID}})
 	require.NoError(t, err)
 	assert.False(t, feeds[template.ID].CareOfferingsEnabled)
+}
+
+func TestTemplateRosterMaintenanceFeeds_RejectsSourceOutsideTemplatePeriod(t *testing.T) {
+	t.Parallel()
+
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.Ctx(t)
+
+	source := createSourceOffering(t, env, "FeedAusserhalbZeitraum", nil)
+	period := createCareOfferingTestPeriod(t, env.db, "feed-too-short",
+		timezone.Date(env.sourcePhase.ServiceStartDate),
+		timezone.Date(env.sourcePhase.ServiceEndDate).AddDays(-1))
+	reader, ok := env.decision.(enrollmentService.OfferingSourceOptionLister)
+	require.True(t, ok)
+
+	feeds, err := reader.TemplateRosterMaintenanceFeeds(ctx, []enrollmentService.TemplateRosterFeedQuery{{
+		TemplateID:            987654321,
+		CalendarPeriodID:      &period.ID,
+		SourceCareOfferingIDs: []int64{source.ID},
+	}})
+	require.NoError(t, err)
+
+	maintenance := enrollmentService.DeriveTemplateRosterMaintenance(enrollmentService.TemplateRosterMaintenanceInput{
+		Feeds: enrollmentService.TemplateRosterFeeds{
+			CareOfferingsEnabled: feeds[987654321].CareOfferingsEnabled,
+			Sources:              feeds[987654321].Sources,
+		},
+	})
+	assert.Equal(t, enrollmentService.RosterMaintenanceManual, maintenance.Mode)
+	assert.Equal(t, []enrollmentService.RosterMaintenanceOffering{{ID: source.ID, Name: source.Name}}, maintenance.InvalidOfferings)
 }

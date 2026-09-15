@@ -37,6 +37,7 @@ func TestAttachRosterMaintenance_DerivesEveryTemplateInOneRead(t *testing.T) {
 		linkedTemplateID  int64 = 103
 	)
 	schoolClass := "2a"
+	calendarPeriodID := int64(42)
 	lister := &rosterMaintenanceLister{feeds: map[int64]enrollmentSvc.TemplateRosterFeeds{
 		classTemplateID: {CareOfferingsEnabled: true},
 		sourcedTemplateID: {
@@ -57,6 +58,7 @@ func TestAttachRosterMaintenance_DerivesEveryTemplateInOneRead(t *testing.T) {
 		},
 		{
 			ID:                    sourcedTemplateID,
+			CalendarPeriodID:      &calendarPeriodID,
 			TargetGroupType:       activities.TargetGroupTypeAngebot,
 			SourceCareOfferingIDs: []int64{7},
 			SourceGradeLevels:     []int{2},
@@ -73,6 +75,7 @@ func TestAttachRosterMaintenance_DerivesEveryTemplateInOneRead(t *testing.T) {
 	assert.Equal(t, 1, lister.calls, "the indicator must not cost one read per template")
 	require.Len(t, lister.queries, 3)
 	assert.Equal(t, []int64{7}, lister.queries[1].SourceCareOfferingIDs)
+	assert.Equal(t, &calendarPeriodID, lister.queries[1].CalendarPeriodID)
 
 	require.NotNil(t, templates[0].RosterMaintenance)
 	assert.Equal(t, "manual", templates[0].RosterMaintenance.Mode,

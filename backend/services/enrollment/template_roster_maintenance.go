@@ -7,6 +7,8 @@ import (
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 // RosterMaintenanceMode names how children reach a Regeltermin's roster after
@@ -65,6 +67,9 @@ type TemplateRosterFeedOffering struct {
 	ID       int64
 	Name     string
 	IsActive bool
+	// IsInvalid is true for a source whose enrollment phase does not fit the
+	// template's selected planning period. Resync rejects the same source.
+	IsInvalid bool
 }
 
 // TemplateRosterMaintenance is the derived indicator state.
@@ -82,6 +87,9 @@ type TemplateRosterMaintenance struct {
 	// resync rejects it. An inactive link also prevents it from maintaining
 	// later approvals.
 	InactiveOfferings []RosterMaintenanceOffering
+	// InvalidOfferings are active configured sources that cannot feed this
+	// template because their enrollment phase lies outside its period.
+	InvalidOfferings []RosterMaintenanceOffering
 	// DynamicTargetsManual is true when a Klasse/Jahrgang/Gruppe target
 	// exists; children joining it later are not added to existing occurrences.
 	DynamicTargetsManual bool
@@ -111,6 +119,11 @@ func DeriveTemplateRosterMaintenance(in TemplateRosterMaintenanceInput) Template
 			sourceIntact = false
 			result.InactiveOfferings = append(result.InactiveOfferings, RosterMaintenanceOffering{ID: source.ID, Name: source.Name})
 			inactiveSeen[source.ID] = true
+			continue
+		}
+		if source.IsInvalid {
+			sourceIntact = false
+			result.InvalidOfferings = append(result.InvalidOfferings, RosterMaintenanceOffering{ID: source.ID, Name: source.Name})
 		}
 	}
 	seen := make(map[int64]bool)
@@ -140,7 +153,7 @@ func DeriveTemplateRosterMaintenance(in TemplateRosterMaintenanceInput) Template
 	if len(result.Offerings) == 0 {
 		return result
 	}
-	if in.HasDynamicTargets || len(result.InactiveOfferings) > 0 {
+	if in.HasDynamicTargets || len(result.InactiveOfferings) > 0 || len(result.InvalidOfferings) > 0 {
 		result.Mode = RosterMaintenancePartial
 		return result
 	}
@@ -151,6 +164,7 @@ func DeriveTemplateRosterMaintenance(in TemplateRosterMaintenanceInput) Template
 // TemplateRosterFeedQuery identifies one template and its stored source ids.
 type TemplateRosterFeedQuery struct {
 	TemplateID            int64
+	CalendarPeriodID      *int64
 	SourceCareOfferingIDs []int64
 }
 
@@ -176,6 +190,12 @@ func (s *decisionService) TemplateRosterMaintenanceFeeds(ctx context.Context, te
 	}
 
 	offeringsByID := make(map[int64]*enrollmentModels.CareOffering, len(offerings))
+	sourceOfferingIDs := make(map[int64]bool)
+	for _, template := range templates {
+		for _, id := range template.SourceCareOfferingIDs {
+			sourceOfferingIDs[id] = true
+		}
+	}
 	groupIDs := make([]int64, 0, len(templates)+len(offerings))
 	for _, template := range templates {
 		groupIDs = append(groupIDs, template.TemplateID)
@@ -187,6 +207,61 @@ func (s *decisionService) TemplateRosterMaintenanceFeeds(ctx context.Context, te
 		offeringsByID[offering.ID] = offering
 		if offering.ActivityGroupID != nil {
 			groupIDs = append(groupIDs, *offering.ActivityGroupID)
+		}
+	}
+	invalidSources := make(map[int64]map[int64]bool)
+	if len(sourceOfferingIDs) > 0 {
+		if s.Phases == nil || s.CalendarPeriodRepo == nil {
+			return nil, fmt.Errorf("template roster maintenance: source validation repositories are not configured")
+		}
+		periods, err := s.CalendarPeriodRepo.FindByTenantID(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("template roster maintenance: list calendar periods: %w", err)
+		}
+		periodsByID := make(map[int64]*scheduleModels.CalendarPeriod, len(periods))
+		for _, period := range periods {
+			if period != nil {
+				periodsByID[period.ID] = period
+			}
+		}
+		phaseIDs := make([]int64, 0, len(sourceOfferingIDs))
+		for id := range sourceOfferingIDs {
+			if offering := offeringsByID[id]; offering != nil {
+				phaseIDs = append(phaseIDs, offering.PhaseID)
+			}
+		}
+		slices.Sort(phaseIDs)
+		phaseIDs = slices.Compact(phaseIDs)
+		phases, err := s.Phases.PhasesByID(ctx, phaseIDs)
+		if err != nil {
+			return nil, fmt.Errorf("template roster maintenance: load offering phases: %w", err)
+		}
+		phasesByID := make(map[int64]*enrollmentOwner.Phase, len(phases))
+		for _, phase := range phases {
+			if phase != nil {
+				phasesByID[phase.ID] = phase
+			}
+		}
+		for _, template := range templates {
+			if template.CalendarPeriodID == nil || len(template.SourceCareOfferingIDs) == 0 {
+				continue
+			}
+			period := periodsByID[*template.CalendarPeriodID]
+			if period == nil {
+				return nil, fmt.Errorf("template roster maintenance: calendar period %d not found", *template.CalendarPeriodID)
+			}
+			for _, id := range template.SourceCareOfferingIDs {
+				offering := offeringsByID[id]
+				if offering == nil {
+					continue
+				}
+				if phasesByID[offering.PhaseID] == nil || validatePhaseWithinTemplatePeriod(phasesByID[offering.PhaseID], period) != nil {
+					if invalidSources[template.TemplateID] == nil {
+						invalidSources[template.TemplateID] = make(map[int64]bool)
+					}
+					invalidSources[template.TemplateID][id] = true
+				}
+			}
 		}
 	}
 	slices.Sort(groupIDs)
@@ -225,7 +300,9 @@ func (s *decisionService) TemplateRosterMaintenanceFeeds(ctx context.Context, te
 		feeds := TemplateRosterFeeds{CareOfferingsEnabled: enabled}
 		for _, id := range template.SourceCareOfferingIDs {
 			if offering, ok := offeringsByID[id]; ok {
-				feeds.Sources = append(feeds.Sources, feedOffering(offering))
+				feed := feedOffering(offering)
+				feed.IsInvalid = invalidSources[template.TemplateID][id]
+				feeds.Sources = append(feeds.Sources, feed)
 			}
 		}
 		root, ok := rootByGroup[template.TemplateID]

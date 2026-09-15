@@ -22,6 +22,9 @@ type templateRosterMaintenanceResponse struct {
 	// InactiveOfferings are switched-off source offerings; they stop the
 	// source rule until the offering is active again or removed.
 	InactiveOfferings []templateRosterMaintenanceOfferingResponse `json:"inactive_offerings,omitempty"`
+	// InvalidOfferings are active sources whose enrollment phase does not fit
+	// the template's planning period, so resync cannot maintain their roster.
+	InvalidOfferings []templateRosterMaintenanceOfferingResponse `json:"invalid_offerings,omitempty"`
 	// DynamicTargets: a Klasse, Jahrgang or Gruppe target exists. Children who
 	// join it later are not added to occurrences that already exist.
 	DynamicTargets bool `json:"dynamic_targets"`
@@ -46,6 +49,7 @@ func (rs *Resource) attachRosterMaintenance(ctx context.Context, templates []tem
 	for _, template := range templates {
 		queries = append(queries, enrollmentSvc.TemplateRosterFeedQuery{
 			TemplateID:            template.ID,
+			CalendarPeriodID:      template.CalendarPeriodID,
 			SourceCareOfferingIDs: template.SourceCareOfferingIDs,
 		})
 	}
@@ -86,6 +90,7 @@ func rosterMaintenanceResponse(derived enrollmentSvc.TemplateRosterMaintenance) 
 		GradeLevels:           derived.GradeLevels,
 		SchoolClasses:         derived.SchoolClasses,
 		InactiveOfferings:     rosterMaintenanceOfferings(derived.InactiveOfferings),
+		InvalidOfferings:      rosterMaintenanceOfferings(derived.InvalidOfferings),
 		DynamicTargets:        derived.DynamicTargetsManual,
 		CareOfferingsDisabled: derived.CareOfferingsDisabled,
 	}

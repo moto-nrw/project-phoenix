@@ -115,7 +115,10 @@ var queryBudgets = map[string]queryBudget{
 	// services/enrollment — list/read paths stay flat as rows grow (#2941).
 	"services.enrollment.list_child_offerings.reads":    {max: 5},
 	"services.enrollment.offering_source_options.reads": {max: 5},
-	"services.enrollment.rollover_review_queue.reads":   {max: 3},
+	// Source validation adds one batched read each for the offering catalog,
+	// its auto-add rules, periods, phases and series roots; flat from 3 to 8.
+	"services.enrollment.template_roster_maintenance_feeds.reads": {max: 5},
+	"services.enrollment.rollover_review_queue.reads":             {max: 3},
 	// modules/schoolcalendar/portal — appointment target resolution, 8 explicit guardians.
 	"services.calendar.resolve_targets.reads": {max: 5, exact: true},
 	// modules/schoolcalendar/portal — reminder scan, 8 due appointments; writes scale with

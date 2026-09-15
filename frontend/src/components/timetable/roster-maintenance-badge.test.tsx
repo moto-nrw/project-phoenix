@@ -10,6 +10,7 @@ const base: TemplateRosterMaintenance = {
   gradeLevels: [],
   schoolClasses: [],
   inactiveOfferingNames: [],
+  invalidOfferingNames: [],
   dynamicTargets: false,
   careOfferingsDisabled: false,
 };

@@ -53,6 +53,13 @@ function inactiveSentence(names: readonly string[]): string | null {
     : `Die Betreuungsangebote ${joinNames(names.map((name) => `„${name}“`))} sind ausgeschaltet.`;
 }
 
+function invalidSourceSentence(names: readonly string[]): string | null {
+  if (names.length === 0) return null;
+  return names.length === 1
+    ? `Das Betreuungsangebot „${names[0]}“ gilt nicht für diesen Zeitraum.`
+    : `Die Betreuungsangebote ${joinNames(names.map((name) => `„${name}“`))} gelten nicht für diesen Zeitraum.`;
+}
+
 const TARGETS_SENTENCE =
   "Klasse, Jahrgang oder Gruppe gelten nur für neu erzeugte Termine.";
 
@@ -73,6 +80,8 @@ export function describeRosterMaintenance(
     if (filter) sentences.push(filter);
     const inactive = inactiveSentence(state.inactiveOfferingNames);
     if (inactive) sentences.push(inactive);
+    const invalid = invalidSourceSentence(state.invalidOfferingNames);
+    if (invalid) sentences.push(invalid);
     if (state.dynamicTargets) sentences.push(TARGETS_SENTENCE);
     sentences.push("Weitere Kinder müssen Sie selbst ergänzen.");
   } else {
@@ -82,6 +91,8 @@ export function describeRosterMaintenance(
     } else {
       const inactive = inactiveSentence(state.inactiveOfferingNames);
       if (inactive) sentences.push(inactive);
+      const invalid = invalidSourceSentence(state.invalidOfferingNames);
+      if (invalid) sentences.push(invalid);
     }
     if (state.dynamicTargets) sentences.push(TARGETS_SENTENCE);
   }

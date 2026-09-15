@@ -12,6 +12,7 @@ function state(
     gradeLevels: [],
     schoolClasses: [],
     inactiveOfferingNames: [],
+    invalidOfferingNames: [],
     dynamicTargets: false,
     careOfferingsDisabled: false,
     ...overrides,
@@ -84,6 +85,16 @@ describe("describeRosterMaintenance", () => {
 
     expect(result.explanation).toBe(
       "Neue Kinder müssen Sie selbst ergänzen. Das Betreuungsangebot „Musik“ ist ausgeschaltet.",
+    );
+  });
+
+  it("names a source outside the planning period", () => {
+    const result = describeRosterMaintenance(
+      state({ mode: "manual", invalidOfferingNames: ["Musik"] }),
+    );
+
+    expect(result.explanation).toBe(
+      "Neue Kinder müssen Sie selbst ergänzen. Das Betreuungsangebot „Musik“ gilt nicht für diesen Zeitraum.",
     );
   });
 
