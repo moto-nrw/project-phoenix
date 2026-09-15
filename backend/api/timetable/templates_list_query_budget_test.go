@@ -1,12 +1,16 @@
 package timetable
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
 	apiTest "github.com/moto-nrw/project-phoenix/api/testutil"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,7 +33,7 @@ func TestListTemplatesQueryBudget(t *testing.T) {
 	}).(enrollmentSvc.OfferingSourceOptionLister)
 	require.True(t, ok)
 	s.res.OfferingSourceOptions = lister
-	router := templateRouter(s.ctx, s.res)
+	router := templateQueryBudgetRouter(t, s.ctx, s.res)
 
 	created := 0
 	addTemplates := func(n int) {
@@ -59,4 +63,21 @@ func TestListTemplatesQueryBudget(t *testing.T) {
 	assert.Equal(t, smallCount, largeCount,
 		"query count must be independent of the number of templates (no per-template N+1)")
 	testpkg.AssertQueryBudget(t, "api.timetable.templates.list", counter.Queries())
+}
+
+func templateQueryBudgetRouter(t *testing.T, parentCtx context.Context, resource *Resource) chi.Router {
+	t.Helper()
+	tenantID := tenant.FromContext(parentCtx)
+	router := chi.NewRouter()
+	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+			ctx := testpkg.WithTestTenantRuntime(t, request.Context())
+			ctx = tenant.WithTenantID(ctx, tenantID)
+			next.ServeHTTP(w, request.WithContext(ctx))
+		})
+	})
+	router.Get("/templates", resource.listTemplates)
+	router.Post("/templates", resource.createTemplate)
+	return router
 }
