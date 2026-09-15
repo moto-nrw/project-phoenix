@@ -51,7 +51,7 @@ type AuthCleanupRepositories struct {
 func NewAuthCleanupRepositories(db *bun.DB, command auditModels.Command) AuthCleanupRepositories {
 	authEvents := auditRepo.NewAuthEventRepository(auditRootRuntime(db))
 	return AuthCleanupRepositories{
-		Account: authRepo.NewAccountRepository(db), Token: authRepo.NewTokenRepository(db),
+		Account: authRepo.NewAccountRepository(db), Token: NewTokenRepository(db),
 		PasswordResetRateLimit: authRepo.NewPasswordResetRateLimitRepository(db),
 		AuthEvent:              RouteAuthEventWrites(authEvents, command), PushSubscription: deliveryCompose.NewPushSubscriptionRepository(db),
 	}

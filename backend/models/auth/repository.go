@@ -158,9 +158,18 @@ type AccountPermissionRepository interface {
 	DeleteByAccountID(ctx context.Context, accountID int64) (int64, error)
 }
 
-// TokenRepository defines operations for managing authentication tokens
+// TokenRepository is the retained contract over auth.tokens. Identity &
+// Access owns the table (#2720); the legacy composition binds this contract
+// to an adapter over the owner's account-session capability. Every lookup
+// reports a missing row through a DatabaseError that satisfies
+// base.IsNoRows, except GetLatestTokenInFamily, which keeps its historical
+// plain "token not found" error.
 type TokenRepository interface {
-	base.CRUDRepository[*Token]
+	Create(ctx context.Context, token *Token) error
+	Delete(ctx context.Context, id any) error
+	// List serves the filters account_id, family_id, mobile, active and
+	// expired and refuses any other key.
+	List(ctx context.Context, filters map[string]any) ([]*Token, error)
 	FindByToken(ctx context.Context, token string) (*Token, error)
 	FindByTokenForUpdate(ctx context.Context, token string) (*Token, error)
 	MarkRotated(ctx context.Context, id int64, replacementToken string, recoveryProofHash []byte, rotatedAt time.Time) error

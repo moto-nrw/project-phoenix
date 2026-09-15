@@ -18,7 +18,6 @@ import (
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	repoActive "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	repoAudit "github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	repoAuth "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	repoEducation "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	repoUsers "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -367,7 +366,7 @@ func TestTenantIsolation_TokenVisibility(t *testing.T) {
 	tkA := CreateTestTokenForTenant(t, db, tenantA, acctA.ID)
 	tkB := CreateTestTokenForTenant(t, db, tenantB, acctB.ID)
 
-	repo := repoAuth.NewTokenRepository(db)
+	repo := repositories.NewTokenRepository(db)
 
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)
@@ -380,9 +379,9 @@ func TestTenantIsolation_TokenVisibility(t *testing.T) {
 			"cross-tenant leak: tenant B token visible to tenant A (List)")
 	}
 
-	_, err = repo.FindByID(ctx42, tkB.ID)
+	_, err = repo.FindByToken(ctx42, tkB.Token)
 	assert.Error(t, err,
-		"cross-tenant FindByID should fail: tenant A must not see tenant B token %d", tkB.ID)
+		"cross-tenant FindByToken should fail: tenant A must not see tenant B token %d", tkB.ID)
 
 	// --- Tenant B ---
 	ctx43 := ctxForTenant(tenantB)
@@ -395,9 +394,9 @@ func TestTenantIsolation_TokenVisibility(t *testing.T) {
 			"cross-tenant leak: tenant A token visible to tenant B (List)")
 	}
 
-	_, err = repo.FindByID(ctx43, tkA.ID)
+	_, err = repo.FindByToken(ctx43, tkA.Token)
 	assert.Error(t, err,
-		"cross-tenant FindByID should fail: tenant B must not see tenant A token %d", tkA.ID)
+		"cross-tenant FindByToken should fail: tenant B must not see tenant A token %d", tkA.ID)
 }
 
 // ============================================================================

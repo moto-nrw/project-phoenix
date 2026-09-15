@@ -367,7 +367,25 @@ at construction, and go with #2751. The foreign `auth.accounts` reads of the
 People Directory, Care Plan parent and CLI packages use owner queries bound
 the same way (`identity_ports.go`): the account lookup and active-account
 subquery of `database/repositories/auth` and the public account fact. The
-legacy `auth.accounts_parents` model, repository and its six
+same owner serves the account refresh sessions behind tenant, parent and
+school login, refresh, tenant switching, logout, session validation and
+revocation (#2720): `auth.tokens` is read and written only through the
+public `AccountSessionAccess` capability. Session statements apply the tenant
+filter the runtime scoped the caller to, so tenant-scoped callers see only
+their school's sessions while the tenantless pre-authentication flows
+resolve every school's rows; the writes join the caller's transaction, which
+for login, refresh, switch and logout is the administrative transaction the
+auth service opens around rotation and its audit evidence. The retained
+`models/auth.TokenRepository` contract is a compatibility adapter in the
+legacy composition (`database/repositories/account_sessions.go`), bound at
+construction, and goes with #2751; the former `database/repositories/auth`
+token repository is deleted. The login, refresh, switch and revocation
+orchestration itself, with its identity-access-owned `auth.accounts` and
+`auth.account_tenants` repositories, stays in `services/auth` under #2720
+until the #2725 re-cut moves those files into the module as a whole, because
+`identity-access/application` may not import the module's public package
+without a ratchet loosening. The legacy
+`auth.accounts_parents` model, repository and its six
 `/auth/parent-accounts` routes stay unchanged; the table has no target owner
 and that conflict stays open under #2720.
 

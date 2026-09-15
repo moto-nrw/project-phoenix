@@ -69,7 +69,7 @@ func NewSessionValidationPersistence(db *bun.DB) *SessionValidationPersistence {
 	return &SessionValidationPersistence{
 		Account:              authRepo.NewAccountRepository(db),
 		AccountTenant:        authRepo.NewAccountTenantRepository(db),
-		Token:                authRepo.NewTokenRepository(db),
+		Token:                accountSessionRepository{identity: identity},
 		Operator:             operatorRepository{identity: identity},
 		OperatorRefreshToken: operatorRefreshTokenRepository{identity: identity},
 	}

@@ -1,0 +1,63 @@
+{
+  "schema_version": 2,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#2645",
+    "#2656",
+    "#2657",
+    "#2659",
+    "#2660",
+    "#2663",
+    "#2667",
+    "#2699",
+    "#2709",
+    "#3235"
+  ],
+  "owner_and_capability": "Identity & Access — account refresh sessions behind tenant, parent and school login, refresh, tenant switching, logout, session validation and revocation",
+  "affected_packages": [
+    "modules/identityaccess",
+    "database/repositories",
+    "database/repositories/auth",
+    "models/auth",
+    "services/auth",
+    "api/auth",
+    "cmd"
+  ],
+  "affected_tables": [
+    "auth.tokens",
+    "auth.accounts",
+    "auth.account_tenants",
+    "auth.accounts_parents"
+  ],
+  "exact_ratchet_keys": [
+    "production|tables.unclassified|github.com/moto-nrw/project-phoenix/database/repositories/auth|auth.accounts_parents",
+    "production|tables.unresolved|github.com/moto-nrw/project-phoenix/database/repositories/auth|auth.Where",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/test|github.com/moto-nrw/project-phoenix/database/repositories/auth"
+  ],
+  "atomic_cutover": "The retained models/auth token repository contract becomes an adapter over the public Identity & Access account-session capability, bound at construction for the serving root, the cleanup CLI and the auth test compositions; the database/repositories/auth token repository is deleted in the same change and the retained contract shrinks to the methods the auth service calls. Session statements keep the caller's tenant filter and join the caller's transaction. auth.accounts and auth.account_tenants stay on their identity-access-owned repositories; the legacy parent-account model, routes and client stay unchanged because auth.accounts_parents has no target owner. No dual provider or fallback read chain.",
+  "tests": [
+    "Owner session lifecycle, validation, listing filters, rotation hand-off, family retirement, session cap per portal group and across schools in the administrative transaction, tenant-only and account-wide revocations, cutoff revocation including refresh successors, expiry count and sweep, inactive-account reconciliation; injected failure after each authoritative write of login/switch, refresh and revocation, each with rollback proof and idempotent retry; hermetic two-tenant scoping of auth.tokens; observation row counts; adapter contract tests preserving the retained DatabaseError and IsNoRows shapes; existing tenant, parent and school login, MFA, refresh, switch, logout, session validation, offboarding, cleanup CLI and operator provisioning suites; route goldens and the architecture, composition, query-budget and hermetic-test ratchets."
+  ],
+  "runtime_evidence": {
+    "source": "docs/runtime-checkpoints/account-sessions-2720.md and account-sessions-2720.raw.json",
+    "workload": "2026-09-15 local isolated PostgreSQL 17.11 clone, Go 1.27.0 darwin/arm64; five warmups plus 30 sequential login, refresh, switch and revoke sequences over the public capability, each inside one administrative transaction.",
+    "thresholds": "No task-specific latency SLO or query budget is defined. Existing architecture, composition, query-budget and behavior gates apply; measured values are observations, not fitted thresholds or a production performance claim.",
+    "query_count": "Login 6 statements and 1 DML row; refresh 9 statements and 2 DML rows; switch 7 statements and 2 DML rows; revoke 6 statements and 3 DML rows, identical across all samples and including the three transaction statements of the administrative unit of work.",
+    "errors": "0/30 errors per operation, recorded per sample by a harness that logs a failed sample instead of aborting; 140 commits and zero rollback events including warmups.",
+    "lock_wait": "140 lock-acquisition statement events totalling 56.022 ms including warmups. The hook measures SQL acquisition duration, an upper bound on lock wait; the workload is sequential and contains no contention, so these are a floor rather than load evidence.",
+    "failure": "A failure is injected after each of the three authoritative writes of a login or tenant switch (family retirement, session mint, cap eviction), after each of the three writes of a refresh (successor insert, rotation hand-off, expired-predecessor sweep) and after a family revocation; every case preserves the prior sessions, records no hand-off, retirement or eviction and leaves no minted successor. A second rotation hand-off returns the stable ErrAccountSessionRotated error; rotated predecessors are retained as replay evidence until expiry; a tenant-scoped revocation without a tenant returns ErrTenantRequired instead of widening.",
+    "rollback": "Session mint, retirement, cap, rotation and revocation writes roll back with the caller's administrative transaction; the full retry then commits, and a repeated revoke deletes nothing instead of failing.",
+    "smoke": "Tenant, parent and school login, MFA gate, refresh replay and recovery, tenant switching, logout, four-portal session validation, staff offboarding preview, cleanup CLI preview and sweep, operator provisioning revocations and the regenerated composition inventory pass.",
+    "latency_p50": "Login 1.526 ms; refresh 2.301 ms; switch 1.819 ms; revoke 1.374 ms (nearest rank over 30 samples).",
+    "latency_p95": "Login 2.224 ms; refresh 2.916 ms; switch 2.190 ms; revoke 3.409 ms (nearest rank over 30 samples).",
+    "affected_rows": "Login inserts the session (1 DML row; the hand-off sweep and the cap find nothing to delete); refresh inserts the successor and marks the predecessor rotated (2); switch retires the presented family and inserts the new session (2); revoke deletes the presented family and the account's remaining session at the school (3). Duplicate-prevention conflicts do not apply: no session write is an upsert or conflict-tolerant insert, and auth.tokens carries no unique constraint beyond its primary key, so the auth service's family-conflict retry is a latent branch; the repeated rotation hand-off is rejected with ErrAccountSessionRotated rather than absorbed.",
+    "pool_wait": "Zero pool waits in the measured samples; 140 pool-wait events totalling 0.147 ms including warmups.",
+    "deadlocks": "The database deadlock counter changed by zero and no transaction reported a retry, so there were no serialization retries.",
+    "job_duration": "Not applicable: this capability has no Worker path; the expired-session sweep the scheduler runs is measured by its existing cleanup tests.",
+    "job_retries": "Not applicable: this capability has no Worker path.",
+    "job_backlog": "Not applicable: this capability has no Worker path."
+  },
+  "rollback_and_cleanup": "Revert the composition and adapter against unchanged table shapes; no schema change and no irreversible cleanup.",
+  "exit_criterion": "Partial: every listed entry point reaches auth.tokens through one owner provider; scripts/backend-architecture.sh check introduces no key, removes one resolved #2748 test-import key, and leaves policy ownership unchanged. The login, refresh, switch and revocation orchestration stays in services/auth with its identity-access-owned auth.accounts and auth.account_tenants repositories, because identity-access/application may not import the module's public package without a ratchet loosening; that relocation stays open under #2720 in the #2725 re-cut ordering (#3224, #3225, #3226). The database/repositories/auth keys auth.accounts_parents and auth.Where remain with the unchanged parent-account repository."
+}
