@@ -227,6 +227,9 @@ func ruleLoosenings(base, candidate *Policy, candidateOnlyPoints map[string]stru
 		if candidateRuleCoveredDirectly(rule, base.Rules) {
 			continue
 		}
+		if candidate.PolicyEpoch > base.PolicyEpoch && reviewedTestInfrastructureRule(rule) {
+			continue
+		}
 		if problem := uncoveredRulePermission(rule, baseEvaluator, candidateEvaluator, owners, roles); problem != "" {
 			if !ruleAnchoredToCandidateOnlyPoint(rule, candidateOnlyPoints) {
 				problems = append(problems, problem)
@@ -234,6 +237,38 @@ func ruleLoosenings(base, candidate *Policy, candidateOnlyPoints map[string]stru
 		}
 	}
 	return problems
+}
+
+// testInfrastructureClasses are the external classes a test role may reach
+// directly: the database it verifies, the router it drives, and the test
+// framework itself (ADR 0014, #3215).
+var testInfrastructureClasses = map[string]bool{"orm-sql": true, "http-router": true, "test": true}
+
+// reviewedTestInfrastructureRule reports whether a rule has the one
+// owner-agnostic shape a reviewed policy epoch may add without an anchor to a
+// candidate-created package: a test role importing a test-infrastructure class.
+// Owner-specific grants, first-party targets, production roles and every other
+// external class stay under the ordinary loosening guards.
+func reviewedTestInfrastructureRule(rule Rule) bool {
+	if rule.SourceOwner != "" || rule.SourceOwnerKind != "" || rule.SourceRole == "" ||
+		rule.TargetOwner != "" || rule.TargetOwnerKind != "" || rule.TargetRole != "" || rule.SameOwner {
+		return false
+	}
+	if !testInfrastructureClasses[rule.TargetClass] {
+		return false
+	}
+	if rule.SourceRole == "test-support" {
+		return true
+	}
+	if !strings.HasSuffix(rule.SourceRole, "-test") {
+		return false
+	}
+	for _, scope := range rule.Scopes {
+		if Scope(scope) == ScopeProduction {
+			return false
+		}
+	}
+	return true
 }
 
 func candidateOnlyRolePoints(candidate *Policy, createdPackages map[string]struct{}) map[string]struct{} {
@@ -428,11 +463,23 @@ func externalImportLoosenings(base, candidate *Policy, sourcePath string, baseSo
 		}
 		for _, scope := range allScopes() {
 			if policyAllowsExternal(candidate, scope, source, target) && !policyAllowsExternal(base, scope, baseSource, baseTarget) {
+				if candidate.PolicyEpoch > base.PolicyEpoch && externalAllowedByReviewedTestInfrastructureRule(candidate, scope, source, target) {
+					continue
+				}
 				problems = append(problems, Violation{Scope: scope, Rule: "imports.forbidden", Source: sourcePath, Target: targetPath}.Key())
 			}
 		}
 	}
 	return problems
+}
+
+// externalAllowedByReviewedTestInfrastructureRule reports whether the single
+// rule that admits this external import in the candidate policy is a reviewed
+// test-infrastructure rule (ADR 0014). The import loosening it implies is then
+// the intended effect of that rule, not a separate widening.
+func externalAllowedByReviewedTestInfrastructureRule(candidate *Policy, scope Scope, source Package, target ExternalPackage) bool {
+	decision := decideRules(candidate.externalRules(scope, source.inScope(scope), target.Class))
+	return decision.Allowed != nil && len(decision.Overlaps) == 0 && reviewedTestInfrastructureRule(*decision.Allowed)
 }
 
 func policyAllowsFirstParty(policy *Policy, scope Scope, source, target Package) bool {
