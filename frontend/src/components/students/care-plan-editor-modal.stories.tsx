@@ -115,22 +115,6 @@ const guardianPickupDay: PickupDayData = {
   ],
 };
 
-const weeklyArrival = [
-  { weekday: 1, inCare: true, expected_arrival: "08:00", notes: null },
-  { weekday: 2, inCare: true, expected_arrival: "08:00", notes: null },
-  { weekday: 3, inCare: true, expected_arrival: "08:00", notes: null },
-  { weekday: 4, inCare: true, expected_arrival: "", notes: null },
-  { weekday: 5, inCare: true, expected_arrival: "", notes: null },
-];
-
-const weeklyPickup = [
-  { weekday: 1, pickupTime: "16:00", notes: "Bus" },
-  { weekday: 2, pickupTime: "16:00" },
-  { weekday: 3, pickupTime: "16:00", notes: "Bus" },
-  { weekday: 4, pickupTime: "" },
-  { weekday: 5, pickupTime: "" },
-];
-
 const meta: Meta<typeof CarePlanEditorModal> = {
   title: "students/CarePlanEditorModal",
   component: CarePlanEditorModal,
@@ -140,13 +124,9 @@ const meta: Meta<typeof CarePlanEditorModal> = {
   args: {
     isOpen: true,
     onClose: fn(),
-    date: baseDate,
     arrivalDay: regularArrivalDay,
     pickupDay: regularPickupDay,
-    weeklyArrival,
-    weeklyPickup,
     onSubmitException: fn().mockResolvedValue(undefined),
-    onSubmitWeekly: fn().mockResolvedValue(undefined),
   },
 };
 
@@ -154,17 +134,10 @@ export default meta;
 
 type Story = StoryObj<typeof CarePlanEditorModal>;
 
-/** Opened from a day card: the exception for that date. */
+/** Opened from a day card: the exception for that date. The weekly plan is
+ * edited in place in the Betreuungszeiten section (#3119), see
+ * `care-weekly-plan-editor.tsx`. */
 export const Ausnahme: Story = {};
-
-/** Opened from the week header: the recurring plan. */
-export const Wochenplan: Story = {
-  args: {
-    date: null,
-    arrivalDay: null,
-    pickupDay: null,
-  },
-};
 
 export const GuardianAuthored: Story = {
   args: {

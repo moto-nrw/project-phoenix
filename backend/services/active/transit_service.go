@@ -3,12 +3,13 @@ package active
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -61,13 +62,22 @@ func (s *service) ListStudentsPresentToday(ctx context.Context) ([]int64, error)
 	return ids, nil
 }
 
-// AssignTransitStudentsToActiveGroup assigns checked-in students without an
-// active room visit to an existing active group/session.
+// AssignTransitStudentsToActiveGroupAuthorized checks target access in the
+// same transaction that assigns children, after locking the target session.
+func (s *service) AssignTransitStudentsToActiveGroupAuthorized(ctx context.Context, studentIDs []int64, activeGroupID int64, auth StudentMoveAuthorization) (*TransitAssignResult, error) {
+	return s.assignTransitStudentsInTransaction(ctx, studentIDs, activeGroupID, &auth)
+}
+
+// AssignTransitStudentsToActiveGroup is the trusted, pre-authorized entry point.
 func (s *service) AssignTransitStudentsToActiveGroup(ctx context.Context, studentIDs []int64, activeGroupID int64) (*TransitAssignResult, error) {
+	return s.assignTransitStudentsInTransaction(ctx, studentIDs, activeGroupID, nil)
+}
+
+func (s *service) assignTransitStudentsInTransaction(ctx context.Context, studentIDs []int64, activeGroupID int64, auth *StudentMoveAuthorization) (*TransitAssignResult, error) {
 	var result *TransitAssignResult
 	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
 		var err error
-		result, err = s.assignTransitStudentsToActiveGroup(txCtx, studentIDs, activeGroupID)
+		result, err = s.assignTransitStudentsToActiveGroup(txCtx, studentIDs, activeGroupID, auth)
 		return err
 	})
 	if err != nil {
@@ -76,7 +86,7 @@ func (s *service) AssignTransitStudentsToActiveGroup(ctx context.Context, studen
 	return result, nil
 }
 
-func (s *service) assignTransitStudentsToActiveGroup(ctx context.Context, studentIDs []int64, activeGroupID int64) (*TransitAssignResult, error) {
+func (s *service) assignTransitStudentsToActiveGroup(ctx context.Context, studentIDs []int64, activeGroupID int64, auth *StudentMoveAuthorization) (*TransitAssignResult, error) {
 	if activeGroupID <= 0 || len(studentIDs) == 0 {
 		return nil, &ActiveError{Op: "AssignTransitStudentsToActiveGroup", Err: ErrInvalidData}
 	}
@@ -85,8 +95,17 @@ func (s *service) assignTransitStudentsToActiveGroup(ctx context.Context, studen
 	if err != nil {
 		return nil, err
 	}
+	if auth != nil && !auth.BypassResourceChecks {
+		allowed, _, err := s.moveTargetAccess(ctx, *auth, targetGroup.ID, "AssignTransitStudentsToActiveGroup")
+		if err != nil {
+			return nil, err
+		}
+		if !allowed {
+			return nil, studentMoveForbidden("AssignTransitStudentsToActiveGroup")
+		}
+	}
 
-	uniqueIDs := sliceutil.UniquePositive(studentIDs)
+	uniqueIDs := slices.DeleteFunc(dedupeStudentIDs(studentIDs), func(id int64) bool { return id <= 0 })
 	if len(uniqueIDs) == 0 {
 		return nil, &ActiveError{Op: "AssignTransitStudentsToActiveGroup", Err: ErrInvalidData}
 	}
@@ -205,7 +224,7 @@ func (s *service) moveStudentsToActiveGroupLocked(ctx context.Context, studentID
 		return nil, &ActiveError{Op: op, Err: ErrInvalidData}
 	}
 
-	uniqueIDs := sliceutil.UniquePositive(studentIDs)
+	uniqueIDs := slices.DeleteFunc(dedupeStudentIDs(studentIDs), func(id int64) bool { return id <= 0 })
 	if len(uniqueIDs) == 0 {
 		return nil, &ActiveError{Op: op, Err: ErrInvalidData}
 	}
@@ -279,7 +298,7 @@ func (s *service) moveStudentsToActiveGroupLocked(ctx context.Context, studentID
 			}
 			return result, nil
 		}
-		if err := s.authorizeStudentMove(ctx, auth.StaffID, targetGroup, moveIDs, openAttendance, currentVisits, op); err != nil {
+		if err := s.authorizeStudentMove(ctx, *auth, targetGroup, moveIDs, openAttendance, currentVisits, op); err != nil {
 			return nil, err
 		}
 		uniqueIDs = moveIDs
@@ -445,7 +464,7 @@ func (s *service) moveStudentsToTransitLocked(ctx context.Context, studentIDs []
 		return nil, &ActiveError{Op: op, Err: ErrInvalidData}
 	}
 
-	uniqueIDs := sliceutil.UniquePositive(studentIDs)
+	uniqueIDs := slices.DeleteFunc(dedupeStudentIDs(studentIDs), func(id int64) bool { return id <= 0 })
 	if len(uniqueIDs) == 0 {
 		return nil, &ActiveError{Op: op, Err: ErrInvalidData}
 	}
@@ -588,7 +607,7 @@ func (s *service) lockMoveTargetRoom(ctx context.Context, activeGroupID int64, o
 	if group == nil || !group.IsActive() || group.RoomID <= 0 {
 		return 0, &ActiveError{Op: op, Err: ErrActiveGroupNotFound}
 	}
-	if err := s.GroupRepo.LockRoomSessionWrites(ctx, group.RoomID); err != nil {
+	if err := s.SchoolPresence.LockRoomSessionWrites(ctx, group.RoomID); err != nil {
 		return 0, &ActiveError{Op: op, Err: ErrDatabaseOperation}
 	}
 	return group.RoomID, nil
@@ -614,8 +633,9 @@ func (s *service) loadMoveSupervisedGroupIDs(ctx context.Context, staffID int64,
 	return ids, nil
 }
 
-// authorizeStudentMove implements the push-or-pull rule for staff-initiated
-// room changes (#2969). The caller may move the children when they supervise
+// authorizeStudentMove extends scope for eligible OGS staff only when the
+// school enables it. Otherwise it preserves the push-or-pull rule (#2969):
+// the caller may move the children when they supervise
 // the TARGET group (pull, unchanged since #2329), or when they supervise the
 // current group of every present child in the batch (push). On the push path
 // the target must additionally be the only running session in its room and
@@ -624,41 +644,91 @@ func (s *service) loadMoveSupervisedGroupIDs(ctx context.Context, staffID int64,
 // callers never reach this function (BypassResourceChecks).
 func (s *service) authorizeStudentMove(
 	ctx context.Context,
-	staffID int64,
+	auth StudentMoveAuthorization,
 	targetGroup *active.Group,
 	studentIDs []int64,
 	openAttendance map[int64]studentpresence.Attendance,
 	currentVisits map[int64]*studentpresence.Visit,
 	op string,
 ) error {
-	supervisedGroups, err := s.loadMoveSupervisedGroupIDs(ctx, staffID, op)
+	allowed, supervisedGroups, err := s.moveTargetAccess(ctx, auth, targetGroup.ID, op)
 	if err != nil {
 		return err
 	}
-	if _, ok := supervisedGroups[targetGroup.ID]; ok {
+	if allowed {
 		return nil
 	}
 
 	for _, studentID := range studentIDs {
 		if !studentHasOpenAttendance(openAttendance, studentID) {
-			// Reported as not_present further down; nothing to authorize.
 			continue
 		}
 		currentVisit := currentVisits[studentID]
 		if currentVisit == nil {
-			// A child in transit has no source room the caller could supervise.
 			return studentMoveForbidden(op)
 		}
 		if currentVisit.ActiveGroupID == targetGroup.ID {
-			// Already there; reported as unchanged further down.
 			continue
 		}
 		if _, ok := supervisedGroups[currentVisit.ActiveGroupID]; !ok {
 			return studentMoveForbidden(op)
 		}
 	}
-
 	return s.ensureMoveTargetIsSupervised(ctx, targetGroup, op)
+}
+
+func (s *service) moveTargetAccess(ctx context.Context, auth StudentMoveAuthorization, targetGroupID int64, op string) (bool, map[int64]struct{}, error) {
+	if auth.SchoolWideAttendanceEligible {
+		allowed, err := s.schoolWideAttendanceMoveAllowed(ctx, auth.StaffID)
+		if err != nil {
+			return false, nil, &ActiveError{Op: op, Err: err}
+		}
+		if allowed {
+			return true, nil, nil
+		}
+	}
+	supervisedGroups, err := s.loadMoveSupervisedGroupIDs(ctx, auth.StaffID, op)
+	if err != nil {
+		return false, nil, err
+	}
+	_, allowed := supervisedGroups[targetGroupID]
+	return allowed, supervisedGroups, nil
+}
+
+// This is a scope extension, not the admin bypass: target and child state
+// remain locked and validated by the existing move workflow.
+func (s *service) schoolWideAttendanceMoveAllowed(ctx context.Context, staffID int64) (bool, error) {
+	if s.settings == nil {
+		return false, errors.New("attendance edit settings unavailable")
+	}
+	scope, err := s.settings.AttendanceEditScope(ctx)
+	if err != nil {
+		return false, fmt.Errorf("resolve attendance edit scope: %w", err)
+	}
+	if scope == AttendanceEditScopeOwn {
+		return false, nil
+	}
+	if scope != AttendanceEditScopeAllStaff {
+		return false, ErrStudentMoveForbidden
+	}
+	visibility, err := s.settings.OperationalOverviewScope(ctx)
+	if err != nil {
+		return false, fmt.Errorf("resolve attendance visibility: %w", err)
+	}
+	if visibility != OverviewScopeAllStaff || staffID <= 0 || tenant.FromContext(ctx) <= 0 {
+		return false, ErrStudentMoveForbidden
+	}
+	staffTenantID, err := s.StaffRepo.StaffTenantID(ctx, staffID)
+	if modelBase.IsNoRows(err) {
+		return false, ErrStudentMoveForbidden
+	}
+	if err != nil {
+		return false, err
+	}
+	if staffTenantID == nil || *staffTenantID != tenant.FromContext(ctx) {
+		return false, ErrStudentMoveForbidden
+	}
+	return true, nil
 }
 
 // ensureMoveTargetIsSupervised rejects push moves into a room with several

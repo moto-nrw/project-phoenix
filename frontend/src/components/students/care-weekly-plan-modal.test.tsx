@@ -41,7 +41,7 @@ vi.mock("~/components/ui/form-modal", () => ({
 }));
 
 const initialArrivalSchedules = [
-  { weekday: 1, inCare: true, expected_arrival: "08:00", notes: "kommt frueh" },
+  { weekday: 1, inCare: true, expected_arrival: "08:00", notes: "kommt früh" },
   { weekday: 2, inCare: true, expected_arrival: "09:00", notes: null },
 ];
 
@@ -50,12 +50,16 @@ const initialPickupSchedules = [
   { weekday: 3, pickupTime: "16:00" },
 ];
 
+function submit(): void {
+  fireEvent.click(screen.getByRole("button", { name: "Übernehmen" }));
+}
+
 describe("CareWeeklyPlanModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("loads existing weekly rows and submits changed schedules", async () => {
+  it("loads existing weekly rows and hands over the changed schedules", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     const onClose = vi.fn();
 
@@ -67,11 +71,14 @@ describe("CareWeeklyPlanModal", () => {
         initialArrivalSchedules={initialArrivalSchedules}
         initialPickupSchedules={initialPickupSchedules}
         onSubmit={onSubmit}
+        successMessage="Betreuungszeiten übernommen"
       />,
     );
 
+    // Beim Anlegen gibt es noch kein Objekt: der Dialog legt fest, er
+    // bearbeitet nicht (bauart/no-edit-overlay).
     expect(
-      screen.getByRole("dialog", { name: "Wochenplan bearbeiten" }),
+      screen.getByRole("dialog", { name: "Wochenplan festlegen" }),
     ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("checkbox", { name: "Donnerstag" }));
@@ -84,9 +91,7 @@ describe("CareWeeklyPlanModal", () => {
     fireEvent.change(document.getElementById("weekly-arrival-notes-1")!, {
       target: { value: "Bitte vorne warten" },
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Wochenplan speichern" }),
-    );
+    submit();
 
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledWith({
@@ -107,12 +112,37 @@ describe("CareWeeklyPlanModal", () => {
         },
       });
     });
-    expect(toastSuccess).toHaveBeenCalledWith("Wochenplan wurde gespeichert");
+    expect(toastSuccess).toHaveBeenCalledWith("Betreuungszeiten übernommen");
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("uses the overridden successMessage when provided", async () => {
+  it("shows the caller's successMessage, never a generic saved wording", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const onClose = vi.fn();
+
+    render(
+      <CareWeeklyPlanModal
+        isOpen
+        onClose={onClose}
+        careDaysSource="weekly_plan"
+        initialArrivalSchedules={initialArrivalSchedules}
+        initialPickupSchedules={initialPickupSchedules}
+        onSubmit={onSubmit}
+        successMessage="Zeiten vorgemerkt"
+      />,
+    );
+
+    submit();
+
+    await waitFor(() => {
+      expect(toastSuccess).toHaveBeenCalledWith("Zeiten vorgemerkt");
+    });
+    expect(toastSuccess).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("closes without handing anything over on Abbrechen", () => {
+    const onSubmit = vi.fn();
     const onClose = vi.fn();
 
     render(
@@ -127,18 +157,26 @@ describe("CareWeeklyPlanModal", () => {
       />,
     );
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Wochenplan speichern" }),
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("renders nothing while closed", () => {
+    render(
+      <CareWeeklyPlanModal
+        isOpen={false}
+        onClose={vi.fn()}
+        careDaysSource="weekly_plan"
+        initialArrivalSchedules={initialArrivalSchedules}
+        initialPickupSchedules={initialPickupSchedules}
+        onSubmit={vi.fn()}
+        successMessage="Betreuungszeiten übernommen"
+      />,
     );
 
-    await waitFor(() => {
-      expect(toastSuccess).toHaveBeenCalledWith("Betreuungszeiten übernommen");
-    });
-    // The default wording must not appear when overridden.
-    expect(toastSuccess).not.toHaveBeenCalledWith(
-      "Wochenplan wurde gespeichert",
-    );
-    expect(onClose).toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("shows validation errors for invalid times", async () => {
@@ -152,15 +190,14 @@ describe("CareWeeklyPlanModal", () => {
         ]}
         initialPickupSchedules={[]}
         onSubmit={vi.fn()}
+        successMessage="Betreuungszeiten übernommen"
       />,
     );
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Wochenplan speichern" }),
-    );
+    submit();
 
     expect(
-      screen.getByText("Ungültige Ankunftszeit für Montag."),
+      await screen.findByText("Ungültige Ankunftszeit für Montag."),
     ).toBeInTheDocument();
   });
 
@@ -173,27 +210,29 @@ describe("CareWeeklyPlanModal", () => {
         initialArrivalSchedules={[]}
         initialPickupSchedules={[{ weekday: 2, pickupTime: "99:99" }]}
         onSubmit={vi.fn()}
+        successMessage="Betreuungszeiten übernommen"
       />,
     );
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Wochenplan speichern" }),
-    );
+    submit();
 
     expect(
-      screen.getByText("Ungültige Abholzeit für Dienstag."),
+      await screen.findByText("Ungültige Abholzeit für Dienstag."),
     ).toBeInTheDocument();
   });
 
-  it("can open and clear note fields", () => {
+  it("drops a note that is only whitespace instead of handing it over", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+
     render(
       <CareWeeklyPlanModal
         isOpen
         onClose={vi.fn()}
         careDaysSource="weekly_plan"
         initialArrivalSchedules={[]}
-        initialPickupSchedules={[]}
-        onSubmit={vi.fn()}
+        initialPickupSchedules={[{ weekday: 1, pickupTime: "15:00" }]}
+        onSubmit={onSubmit}
+        successMessage="Betreuungszeiten übernommen"
       />,
     );
 
@@ -204,8 +243,16 @@ describe("CareWeeklyPlanModal", () => {
     fireEvent.change(document.getElementById("weekly-pickup-notes-1")!, {
       target: { value: " " },
     });
+    submit();
 
-    expect(document.getElementById("weekly-pickup-notes-1")).toHaveValue("");
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith({
+        arrivalSchedules: [],
+        pickupData: {
+          schedules: [{ weekday: 1, pickupTime: "15:00", notes: undefined }],
+        },
+      }),
+    );
   });
 
   it("shows submit errors in the modal", async () => {
@@ -219,12 +266,11 @@ describe("CareWeeklyPlanModal", () => {
         initialArrivalSchedules={initialArrivalSchedules}
         initialPickupSchedules={initialPickupSchedules}
         onSubmit={onSubmit}
+        successMessage="Betreuungszeiten übernommen"
       />,
     );
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Wochenplan speichern" }),
-    );
+    submit();
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Backend kaputt",
@@ -243,6 +289,7 @@ describe("CareWeeklyPlanModal", () => {
         initialArrivalSchedules={[]}
         initialPickupSchedules={[]}
         onSubmit={onSubmit}
+        successMessage="Betreuungszeiten übernommen"
       />,
     );
 
@@ -251,9 +298,7 @@ describe("CareWeeklyPlanModal", () => {
     fireEvent.click(monday.nextElementSibling!);
     expect(document.getElementById("weekly-arrival-1")).toBeEnabled();
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Wochenplan speichern" }),
-    );
+    submit();
 
     await waitFor(() =>
       expect(onSubmit).toHaveBeenCalledWith({
@@ -270,15 +315,18 @@ describe("CareWeeklyPlanModal", () => {
     );
   });
 
-  it("only allows pickup times on booked care days", () => {
+  it("only allows and persists pickup times on booked care days", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+
     render(
       <CareWeeklyPlanModal
         isOpen
         onClose={vi.fn()}
         careDaysSource="bookings"
         initialArrivalSchedules={initialArrivalSchedules}
-        initialPickupSchedules={[]}
-        onSubmit={vi.fn()}
+        initialPickupSchedules={initialPickupSchedules}
+        onSubmit={onSubmit}
+        successMessage="Betreuungszeiten übernommen"
       />,
     );
 
@@ -292,5 +340,19 @@ describe("CareWeeklyPlanModal", () => {
     expect(document.getElementById("weekly-arrival-3")).toBeDisabled();
     expect(document.getElementById("weekly-pickup-1")).toBeEnabled();
     expect(document.getElementById("weekly-pickup-3")).toBeDisabled();
+
+    submit();
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith({
+        arrivalSchedules: expect.arrayContaining([
+          expect.objectContaining({ weekday: 1 }),
+          expect.objectContaining({ weekday: 2 }),
+        ]),
+        pickupData: {
+          schedules: [{ weekday: 1, pickupTime: "15:00", notes: "Mama" }],
+        },
+      });
+    });
   });
 });

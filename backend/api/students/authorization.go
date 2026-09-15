@@ -2,13 +2,17 @@ package students
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	activeModel "github.com/moto-nrw/project-phoenix/models/active"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // HTTP-side wrappers around auth/authorize/student_access.go.
@@ -34,12 +38,50 @@ func (rs *Resource) canManageStudentAbsence(ctx context.Context, userPermissions
 	return authorize.CanManageStudentAbsence(ctx, userPermissions, student, rs.UserContextService)
 }
 
+// canManageStudentStatus applies the direct-report setting only to sick and
+// excused statuses. Parent review and class trips retain their separate gates.
+func (rs *Resource) canManageStudentStatus(ctx context.Context, userPermissions []string, student *users.Student, status string) (bool, error) {
+	allowed, err := rs.canManageStudentAbsence(ctx, userPermissions, student)
+	if !allowed || err != nil || (status != activeModel.StudentStatusDaySick && status != activeModel.StudentStatusDayExcused) {
+		return allowed, err
+	}
+	if authorize.HasAdminWildcard(userPermissions) {
+		return true, nil
+	}
+	if !authorize.HasPermission(permissions.UsersUpdate, userPermissions) &&
+		(!authorize.HasPermission(permissions.UsersAbsence, userPermissions) || !authorize.HasPermission(permissions.UsersRead, userPermissions)) {
+		return false, errors.New("absence write permission required")
+	}
+	claims := jwt.ClaimsFromCtx(ctx)
+	if (claims.Scope != "" && claims.Scope != "tenant" && claims.Scope != "org") ||
+		claims.ID <= 0 || claims.TenantID <= 0 || claims.TenantID != tenant.FromContext(ctx) ||
+		student.TenantID != claims.TenantID {
+		return false, errors.New("OGS staff required for direct absence reports")
+	}
+	if rs.SettingsService == nil {
+		return false, errors.New("absence edit settings unavailable")
+	}
+	scope, err := rs.SettingsService.ResolveString(ctx, configModel.KeyStudentAbsenceEditScope)
+	if err != nil {
+		return false, err
+	}
+	if scope != configModel.StudentAbsenceEditScopeAllStaff {
+		return false, errors.New("direct absence reports require an OGS admin")
+	}
+	return true, nil
+}
+
 // checkStudentAbsenceWriteAccess is the boolean form for the detail response's
 // has_absence_write_access flag, which the frontend uses to show or hide the
 // Krankmeldung / Entschuldigung / Klassenfahrt actions independently of the
 // Stammdaten edit affordances (has_write_access).
 func (rs *Resource) checkStudentAbsenceWriteAccess(r *http.Request, student *users.Student) bool {
 	ok, _ := rs.canManageStudentAbsence(r.Context(), jwt.PermissionsFromCtx(r.Context()), student)
+	return ok
+}
+
+func (rs *Resource) checkStudentSickExcusedWriteAccess(r *http.Request, student *users.Student) bool {
+	ok, _ := rs.canManageStudentStatus(r.Context(), jwt.PermissionsFromCtx(r.Context()), student, activeModel.StudentStatusDaySick)
 	return ok
 }
 

@@ -535,6 +535,21 @@ func TestListPendingScopesEnrichesAndProbesTheNextPage(t *testing.T) {
 	assert.Equal(t, map[string]string{fakeTomorrow.String(): careplan.StudentStatusDayPresent}, items[0].CurrentStatusByDate)
 }
 
+func TestListPendingUsesSharedDayForCareEndAndEligibility(t *testing.T) {
+	t.Parallel()
+	for _, end := range []careplan.Date{"", fakePast} {
+		h := newHarness(t, &fakeCarePlan{listRequests: func(context.Context, careplan.ExcusedAbsenceRequestFilter) ([]careplan.ExcusedAbsenceRequest, error) {
+			return []careplan.ExcusedAbsenceRequest{pendingRow(1, fakePast)}, nil
+		}}, &fakeStudents{students: func(context.Context, []int64) (map[int64]ports.ReviewStudent, error) {
+			return map[int64]ports.ReviewStudent{fakeStudentID: {ID: fakeStudentID, PersonID: fakePersonID, EnrolledUntil: end}}, nil
+		}})
+		items, _, err := h.workflow.ListPending(context.Background(), careplan.RequestQueueFilter{UrgentDate: fakePast.String()})
+		require.NoError(t, err)
+		require.Len(t, items, 1, "the request started before the owner's clock crossed midnight")
+		assert.True(t, items[0].BulkEligible, "eligibility uses the same day as visibility")
+	}
+}
+
 func TestListPendingHidesAlumniAndEndedCare(t *testing.T) {
 	t.Parallel()
 	ended := endedStudentID

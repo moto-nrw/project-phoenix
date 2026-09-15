@@ -15,8 +15,10 @@ import { useEffect, useMemo, useState } from "react";
 import { redirect } from "next/navigation";
 import { useSession } from "next-auth/react";
 
+import { RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { EmptyState } from "~/components/ui/empty-state";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { SectionCard } from "~/components/ui/section-card";
@@ -142,27 +144,30 @@ export default function EndedCarePage() {
       key: "actions",
       header: "",
       align: "right",
+      // Zeilenaktionen nur im Kebab der Zeile (BAUARTEN-SPEC Bauart 1
+      // Regel 4); beide Einträge öffnen ihren bestehenden Dialog.
       render: (entry) => (
-        <div className="flex items-center justify-end gap-1">
-          {entry.reason && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="compact"
-              onClick={() => setResumeTarget(entry)}
-            >
-              Wieder aufnehmen
-            </Button>
-          )}
-          <Button
-            type="button"
-            variant="ghost"
-            size="compact"
-            className="text-moto-red-strong"
-            onClick={() => setDeleteTarget(entry)}
-          >
-            Endgültig löschen
-          </Button>
+        <div className="flex items-center justify-end">
+          <OverflowMenu
+            ariaLabel={`Aktionen für ${entry.lastName}, ${entry.firstName}`}
+            items={[
+              ...(entry.reason
+                ? [
+                    {
+                      label: "Wieder aufnehmen",
+                      icon: <RotateCcw className="h-4 w-4" aria-hidden />,
+                      onClick: () => setResumeTarget(entry),
+                    },
+                  ]
+                : []),
+              {
+                label: "Endgültig löschen",
+                icon: <Trash2 className="h-4 w-4" aria-hidden />,
+                destructive: true,
+                onClick: () => setDeleteTarget(entry),
+              },
+            ]}
+          />
         </div>
       ),
     },

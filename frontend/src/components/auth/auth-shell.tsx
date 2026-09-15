@@ -447,7 +447,7 @@ function TestimonialCard({
           <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gray-950 text-white">
             <Quote className="h-5 w-5" aria-hidden="true" />
           </div>
-          <span className="rounded-full bg-[#EAF6D8] px-3 py-1 text-xs font-semibold text-[#4E7D1B]">
+          <span className="bg-moto-green-soft text-moto-green-strong rounded-full px-3 py-1 text-xs font-semibold">
             {testimonial.metric}
           </span>
         </div>

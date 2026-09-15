@@ -7,7 +7,8 @@ import (
 	"testing"
 	"time"
 
-	deviceAuth "github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -57,8 +58,8 @@ func TestVisitRevisionRollsBackAfterSlotWriteAndRetries(t *testing.T) {
 		ActiveGroupID: &group.ID, Status: scheduleModels.InstanceStatusActive,
 	})
 	testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID, scheduleModels.AttendanceStatusExpected)
-	ctx := context.WithValue(testpkg.Ctx(t), deviceAuth.CtxDevice, devicePrincipal(device.ID, device.TenantID))
-	ctx = context.WithValue(ctx, deviceAuth.CtxStaff, staffPrincipal(staff))
+	ctx := services.WithAttendanceDevice(testpkg.Ctx(t), device.ID, device.TenantID)
+	ctx = services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
 	visit := &studentpresence.Visit{StudentID: student.ID, ActiveGroupID: group.ID, EntryTime: time.Now().Add(-time.Hour)}
 	require.NoError(t, svc.CreateVisit(ctx, visit))
 	original, err := module.FindVisit(ctx, visit.ID)
@@ -129,8 +130,8 @@ func TestVisitRevisionRollsBackAfterEachWriteAndRetries(t *testing.T) {
 			staff := testpkg.CreateTestStaff(t, db, "Revise", "Staff")
 			device := testpkg.CreateTestDevice(t, db, "visit-revise-rollback")
 			group := testpkg.CreateTestActiveGroupForTenant(t, db, testpkg.Tenant(t))
-			ctx := context.WithValue(testpkg.Ctx(t), deviceAuth.CtxDevice, devicePrincipal(device.ID, device.TenantID))
-			ctx = context.WithValue(ctx, deviceAuth.CtxStaff, staffPrincipal(staff))
+			ctx := services.WithAttendanceDevice(testpkg.Ctx(t), device.ID, device.TenantID)
+			ctx = services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
 			visit := &studentpresence.Visit{StudentID: student.ID, ActiveGroupID: group.ID, EntryTime: time.Now().Add(-time.Hour)}
 			require.NoError(t, svc.CreateVisit(ctx, visit))
 			original, err := module.FindVisit(ctx, visit.ID)

@@ -54,6 +54,9 @@ func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 		func(string, string, string, time.Duration, int, error) {},
 		func(string, time.Duration, int64, int64, time.Duration, string, error) {},
 		func(string, time.Duration, int64, int64, time.Duration, string, error) {},
+		owners.workforce,
+		func(DataImportObservation) {},
+		FileStorageWiring{},
 		true,
 	)
 	require.NoError(t, err)

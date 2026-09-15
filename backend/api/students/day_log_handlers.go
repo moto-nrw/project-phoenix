@@ -647,7 +647,7 @@ func (rs *Resource) writeDayLogAudit(r *http.Request, date timezone.Date, groups
 		groupIDs = append(groupIDs, group.ID)
 	}
 
-	entry := &auditModels.DataAccessLog{
+	entry := &activeService.DataAccessEvent{
 		ActorAccountID: int64(claims.ID),
 		ActorRole:      actorRole,
 		ResourceType:   auditModels.ResourceTypeAttendanceDayLog,
@@ -655,8 +655,7 @@ func (rs *Resource) writeDayLogAudit(r *http.Request, date timezone.Date, groups
 		RangeEnd:       date.EndOfDay(),
 		AccessedAt:     time.Now(),
 	}
-	entry.SetMetadata("group_ids", groupIDs)
-	entry.SetMetadata("date", date.String())
+	entry.Metadata = map[string]interface{}{"group_ids": groupIDs, "date": date.String()}
 
 	if err := rs.StudentHistoryService.RecordDataAccess(r.Context(), entry); err != nil {
 		logger.Error("audit log write failed, refusing to serve day log",

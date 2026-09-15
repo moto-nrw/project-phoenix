@@ -213,15 +213,14 @@ type StudentDetailResponse struct {
 	HasFullAccess  bool                     `json:"has_full_access"`
 	HasWriteAccess bool                     `json:"has_write_access"`
 	Consents       []StudentConsentResponse `json:"consents,omitempty"`
-	// HasAbsenceWriteAccess gates the Krankmeldung / Entschuldigung /
-	// Klassenfahrt actions specifically. It is a superset of HasWriteAccess: in
-	// a school running operations.group_mode = open_care, staff holding
-	// users:absence may report absences for children they cannot otherwise edit
-	// (#2232). Never use it to show Stammdaten edit affordances.
-	HasAbsenceWriteAccess bool                `json:"has_absence_write_access"`
-	GroupSupervisors      []SupervisorContact `json:"group_supervisors,omitempty"`
-	AttendanceLogEnabled  bool                `json:"attendance_log_enabled"`
-	FeedbackEnabled       bool                `json:"feedback_enabled"`
+	// HasAbsenceWriteAccess retains the class-trip write gate. Sick and excused
+	// actions additionally require HasSickExcusedWriteAccess. Neither flag
+	// grants Stammdaten writes or authority to review a parent request.
+	HasAbsenceWriteAccess     bool                `json:"has_absence_write_access"`
+	HasSickExcusedWriteAccess bool                `json:"has_sick_excused_write_access"`
+	GroupSupervisors          []SupervisorContact `json:"group_supervisors,omitempty"`
+	AttendanceLogEnabled      bool                `json:"attendance_log_enabled"`
+	FeedbackEnabled           bool                `json:"feedback_enabled"`
 }
 
 type StudentConsentResponse struct {

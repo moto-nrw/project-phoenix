@@ -506,6 +506,20 @@ describe("mapSingleStudentResponse", () => {
 });
 
 describe("mapStudentDetailResponse", () => {
+  it("preserves a sick/excused denial independently of other write rights", () => {
+    const detailStudent = {
+      ...sampleBackendStudent,
+      has_full_access: true,
+      has_write_access: true,
+      has_absence_write_access: true,
+      has_sick_excused_write_access: false,
+      attendance_log_enabled: false,
+    };
+    const result = mapStudentDetailResponse(detailStudent);
+    expect(result.has_absence_write_access).toBe(true);
+    expect(result.has_sick_excused_write_access).toBe(false);
+  });
+
   it("maps detail response with access control info", () => {
     const detailStudent: BackendStudentDetail = {
       ...sampleBackendStudent,

@@ -10,10 +10,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -141,7 +139,7 @@ func (s *service) processSchoolCheckinBatch(
 
 	outcomes := make(map[int64]SchoolCheckinBatchItem, len(writeOrder))
 	actionable := make([]int64, 0, len(writeOrder))
-	actionableStudents := make([]*userModels.Student, 0, len(writeOrder))
+	actionableStudents := make([]*StudentRecord, 0, len(writeOrder))
 	today := timezone.TodayDate()
 	for _, studentID := range writeOrder {
 		student := locked[studentID]
@@ -208,7 +206,7 @@ func (s *service) processSchoolCheckinBatch(
 	// child, up to the full batch cap. Best-effort exactly like the
 	// single-student path: a failure is logged and never fails the batch.
 	if stampPresence {
-		s.ensureStaffPresence(ctx, staffID, attendanceStampSource(ctx))
+		s.ensureStaffPresence(ctx, staffID, s.attendanceStampSource(ctx))
 	}
 
 	// Back-fill the final status for every actionable student (changed or
@@ -258,7 +256,7 @@ func (s *service) processSchoolCheckinBatch(
 func (s *service) applyBatchCheckIn(
 	ctx context.Context,
 	actionable []int64,
-	actionableStudents []*userModels.Student,
+	actionableStudents []*StudentRecord,
 	staffID int64,
 	now time.Time,
 	day timezone.Date,
@@ -393,26 +391,26 @@ func (s *service) applyBatchCheckOut(
 func (s *service) autoClearOnBatchCheckin(
 	ctx context.Context,
 	actionable []int64,
-	actionableStudents []*userModels.Student,
+	actionableStudents []*StudentRecord,
 	now time.Time,
 	day timezone.Date,
 ) error {
-	sickMode, err := s.resolveClearMode(ctx, configModel.KeySickClearMode)
+	sickMode, err := s.resolveSickClearMode(ctx)
 	if err != nil {
 		return err
 	}
-	if sickMode == configModel.ClearModeNextCheckin {
+	if sickMode == ClearModeNextCheckin {
 		for _, student := range actionableStudents {
 			if err := s.clearSickFlagOnCheckin(ctx, student, now); err != nil {
 				return err
 			}
 		}
 	}
-	excusedMode, err := s.resolveClearMode(ctx, configModel.KeyExcusedClearMode)
+	excusedMode, err := s.resolveExcusedClearMode(ctx)
 	if err != nil {
 		return err
 	}
-	if excusedMode == configModel.ClearModeNextCheckin {
+	if excusedMode == ClearModeNextCheckin {
 		for _, student := range actionableStudents {
 			if err := s.clearExcusedFlagOnCheckin(ctx, student, now); err != nil {
 				return err
@@ -462,7 +460,7 @@ func (s *service) autoClearOnBatchCheckin(
 func (s *service) registerSchoolCheckinBatchBroadcast(
 	ctx context.Context,
 	action string,
-	students map[int64]*userModels.Student,
+	students map[int64]*StudentRecord,
 	changed map[int64]bool,
 	endedVisits []*studentpresence.Visit,
 ) {
@@ -485,15 +483,10 @@ func (s *service) registerSchoolCheckinBatchBroadcast(
 		return
 	}
 
-	eventType := realtime.EventBulkStudentCheckIn
-	if action == SchoolCheckinActionOut {
-		eventType = realtime.EventBulkStudentCheckOut
-	}
+	checkIn := action != SchoolCheckinActionOut
 
-	// Bucket the notified students by educational group; keep one student per
-	// group so broadcastToEducationalGroup can derive the edu:{id} topic.
+	// Bucket the notified students by educational group.
 	eduGroups := make(map[int64][]string)
-	eduReps := make(map[int64]*userModels.Student)
 	for studentID := range notify {
 		student := students[studentID]
 		if student == nil || student.GroupID == nil {
@@ -501,9 +494,6 @@ func (s *service) registerSchoolCheckinBatchBroadcast(
 		}
 		gid := *student.GroupID
 		eduGroups[gid] = append(eduGroups[gid], strconv.FormatInt(studentID, 10))
-		if eduReps[gid] == nil {
-			eduReps[gid] = student
-		}
 	}
 	allEduGroupIDs := make([]string, 0, len(eduGroups))
 	for gid := range eduGroups {
@@ -524,27 +514,15 @@ func (s *service) registerSchoolCheckinBatchBroadcast(
 	tenant.RegisterAfterCommit(ctx, func() {
 		// One event per active group whose roster changed.
 		for groupID, ids := range activeGroups {
-			studentIDs := ids
 			groupIDStr := strconv.FormatInt(groupID, 10)
-			data := realtime.EventData{StudentIDs: &studentIDs}
-			if len(allEduGroupIDs) > 0 {
-				data.GroupIDs = &allEduGroupIDs
-			}
-			event := realtime.NewEvent(eventType, groupIDStr, data)
-			s.broadcastWithLogging(ctx, groupIDStr, "", event, string(eventType))
+			realtimeevents.PublishBulkStudentChange(ctx, s.Broadcaster, s.getLogger(), checkIn, groupIDStr, ids, allEduGroupIDs)
 		}
 
 		// One event per distinct educational group, carrying only that
 		// group's students so each client invalidates the right caches.
+		// No active group: this is a roomless attendance change.
 		for gid, ids := range eduGroups {
-			studentIDs := ids
-			eduGroupID := []string{strconv.FormatInt(gid, 10)}
-			event := realtime.NewEvent(
-				eventType,
-				"", // no active group — roomless attendance change
-				realtime.EventData{StudentIDs: &studentIDs, GroupIDs: &eduGroupID},
-			)
-			s.broadcastToEducationalGroup(ctx, eduReps[gid], event)
+			realtimeevents.PublishBulkStudentChangeToEducationGroup(ctx, s.Broadcaster, s.getLogger(), checkIn, "", gid, ids)
 		}
 
 		// Single tenant-wide refresh for the entire batch. The group-specific
@@ -563,14 +541,14 @@ func (s *service) trackSchoolCheckinBatchEvent(ctx context.Context, action strin
 	}
 	if action == SchoolCheckinActionIn {
 		s.trackProductEvent(ctx, "student_checked_in", map[string]any{
-			"method": attendanceMethod(ctx),
+			"method": s.attendanceMethod(ctx),
 			"batch":  true,
 			"count":  changedCount,
 		})
 		return
 	}
 	s.trackProductEvent(ctx, "student_checked_out", map[string]any{
-		"method":        attendanceMethod(ctx),
+		"method":        s.attendanceMethod(ctx),
 		"checkout_type": checkoutTypeWeb,
 		"batch":         true,
 		"count":         changedCount,

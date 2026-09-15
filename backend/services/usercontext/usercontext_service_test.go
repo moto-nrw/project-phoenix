@@ -72,6 +72,19 @@ func contextWithTenantClaimsAndRoles(userID int, tenantID int64, roles ...string
 
 type fixedBoolResolver bool
 
+type fixedAbsenceReviewResolver struct {
+	fixedBoolResolver
+	scope string
+}
+
+func (r fixedAbsenceReviewResolver) ResolveString(context.Context, string) (string, error) {
+	return r.scope, nil
+}
+
+func (r fixedBoolResolver) ResolveString(context.Context, string) (string, error) {
+	return "inherit", nil
+}
+
 func (r fixedBoolResolver) ResolveBool(context.Context, string) (bool, error) {
 	return bool(r), nil
 }
@@ -892,7 +905,7 @@ func TestParentRequestReviewPolicy_UsesRealTeacherGroupAssignments(t *testing.T)
 
 	ctx := contextWithClaims(t, int(account.ID))
 	policy := usercontextSvc.NewParentRequestReviewPolicy(
-		fixedBoolResolver(true), service, "parent_requests.group_leaders_can_decide",
+		fixedBoolResolver(true), service, "parent_requests.group_leaders_can_decide", "parent_requests.absence_scope",
 	)
 	filter, err := policy.StudentFilter(ctx, []string{"users:update"})
 	require.NoError(t, err)
@@ -904,11 +917,35 @@ func TestParentRequestReviewPolicy_UsesRealTeacherGroupAssignments(t *testing.T)
 	assert.False(t, filter(&users.Student{}))
 
 	disabled := usercontextSvc.NewParentRequestReviewPolicy(
-		fixedBoolResolver(false), service, "parent_requests.group_leaders_can_decide",
+		fixedBoolResolver(false), service, "parent_requests.group_leaders_can_decide", "parent_requests.absence_scope",
 	)
 	disabledFilter, err := disabled.StudentFilter(ctx, []string{"users:update"})
 	require.NoError(t, err)
 	assert.False(t, disabledFilter(&users.Student{GroupID: &ownGroup.ID}))
+
+	// The absence-only selection uses the same live group/substitution
+	// resolver, without granting access to the other request kinds.
+	absencePolicy := usercontextSvc.NewParentRequestReviewPolicy(
+		fixedAbsenceReviewResolver{scope: "group_leaders"}, service,
+		"parent_requests.group_leaders_can_decide", "parent_requests.absence_scope",
+	)
+	wide, ids, err := absencePolicy.AbsenceScope(ctx, []string{"users:update"})
+	require.NoError(t, err)
+	assert.False(t, wide)
+	assert.ElementsMatch(t, []int64{ownGroup.ID, activeSubstitutionGroup.ID}, ids)
+	wide, ids, err = absencePolicy.Scope(ctx, []string{"users:update"})
+	require.NoError(t, err)
+	assert.False(t, wide)
+	assert.Empty(t, ids)
+
+	teamPolicy := usercontextSvc.NewParentRequestReviewPolicy(
+		fixedAbsenceReviewResolver{scope: "all_staff"}, service,
+		"parent_requests.group_leaders_can_decide", "parent_requests.absence_scope",
+	)
+	wide, ids, err = teamPolicy.AbsenceScope(ctx, []string{"users:update"})
+	require.NoError(t, err)
+	assert.True(t, wide)
+	assert.Empty(t, ids)
 }
 
 // ============================================================================

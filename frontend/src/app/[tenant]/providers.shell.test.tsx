@@ -116,7 +116,7 @@ const shell: ShellBootstrap = {
   supervision: {
     groups: [],
     supervised: [],
-    schulhof: null,
+    openRooms: [],
     overviewOk: false,
   },
   counts: { messagesUnread: 2 },

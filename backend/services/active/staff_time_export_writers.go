@@ -8,8 +8,6 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/xuri/excelize/v2"
 )
 
 // Writers for the cross-staff export (#1417 2b). They serialize MonthExportRow
@@ -25,9 +23,9 @@ const (
 // exportEmploymentTypeLabels mirrors the frontend's employmentTypeLabels — the
 // file is read by people, not by code.
 var exportEmploymentTypeLabels = map[string]string{
-	userModels.EmploymentTypeFullTime: "Vollzeit",
-	userModels.EmploymentTypePartTime: "Teilzeit",
-	userModels.EmploymentTypeMinijob:  "Minijob",
+	EmploymentTypeFullTime: "Vollzeit",
+	EmploymentTypePartTime: "Teilzeit",
+	EmploymentTypeMinijob:  "Minijob",
 }
 
 var monthExportHeaders = []string{
@@ -109,7 +107,7 @@ func writeMonthCSV(rows []MonthExportRow, timeFormat string) ([]byte, error) {
 	return writeExportCSV(monthExportHeaders, cells, []int{0, 1, 2})
 }
 
-func writeMonthXLSX(rows []MonthExportRow, timeFormat string) ([]byte, error) {
+func writeMonthXLSX(rows []MonthExportRow, timeFormat string, render TimeTrackingWorkbookRenderer) ([]byte, error) {
 	cells := make([][]any, 0, len(rows))
 	for _, row := range rows {
 		values := stringsToAny(monthExportCells(row, timeFormat))
@@ -140,7 +138,7 @@ func writeMonthXLSX(rows []MonthExportRow, timeFormat string) ([]byte, error) {
 	if timeFormat == ExportTimeDecimal {
 		decimalColumns = []int{6, 7, 8, 9, 10, 11, 12, 16, 17, 18, 19, 20, 21, 22}
 	}
-	return writeExportXLSX("Zeiterfassung", monthExportHeaders, cells, decimalColumns)
+	return render("Zeiterfassung", monthExportHeaders, cells, decimalColumns)
 }
 
 // --- day granularity -------------------------------------------------------
@@ -173,8 +171,8 @@ func writeDayCSV(rows []dayExportBlockRow) ([]byte, error) {
 	return writeExportCSV(dayExportHeaders, dayExportCells(rows), []int{0, 1, len(dayExportHeaders) - 1})
 }
 
-func writeDayXLSX(rows []dayExportBlockRow) ([]byte, error) {
-	return writeExportXLSX("Zeiterfassung", dayExportHeaders, stringsRowsToAny(dayExportCells(rows)), nil)
+func writeDayXLSX(rows []dayExportBlockRow, render TimeTrackingWorkbookRenderer) ([]byte, error) {
+	return render("Zeiterfassung", dayExportHeaders, stringsRowsToAny(dayExportCells(rows)), nil)
 }
 
 // --- shared serializers ----------------------------------------------------
@@ -234,59 +232,4 @@ func stringsRowsToAny(rows [][]string) [][]any {
 		result[i] = stringsToAny(row)
 	}
 	return result
-}
-
-func writeExportXLSX(sheet string, headers []string, rows [][]any, decimalColumns []int) ([]byte, error) {
-	f := excelize.NewFile()
-	defer func() { _ = f.Close() }()
-
-	idx, err := f.NewSheet(sheet)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create sheet: %w", err)
-	}
-	f.SetActiveSheet(idx)
-	if sheet != "Sheet1" {
-		_ = f.DeleteSheet("Sheet1")
-	}
-
-	headerStyle, _ := f.NewStyle(&excelize.Style{
-		Font: &excelize.Font{Bold: true},
-		Fill: excelize.Fill{Type: "pattern", Color: []string{"#E2E8F0"}, Pattern: 1},
-	})
-	for i, header := range headers {
-		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
-		_ = f.SetCellValue(sheet, cell, header)
-		_ = f.SetCellStyle(sheet, cell, cell, headerStyle)
-	}
-	decimalColumnSet := make(map[int]bool, len(decimalColumns))
-	for _, column := range decimalColumns {
-		decimalColumnSet[column] = true
-	}
-	decimalStyle := 0
-	if len(decimalColumnSet) > 0 {
-		numberFormat := "0.00"
-		decimalStyle, err = f.NewStyle(&excelize.Style{CustomNumFmt: &numberFormat})
-		if err != nil {
-			return nil, fmt.Errorf("failed to create decimal cell style: %w", err)
-		}
-	}
-	for rowIdx, row := range rows {
-		for colIdx, value := range row {
-			cell, _ := excelize.CoordinatesToCellName(colIdx+1, rowIdx+2)
-			_ = f.SetCellValue(sheet, cell, value)
-			if decimalColumnSet[colIdx+1] {
-				_ = f.SetCellStyle(sheet, cell, cell, decimalStyle)
-			}
-		}
-	}
-	for i := range headers {
-		col, _ := excelize.ColumnNumberToName(i + 1)
-		_ = f.SetColWidth(sheet, col, col, 16)
-	}
-
-	var buf bytes.Buffer
-	if err := f.Write(&buf); err != nil {
-		return nil, fmt.Errorf("failed to write XLSX: %w", err)
-	}
-	return buf.Bytes(), nil
 }

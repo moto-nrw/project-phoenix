@@ -1,0 +1,202 @@
+package files_test
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"net/http/httptest"
+	"runtime"
+	"slices"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/require"
+)
+
+// request is do with a caller-supplied context, so the query counter's scope
+// reaches the statements the route issues.
+func (c *apiContext) request(ctx context.Context, method, path string, body io.Reader, contentType string, accountID int64, perms ...string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(method, path, body).WithContext(ctx)
+	req.Header.Set("Authorization", "Bearer "+c.token(accountID, perms...))
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
+	rec := httptest.NewRecorder()
+	c.router.ServeHTTP(rec, req)
+	return rec
+}
+
+// statementSummary keeps the shape of one statement for the evidence record:
+// the verb and the first table it names, without values.
+func statementSummary(statement string) string {
+	fields := strings.Fields(statement)
+	if len(fields) == 0 {
+		return ""
+	}
+	verb := strings.ToUpper(fields[0])
+	for i, field := range fields {
+		upper := strings.ToUpper(field)
+		if (upper == "FROM" || upper == "INTO" || upper == "UPDATE" || upper == "JOIN") && i+1 < len(fields) {
+			return verb + " " + strings.Trim(fields[i+1], `"(),`)
+		}
+	}
+	if len(statement) > 60 {
+		return verb + " " + statement[len(verb)+1:min(len(statement), 60)]
+	}
+	return statement
+}
+
+func multipartPDF(t *testing.T, filename string) (*bytes.Buffer, string) {
+	t.Helper()
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	part, err := writer.CreateFormFile("file", filename)
+	require.NoError(t, err)
+	_, err = part.Write(fakePDF)
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+	return &buf, writer.FormDataContentType()
+}
+
+// TestFileStorageRuntimeEvidence records the runtime evidence #2707 asks for
+// on the public file routes served by the File Storage capability: statement
+// count, p50/p95 latency, pool waits, sampled lock waits and deadlocks per
+// stable operation, over 30 samples after five warmups at concurrency one.
+// Fixtures are outside the timer: one manager, one member, 20 folders of
+// mixed visibility (one of them shared with the member's role and account),
+// and 20 files in one folder. Statement counts are asserted stable across
+// samples so a per-row query cannot hide behind a mean.
+func TestFileStorageRuntimeEvidence(t *testing.T) {
+	t.Parallel()
+	c := setupFileStoreRoute(t)
+	ctx := testpkg.Ctx(t)
+	role := testpkg.CreateTestRoleForTenant(t, c.db, "runtime-rolle", testpkg.Tenant(t))
+	c.assignRole(c.member, role.ID)
+
+	var listed int64
+	for i := range 20 {
+		visibility := []string{"all_staff", "admins", "selected"}[i%3]
+		payload := folderPayload{Name: fmt.Sprintf("Runtime %02d", i), Visibility: visibility}
+		if visibility == "selected" {
+			payload.RoleIDs = []string{idStr(role.ID)}
+			payload.AccountIDs = []string{idStr(c.member)}
+		}
+		id := c.createFolder(payload)
+		if i == 0 {
+			listed = id
+		}
+	}
+	var fileID int64
+	for i := range 20 {
+		rec := c.upload(listed, fmt.Sprintf("Datei-%02d.pdf", i), fakePDF, c.admin, permissions.AdminWildcard)
+		require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+		var uploaded struct {
+			Data struct {
+				ID common.JSONID `json:"id"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &uploaded))
+		fileID = uploaded.Data.ID.Int64()
+	}
+
+	var postgres string
+	require.NoError(t, c.db.NewRaw("SHOW server_version").Scan(ctx, &postgres))
+	counter := testpkg.CaptureQueriesForContext(t, c.db)
+	deadlocks := func() int64 {
+		var n int64
+		require.NoError(t, c.db.NewRaw("SELECT deadlocks FROM pg_stat_database WHERE datname = current_database()").Scan(ctx, &n))
+		return n
+	}
+
+	type scenario struct {
+		name   string
+		status int
+		write  bool
+		run    func(context.Context, int) *httptest.ResponseRecorder
+	}
+	scenarios := []scenario{
+		{name: "list-folders-manager", status: http.StatusOK, run: func(ctx context.Context, _ int) *httptest.ResponseRecorder {
+			return c.request(ctx, http.MethodGet, "/files/folders", nil, "", c.admin, permissions.AdminWildcard)
+		}},
+		{name: "list-folders-member", status: http.StatusOK, run: func(ctx context.Context, _ int) *httptest.ResponseRecorder {
+			return c.request(ctx, http.MethodGet, "/files/folders", nil, "", c.member, permissions.UsersRead)
+		}},
+		{name: "list-files-20", status: http.StatusOK, run: func(ctx context.Context, _ int) *httptest.ResponseRecorder {
+			return c.request(ctx, http.MethodGet, fmt.Sprintf("/files/folders/%d/files", listed), nil, "", c.admin, permissions.AdminWildcard)
+		}},
+		{name: "download-pdf", status: http.StatusOK, run: func(ctx context.Context, _ int) *httptest.ResponseRecorder {
+			return c.request(ctx, http.MethodGet, fmt.Sprintf("/files/folders/%d/files/%d/download", listed, fileID), nil, "", c.member, permissions.UsersRead)
+		}},
+		{name: "upload-pdf", status: http.StatusCreated, write: true, run: func(ctx context.Context, i int) *httptest.ResponseRecorder {
+			body, contentType := multipartPDF(t, fmt.Sprintf("Messung-%02d.pdf", i))
+			return c.request(ctx, http.MethodPost, fmt.Sprintf("/files/folders/%d/files", listed), body, contentType, c.admin, permissions.AdminWildcard)
+		}},
+	}
+
+	for _, sc := range scenarios {
+		t.Run(sc.name, func(t *testing.T) {
+			beforeDeadlocks := deadlocks()
+			stopLocks := testpkg.SampleCheckpointLocks(func(sampleCtx context.Context) (int, error) {
+				var n int
+				err := c.db.NewRaw("SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'").Scan(sampleCtx, &n)
+				return n, err
+			})
+			var samples []testpkg.RuntimeCheckpointSample
+			var durations []float64
+			var queries []int
+			var statements []string
+			for i := 0; i < 35; i++ {
+				counter.Reset()
+				before := c.db.Stats()
+				start := time.Now()
+				rec := sc.run(counter.Context(ctx), i)
+				elapsed := float64(time.Since(start)) / float64(time.Millisecond)
+				after := c.db.Stats()
+				require.Equal(t, sc.status, rec.Code, rec.Body.String())
+				if i == 5 {
+					for _, statement := range counter.Queries() {
+						statements = append(statements, statementSummary(statement))
+					}
+				}
+				writeRows := counter.WriteRows()
+				if sc.write {
+					require.Positive(t, writeRows, "an upload must write metadata rows")
+				} else {
+					require.Zero(t, writeRows, "a read must not write")
+				}
+				if i >= 5 {
+					affected, statements := counter.Rows()
+					samples = append(samples, testpkg.RuntimeCheckpointSample{
+						DurationMS: elapsed, Queries: counter.Total(), Status: rec.Code,
+						RowsAffected: affected, StatementsWithRows: statements, WriteRowsAffected: &writeRows,
+						PoolWaitCount: after.WaitCount - before.WaitCount,
+						PoolWaitMS:    float64(after.WaitDuration-before.WaitDuration) / float64(time.Millisecond),
+					})
+					durations = append(durations, elapsed)
+					queries = append(queries, counter.Total())
+				}
+			}
+			locks := stopLocks()
+			require.Empty(t, locks.Error)
+			require.Len(t, slices.Compact(slices.Clone(queries)), 1, "statement count must not vary across samples: %v", queries)
+			slices.Sort(durations)
+			report, err := json.Marshal(map[string]any{
+				"scenario": sc.name, "samples": samples, "statements": statements,
+				"queries": queries[0], "p50_ms": durations[14], "p95_ms": durations[28], "max_ms": durations[29],
+				"go": runtime.Version(), "postgres": postgres, "warmup": 5, "concurrency": 1,
+				"unexpected_errors": 0, "lock_samples": locks, "deadlocks": deadlocks() - beforeDeadlocks,
+				"fixtures": "20 folders (7 all_staff, 7 admins, 6 selected), 20 files in the listed folder, local storage backend",
+			})
+			require.NoError(t, err)
+			t.Logf("filestorage-runtime: %s", report)
+		})
+	}
+}

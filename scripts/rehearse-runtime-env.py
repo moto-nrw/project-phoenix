@@ -4,6 +4,7 @@
 import importlib.util
 import json
 import os
+import secrets
 from pathlib import Path
 import subprocess
 import tempfile
@@ -31,11 +32,12 @@ def main():
         if "APP_ENV" in service.get("environment", {}):
             service["environment"]["APP_ENV"] = "development"
     services["postgres"]["tmpfs"] = ["/var/lib/postgresql/data"]
-    services["postgres"]["environment"]["POSTGRES_PASSWORD"] = "rehearsal-postgres-fixture"
+    database_password = secrets.token_urlsafe(32)
+    services["postgres"]["environment"]["POSTGRES_PASSWORD"] = database_password
     services["migrate"]["environment"].update({
-        "DB_DSN": "postgres://postgres:rehearsal-postgres-fixture@postgres:5432/postgres?sslmode=disable",
-        "ADMIN_EMAIL": "admin@example.invalid", "ADMIN_PASSWORD": "Rehearsal-admin-fixture-42!",
-        "OPERATOR_EMAIL": "operator@example.invalid", "OPERATOR_PASSWORD": "Rehearsal-operator-fixture-42!",
+        "DB_DSN": f"postgres://postgres:{database_password}@postgres:5432/postgres?sslmode=disable",
+        "ADMIN_EMAIL": "admin@example.invalid", "ADMIN_PASSWORD": secrets.token_urlsafe(32) + "aA1!",
+        "OPERATOR_EMAIL": "operator@example.invalid", "OPERATOR_PASSWORD": secrets.token_urlsafe(32) + "aA1!",
         "OPERATOR_DISPLAY_NAME": "Rehearsal Operator",
     })
     services["server"]["environment"]["POSTHOG_API_KEY"] = ""
@@ -101,10 +103,14 @@ def main():
             compose("exec", "-T", "postgres", "psql", "-U", "postgres", "-v", "ON_ERROR_STOP=1", "-c", marker)
             backup = directory / "backup-rehearsal.dump"
             backup.write_bytes(compose("exec", "-T", "postgres", "pg_dump", "-U", "postgres", "-d", "postgres", "-Fc"))
-            globals_file = directory / "globals-rehearsal.sql"
-            globals_file.write_bytes(compose("exec", "-T", "postgres", "pg_dumpall", "-U", "postgres", "--globals-only"))
-            globals_file.chmod(0o600)
-            run(["bash", str(ROOT / "scripts/restore-db.sh"), str(backup)])
+            # This fixture builds local images without registry digests and has
+            # no persistent upload volume. It tests the runtime DB boundary;
+            # release-backup.integration.test.mjs covers complete release restore.
+            compose("exec", "-T", "postgres", "psql", "-U", "postgres", "-d", "template1",
+                    "-v", "ON_ERROR_STOP=1", "-c", "DROP DATABASE postgres WITH (FORCE);",
+                    "-c", "CREATE DATABASE postgres OWNER postgres TEMPLATE template0;")
+            compose("exec", "-T", "postgres", "pg_restore", "-U", "postgres", "-d", "postgres",
+                    "--exit-on-error", data=backup.read_bytes())
             restored = compose("exec", "-T", "postgres", "psql", "-U", "postgres", "-At", "-c",
                                "SELECT value = 'fixture' FROM public.env_rehearsal")
             if restored.strip() != b"t":

@@ -149,24 +149,35 @@ func (c *webPushChannel) getLogger() *slog.Logger {
 }
 
 func (c *webPushChannel) Deliver(ctx context.Context, event Event) error {
+	_, err := c.DeliverDurably(ctx, event)
+	return err
+}
+
+// DeliverDurably stores one intent per currently eligible subscription and
+// reports how many subscriptions accepted an intent. A missing VAPID setup or
+// an empty subscription set deliberately stays a successful no-op for regular
+// notifications, but callers that hold a delivery claim can use the zero
+// receipt to retry through another channel.
+func (c *webPushChannel) DeliverDurably(ctx context.Context, event Event) (int, error) {
 	ctx = c.withTenantRuntime(ctx)
 	if !c.vapid.Configured() {
 		c.getLogger().Debug("web push channel has no VAPID keys configured, skipping delivery",
 			"notification_type", event.Type,
 			"tenant_id", event.Audience.TenantID,
 		)
-		return nil
+		return 0, nil
 	}
 	if _, err := marshalPushPayload(event); err != nil {
-		return err
+		return 0, err
 	}
 
 	if c.outbox == nil {
-		return errors.New("web push durable outbox is not configured")
+		return 0, errors.New("web push durable outbox is not configured")
 	}
 	if event.IdempotencyKey == "" {
-		return errors.New("web push event requires an idempotency key")
+		return 0, errors.New("web push event requires an idempotency key")
 	}
+	accepted := 0
 	enqueue := func(txCtx context.Context) error {
 		subs, err := c.resolveEventSubscriptions(txCtx, event)
 		if err != nil {
@@ -194,15 +205,18 @@ func (c *webPushChannel) Deliver(ctx context.Context, event Event) error {
 			if err != nil {
 				return err
 			}
+			accepted++
 		}
 		return nil
 	}
 	if _, active := tenant.TransactionFromContext(ctx); active {
-		return enqueue(ctx)
+		err := enqueue(ctx)
+		return accepted, err
 	}
-	return tenant.WithTenantTx(ctx, c.db, event.Audience.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(ctx, c.db, event.Audience.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		return enqueue(txCtx)
 	})
+	return accepted, err
 }
 
 // DeliverSynchronously waits for the push service to accept every current

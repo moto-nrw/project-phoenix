@@ -212,6 +212,12 @@ func (s *Store) Search(ctx context.Context, filter domain.Filter) ([]domain.Pers
 	if filter.LastNamePrefix != "" {
 		query = query.Where(`"person".last_name ILIKE ?`, escapeLike(filter.LastNamePrefix)+"%")
 	}
+	if filter.FirstNameEquals != "" {
+		query = query.Where(`LOWER(BTRIM("person".first_name)) = LOWER(BTRIM(?))`, filter.FirstNameEquals)
+	}
+	if filter.LastNameEquals != "" {
+		query = query.Where(`LOWER(BTRIM("person".last_name)) = LOWER(BTRIM(?))`, filter.LastNameEquals)
+	}
 	if filter.FullNameContains != "" {
 		query = query.Where(`("person".first_name || ' ' || "person".last_name) ILIKE ?`, "%"+escapeLike(filter.FullNameContains)+"%")
 	}

@@ -19,6 +19,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
+	reviewidentity "github.com/moto-nrw/project-phoenix/modules/identityaccess/requestreview"
+	"github.com/moto-nrw/project-phoenix/modules/requestreview"
+	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
+	reviewsettings "github.com/moto-nrw/project-phoenix/modules/settings/review"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
@@ -74,11 +78,101 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
+	// The shared request-review projection over the same retained queues the
+	// production root binds (#2705).
+	reviewStudents, err := requestreviewcompose.NewStudentDirectory(db, svc.PeopleDirectory, func(requestreviewcompose.DirectoryObservation) {})
+	require.NoError(t, err)
+	reviewAccess, err := requestreviewcompose.NewAccess(studentsAPI.RequestReviewPrincipal, nil)
+	require.NoError(t, err)
+	policy, err := reviewidentity.New(reviewidentity.Dependencies{
+		Principal: studentsAPI.RequestReviewPrincipal,
+		GroupLeaderEnabled: func(ctx context.Context) (bool, error) {
+			return svc.Settings.ResolveBool(ctx, reviewsettings.GroupLeaderEnabled)
+		},
+		GroupIDs: func(ctx context.Context) ([]int64, error) {
+			groups, err := svc.UserContext.GetMyGroups(ctx)
+			if err != nil {
+				return nil, err
+			}
+			ids := make([]int64, 0, len(groups))
+			for _, group := range groups {
+				if group != nil {
+					ids = append(ids, group.ID)
+				}
+			}
+			return ids, nil
+		},
+	})
+	require.NoError(t, err)
+	clock := firstClock(clocks)
+	if clock == nil {
+		clock = time.Now
+	}
+	masterDataReviews, err := requestreviewcompose.NewMasterDataReviews(db, svc.PeopleDirectory,
+		func(ctx context.Context) (requestreviewcompose.ReviewScope, error) {
+			scope, err := policy.Scope(ctx)
+			return requestreviewcompose.ReviewScope{SchoolWide: scope.SchoolWide, GroupIDs: scope.GroupIDs}, err
+		}, func() requestreviewcompose.ReviewDate {
+			return requestreviewcompose.ReviewDate(timezone.DateFromTime(clock()))
+		},
+		func(requestreviewcompose.CareObservation) {})
+	require.NoError(t, err)
+	careReviews, err := requestreviewcompose.NewScheduleReviews(db, requestreviewcompose.ScheduleReviewDependencies{
+		People: svc.PeopleDirectory,
+		Scope: func(ctx context.Context) (requestreviewcompose.ReviewScope, error) {
+			scope, err := policy.Scope(ctx)
+			return requestreviewcompose.ReviewScope{SchoolWide: scope.SchoolWide, GroupIDs: scope.GroupIDs}, err
+		},
+		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
+			return svc.Settings.ResolveBool(ctx, reviewsettings.BookingsAuthoritative)
+		},
+		Today: func() requestreviewcompose.ReviewDate {
+			return requestreviewcompose.ReviewDate(timezone.DateFromTime(clock()))
+		},
+		ObserveCare: func(requestreviewcompose.CareObservation) {}, ObserveTimetable: func(requestreviewcompose.TimetableObservation) {},
+	})
+	require.NoError(t, err)
+	careQueue, err := requestreviewcompose.NewCareScheduleQueue(careReviews, func() requestreviewcompose.ReviewDate {
+		return requestreviewcompose.ReviewDate(timezone.DateFromTime(clock()))
+	})
+	require.NoError(t, err)
+	offeringReviews, err := requestreviewcompose.NewOfferingReviews(db, requestreviewcompose.OfferingReviewDependencies{
+		People: svc.PeopleDirectory,
+		Scope: func(ctx context.Context) (requestreviewcompose.ReviewScope, error) {
+			scope, err := policy.Scope(ctx)
+			return requestreviewcompose.ReviewScope{SchoolWide: scope.SchoolWide, GroupIDs: scope.GroupIDs}, err
+		},
+		Today: func() requestreviewcompose.ReviewDate {
+			return requestreviewcompose.ReviewDate(timezone.DateFromTime(clock()))
+		},
+		ObserveCare: func(requestreviewcompose.CareObservation) {}, ObserveTimetable: func(requestreviewcompose.TimetableObservation) {},
+	})
+	require.NoError(t, err)
+	offeringQueue, err := requestreviewcompose.NewOfferingQueue(offeringReviews, func() requestreviewcompose.ReviewDate {
+		return requestreviewcompose.ReviewDate(timezone.DateFromTime(clock()))
+	})
+	require.NoError(t, err)
+	corrections, err := requestreviewcompose.NewCorrectionLog(db, svc.PeopleDirectory, func(ctx context.Context) bool {
+		return studentsAPI.RequestReviewCorrectionAccess(ctx, svc.UserContext.HasCurrentStaff)
+	}, func(requestreviewcompose.AuditObservation) {})
+	require.NoError(t, err)
+	masterQueue, err := requestreviewcompose.NewMasterDataQueue(masterDataReviews)
+	require.NoError(t, err)
+	excusedQueue, err := requestreviewcompose.NewExcusedQueue(svc.ExcusedRequests, func() requestreviewcompose.ReviewDate {
+		return requestreviewcompose.ReviewDate(timezone.DateFromTime(clock()))
+	})
+	require.NoError(t, err)
+	requestReview, err := requestreview.NewChecked(requestreview.Dependencies{
+		Queues: requestreview.Queues{DirectCorrections: corrections, MasterData: masterQueue, CareSchedule: careQueue, Offering: offeringQueue, Excused: excusedQueue},
+		Access: reviewAccess, Students: reviewStudents, FamilyProtection: requestreviewcompose.NewFamilyProtection(svc.PeopleDirectory),
+		Today: func() requestreview.Date { return requestreview.Date(timezone.DateFromTime(clock())) },
+	})
+	require.NoError(t, err)
 	resource := studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PersonService:          svc.Users,
 		PeopleDirectory:        svc.PeopleDirectory,
 		GradeTransitionService: svc.GradeTransition,
-		StudentService:         userService.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion, nil),
+		StudentService:         userService.NewStudentService(repoFactory.Student, repositories.NewStudentPrivacyConsentStore(db), repoFactory.StudentCompanion, nil),
 		EducationService:       svc.Education,
 		UserContextService:     svc.UserContext,
 		ActiveService:          svc.Active,
@@ -99,13 +193,13 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 				names[room.ID] = room.Name
 			}
 			return names, nil
-		}, repoFactory.DataAccessLog, repoFactory.InstanceStudent),
+		}, svc.DataAccessAudit(), svc.HistorySlots(repoFactory.InstanceStudent)),
 		OGSGroupLiveService:     svc.OGSGroupLive,
 		InstanceService:         svc.Instance,
 		CareDayService:          svc.CareDay,
 		CareLifecycleService:    svc.CareLifecycle,
-		StudentStatusDayService: activeSvc.NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, repoFactory.StudentPickupException, db),
-		AbsenceOverview:         activeSvc.NewStudentStatusDayOverviewService(repoFactory.StudentStatusDay, svc.Users),
+		StudentStatusDayService: activeSvc.NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, svc.ManualPartialAbsences(repoFactory.CarePlan), db, repoFactory.CarePlan.LockExceptionDay),
+		AbsenceOverview:         activeSvc.NewStudentStatusDayOverviewService(repoFactory.StudentStatusDay, svc.StatusDayOverviewPeople()),
 		ExcusedRequestService:   svc.ExcusedRequests,
 		StudentAuditService:     svc.StudentAudit,
 		EnrollmentDecision:      svc.EnrollmentDecision,
@@ -117,6 +211,7 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		PickupAdjustmentService:  svc.PickupAdjustments,
 		ParentRequestBulkService: svc.ParentRequests,
 		FamilyProtectionService:  svc.FamilyProtection,
+		RequestReview:            requestReview,
 		Broadcaster:              broadcaster,
 		ParentEventEmitter:       parentEventEmitter,
 		StudentPhotos:            studentPhotos,

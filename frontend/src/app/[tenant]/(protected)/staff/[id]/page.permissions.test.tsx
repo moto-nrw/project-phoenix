@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -8,6 +8,10 @@ import StaffDetailContent from "./page";
 
 const replaceMock = vi.fn();
 const searchParams = vi.hoisted(() => new URLSearchParams());
+const { mockRecordUpdate, mockUpdateTeacher } = vi.hoisted(() => ({
+  mockRecordUpdate: vi.fn(),
+  mockUpdateTeacher: vi.fn(() => Promise.resolve()),
+}));
 
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(),
@@ -20,15 +24,49 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("~/lib/tenant-router", () => ({
-  useTenantRouter: () => ({ replace: replaceMock }),
+  useTenantRouter: () => ({ replace: replaceMock, push: vi.fn() }),
 }));
 
 vi.mock("~/lib/breadcrumb-context", () => ({
   useSetBreadcrumb: vi.fn(),
 }));
 
+vi.mock("~/contexts/ToastContext", () => ({
+  useToast: () => ({ success: vi.fn(), error: vi.fn() }),
+}));
+
+vi.mock("~/lib/teacher-api", () => ({
+  teacherService: { updateTeacher: mockUpdateTeacher },
+}));
+
+// Der Personal-Datensatz für den Reiter „Konto" (#3115).
+const staffRecord = {
+  id: "42",
+  name: "Mila Muster",
+  first_name: "Mila",
+  last_name: "Muster",
+  account_role: "teacher",
+  role: "Betreuung",
+  email: "mila@example.test",
+  tag_id: "ABC123",
+  account_id: "7",
+};
+
+vi.mock("~/lib/database/service-factory", () => ({
+  createCrudService: () => ({
+    getList: vi.fn(),
+    getOne: vi.fn(),
+    update: mockRecordUpdate,
+    delete: vi.fn(),
+  }),
+}));
+
 vi.mock("~/lib/swr", () => ({
+  useTenantMutate: () => vi.fn(),
   useSWRAuth: (key: string | null, fetcher?: () => Promise<unknown>) => {
+    if (key?.startsWith("staff-record-")) {
+      return { data: staffRecord, isLoading: false, error: null };
+    }
     if (key?.startsWith("staff-detail-")) {
       void fetcher?.();
       return {
@@ -41,6 +79,17 @@ vi.mock("~/lib/swr", () => ({
           isTeacher: false,
           isSupervising: false,
           supervisions: [],
+        },
+        isLoading: false,
+        error: null,
+      };
+    }
+    if (key?.startsWith("staff-role-assignment-")) {
+      return {
+        data: {
+          options: [{ id: "1", name: "Administration", systemName: "admin" }],
+          currentRoleIds: ["1"],
+          currentIsLehrkraft: false,
         },
         isLoading: false,
         error: null,
@@ -350,7 +399,10 @@ describe("StaffDetailContent permissions", () => {
   // users:read is the list tier; the Stammdaten sections carry HR-file data
   // (birthday, private address, contract terms) and stay closed to it —
   // mirrors the backend route gate.
-  it("redirects a role with only users:read away from the detail page", () => {
+  // Seit #3115 ist die Personalakte die einzige Objektansicht: wer nur
+  // users:read hat, sah vorher das Pane der Datenverwaltung und sieht jetzt
+  // hier den Reiter „Konto" — ohne Personalakte, ohne Zeiterfassung.
+  it("shows only the account tab to a role with users:read", () => {
     vi.mocked(useSession).mockReturnValue({
       data: {
         user: {
@@ -367,9 +419,188 @@ describe("StaffDetailContent permissions", () => {
 
     render(<StaffDetailContent />);
 
-    expect(replaceMock).toHaveBeenCalledWith("/staff");
+    expect(replaceMock).not.toHaveBeenCalled();
+    expect(screen.getByRole("tab", { name: "Konto" })).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Stammdaten" }),
+      screen.queryByRole("tab", { name: "Stammdaten" }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("tab", { name: "Zeiterfassung" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Systemrolle")).toBeInTheDocument();
+    // Ohne staff:manage kein Bearbeiten, ohne users:delete kein Löschen: das
+    // Kebab fehlt ganz statt leer zu bleiben.
+    expect(
+      screen.queryByRole("button", { name: "Weitere Aktionen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers editing and deleting the record to the account managers", () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "7",
+          token: "test-token",
+          roles: ["teacher"],
+          permissions: ["staff:manage", "users:delete", "users:manage"],
+        },
+        expires: "2099-01-01T00:00:00.000Z",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<StaffDetailContent />);
+
+    // Bearbeitet wird im Reiter „Konto" (#3116), nicht aus dem Kebab heraus.
+    expect(screen.getByRole("button", { name: "Bearbeiten" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    expect(
+      screen.queryByRole("menuitem", { name: "Bearbeiten" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: "Löschen" }),
+    ).toBeInTheDocument();
+    // Die Kontoaktionen mit eigenem Ablauf stehen im Kebab des Kopfes.
+    expect(
+      screen.getByRole("menuitem", {
+        name: "Zwei-Faktor-Authentifizierung verwalten",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: "Betreuung verwalten" }),
+    ).toBeInTheDocument();
+    // Die Systemrolle ist ein Feld des Bearbeiten-Zustands, kein Dialog.
+    expect(
+      screen.queryByRole("button", { name: "Rolle verwalten" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers the edit state of the account tab without account actions to staff:manage alone", () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "7",
+          token: "test-token",
+          roles: ["teacher"],
+          permissions: ["staff:manage"],
+        },
+        expires: "2099-01-01T00:00:00.000Z",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<StaffDetailContent />);
+
+    expect(screen.getByRole("button", { name: "Bearbeiten" })).toBeVisible();
+    // Ohne users:manage und users:delete gibt es keinen Kebab.
+    expect(
+      screen.queryByRole("button", { name: "Weitere Aktionen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("saves account fields through the person-aware teacher update", async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "7",
+          token: "test-token",
+          roles: ["teacher"],
+          permissions: ["staff:manage", "users:update", "users:manage"],
+        },
+        expires: "2099-01-01T00:00:00.000Z",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<StaffDetailContent />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    fireEvent.change(screen.getByLabelText("Vorname"), {
+      target: { value: "Milena" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(mockUpdateTeacher).toHaveBeenCalledWith(
+        "42",
+        expect.objectContaining({
+          first_name: "Milena",
+          last_name: "Muster",
+        }),
+      );
+    });
+    expect(mockRecordUpdate).not.toHaveBeenCalled();
+  });
+
+  it("offers account-role editing without staff:manage", () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "7",
+          token: "test-token",
+          roles: ["teacher"],
+          permissions: ["users:read", "users:manage"],
+        },
+        expires: "2099-01-01T00:00:00.000Z",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<StaffDetailContent />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    expect(screen.getByRole("combobox", { name: "Systemrolle" })).toBeVisible();
+    expect(screen.queryByLabelText("Position")).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Notizen der Leitung"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("redirects a role without any staff permission back to the referrer", () => {
+    searchParams.set("from", "/database/personal");
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "7",
+          token: "test-token",
+          roles: ["teacher"],
+          permissions: ["schedules:read"],
+        },
+        expires: "2099-01-01T00:00:00.000Z",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<StaffDetailContent />);
+
+    expect(replaceMock).toHaveBeenCalledWith("/database/personal");
+    searchParams.delete("from");
+  });
+
+  it("does not redirect a role without permission to an external referrer", () => {
+    searchParams.set("from", "//attacker.example");
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "7",
+          token: "test-token",
+          roles: ["teacher"],
+          permissions: ["schedules:read"],
+        },
+        expires: "2099-01-01T00:00:00.000Z",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<StaffDetailContent />);
+
+    expect(replaceMock).toHaveBeenCalledWith("/staff");
+    searchParams.delete("from");
   });
 });

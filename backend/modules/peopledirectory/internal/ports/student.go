@@ -10,6 +10,8 @@ import (
 // tenant in context when one is present; inside an admin transaction they
 // span every tenant. Writes always require a tenant.
 type StudentStore interface {
+	ListDepartureModes(context.Context, []int64) (map[int64]map[string][]string, domain.OperationStats, error)
+	CurrentFamilyProtection(context.Context, []int64) (map[int64]bool, domain.OperationStats, error)
 	ReadEnrollment(context.Context, int64, string) (domain.EnrollmentRecord, domain.OperationStats, error)
 	LockEnrollmentClassWrites(context.Context) (domain.OperationStats, error)
 	ApplyEnrollmentProfile(context.Context, int64, domain.EnrollmentProfilePatch) (domain.OperationStats, error)
@@ -21,6 +23,9 @@ type StudentStore interface {
 	// ListByClasses returns the non-alumni rows of the classes, ordered by
 	// class then id.
 	ListByClasses(context.Context, []string) ([]domain.Student, domain.OperationStats, error)
+	// ListByPersonIDs returns the rows whose person is one of the ids, alumni
+	// included, ordered by id.
+	ListByPersonIDs(context.Context, []int64) ([]domain.Student, domain.OperationStats, error)
 	// ListEnrolled returns every non-alumni row of the current tenant.
 	ListEnrolled(context.Context) ([]domain.Student, domain.OperationStats, error)
 	// ListClasses returns the distinct non-empty classes of non-alumni rows.

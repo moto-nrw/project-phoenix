@@ -141,7 +141,7 @@ func TestStaffOwnerCancellationFlushesFailedAttempt(t *testing.T) {
 
 func TestStaffOwnerMeasuresSuccessfulLockWait(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	ids := staffOwnerFixture(t, db, tenantID, 1)

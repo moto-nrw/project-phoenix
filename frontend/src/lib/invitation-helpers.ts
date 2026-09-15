@@ -19,7 +19,7 @@ export interface InvitationAcceptRequest {
 
 export interface CreateInvitationRequest {
   email: string;
-  roleId: number | undefined;
+  roleId: string | undefined;
   firstName?: string;
   lastName?: string;
   position?: string;
@@ -28,7 +28,7 @@ export interface CreateInvitationRequest {
 export interface PendingInvitation {
   id: number;
   email: string;
-  roleId: number;
+  roleId: string;
   roleName: string;
   createdBy: number;
   creatorEmail?: string;
@@ -53,7 +53,7 @@ export interface BackendInvitationValidation {
 export interface BackendInvitation {
   id: number;
   email: string;
-  role_id: number;
+  role_id: string;
   role_name?: string; // Role name from backend
   token?: string;
   expires_at: string;

@@ -21,7 +21,7 @@ import (
 // excusedRequestReviewPolicy is the one method of the parent-request review
 // policy the Care Plan excused-absence workflow consumes.
 type excusedRequestReviewPolicy interface {
-	Scope(ctx context.Context, permissions []string) (schoolWide bool, groupIDs []int64, err error)
+	AbsenceScope(ctx context.Context, permissions []string) (schoolWide bool, groupIDs []int64, err error)
 }
 
 // excusedRequestWiring is the legacy root's view of the Care Plan
@@ -88,7 +88,7 @@ func newExcusedAbsenceRequests(wiring excusedRequestWiring) (*carePlanCompose.Ex
 // workflow's data-only port: the permissions come from the request claims.
 func parentRequestReviewScope(policy excusedRequestReviewPolicy) carePlanCompose.ReviewScopeResolver {
 	return func(ctx context.Context) (carePlanCompose.ReviewScope, error) {
-		schoolWide, groupIDs, err := policy.Scope(ctx, authjwt.PermissionsFromCtx(ctx))
+		schoolWide, groupIDs, err := policy.AbsenceScope(ctx, authjwt.PermissionsFromCtx(ctx))
 		if err != nil {
 			return carePlanCompose.ReviewScope{}, err
 		}

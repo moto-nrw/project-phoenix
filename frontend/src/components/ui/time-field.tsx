@@ -3,6 +3,18 @@
 import { useId } from "react";
 
 /**
+ * Nur Ziffern und der Doppelpunkt; nach zwei Ziffern setzt das Feld ihn
+ * selbst, damit niemand ihn auf einer Zifferntastatur suchen muss. Geteilt
+ * mit dem Uhrzeitfeld der Einstellungen (`SettingsTimeField`), damit es die
+ * Maske nicht ein zweites Mal gibt (#3117).
+ */
+export function normalizeTimeInput(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 4);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}:${digits.slice(2)}`;
+}
+
+/**
  * Ein Uhrzeitfeld mit sichtbarem Format.
  *
  * Das native `<input type="time">` zeigt leer ein rohes "--:--" und oeffnet je
@@ -37,14 +49,6 @@ export function TimeField({
 }>) {
   const hintId = useId();
 
-  // Nur Ziffern und der Doppelpunkt; nach zwei Ziffern setzt das Feld ihn
-  // selbst, damit niemand ihn auf einer Zifferntastatur suchen muss.
-  const normalize = (raw: string): string => {
-    const digits = raw.replace(/\D/g, "").slice(0, 4);
-    if (digits.length <= 2) return digits;
-    return `${digits.slice(0, 2)}:${digits.slice(2)}`;
-  };
-
   return (
     <label className="block">
       <span className="mb-1 block text-sm font-medium text-gray-700">
@@ -63,7 +67,7 @@ export function TimeField({
         aria-required={required}
         aria-invalid={invalid}
         aria-describedby={[describedBy, hintId].filter(Boolean).join(" ")}
-        onChange={(event) => onChange(normalize(event.target.value))}
+        onChange={(event) => onChange(normalizeTimeInput(event.target.value))}
         className={`h-10 w-full rounded-lg border px-3 text-base text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
           invalid
             ? "border-parent-red focus-visible:border-parent-red"

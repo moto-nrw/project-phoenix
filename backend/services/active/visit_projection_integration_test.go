@@ -4,27 +4,25 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 type visitProjectionFixture struct {
-	Student1, Student2 *users.Student
+	Student1, Student2 int64
 	GroupID, Room      int64
 }
 
-func newVisitProjectionFixture(t *testing.T, db *bun.DB) visitProjectionFixture {
+func newVisitProjectionFixture(t *testing.T, db *testpkg.DB) visitProjectionFixture {
 	t.Helper()
 	first := testpkg.CreateTestStudent(t, db, "Visit", "Student1", "1a")
 	second := testpkg.CreateTestStudent(t, db, "Visit", "Student2", "1b")
 	activity := testpkg.CreateTestActivityGroup(t, db, "VisitActivity")
 	room := testpkg.CreateTestRoom(t, db, "VisitRoom")
 	group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-	return visitProjectionFixture{Student1: first, Student2: second, GroupID: group.ID, Room: room.ID}
+	return visitProjectionFixture{Student1: first.ID, Student2: second.ID, GroupID: group.ID, Room: room.ID}
 }
 
 func TestPresenceProjection_ActiveGroupStudentDisplay(t *testing.T) {
@@ -40,14 +38,14 @@ func TestPresenceProjection_ActiveGroupStudentDisplay(t *testing.T) {
 	_, err := db.NewUpdate().
 		Table("users.students").
 		Set("group_id = ?", educationGroup.ID).
-		Where("id = ?", data.Student1.ID).
+		Where("id = ?", data.Student1).
 		Exec(ctx)
 	require.NoError(t, err)
 	defer func() {
 		_, _ = db.NewUpdate().
 			Table("users.students").
 			Set("group_id = NULL").
-			Where("id = ?", data.Student1.ID).
+			Where("id = ?", data.Student1).
 			Exec(ctx)
 		_, _ = db.NewDelete().
 			Table("education.groups").
@@ -55,9 +53,9 @@ func TestPresenceProjection_ActiveGroupStudentDisplay(t *testing.T) {
 			Exec(ctx)
 	}()
 
-	activeVisit := testpkg.CreateTestVisit(t, db, data.Student1.ID, data.GroupID, time.Now().Add(-10*time.Minute), nil)
+	activeVisit := testpkg.CreateTestVisit(t, db, data.Student1, data.GroupID, time.Now().Add(-10*time.Minute), nil)
 	exitTime := time.Now().Add(-5 * time.Minute)
-	testpkg.CreateTestVisit(t, db, data.Student2.ID, data.GroupID, time.Now().Add(-20*time.Minute), &exitTime)
+	testpkg.CreateTestVisit(t, db, data.Student2, data.GroupID, time.Now().Add(-20*time.Minute), &exitTime)
 
 	results, err := repo.GetActiveGroupVisitsWithDisplay(ctx, data.GroupID)
 
@@ -65,7 +63,7 @@ func TestPresenceProjection_ActiveGroupStudentDisplay(t *testing.T) {
 	require.Len(t, results, 1)
 	row := results[0]
 	assert.Equal(t, activeVisit.ID, row.VisitID)
-	assert.Equal(t, data.Student1.ID, row.StudentID)
+	assert.Equal(t, data.Student1, row.StudentID)
 	assert.Equal(t, data.GroupID, row.ActiveGroupID)
 	assert.Equal(t, "Visit", row.FirstName)
 	assert.Equal(t, "Student1", row.LastName)
@@ -89,14 +87,14 @@ func TestPresenceProjection_CurrentVisitWithRoom(t *testing.T) {
 		data := newVisitProjectionFixture(t, db)
 		now := time.Now()
 		visit := studentpresence.Visit{
-			StudentID:     data.Student1.ID,
+			StudentID:     data.Student1,
 			ActiveGroupID: data.GroupID,
 			EntryTime:     now,
 		}
 		visit, err := presence.RecordVisit(ctx, visit)
 		require.NoError(t, err)
 
-		result, err := repo.GetStudentCurrentVisitWithRoom(ctx, data.Student1.ID)
+		result, err := repo.GetStudentCurrentVisitWithRoom(ctx, data.Student1)
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.Equal(t, visit.ID, result.ID)
@@ -115,7 +113,7 @@ func TestPresenceProjection_CurrentVisitWithRoom(t *testing.T) {
 		data := newVisitProjectionFixture(t, db)
 		now := time.Now()
 		visit := studentpresence.Visit{
-			StudentID:     data.Student1.ID,
+			StudentID:     data.Student1,
 			ActiveGroupID: data.GroupID,
 			EntryTime:     now,
 		}
@@ -129,7 +127,7 @@ func TestPresenceProjection_CurrentVisitWithRoom(t *testing.T) {
 			Exec(ctx)
 		require.NoError(t, err)
 
-		result, err := repo.GetStudentCurrentVisitWithRoom(ctx, data.Student1.ID)
+		result, err := repo.GetStudentCurrentVisitWithRoom(ctx, data.Student1)
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.NotNil(t, result.ActiveGroup)
@@ -140,7 +138,7 @@ func TestPresenceProjection_CurrentVisitWithRoom(t *testing.T) {
 
 	t.Run("returns error for student with no active visit", func(t *testing.T) {
 		data := newVisitProjectionFixture(t, db)
-		_, err := repo.GetStudentCurrentVisitWithRoom(ctx, data.Student2.ID)
+		_, err := repo.GetStudentCurrentVisitWithRoom(ctx, data.Student2)
 		require.Error(t, err)
 	})
 
@@ -149,7 +147,7 @@ func TestPresenceProjection_CurrentVisitWithRoom(t *testing.T) {
 		now := time.Now()
 		exitTime := now.Add(-10 * time.Minute)
 		visit := studentpresence.Visit{
-			StudentID:     data.Student2.ID,
+			StudentID:     data.Student2,
 			ActiveGroupID: data.GroupID,
 			EntryTime:     now.Add(-30 * time.Minute),
 			ExitTime:      &exitTime,
@@ -158,7 +156,7 @@ func TestPresenceProjection_CurrentVisitWithRoom(t *testing.T) {
 		require.NoError(t, err)
 
 		// Student2 should have no current visit (only exited one)
-		_, err = repo.GetStudentCurrentVisitWithRoom(ctx, data.Student2.ID)
+		_, err = repo.GetStudentCurrentVisitWithRoom(ctx, data.Student2)
 		require.Error(t, err)
 	})
 }

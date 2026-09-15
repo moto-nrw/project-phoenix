@@ -7,7 +7,7 @@ const manyInvitations: BackendInvitation[] = [
   {
     id: 1,
     email: "neue.lehrkraft@example.com",
-    role_id: 2,
+    role_id: "2",
     role_name: "teacher",
     expires_at: "2099-01-01T12:00:00Z",
     created_by: 1,
@@ -16,7 +16,7 @@ const manyInvitations: BackendInvitation[] = [
   {
     id: 2,
     email: "abgelaufen@example.com",
-    role_id: 3,
+    role_id: "3",
     role_name: "supervisor",
     expires_at: "2020-01-01T12:00:00Z",
     created_by: 1,

@@ -295,6 +295,9 @@ func applyRoomListFilter(query *bun.SelectQuery, filter domain.RoomFilter) (*bun
 	if filter.MaximumCapacity != nil {
 		query = query.Where(`"room".capacity <= ?`, *filter.MaximumCapacity)
 	}
+	if filter.IsOpenRoom != nil {
+		query = query.Where(`"room".is_open_room = ?`, *filter.IsOpenRoom)
+	}
 	if filter.Search != nil {
 		if *filter.Search == "" {
 			return query, true

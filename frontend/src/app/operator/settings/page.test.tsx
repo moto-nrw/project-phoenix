@@ -122,11 +122,8 @@ describe("OperatorSettingsPage", () => {
     render(<OperatorSettingsPage />);
 
     await waitFor(() => {
-      const displayNameInput = screen.getByLabelText("Anzeigename");
-      expect(displayNameInput).toHaveValue("yonnock");
-      expect(screen.getByLabelText("E-Mail")).toHaveValue(
-        "mail@yannickwenger.de",
-      );
+      expect(screen.getByText("yonnock")).toBeInTheDocument();
+      expect(screen.getByText("mail@yannickwenger.de")).toBeInTheDocument();
     });
   });
 
@@ -142,11 +139,9 @@ describe("OperatorSettingsPage", () => {
     render(<OperatorSettingsPage />);
 
     await waitFor(() => {
-      expect(screen.getByLabelText("E-Mail")).toHaveValue(
-        "mail@yannickwenger.de",
-      );
+      expect(screen.getByText("mail@yannickwenger.de")).toBeInTheDocument();
     });
-    expect(screen.getByLabelText("E-Mail")).not.toHaveValue("operator:2");
+    expect(screen.queryByText("operator:2")).not.toBeInTheDocument();
   });
 
   it("does not show a non-email session fallback when profile loading fails", async () => {
@@ -166,7 +161,7 @@ describe("OperatorSettingsPage", () => {
         method: "GET",
       });
     });
-    expect(screen.getByLabelText("E-Mail")).toHaveValue("");
+    expect(screen.queryByText("operator:2")).not.toBeInTheDocument();
   });
 
   it("updates profile on save", async () => {
@@ -242,8 +237,9 @@ describe("OperatorSettingsPage", () => {
     fireEvent.click(screen.getByText("Abbrechen"));
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Anzeigename")).toHaveValue("yonnock");
+      expect(screen.getByText("yonnock")).toBeInTheDocument();
     });
+    expect(screen.queryByLabelText("Anzeigename")).not.toBeInTheDocument();
   });
 
   it("displays initials correctly", async () => {
@@ -277,35 +273,20 @@ describe("OperatorSettingsPage", () => {
   });
 
   describe("email change dialog", () => {
-    beforeEach(() => {
-      HTMLDialogElement.prototype.showModal = vi.fn();
-      HTMLDialogElement.prototype.close = vi.fn();
-    });
-
-    it("shows email change button when editing", async () => {
+    // The e-mail change is its own flow (password check, confirmation link)
+    // and is reachable without entering the edit state of the master data
+    // (#3117).
+    it("offers the email change without entering the edit state", async () => {
       render(<OperatorSettingsPage />);
 
-      fireEvent.click(await screen.findByText("Bearbeiten"));
-
-      expect(screen.getByText("E-Mail ändern")).toBeInTheDocument();
-    });
-
-    it("does not show email change button when not editing", async () => {
-      render(<OperatorSettingsPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText("Bearbeiten")).toBeInTheDocument();
-      });
-
-      expect(screen.queryByText("E-Mail ändern")).not.toBeInTheDocument();
+      expect(await screen.findByText("E-Mail ändern")).toBeInTheDocument();
+      expect(screen.queryByLabelText("Anzeigename")).not.toBeInTheDocument();
     });
 
     it("opens email change dialog with form fields", async () => {
       render(<OperatorSettingsPage />);
 
-      fireEvent.click(await screen.findByText("Bearbeiten"));
-
-      fireEvent.click(screen.getByText("E-Mail ändern"));
+      fireEvent.click(await screen.findByText("E-Mail ändern"));
 
       await waitFor(() => {
         expect(screen.getByText("E-Mail-Adresse ändern")).toBeInTheDocument();
@@ -322,9 +303,7 @@ describe("OperatorSettingsPage", () => {
     it("submits email change request successfully", async () => {
       render(<OperatorSettingsPage />);
 
-      fireEvent.click(await screen.findByText("Bearbeiten"));
-
-      fireEvent.click(screen.getByText("E-Mail ändern"));
+      fireEvent.click(await screen.findByText("E-Mail ändern"));
 
       await waitFor(() => {
         expect(
@@ -359,12 +338,50 @@ describe("OperatorSettingsPage", () => {
       );
     });
 
+    it("does not submit an invalid email address", async () => {
+      render(<OperatorSettingsPage />);
+
+      fireEvent.click(await screen.findByText("E-Mail ändern"));
+
+      const emailInput = await screen.findByLabelText("Neue E-Mail-Adresse");
+      fireEvent.change(emailInput, { target: { value: "foo" } });
+      fireEvent.change(screen.getByLabelText("Aktuelles Passwort"), {
+        target: { value: "mypassword" },
+      });
+
+      fireEvent.click(screen.getByText("E-Mail-Änderung anfordern"));
+
+      expect(emailInput).toBeInvalid();
+      expect(mockSessionFetch).not.toHaveBeenCalledWith(
+        "/api/operator/profile/email-change",
+        expect.anything(),
+      );
+    });
+
+    it("does not submit an email address without a top-level domain", async () => {
+      render(<OperatorSettingsPage />);
+
+      fireEvent.click(await screen.findByText("E-Mail ändern"));
+
+      const emailInput = await screen.findByLabelText("Neue E-Mail-Adresse");
+      fireEvent.change(emailInput, { target: { value: "user@localhost" } });
+      fireEvent.change(screen.getByLabelText("Aktuelles Passwort"), {
+        target: { value: "mypassword" },
+      });
+
+      fireEvent.click(screen.getByText("E-Mail-Änderung anfordern"));
+
+      expect(emailInput).toBeInvalid();
+      expect(mockSessionFetch).not.toHaveBeenCalledWith(
+        "/api/operator/profile/email-change",
+        expect.anything(),
+      );
+    });
+
     it("closes dialog after successful submission", async () => {
       render(<OperatorSettingsPage />);
 
-      fireEvent.click(await screen.findByText("Bearbeiten"));
-
-      fireEvent.click(screen.getByText("E-Mail ändern"));
+      fireEvent.click(await screen.findByText("E-Mail ändern"));
 
       await waitFor(() => {
         expect(
@@ -408,9 +425,7 @@ describe("OperatorSettingsPage", () => {
 
       render(<OperatorSettingsPage />);
 
-      fireEvent.click(await screen.findByText("Bearbeiten"));
-
-      fireEvent.click(screen.getByText("E-Mail ändern"));
+      fireEvent.click(await screen.findByText("E-Mail ändern"));
 
       await waitFor(() => {
         expect(
@@ -462,9 +477,7 @@ describe("OperatorSettingsPage", () => {
 
       render(<OperatorSettingsPage />);
 
-      fireEvent.click(await screen.findByText("Bearbeiten"));
-
-      fireEvent.click(screen.getByText("E-Mail ändern"));
+      fireEvent.click(await screen.findByText("E-Mail ändern"));
 
       await waitFor(() => {
         expect(
@@ -507,9 +520,7 @@ describe("OperatorSettingsPage", () => {
 
       render(<OperatorSettingsPage />);
 
-      fireEvent.click(await screen.findByText("Bearbeiten"));
-
-      fireEvent.click(screen.getByText("E-Mail ändern"));
+      fireEvent.click(await screen.findByText("E-Mail ändern"));
 
       await waitFor(() => {
         expect(
@@ -540,9 +551,7 @@ describe("OperatorSettingsPage", () => {
     it("closes dialog and resets fields on cancel", async () => {
       render(<OperatorSettingsPage />);
 
-      fireEvent.click(await screen.findByText("Bearbeiten"));
-
-      fireEvent.click(screen.getByText("E-Mail ändern"));
+      fireEvent.click(await screen.findByText("E-Mail ändern"));
 
       await waitFor(() => {
         expect(
@@ -554,11 +563,11 @@ describe("OperatorSettingsPage", () => {
         target: { value: "typed@example.com" },
       });
 
-      // Dialog's Abbrechen is distinct from the profile edit Abbrechen
+      // The dialog's Abbrechen is the only one on the page while the master
+      // data are not being edited.
       const cancelButtons = screen.getAllByText("Abbrechen");
-      // The dialog cancel button — find the one inside the dialog
       const dialogCancel = cancelButtons.find(
-        (btn) => btn.closest("dialog") !== null,
+        (btn) => btn.closest('[role="dialog"]') !== null,
       );
       fireEvent.click(dialogCancel ?? cancelButtons[0]!);
 

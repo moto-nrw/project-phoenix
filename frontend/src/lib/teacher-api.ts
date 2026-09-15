@@ -157,7 +157,8 @@ export interface Teacher {
    * form back.
    */
   person_id?: string;
-  account_id?: number;
+  /** Konto-ID als Dezimalzeichenfolge; PostgreSQL `int64` bleibt exakt. */
+  account_id?: string;
   is_teacher?: boolean;
   person?: unknown; // For nested person object
   // ID fields for proper mapping

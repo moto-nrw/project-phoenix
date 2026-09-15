@@ -9,6 +9,7 @@ type PhaseExpiryInput struct {
 	AsOf            Date
 	WarningThrough  Date
 	OfferingsJSON   string
+	BookingsJSON    string
 	StudentIDs      []int64
 	StudentStatuses []string
 	EnrolledFrom    []string

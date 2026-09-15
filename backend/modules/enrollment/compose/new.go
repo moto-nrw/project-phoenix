@@ -14,6 +14,10 @@ import (
 // New binds Enrollment to the ambient transaction. It never falls back to an
 // unscoped pool when a caller forgets to establish its transaction.
 func New() *enrollment.Module {
+	return newWithOfferingStorageObserver(observeOfferingStorage())
+}
+
+func newWithOfferingStorageObserver(observe func(enrollment.OfferingStorageObservation)) *enrollment.Module {
 	return enrollment.NewModule(postgres.NewStore(func(ctx context.Context) (bun.IDB, error) {
 		transaction, ok := tenant.TransactionFromContext(ctx)
 		if !ok {
@@ -30,5 +34,5 @@ func New() *enrollment.Module {
 			return 0, err
 		}
 		return id.Int64(), nil
-	}), tenant.NewTransactionRunner())
+	}), tenant.NewTransactionRunner(), observe)
 }

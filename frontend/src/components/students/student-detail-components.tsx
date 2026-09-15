@@ -25,6 +25,7 @@ import {
 } from "~/lib/student-helpers";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { AllowedDepartureModesDisplay } from "~/components/students/allowed-departure-modes-display";
+import { AnchoredPopover } from "~/components/ui/anchored-popover";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { InfoCard } from "~/components/ui/info-card";
 import { SectionCard } from "~/components/ui/section-card";
@@ -183,28 +184,42 @@ function FieldHistoryInfo({
     year: "numeric",
   });
 
+  // Die schwebende Fläche kommt aus dem Kit (`moto-popover-surface`, Portal,
+  // Escape und Klick daneben schließen), nicht aus einer eigenen Klassenkette.
   return (
-    <span className="relative mt-0.5 inline-flex flex-shrink-0">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        onBlur={() => setOpen(false)}
-        aria-label="Änderungsinformation anzeigen"
-        className="text-moto-blue hover:text-moto-blue-hover inline-flex transition-colors"
+    <span className="mt-0.5 inline-flex flex-shrink-0">
+      <AnchoredPopover
+        open={open}
+        onOpenChange={setOpen}
+        ariaLabel="Änderungsinformation"
+        preferredWidth={224}
+        align="end"
+        renderTrigger={({ ref, open: expanded, panelId, toggle }) => (
+          <button
+            ref={ref}
+            type="button"
+            onClick={toggle}
+            aria-label="Änderungsinformation anzeigen"
+            aria-expanded={expanded}
+            aria-controls={expanded ? panelId : undefined}
+            className="text-moto-blue hover:text-moto-blue-hover inline-flex transition-colors"
+          >
+            <Info className="h-[18px] w-[18px]" />
+          </button>
+        )}
       >
-        <Info className="h-[18px] w-[18px]" />
-      </button>
-      {open && (
-        <span className="absolute top-6 right-0 z-20 w-56 rounded-lg border border-gray-200 bg-white p-3 text-left shadow-lg">
-          <span className="block text-xs font-semibold text-gray-900">
-            Zuletzt geändert
+        {() => (
+          <span className="block p-3 text-left">
+            <span className="block text-xs font-semibold text-gray-900">
+              Zuletzt geändert
+            </span>
+            <span className="mt-1 block text-sm text-gray-700">
+              {latest.edited_by}
+            </span>
+            <span className="block text-xs text-gray-500">am {when}</span>
           </span>
-          <span className="mt-1 block text-sm text-gray-700">
-            {latest.edited_by}
-          </span>
-          <span className="block text-xs text-gray-500">am {when}</span>
-        </span>
-      )}
+        )}
+      </AnchoredPopover>
     </span>
   );
 }

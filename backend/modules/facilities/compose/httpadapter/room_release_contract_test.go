@@ -114,3 +114,53 @@ func TestRoomRelease_IsCarriedOnTheReadContract(t *testing.T) {
 	assert.Contains(t, rr.Body.String(), `"is_open_room":true`,
 		"the read contract must carry the release so the room form can show it")
 }
+
+// TestRoomList_FiltersByTheReleaseQueryParameter is the read the shared
+// open-room navigation uses (#3065): it needs the released rooms including the
+// empty ones, by stable room ID, without a synthetic entry.
+func TestRoomList_FiltersByTheReleaseQueryParameter(t *testing.T) {
+	t.Parallel()
+	tc := setupRoomsRoute(t)
+	tenantID := newRoomFilterTestTenant(t, tc.db)
+	claims := testutil.AdminTestClaimsForTenant(1, tenantID)
+
+	gym := testpkg.CreateTestRoomForTenant(t, tc.db, tenantID, "ReleaseNavGym")
+	hall := testpkg.CreateTestRoomForTenant(t, tc.db, tenantID, "ReleaseNavHall")
+	releaseRoom(t, tc.db, tenantID, gym.ID, true)
+
+	t.Run("is_open_room=true returns only released rooms", func(t *testing.T) {
+		req := testutil.NewRequest("GET", "/?is_open_room=true", nil)
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, claims)
+		require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+		ids := roomResponseIDs(t, rr.Body.Bytes())
+		assert.True(t, ids[gym.ID])
+		assert.False(t, ids[hall.ID])
+	})
+
+	t.Run("is_open_room=false returns only unreleased rooms", func(t *testing.T) {
+		req := testutil.NewRequest("GET", "/?is_open_room=false", nil)
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, claims)
+		require.Equal(t, http.StatusOK, rr.Code)
+		ids := roomResponseIDs(t, rr.Body.Bytes())
+		assert.False(t, ids[gym.ID])
+		assert.True(t, ids[hall.ID])
+	})
+
+	t.Run("an absent parameter narrows nothing", func(t *testing.T) {
+		req := testutil.NewRequest("GET", "/", nil)
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, claims)
+		require.Equal(t, http.StatusOK, rr.Code)
+		ids := roomResponseIDs(t, rr.Body.Bytes())
+		assert.True(t, ids[gym.ID])
+		assert.True(t, ids[hall.ID])
+	})
+
+	t.Run("an unrecognised value is treated as absent, not guessed", func(t *testing.T) {
+		req := testutil.NewRequest("GET", "/?is_open_room=yes", nil)
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, claims)
+		require.Equal(t, http.StatusOK, rr.Code)
+		ids := roomResponseIDs(t, rr.Body.Bytes())
+		assert.True(t, ids[gym.ID])
+		assert.True(t, ids[hall.ID])
+	})
+}

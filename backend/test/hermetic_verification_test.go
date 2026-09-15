@@ -380,6 +380,7 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"_internal_test.go",                                      // Internal tests often use mocks
 		"_mock_test.go",                                          // Mock tests
 		"models/",                                                // Model unit tests don't hit DB (Unix)
+		"modules/dataimport/student_test.go",                     // Pure DTO test moved from models/import; no database rows (#2744).
 		"models\\",                                               // Model unit tests don't hit DB (Windows)
 		"invitation_service_test.go",                             // Uses mocks
 		"reminder_notifications_test.go",                         // Pure in-memory fakes, no DB (#1624 follow-up)
@@ -532,6 +533,7 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"setupGradeTransitionServiceTest", // services/education grade-transition tests — wraps SetupTestDB
 		"buildLifecycle",                  // services/schedule instance-lifecycle tests — wraps SetupTestDB
 		"newCareFixture",                  // services/schedule care-request tests — wraps SetupTestDB
+		"setupDashboardContext",           // api/active supervision-dashboard tests — wraps SetupActiveModule → SetupTestDB
 	}
 
 	// Patterns indicating mock-based testing (legitimate alternative)

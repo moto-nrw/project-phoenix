@@ -80,3 +80,15 @@ func TestRenderParentWriteErrorMapsAlreadyLeftToConflictCode(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, recorder.Code)
 	assert.Contains(t, recorder.Body.String(), `"code":"care_exception_already_left"`)
 }
+
+func TestRenderParentWriteErrorMapsPickupChangeCutoffToConflictCode(t *testing.T) {
+	t.Parallel()
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodDelete, "/me/children/1/care-exception", nil)
+
+	renderParentWriteError(recorder, request, parentService.ErrPickupChangeCutoffPassed)
+
+	assert.Equal(t, http.StatusConflict, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `"code":"pickup_change_cutoff_passed"`)
+}

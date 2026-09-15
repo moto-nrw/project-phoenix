@@ -832,6 +832,16 @@ export const authService = {
       errorPrefix: "Remove permission from role",
     }),
 
+  replaceRolePermissions: async (
+    roleId: string,
+    permissionIds: readonly string[],
+  ): Promise<void> =>
+    authFetchVoid(`/auth/roles/${roleId}/permissions`, {
+      method: "PUT",
+      body: { permission_ids: permissionIds },
+      errorPrefix: "Replace role permissions",
+    }),
+
   // Admin endpoints - Permission management
   createPermission: async (
     data: CreatePermissionRequest,
@@ -956,6 +966,20 @@ export const authService = {
     authFetchVoid(`/auth/accounts/${accountId}/roles/${roleId}`, {
       method: "DELETE",
       errorPrefix: "Remove role from account",
+    }),
+
+  /**
+   * Macht `roleId` zur einzigen Systemrolle des Kontos an dieser Schule.
+   * Andere Systemrollen entfernt das Backend; Elternzugang (guardian) bleibt.
+   */
+  replaceAccountRole: async (
+    accountId: string,
+    roleId: string,
+  ): Promise<void> =>
+    authFetchVoid(`/auth/accounts/${accountId}/roles`, {
+      method: "PUT",
+      body: { role_id: roleId },
+      errorPrefix: "Replace account role",
     }),
 
   getAccountRoles: async (accountId: string): Promise<Role[]> =>

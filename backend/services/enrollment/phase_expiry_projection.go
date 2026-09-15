@@ -18,6 +18,7 @@ type phaseExpiryProjection struct {
 	owner    PhaseExpiryReader
 	students PhaseExpiryStudents
 	carePlan PhaseExpiryOfferings
+	bookings PhaseExpiryBookings
 }
 
 // PhaseExpiryOffering is the narrow owner data used by phase-expiry reports.
@@ -35,9 +36,13 @@ type PhaseExpiryOfferings interface {
 	ListCareOfferings(context.Context) ([]PhaseExpiryOffering, error)
 }
 
+type PhaseExpiryBookings interface {
+	AllCareOfferingLinks(context.Context) ([]capability.CareOfferingLink, error)
+}
+
 // NewPhaseExpiryProjection assembles owner inputs from tenant-scoped read ports.
-func NewPhaseExpiryProjection(owner PhaseExpiryReader, students PhaseExpiryStudents, carePlan PhaseExpiryOfferings) PhaseExpirySnapshots {
-	return &phaseExpiryProjection{owner: owner, students: students, carePlan: carePlan}
+func NewPhaseExpiryProjection(owner PhaseExpiryReader, students PhaseExpiryStudents, carePlan PhaseExpiryOfferings, bookings PhaseExpiryBookings) PhaseExpirySnapshots {
+	return &phaseExpiryProjection{owner: owner, students: students, carePlan: carePlan, bookings: bookings}
 }
 
 type PhaseExpiryStudent struct {
@@ -98,10 +103,22 @@ func (r *phaseExpiryProjection) ListSnapshots(
 	if err != nil {
 		return nil, err
 	}
+	if r.bookings == nil {
+		return nil, errors.New("phase expiry report requires Care Plan bookings")
+	}
+	links, err := r.bookings.AllCareOfferingLinks(ctx)
+	if err != nil {
+		return nil, err
+	}
+	encoded, err := json.Marshal(links)
+	if err != nil {
+		return nil, fmt.Errorf("encode bookings for phase expiry report: %w", err)
+	}
 
 	return r.owner.PhaseExpirySnapshots(ctx, capability.PhaseExpiryInput{
 		AsOf: capability.Date(asOf), WarningThrough: capability.Date(warningThrough), OfferingsJSON: offerings,
-		StudentIDs: ids, StudentStatuses: statuses, EnrolledFrom: enrolledFrom, EnrolledUntil: enrolledUntil,
+		BookingsJSON: string(encoded),
+		StudentIDs:   ids, StudentStatuses: statuses, EnrolledFrom: enrolledFrom, EnrolledUntil: enrolledUntil,
 	})
 }
 

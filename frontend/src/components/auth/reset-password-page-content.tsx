@@ -295,8 +295,8 @@ export function ResetPasswordPageContent({
         testimonialPanelCopy={testimonialPanelCopy}
       >
         <div className="text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#EAF6D8]">
-            <CheckIcon className="h-10 w-10 text-[#4E7D1B]" />
+          <div className="bg-moto-green-soft mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full">
+            <CheckIcon className="text-moto-green-strong h-10 w-10" />
           </div>
 
           <p className="mb-6 text-sm text-gray-600">{copy.successBody}</p>

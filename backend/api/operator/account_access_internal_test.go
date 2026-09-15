@@ -40,7 +40,7 @@ func TestProvisioningResource_ListAccountTenantAccess(t *testing.T) {
 		listTenantAccessFn: func(_ context.Context, accountID int64) ([]platformSvc.AccountTenantAccessEntry, error) {
 			assert.Equal(t, int64(7), accountID)
 			return []platformSvc.AccountTenantAccessEntry{{
-				Roles: []platformSvc.AccountTenantRole{{ID: 1, Name: "admin", IsSystem: true}},
+				Roles: []platformSvc.AccountTenantRole{{ID: 9007199254740993, Name: "admin", IsSystem: true}},
 			}}, nil
 		},
 	})
@@ -54,6 +54,7 @@ func TestProvisioningResource_ListAccountTenantAccess(t *testing.T) {
 	require.Len(t, entries, 1)
 	roles := entries[0].(map[string]any)["roles"].([]any)
 	require.Len(t, roles, 1)
+	assert.Equal(t, "9007199254740993", roles[0].(map[string]any)["id"])
 	assert.Equal(t, true, roles[0].(map[string]any)["is_system"])
 }
 
@@ -75,7 +76,7 @@ func TestProvisioningResource_GrantAccountTenantAccess(t *testing.T) {
 		grantTenantAccessFn: func(_ context.Context, accountID, schoolID int64, req platformSvc.GrantAccountTenantAccessRequest, operatorID int64, clientIP net.IP) ([]platformSvc.AccountTenantAccessEntry, error) {
 			assert.Equal(t, int64(7), accountID)
 			assert.Equal(t, int64(12), schoolID)
-			assert.Equal(t, int64(3), req.RoleID)
+			assert.Equal(t, int64(9007199254740993), req.RoleID)
 			assert.Equal(t, "Erika", req.FirstName)
 			assert.Equal(t, int64(42), operatorID)
 			assert.Equal(t, "203.0.113.7", clientIP.String())
@@ -85,7 +86,7 @@ func TestProvisioningResource_GrantAccountTenantAccess(t *testing.T) {
 
 	rr := httptest.NewRecorder()
 	resource.GrantAccountTenantAccess(rr, accountTenantRequest(t, http.MethodPost,
-		`{"school_id":12,"role_id":3,"first_name":"  Erika  ","last_name":"Muster"}`,
+		`{"school_id":12,"role_id":"9007199254740993","first_name":"  Erika  ","last_name":"Muster"}`,
 		map[string]string{"accountId": "7"}))
 
 	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
@@ -151,14 +152,14 @@ func TestProvisioningResource_UpdateAccountTenantRole(t *testing.T) {
 		updateTenantRoleFn: func(_ context.Context, accountID, schoolID, roleID, operatorID int64, _ net.IP) ([]platformSvc.AccountTenantAccessEntry, error) {
 			assert.Equal(t, int64(7), accountID)
 			assert.Equal(t, int64(12), schoolID)
-			assert.Equal(t, int64(4), roleID)
+			assert.Equal(t, int64(9007199254740993), roleID)
 			assert.Equal(t, int64(42), operatorID)
 			return []platformSvc.AccountTenantAccessEntry{}, nil
 		},
 	})
 
 	rr := httptest.NewRecorder()
-	resource.UpdateAccountTenantRole(rr, accountTenantRequest(t, http.MethodPut, `{"role_id":4}`,
+	resource.UpdateAccountTenantRole(rr, accountTenantRequest(t, http.MethodPut, `{"role_id":"9007199254740993"}`,
 		map[string]string{"accountId": "7", "tenantId": "12"}))
 
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())

@@ -21,6 +21,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const navigationMockState = vi.hoisted(() => ({
   roomParam: null as string | null,
+  sessionParam: null as string | null,
 }));
 
 const defaultSupervisionState = vi.hoisted(() => ({
@@ -36,6 +37,7 @@ const defaultSupervisionState = vi.hoisted(() => ({
 
 // Mock auth-utils with hasRole that reads session roles
 vi.mock("~/lib/auth-utils", () => ({
+  hasPermission: () => false,
   isAdmin: (session: { user?: { isAdmin?: boolean } } | null) =>
     session?.user?.isAdmin ?? false,
   isCaregiver: (session: { user?: { isAdmin?: boolean } } | null) =>
@@ -61,12 +63,17 @@ vi.mock("~/lib/supervision-context", () => ({
 
 // Mock next/navigation
 const mockPush = vi.fn();
+const mockReplace = vi.fn();
 const mockRedirect = vi.fn();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ push: mockPush, replace: mockReplace }),
   useSearchParams: () => ({
     get: (key: string) =>
-      key === "room" ? navigationMockState.roomParam : null,
+      key === "room"
+        ? navigationMockState.roomParam
+        : key === "session"
+          ? navigationMockState.sessionParam
+          : null,
   }),
   redirect: (url: string) => mockRedirect(url),
 }));
@@ -93,8 +100,22 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
 
 // Mock Alert
 vi.mock("~/components/ui/alert", () => ({
-  Alert: ({ message, type }: { message: string; type: string }) => (
-    <div data-testid={`alert-${type}`}>{message}</div>
+  // The action slot is part of the real Alert: the released-room notice and
+  // the reopen banner both carry their action in it, so a stub that drops it
+  // would hide the only control on those blocks.
+  Alert: ({
+    message,
+    type,
+    action,
+  }: {
+    message: string;
+    type: string;
+    action?: React.ReactNode;
+  }) => (
+    <div data-testid={`alert-${type}`}>
+      {message}
+      {action}
+    </div>
   ),
 }));
 
@@ -170,6 +191,10 @@ vi.mock("~/components/ui/empty-student-results", () => ({
   EmptyStudentResults: () => <div data-testid="empty-results">No results</div>,
 }));
 
+vi.mock("~/components/active-supervisions/timetable-roster", () => ({
+  TimetableRosterContent: () => <div data-testid="timetable-roster" />,
+}));
+
 // Mock location-helper
 // Partial mock: keep the real MOTO_COLOR_PALETTE/LOCATION_COLORS exports
 // (moto-duotone-icon.tsx reads MOTO_COLOR_PALETTE at module scope) and only
@@ -221,6 +246,7 @@ vi.mock("~/components/students/student-card", () => ({
   ),
   SchoolClassIcon: () => <span data-testid="school-class-icon" />,
   GroupIcon: () => <span data-testid="group-icon" />,
+  ActivityIcon: () => <span data-testid="activity-icon" />,
   PickupTimeRow: ({
     pickupTime,
     isException,
@@ -300,6 +326,7 @@ const defaultPageHeader = vi
   .getMockImplementation()!;
 
 beforeEach(() => {
+  navigationMockState.sessionParam = null;
   vi.mocked(useSession)
     .mockReset()
     .mockReturnValue({
@@ -387,6 +414,16 @@ describe("Action button click handlers", () => {
               },
             ],
           },
+          openRooms: [
+            {
+              roomId: "schulhof-r1",
+              name: "Schulhof",
+              isUserSupervising: true,
+              activeGroupIds: ["active-schulhof"],
+              studentCount: 3,
+              students: [],
+            },
+          ],
         },
         isLoading: false,
         error: null,
@@ -448,6 +485,16 @@ describe("Action button click handlers", () => {
               },
             ],
           },
+          openRooms: [
+            {
+              roomId: "schulhof-r1",
+              name: "Schulhof",
+              isUserSupervising: true,
+              activeGroupIds: ["active-schulhof"],
+              studentCount: 3,
+              students: [],
+            },
+          ],
         },
         isLoading: false,
         error: null,
@@ -504,6 +551,16 @@ describe("Action button click handlers", () => {
             studentCount: 0,
             supervisors: [],
           },
+          openRooms: [
+            {
+              roomId: "schulhof-r1",
+              name: "Schulhof",
+              isUserSupervising: false,
+              activeGroupIds: ["g-55"],
+              studentCount: 0,
+              students: [],
+            },
+          ],
         },
         isLoading: false,
         error: null,
@@ -564,6 +621,16 @@ describe("Action button click handlers", () => {
             studentCount: 0,
             supervisors: [],
           },
+          openRooms: [
+            {
+              roomId: "schulhof-r1",
+              name: "Schulhof",
+              isUserSupervising: false,
+              activeGroupIds: ["g-55"],
+              studentCount: 0,
+              students: [],
+            },
+          ],
         },
         isLoading: false,
         error: null,
@@ -594,14 +661,16 @@ describe("Action button click handlers", () => {
 });
 
 /**
- * Tests for Schulhof tab onTabChange callback (lines 1232-1259)
+ * Tab switching between own supervisions and released rooms (#3065).
  */
-describe("Schulhof tab onTabChange callback", () => {
+describe("open-room tab onTabChange callback", () => {
   const mockMutate = vi.fn();
   const originalInnerWidth = window.innerWidth;
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    navigationMockState.roomParam = null;
+    navigationMockState.sessionParam = null;
     global.fetch = vi.fn();
     // Simulate mobile viewport for tabs to appear
     Object.defineProperty(window, "innerWidth", {
@@ -656,7 +725,7 @@ describe("Schulhof tab onTabChange callback", () => {
     });
   });
 
-  it("clicking Schulhof tab triggers onTabChange callback and sets state", async () => {
+  it("clicking a released room's tab opens it by its real room id", async () => {
     const { activeService } = await import("~/lib/active-api");
     vi.mocked(activeService.getActiveGroupVisitsWithDisplay).mockResolvedValue(
       [] as never,
@@ -697,6 +766,16 @@ describe("Schulhof tab onTabChange callback", () => {
           },
         ],
       },
+      openRooms: [
+        {
+          roomId: "schulhof-r1",
+          name: "Schulhof",
+          isUserSupervising: true,
+          activeGroupIds: ["active-schulhof"],
+          studentCount: 5,
+          students: [],
+        },
+      ],
     };
 
     // Key-aware mock: the dashboard data must stay available across
@@ -726,25 +805,22 @@ describe("Schulhof tab onTabChange callback", () => {
       expect(screen.getByRole("tab", { name: "Schulhof" })).toBeInTheDocument();
     });
 
-    // Click the Schulhof tab - triggers onTabChange with "schulhof" (lines 1232-1259)
+    // A released room is addressed by its room id, never by a synthetic tab
+    // id — several sessions can run in it, so no session identifies it.
     const schulhofTab = screen.getByRole("tab", { name: "Schulhof" });
     fireEvent.click(schulhofTab);
 
-    // Should have called router.push with schulhof URL
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith(
-        "/test-tenant/active-supervisions?session=schulhof",
+        "/test-tenant/active-supervisions?room=schulhof-r1",
       );
     });
 
-    // The tab callback itself must not start a separate visits request —
-    // the Schulhof session's visits arrive via the aggregate re-run (#2096).
+    // The room's occupancy already arrived with the dashboard, so opening it
+    // starts no visits request of its own.
     expect(
       activeService.getActiveGroupVisitsWithDisplay,
     ).not.toHaveBeenCalled();
-    await waitFor(() => {
-      expect(mockMutate).toHaveBeenCalled();
-    });
     expect(
       vi
         .mocked(useSWRAuth)
@@ -755,7 +831,243 @@ describe("Schulhof tab onTabChange callback", () => {
     ).toBe(false);
   });
 
-  it("clicking Schulhof tab when not supervising sets empty students", async () => {
+  it("keeps an own session distinct when its id matches a released room id", async () => {
+    const dashboardData = {
+      supervisedGroups: [
+        {
+          id: "1",
+          name: "Eigene Aufsicht",
+          room_id: "eigener-raum",
+          room: { id: "eigener-raum", name: "Klassenraum" },
+        },
+      ],
+      unclaimedGroups: [],
+      currentStaff: { id: "staff-1" },
+      educationalGroups: [],
+      firstRoomVisits: [],
+      firstRoomId: "1",
+      selectedGroupId: "1",
+      capabilities: { webSpontaneousActivitiesEnabled: true },
+      schulhofStatus: null,
+      openRooms: [
+        {
+          roomId: "1",
+          name: "Schulhof",
+          isUserSupervising: false,
+          activeGroupIds: [],
+          studentCount: 0,
+          students: [],
+        },
+      ],
+    };
+
+    vi.mocked(useSWRAuth).mockImplementation(((key: unknown) =>
+      typeof key === "string" && key.startsWith("active-supervision-dashboard")
+        ? ({
+            data: dashboardData,
+            isLoading: false,
+            error: null,
+            mutate: mockMutate,
+            isValidating: false,
+          } as never)
+        : ({
+            data: null,
+            isLoading: false,
+            error: null,
+            mutate: mockMutate,
+            isValidating: false,
+          } as never)) as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("tab", { name: /Eigene Aufsicht/ }),
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("tab", { name: /Eigene Aufsicht/ }));
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith(
+        "/test-tenant/active-supervisions?session=1",
+      );
+    });
+  });
+
+  it("normalizes a session URL in a released room to its shared view", async () => {
+    navigationMockState.sessionParam = "active-open";
+    const removeItem = vi.spyOn(localStorage, "removeItem");
+    const dashboardData = {
+      supervisedGroups: [
+        {
+          id: "active-open",
+          name: "Fußball",
+          room_id: "sporthalle",
+          room: { id: "sporthalle", name: "Sporthalle" },
+        },
+      ],
+      unclaimedGroups: [],
+      currentStaff: { id: "staff-1" },
+      educationalGroups: [],
+      firstRoomVisits: [],
+      firstRoomId: "active-open",
+      selectedGroupId: "active-open",
+      capabilities: { webSpontaneousActivitiesEnabled: true },
+      schulhofStatus: null,
+      openRooms: [
+        {
+          roomId: "sporthalle",
+          name: "Sporthalle",
+          isUserSupervising: true,
+          activeGroupIds: ["active-open"],
+          studentCount: 1,
+          students: [
+            {
+              studentId: "student-1",
+              studentName: "Max Muster",
+              schoolClass: "2a",
+              activeGroupId: "active-open",
+              activityName: "Fußball",
+              checkInTime: "2026-09-09T10:00:00.000Z",
+              isActive: true,
+            },
+          ],
+        },
+      ],
+    };
+
+    vi.mocked(useSWRAuth).mockImplementation(((key: unknown) =>
+      typeof key === "string" && key.startsWith("active-supervision-dashboard")
+        ? ({
+            data: dashboardData,
+            isLoading: false,
+            error: null,
+            mutate: mockMutate,
+            isValidating: false,
+          } as never)
+        : key === "timetable-roster-active-group-active-open"
+          ? ({
+              data: {
+                instance: { id: "instance-open", activeGroupId: "active-open" },
+                rows: [],
+              },
+              isLoading: false,
+              error: null,
+              mutate: mockMutate,
+              isValidating: false,
+            } as never)
+          : ({
+              data: null,
+              isLoading: false,
+              error: null,
+              mutate: mockMutate,
+              isValidating: false,
+            } as never)) as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith(
+        "/test-tenant/active-supervisions?room=sporthalle",
+      );
+    });
+    expect(screen.getByTestId("timetable-roster")).toBeInTheDocument();
+    expect(removeItem).toHaveBeenCalledWith("supervision-last-session");
+  });
+
+  it("shows every child in a released room the caller only partly supervises", async () => {
+    navigationMockState.roomParam = "sporthalle";
+    navigationMockState.sessionParam = "active-fussball";
+    const dashboardData = {
+      supervisedGroups: [
+        {
+          id: "active-fussball",
+          name: "Fußball",
+          room_id: "sporthalle",
+          room: { id: "sporthalle", name: "Sporthalle" },
+        },
+      ],
+      unclaimedGroups: [],
+      currentStaff: { id: "staff-1" },
+      educationalGroups: [],
+      firstRoomVisits: [],
+      firstRoomId: "active-fussball",
+      selectedGroupId: "active-fussball",
+      capabilities: { webSpontaneousActivitiesEnabled: true },
+      schulhofStatus: null,
+      openRooms: [
+        {
+          roomId: "sporthalle",
+          name: "Sporthalle",
+          isUserSupervising: true,
+          activeGroupIds: ["active-fussball", "active-tanzen"],
+          studentCount: 2,
+          students: [
+            {
+              studentId: "student-fussball",
+              studentName: "Klara Kick",
+              schoolClass: "2a",
+              activeGroupId: "active-fussball",
+              activityName: "Fußball",
+              checkInTime: "2026-09-09T10:00:00.000Z",
+              isActive: true,
+            },
+            {
+              studentId: "student-tanzen",
+              studentName: "Theo Tanz",
+              schoolClass: "3b",
+              activeGroupId: "active-tanzen",
+              activityName: "Tanzen",
+              checkInTime: "2026-09-09T10:05:00.000Z",
+              isActive: true,
+            },
+          ],
+        },
+      ],
+    };
+
+    vi.mocked(useSWRAuth).mockImplementation(((key: unknown) =>
+      typeof key === "string" && key.startsWith("active-supervision-dashboard")
+        ? ({
+            data: dashboardData,
+            isLoading: false,
+            error: null,
+            mutate: mockMutate,
+            isValidating: false,
+          } as never)
+        : key === "timetable-roster-active-group-active-fussball"
+          ? ({
+              data: {
+                instance: {
+                  id: "instance-fussball",
+                  activeGroupId: "active-fussball",
+                },
+                rows: [],
+              },
+              isLoading: false,
+              error: null,
+              mutate: mockMutate,
+              isValidating: false,
+            } as never)
+          : ({
+              data: null,
+              isLoading: false,
+              error: null,
+              mutate: mockMutate,
+              isValidating: false,
+            } as never)) as never);
+
+    render(<MeinRaumPage />);
+
+    expect(await screen.findByText("Klara Kick")).toBeInTheDocument();
+    expect(screen.getByText("Theo Tanz")).toBeInTheDocument();
+    expect(screen.getByText("Angebot: Fußball")).toBeInTheDocument();
+    expect(screen.getByText("Angebot: Tanzen")).toBeInTheDocument();
+    expect(screen.queryByTestId("timetable-roster")).not.toBeInTheDocument();
+  });
+
+  it("shows a released room the caller does not supervise", async () => {
     const { activeService } = await import("~/lib/active-api");
 
     const dashboardData = {
@@ -786,6 +1098,16 @@ describe("Schulhof tab onTabChange callback", () => {
         studentCount: 0,
         supervisors: [],
       },
+      openRooms: [
+        {
+          roomId: "schulhof-r1",
+          name: "Schulhof",
+          isUserSupervising: false,
+          activeGroupIds: [],
+          studentCount: 0,
+          students: [],
+        },
+      ],
     };
 
     vi.mocked(useSWRAuth)
@@ -810,23 +1132,29 @@ describe("Schulhof tab onTabChange callback", () => {
       expect(screen.getByRole("tab", { name: "Schulhof" })).toBeInTheDocument();
     });
 
-    // Click Schulhof tab
     fireEvent.click(screen.getByRole("tab", { name: "Schulhof" }));
 
-    // Should push to schulhof URL
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith(
-        "/test-tenant/active-supervisions?session=schulhof",
+        "/test-tenant/active-supervisions?room=schulhof-r1",
       );
     });
 
-    // Should NOT call getActiveGroupVisitsWithDisplay since not supervising
+    // The head card names the room an open room and carries no "Eigene
+    // Aufsicht" — and the room stays open anyway. Hiding it from everyone but
+    // the supervisor is exactly what #3065 removes.
+    await waitFor(() => {
+      expect(screen.getByText("Offener Raum")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Eigene Aufsicht")).not.toBeInTheDocument();
+
+    // Its occupancy came with the dashboard; no extra request is made.
     expect(
       activeService.getActiveGroupVisitsWithDisplay,
     ).not.toHaveBeenCalled();
   });
 
-  it("switching from Schulhof tab to regular room tab", async () => {
+  it("switching from a released room back to an own session", async () => {
     const { activeService } = await import("~/lib/active-api");
     vi.mocked(activeService.getActiveGroupVisitsWithDisplay).mockResolvedValue(
       [] as never,
@@ -860,6 +1188,16 @@ describe("Schulhof tab onTabChange callback", () => {
         studentCount: 5,
         supervisors: [],
       },
+      openRooms: [
+        {
+          roomId: "schulhof-r1",
+          name: "Schulhof",
+          isUserSupervising: true,
+          activeGroupIds: ["active-schulhof"],
+          studentCount: 5,
+          students: [],
+        },
+      ],
     };
 
     vi.mocked(useSWRAuth)
@@ -1001,10 +1339,10 @@ describe("RoleGuard integration", () => {
     expect(screen.getByTestId("sse-boundary")).toBeInTheDocument();
   });
 
-  it("blocks admin when only a synthetic Schulhof room exists (setting off)", async () => {
-    // P1-A regression guard — the gate must consult overviewEnabled,
-    // not supervisedRooms.length. A synthetic Schulhof entry is always
-    // present when the tenant has a Schulhof, regardless of the setting.
+  it("blocks admin when only a released room is present (setting off)", async () => {
+    // P1-A regression guard — the gate must consult overviewEnabled, not
+    // supervisedRooms.length. A released room is reachable for everyone and
+    // grants no supervision, so it must not stand for one (#3065).
     const { useSession } = await import("next-auth/react");
     vi.mocked(useSession).mockReturnValue({
       data: { user: { token: "test-token", isAdmin: true } },
@@ -1017,7 +1355,7 @@ describe("RoleGuard integration", () => {
           id: "schulhof",
           name: "Schulhof",
           groupId: "1",
-          isSchulhof: true,
+          isOpenRoom: true,
         },
       ],
       isLoadingSupervision: false,
@@ -1175,6 +1513,7 @@ const requestBudgetDashboardData = {
   selectedGroupId: "1",
   capabilities: { webSpontaneousActivitiesEnabled: true },
   schulhofStatus: null,
+  openRooms: [],
 };
 
 function capturePageLoadFetchers(
@@ -1259,6 +1598,7 @@ describe("Tracking indicators rendering", () => {
         results: { "100": [true] },
       },
       schulhofStatus: null,
+      openRooms: [],
     };
 
     vi.mocked(useSWRAuth).mockImplementation(((key: unknown) => {

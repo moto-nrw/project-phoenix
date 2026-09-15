@@ -63,6 +63,7 @@ func New(dependencies Dependencies) (*careplan.Module, error) {
 	queries := newExceptionQueries(store, dependencies.Observe)
 	statusDays := postgres.NewStatusDayStore(store, dependencies.StatusStudents, dependencies.StatusSlots)
 	module := careplan.NewModule(engine{
+		OfferingBookings: NewOfferingBookings(),
 		exceptionQueries: queries, requests: postgres.NewRequestStore(store), statusDays: statusDays,
 		observe: dependencies.Observe, people: dependencies.People, database: dependencies.DB,
 	})
@@ -105,6 +106,7 @@ func carePlanDatabase(db *bun.DB) postgres.Database {
 }
 
 type engine struct {
+	*careplan.OfferingBookings
 	*exceptionQueries
 	requests   RequestStore
 	statusDays StatusDayStore
@@ -182,19 +184,7 @@ func (e engine) FindOfferingChange(ctx context.Context, id int64, lock bool) (ca
 }
 
 func (e engine) ListOfferingChanges(ctx context.Context, filter careplan.OfferingChangeFilter) ([]careplan.OfferingChangeRequest, error) {
-	values, err := e.service.ListOfferingChanges(ctx, domain.OfferingChangeFilter{
-		IDs: filter.IDs, StudentID: filter.StudentID, StudentIDs: filter.StudentIDs, Statuses: filter.Statuses,
-		UrgentOnly: filter.UrgentOnly, UrgentDate: filter.UrgentDate, BeforeInstant: filter.BeforeInstant,
-		BeforeID: filter.BeforeID, Limit: filter.Limit, LockForUpdate: filter.LockForUpdate, Order: filter.Order,
-	})
-	if err != nil {
-		return nil, mapError(err)
-	}
-	result := make([]careplan.OfferingChangeRequest, 0, len(values))
-	for _, value := range values {
-		result = append(result, changeToPublic(value))
-	}
-	return result, nil
+	return (offeringChangeRequestQueries{service: e.service}).ListOfferingChanges(ctx, filter)
 }
 
 func (e engine) CreateOfferingChange(ctx context.Context, input careplan.OfferingChangeRequest) (result careplan.OfferingChangeRequest, err error) {

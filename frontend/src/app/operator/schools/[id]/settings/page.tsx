@@ -168,7 +168,7 @@ function OperatorSchoolSettingsPageContent({ params }: PageProps) {
     bookingAuthority.state.impact?.blockingChildren ?? [];
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
+    <div className="mx-auto w-full max-w-4xl min-w-0 px-4 py-6 sm:px-6 lg:px-8">
       <div className="mb-6">
         <Link
           href={backHref}

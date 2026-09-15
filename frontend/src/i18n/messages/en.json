@@ -225,6 +225,8 @@
     "newsAttachmentsRetry": "Try again",
     "newsClose": "Close",
     "newsLetterBadge": "Confirmation required",
+    "newsReminder": "Reminder",
+    "newsReminderFrom": "Reminder from {date}",
     "newsLetterBindingHint": "This e-mail is for information only. What counts is the confirmation here in the parent portal. One guardian per child is enough."
   },
   "parentNotificationSetup": {
@@ -248,6 +250,7 @@
   },
   "pushNotifications": {
     "title": "Notifications on this device",
+    "moreActions": "More actions",
     "installIntro": "On iPhone and iPad, notifications only work when you open moto from the Home Screen.",
     "installStepsLabel": "Add moto to the Home Screen",
     "installStep1": "Tap Share in the menu.",
@@ -606,6 +609,9 @@
       "alreadyHome": "{name} is already home today. The pick-up time can no longer be changed.",
       "alreadyHomeGeneric": "Your child is already home today. The pick-up time can no longer be changed.",
       "existingHint": "A change is already set for {date}. Saving overwrites it.",
+      "cutoffHint": "You can change today's pickup time until {time}.",
+      "cutoffClosed": "Changes for today are only possible until {time}. Please contact the after-school care team. You can still change other days.",
+      "cutoffClosedGeneric": "Today can no longer be changed. Please contact the after-school care team. You can still change other days.",
       "reset": "Undo the change",
       "resetTitle": "Undo the change?",
       "resetDescription": "The different pick-up time for {date} will be removed. The regular weekly plan applies again.",

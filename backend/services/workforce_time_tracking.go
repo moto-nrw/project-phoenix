@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
@@ -197,7 +196,7 @@ func publicHistory(value *active.HistoryResponse) *workforce.HistoryResponse {
 	return result
 }
 
-func publicWorkSessionEdit(entity *auditModels.WorkSessionEdit) *workforce.WorkSessionEdit {
+func publicWorkSessionEdit(entity *active.WorkSessionEdit) *workforce.WorkSessionEdit {
 	if entity == nil {
 		return nil
 	}
@@ -376,7 +375,7 @@ func (c workSessionCapability) UpdateStaffSchedule(ctx context.Context, staffID 
 			legacyInput.Entries = append(legacyInput.Entries, active.ScheduleEntry(entry))
 		}
 	}
-	return mapTimeTrackingFailure(c.sessions.UpdateSchedule(ctx, staff, legacyInput))
+	return mapTimeTrackingFailure(c.sessions.UpdateSchedule(ctx, &active.StaffScheduleBinding{ID: staff.ID, WorkTimeModelID: staff.WorkTimeModelID, RotationAnchorDate: staff.RotationAnchorDate}, legacyInput))
 }
 
 // --- absences ---------------------------------------------------------------
@@ -584,6 +583,22 @@ func (c staffAbsenceCapability) UpsertVacationQuota(ctx context.Context, staffID
 	return mapTimeTrackingFailure(c.absences.UpsertVacationQuota(ctx, staffID, year, entitled, carryover))
 }
 
+// VacationTakeoverCapability binds the import to the public Workforce contract.
+func VacationTakeoverCapability(absences active.StaffAbsenceService) workforce.VacationTakeovers {
+	if absences == nil {
+		return nil
+	}
+	return staffAbsenceCapability{absences: absences}
+}
+
+func (c staffAbsenceCapability) ValidateVacationOpeningAbsencesBefore(ctx context.Context, staffID int64, effectiveDate string) error {
+	effective, err := parseCapabilityDate(effectiveDate, "effective_date")
+	if err != nil {
+		return err
+	}
+	return mapTimeTrackingFailure(c.absences.ValidateVacationOpeningAbsencesBefore(ctx, staffID, effective))
+}
+
 func (c staffAbsenceCapability) SetVacationOpening(ctx context.Context, staffID, decidedBy int64, request workforce.SetVacationOpeningRequest) (*workforce.StaffVacationOpening, error) {
 	effective, err := parseCapabilityDate(request.EffectiveDate, "effective_date")
 	if err != nil {
@@ -772,6 +787,23 @@ func (c balanceAdjustmentCapability) CreateOpeningBalance(ctx context.Context, s
 	return c.adjustment(c.ledger.CreateOpeningBalance(ctx, staffID, decidedBy, effective, balanceMinutes, note))
 }
 
+// OpeningBalanceBookingCapability exposes preview and booking through one
+// Workforce boundary without widening the general ledger administration port.
+func OpeningBalanceBookingCapability(ledger active.StaffBalanceAdjustmentService) workforce.OpeningBalanceBookings {
+	if ledger == nil {
+		return nil
+	}
+	return balanceAdjustmentCapability{ledger: ledger}
+}
+
+func (c balanceAdjustmentCapability) ValidateOpeningBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate string, balanceMinutes int, note string) error {
+	effective, err := parseCapabilityDate(effectiveDate, "effective_date")
+	if err != nil {
+		return err
+	}
+	return mapTimeTrackingFailure(c.ledger.ValidateOpeningBalance(ctx, staffID, decidedBy, effective, balanceMinutes, note))
+}
+
 // --- month close ------------------------------------------------------------
 
 type monthClosingCapability struct {
@@ -787,30 +819,6 @@ func MonthClosingCapability(closing active.StaffMonthCloseService) workforce.Mon
 	return monthClosingCapability{closing: closing}
 }
 
-func publicSnapshot(entity *activeModels.StaffMonthBalanceSnapshot) *workforce.StaffMonthBalanceSnapshot {
-	if entity == nil {
-		return nil
-	}
-	return &workforce.StaffMonthBalanceSnapshot{
-		ID: entity.ID, CreatedAt: entity.CreatedAt, UpdatedAt: entity.UpdatedAt, TenantID: entity.TenantID, StaffID: entity.StaffID,
-		Year: entity.Year, Month: entity.Month, ClosingBalanceMinutes: entity.ClosingBalanceMinutes, CarryInMinutes: entity.CarryInMinutes,
-		TargetMinutes: entity.TargetMinutes, ActualMinutes: entity.ActualMinutes, CreditedMinutes: entity.CreditedMinutes,
-		AdjustmentMinutes: entity.AdjustmentMinutes, ClosedAt: entity.ClosedAt, ClosedBy: entity.ClosedBy, CloseReason: entity.CloseReason,
-		Source: entity.Source, ReopenedAt: entity.ReopenedAt, ReopenedBy: entity.ReopenedBy, ReopenReason: entity.ReopenReason,
-	}
-}
-
-func publicSnapshots(entities []*activeModels.StaffMonthBalanceSnapshot) []*workforce.StaffMonthBalanceSnapshot {
-	if entities == nil {
-		return nil
-	}
-	result := make([]*workforce.StaffMonthBalanceSnapshot, 0, len(entities))
-	for _, entity := range entities {
-		result = append(result, publicSnapshot(entity))
-	}
-	return result
-}
-
 func (c monthClosingCapability) CloseMonth(ctx context.Context, closedBy int64, year, month int, reason string) (*workforce.MonthCloseResult, error) {
 	result, err := c.closing.CloseMonth(ctx, closedBy, year, month, reason)
 	if err != nil {
@@ -821,7 +829,7 @@ func (c monthClosingCapability) CloseMonth(ctx context.Context, closedBy int64, 
 	}
 	return &workforce.MonthCloseResult{
 		Year: result.Year, Month: result.Month, ClosedStaff: result.ClosedStaff, SkippedStaff: result.SkippedStaff,
-		Snapshots: publicSnapshots(result.Snapshots),
+		Snapshots: publicMonthSnapshots(result.Snapshots),
 	}, nil
 }
 
@@ -834,7 +842,7 @@ func (c monthClosingCapability) ListMonthStatus(ctx context.Context, year, month
 	if err != nil {
 		return nil, mapTimeTrackingFailure(err)
 	}
-	return publicSnapshots(snapshots), nil
+	return publicMonthSnapshots(snapshots), nil
 }
 
 // --- overview ---------------------------------------------------------------

@@ -10,13 +10,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 func (m *mockVisitRepository) FindVisit(ctx context.Context, id int64) (*studentpresence.Visit, error) {
@@ -66,7 +63,7 @@ type mockGroupRepository struct {
 	createFunc                      func(ctx context.Context, entity *active.Group) error
 	findByIDFunc                    func(ctx context.Context, id interface{}) (*active.Group, error)
 	findByIDForUpdateFunc           func(ctx context.Context, id int64) (*active.Group, error)
-	listFunc                        func(ctx context.Context, options *base.QueryOptions) ([]*active.Group, error)
+	listFunc                        func(ctx context.Context) ([]*active.Group, error)
 	findActiveByDeviceIDFunc        func(ctx context.Context, deviceID int64) (*active.Group, error)
 	findActiveByGroupIDFunc         func(ctx context.Context, groupID int64) ([]*active.Group, error)
 	updateLastActivityFunc          func(ctx context.Context, id int64, lastActivity time.Time) error
@@ -81,7 +78,7 @@ func (m *mockGroupRepository) Create(ctx context.Context, entity *active.Group) 
 	return nil
 }
 
-func (m *mockGroupRepository) FindByID(ctx context.Context, id interface{}) (*active.Group, error) {
+func (m *mockGroupRepository) FindByID(ctx context.Context, id int64) (*active.Group, error) {
 	if m.findByIDFunc != nil {
 		return m.findByIDFunc(ctx, id)
 	}
@@ -106,26 +103,11 @@ func (m *mockGroupRepository) Update(ctx context.Context, entity *active.Group) 
 	return nil
 }
 
-func (m *mockGroupRepository) Delete(ctx context.Context, id interface{}) error {
+func (m *mockGroupRepository) Delete(ctx context.Context, id int64) error {
 	return nil
-}
-
-func (m *mockGroupRepository) List(ctx context.Context, options *base.QueryOptions) ([]*active.Group, error) {
-	if m.listFunc != nil {
-		return m.listFunc(ctx, options)
-	}
-	return nil, nil
 }
 
 func (m *mockGroupRepository) FindActiveByRoomID(ctx context.Context, roomID int64) ([]*active.Group, error) {
-	return nil, nil
-}
-
-func (m *mockGroupRepository) LockRoomSessionWrites(context.Context, int64) error {
-	return nil
-}
-
-func (m *mockGroupRepository) ListRoomOccupancy(context.Context, []int64) ([]active.RoomOccupancy, error) {
 	return nil, nil
 }
 
@@ -205,7 +187,20 @@ func (m *mockGroupRepository) FindUnclaimed(ctx context.Context) ([]*active.Grou
 }
 
 func (m *mockGroupRepository) FindActiveGroups(ctx context.Context) ([]*active.Group, error) {
-	return nil, nil
+	if m.listFunc == nil {
+		return nil, nil
+	}
+	groups, err := m.listFunc(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var open []*active.Group
+	for _, group := range groups {
+		if group.IsActive() {
+			open = append(open, group)
+		}
+	}
+	return open, nil
 }
 
 func (m *mockGroupRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64]*active.Group, error) {
@@ -220,13 +215,10 @@ func (m *mockGroupRepository) GetOccupiedActivityGroupIDs(ctx context.Context, g
 	return nil, nil
 }
 
-func (m *mockGroupRepository) AggregateRoomSessions(ctx context.Context, roomID int64, start, end time.Time, supervisorStaffID *int64) ([]*active.RoomSessionAggregate, error) {
-	return nil, nil
-}
-
 // mockVisitRepository supplies presence operations for service failure injection.
 type mockVisitRepository struct {
 	StudentPresence
+	lockRoomSessionWritesFunc func(context.Context, int64) error
 
 	findByActiveGroupIDFunc               func(ctx context.Context, activeGroupID int64) ([]*studentpresence.Visit, error)
 	findByIDFunc                          func(ctx context.Context, id interface{}) (*studentpresence.Visit, error)
@@ -437,7 +429,7 @@ func (m *mockGroupSupervisorRepository) Create(ctx context.Context, entity *acti
 	return nil
 }
 
-func (m *mockGroupSupervisorRepository) FindByID(ctx context.Context, id interface{}) (*active.GroupSupervisor, error) {
+func (m *mockGroupSupervisorRepository) FindByID(ctx context.Context, id int64) (*active.GroupSupervisor, error) {
 	if m.findByIDFunc != nil {
 		return m.findByIDFunc(ctx, id)
 	}
@@ -451,12 +443,8 @@ func (m *mockGroupSupervisorRepository) Update(ctx context.Context, entity *acti
 	return nil
 }
 
-func (m *mockGroupSupervisorRepository) Delete(ctx context.Context, id interface{}) error {
+func (m *mockGroupSupervisorRepository) Delete(ctx context.Context, id int64) error {
 	return nil
-}
-
-func (m *mockGroupSupervisorRepository) List(ctx context.Context, options *base.QueryOptions) ([]*active.GroupSupervisor, error) {
-	return nil, nil
 }
 
 func (m *mockGroupSupervisorRepository) FindActiveByStaffID(ctx context.Context, staffID int64) ([]*active.GroupSupervisor, error) {
@@ -546,7 +534,7 @@ func TestEndActivitySessionLocksGroupBeforeEnding(t *testing.T) {
 		t.Fatal("the legacy supervision end must not run: the presence owner ends the supervisions")
 		return nil
 	}}
-	svc := &service{ServiceDependencies: ServiceDependencies{
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal,
 		GroupRepo: groupRepo, SchoolPresence: visitRepo, SupervisorRepo: supervisorRepo,
 	}}
 
@@ -565,7 +553,7 @@ func TestProcessSessionTimeoutLocksGroupBeforeEnding(t *testing.T) {
 			return &active.Group{Model: base.Model{ID: 1}}, nil
 		},
 	}
-	svc := &service{ServiceDependencies: ServiceDependencies{
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal,
 		GroupRepo: groupRepo,
 		SchoolPresence: &mockVisitRepository{
 			findByActiveGroupIDFunc: func(context.Context, int64) ([]*studentpresence.Visit, error) {
@@ -602,7 +590,7 @@ func TestEndSupervisionLocksGroupBeforeRelease(t *testing.T) {
 			return nil
 		},
 	}
-	svc := &service{ServiceDependencies: ServiceDependencies{
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal,
 		GroupRepo: &mockGroupRepository{findByIDForUpdateFunc: func(context.Context, int64) (*active.Group, error) {
 			order = append(order, "group-lock")
 			return &active.Group{Model: base.Model{ID: 1}}, nil
@@ -620,7 +608,7 @@ func TestEndActivitySessionDoesNotBroadcastWhenCommitFails(t *testing.T) {
 	mockDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = mockDB.Close() })
-	db := bun.NewDB(mockDB, pgdialect.New())
+	db := testpkg.NewBunDB(mockDB)
 	mock.ExpectBegin()
 	mock.ExpectCommit().WillReturnError(errors.New("commit failed"))
 
@@ -636,7 +624,7 @@ func TestEndActivitySessionDoesNotBroadcastWhenCommitFails(t *testing.T) {
 		return []*active.GroupSupervisor{}, nil
 	}}
 	broadcaster := testpkg.NewRecordingBroadcaster()
-	svc := &service{ServiceDependencies: ServiceDependencies{
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal,
 		DB: db, GroupRepo: groupRepo, SchoolPresence: visitRepo,
 		SupervisorRepo: supervisorRepo, Broadcaster: broadcaster,
 	}}
@@ -652,11 +640,11 @@ func TestEndActiveGroupSessionDoesNotBroadcastWhenOuterCommitFails(t *testing.T)
 	mockDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = mockDB.Close() })
-	db := bun.NewDB(mockDB, pgdialect.New())
+	db := testpkg.NewBunDB(mockDB)
 	mock.ExpectBegin()
 	mock.ExpectCommit().WillReturnError(errors.New("outer commit failed"))
 	broadcaster := testpkg.NewRecordingBroadcaster()
-	svc := &service{ServiceDependencies: ServiceDependencies{
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal,
 		DB: db,
 		GroupRepo: &mockGroupRepository{findByIDForUpdateFunc: func(context.Context, int64) (*active.Group, error) {
 			return &active.Group{Model: base.Model{ID: 1}}, nil
@@ -713,7 +701,7 @@ func TestEndActivitySession_FindByActiveGroupIDError(t *testing.T) {
 	supervisorRepo := &mockGroupSupervisorRepository{}
 
 	// Create service with mocks
-	svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: groupRepo, SchoolPresence: visitRepo, SupervisorRepo: supervisorRepo, Broadcaster: nil}}
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, GroupRepo: groupRepo, SchoolPresence: visitRepo, SupervisorRepo: supervisorRepo, Broadcaster: nil}}
 
 	// ACT
 	err = svc.EndActivitySession(ctx, 1)
@@ -744,7 +732,7 @@ func TestAssignMultipleSupervisorsNonCritical_PreservesBestEffortAssignments(t *
 		},
 	}
 
-	svc := &service{ServiceDependencies: ServiceDependencies{SupervisorRepo: supervisorRepo}}
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SupervisorRepo: supervisorRepo}}
 
 	svc.assignMultipleSupervisorsNonCritical(ctx, 77, []int64{11, 22, 33, 11}, time.Now())
 
@@ -796,7 +784,7 @@ func TestEndActivitySession_EndSupervisionError(t *testing.T) {
 	}
 
 	// Create service with mocks
-	svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: groupRepo, SchoolPresence: visitRepo, SupervisorRepo: supervisorRepo, Broadcaster: nil}}
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, GroupRepo: groupRepo, SchoolPresence: visitRepo, SupervisorRepo: supervisorRepo, Broadcaster: nil}}
 
 	// ACT
 	err = svc.EndActivitySession(ctx, 1)
@@ -811,17 +799,12 @@ func TestEndActivitySession_EndSupervisionError(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// Stub for the issue #585 refactor interface addition — unused here.
-func (m *mockGroupRepository) CountWithOptions(context.Context, *base.QueryOptions) (int, error) {
-	return 0, nil
-}
-
 // Stubs for the issue #585 refactor interface additions — unused here.
 func (m *mockVisitRepository) GetCurrentRoomNamesForStudents(context.Context, []int64) (map[int64]string, error) {
 	return nil, nil
 }
 
-func (m *mockGroupSupervisorRepository) ListActiveSupervisionBlockers(context.Context, int64, int64) ([]userModels.BlockerSupervision, error) {
+func (m *mockGroupSupervisorRepository) ListActiveSupervisionBlockers(context.Context, int64) ([]active.SupervisionBlocker, error) {
 	return nil, nil
 }
 
@@ -840,9 +823,9 @@ func (m *mockGroupSupervisorRepository) FindStaleOpen(ctx context.Context, befor
 	return nil, nil
 }
 
-func (m *mockGroupSupervisorRepository) UpdateColumns(ctx context.Context, supervisor *active.GroupSupervisor, columns ...string) (int64, error) {
+func (m *mockGroupSupervisorRepository) SetEndDate(ctx context.Context, supervisor *active.GroupSupervisor) (int64, error) {
 	if m.updateColumnsFunc != nil {
-		return m.updateColumnsFunc(ctx, supervisor, columns...)
+		return m.updateColumnsFunc(ctx, supervisor, "end_date", "updated_at")
 	}
 	return 0, nil
 }
@@ -958,4 +941,11 @@ func (m *mockVisitRepository) ListVisits(ctx context.Context, filter studentpres
 		})
 	}
 	return result, err
+}
+
+func (m *mockVisitRepository) LockRoomSessionWrites(ctx context.Context, roomID int64) error {
+	if m.lockRoomSessionWritesFunc != nil {
+		return m.lockRoomSessionWritesFunc(ctx, roomID)
+	}
+	return nil
 }

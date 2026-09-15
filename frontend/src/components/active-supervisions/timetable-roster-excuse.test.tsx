@@ -68,6 +68,7 @@ const roster: TimetableRoster = {
 function renderRoster(
   onRosterAction: (action: string, row: TimetableRosterRow) => Promise<void>,
   onExcuseRestOfDay?: (row: TimetableRosterRow) => Promise<void>,
+  value: TimetableRoster = roster,
 ) {
   render(
     <TimetableRosterContent
@@ -77,7 +78,7 @@ function renderRoster(
       isAddingStudent={false}
       isCompletingInstance={false}
       isConfirmingExpected={false}
-      roster={roster}
+      roster={value}
       showTimetableCounts={false}
       canAddUnplanned={false}
       onAddStudent={vi.fn()}
@@ -94,6 +95,24 @@ describe("Entschuldigt in Aktuelle Aufsicht (#3166)", () => {
   beforeEach(() => {
     patchAttendance.mockReset();
     saveStudentPartialAbsence.mockReset();
+  });
+
+  it("offers rest of day without assignment when absence reports are allowed", async () => {
+    const onRosterAction = vi.fn().mockResolvedValue(undefined);
+    const onExcuseRestOfDay = vi.fn().mockResolvedValue(undefined);
+    renderRoster(onRosterAction, onExcuseRestOfDay, {
+      ...roster,
+      canOperate: false,
+      canEditAttendance: false,
+      canReportAbsence: true,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Entschuldigt" }));
+    fireEvent.click(screen.getByRole("button", { name: /Rest des Tages/ }));
+    await waitFor(() => expect(onExcuseRestOfDay).toHaveBeenCalledWith(row));
+    expect(onRosterAction).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("button", { name: /^Beenden/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("excuses only this block right away without the rest-of-day right", async () => {

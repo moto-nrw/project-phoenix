@@ -64,12 +64,12 @@ function roster(canOperate: boolean | undefined): TimetableRoster {
   };
 }
 
-function renderRoster(value: TimetableRoster) {
+function renderRoster(value: TimetableRoster, attendanceWebEnabled = true) {
   render(
     <TimetableRosterContent
       addStudentResults={[]}
       addStudentSearch=""
-      attendanceWebEnabled
+      attendanceWebEnabled={attendanceWebEnabled}
       isAddingStudent={false}
       isCompletingInstance={false}
       isConfirmingExpected={false}
@@ -85,6 +85,83 @@ function renderRoster(value: TimetableRoster) {
 }
 
 describe("TimetableRosterContent action rights (#3167)", () => {
+  it("allows absence reports and their reversal without block lifecycle rights", () => {
+    const value = {
+      ...roster(false),
+      canEditAttendance: false,
+      canReportAbsence: true,
+    };
+    value.rows.push(
+      rosterRow({ studentId: "3", status: "absent", substatus: "excused" }),
+    );
+    renderRoster(value);
+    expect(
+      screen.getByRole("button", { name: "Entschuldigt" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Zurück auf erwartet" }),
+    ).toBeInTheDocument();
+    for (const name of ["Einchecken", "Abwesend", /^Beenden/]) {
+      expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
+    }
+    expect(
+      screen.queryByText(new RegExp(VIEW_ONLY_HINT)),
+    ).not.toBeInTheDocument();
+  });
+  it("allows school-wide check-in and check-out without lifecycle or status actions", () => {
+    renderRoster({
+      ...roster(false),
+      canEditAttendance: true,
+      canReportAbsence: false,
+    });
+    for (const name of [
+      "Einchecken",
+      "Raum verlassen",
+      "Kind hinzufügen",
+      "Erwartete bestätigen",
+    ]) {
+      expect(screen.getByRole("button", { name })).toBeInTheDocument();
+    }
+    for (const name of ["Entschuldigt", "Abwesend", /^Beenden/]) {
+      expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
+    }
+    expect(
+      screen.queryByText(new RegExp(VIEW_ONLY_HINT)),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps other block actions when sick and excused reports are restricted", () => {
+    const value = {
+      ...roster(true),
+      canEditAttendance: true,
+      canReportAbsence: false,
+    };
+    value.rows.push(
+      rosterRow({ studentId: "3", status: "absent", substatus: "excused" }),
+    );
+    renderRoster(value);
+    expect(
+      screen.queryByRole("button", { name: "Entschuldigt" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Zurück auf erwartet" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Einchecken" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Abwesend" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /^Beenden/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("does not expose web attendance actions through a school-wide grant when web is off", () => {
+    renderRoster({ ...roster(false), canEditAttendance: true }, false);
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
   it("shows the list without any action to a caller who is not planned", () => {
     renderRoster(roster(false));
 

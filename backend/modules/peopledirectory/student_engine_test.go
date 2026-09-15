@@ -18,6 +18,16 @@ func (e *recordingEngine) LockEnrollmentClassWrites(context.Context) error {
 	return nil
 }
 
+func (e *recordingEngine) CurrentFamilyProtection(context.Context, []int64) (map[int64]bool, error) {
+	e.calls++
+	return map[int64]bool{}, nil
+}
+
+func (e *recordingEngine) ListStudentDepartureModes(context.Context, []int64) (map[int64]map[string][]string, error) {
+	e.calls++
+	return map[int64]map[string][]string{}, nil
+}
+
 func (e *recordingEngine) ApplyEnrollmentProfile(context.Context, int64, enrollment.ProfilePatch) error {
 	e.calls++
 	return nil
@@ -42,6 +52,12 @@ func (e *recordingEngine) CreateEnrollmentStudent(_ context.Context, input peopl
 func (e *recordingEngine) RenewEnrollmentStudent(context.Context, int64, peopledirectory.EnrollmentStudent) error {
 	e.calls++
 	return nil
+}
+
+func (e *recordingEngine) ListStudentsByPersonIDs(_ context.Context, ids []int64) ([]peopledirectory.Student, error) {
+	e.calls++
+	e.student = studentCall{ids: ids}
+	return nil, nil
 }
 
 func (e *recordingEngine) ListStudentsByIDs(_ context.Context, ids []int64) ([]peopledirectory.Student, error) {

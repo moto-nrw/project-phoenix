@@ -6,6 +6,7 @@ import { TodayNoticeList } from "~/components/staff-notices/today-notice-list";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
+import { Skeleton } from "~/components/ui/skeleton";
 import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
 import { fetchTodaysNotices } from "~/lib/staff-notices-api";
 import type { StaffNotice } from "~/lib/staff-notices-api";
@@ -79,9 +80,9 @@ export function StaffNoticesBlock() {
           // eine Karte, die gerade nichts zu sagen hat.
           return (
             <div className="space-y-2" aria-hidden="true">
-              <div className="h-4 w-2/5 animate-pulse rounded bg-gray-200"></div>
-              <div className="h-3 w-4/5 animate-pulse rounded bg-gray-200"></div>
-              <div className="h-3 w-3/5 animate-pulse rounded bg-gray-200"></div>
+              <Skeleton className="h-4 w-2/5 rounded" />
+              <Skeleton className="h-3 w-4/5 rounded" />
+              <Skeleton className="h-3 w-3/5 rounded" />
             </div>
           );
         }

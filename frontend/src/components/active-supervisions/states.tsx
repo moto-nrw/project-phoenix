@@ -27,12 +27,9 @@ interface EmptyRoomsViewProps {
   readonly currentStaffId: string | undefined;
 }
 
-interface SchulhofNotSupervisingViewProps {
-  readonly supervisorCount: number;
-  readonly supervisorNames: string[];
+interface SchulhofSuperviseButtonProps {
   readonly isToggling: boolean;
-  readonly startDisabled?: boolean;
-  readonly startDisabledReason?: string;
+  readonly disabled?: boolean;
   readonly onToggle: () => void;
 }
 
@@ -154,9 +151,9 @@ export function ReleaseSupervisionModal({
             />
             <div className="flex-1">
               <p className="text-sm text-gray-600">
-                Sie werden nicht mehr als Aufsicht angezeigt. Der Schulhof wird
-                dann als &bdquo;ohne Aufsicht&ldquo; angezeigt, bis eine andere
-                Lehrkraft die Aufsicht übernimmt.
+                Sie werden nicht mehr als Aufsicht angezeigt. Der Schulhof
+                bleibt für alle Betreuungskräfte offen. Dort steht dann, dass
+                niemand die Aufsicht hat.
               </p>
             </div>
           </div>
@@ -166,37 +163,26 @@ export function ReleaseSupervisionModal({
   );
 }
 
-export function SchulhofNotSupervisingView({
-  supervisorCount,
-  supervisorNames,
+/**
+ * The Schulhof's one-tap "Beaufsichtigen" (#2161), a head action of the page.
+ * It is a supervision action, not a room-release one: releasing a room makes
+ * it visible, taking the supervision is a separate decision the person makes
+ * here.
+ */
+export function SchulhofSuperviseButton({
   isToggling,
-  startDisabled = false,
-  startDisabledReason,
+  disabled = false,
   onToggle,
-}: SchulhofNotSupervisingViewProps) {
+}: SchulhofSuperviseButtonProps) {
   return (
-    <SectionCard>
-      <EmptyState
-        icon={<MotoConceptIcon concept="schoolyard" size={48} />}
-        title="Schulhof ohne Aufsicht"
-        description={
-          startDisabledReason ??
-          (supervisorCount > 0
-            ? `Aktuelle Aufsicht: ${supervisorNames.join(", ")}`
-            : "Übernehmen Sie die Aufsicht, um Kinder zu sehen.")
-        }
-        action={
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={onToggle}
-            disabled={isToggling || startDisabled}
-          >
-            {isToggling ? "Wird übernommen…" : "Beaufsichtigen"}
-          </Button>
-        }
-      />
-    </SectionCard>
+    <Button
+      type="button"
+      variant="primary"
+      size="md"
+      onClick={onToggle}
+      disabled={isToggling || disabled}
+    >
+      {isToggling ? "Wird übernommen…" : "Beaufsichtigen"}
+    </Button>
   );
 }

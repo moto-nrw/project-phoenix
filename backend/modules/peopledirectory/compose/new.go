@@ -143,6 +143,7 @@ func (e engine) ListByAccounts(ctx context.Context, accountIDs []int64) ([]peopl
 func (e engine) Search(ctx context.Context, filter peopledirectory.PersonFilter) ([]peopledirectory.Person, error) {
 	values, err := e.service.Search(ctx, domain.Filter{
 		FirstNamePrefix: filter.FirstNamePrefix, LastNamePrefix: filter.LastNamePrefix,
+		FirstNameEquals: filter.FirstNameEquals, LastNameEquals: filter.LastNameEquals,
 		FullNameContains: filter.FullNameContains, TagID: filter.TagID, AccountIDs: filter.AccountIDs,
 		Page: filter.Page, PageSize: filter.PageSize,
 	})

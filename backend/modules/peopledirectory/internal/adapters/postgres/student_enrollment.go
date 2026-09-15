@@ -79,6 +79,20 @@ func (s *StudentStore) ApplyEnrollmentProfile(ctx context.Context, id int64, inp
 		query = query.Set("email_contact_accepted_at = ?", input.EmailContactAcceptedAt)
 		changed = true
 	}
+	if input.GroupIDSet {
+		query = query.Set("group_id = ?", input.GroupID)
+		changed = true
+	}
+	if input.AddressSet {
+		query = query.Set("address_street = ?", input.AddressStreet).
+			Set("address_city = ?", input.AddressCity).
+			Set("address_postal_code = ?", input.AddressPostalCode)
+		changed = true
+	}
+	if input.SupervisorNotesSet {
+		query = query.Set("supervisor_notes = ?", input.SupervisorNotes)
+		changed = true
+	}
 	if !changed {
 		return domain.OperationStats{}, nil
 	}

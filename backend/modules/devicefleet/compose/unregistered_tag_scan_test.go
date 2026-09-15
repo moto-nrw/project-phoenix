@@ -37,8 +37,7 @@ func recordScan(t *testing.T, fleet devicefleet.Capability, ctx context.Context,
 
 func newScanOperator(t *testing.T, db *bun.DB) int64 {
 	t.Helper()
-	operator := testpkg.CreateTestOperatorWithEmail(t, db,
-		fmt.Sprintf("scan-review-%d@example.com", time.Now().UnixNano()), "Scan Review Operator")
+	operator := testpkg.CreateTestOperator(t, db)
 	return operator.ID
 }
 

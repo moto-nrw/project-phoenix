@@ -431,17 +431,17 @@ func (s *decisionService) persistOfferingSourceRows(
 	ctx context.Context, work *offeringAdjustmentWork, scheduled []scheduledOfferingReplacement,
 ) error {
 	if work.effectiveFrom != nil || len(scheduled) > 0 {
-		if err := writeOwnerOfferingSelections(ctx, s.Children, work.child.ID, &work.selectionDate, work.replacement); err != nil {
+		if err := changeCareBookings(ctx, s.Bookings, work.child.ID, work.phase, &work.selectionDate, work.replacement); err != nil {
 			return fmt.Errorf("decision: schedule child offerings: %w", err)
 		}
 		for _, future := range scheduled {
-			if err := writeOwnerOfferingSelections(ctx, s.Children, work.child.ID, &future.EffectiveFrom, future.Rows); err != nil {
+			if err := changeCareBookings(ctx, s.Bookings, work.child.ID, work.phase, &future.EffectiveFrom, future.Rows); err != nil {
 				return fmt.Errorf("decision: restore scheduled child offerings: %w", err)
 			}
 		}
 		return nil
 	}
-	if err := writeOwnerOfferingSelections(ctx, s.Children, work.child.ID, nil, work.replacement); err != nil {
+	if err := changeCareBookings(ctx, s.Bookings, work.child.ID, work.phase, nil, work.replacement); err != nil {
 		return fmt.Errorf("decision: replace child offerings: %w", err)
 	}
 	return nil

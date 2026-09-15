@@ -6,182 +6,29 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/requestreview"
+	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
 // OfferingRequestResponse is the staff-facing projection of one parent
-// offering-change request in the review queue, with the live
-// "current → requested" diff (#1665).
-type OfferingRequestResponse struct {
-	ID          string `json:"id"`
-	StudentID   string `json:"student_id"`
-	StudentName string `json:"student_name"`
-	Status      string `json:"status"`
-	// EffectiveFrom is the date the switch would take effect (YYYY-MM-DD).
-	EffectiveFrom string `json:"effective_from"`
-	// EarliestEffectiveFrom / LatestEffectiveFrom bound the date staff may
-	// confirm the switch for (#2484), so the review card cannot offer a date the
-	// approval refuses. Omitted when the care period could not be resolved.
-	EarliestEffectiveFrom string `json:"earliest_effective_from,omitempty"`
-	LatestEffectiveFrom   string `json:"latest_effective_from,omitempty"`
-	// RequestedEffectiveFrom is the date the family asked for, sent only when it
-	// is not the date the queue offers — a request whose date passed while it
-	// waited applies at the earliest date left instead (#2484).
-	RequestedEffectiveFrom string                        `json:"requested_effective_from,omitempty"`
-	Note                   string                        `json:"note,omitempty"`
-	Diff                   []OfferingRequestDiffResponse `json:"diff"`
-	// Unchanged lists the bookings the request leaves as they are, so the review
-	// card shows the child's complete picture, not only the changed lines (#2434).
-	Unchanged []OfferingRequestUnchangedResponse `json:"unchanged,omitempty"`
-	// FullWithdrawal marks a Komplett-Abmeldung: approving would leave the child
-	// without any offering at all (#2434).
-	FullWithdrawal bool       `json:"full_withdrawal,omitempty"`
-	Reason         *string    `json:"reason,omitempty"`
-	CreatedAt      time.Time  `json:"created_at"`
-	ReviewedAt     *time.Time `json:"reviewed_at,omitempty"`
-}
+// offering-change request with the live "current → requested" diff (#1665);
+// the shared request-review projection (#2705) owns the shape and the
+// preview/decide routes answer with the same one.
+type OfferingRequestResponse = requestreview.OfferingRequestResponse
 
 // OfferingRequestDiffResponse is one German-localized diff line for the
 // German-only staff portal.
-type OfferingRequestDiffResponse struct {
-	OfferingID string `json:"offering_id"`
-	Label      string `json:"label"`
-	Old        string `json:"old"`
-	New        string `json:"new"`
-	// Automatic marks a line whose NEW side contains days a Mitbuchungs-Regel
-	// (or the required lunch) added rather than the parents (#2365).
-	Automatic bool `json:"automatic,omitempty"`
-	// AutomaticDays is the German day list of that automatic share ("Do, Fr").
-	AutomaticDays string `json:"automatic_days,omitempty"`
-	// RuleDays is the part attributed to TriggerNames. Required-lunch days are
-	// excluded so the explanation does not ascribe them to a Mitbuchungs-Regel.
-	RuleDays string `json:"rule_days,omitempty"`
-	// NewWhenExcluded is the materialized NEW side after this line's
-	// Mitbuchungs-Regel is suppressed. Manual and required-lunch days remain.
-	NewWhenExcluded string `json:"new_when_excluded,omitempty"`
-	// TriggerIDs / TriggerNames identify the selected offerings whose rule
-	// produced the automatic share. TriggerIDs lets the review card grey out
-	// dependent lines while staff untick an override (#2370).
-	TriggerIDs   []string `json:"trigger_ids,omitempty"`
-	TriggerNames []string `json:"trigger_names,omitempty"`
-	// Optoutable marks a rule-triggered line staff may exclude per request.
-	Optoutable bool `json:"optoutable,omitempty"`
-	// IsCourse marks a line about a Kurs (an AG reached through a care
-	// offering, #3075), so the card can say what kind of request this is.
-	IsCourse bool `json:"is_course,omitempty"`
-}
+type OfferingRequestDiffResponse = requestreview.OfferingRequestDiffResponse
 
 // OfferingRequestUnchangedResponse is one booking the request does not touch.
-type OfferingRequestUnchangedResponse struct {
-	OfferingID string `json:"offering_id"`
-	Label      string `json:"label"`
-	Days       string `json:"days"`
-}
-
-// offeringRequestDiffLines renders the review diff, including the bookkeeping a
-// Mitbuchungs-Regel line carries so the card can explain and override it.
-func offeringRequestDiffLines(
-	entries []enrollmentService.OfferingChangeDiffEntry,
-) []OfferingRequestDiffResponse {
-	diff := make([]OfferingRequestDiffResponse, 0, len(entries))
-	for _, entry := range entries {
-		line := OfferingRequestDiffResponse{
-			OfferingID: strconv.FormatInt(entry.OfferingID, 10),
-			Label:      entry.Label,
-			Old:        germanOfferingDiffLabel(entry.OldState, entry.OldDays),
-			New:        germanOfferingDiffLabel(entry.NewState, entry.NewDays),
-			IsCourse:   entry.IsCourse,
-		}
-		if len(entry.NewAutomaticDays) > 0 {
-			line.Automatic = true
-			line.AutomaticDays = germanOfferingDiffLabel("booked", entry.NewAutomaticDays)
-			if len(entry.NewRuleDays) > 0 {
-				line.RuleDays = germanOfferingDiffLabel("booked", entry.NewRuleDays)
-			}
-			line.Optoutable = len(entry.AutoTriggerIDs) > 0
-			if len(entry.NewDaysWithoutRules) > 0 {
-				line.NewWhenExcluded = germanOfferingDiffLabel("booked", entry.NewDaysWithoutRules)
-			}
-			for _, triggerID := range entry.AutoTriggerIDs {
-				line.TriggerIDs = append(line.TriggerIDs, strconv.FormatInt(triggerID, 10))
-			}
-			line.TriggerNames = entry.AutoTriggerNames
-		}
-		diff = append(diff, line)
-	}
-	return diff
-}
-
-func toOfferingRequestResponse(item *enrollmentService.OfferingChangeView) OfferingRequestResponse {
-	row := item.Request
-	diff := offeringRequestDiffLines(item.Diff)
-	unchanged := make([]OfferingRequestUnchangedResponse, 0, len(item.Unchanged))
-	for _, entry := range item.Unchanged {
-		unchanged = append(unchanged, OfferingRequestUnchangedResponse{
-			OfferingID: strconv.FormatInt(entry.OfferingID, 10),
-			Label:      entry.Label,
-			Days:       germanOfferingDiffLabel(entry.NewState, entry.NewDays),
-		})
-	}
-	resp := OfferingRequestResponse{
-		ID:             strconv.FormatInt(row.ID, 10),
-		StudentID:      strconv.FormatInt(row.StudentID, 10),
-		StudentName:    item.StudentName,
-		Status:         row.Status,
-		EffectiveFrom:  timezone.Date(row.EffectiveFrom).String(),
-		Diff:           diff,
-		Reason:         row.DecisionReason,
-		FullWithdrawal: item.FullWithdrawal,
-		CreatedAt:      row.CreatedAt,
-		ReviewedAt:     row.ReviewedAt,
-	}
-	if !item.EarliestEffectiveFrom.IsZero() {
-		resp.EarliestEffectiveFrom = item.EarliestEffectiveFrom.String()
-	}
-	if !item.LatestEffectiveFrom.IsZero() {
-		resp.LatestEffectiveFrom = item.LatestEffectiveFrom.String()
-	}
-	if !item.RequestedEffectiveFrom.IsZero() && item.RequestedEffectiveFrom != timezone.Date(row.EffectiveFrom) {
-		resp.RequestedEffectiveFrom = item.RequestedEffectiveFrom.String()
-	}
-	if len(unchanged) > 0 {
-		resp.Unchanged = unchanged
-	}
-	if row.ParentNote != nil {
-		resp.Note = *row.ParentNote
-	}
-	return resp
-}
-
-func germanOfferingDiffLabel(state string, days []string) string {
-	switch state {
-	case "not_booked":
-		return "nicht gebucht"
-	case "removed":
-		return "abgemeldet"
-	}
-	if len(days) == 0 {
-		return "alle Betreuungstage"
-	}
-	labels := map[string]string{
-		"mon": "Mo", "tue": "Di", "wed": "Mi", "thu": "Do",
-		"fri": "Fr", "sat": "Sa", "sun": "So",
-	}
-	parts := make([]string, 0, len(days))
-	for _, day := range days {
-		if label, ok := labels[day]; ok {
-			parts = append(parts, label)
-		}
-	}
-	return strings.Join(parts, ", ")
-}
+type OfferingRequestUnchangedResponse = requestreview.OfferingRequestUnchangedResponse
 
 // DecideOfferingRequestBody is the body of POST
 // .../offering-change-requests/{requestId}/decide.
@@ -292,7 +139,7 @@ func (rs *Resource) previewOfferingChangeRequest(w http.ResponseWriter, r *http.
 	for _, selection := range preview.Selections {
 		selections = append(selections, OfferingRequestPreviewSelectionResponse{
 			OfferingID: strconv.FormatInt(selection.OfferingID, 10),
-			New:        germanOfferingDiffLabel(selection.State, selection.Days),
+			New:        requestreviewcompose.GermanOfferingDiffLabel(selection.State, selection.Days),
 			Removed:    selection.State == "removed",
 		})
 	}

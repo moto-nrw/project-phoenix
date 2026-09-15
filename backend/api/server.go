@@ -185,8 +185,18 @@ func workerRuntimeDependencies(api *API, logger *slog.Logger) scheduler.WorkerDe
 		Settings:               api.Services.Settings,
 		StaffDocumentCleaner:   api.StaffAdmin,
 		StudentDocumentCleaner: api.Students,
-		FileStoreCleaner:       api.FileStore,
+		FileStoreCleaner:       fileStoreCleaner(api),
 	}
+}
+
+// fileStoreCleaner hands the File Storage sweep to the worker only when the
+// module was composed. A nil module behind a non-nil interface would pass the
+// scheduler's nil check and fail on the first tick.
+func fileStoreCleaner(api *API) scheduler.FileStoreCleaner {
+	if api.Services.FileStore == nil {
+		return nil
+	}
+	return api.Services.FileStore
 }
 
 func addWorkerServiceDependencies(deps *scheduler.WorkerDependencies, api *API) {

@@ -61,12 +61,17 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/messages/:threadId",
   "/ogs-groups",
   "/parent-announcements",
+  // Objektansicht einer Elternmitteilung (#3115): nur die Route, nie der
+  // Titel — die Kennung bleibt als :id stehen.
+  "/parent-announcements/:id",
   "/payroll",
   "/planung",
   "/profile",
   "/reminders",
   "/rooms",
   "/rooms/:id",
+  // Kinder ohne Raumzuweisung (#3115): war das Panel „Unterwegs" auf /rooms.
+  "/rooms/unterwegs",
   "/settings",
   "/staff",
   "/staff/:id",

@@ -196,6 +196,18 @@ func (rs *Resource) listRooms(w http.ResponseWriter, r *http.Request) {
 	if value := r.URL.Query().Get("category"); value != "" {
 		filter.Category = &value
 	}
+	// is_open_room selects by the permanent release (#3065). Absent means "no
+	// opinion" — the navigation asks for released rooms, every other caller
+	// keeps seeing all of them. Any value other than the two below is treated
+	// as absent rather than guessed at.
+	switch r.URL.Query().Get("is_open_room") {
+	case "true":
+		released := true
+		filter.IsOpenRoom = &released
+	case "false":
+		released := false
+		filter.IsOpenRoom = &released
+	}
 	includeSystem := r.URL.Query().Get("include_system") == "true"
 	filter.ExcludeSystem = !includeSystem
 	page, pageSize := rs.runtime.Pagination(r)

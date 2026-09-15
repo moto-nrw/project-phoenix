@@ -15,7 +15,7 @@ import (
 	"strconv"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/services/planexport"
+	"github.com/moto-nrw/project-phoenix/modules/planexport"
 )
 
 // betreuungsplanExportRequest mirrors the Dienstplan export body so both

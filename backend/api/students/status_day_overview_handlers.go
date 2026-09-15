@@ -93,7 +93,11 @@ func (rs *Resource) getStudentStatusDaysOverview(w http.ResponseWriter, r *http.
 		return
 	}
 
-	overview, err := rs.AbsenceOverview.GetOverview(ctx, queryGroups, from, to, today, filters)
+	overviewGroups := make([]*activeService.StatusDayOverviewGroup, len(queryGroups))
+	for i, group := range queryGroups {
+		overviewGroups[i] = &activeService.StatusDayOverviewGroup{ID: group.ID, Name: group.Name}
+	}
+	overview, err := rs.AbsenceOverview.GetOverview(ctx, overviewGroups, from, to, today, filters)
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServerWrap("failed to load absence overview", err))
 		return
@@ -140,7 +144,7 @@ func (rs *Resource) writeStatusDayOverviewAudit(r *http.Request, from, to timezo
 	for _, group := range groups {
 		groupIDs = append(groupIDs, group.ID)
 	}
-	entry := &auditModels.DataAccessLog{
+	entry := &activeService.DataAccessEvent{
 		ActorAccountID: int64(claims.ID),
 		ActorRole:      actorRole,
 		ResourceType:   auditModels.ResourceTypeStudentStatusDayOverview,
@@ -148,7 +152,7 @@ func (rs *Resource) writeStatusDayOverviewAudit(r *http.Request, from, to timezo
 		RangeEnd:       to.EndOfDay(),
 		AccessedAt:     time.Now(),
 	}
-	entry.SetMetadata("group_ids", groupIDs)
+	entry.Metadata = map[string]interface{}{"group_ids": groupIDs}
 
 	if err := rs.StudentHistoryService.RecordDataAccess(r.Context(), entry); err != nil {
 		logger.Error("audit log write failed, refusing to serve absence overview",

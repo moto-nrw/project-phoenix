@@ -52,7 +52,7 @@ type UserContextRepositories struct {
 	// SSE subscription dependencies (optional — nil-safe). Injected so the
 	// SSE handler can delegate staff-resolution + topic-building to this
 	// service instead of orchestrating it in the api layer.
-	ActiveService activeService.Service
+	ActiveService SSEPresence
 	SSESettings   SSESettingsResolver
 }
 
@@ -71,7 +71,7 @@ type userContextService struct {
 	profileRepo        users.ProfileRepository
 	substitutionRepo   education.GroupSubstitutionRepository
 	classTeacherRepo   education.ClassTeacherRepository
-	sseActiveSvc       activeService.Service
+	sseActiveSvc       SSEPresence
 	sseSettings        SSESettingsResolver
 	logger             *slog.Logger
 }

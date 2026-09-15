@@ -2,7 +2,6 @@ package active
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -12,92 +11,31 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 type deviceRepoForSessionUnitTest struct {
+	window           time.Duration
 	updateRoomIDFunc func(ctx context.Context, id int64, roomID int64) error
 }
 
-func (d *deviceRepoForSessionUnitTest) Create(context.Context, *iotModels.Device) error {
-	return nil
+func (d *deviceRepoForSessionUnitTest) OnlineWindow(context.Context) time.Duration {
+	return d.window
 }
-func (d *deviceRepoForSessionUnitTest) FindByID(context.Context, interface{}) (*iotModels.Device, error) {
-	return nil, nil
-}
-func (d *deviceRepoForSessionUnitTest) FindByIDForUpdate(context.Context, int64) (*iotModels.Device, error) {
-	return nil, nil
-}
-func (d *deviceRepoForSessionUnitTest) Update(context.Context, *iotModels.Device) error {
-	return nil
-}
-func (d *deviceRepoForSessionUnitTest) Delete(context.Context, interface{}) error {
-	return nil
-}
-func (d *deviceRepoForSessionUnitTest) List(context.Context, map[string]interface{}) ([]*iotModels.Device, error) {
-	return nil, nil
-}
-func (d *deviceRepoForSessionUnitTest) FindByDeviceID(context.Context, string) (*iotModels.Device, error) {
-	return nil, nil
-}
-func (d *deviceRepoForSessionUnitTest) FindByAPIKey(context.Context, string) (*iotModels.Device, error) {
-	return nil, nil
-}
-func (d *deviceRepoForSessionUnitTest) FindByType(context.Context, string) ([]*iotModels.Device, error) {
-	return nil, nil
-}
-func (d *deviceRepoForSessionUnitTest) FindByStatus(context.Context, iotModels.DeviceStatus) ([]*iotModels.Device, error) {
-	return nil, nil
-}
-func (d *deviceRepoForSessionUnitTest) FindByRegisteredBy(context.Context, int64) ([]*iotModels.Device, error) {
-	return nil, nil
-}
-func (d *deviceRepoForSessionUnitTest) UpdateLastSeen(context.Context, int64, time.Time) error {
-	return nil
+
+func (d *deviceRepoForSessionUnitTest) ManualAttendanceDeviceID(context.Context) (int64, error) {
+	return 0, nil
 }
 func (d *deviceRepoForSessionUnitTest) UpdateRoomID(ctx context.Context, id int64, roomID int64) error {
 	if d.updateRoomIDFunc != nil {
 		return d.updateRoomIDFunc(ctx, id, roomID)
 	}
 	return nil
-}
-func (d *deviceRepoForSessionUnitTest) UpdateStatus(context.Context, string, iotModels.DeviceStatus) error {
-	return nil
-}
-func (d *deviceRepoForSessionUnitTest) FindOfflineDevices(context.Context, time.Duration) ([]*iotModels.Device, error) {
-	return nil, nil
-}
-func (d *deviceRepoForSessionUnitTest) CountDevicesByType(context.Context) (map[string]int, error) {
-	return nil, nil
-}
-
-type settingsResolverForSessionUnitTest struct {
-	has    bool
-	hasErr error
-	intVal int
-	intErr error
-}
-
-func (s *settingsResolverForSessionUnitTest) HasTenantOverride(context.Context, string) (bool, error) {
-	return s.has, s.hasErr
-}
-func (s *settingsResolverForSessionUnitTest) ResolveString(context.Context, string) (string, error) {
-	return "", nil
-}
-func (s *settingsResolverForSessionUnitTest) ResolveInt(context.Context, string) (int, error) {
-	return s.intVal, s.intErr
 }
 
 type workSessionServiceForSessionUnitTest struct {
@@ -168,7 +106,7 @@ func (w *workSessionServiceForSessionUnitTest) CleanupOpenSessions(context.Conte
 func (w *workSessionServiceForSessionUnitTest) AutoCheckoutDueSessions(context.Context, time.Duration) (int, error) {
 	return 0, nil
 }
-func (w *workSessionServiceForSessionUnitTest) SetStaffShiftRepo(scheduleModels.StaffShiftRepository) {
+func (w *workSessionServiceForSessionUnitTest) SetStaffShiftRepo(WorkSessionShifts) {
 }
 func (w *workSessionServiceForSessionUnitTest) EnsureCheckedIn(ctx context.Context, staffID int64, source string) (*activeModels.WorkSession, error) {
 	if w.ensureCheckedInFunc != nil {
@@ -192,31 +130,15 @@ func (w *workSessionServiceForSessionUnitTest) AutoEndExpiredBreaks(context.Cont
 func (w *workSessionServiceForSessionUnitTest) GetStaffIDsWithSupervisionToday(context.Context) ([]int64, error) {
 	return nil, nil
 }
-func (w *workSessionServiceForSessionUnitTest) GetWorkTimeModelByID(context.Context, int64) (*configModels.WorkTimeModel, error) {
-	return nil, nil
-}
-func (w *workSessionServiceForSessionUnitTest) GetCurrentScheduleRows(context.Context, int64) ([]*configModels.StaffWorkSchedule, error) {
-	return nil, nil
-}
-func (w *workSessionServiceForSessionUnitTest) AssignScheduleTemplate(context.Context, *userModels.Staff, int64) error {
-	return nil
-}
-func (w *workSessionServiceForSessionUnitTest) ApplyCustomScheduleRows(context.Context, *userModels.Staff, []*configModels.StaffWorkSchedule, timezone.Date) error {
-	return nil
-}
-func (w *workSessionServiceForSessionUnitTest) SaveCustomScheduleAsTemplate(context.Context, *userModels.Staff, string, int, timezone.Date, []*configModels.WorkTimeModelEntry) error {
+func (w *workSessionServiceForSessionUnitTest) UpdateSchedule(context.Context, *StaffScheduleBinding, ScheduleUpdateInput) error {
 	return nil
 }
 
-func (w *workSessionServiceForSessionUnitTest) UpdateSchedule(context.Context, *userModels.Staff, ScheduleUpdateInput) error {
-	return nil
-}
-
-func newSessionSQLMockDB(t *testing.T) (*bun.DB, sqlmock.Sqlmock) {
+func newSessionSQLMockDB(t *testing.T) (*testpkg.DB, sqlmock.Sqlmock) {
 	t.Helper()
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	db := bun.NewDB(sqlDB, pgdialect.New())
+	db := testpkg.NewBunDB(sqlDB)
 	t.Cleanup(func() {
 		mock.ExpectClose()
 		require.NoError(t, db.Close())
@@ -227,23 +149,23 @@ func newSessionSQLMockDB(t *testing.T) (*bun.DB, sqlmock.Sqlmock) {
 type sessionTestSavepoints struct{}
 
 type sessionStartLockerStub struct {
-	lock func(context.Context, int64, int64) error
+	lock func(context.Context, int64) error
 }
 
-func (s sessionStartLockerStub) LockSessionStart(ctx context.Context, tenantID, activityID int64) error {
-	return s.lock(ctx, tenantID, activityID)
+func (s sessionStartLockerStub) LockSessionStart(ctx context.Context, activityID int64) error {
+	return s.lock(ctx, activityID)
 }
 
 func TestGetActivityEndNameKeepsTransactionUsableAfterDatabaseFailure(t *testing.T) {
 	t.Parallel()
 
-	svc := &service{ServiceDependencies: ServiceDependencies{Logger: slog.New(slog.DiscardHandler)}}
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, Logger: slog.New(slog.DiscardHandler)}}
 	var lookupErr error
 	err := tenant.WithinCurrentTenant(testpkg.Ctx(t), func(txCtx context.Context) error {
 		name, err := svc.getActivityEndName(txCtx, func(lookupCtx context.Context) (string, error) {
 			rawTx, ok := tenant.TransactionFromContext(lookupCtx)
 			require.True(t, ok)
-			tx, ok := rawTx.(bun.Tx)
+			tx, ok := rawTx.(testpkg.Tx)
 			require.True(t, ok)
 			_, lookupErr = tx.ExecContext(lookupCtx, "SELECT 1 / 0")
 			return "", lookupErr
@@ -253,7 +175,7 @@ func TestGetActivityEndNameKeepsTransactionUsableAfterDatabaseFailure(t *testing
 
 		rawTx, ok := tenant.TransactionFromContext(txCtx)
 		require.True(t, ok)
-		tx, ok := rawTx.(bun.Tx)
+		tx, ok := rawTx.(testpkg.Tx)
 		require.True(t, ok)
 		_, err = tx.ExecContext(txCtx, "SELECT 1")
 		return err
@@ -269,10 +191,10 @@ func TestAcquireActivitySessionLock_UsesRepository(t *testing.T) {
 	t.Parallel()
 	ctx := tenant.WithTenantID(context.Background(), 17)
 	called := false
-	svc := &service{ServiceDependencies: ServiceDependencies{SessionStartLock: sessionStartLockerStub{
-		lock: func(_ context.Context, tenantID, activityID int64) error {
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SessionStartLock: sessionStartLockerStub{
+		lock: func(ctx context.Context, activityID int64) error {
 			called = true
-			assert.Equal(t, int64(17), tenantID)
+			assert.Equal(t, int64(17), tenant.FromContext(ctx))
 			assert.Equal(t, int64(23), activityID)
 			return nil
 		},
@@ -285,8 +207,8 @@ func TestAcquireActivitySessionLock_UsesRepository(t *testing.T) {
 func TestAcquireActivitySessionLock_PropagatesRepositoryFailure(t *testing.T) {
 	t.Parallel()
 	expected := errors.New("lock failed")
-	svc := &service{ServiceDependencies: ServiceDependencies{SessionStartLock: sessionStartLockerStub{
-		lock: func(context.Context, int64, int64) error { return expected },
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SessionStartLock: sessionStartLockerStub{
+		lock: func(context.Context, int64) error { return expected },
 	}}}
 
 	err := svc.acquireActivitySessionLock(tenant.WithTenantID(context.Background(), 17), 23, "start")
@@ -298,11 +220,11 @@ func (sessionTestSavepoints) exec(ctx context.Context, statement string) error {
 	if !ok {
 		return tenant.ErrRuntimeRequired
 	}
-	var tx bun.Tx
+	var tx testpkg.Tx
 	switch value := raw.(type) {
-	case bun.Tx:
+	case testpkg.Tx:
 		tx = value
-	case *bun.Tx:
+	case *testpkg.Tx:
 		if value == nil {
 			return tenant.ErrRuntimeRequired
 		}
@@ -324,11 +246,11 @@ func (s sessionTestSavepoints) ReleaseSavepoint(ctx context.Context) error {
 	return s.exec(ctx, "RELEASE SAVEPOINT phoenix_operation")
 }
 
-func withSessionTestRuntime(t *testing.T, ctx context.Context, db *bun.DB) context.Context {
+func withSessionTestRuntime(t *testing.T, ctx context.Context, db *testpkg.DB) context.Context {
 	t.Helper()
 	tenantID := testpkg.Tenant(t)
 	within := func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
-		return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error { return fn(ctx, tx) })
+		return db.RunInTx(ctx, nil, func(ctx context.Context, tx testpkg.Tx) error { return fn(ctx, tx) })
 	}
 	admin := func(ctx context.Context, fn func(context.Context, any) error) error {
 		return within(ctx, tenantID, fn)
@@ -359,7 +281,7 @@ func TestProcessSessionTimeoutByID_ContinuesWhenSSECollectionFails(t *testing.T)
 	visitEnded := false
 	entryTime := time.Now().Add(-time.Hour)
 
-	svc := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default(), GroupRepo: &mockGroupRepository{
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, Logger: slog.Default(), GroupRepo: &mockGroupRepository{
 		findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
 			return &activeModels.Group{Model: modelBase.Model{ID: 100}, GroupID: &activityID}, nil
 		},
@@ -408,7 +330,7 @@ func TestProcessSessionTimeoutByID_ReturnsCheckoutAndEndErrors(t *testing.T) {
 
 	t.Run("checkout lookup failure", func(t *testing.T) {
 		findCalls := 0
-		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, GroupRepo: &mockGroupRepository{
 			findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
 				return activeGroup, nil
 			},
@@ -431,7 +353,7 @@ func TestProcessSessionTimeoutByID_ReturnsCheckoutAndEndErrors(t *testing.T) {
 	})
 
 	t.Run("session end failure", func(t *testing.T) {
-		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, GroupRepo: &mockGroupRepository{
 			findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
 				return activeGroup, nil
 			},
@@ -462,7 +384,7 @@ func TestProcessSessionTimeoutByID_CompletesTimetableMirrorBeforeEndingSession(t
 	activeGroup := &activeModels.Group{Model: modelBase.Model{ID: 100}}
 
 	newService := func(order *[]string, bridgeErr error) *service {
-		return &service{ServiceDependencies: ServiceDependencies{
+		return &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal,
 			Logger: slog.Default(),
 			GroupRepo: &mockGroupRepository{
 				findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
@@ -520,8 +442,8 @@ func TestProcessSessionTimeoutByID_IsAtomic(t *testing.T) {
 	ctx := context.Background()
 	activeGroup := &activeModels.Group{Model: modelBase.Model{ID: 100}}
 
-	newService := func(db *bun.DB, endSessionErr error) *service {
-		return &service{ServiceDependencies: ServiceDependencies{
+	newService := func(db *testpkg.DB, endSessionErr error) *service {
+		return &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal,
 			Logger: slog.Default(),
 			DB:     db,
 			GroupRepo: &mockGroupRepository{
@@ -589,7 +511,7 @@ func newEndGroupService(
 ) *service {
 	t.Helper()
 
-	return &service{ServiceDependencies: ServiceDependencies{
+	return &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal,
 		Logger: slog.Default(),
 		GroupRepo: &mockGroupRepository{
 			findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
@@ -680,7 +602,7 @@ func TestUpdateSessionActivity_RepositoryMissesAreMapped(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	missErr := &modelBase.DatabaseError{Op: "update last activity - session not found", Err: sql.ErrNoRows}
+	missErr := &modelBase.DatabaseError{Op: "update last activity - session not found", Err: modelBase.ErrNotFound}
 
 	tests := []struct {
 		name      string
@@ -690,7 +612,7 @@ func TestUpdateSessionActivity_RepositoryMissesAreMapped(t *testing.T) {
 		{
 			name: "find by id no rows becomes not found",
 			findFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
-				return nil, &modelBase.DatabaseError{Op: "find by id", Err: sql.ErrNoRows}
+				return nil, &modelBase.DatabaseError{Op: "find by id", Err: modelBase.ErrNotFound}
 			},
 			wantError: ErrActiveGroupNotFound.Error(),
 		},
@@ -720,7 +642,7 @@ func TestUpdateSessionActivity_RepositoryMissesAreMapped(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
+			svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, GroupRepo: &mockGroupRepository{
 				updateLastActivityFunc: func(context.Context, int64, time.Time) error {
 					return missErr
 				},
@@ -739,7 +661,7 @@ func TestUpdateSessionActivity_RepositoryMissesAreMapped(t *testing.T) {
 func TestUpdateSessionActivity_NonMissUpdateErrorIsPreserved(t *testing.T) {
 	t.Parallel()
 
-	svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, GroupRepo: &mockGroupRepository{
 		updateLastActivityFunc: func(context.Context, int64, time.Time) error {
 			return errors.New("deadlock")
 		},
@@ -754,38 +676,16 @@ func TestUpdateSessionActivity_NonMissUpdateErrorIsPreserved(t *testing.T) {
 
 func TestSessionDeviceOnlineWindowResolution(t *testing.T) {
 	t.Parallel()
-
 	ctx := context.Background()
-
-	t.Run("default without settings", func(t *testing.T) {
-		svc := &service{}
-		assert.Equal(t, defaultDeviceOnlineWindow, svc.deviceOnlineWindow(ctx))
-	})
-
-	t.Run("default when override check fails", func(t *testing.T) {
-		svc := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default()}, settings: &settingsResolverForSessionUnitTest{hasErr: errors.New("settings db down")}}
-		assert.Equal(t, defaultDeviceOnlineWindow, svc.deviceOnlineWindow(ctx))
-	})
-
-	t.Run("default without tenant override", func(t *testing.T) {
-		svc := &service{settings: &settingsResolverForSessionUnitTest{has: false, intVal: 2}}
-		assert.Equal(t, defaultDeviceOnlineWindow, svc.deviceOnlineWindow(ctx))
-	})
-
-	t.Run("default for invalid override", func(t *testing.T) {
-		svc := &service{settings: &settingsResolverForSessionUnitTest{has: true, intVal: 0}}
-		assert.Equal(t, defaultDeviceOnlineWindow, svc.deviceOnlineWindow(ctx))
-	})
-
-	t.Run("default when resolve fails", func(t *testing.T) {
-		svc := &service{settings: &settingsResolverForSessionUnitTest{has: true, intErr: errors.New("missing")}}
-		assert.Equal(t, defaultDeviceOnlineWindow, svc.deviceOnlineWindow(ctx))
-	})
-
-	t.Run("valid tenant override", func(t *testing.T) {
-		svc := &service{settings: &settingsResolverForSessionUnitTest{has: true, intVal: 2}}
-		assert.Equal(t, 2*time.Minute, svc.deviceOnlineWindow(ctx))
-	})
+	assert.Equal(t, defaultDeviceOnlineWindow, (&service{}).deviceOnlineWindow(ctx))
+	for _, window := range []time.Duration{0, -time.Minute, 2 * time.Minute} {
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, DeviceRepo: &deviceRepoForSessionUnitTest{window: window}}}
+		want := defaultDeviceOnlineWindow
+		if window > 0 {
+			want = window
+		}
+		assert.Equal(t, want, svc.deviceOnlineWindow(ctx))
+	}
 }
 
 func TestSessionIsDeviceOnline(t *testing.T) {
@@ -794,19 +694,19 @@ func TestSessionIsDeviceOnline(t *testing.T) {
 	now := time.Date(2026, 6, 14, 12, 0, 0, 0, time.UTC)
 	recent := now.Add(-time.Minute)
 	old := now.Add(-10 * time.Minute)
-	svc := &service{settings: &settingsResolverForSessionUnitTest{has: true, intVal: 5}}
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, DeviceRepo: &deviceRepoForSessionUnitTest{window: 5 * time.Minute}}}
 
 	assert.False(t, svc.isDeviceOnline(context.Background(), nil, now))
-	assert.False(t, svc.isDeviceOnline(context.Background(), &iotModels.Device{}, now))
-	assert.True(t, svc.isDeviceOnline(context.Background(), &iotModels.Device{LastSeen: &recent}, now))
-	assert.False(t, svc.isDeviceOnline(context.Background(), &iotModels.Device{LastSeen: &old}, now))
+	assert.False(t, svc.isDeviceOnline(context.Background(), &activeModels.SessionDevice{}, now))
+	assert.True(t, svc.isDeviceOnline(context.Background(), &activeModels.SessionDevice{LastSeen: &recent}, now))
+	assert.False(t, svc.isDeviceOnline(context.Background(), &activeModels.SessionDevice{LastSeen: &old}, now))
 }
 
 func TestUpdateDeviceLocationBestEffort(t *testing.T) {
 	t.Parallel()
 
 	calls := 0
-	svc := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default(), DeviceRepo: &deviceRepoForSessionUnitTest{
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, Logger: slog.Default(), DeviceRepo: &deviceRepoForSessionUnitTest{
 		updateRoomIDFunc: func(context.Context, int64, int64) error {
 			calls++
 			return errors.New("device table temporarily unavailable")
@@ -833,7 +733,7 @@ func TestAssignMultipleSupervisorsNonCritical_WorkSessionBestEffortBranches(t *t
 	}
 	checked := map[int64]bool{}
 	created := map[int64]bool{}
-	svc := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default(), SupervisorRepo: &mockGroupSupervisorRepository{
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, Logger: slog.Default(), SupervisorRepo: &mockGroupSupervisorRepository{
 		createFunc: func(_ context.Context, supervisor *activeModels.GroupSupervisor) error {
 			created[supervisor.StaffID] = true
 			return nil
@@ -871,7 +771,7 @@ func TestRunBestEffortDB_SavepointBranches(t *testing.T) {
 		mock.ExpectRollback()
 
 		called := false
-		svc := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default()}}
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, Logger: slog.Default()}}
 		svc.runBestEffortDB(txCtx, "assign_supervisor", func() error {
 			called = true
 			return nil
@@ -895,7 +795,7 @@ func TestRunBestEffortDB_SavepointBranches(t *testing.T) {
 		mock.ExpectRollback()
 
 		logged := false
-		svc := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default()}}
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, Logger: slog.Default()}}
 		svc.runBestEffortDB(txCtx, "nfc_auto_checkin", func() error {
 			return errors.New("operation failed")
 		}, func(error) {
@@ -918,7 +818,7 @@ func TestRunBestEffortDB_SavepointBranches(t *testing.T) {
 		mock.ExpectRollback()
 
 		called := false
-		svc := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default()}}
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, Logger: slog.Default()}}
 		svc.runBestEffortDB(txCtx, "update_device_location", func() error {
 			called = true
 			return nil
@@ -940,7 +840,7 @@ func TestCreateSessionBase_Branches(t *testing.T) {
 	t.Run("create failure is returned before side effects", func(t *testing.T) {
 		expectedErr := errors.New("group insert failed")
 		transferCalls := 0
-		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, GroupRepo: &mockGroupRepository{
 			createFunc: func(context.Context, *activeModels.Group) error {
 				return expectedErr
 			},
@@ -962,7 +862,7 @@ func TestCreateSessionBase_Branches(t *testing.T) {
 
 	t.Run("transfer failure is returned after group creation", func(t *testing.T) {
 		expectedErr := errors.New("visit transfer failed")
-		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, GroupRepo: &mockGroupRepository{
 			createFunc: func(_ context.Context, group *activeModels.Group) error {
 				group.ID = 44
 				return nil
@@ -985,7 +885,7 @@ func TestCreateSessionBase_Branches(t *testing.T) {
 
 	t.Run("success without device skips location update", func(t *testing.T) {
 		locationUpdates := 0
-		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, GroupRepo: &mockGroupRepository{
 			createFunc: func(_ context.Context, group *activeModels.Group) error {
 				group.ID = 45
 				return nil
@@ -1035,7 +935,7 @@ func TestCreateSessionWithMultipleSupervisors_TransferredVisitsBranch(t *testing
 	t.Parallel()
 
 	var assigned []int64
-	svc := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default(), GroupRepo: &mockGroupRepository{
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, Logger: slog.Default(), GroupRepo: &mockGroupRepository{
 		createFunc: func(_ context.Context, group *activeModels.Group) error {
 			group.ID = 60
 			return nil
@@ -1063,6 +963,14 @@ func TestManualRoomSelectionStrategies(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
+	t.Run("lock failure stops before conflict lookup", func(t *testing.T) {
+		failure := errors.New("room lock failed")
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, GroupRepo: &mockGroupRepository{}, SchoolPresence: &mockVisitRepository{
+			lockRoomSessionWritesFunc: func(_ context.Context, id int64) error { require.Equal(t, int64(10), id); return failure },
+		}}}
+		_, err := svc.validateManualRoomSelection(ctx, 10, RoomConflictFail, true)
+		require.ErrorIs(t, err, failure)
+	})
 
 	t.Run("ignore strategy skips conflict check", func(t *testing.T) {
 		svc := &service{}
@@ -1072,7 +980,7 @@ func TestManualRoomSelectionStrategies(t *testing.T) {
 	})
 
 	t.Run("repository error is returned", func(t *testing.T) {
-		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SchoolPresence: &mockVisitRepository{}, GroupRepo: &mockGroupRepository{
 			checkRoomConflictFunc: func(context.Context, int64, int64) (bool, *activeModels.Group, error) {
 				return false, nil, errors.New("conflict lookup failed")
 			},
@@ -1087,7 +995,7 @@ func TestManualRoomSelectionStrategies(t *testing.T) {
 	})
 
 	t.Run("warn strategy permits conflict", func(t *testing.T) {
-		svc := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default(), GroupRepo: &mockGroupRepository{
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SchoolPresence: &mockVisitRepository{}, Logger: slog.Default(), GroupRepo: &mockGroupRepository{
 			checkRoomConflictFunc: func(context.Context, int64, int64) (bool, *activeModels.Group, error) {
 				return true, &activeModels.Group{Model: modelBase.Model{ID: 20}}, nil
 			},
@@ -1105,12 +1013,12 @@ func TestManualRoomSelectionStrategies(t *testing.T) {
 // panics through the embedded nil interface, which is what an unexpected call
 // should do in a unit test.
 type activityGroupRepoForRoomUnitTest struct {
-	activitiesModels.GroupRepository
-	group   *activitiesModels.Group
+	AttendanceActivityGroups
+	group   *activeModels.SessionActivity
 	findErr error
 }
 
-func (a *activityGroupRepoForRoomUnitTest) FindByID(context.Context, any) (*activitiesModels.Group, error) {
+func (a *activityGroupRepoForRoomUnitTest) FindByID(context.Context, any) (*activeModels.SessionActivity, error) {
 	return a.group, a.findErr
 }
 
@@ -1121,9 +1029,9 @@ func TestDetermineRoomIDWithStrategy_NoSelectionAndNoPlannedRoom(t *testing.T) {
 
 	t.Run("planned room is used when configured", func(t *testing.T) {
 		plannedRoom := int64(7)
-		svc := &service{ServiceDependencies: ServiceDependencies{
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal,
 			ActivityGroupRepo: &activityGroupRepoForRoomUnitTest{
-				group: &activitiesModels.Group{PlannedRoomID: &plannedRoom},
+				group: &activeModels.SessionActivity{PlannedRoomID: &plannedRoom},
 			},
 		}}
 
@@ -1136,9 +1044,9 @@ func TestDetermineRoomIDWithStrategy_NoSelectionAndNoPlannedRoom(t *testing.T) {
 	// No hardcoded fallback: room id 1 belongs to a single school, so a default
 	// would trip fk_active_groups_room_tenant for every other tenant.
 	t.Run("no room and no planned room fails", func(t *testing.T) {
-		svc := &service{ServiceDependencies: ServiceDependencies{
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal,
 			ActivityGroupRepo: &activityGroupRepoForRoomUnitTest{
-				group: &activitiesModels.Group{},
+				group: &activeModels.SessionActivity{},
 			},
 		}}
 
@@ -1150,7 +1058,7 @@ func TestDetermineRoomIDWithStrategy_NoSelectionAndNoPlannedRoom(t *testing.T) {
 
 	t.Run("repository error is returned", func(t *testing.T) {
 		lookupErr := errors.New("planned room lookup failed")
-		svc := &service{ServiceDependencies: ServiceDependencies{
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal,
 			ActivityGroupRepo: &activityGroupRepoForRoomUnitTest{findErr: lookupErr},
 		}}
 
@@ -1168,7 +1076,7 @@ func TestEndExistingActivitySessionsForForceStart_SkipsInvalidRowsAndStopsOnErro
 
 	t.Run("skips nil and invalid sessions", func(t *testing.T) {
 		var ended []int64
-		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, GroupRepo: &mockGroupRepository{
 			findActiveByGroupIDFunc: func(context.Context, int64) ([]*activeModels.Group, error) {
 				return []*activeModels.Group{
 					nil,
@@ -1192,7 +1100,7 @@ func TestEndExistingActivitySessionsForForceStart_SkipsInvalidRowsAndStopsOnErro
 	})
 
 	t.Run("find error is returned", func(t *testing.T) {
-		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, GroupRepo: &mockGroupRepository{
 			findActiveByGroupIDFunc: func(context.Context, int64) ([]*activeModels.Group, error) {
 				return nil, errors.New("active sessions lookup failed")
 			},
@@ -1208,7 +1116,7 @@ func TestEndExistingActivitySessionsForForceStart_SkipsInvalidRowsAndStopsOnErro
 
 	t.Run("end error stops immediately", func(t *testing.T) {
 		expectedErr := errors.New("end active session failed")
-		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, GroupRepo: &mockGroupRepository{
 			findActiveByGroupIDFunc: func(context.Context, int64) ([]*activeModels.Group, error) {
 				return []*activeModels.Group{{Model: modelBase.Model{ID: 31}}}, nil
 			},
@@ -1234,7 +1142,7 @@ func TestTransferForceStartedActivityState_PropagatesTransferErrors(t *testing.T
 	supervisorErr := errors.New("supervisor lookup failed")
 
 	t.Run("visit transfer error", func(t *testing.T) {
-		svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: &mockVisitRepository{
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SchoolPresence: &mockVisitRepository{
 			transferActiveVisitsBetweenGroupsFunc: func(context.Context, int64, int64) (int, error) {
 				return 0, visitErr
 			},
@@ -1247,7 +1155,7 @@ func TestTransferForceStartedActivityState_PropagatesTransferErrors(t *testing.T
 	})
 
 	t.Run("supervisor transfer error", func(t *testing.T) {
-		svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: &mockVisitRepository{}, SupervisorRepo: &mockGroupSupervisorRepository{
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SchoolPresence: &mockVisitRepository{}, SupervisorRepo: &mockGroupSupervisorRepository{
 			findByActiveGroupIDFunc: func(context.Context, int64, bool) ([]*activeModels.GroupSupervisor, error) {
 				return nil, supervisorErr
 			},
@@ -1264,7 +1172,7 @@ func TestCompleteTimetableMirrorsForEndedSessions_PropagatesRepositoryError(t *t
 	t.Parallel()
 
 	expectedErr := errors.New("bridge update failed")
-	svc := &service{ServiceDependencies: ServiceDependencies{TimetableBridgeCompleter: &timetableBridgeCompleterForSessionUnitTest{
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, TimetableBridgeCompleter: &timetableBridgeCompleterForSessionUnitTest{
 		completeFunc: func(_ context.Context, activeGroupIDs []int64, _ time.Time) (int64, error) {
 			assert.Equal(t, []int64{10, 20}, activeGroupIDs)
 			return 0, expectedErr
@@ -1287,7 +1195,7 @@ func TestTransferActiveSupervisorsBetweenGroups_ErrorBranches(t *testing.T) {
 	t.Run("new supervisor lookup error", func(t *testing.T) {
 		call := 0
 		expectedErr := errors.New("new supervisor lookup failed")
-		svc := &service{ServiceDependencies: ServiceDependencies{SupervisorRepo: &mockGroupSupervisorRepository{
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SupervisorRepo: &mockGroupSupervisorRepository{
 			findByActiveGroupIDFunc: func(context.Context, int64, bool) ([]*activeModels.GroupSupervisor, error) {
 				call++
 				if call == 2 {
@@ -1306,7 +1214,7 @@ func TestTransferActiveSupervisorsBetweenGroups_ErrorBranches(t *testing.T) {
 
 	t.Run("end supervision error returns partial count", func(t *testing.T) {
 		expectedErr := errors.New("end supervision failed")
-		svc := &service{ServiceDependencies: ServiceDependencies{SupervisorRepo: &mockGroupSupervisorRepository{
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SupervisorRepo: &mockGroupSupervisorRepository{
 			findByActiveGroupIDFunc: func(_ context.Context, activeGroupID int64, _ bool) ([]*activeModels.GroupSupervisor, error) {
 				if activeGroupID == 1 {
 					return []*activeModels.GroupSupervisor{
@@ -1330,7 +1238,7 @@ func TestTransferActiveSupervisorsBetweenGroups_ErrorBranches(t *testing.T) {
 	t.Run("skips nil and duplicate supervisors", func(t *testing.T) {
 		var ended []int64
 		var created []*activeModels.GroupSupervisor
-		svc := &service{ServiceDependencies: ServiceDependencies{SupervisorRepo: &mockGroupSupervisorRepository{
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SupervisorRepo: &mockGroupSupervisorRepository{
 			findByActiveGroupIDFunc: func(_ context.Context, activeGroupID int64, _ bool) ([]*activeModels.GroupSupervisor, error) {
 				if activeGroupID == 1 {
 					return []*activeModels.GroupSupervisor{
@@ -1367,7 +1275,7 @@ func TestTransferActiveSupervisorsBetweenGroups_ErrorBranches(t *testing.T) {
 
 	t.Run("create error returns partial count", func(t *testing.T) {
 		expectedErr := errors.New("create transferred supervisor failed")
-		svc := &service{ServiceDependencies: ServiceDependencies{SupervisorRepo: &mockGroupSupervisorRepository{
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SupervisorRepo: &mockGroupSupervisorRepository{
 			findByActiveGroupIDFunc: func(_ context.Context, activeGroupID int64, _ bool) ([]*activeModels.GroupSupervisor, error) {
 				if activeGroupID == 1 {
 					return []*activeModels.GroupSupervisor{
@@ -1394,7 +1302,7 @@ func TestTransferActiveVisitsBetweenGroups_DelegatesToConditionalRepositoryTrans
 
 	ctx := context.Background()
 	var gotOldGroupID, gotNewGroupID int64
-	svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: &mockVisitRepository{
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SchoolPresence: &mockVisitRepository{
 		transferActiveVisitsBetweenGroupsFunc: func(_ context.Context, oldGroupID, newGroupID int64) (int, error) {
 			gotOldGroupID = oldGroupID
 			gotNewGroupID = newGroupID
@@ -1418,7 +1326,7 @@ func TestEndExistingDeviceSessionForForceStart_Branches(t *testing.T) {
 
 	t.Run("find error is returned", func(t *testing.T) {
 		expectedErr := errors.New("force device lookup failed")
-		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, GroupRepo: &mockGroupRepository{
 			findActiveByDeviceIDFunc: func(context.Context, int64) (*activeModels.Group, error) {
 				return nil, expectedErr
 			},
@@ -1432,7 +1340,7 @@ func TestEndExistingDeviceSessionForForceStart_Branches(t *testing.T) {
 	})
 
 	t.Run("nil existing session is zero", func(t *testing.T) {
-		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{}}}
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, GroupRepo: &mockGroupRepository{}}}
 
 		endedID, err := svc.endExistingDeviceSessionForForceStart(ctx, 100)
 
@@ -1442,7 +1350,7 @@ func TestEndExistingDeviceSessionForForceStart_Branches(t *testing.T) {
 
 	t.Run("end error is returned", func(t *testing.T) {
 		expectedErr := errors.New("force end failed")
-		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, GroupRepo: &mockGroupRepository{
 			findActiveByDeviceIDFunc: func(context.Context, int64) (*activeModels.Group, error) {
 				return &activeModels.Group{Model: modelBase.Model{ID: 302}}, nil
 			},
@@ -1461,7 +1369,7 @@ func TestEndExistingDeviceSessionForForceStart_Branches(t *testing.T) {
 
 	t.Run("returns ended session id", func(t *testing.T) {
 		var released []int64
-		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, GroupRepo: &mockGroupRepository{
 			findActiveByDeviceIDFunc: func(context.Context, int64) (*activeModels.Group, error) {
 				return &activeModels.Group{Model: modelBase.Model{ID: 303}}, nil
 			},
@@ -1501,7 +1409,7 @@ func TestSupervisorReplacement_ErrorBranches(t *testing.T) {
 
 	t.Run("current supervisor lookup error", func(t *testing.T) {
 		expectedErr := errors.New("current supervisors failed")
-		svc := &service{ServiceDependencies: ServiceDependencies{SupervisorRepo: &mockGroupSupervisorRepository{
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SupervisorRepo: &mockGroupSupervisorRepository{
 			findByActiveGroupIDFunc: func(context.Context, int64, bool) ([]*activeModels.GroupSupervisor, error) {
 				return nil, expectedErr
 			},
@@ -1515,7 +1423,7 @@ func TestSupervisorReplacement_ErrorBranches(t *testing.T) {
 
 	t.Run("ending current supervisor error", func(t *testing.T) {
 		expectedErr := errors.New("end current supervisor failed")
-		svc := &service{ServiceDependencies: ServiceDependencies{SupervisorRepo: &mockGroupSupervisorRepository{
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SupervisorRepo: &mockGroupSupervisorRepository{
 			findByActiveGroupIDFunc: func(context.Context, int64, bool) ([]*activeModels.GroupSupervisor, error) {
 				return []*activeModels.GroupSupervisor{
 					{Model: modelBase.Model{ID: 20}, StaffID: 10, Role: "supervisor", StartDate: startDate},
@@ -1539,7 +1447,7 @@ func TestSupervisorReplacement_ErrorBranches(t *testing.T) {
 			{Model: modelBase.Model{ID: 20}, StaffID: 10, Role: "supervisor", StartDate: startDate, EndDate: &endedDate},
 		}
 		updateCalls := 0
-		svc := &service{ServiceDependencies: ServiceDependencies{SupervisorRepo: &mockGroupSupervisorRepository{
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SupervisorRepo: &mockGroupSupervisorRepository{
 			findByActiveGroupIDFunc: func(context.Context, int64, bool) ([]*activeModels.GroupSupervisor, error) {
 				return supervisors, nil
 			},
@@ -1560,7 +1468,7 @@ func TestSupervisorReplacement_ErrorBranches(t *testing.T) {
 
 	t.Run("create new supervisor error", func(t *testing.T) {
 		expectedErr := errors.New("create supervisor failed")
-		svc := &service{ServiceDependencies: ServiceDependencies{SupervisorRepo: &mockGroupSupervisorRepository{
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SupervisorRepo: &mockGroupSupervisorRepository{
 			findByActiveGroupIDFunc: func(context.Context, int64, bool) ([]*activeModels.GroupSupervisor, error) {
 				return []*activeModels.GroupSupervisor{}, nil
 			},
@@ -1594,7 +1502,7 @@ func TestSupervisorReplacement_PreservesAdditionalSupervisors(t *testing.T) {
 	}
 
 	var updatedIDs, createdStaffIDs []int64
-	svc := &service{ServiceDependencies: ServiceDependencies{SupervisorRepo: &mockGroupSupervisorRepository{
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SupervisorRepo: &mockGroupSupervisorRepository{
 		findByActiveGroupIDFunc: func(context.Context, int64, bool) ([]*activeModels.GroupSupervisor, error) {
 			return []*activeModels.GroupSupervisor{primary, additional}, nil
 		},
@@ -1639,14 +1547,14 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 	activeGroup := &activeModels.Group{Model: modelBase.Model{ID: 100}}
 
 	t.Run("list failure returns active error", func(t *testing.T) {
-		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
-			listFunc: func(context.Context, *modelBase.QueryOptions) ([]*activeModels.Group, error) {
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, GroupRepo: &mockGroupRepository{
+			listFunc: func(context.Context) ([]*activeModels.Group, error) {
 				return nil, errors.New("list failed")
 			},
 		}},
 		}
 
-		svc.settings = &stubSettingsResolver{stringValues: map[string]string{configModels.KeyPresenceMode: PresenceModeDetailed}}
+		svc.settings = &stubSettingsResolver{stringValues: map[string]string{presenceModeQuestion: PresenceModeDetailed}}
 		result, err := svc.EndDailySessions(ctx)
 
 		require.Error(t, err)
@@ -1658,8 +1566,8 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 		db, mock := newSessionSQLMockDB(t)
 		mock.ExpectBegin()
 		mock.ExpectRollback()
-		svc := &service{ServiceDependencies: ServiceDependencies{DB: db, GroupRepo: &mockGroupRepository{
-			listFunc: func(context.Context, *modelBase.QueryOptions) ([]*activeModels.Group, error) {
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, DB: db, GroupRepo: &mockGroupRepository{
+			listFunc: func(context.Context) ([]*activeModels.Group, error) {
 				return []*activeModels.Group{activeGroup}, nil
 			},
 		}, SchoolPresence: &mockVisitRepository{
@@ -1669,7 +1577,7 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 		}, SupervisorRepo: &mockGroupSupervisorRepository{}},
 		}
 
-		svc.settings = &stubSettingsResolver{stringValues: map[string]string{configModels.KeyPresenceMode: PresenceModeDetailed}}
+		svc.settings = &stubSettingsResolver{stringValues: map[string]string{presenceModeQuestion: PresenceModeDetailed}}
 		result, err := svc.EndDailySessions(withSessionTestRuntime(t, ctx, db))
 
 		require.Error(t, err)
@@ -1682,8 +1590,8 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 	// The Student Presence owner closes visits, sessions, and supervisions in
 	// one command (#2697): a failure inside it leaves no partial counts behind.
 	t.Run("owner bulk close failure records the error without partial counts", func(t *testing.T) {
-		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
-			listFunc: func(context.Context, *modelBase.QueryOptions) ([]*activeModels.Group, error) {
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, GroupRepo: &mockGroupRepository{
+			listFunc: func(context.Context) ([]*activeModels.Group, error) {
 				return []*activeModels.Group{activeGroup}, nil
 			},
 		}, SchoolPresence: &mockVisitRepository{
@@ -1693,7 +1601,7 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 		}, SupervisorRepo: &mockGroupSupervisorRepository{}},
 		}
 
-		svc.settings = &stubSettingsResolver{stringValues: map[string]string{configModels.KeyPresenceMode: PresenceModeDetailed}}
+		svc.settings = &stubSettingsResolver{stringValues: map[string]string{presenceModeQuestion: PresenceModeDetailed}}
 		result, err := svc.EndDailySessions(ctx)
 
 		require.Error(t, err)
@@ -1706,8 +1614,8 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 	})
 
 	t.Run("owner bulk close reports every count", func(t *testing.T) {
-		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
-			listFunc: func(context.Context, *modelBase.QueryOptions) ([]*activeModels.Group, error) {
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, GroupRepo: &mockGroupRepository{
+			listFunc: func(context.Context) ([]*activeModels.Group, error) {
 				return []*activeModels.Group{activeGroup}, nil
 			},
 		}, SchoolPresence: &mockVisitRepository{
@@ -1717,7 +1625,7 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 		}, SupervisorRepo: &mockGroupSupervisorRepository{}},
 		}
 
-		svc.settings = &stubSettingsResolver{stringValues: map[string]string{configModels.KeyPresenceMode: PresenceModeDetailed}}
+		svc.settings = &stubSettingsResolver{stringValues: map[string]string{presenceModeQuestion: PresenceModeDetailed}}
 		result, err := svc.EndDailySessions(ctx)
 
 		require.NoError(t, err)
@@ -1737,7 +1645,7 @@ func TestCleanupOrphanedSupervisors_ErrorBranches(t *testing.T) {
 
 	t.Run("find failure is captured", func(t *testing.T) {
 		result := &DailySessionCleanupResult{Success: true}
-		svc := &service{ServiceDependencies: ServiceDependencies{SupervisorRepo: &mockGroupSupervisorRepository{
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SupervisorRepo: &mockGroupSupervisorRepository{
 			findStaleOpenFunc: func(context.Context, timezone.Date) ([]*activeModels.GroupSupervisor, error) {
 				return nil, errors.New("stale lookup failed")
 			},
@@ -1754,7 +1662,7 @@ func TestCleanupOrphanedSupervisors_ErrorBranches(t *testing.T) {
 	t.Run("update failure is captured", func(t *testing.T) {
 		result := &DailySessionCleanupResult{Success: true}
 		record := &activeModels.GroupSupervisor{Model: modelBase.Model{ID: 10}, GroupID: 20, StartDate: today.AddDays(-1)}
-		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, GroupRepo: &mockGroupRepository{
 			findByIDForUpdateFunc: func(context.Context, int64) (*activeModels.Group, error) {
 				return &activeModels.Group{Model: modelBase.Model{ID: 20}}, nil
 			},

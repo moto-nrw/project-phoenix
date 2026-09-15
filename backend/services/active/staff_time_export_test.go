@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
@@ -25,10 +27,11 @@ func (f *overviewFixture) newExportService() active.StaffTimeExportService {
 	return active.NewStaffTimeExportService(
 		f.svc,
 		f.newWorkSessionService(),
-		f.repos.Staff,
-		f.repos.DataAccessLog,
+		services.TimeExportStaff(f.repos.Staff),
+		services.NewDataAccessAudit(f.repos.DataAccessLog),
 		nil,
 		nil,
+		services.RenderTimeTrackingWorkbook,
 	)
 }
 
@@ -36,12 +39,14 @@ func (f *overviewFixture) newWorkSessionService() active.WorkSessionService {
 	// nil settings: the F9 deviation checks are opt-in and irrelevant for
 	// reading export rows.
 	return active.NewWorkSessionService(
-		f.repos.WorkSession, f.repos.WorkSessionBreak, f.repos.WorkSessionEdit,
-		f.repos.StaffAbsence, f.repos.GroupSupervisor, f.repos.ActiveGroup, f.repos.Staff,
-		f.repos.StaffWorkSchedule, f.repos.WorkTimeModel,
+		f.repos.WorkSession, f.repos.WorkSessionBreak, services.NewWorkSessionAudit(f.repos.WorkSessionEdit),
+		f.repos.StaffAbsence, f.repos.GroupSupervisor, f.repos.ActiveGroup, services.WorkSessionStaff(f.repos.Staff),
+		services.NewWorkSessionSchedules(f.repos.StaffWorkSchedule), services.NewWorkSessionTimeModels(f.repos.WorkTimeModel),
 		nil,
 		nil,
 		f.db,
+		services.RenderTimeTrackingPDF,
+		services.RenderTimeTrackingWorkbook,
 	)
 }
 
@@ -71,10 +76,10 @@ func TestMonthExportRows_MatchMonthSummary(t *testing.T) {
 	f := newOverviewFixture(t, 3)
 
 	// Differentiate: part-time contract, sick day, payout + comp-time bookings.
-	f.addSchedule(t, f.staff[1].ID, 240)
+	f.addSchedule(t, f.staff[1], 240)
 	yesterday := f.today.AddDays(-1)
 	if monthOfDate(yesterday) == monthOfDate(f.today) {
-		f.addAbsence(t, f.staff[1].ID, activeModels.AbsenceTypeSick, activeModels.AbsenceStatusReported, yesterday, yesterday)
+		f.addAbsence(t, f.staff[1], activeModels.AbsenceTypeSick, activeModels.AbsenceStatusReported, yesterday, yesterday)
 	}
 	for _, adj := range []struct {
 		typ   string
@@ -84,12 +89,12 @@ func TestMonthExportRows_MatchMonthSummary(t *testing.T) {
 		{activeModels.BalanceAdjustmentTypeCompTime, -60},
 	} {
 		adjustment := &activeModels.StaffBalanceAdjustment{
-			StaffID:       f.staff[2].ID,
+			StaffID:       f.staff[2],
 			Type:          adj.typ,
 			MinutesDelta:  adj.delta,
 			EffectiveDate: f.today,
 			Note:          "Buchung",
-			DecidedBy:     f.staff[0].ID,
+			DecidedBy:     f.staff[0],
 			DecidedAt:     time.Now(),
 		}
 		adjustment.SetTenantID(f.tenantID)
@@ -104,11 +109,11 @@ func TestMonthExportRows_MatchMonthSummary(t *testing.T) {
 	for _, row := range rows {
 		byStaff[row.StaffID] = row
 	}
-	for _, staff := range f.staff {
-		summary, err := f.monthSvc.GetMonthSummary(f.ctx, staff.ID, f.today.Year(), int(f.today.Month()))
+	for _, staffID := range f.staff {
+		summary, err := f.monthSvc.GetMonthSummary(f.ctx, staffID, f.today.Year(), int(f.today.Month()))
 		require.NoError(t, err)
-		row, ok := byStaff[staff.ID]
-		require.True(t, ok, "missing export row for staff %d", staff.ID)
+		row, ok := byStaff[staffID]
+		require.True(t, ok, "missing export row for staff %d", staffID)
 
 		assert.Equal(t, summary.CarryInMinutes, row.CarryInMinutes)
 		assert.Equal(t, summary.TargetMinutesToDate, row.TargetMinutes)
@@ -149,19 +154,19 @@ func TestMonthExportRows_ClosedMonthCarriesFrozenValue(t *testing.T) {
 	t.Parallel()
 
 	f := newOverviewFixture(t, 1)
-	staffID := f.staff[0].ID
+	staffID := f.staff[0]
 	closedMonth := timezone.NewDate(f.today.Year(), f.today.Month(), 1).AddDays(-1)
 	settings := wtmIntSettings{
 		accountStart: timezone.NewDate(closedMonth.Year(), closedMonth.Month(), 1).String(),
 	}
 	monthSvc := active.NewWorkTimeMonthService(
-		f.repos.WorkSession, f.repos.WorkSessionBreak, f.repos.StaffAbsence, f.repos.Staff,
-		f.repos.StaffWorkSchedule, f.repos.WorkTimeModel, f.repos.StaffShift,
+		f.repos.WorkSession, f.repos.WorkSessionBreak, f.repos.StaffAbsence, services.StaffScheduleAssignments(f.repos.Staff),
+		services.NewWorkScheduleTargets(f.repos.StaffWorkSchedule), services.NewWorkTimeTargetModels(f.repos.WorkTimeModel), services.NewTimeTrackingShifts(f.repos.StaffShift),
 		settings, nil,
 	)
 	monthSvc.SetAdjustmentReader(f.repos.StaffBalanceAdjust)
-	monthSvc.SetSnapshotReader(f.repos.StaffMonthSnapshot)
-	closeSvc := active.NewStaffMonthCloseService(f.repos.StaffMonthSnapshot, monthSvc, f.repos.Staff, settings, nil)
+	monthSvc.SetSnapshotReader(services.MonthSnapshotCapability(f.repos.StaffMonthSnapshot))
+	closeSvc := active.NewStaffMonthCloseService(services.MonthSnapshotCapability(f.repos.StaffMonthSnapshot), monthSvc, services.MonthCloseStaff(f.repos.Staff), settings, nil)
 	svc := f.newOverviewService(settings)
 
 	closeResult, err := closeSvc.CloseMonth(f.ctx, staffID, closedMonth.Year(), int(closedMonth.Month()), "Abschluss")
@@ -261,12 +266,8 @@ func TestStaffTimeExport_CSVAndAudit(t *testing.T) {
 // failingAccessLogRepo simulates an audit outage.
 type failingAccessLogRepo struct{}
 
-func (failingAccessLogRepo) Create(context.Context, *auditModels.DataAccessLog) error {
+func (failingAccessLogRepo) Create(context.Context, *active.DataAccessEvent) error {
 	return errors.New("audit down")
-}
-
-func (failingAccessLogRepo) ExistsSince(context.Context, int64, string, map[string]string, time.Time) (bool, error) {
-	return false, nil
 }
 
 // TestStaffTimeExport_NoFileWithoutAudit: when the access-audit row cannot be
@@ -277,7 +278,8 @@ func TestStaffTimeExport_NoFileWithoutAudit(t *testing.T) {
 	f := newOverviewFixture(t, 1)
 	actorID := f.newActorAccount(t)
 	exportSvc := active.NewStaffTimeExportService(
-		f.svc, f.newWorkSessionService(), f.repos.Staff, failingAccessLogRepo{}, nil, nil,
+		f.svc, f.newWorkSessionService(), services.TimeExportStaff(f.repos.Staff), failingAccessLogRepo{}, nil, nil,
+		services.RenderTimeTrackingWorkbook,
 	)
 
 	file, err := exportSvc.Export(f.ctx, active.TimeExportRequest{
@@ -298,7 +300,8 @@ func TestStaffTimeExport_DayRowsMatchSingleExport(t *testing.T) {
 	f.cleanupAccessLogs(t)
 	sessionSvc := f.newWorkSessionService()
 	exportSvc := active.NewStaffTimeExportService(
-		f.svc, sessionSvc, f.repos.Staff, f.repos.DataAccessLog, nil, nil,
+		f.svc, sessionSvc, services.TimeExportStaff(f.repos.Staff), services.NewDataAccessAudit(f.repos.DataAccessLog), nil, nil,
+		services.RenderTimeTrackingWorkbook,
 	)
 
 	file, err := exportSvc.Export(f.ctx, active.TimeExportRequest{
@@ -309,7 +312,7 @@ func TestStaffTimeExport_DayRowsMatchSingleExport(t *testing.T) {
 	require.NoError(t, err)
 
 	monthStart := timezone.NewDate(f.today.Year(), f.today.Month(), 1)
-	singleRows, err := sessionSvc.DayExportRows(f.ctx, f.staff[0].ID, monthStart, monthOfLastDay(f.today))
+	singleRows, err := sessionSvc.DayExportRows(f.ctx, f.staff[0], monthStart, monthOfLastDay(f.today))
 	require.NoError(t, err)
 	require.NotEmpty(t, singleRows)
 
@@ -331,7 +334,7 @@ func TestStaffTimeExport_RejectsUnknownParameters(t *testing.T) {
 		{Year: f.today.Year(), Month: 13},
 		{Year: 1999, Month: 1},
 	} {
-		_, err := exportSvc.Export(f.ctx, req, f.staff[0].ID, "admin")
+		_, err := exportSvc.Export(f.ctx, req, f.staff[0], "admin")
 		assert.ErrorIs(t, err, active.ErrTimeExportInvalid)
 	}
 }

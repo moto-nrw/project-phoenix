@@ -64,8 +64,8 @@ interface CompanionRemoteRefreshOptions {
    * Identity of the record whose links are shown — the student id in practice.
    *
    * A stale flag is a statement about ONE child's draft, and the editable views
-   * are reused across children without unmounting (the master-detail tab stays
-   * `active` and simply reloads for the next selection). Without this key the
+   * can be reused across children without unmounting (a tab that stays
+   * `active` and simply reloads for the next record). Without this key the
    * warning survives the switch and blocks saving a form the user has not even
    * edited yet. Changing it resets the flag exactly like closing the view does.
    */

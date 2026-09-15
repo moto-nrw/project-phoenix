@@ -90,6 +90,53 @@ describe("proxy env validation", () => {
 });
 
 describe("proxy", () => {
+  describe("legacy collection selections", () => {
+    it("nests database room filters in the return path", () => {
+      const response = proxy(
+        makeRequest(
+          "http://localhost:3000/database/rooms?room=7&groupBy=floor&search=Musik",
+          "localhost:3000",
+        ),
+      );
+
+      const location = new URL(response.headers.get("location")!);
+      expect(location.pathname).toBe("/rooms/7");
+      expect(location.searchParams.get("tab")).toBe("stammdaten");
+      expect(location.searchParams.get("from")).toBe(
+        "/database/rooms?groupBy=floor&search=Musik",
+      );
+    });
+
+    it("preserves the tenant prefix and account tab in path routing", () => {
+      const response = proxy(
+        makeRequest(
+          "http://localhost:3000/school-a/database/personal?staff=4&groupBy=role",
+          "localhost:3000",
+        ),
+      );
+
+      const location = new URL(response.headers.get("location")!);
+      expect(location.pathname).toBe("/school-a/staff/4");
+      expect(location.searchParams.get("tab")).toBe("konto");
+      expect(location.searchParams.get("from")).toBe(
+        "/database/personal?groupBy=role",
+      );
+    });
+
+    it("keeps room filters when opening the legacy transit panel", () => {
+      const response = proxy(
+        makeRequest(
+          "http://localhost:3000/rooms?room=__transit__&building=Nord",
+          "localhost:3000",
+        ),
+      );
+
+      const location = new URL(response.headers.get("location")!);
+      expect(location.pathname).toBe("/rooms/unterwegs");
+      expect(location.searchParams.get("from")).toBe("/rooms?building=Nord");
+    });
+  });
+
   it("allows the configured PostHog ingestion origin in connect-src", () => {
     const res = proxy(
       makeRequest("http://school.localhost:3000/dashboard", "school.localhost"),

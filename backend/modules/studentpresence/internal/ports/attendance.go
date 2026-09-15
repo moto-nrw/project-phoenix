@@ -46,7 +46,13 @@ type AttendanceCheckout struct {
 	DeviceID   int64
 }
 
+type AttendanceDay struct {
+	StudentID int64
+	Date      Date
+}
+
 type AttendanceStore interface {
+	ListAttendanceDays(context.Context, Date, Date) ([]AttendanceDay, Stats, error)
 	RecordAttendance(context.Context, *Attendance) (Stats, error)
 	ReviseAttendance(context.Context, *Attendance) (Stats, error)
 	DeleteAttendance(context.Context, int64) (Stats, error)

@@ -47,6 +47,7 @@ type Query interface {
 type Dependencies struct {
 	Access   Access
 	Sessions SessionDirectory
+	Rooms    RoomDirectory
 	Yard     Yard
 	Groups   EducationGroups
 	Schedule Schedule
@@ -249,6 +250,22 @@ type Visit struct {
 	PhotoURL          string     `json:"photo_url,omitempty"`
 }
 
+// OpenRoom is one released room and every child currently recorded there.
+type OpenRoom struct {
+	RoomID            int64             `json:"room_id,string"`
+	Name              string            `json:"name"`
+	IsUserSupervising bool              `json:"is_user_supervising"`
+	ActiveGroupIDs    []string          `json:"active_group_ids"`
+	StudentCount      int               `json:"student_count"`
+	Students          []OpenRoomStudent `json:"students"`
+}
+
+// OpenRoomStudent reuses the selected session's visit projection.
+type OpenRoomStudent struct {
+	Visit
+	ActivityName string `json:"activity_name,omitempty"`
+}
+
 type TrackingIndicators struct {
 	Labels  []string         `json:"labels"`
 	Results map[int64][]bool `json:"results"`
@@ -296,6 +313,7 @@ type Projection struct {
 	// Schulhof is nil only when the caller has no staff identity (and thus no
 	// Schulhof workflow) — never because a sub-load failed.
 	Schulhof           *SchulhofStatus    `json:"schulhof_status"`
+	OpenRooms          []OpenRoom         `json:"open_rooms"`
 	Capabilities       Capabilities       `json:"capabilities"`
 	ActiveSessions     []ActiveSession    `json:"active_sessions"`
 	PlannedNow         []PlannedInstance  `json:"planned_now"`
@@ -308,6 +326,7 @@ type Projection struct {
 func emptyProjection() *Projection {
 	return &Projection{
 		Groups:             []Group{},
+		OpenRooms:          []OpenRoom{},
 		UnclaimedGroups:    []UnclaimedGroup{},
 		EducationalGroups:  []EducationalGroup{},
 		ActiveSessions:     []ActiveSession{},
@@ -378,6 +397,10 @@ func (s *service) Dashboard(ctx context.Context, requestedGroupID int64) (*Proje
 		}
 		projection.Schulhof = schulhof
 	}
+	openRooms, err := s.loadOpenRoomInputs(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	selected, err := selectGroup(groups, projection.Schulhof, requestedGroupID)
 	if err != nil {
@@ -391,10 +414,8 @@ func (s *service) Dashboard(ctx context.Context, requestedGroupID int64) (*Proje
 	if err := s.loadScheduleSections(ctx, projection, caller, snapshot); err != nil {
 		return nil, err
 	}
-	if selected != nil {
-		if err := s.loadSelectedGroupSections(ctx, projection, caller, *selected, snapshot.businessDay); err != nil {
-			return nil, err
-		}
+	if err := s.loadPresenceSections(ctx, projection, caller, selected, openRooms, staffID, snapshot.businessDay); err != nil {
+		return nil, err
 	}
 	return projection, nil
 }
@@ -553,31 +574,26 @@ func redactPlannedPickupTimes(instances []PlannedInstance) {
 	}
 }
 
-// loadSelectedGroupSections fills visits, tracking indicators, and pickup /
-// arrival times for the selected session's students.
-func (s *service) loadSelectedGroupSections(ctx context.Context, projection *Projection, caller Caller, selectedGroupID int64, businessDay Date) error {
-	rows, err := s.deps.Presence.GroupVisits(ctx, selectedGroupID)
-	if err != nil {
-		return fmt.Errorf("load group visits: %w", err)
+// loadPresenceSections projects the selected session and every released room
+// together. Student-specific reads therefore run once over their union.
+func (s *service) loadPresenceSections(ctx context.Context, projection *Projection, caller Caller, selectedGroupID *int64, openRooms openRoomInputs, staffID *int64, businessDay Date) error {
+	selectedRows := make([]VisitRecord, 0)
+	if selectedGroupID != nil {
+		rows, err := s.deps.Presence.GroupVisits(ctx, *selectedGroupID)
+		if err != nil {
+			return fmt.Errorf("load group visits: %w", err)
+		}
+		for _, row := range rows {
+			if row.ExitTime == nil {
+				selectedRows = append(selectedRows, row)
+			}
+		}
 	}
+	studentIDs := unionStudentIDs(selectedRows, openRooms.studentIDs())
 
 	fullAccess, err := s.deps.Access.FullStudentAccess(ctx)
 	if err != nil {
 		return fmt.Errorf("resolve student access: %w", err)
-	}
-
-	openVisits := make([]VisitRecord, 0, len(rows))
-	studentIDs := make([]int64, 0, len(rows))
-	seen := map[int64]struct{}{}
-	for _, row := range rows {
-		if row.ExitTime != nil {
-			continue
-		}
-		openVisits = append(openVisits, row)
-		if _, ok := seen[row.StudentID]; !ok {
-			seen[row.StudentID] = struct{}{}
-			studentIDs = append(studentIDs, row.StudentID)
-		}
 	}
 
 	attendance := map[int64]Attendance{}
@@ -595,7 +611,8 @@ func (s *service) loadSelectedGroupSections(ctx context.Context, projection *Pro
 	if err != nil {
 		return fmt.Errorf("resolve student photos setting: %w", err)
 	}
-	projection.Visits = s.buildVisits(openVisits, attendance, fullAccess, photosEnabled)
+	projection.Visits = s.buildVisits(selectedRows, attendance, fullAccess, photosEnabled)
+	projection.OpenRooms = s.assembleOpenRooms(openRooms, attendance, fullAccess, photosEnabled, staffID)
 
 	tracking, err := s.loadTracking(ctx, studentIDs)
 	if err != nil {
@@ -606,35 +623,57 @@ func (s *service) loadSelectedGroupSections(ctx context.Context, projection *Pro
 	return s.loadPlanningTimes(ctx, projection, caller, studentIDs, fullAccess, businessDay)
 }
 
+func unionStudentIDs(selected []VisitRecord, openRoomStudents []int64) []int64 {
+	seen := make(map[int64]struct{}, len(selected)+len(openRoomStudents))
+	ids := make([]int64, 0, len(selected)+len(openRoomStudents))
+	add := func(id int64) {
+		if _, ok := seen[id]; !ok {
+			seen[id] = struct{}{}
+			ids = append(ids, id)
+		}
+	}
+	for _, row := range selected {
+		add(row.StudentID)
+	}
+	for _, id := range openRoomStudents {
+		add(id)
+	}
+	return ids
+}
+
 func (s *service) buildVisits(rows []VisitRecord, attendance map[int64]Attendance, fullAccess, photosEnabled bool) []Visit {
 	result := make([]Visit, 0, len(rows))
 	for _, row := range rows {
-		visit := Visit{
-			StudentID:     row.StudentID,
-			StudentName:   strings.TrimSpace(row.FirstName + " " + row.LastName),
-			SchoolClass:   row.SchoolClass,
-			GroupName:     row.GroupName,
-			ActiveGroupID: row.ActiveGroupID,
-			CheckInTime:   row.EntryTime,
-			Sick:          row.Sick,
-			SickSince:     row.SickSince,
-			Excused:       row.Excused,
-			ExcusedSince:  row.ExcusedSince,
-		}
-		if fullAccess {
-			if status, ok := attendance[row.StudentID]; ok {
-				visit.ActualArrivalTime = s.clock(status.CheckInTime)
-				visit.ActualPickupTime = s.clock(status.CheckOutTime)
-			}
-		}
-		// Same full-access gate the single endpoint used: without it, avatar
-		// requests for out-of-scope students would 403 in the byte-serve path.
-		if photosEnabled && fullAccess && row.PhotoPath != nil {
-			visit.PhotoURL = buildPhotoURL(row.StudentID, *row.PhotoPath)
-		}
-		result = append(result, visit)
+		result = append(result, s.buildVisit(row, attendance, fullAccess, photosEnabled))
 	}
 	return result
+}
+
+func (s *service) buildVisit(row VisitRecord, attendance map[int64]Attendance, fullAccess, photosEnabled bool) Visit {
+	visit := Visit{
+		StudentID:     row.StudentID,
+		StudentName:   strings.TrimSpace(row.FirstName + " " + row.LastName),
+		SchoolClass:   row.SchoolClass,
+		GroupName:     row.GroupName,
+		ActiveGroupID: row.ActiveGroupID,
+		CheckInTime:   row.EntryTime,
+		Sick:          row.Sick,
+		SickSince:     row.SickSince,
+		Excused:       row.Excused,
+		ExcusedSince:  row.ExcusedSince,
+	}
+	if fullAccess {
+		if status, ok := attendance[row.StudentID]; ok {
+			visit.ActualArrivalTime = s.clock(status.CheckInTime)
+			visit.ActualPickupTime = s.clock(status.CheckOutTime)
+		}
+	}
+	// Same full-access gate the single endpoint used: without it, avatar
+	// requests for out-of-scope students would 403 in the byte-serve path.
+	if photosEnabled && fullAccess && row.PhotoPath != nil {
+		visit.PhotoURL = buildPhotoURL(row.StudentID, *row.PhotoPath)
+	}
+	return visit
 }
 
 func (s *service) clock(at *time.Time) *string {

@@ -151,6 +151,9 @@ var pyreportalErrorCodes = []string{
 var extraGuardSources = []string{
 	"auth/device/errors.go",
 	"services/active/errors.go",
+	// The presence sentinels the active service wraps are the Student
+	// Presence owner's public values (#2737).
+	"modules/studentpresence/operations.go",
 	"api/common/errors.go",
 	// Issue #575 B8 extracted the RFID check-in business logic into
 	// services/iot/checkin.CheckinService. Its internal-error and

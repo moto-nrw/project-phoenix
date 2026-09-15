@@ -32,11 +32,18 @@ type Query interface {
 
 type Capability interface {
 	Query
+	GroupListing
+}
+
+// GroupListing supplies bounded name-matching candidates to import workflows.
+type GroupListing interface {
+	ListGroups(context.Context, int) ([]Group, error)
 }
 
 type engine interface {
 	FindGroup(context.Context, int64) (Group, error)
 	ListGroupsByID(context.Context, []int64) ([]Group, error)
+	ListGroups(context.Context, int) ([]Group, error)
 }
 
 type Module struct{ engine engine }
@@ -53,6 +60,14 @@ func (m *Module) FindGroup(ctx context.Context, id int64) (Group, error) {
 		return Group{}, ErrInvalidGroup
 	}
 	return m.engine.FindGroup(ctx, id)
+}
+
+// ListGroups returns at most limit groups of the explicit tenant in context.
+func (m *Module) ListGroups(ctx context.Context, limit int) ([]Group, error) {
+	if limit <= 0 || limit > 1000 {
+		return nil, ErrInvalidGroup
+	}
+	return m.engine.ListGroups(ctx, limit)
 }
 
 // ListGroupsByID returns the groups visible in the caller's transaction for

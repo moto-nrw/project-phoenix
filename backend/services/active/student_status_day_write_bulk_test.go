@@ -1,4 +1,4 @@
-package active
+package active_test
 
 import (
 	"context"
@@ -8,8 +8,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/services"
+	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,8 +21,8 @@ func TestCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	service := NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil)
-	studentService := users.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion, nil)
+	service := activeService.NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil, repoFactory.CarePlan().LockExceptionDay)
+	studentService := services.StatusDayStudentsFromRepository(repoFactory.Student, services.AllowAllStatusDayWrites)
 	student := testpkg.CreateTestStudent(t, db, "StatusConflict", "Student", "SCS1")
 
 	ctx := testpkg.Ctx(t)
@@ -36,15 +36,14 @@ func TestCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 		Source:     activeModels.StudentStatusSourceParent,
 	}))
 
-	err := service.CreateForDates(ctx, StatusDayWriteContext{
+	err := service.CreateForDates(ctx, activeService.StatusDayWriteContext{
 		DB:             db,
 		TenantID:       testpkg.Tenant(t),
 		StudentService: studentService,
-		Authorize:      func(context.Context, *userModels.Student) bool { return true },
 		AfterCommit:    func(int64) {},
 	}, student.ID, activeModels.StudentStatusDayExcused, "Termin", []timezone.Date{conflictDate, freshDate})
 
-	var conflictErr *StudentStatusDayConflictError
+	var conflictErr *activeService.StudentStatusDayConflictError
 	require.ErrorAs(t, err, &conflictErr)
 	require.Len(t, conflictErr.Conflicts, 1)
 	assert.Equal(t, conflictDate, conflictErr.Conflicts[0].Date)
@@ -66,8 +65,8 @@ func TestBulkCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	service := NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil)
-	studentService := users.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion, nil)
+	service := activeService.NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil, repoFactory.CarePlan().LockExceptionDay)
+	studentService := services.StatusDayStudentsFromRepository(repoFactory.Student, services.AllowAllStatusDayWrites)
 
 	withConflict := testpkg.CreateTestStudent(t, db, "BulkStatusConflict", "Student", "BSC1")
 	clear := testpkg.CreateTestStudent(t, db, "BulkStatusClear", "Student", "BSC2")
@@ -83,15 +82,14 @@ func TestBulkCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 		Source:     activeModels.StudentStatusSourceParent,
 	}))
 
-	err := service.BulkCreateForDates(ctx, StatusDayWriteContext{
+	err := service.BulkCreateForDates(ctx, activeService.StatusDayWriteContext{
 		DB:             db,
 		TenantID:       testpkg.Tenant(t),
 		StudentService: studentService,
-		Authorize:      func(context.Context, *userModels.Student) bool { return true },
 		AfterCommit:    func(int64) {},
 	}, []int64{withConflict.ID, clear.ID}, activeModels.StudentStatusDayClassTrip, "Klassenfahrt", []timezone.Date{conflictDate, freshDate})
 
-	var conflictErr *StudentStatusDayConflictError
+	var conflictErr *activeService.StudentStatusDayConflictError
 	require.ErrorAs(t, err, &conflictErr)
 	require.Len(t, conflictErr.Conflicts, 1)
 	assert.Equal(t, 1, conflictErr.ConflictTotal())
@@ -115,17 +113,17 @@ func TestBulkCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 func TestStudentStatusDayConflictError_SampleAndTotal(t *testing.T) {
 	t.Parallel()
 
-	rows := make([]*activeModels.StudentStatusDay, 0, MaxStudentStatusDayConflictDetails+5)
-	for i := 0; i < MaxStudentStatusDayConflictDetails+5; i++ {
+	rows := make([]*activeModels.StudentStatusDay, 0, activeService.MaxStudentStatusDayConflictDetails+5)
+	for i := 0; i < activeService.MaxStudentStatusDayConflictDetails+5; i++ {
 		rows = append(rows, &activeModels.StudentStatusDay{StudentID: int64(i + 1)})
 	}
 
-	capped := &StudentStatusDayConflictError{Conflicts: rows, Total: 100}
+	capped := &activeService.StudentStatusDayConflictError{Conflicts: rows, Total: 100}
 	assert.Equal(t, 100, capped.ConflictTotal())
-	assert.Len(t, capped.SampleConflicts(), MaxStudentStatusDayConflictDetails)
+	assert.Len(t, capped.SampleConflicts(), activeService.MaxStudentStatusDayConflictDetails)
 	assert.Equal(t, int64(1), capped.SampleConflicts()[0].StudentID)
 
-	uncapped := &StudentStatusDayConflictError{Conflicts: rows[:3]}
+	uncapped := &activeService.StudentStatusDayConflictError{Conflicts: rows[:3]}
 	assert.Equal(t, 3, uncapped.ConflictTotal())
 	assert.Len(t, uncapped.SampleConflicts(), 3)
 }
@@ -138,25 +136,26 @@ func TestBulkCreateForDates_RejectsUnauthorizedWithoutPartialWrites(t *testing.T
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	service := NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil)
-	studentService := users.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion, nil)
+	service := activeService.NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil, repoFactory.CarePlan().LockExceptionDay)
 
 	allowed := testpkg.CreateTestStudent(t, db, "BulkStatusAllowed", "Student", "BSA1")
 	denied := testpkg.CreateTestStudent(t, db, "BulkStatusDenied", "Student", "BSD1")
 
+	studentService := services.StatusDayStudentsFromRepository(repoFactory.Student,
+		func(_ context.Context, student *activeService.StudentRecord, _ string) bool {
+			return student.ID == allowed.ID
+		})
+
 	ctx := testpkg.Ctx(t)
 	dates := []timezone.Date{timezone.NewDate(2026, 5, 12)}
-	err := service.BulkCreateForDates(ctx, StatusDayWriteContext{
+	err := service.BulkCreateForDates(ctx, activeService.StatusDayWriteContext{
 		DB:             db,
 		TenantID:       testpkg.Tenant(t),
 		StudentService: studentService,
-		Authorize: func(_ context.Context, student *userModels.Student) bool {
-			return student.ID == allowed.ID
-		},
-		AfterCommit: func(int64) {},
+		AfterCommit:    func(int64) {},
 	}, []int64{allowed.ID, denied.ID}, activeModels.StudentStatusDayClassTrip, "Klassenfahrt", dates)
 
-	require.ErrorIs(t, err, ErrStudentStatusDayReassigned)
+	require.ErrorIs(t, err, activeService.ErrStudentStatusDayReassigned)
 
 	for _, studentID := range []int64{allowed.ID, denied.ID} {
 		rows, findErr := service.GetActiveByStudentAndDateRange(ctx, studentID, dates[0], dates[0])

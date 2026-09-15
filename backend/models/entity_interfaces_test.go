@@ -22,9 +22,7 @@ import (
 // Compile-time assertions for base.Entity interface compliance
 var (
 	// active package
-	_ base.Entity = (*active.CombinedGroup)(nil)
 	_ base.Entity = (*active.Group)(nil)
-	_ base.Entity = (*active.GroupMapping)(nil)
 	_ base.Entity = (*active.GroupSupervisor)(nil)
 
 	// activities package

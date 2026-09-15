@@ -5,7 +5,6 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
@@ -33,7 +32,7 @@ var scheduleErrorRules = []common.ErrorRule{
 	{Target: scheduleSvc.ErrInvalidDateRange, Render: common.ErrorInvalidRequest},
 	{Target: scheduleSvc.ErrInvalidTimeRange, Render: common.ErrorInvalidRequest},
 	{Target: scheduleSvc.ErrInvalidDuration, Render: common.ErrorInvalidRequest},
-	{Target: activeModels.ErrRoomCapacityExceeded, Render: common.ErrorConflict},
+	{Target: scheduleSvc.ErrRoomCapacityExceeded, Render: common.ErrorConflict},
 }
 
 // SchedulesErrorRenderer renders an error to an HTTP response based on the schedule

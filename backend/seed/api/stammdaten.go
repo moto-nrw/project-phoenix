@@ -1230,7 +1230,7 @@ func (s *FixedSeeder) fetchRoles(_ context.Context) error {
 	var resp struct {
 		Status string `json:"status"`
 		Data   []struct {
-			ID   int64  `json:"id"`
+			ID   int64  `json:"id,string"`
 			Name string `json:"name"`
 		} `json:"data"`
 	}

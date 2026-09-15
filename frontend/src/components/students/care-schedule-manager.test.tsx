@@ -76,24 +76,19 @@ vi.mock("~/lib/pickup-schedule-api", () => ({
     mockDeleteStudentPickupNote(...args),
 }));
 
-// The editor is exercised in its own test file; here it is reduced to the two
-// callbacks the manager wires up, so these tests stay about the manager's
+// The editors are exercised in their own test files; here they are reduced to
+// the callbacks the manager wires up, so these tests stay about the manager's
 // persistence and refresh behaviour.
-vi.mock("./care-plan-editor-modal", () => ({
-  CarePlanEditorModal: ({
-    isOpen,
-    date,
+vi.mock("./care-weekly-plan-editor", () => ({
+  CareWeeklyPlanEditForm: ({
     careDaysSource,
     weeklyArrival,
-    onClose,
     onSubmitWeekly,
-    onSubmitException,
+    onCancel,
+    onSaved,
   }: {
-    isOpen: boolean;
-    date: Date | null;
     careDaysSource: string;
     weeklyArrival: ArrivalScheduleFormEntry[];
-    onClose: () => void;
     onSubmitWeekly: (data: {
       arrivalSchedules: Array<{
         weekday: number;
@@ -106,6 +101,61 @@ vi.mock("./care-plan-editor-modal", () => ({
         notes?: string;
       }>;
     }) => Promise<void>;
+    onCancel: () => void;
+    onSaved: () => void;
+  }) => (
+    <div data-testid="care-plan-editor-week">
+      <span data-testid="care-days-source">{careDaysSource}</span>
+      <button
+        type="button"
+        onClick={() =>
+          void onSubmitWeekly({
+            arrivalSchedules: [
+              { weekday: 1, expected_arrival: "08:30", notes: "Tor" },
+            ],
+            pickupSchedules: [
+              { weekday: 1, pickupTime: "15:30", notes: "Bus" },
+            ],
+          })
+            .then(onSaved)
+            .catch(() => undefined)
+        }
+      >
+        Wochenplan im Test speichern
+      </button>
+      <button
+        type="button"
+        disabled={!weeklyArrival.find((day) => day.weekday === 1)?.inCare}
+        onClick={() => {
+          const monday = weeklyArrival.find((day) => day.weekday === 1);
+          if (!monday?.inCare) return;
+          void onSubmitWeekly({
+            arrivalSchedules: [{ ...monday, expected_arrival: "08:45" }],
+            pickupSchedules: [
+              { weekday: 1, pickupTime: "15:00", notes: "Bus" },
+            ],
+          })
+            .then(onSaved)
+            .catch(() => undefined);
+        }}
+      >
+        Nur Ankunft im Test speichern
+      </button>
+      <button type="button" onClick={onCancel}>
+        Schließen
+      </button>
+    </div>
+  ),
+}));
+
+vi.mock("./care-plan-editor-modal", () => ({
+  CarePlanEditorModal: ({
+    isOpen,
+    onClose,
+    onSubmitException,
+  }: {
+    isOpen: boolean;
+    onClose: () => void;
     onSubmitException: (payload: {
       date: string;
       arrival:
@@ -121,41 +171,7 @@ vi.mock("./care-plan-editor-modal", () => ({
     }) => Promise<void>;
   }) =>
     isOpen ? (
-      <div
-        data-testid={date ? "care-plan-editor-day" : "care-plan-editor-week"}
-      >
-        <span data-testid="care-days-source">{careDaysSource}</span>
-        <button
-          type="button"
-          onClick={() =>
-            void onSubmitWeekly({
-              arrivalSchedules: [
-                { weekday: 1, expected_arrival: "08:30", notes: "Tor" },
-              ],
-              pickupSchedules: [
-                { weekday: 1, pickupTime: "15:30", notes: "Bus" },
-              ],
-            }).catch(() => undefined)
-          }
-        >
-          Wochenplan im Test speichern
-        </button>
-        <button
-          type="button"
-          disabled={!weeklyArrival.find((day) => day.weekday === 1)?.inCare}
-          onClick={() => {
-            const monday = weeklyArrival.find((day) => day.weekday === 1);
-            if (!monday?.inCare) return;
-            void onSubmitWeekly({
-              arrivalSchedules: [{ ...monday, expected_arrival: "08:45" }],
-              pickupSchedules: [
-                { weekday: 1, pickupTime: "15:00", notes: "Bus" },
-              ],
-            }).catch(() => undefined);
-          }}
-        >
-          Nur Ankunft im Test speichern
-        </button>
+      <div data-testid="care-plan-editor-day">
         <button
           type="button"
           onClick={() =>
@@ -471,15 +487,17 @@ describe("CareScheduleManager", () => {
   });
 
   it("defers a remote refresh while the weekly-plan editor is open, then applies it on close", async () => {
-    // The modal seeds its rows from arrivalData/pickupData and re-seeds whenever
-    // those change identity, so refreshing mid-edit would silently discard the
-    // user's typing. Someone else's edit must not cost this user their work —
-    // but the update must not be lost either.
+    // The edit state measures its draft against arrivalData/pickupData, so
+    // refreshing mid-edit would silently change what the user is editing.
+    // Someone else's edit must not cost this user their work — but the update
+    // must not be lost either.
     render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
     await screen.findByText("Betreuungszeiten");
     expect(mockFetchArrivalData).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByTitle("Wochenplan bearbeiten"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Wochenplan bearbeiten" }),
+    );
     expect(screen.getByTestId("care-plan-editor-week")).toBeInTheDocument();
 
     await act(async () => {
@@ -487,7 +505,7 @@ describe("CareScheduleManager", () => {
       await Promise.resolve();
     });
 
-    // Draft preserved: no refetch happened while the modal was open.
+    // Draft preserved: no refetch happened while the edit state was open.
     expect(mockFetchArrivalData).toHaveBeenCalledTimes(1);
     expect(mockFetchStudentPickupData).toHaveBeenCalledTimes(1);
 
@@ -684,7 +702,9 @@ describe("CareScheduleManager", () => {
     await screen.findByText("Betreuungszeiten");
 
     fireEvent.click(screen.getAllByLabelText("Nächste Woche")[0]!);
-    fireEvent.click(screen.getByTitle("Wochenplan bearbeiten"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Wochenplan bearbeiten" }),
+    );
     fireEvent.click(screen.getByText("Wochenplan im Test speichern"));
 
     await waitFor(() => {
@@ -708,7 +728,9 @@ describe("CareScheduleManager", () => {
     );
     await screen.findByText("Betreuungszeiten");
 
-    fireEvent.click(screen.getByTitle("Wochenplan bearbeiten"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Wochenplan bearbeiten" }),
+    );
     fireEvent.click(screen.getByText("Wochenplan im Test speichern"));
 
     await waitFor(() => {
@@ -739,7 +761,9 @@ describe("CareScheduleManager", () => {
     render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
     await screen.findByText("Betreuungszeiten");
 
-    fireEvent.click(screen.getByTitle("Wochenplan bearbeiten"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Wochenplan bearbeiten" }),
+    );
     fireEvent.click(screen.getByText("Nur Ankunft im Test speichern"));
 
     await waitFor(() => {
@@ -782,7 +806,9 @@ describe("CareScheduleManager", () => {
     render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
     await screen.findByText("Betreuungszeiten");
 
-    fireEvent.click(screen.getByTitle("Wochenplan bearbeiten"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Wochenplan bearbeiten" }),
+    );
     expect(screen.getByTestId("care-days-source")).toHaveTextContent(
       "bookings",
     );
@@ -847,7 +873,9 @@ describe("CareScheduleManager", () => {
     render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
     await screen.findByText("Betreuungszeiten");
 
-    fireEvent.click(screen.getByTitle("Wochenplan bearbeiten"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Wochenplan bearbeiten" }),
+    );
     expect(screen.getByTestId("care-days-source")).toHaveTextContent(
       "bookings",
     );
@@ -960,7 +988,9 @@ describe("CareScheduleManager", () => {
     render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
     await screen.findByText("Betreuungszeiten");
 
-    fireEvent.click(screen.getByTitle("Wochenplan bearbeiten"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Wochenplan bearbeiten" }),
+    );
     fireEvent.click(screen.getByText("Wochenplan im Test speichern"));
 
     await waitFor(() => {
@@ -991,6 +1021,26 @@ describe("CareScheduleManager", () => {
     });
     expect(mockCreateArrivalException).not.toHaveBeenCalled();
     expect(mockCreateStudentPickupException).not.toHaveBeenCalled();
+  });
+
+  it("keeps a restricted absence visible without a deletion affordance", async () => {
+    const onDeleteStatusDay = vi.fn();
+    render(
+      <CareScheduleManager
+        studentId="42"
+        statusDays={statusDays}
+        onDeleteStatusDay={onDeleteStatusDay}
+        canDeleteStatusDay={(day) => day.status === "class_trip"}
+      />,
+    );
+    await screen.findByText("Betreuungszeiten");
+    expect(
+      screen.getAllByText("Ganztägig entschuldigt").length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.queryByLabelText("Ganztägig entschuldigt entfernen"),
+    ).not.toBeInTheDocument();
+    expect(onDeleteStatusDay).not.toHaveBeenCalled();
   });
 
   it("opens confirmation before deleting a planned status day", async () => {

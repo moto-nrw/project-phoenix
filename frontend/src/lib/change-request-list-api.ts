@@ -204,7 +204,7 @@ export type AggregatedHistoryRequest =
  * sie sieht die Seite, darf aber nichts entscheiden — die Liste erklärt das,
  * statt leer zu bleiben.
  */
-export type RequestReviewAccess = "admin" | "group_leader" | "none";
+export type RequestReviewAccess = "admin" | "team" | "group_leader" | "none";
 
 export interface AggregatedRequestPage<T> {
   readonly items: readonly T[];

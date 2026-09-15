@@ -27,11 +27,11 @@ import (
 const errInvitationServiceUnavailable = "invitation service unavailable"
 
 type CreateInvitationRequest struct {
-	Email     string `json:"email"`
-	RoleID    int64  `json:"role_id"`
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
-	Position  string `json:"position"`
+	Email     string        `json:"email"`
+	RoleID    common.JSONID `json:"role_id"`
+	FirstName string        `json:"first_name"`
+	LastName  string        `json:"last_name"`
+	Position  string        `json:"position"`
 }
 
 func (req *CreateInvitationRequest) Bind(_ *http.Request) error {
@@ -42,7 +42,13 @@ func (req *CreateInvitationRequest) Bind(_ *http.Request) error {
 
 	return validation.ValidateStruct(req,
 		validation.Field(&req.Email, validation.Required, is.Email),
-		validation.Field(&req.RoleID, validation.Required, validation.Min(int64(1))),
+		validation.Field(&req.RoleID, validation.Required, validation.By(func(value interface{}) error {
+			roleID, ok := value.(common.JSONID)
+			if !ok || roleID.Int64() <= 0 {
+				return errors.New("role_id is required")
+			}
+			return nil
+		})),
 		validation.Field(&req.FirstName, validation.Length(0, 100)),
 		validation.Field(&req.LastName, validation.Length(0, 100)),
 		validation.Field(&req.Position, validation.Length(0, 100)),
@@ -52,7 +58,7 @@ func (req *CreateInvitationRequest) Bind(_ *http.Request) error {
 type InvitationResponse struct {
 	ID              int64      `json:"id"`
 	Email           string     `json:"email"`
-	RoleID          int64      `json:"role_id"`
+	RoleID          int64      `json:"role_id,string"`
 	RoleName        string     `json:"role_name,omitempty"`
 	Token           string     `json:"token,omitempty"`
 	ExpiresAt       time.Time  `json:"expires_at"`
@@ -104,7 +110,7 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) buildInvitationRequest(r *http.Request, req *CreateInvitationRequest, claims jwt.AppClaims) authService.InvitationRequest {
 	invitationReq := authService.InvitationRequest{
 		Email:            req.Email,
-		RoleID:           req.RoleID,
+		RoleID:           req.RoleID.Int64(),
 		CreatedBy:        int64(claims.ID),
 		ActorPermissions: claims.Permissions,
 	}

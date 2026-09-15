@@ -56,6 +56,17 @@ func (alwaysOnSettings) ResolveStringForTenant(_ context.Context, _ int64, _ str
 	return "", nil
 }
 
+func (s alwaysOnSettings) ResolveStringForTenantInTx(ctx context.Context, tenantID int64, key string) (string, error) {
+	if key == configModels.KeyParentPickupChangeEnabled {
+		return "true", nil
+	}
+	return s.ResolveStringForTenant(ctx, tenantID, key)
+}
+
+func (alwaysOnSettings) LockParentPickupChangePolicySharedForTenant(context.Context, int64) error {
+	return nil
+}
+
 // testJWTSecret must match the constant testpkg.GetTestTokenAuth signs
 // with, so the Router's MustNewTokenAuth (which reads viper) validates the
 // tokens these tests mint.

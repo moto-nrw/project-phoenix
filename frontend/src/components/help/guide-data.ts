@@ -324,10 +324,11 @@ export const setupChapters: readonly GuideChapter[] = [
           "`E-Mail` eintragen. Diese Adresse wird für die Anmeldung genutzt.",
           "Passende `System-Rolle` wählen. Admin-Rechte nur für Personen, die Stammdaten oder Einstellungen ändern sollen.",
           "Speichern und die Person zum Login auffordern.",
-          "Um die Rolle einer bereits angelegten Person nachträglich zu ändern (z. B. jemanden zur Administratorin zu machen), die Person in der Personal-Liste auswählen und in der Detailansicht `Rolle verwalten` nutzen.",
+          "Um die Rolle einer bereits angelegten Person nachträglich zu ändern (z. B. jemanden zur Administratorin zu machen), die Person in der Personal-Liste antippen. Das öffnet die Personalakte; im Reiter `Konto` führt `Bearbeiten` zu Name, Position, Systemrolle und den Notizen der Leitung, ein `Speichern` unten übernimmt alles. Im Menü mit den drei Punkten oben rechts stehen `Löschen` sowie die Kontoaktionen `Zwei-Faktor-Authentifizierung verwalten` und `Betreuung verwalten`.",
           "Für ein ganzes Team unter `Personal` den `Import` nutzen: Vorlage herunterladen, ausfüllen und hochladen. Jede Zeile wird sofort mit Stammdaten (Personalnummer, Adresse, Vertragsdaten, Qualifikationen) angelegt. Steht eine E-Mail in der Zeile, geht zusätzlich eine Einladung heraus. Mit `Nur bestehende aktualisieren` ziehen Sie später Änderungen aus einer Liste nach; leere Zellen ändern nichts. Diese Auswahl sehen nur Personen, die Personalstammdaten pflegen und Mitarbeitende verwalten dürfen.",
         ],
-        screenshot: "Personalformular mit Vorname, Nachname, E-Mail und Rolle.",
+        screenshot:
+          "Personalakte im Reiter Konto mit Bearbeiten, Rolle und Notizen.",
         image: "/help/screens/mitarbeitende-anlegen.webp",
       },
     ],
@@ -351,6 +352,7 @@ export const setupChapters: readonly GuideChapter[] = [
           "`Offener Raum` einschalten, wenn Kinder diesen Raum jederzeit als Ziel wählen dürfen. Der Raum bleibt dann dauerhaft verfügbar. Sie müssen ihn nicht jeden Morgen öffnen.",
           "Kurze, eindeutige Namen nutzen, zum Beispiel `Mensa`, `Turnhalle`, `Gruppenraum Blau`.",
           "Speichern.",
+          "Ein Tipp auf einen Raum in der Liste öffnet die Raumseite. Im Reiter `Stammdaten` ändern Sie Name, Gebäude, Farbe und Belegung; `Löschen` steht im Menü mit den drei Punkten oben rechts. `Zurück` führt in die Liste.",
         ],
         callout: {
           title: "Systemräume: Schulhof und WC",
@@ -428,6 +430,7 @@ export const setupChapters: readonly GuideChapter[] = [
           "Datei hochladen und die `Datenvorschau` Zeile für Zeile prüfen.",
           "Fehler in der Datei beheben und erneut hochladen.",
           "Erst wenn die Vorschau stimmt, auf `Kinder importieren` klicken.",
+          "Wenn eine Zeile den Import anhält, bleiben die schon gespeicherten Zeilen. Die Seite zeigt die Zahl und die fehlerhafte Zeile.",
           "Eine Stichprobe unter `Alle Kinder` prüfen.",
         ],
         callout: {
@@ -479,7 +482,7 @@ export const setupChapters: readonly GuideChapter[] = [
         steps: [
           "`Alle Kinder` öffnen und auf die Karte des Kindes klicken.",
           "Den Tab `Betreuungszeiten` öffnen.",
-          "Oben rechts auf `Wochenplan` klicken.",
+          "Oben rechts auf `Wochenplan bearbeiten` klicken. Der Tab zeigt dann die festen Zeiten je Wochentag zum Ändern.",
           "Wählbare Haken legen die Betreuungstage fest.",
           "Gesperrte Haken kommen aus den Buchungen des Kindes.",
           "Ändern Sie gesperrte Betreuungstage bei den Buchungen.",
@@ -487,7 +490,7 @@ export const setupChapters: readonly GuideChapter[] = [
           "Nur bei einer Abweichung eine eigene Ankunftszeit eintragen.",
           "Für die Abholung an jedem Betreuungstag eine Uhrzeit eintragen.",
           "Optional eine Ankunfts- oder Abholnotiz ergänzen.",
-          "Auf `Speichern` klicken. Vor dem Entfernen fragt die App nach.",
+          "Unten auf `Speichern` klicken. Vor dem Entfernen fragt die App nach. `Abbrechen` verwirft die Änderungen.",
           "Ist der Angebotsabgleich in den Einstellungen eingeschaltet und weicht der Wochenplan ab? Dann zeigt moto alle passenden Angebote.",
           "Wählen Sie `Auf … umbuchen` oder `Als dauerhafte Ausnahme speichern`.",
           "Bei einer Umbuchung prüfen Sie `Gilt ab`. moto zeigt vorher und nachher.",
@@ -509,7 +512,7 @@ export const setupChapters: readonly GuideChapter[] = [
           tone: "orange",
         },
         screenshot:
-          "Betreuungszeiten eines Kindes mit Herkunft der Ankunftszeit und Schaltfläche Wochenplan.",
+          "Betreuungszeiten eines Kindes mit Herkunft der Ankunftszeit und Schaltfläche Wochenplan bearbeiten.",
         image: "/help/screens/betreuungszeiten-pflegen.webp",
       },
       {
@@ -736,8 +739,8 @@ export const appChapters: readonly GuideChapter[] = [
           "Tab `Nachrichten`: die Unterhaltung mit einer Bezugsperson zu diesem Kind ansehen und über `Neue Nachricht` der Bezugsperson schreiben. Pro Kind und Bezugsperson gibt es eine fortlaufende Unterhaltung (wie ein Chat, ohne Betreff). Ungelesene Eltern-Nachrichten sind mit einem roten Abzeichen markiert; geschrieben und beantwortet wird im Chat-Fenster.",
           "Tab `Erziehungsberechtigte`: Bezugspersonen mit Kontaktdaten, Abholberechtigung und Notfallkontakten pflegen. Pro Person zeigt ein Status, ob sie ein Konto für das Elternportal hat (`Konto aktiv`, `Einladung offen` oder `Kein Konto`); mit `Einladen` laden Sie eine bereits hinterlegte Bezugsperson zum Elternportal ein, ohne die Daten erneut einzugeben.",
           "Im Tab `Erziehungsberechtigte` steht unten der Block `Zahlungskonto`. Dort wählen Sie, wer für dieses Kind zahlt, und tragen die IBAN dieser Person ein. Sichtbar ist der Block nur mit der Berechtigung `Bankverbindungen`.",
-          "Tab `Betreuungsplan`: sehen, wie der Tag oder die Woche eines Kindes geplant ist – Ankunft, geplante Aktivitäten, AGs, Mensa und Lernzeiten, freie Betreuungszeit sowie die Abholung als Zeitleiste. Oben zwischen `Tag` und `Woche` umschalten und mit den Pfeilen navigieren. `Freie Betreuung` erscheint als eigener Abschnitt zwischen den Aktivitäten; Abweichungen wie `Krank`, `Entschuldigt`, `Klassenfahrt` oder eine abgesagte Ankunft bzw. Abholung werden pro Tag hervorgehoben. Diese Ansicht ist nur zum Ansehen – die Zeiten selbst bearbeiten Sie über `Zeiten bearbeiten` im Tab `Betreuungszeiten`.",
-          "Tab `Betreuungszeiten`: die Ankunfts- und Abholzeiten des Kindes verwalten. Es gibt genau zwei Wege. Auf einer Tageskarte führt `Ausnahme eintragen` zu einer Änderung nur für diesen einen Tag; neben `Regulär` und `Andere Zeit` stehen dort auch `Kommt nicht` und `Keine Abholung`, dazu ein `Grund`. Die Schaltfläche `Wochenplan` oben rechts öffnet die festen Zeiten aller Wochentage samt der Notizen, die jede Woche gelten. Ausnahmen bleiben bestehen, wenn der Wochenplan geändert wird; würde eine geleerte Zeit einen Eintrag entfernen, fragt die App vorher nach.",
+          "Tab `Betreuungsplan`: sehen, wie der Tag oder die Woche eines Kindes geplant ist – Ankunft, geplante Aktivitäten, AGs, Mensa und Lernzeiten, freie Betreuungszeit sowie die Abholung als Zeitleiste. Oben zwischen `Tag` und `Woche` umschalten und mit den Pfeilen navigieren. `Freie Betreuung` erscheint als eigener Abschnitt zwischen den Aktivitäten; Abweichungen wie `Krank`, `Entschuldigt`, `Klassenfahrt` oder eine abgesagte Ankunft bzw. Abholung werden pro Tag hervorgehoben. Diese Ansicht ist nur zum Ansehen. Die Zeiten selbst ändern Sie im Tab `Betreuungszeiten` über `Wochenplan bearbeiten` oder `Ausnahme`.",
+          "Tab `Betreuungszeiten`: die Ankunfts- und Abholzeiten des Kindes verwalten. Es gibt genau zwei Wege. Auf einer Tageskarte führt `Ausnahme eintragen` zu einer Änderung nur für diesen einen Tag; neben `Regulär` und `Andere Zeit` stehen dort auch `Kommt nicht` und `Keine Abholung`, dazu ein `Grund`. `Wochenplan bearbeiten` oben rechts zeigt die festen Zeiten aller Wochentage samt der Notizen, die jede Woche gelten, direkt im Tab; unten schließen Sie mit `Speichern` ab oder verwerfen mit `Abbrechen`. Ausnahmen bleiben bestehen, wenn der Wochenplan geändert wird; würde eine geleerte Zeit einen Eintrag entfernen, fragt die App vorher nach.",
           "Wird die Abholzeit eines Tages gegenüber dem Wochenplan vorverlegt – vom Team oder von den Eltern –, meldet die App das Kind automatisch aus allen Betreuungsblöcken ab, die nach der neuen Zeit beginnen (als entschuldigt). Ein Block, in den die Abholzeit hineinfällt, bleibt erwartet und zeigt die frühere Abholung als Hinweis. Wird die Ausnahme geändert oder entfernt, werden nur die dadurch abgemeldeten Blöcke wiederhergestellt; bereits erfasste Anwesenheit bleibt erhalten.",
           "Hat ein Elternteil über das Elternportal eine Ankunfts- oder Abholzeit für einen Tag geändert, ist dieser Tag mit `Von Eltern` markiert; beim Ändern oder Entfernen dieser Zeit fragt die App zur Sicherheit nach, damit die Angabe der Eltern nicht versehentlich überschrieben wird. Ebenso fragt die App nach, wenn beim Speichern des Wochenplans eine bereits eingetragene Zeit entfernt würde.",
           "Tab `Historie`: die Anwesenheits-Historie je Betreuungsangebot nachvollziehen. Morgen- und Nachmittagsbetreuung erscheinen als getrennte Zeitslots; ungeplante Besuche sind gekennzeichnet. Die Daten lassen sich als PDF, DOCX oder XLSX exportieren. Raum-Details ergänzen die Slot-Historie, soweit die Aufbewahrungsfrist sie noch zulässt.",
@@ -838,12 +841,12 @@ export const appChapters: readonly GuideChapter[] = [
           "Die meisten Felder (z. B. Gesundheitshinweise, eigene Kontaktdaten der Eltern) ändern Eltern direkt; die Änderung wird sofort übernommen und protokolliert.",
           "Für Name, Geburtsdatum und Gehzeiten reichen Eltern über `Änderung anfragen` einen Vorschlag ein, statt direkt zu ändern.",
           "Manche Schulen legen die Betreuungstage durch gebuchte Angebote fest. Dort können Eltern den Wochenplan nicht ändern. Sie ändern stattdessen die gebuchten Angebote. In anderen Schulen können Eltern am Wochenplan `Änderungen anfragen`. Die Schule bestimmt, ob das für Abholzeit oder Abholart möglich ist. Offene ältere Anfragen bleiben sichtbar und lassen sich normal entscheiden.",
-          "Krankmeldungen und entschuldigte Abmeldungen sind zuerst Anfragen.",
-          "Bis zur Bestätigung gilt das Kind als erwartet.",
+          "Krankmeldungen und Entschuldigungen gelten je nach Schule sofort oder als Anfrage.",
+          "Eine Anfrage ändert den Tagesstatus erst nach der Bestätigung.",
           "Offene Anfragen finden Sie unter `Anfragen` im Reiter `Eltern`.",
           "Der Reiter bündelt Stammdaten, Betreuungszeiten, Angebote und Abwesenheiten.",
-          "Die Bestätigung für Krankmeldungen ändern Sie unter `Einstellungen` > `Elternportal`.",
-          "Dort ändern Sie auch die Bestätigung für entschuldigte Abmeldungen.",
+          "Unter `Einstellungen` > `Betrieb` > `Elternmeldungen` wählen Sie beide Meldearten getrennt.",
+          "Dort legen Sie auch fest, wer diese Abwesenheitsanfragen bearbeiten darf.",
           "Links steht die Liste der Kinder mit offenen Anfragen, rechts alle Anfragen des gewählten Kindes. Auf dem Telefon ersetzt die Detailansicht die Liste; mit `Zur Liste` kommen Sie zurück.",
           "Kinder, die heute betroffen sind, stehen unter `Heute wichtig`. Alle anderen stehen unter `Weitere Anfragen`. Unter `Abgelaufen` stehen Anfragen, die nur noch vergangene Tage betreffen; schließen Sie sie mit `Als erledigt markieren` ab.",
           "Widersprechen sich zwei Wünsche zum selben Tag, legen Sie oben EIN Ergebnis fest: einen der Wünsche, einen eigenen Wert oder `Keine Änderung`. Die anderen Wünsche werden abgelehnt.",
@@ -966,7 +969,6 @@ export const appChapters: readonly GuideChapter[] = [
           "Ungeplantes Kind über `Kind hinzufügen` in der Kopfzeile der Liste nachtragen. Im Fenster das Kind über `Weiteres Kind suchen...` finden.",
           "Bei mehreren Treffern ein Kind antippen. Danach `Hinzufügen` wählen. Bei einem Treffer direkt `Hinzufügen` wählen.",
           "Im Bereich `Kinder unterwegs` Kinder ohne Raum auswählen, einen Zielraum wählen und mit `In Raum setzen` zuweisen.",
-          "Den Schulhof über den Schulhof-Tab und `Beaufsichtigen` führen. Läuft dort bereits eine Aufsicht oder ein gestarteter Termin, treten Sie als weitere Aufsicht bei; sonst startet eine spontane Schulhof-Aufsicht. Im Dialog für eine spontane Aktivität lässt sich der Raum `Schulhof` wie jeder andere Raum wählen.",
           "Für ein neues Angebot `Spontane Aktivität starten`.",
           "Spontane Aktivitäten sind nur montags bis freitags möglich.",
           "Erfasst Ihre Einrichtung Anwesenheit ohne Raum- oder Aktivitätszuordnung, erscheinen weder dieser Bereich noch `Räume` und `Aktivitäten` in der Seitenleiste. Ist die Schulhof-Funktion aktiviert, kann der Schulhof trotzdem zusätzlich erfasst werden. Diesen Modus stellt das moto-Team ein.",
@@ -982,6 +984,23 @@ export const appChapters: readonly GuideChapter[] = [
         screenshot:
           "Dialog `Kind ungeplant hinzufügen` mit Suchfeld und mehreren Kindern zur Auswahl.",
         image: "/help/screens/aktuelle-aufsicht.webp",
+      },
+      {
+        id: "offene-raeume",
+        title: "Offene Räume",
+        icon: Eye,
+        summary:
+          "Freigegebene Räume sehen alle Betreuungskräfte, auch wenn dort gerade niemand ist.",
+        steps: [
+          "In der Seitenleiste `Offene Räume` aufklappen. Die Räume stehen direkt unter Ihren eigenen Aufsichten.",
+          "Einen Raum wählen. Oben steht `Offener Raum`. Haben Sie dort die Aufsicht, steht daneben `Eigene Aufsicht`.",
+          "Den Raum zu sehen heißt nicht, dass Sie dort die Aufsicht haben.",
+          "Sie sehen alle Kinder, die dort gerade erfasst sind. Jedes Kind steht einmal in der Liste, mit seinem Angebot. Laufen dort mehrere Angebote, stehen alle in derselben Liste.",
+          "Den Schulhof über `Beaufsichtigen` oben rechts übernehmen. Läuft dort bereits eine Aufsicht oder ein gestarteter Termin, treten Sie als weitere Aufsicht bei; sonst startet eine spontane Schulhof-Aufsicht. Im Dialog für eine spontane Aktivität lässt sich der Raum `Schulhof` wie jeder andere Raum wählen.",
+        ],
+        screenshot:
+          "Offener Raum `Kreativraum` mit dem Abzeichen `Offener Raum` oben und dem Bereich `Offene Räume` in der Seitenleiste.",
+        image: "/help/screens/offene-raeume.webp",
       },
       {
         id: "tagesauswertung",
@@ -1154,11 +1173,11 @@ export const appChapters: readonly GuideChapter[] = [
         steps: [
           "`Räume` öffnen.",
           "Bei Bedarf `Raum suchen...` nutzen oder nach `Gebäude` und `Status` filtern.",
-          "Eine Raumkarte öffnen, um die Kinderliste zu sehen.",
+          "Eine Raumkarte öffnen. Das öffnet die Raumseite mit der Kinderliste und der Historie; wer Räume bearbeiten darf, sieht dort zusätzlich den Reiter `Stammdaten`.",
           "In der Kinderliste Kinder auswählen, einen `Zielraum` wählen und mit `In Raum setzen` verschieben. Das Kind steht sofort im neuen Raum; die Aufsicht dort muss nichts bestätigen.",
           "Sie beaufsichtigen den Ausgangsraum? Dann wählen Sie einen Zielraum mit genau einem laufenden Angebot und Aufsicht.",
           "Sie beaufsichtigen nur den Zielraum? Dann können Sie Kinder in Ihr eigenes Angebot holen. In diesem Raum dürfen auch mehrere Angebote laufen. Leitungen können in alle Räume verschieben.",
-          "Bereich `Unterwegs` prüfen und ein Kind ohne Raum über `Zuweisen` zuordnen.",
+          "Die Karte `Unterwegs` öffnen. Sie führt auf eine eigene Seite mit den Kindern ohne Raum; dort ein Kind über `Zuweisen` zuordnen.",
         ],
         callout: {
           title: "Bereich nicht sichtbar?",
@@ -1329,6 +1348,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Stichtag (z. B. der Tag vor dem Go-live) und eine Begründung eintragen; beides gilt für die ganze Datei und wird an jeder Buchung gespeichert.",
           "Die Vorschau prüfen: Zeilen mit Fehlern (unbekannte Person, ungültige Zahl, bereits vorhandene Übernahme) werden einzeln erklärt und beim Import übersprungen.",
           "Mit `Importieren` bestätigen. Jede Übernahme erscheint anschließend im Änderungsprotokoll der Zeiterfassung und in der Stundenkonto-Historie der Person.",
+          "Wenn eine Zeile den Import anhält, bleiben die schon gespeicherten Übernahmen. Die Seite zeigt die Zahl und die fehlerhafte Zeile.",
         ],
         callout: {
           title: "Nur einmal pro Person",
@@ -1400,7 +1420,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Über `Neue Nachricht` wählt sie eine Person aus. Neben jedem Namen steht, um wen es sich handelt: `OGS-Leitung`, `OGS-Team` oder `Lehrkraft`. Eltern sehen von diesen Nachrichten nichts.",
           "Eine Zahl neben `Nachrichten` zeigt, wie viele Nachrichten noch nicht gelesen sind. Sie verschwindet, sobald die Unterhaltung geöffnet ist.",
           "Antworten aus der OGS erscheinen sofort, ohne die Seite neu zu laden. Ist die Lehrkraft gerade an anderer Stelle im Portal, erscheint ein kurzer Hinweis mit dem Weg zur Unterhaltung.",
-          "Im Menü hinter dem eigenen Namen liegt `Einstellungen`. Dort legt die Lehrkraft zuerst fest, worüber sie informiert werden möchte, und richtet danach das Gerät ein. Mit `Testbenachrichtigung senden` prüft sie, ob wirklich etwas ankommt.",
+          "Im Menü hinter dem eigenen Namen liegt `Einstellungen`. Dort legt die Lehrkraft zuerst fest, worüber sie informiert werden möchte, und richtet danach das Gerät ein. Über die drei Punkte neben `Aktivieren` liegt `Testbenachrichtigung senden`. Damit prüft sie, ob wirklich etwas ankommt.",
           "Auf iPhone und iPad kommen Benachrichtigungen nur an, wenn moto schule vorher über `Zum Home-Bildschirm` hinzugefügt wurde. Die Anleitung dazu steht auf der Einstellungsseite.",
         ],
         callout: {
@@ -1530,10 +1550,11 @@ export const appChapters: readonly GuideChapter[] = [
           "Läuft ein Regeltermin an mehreren Wochentagen, legt der Schalter `Für alle Tage gleich` / `Pro Wochentag` in Schritt 3 fest, ob alle Tage dieselbe Zuordnung teilen. Bei `Pro Wochentag` erscheint eine Leiste mit den Wochentagen der Serie; jeder Tag bekommt eigenes `Personal`, eine eigene `Zuständige Person` und eine eigene Kinderliste. Kommen die Kinder aus einem Angebot als Quelle, gibt es nur das Personal pro Wochentag. Tage, die vom ersten Wochentag abweichen, sind mit `abweichend` gekennzeichnet und unter `Abweichende Tage` aufgeführt. `Auf alle Tage übertragen` kopiert die Zuordnung des ausgewählten Tages auf alle übrigen. Wer den Schalter auf `Für alle Tage gleich` zurückstellt, plant die Serie wieder mit einer gemeinsamen Zuordnung.",
           "`Benötigtes Personal` legt in Schritt 3 den Personalbedarf des Blocks fest. Bleibt das Feld leer, berechnet Phoenix den Bedarf automatisch aus der Kinderzahl und dem Betreuungsschlüssel; eine eingetragene Zahl überschreibt diese Berechnung und bestimmt die Besetzungsanzeige (z. B. `2/3`).",
           "`Maximale Teilnehmerzahl` begrenzt bei einem Regeltermin in Schritt 3, wie viele Kinder an jedem Termin der Reihe teilnehmen können (z. B. 43 Plätze beim Mittagessen). Leer bedeutet unbegrenzt. Beim Bearbeiten der Serie zeigt das Feld die gespeicherte Grenze; sie lässt sich dort jederzeit ändern oder wieder entfernen.",
-          "Bei einem Regeltermin in Schritt 3 unter `Zielgruppe` festlegen, für wen der Block gedacht ist: `Jahrgang`, `Klasse`, `Gruppe` oder `Angebot`. Bei Jahrgang, Klasse und Gruppe lassen sich mehrere Einträge auswählen. Phoenix bildet daraus automatisch eine gemeinsame Kinderliste und entfernt Überschneidungen. Einzelne zusätzlich gewählte Kinder bleiben enthalten. Ändert sich später die Klasse oder Gruppe eines Kindes, wird dies bei der nächsten Planung berücksichtigt. Bei `Angebot` kommen Kinder automatisch über ein verknüpftes Betreuungsangebot hinzu.",
+          "Bei einem Regeltermin in Schritt 3 unter `Zielgruppe` festlegen, für wen der Block gedacht ist: `Jahrgang`, `Klasse`, `Gruppe` oder `Angebot`. Bei Jahrgang, Klasse und Gruppe lassen sich mehrere Einträge auswählen. Phoenix bildet daraus automatisch eine gemeinsame Kinderliste und entfernt Überschneidungen. Einzelne zusätzlich gewählte Kinder bleiben enthalten. Ändert sich später die Klasse oder Gruppe eines Kindes oder kommt ein Kind neu dazu, gilt das nur für Termine, die danach neu erzeugt werden; bereits erzeugte Termine ergänzen Sie selbst. Bei `Angebot` kommen Kinder automatisch über ein verknüpftes Betreuungsangebot hinzu.",
           "Unter `Angebot` lassen sich zusätzlich ein oder mehrere `Angebote als Quelle` ankreuzen und die Kinder danach eingrenzen: `Alle Kinder`, `Nach Jahrgang` oder `Nach Klasse`. Jahrgang und Klasse lassen sich nicht kombinieren, weil eine Klasse ihren Jahrgang schon enthält. So verteilt ein breites Angebot (z. B. eine Nachmittagsbetreuung der Jahrgänge 1 bis 4) seine angemeldeten Kinder auf mehrere parallele Regeltermine, etwa einen pro Jahrgang – oder ein Block führt die Kinder mehrerer Angebote zusammen (z. B. Betreuung bis 14:30 Uhr, bis 16 Uhr und montags bis zum Musikunterricht). Jedes Kind zählt dabei nur einmal, auch wenn es in mehreren der gewählten Angebote angemeldet ist; alle gewählten Angebote müssen zur selben Anmeldephase gehören. Die Kinderliste folgt automatisch den Anmeldungen – neue, geänderte oder beendete Anmeldungen wirken sich auf zukünftige Planungen aus. Kinder werden erst ab dem Betreuungsbeginn der Anmeldephase und nur an ihren gebuchten Wochentagen übernommen. Ein früherer Termin bleibt für Raum und Personal sichtbar; beim Öffnen erklärt die Kinder-Sektion, warum er noch leer ist. Vor dem Speichern zeigt das Formular, wie viele Kinder der Filter erfasst, warnt bei einem Filter ohne Treffer und weist darauf hin, wenn sich die Zielgruppen mehrerer Regeltermine derselben Angebote überschneiden. Räume und Personal pflegt jeder Regeltermin weiterhin selbst. Auch mit Angeboten als Quelle lässt sich das Personal `Pro Wochentag` festlegen. Die Kinder kommen dann aus dem Angebot, eine Kinderliste je Wochentag gibt es nicht.",
           "`Nach Klasse` ist der Weg für Randstunden: Ein gemeinsames Angebot `Randstunde` speist sechs Regeltermine, je einen für 1a, 1b, 1c, 2a, 2b und 2c, jeder an seinen eigenen Wochentagen. Sie kreuzen im jeweiligen Termin nur die Klassen an, die dazugehören. Jedes Kind erscheint dann nur im Termin seiner Klasse und nur an den Tagen, an denen es die Randstunde gebucht hat. Wechselt ein Kind die Klasse, wandert es beim nächsten Abgleich in den Termin der neuen Klasse; bereits vergangene Tage bleiben unverändert.",
           "Ersetzen Sie eine bisher von Hand gepflegte Kinderliste durch ein Angebot als Quelle, zeigt das Formular vor dem Speichern unter `Das ändert sich gegenüber Ihrer bisherigen Kinderliste`, welche Kinder neu dazukommen und welche wegfallen – mit Namen. Speichern Sie erst, wenn diese Liste stimmt: Die bisherige Auswahl wird dabei ersetzt.",
+          "Jeder Regeltermin in der Ansicht `Serien` und jeder Termin daraus zeigt, wie neue Kinder in die Kinderliste kommen. `Automatisch`: Neue Anmeldungen im verknüpften Betreuungsangebot kommen von selbst dazu, auch in schon erzeugte Termine. `Manuell`: Neue Kinder ergänzen Sie selbst, zum Beispiel bei einer Randstunde nur mit Klasse als Zielgruppe. `Teils automatisch`: Ein Angebot trägt Kinder nach, andere Kinder ergänzen Sie selbst. Mit der Maus darauf zeigen, mit der Tastatur hinspringen oder antippen: Die Erklärung nennt das Angebot und den Klassen- oder Jahrgangsfilter. `Manuell` ist kein Fehler, sondern nur eine Auskunft.",
           "Bei einem Regeltermin lässt sich in Schritt 1 unter `Listenart` festlegen, zu welcher druckbaren Tagesliste der Block gehört: `Randstunden`, `Lernzeit`, `AG-Angebote` oder `Mensa`. Die Zuordnung steuert, welche Termine die jeweilige Tagesliste unter `Planung` -> `Tageslisten` automatisch einsammelt; ohne Listenart bleibt der Block über die `Freie Angebotsauswahl` erreichbar.",
           "Optional ordnen Sie einen Regeltermin in Schritt 1 einer `Planungsspur` zu. Farbe und Name der Spur kennzeichnen den Block in Wochen- und Monatsansicht; die Legende zeigt nur Spuren, die im sichtbaren Zeitraum verwendet werden. Ohne Zuordnung erscheint der Block neutral. Die Auswahl lässt sich durchsuchen. Angelegt, umbenannt, umsortiert und archiviert werden Spuren unter `Datenverwaltung` -> `Planungsspuren`; der Link `Planungsspuren verwalten` neben dem Feld öffnet die Seite in einem neuen Fenster, damit Ihr angefangener Termin stehen bleibt. Archivierte Spuren bleiben an bestehenden Regelterminen lesbar und lassen sich dort wieder anbieten.",
           "Über `Termin wiederholen` an einem einzelnen Termin öffnet sich derselbe Assistent direkt bei Schritt 2 `Wiederholung`, um aus dem Einzeltermin eine Serie zu machen.",
@@ -1795,7 +1816,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Den gewünschten Bereich wählen: `Kinderdaten`, `Personal`, `Räume`, `Gruppen`, `Rollen`, `Berechtigungen` oder `Jahrgangswechsel`.",
           "Wenn NFC oder Tablets genutzt werden, zusätzlich `Aktivitäten` und `Geräte` öffnen.",
           "Die kurzen Listen, aus denen andere Seiten auswählen, liegen ebenfalls hier: `Terminkategorien` (ordnen Termine und Aktivitäten ein), `Planungsspuren` (bündeln Regeltermine farblich), `Schichtarten` (benennen die Aufgabe einer Schicht) und `Abwesenheitsarten` (eigene Namen für Abwesenheiten).",
-          "Einträge anlegen, bearbeiten oder prüfen. `Berechtigungen` können Sie nur ansehen.",
+          "Einträge anlegen, bearbeiten oder prüfen. Bei `Kinderdaten`, `Personal` und `Räume` öffnet ein Tipp auf einen Eintrag die Seite des Kindes, der Person oder des Raums; `Zurück` führt in die Liste. Bei `Gruppen`, `Rollen`, `Aktivitäten` und `Geräten` steht der Eintrag rechts neben der Liste; bei einer Rolle liegen die Stammdaten und die Berechtigungen in zwei Reitern, `Bearbeiten` schaltet den offenen Reiter um und `Speichern` unten übernimmt die Änderung. Unter `Berechtigungen` sehen Sie alle verfügbaren Rechte. Die Rechte einer Rolle ändern Sie im Reiter `Berechtigungen` der Rolle.",
           "Unter `Exporte` liegen alle Listen der Schule gebündelt, siehe nächster Abschnitt.",
         ],
         screenshot: "Datenverwaltung mit allen Bereichen und Eintragszahlen.",
@@ -1989,7 +2010,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Mit `Bestätigen`, `Warteliste` oder `Ablehnen` entscheiden; mit `Zur Prüfung` für später vormerken. Ist die Warteliste in den Einstellungen deaktiviert, wird diese Aktion nicht angeboten. Nach einer Bestätigung lässt sich eine erziehungsberechtigte Person bei Bedarf in der Kinddetailseite manuell einladen oder erneut einladen.",
           "Bei einer optionalen Auswahl warnt moto, wenn kein Angebot gebucht ist. Prüfen Sie, ob das Kind trotzdem aufgenommen werden soll. Verlangt die Phase ein Angebot, muss die Familie es zuerst ergänzen.",
           "Fallen nach der Bestätigung falsche Kerndaten auf, öffne die Anmeldung und wähle beim bestätigten Kind `Anmeldedaten korrigieren`. Berichtige Name, Geburtsdatum, Ziel-Klassenstufe oder Zielklasse und gib einen Grund an. moto aktualisiert damit die Anmeldung und die verknüpften Stammdaten gemeinsam und protokolliert die Korrektur. Ändere in diesem Fall nicht zuerst die Stammdaten, weil die Anmeldung die Quelle für Anmeldestatistiken bleibt.",
-          "Bei bestätigten Kindern können Betreuungsangebote über `Betreuungsangebote bearbeiten` nachträglich korrigiert werden, solange `Betreuungsangebote anbieten` unter `Einstellungen` -> `Anmeldung` aktiviert ist. Eine Begründung ist Pflicht; die Änderungshistorie bleibt auch nach dem Ausschalten sichtbar und zeigt, wer was wann angepasst hat.",
+          "Bei bestätigten Kindern können Betreuungsangebote über `Bearbeiten` in der Karte `Nachbearbeitung` direkt auf der Seite korrigiert werden, solange `Betreuungsangebote anbieten` unter `Einstellungen` -> `Anmeldung` aktiviert ist. Eine Begründung ist Pflicht; die Änderungshistorie bleibt auch nach dem Ausschalten sichtbar und zeigt, wer was wann angepasst hat.",
           "Im Dialog steht unter jedem Angebot die aktuelle Belegung, zum Beispiel `18 von 20 Plätzen belegt` oder `Ausgebucht`. Angebote, die durch eine Verfügbarkeitsregel für die Klassenstufe dieses Kindes ausgeschlossen sind, erscheinen unter `Für dieses Kind nicht wählbar` mit dem Grund, etwa `Nicht wählbar: nur für Klassen 1–2 (Kind: Klasse 3)`. Ein bereits gebuchtes Angebot bleibt dort mit dem Hinweis `bereits gebucht` erhalten und kann entfernt, aber nicht erneut hinzugefügt werden. Tage, die aus einem anderen Angebot abgeleitet sind, stehen mit dem Hinweis `automatisch mitgebucht` daneben: Sie bleiben bestehen, solange das auslösende Angebot gebucht ist, und lassen sich hier nicht einzeln entfernen. Um ein Kind neu für ein solches Angebot zu buchen, passt du zuerst die Regel unter `Anmeldungen` -> `Betreuungsangebote` an.",
           "Wenn Eltern nach einer Entscheidung Daten korrigieren, erscheint die Anfrage in der Seitenleiste unter `Anfragen` im Reiter `Eltern` als Anfrageart `Anmeldung`. Mit `Prüfen` öffnest du die Änderungsübersicht: Sie zeigt pro Kind oder erziehungsberechtigter Person, welche Felder von `Bisher` auf `Neu` geändert wurden. Dort kannst du Rückfragen senden, die Änderung freigeben oder mit Begründung ablehnen. Entschiedene Anmeldungsänderungen findest du im Schalter `Historie` derselben Liste.",
           "Hat eine Familie ihre Anmeldung versehentlich zurückgezogen, öffne die zurückgezogene Anmeldung und wähle `Anmeldung wiederherstellen`. Alle zurückgezogenen Kinder stehen danach wieder auf `Eingegangen` und können normal entschieden werden; bereits entschiedene Kinder bleiben unverändert. Ist ein gewähltes Betreuungsangebot inzwischen voll, kommt das betroffene Kind stattdessen auf die Warteliste. Voraussetzung: Die Anmeldephase ist noch aktiv und es gibt keine andere aktive Anmeldung für dasselbe Kind.",
@@ -2195,6 +2216,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Wählen Sie `RSS-Link erstellen`, kopieren Sie den Link und fügen Sie ihn in Ihrem RSS-Programm ein. Der Feed enthält nur die Anfrageart, den Zeitpunkt und einen Link zu moto. Namen und andere persönliche Daten stehen nicht im Feed.",
           "Das RSS-Programm prüft selbst auf neue Einträge. Hinweise können deshalb später oder gar nicht ankommen. Entscheiden Sie Anfragen immer in moto. Mit `Neuen Link erstellen` wird der bisherige Link ungültig; bereits geladene Hinweise können im RSS-Programm gespeichert bleiben.",
           "Neue Anfragen zu Betreuungszeiten gibt es nicht an jeder Schule. Die Schule bestimmt, ob Eltern Abholzeit oder Abholart anfragen dürfen. Offene ältere Anfragen können Sie weiterhin entscheiden.",
+          "Unter `Einstellungen` > `Elternportal` legen Sie bei Bedarf eine `Änderungsfrist für die Abholzeit am selben Tag` fest, zum Beispiel 11:00 Uhr. Danach können Eltern die Abholzeit für heute nicht mehr anfragen, ändern oder zurücknehmen. Für morgen und spätere Tage gilt keine Frist. Das Team kann die Abholzeit jederzeit selbst ändern, und Anfragen von vorher entscheiden Sie wie gewohnt. Ist das Feld leer, gibt es keine Frist.",
           "Kinder, die heute betroffen sind, stehen unter `Heute wichtig`. Alle anderen stehen unter `Weitere Anfragen`. Unter `Abgelaufen` stehen Anfragen, die nur noch vergangene Tage betreffen.",
           "Eine abgelaufene Anfrage ändert nichts mehr. Schließen Sie sie mit `Als erledigt markieren` ab. Ablehnen bleibt möglich, freigeben nicht.",
           "Widersprechen sich zwei Wünsche zum selben Tag, stehen sie oben zusammen. Wählen Sie dort aus, was gelten soll: einen der Wünsche, einen eigenen Wert oder `Keine Änderung`. Die anderen Wünsche werden dann abgelehnt.",
@@ -2228,10 +2250,12 @@ export const appChapters: readonly GuideChapter[] = [
           "In der Seitenleiste den Bereich `Eltern` aufklappen, `Mitteilungen` öffnen und auf `Mitteilung` tippen.",
           "Schritt `Inhalt`: Titel und Text eingeben. Optional: einen Link ergänzen, Priorität `Wichtig` setzen, ein Ablaufdatum wählen (danach wird die Mitteilung ausgeblendet), `Lesebestätigung erforderlich` und `Eltern zusätzlich per E-Mail benachrichtigen` aktivieren. Die E-Mail einer Mitteilung enthält nur den Titel und einen Link ins Elternportal – soll der vollständige Text mitgeschickt werden, nutzen Sie stattdessen einen `Elternbrief`.",
           "Noch im Schritt `Inhalt`: unter `Dateien anhängen` mit `Datei auswählen` bis zu fünf Dateien anhängen (PDF, DOCX, XLSX, PPTX, PNG, JPEG, je bis 25 MB). Die Dateien sehen genau die Eltern, die auch die Mitteilung bekommen. Sie liegen im Elternportal zum Herunterladen bereit und gehen nicht per E-Mail mit; die E-Mail weist nur darauf hin.",
+          "Noch im Schritt `Inhalt`: unter `Erinnerung` optional ein Datum und eine Uhrzeit wählen. moto schickt die Mitteilung dann zu diesem Zeitpunkt noch einmal an alle Empfänger, egal ob sie schon gelesen oder bestätigt haben. Mit einem kurzen `Erinnerungstext` bringen Sie das Wichtigste auf den Punkt, zum Beispiel „Morgen endet die Betreuung um 13:00 Uhr.“. Ohne eigenen Text sehen Eltern im Elternportal den Text der Mitteilung. Die E-Mail enthält nur Titel und Link. Die Erinnerung darf nicht nach dem Ablaufdatum liegen.",
           "Schritt `Empfänger`: Zielgruppe wählen: ganze Schule, einzelne Klassen, Gruppen, AGs/Betreuungsangebote, einzelne Kinder oder Eltern mit offener Anmeldung. Mehrere Zielgruppen lassen sich kombinieren; ein Elternteil erhält die Mitteilung höchstens einmal.",
           "Mit `Als Entwurf speichern` für später sichern oder mit `Veröffentlichen` direkt an die Eltern geben. Veröffentlichte Mitteilungen erscheinen sofort im Elternportal der erreichten Eltern.",
           "Entwürfe lassen sich aus der Liste bearbeiten und über `Veröffentlichen` freigeben. Nach dem Veröffentlichen ist keine Bearbeitung mehr möglich – auch Anhänge lassen sich dann weder hinzufügen noch entfernen; über `Zurückziehen` wird eine Mitteilung wieder zum Entwurf und aus dem Elternportal entfernt. Achtung: Wer nach dem Zurückziehen einen Anhang ändert, setzt damit die Lesebestätigungen zurück – die Eltern bestätigen dann erneut.",
-          "Ein Tipp auf eine Mitteilung öffnet die Detailansicht mit dem vollständigen Text und der Statistik: wie viele der erreichten Eltern sie gelesen und (falls verlangt) bestätigt haben, inklusive Liste, welche Bezugsperson noch aussteht.",
+          "Einzige Ausnahme: die Erinnerung. Über das Menü mit den drei Punkten auf der Seite der Mitteilung lässt sich mit `Erinnerung planen` beziehungsweise `Erinnerung ändern` der Zeitpunkt verschieben, der Text ändern oder die Erinnerung ganz entfernen, solange sie noch nicht verschickt wurde. Liste und Seite der Mitteilung zeigen, wann erinnert wird und ob die Erinnerung schon raus ist.",
+          "Ein Tipp auf eine Mitteilung öffnet ihre eigene Seite mit dem vollständigen Text und der Statistik: wie viele der erreichten Eltern sie gelesen und (falls verlangt) bestätigt haben, inklusive Liste, welche Bezugsperson noch aussteht. `Veröffentlichen`, `Bearbeiten`, `Zurückziehen` und `Löschen` stehen dort im Menü mit den drei Punkten oben rechts; `Zurück` führt in die Liste.",
         ],
         callout: {
           title: "Voraussetzung",
@@ -2239,7 +2263,8 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Übersicht der Elternmitteilungen mit Status (Entwurf, veröffentlicht, abgelaufen) und der Aktion „Neue Elternmitteilung“.",
+          "Schritt `Inhalt` einer neuen Elternmitteilung mit dem Abschnitt `Erinnerung`: Datum, Uhrzeit und optionaler Erinnerungstext.",
+        image: "/help/screens/elternmitteilung-erinnerung.webp",
       },
       {
         id: "elternbriefe",
@@ -2252,8 +2277,9 @@ export const appChapters: readonly GuideChapter[] = [
           "Schritt `Inhalt`: Titel und Text eingeben. Der Kasten `Beim Veröffentlichen passiert automatisch` zeigt, was fest zum Elternbrief gehört: Portal, E-Mail mit vollem Text und Bestätigung durch die Eltern. Diese drei Punkte lassen sich nicht abwählen.",
           "Unter `Wer erhält die E-Mail?` wählen: `Nur mit Portalzugang` (Standard) schickt die E-Mail ausschließlich an Bezugspersonen mit Elternportal-Zugang. `Alle Bezugspersonen` schickt sie zusätzlich an hinterlegte Bezugspersonen ohne Portalzugang – praktisch für allgemeine Informationen, aber ungeeignet für sensible Angaben.",
           "Dateien anhängen geht wie bei einer Mitteilung, im Schritt `Inhalt` unter `Dateien anhängen`. Auch beim Elternbrief bleibt die Datei im Elternportal: Der Brieftext geht per E-Mail mit, die Datei nicht. Das gilt besonders bei `Alle Bezugspersonen` – Personen ohne Portalzugang können die Datei nicht öffnen.",
+          "Auch ein Elternbrief kann unter `Erinnerung` einen Zeitpunkt bekommen, an dem er noch einmal an alle Empfänger geht. Der Erinnerungstext geht dann wie der Brieftext per E-Mail mit. Die Erinnerung fordert keine zweite Bestätigung; wer schon bestätigt hat, bleibt bestätigt.",
           "Schritt `Empfänger`: Zielgruppe wählen wie bei einer Mitteilung. Eltern mit offener Anmeldung stehen hier nicht zur Verfügung, weil für sie noch kein Kind verknüpft ist.",
-          "Nach `Veröffentlichen` öffnet ein Tipp auf den Brief die Statusansicht: oben `x von y Kindern bestätigt`, darunter die Liste der Kinder und die Liste der Empfänger.",
+          "Nach `Veröffentlichen` öffnet ein Tipp auf den Brief seine Seite mit dem Status: oben `x von y Kindern bestätigt`, darunter die Liste der Kinder und die Liste der Empfänger.",
           "In der Empfängerliste stehen E-Mail-Status und moto-Status getrennt nebeneinander. `Versendet` heißt: die E-Mail wurde an den Mailserver übergeben. Ob sie im Postfach angekommen ist, kann moto derzeit nicht bestätigen.",
           "Mit `Offene erinnern` werden genau die Familien benachrichtigt, für deren Kind noch niemand bestätigt hat. Mit `Fehlgeschlagene erneut senden` gehen ausschließlich die E-Mails erneut raus, die nicht zugestellt werden konnten.",
         ],
@@ -2268,7 +2294,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "orange",
         },
         screenshot:
-          "Statusansicht eines Elternbriefs: oben die Zahl der bestätigten Kinder, darunter die Kinderliste mit „Bestätigt“ und „Offen“ sowie die Empfängerliste mit getrenntem E-Mail- und moto-Status.",
+          "Seite eines Elternbriefs: oben die Zahl der bestätigten Kinder, darunter die Kinderliste mit „Bestätigt“ und „Offen“ sowie die Empfängerliste mit getrenntem E-Mail- und moto-Status.",
         // gallery statt image: der Renderer zeigt entweder das eine Bild ODER die
         // Galerie (guide-components.tsx:681), und der Ablauf braucht drei
         // Stationen — Liste, Assistent, Status.
@@ -2286,7 +2312,7 @@ export const appChapters: readonly GuideChapter[] = [
           {
             image: "/help/screens/elternbrief-status.webp",
             caption:
-              "Statusansicht: bestätigte Kinder, erreichte Kinder ohne Portalzugang und die Aktionen `Offene erinnern` sowie `Fehlgeschlagene erneut senden`.",
+              "Seite des Elternbriefs: bestätigte Kinder, erreichte Kinder ohne Portalzugang und die Aktionen `Offene erinnern` sowie `Fehlgeschlagene erneut senden`.",
           },
         ],
       },
@@ -2302,7 +2328,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Sollen Eltern mehrere Antworten gleichzeitig auswählen dürfen (z. B. mehrere mögliche Termine), `Mehrfachauswahl erlauben` aktivieren.",
           "Optional eine `Antwortfrist` setzen. Nach Ablauf nimmt die Umfrage keine Antworten mehr an, bleibt für die Eltern aber lesbar.",
           "Schritt `Empfänger`: wie bei einer Mitteilung die Zielgruppe wählen (ganze Schule, Klassen, Gruppen, AGs oder einzelne Kinder), dann `Veröffentlichen`.",
-          "Ein Tipp auf die Umfrage öffnet die `Auswertung`: pro Antwortmöglichkeit ein Balken mit der Anzahl Kinder, darunter die Liste aller erreichten Kinder mit ihrer Antwort. Über `Nur offene` sehen Sie, wer noch fehlt.",
+          "Ein Tipp auf die Umfrage öffnet ihre Seite mit der `Auswertung`: pro Antwortmöglichkeit ein Balken mit der Anzahl Kinder, darunter die Liste aller erreichten Kinder mit ihrer Antwort. Über `Nur offene` sehen Sie, wer noch fehlt.",
           "Mit `Eltern ohne Antwort erinnern` erhalten genau die Bezugspersonen eine Erinnerung, deren Kind noch keine Antwort hat – niemand sonst wird benachrichtigt.",
         ],
         callout: {
@@ -2478,10 +2504,10 @@ export const appChapters: readonly GuideChapter[] = [
           "Damit die ausgewählten Hinweise auch bei geschlossener App ankommen, wird jedes Gerät einmal freigeschaltet. Die Freigabe gilt nur für dieses eine Gerät.",
         steps: [
           "Nach dem Anmelden fragt moto einmal von selbst nach. Der Dialog führt durch die fehlenden Schritte: erst installieren, dann erlauben.",
-          "Wer den Dialog weggetippt hat, findet denselben Weg im Profil unter `Benachrichtigungen auf diesem Gerät` über `Einrichtung erneut starten`.",
+          "Wer den Dialog weggetippt hat, findet denselben Weg im Profil unter `Benachrichtigungen auf diesem Gerät`: die drei Punkte neben der Schaltfläche antippen und `Einrichtung erneut starten` wählen.",
           "Die Karte zeigt oben, wie es auf diesem Gerät steht: ob moto als App geöffnet ist und ob moto benachrichtigen darf.",
           "`Aktivieren` antippen und die Browser-Nachfrage mit `Erlauben` bestätigen.",
-          "Sobald Push aktiv ist, mit `Testbenachrichtigung senden` prüfen, ob die Benachrichtigung auf diesem Gerät ankommt.",
+          "Sobald Push aktiv ist, hinter den drei Punkten `Testbenachrichtigung senden` wählen und prüfen, ob die Benachrichtigung auf diesem Gerät ankommt.",
           "Fertig: Die ausgewählten Hinweise erscheinen jetzt als Benachrichtigung auf diesem Gerät.",
         ],
         callout: {
@@ -2489,7 +2515,7 @@ export const appChapters: readonly GuideChapter[] = [
           body: "Auf iPhone und iPad funktioniert das nur in der zum Home-Bildschirm hinzugefügten App (siehe die Schritte oben). Im normalen Safari-Tab bietet Apple keine Push-Benachrichtigungen an. Zusätzlich muss die Schule die Benachrichtigungen in den Einstellungen eingeschaltet haben.",
         },
         screenshot:
-          "Profilseite mit dem aktiven Abschnitt Push-Benachrichtigungen und der Schaltfläche Testbenachrichtigung senden.",
+          "Profilseite mit dem aktiven Abschnitt Push-Benachrichtigungen und dem Menü mit Testbenachrichtigung senden.",
       },
     ],
   },
@@ -2623,26 +2649,50 @@ export const appChapters: readonly GuideChapter[] = [
       },
       {
         id: "einstellungen-sicht-auf-alle-raeume",
-        title: "Sichtbereich für Mitarbeitende wählen",
+        title: "Sehen und bearbeiten getrennt festlegen",
         icon: Eye,
         summary:
-          "Sie wählen, ob Mitarbeitende alles oder nur eigene Zuständigkeiten sehen. Admins sehen immer alles.",
+          "Der Überblick gibt keine Schreibrechte. Diese legen Sie getrennt fest.",
         steps: [
-          "`Einstellungen` -> `Betrieb` öffnen. Die Sektion `Aufsicht` steht ganz oben.",
-          "Bei `Sichtbereich für Mitarbeitende` zwischen `Ganzes Team` und `Eigene Zuständigkeiten` wählen.",
-          "`Ganzes Team` zeigt Mitarbeitenden alle Gruppen und laufenden Betreuungen.",
-          "`Ganzes Team` sortiert feste und übergebene Gruppen unter `Meine Gruppen`. Alle anderen stehen unter `Weitere Gruppen`.",
-          "`Eigene Zuständigkeiten` zeigt nur feste und übergebene Gruppen. Dazu kommen eigene laufende Betreuungen.",
-          "Die Auswahl wird sofort gespeichert. Wer die Seite schon offen hat, lädt sie einmal neu.",
-          "Mit `Zurücksetzen` gilt wieder `Ganzes Team`.",
+          "`Einstellungen` > `Betrieb` > `Sehen und bearbeiten` öffnen.",
+          "Bei `Welche Gruppen und Blöcke sieht das Team?` den Überblick wählen. Freigegebene offene Räume bleiben auch bei `Eigene Zuständigkeiten` sichtbar.",
+          "Bei `Wo darf das Team Kinder an- und abmelden?` den Bearbeitungsbereich wählen. `Überall` erlaubt berechtigten OGS-Mitarbeitenden auch An- und Abmeldungen in fremden Blöcken.",
+          "`Überall` braucht den Überblick über alle Gruppen und Blöcke. moto bietet den nötigen Wechsel an. Bestätigen Sie ihn ausdrücklich.",
+          "Bei `Wer darf Kinder krank oder entschuldigt melden?` die Berechtigung wählen. Das gilt auch für mehrere Tage und das Zurücknehmen einer Meldung.",
+          "Tagesmeldungen brauchen keine Einplanung in einen Block. Sie können dem Team dafür Rechte geben, obwohl der Sichtbereich eingeschränkt bleibt.",
         ],
         callout: {
-          title: "Der Sichtbereich gibt keine neuen Rechte",
-          body: "Er ändert nur, was Mitarbeitende sehen. Wer ein Kind bisher nicht ummelden durfte, darf es weiterhin nicht.",
+          title: "Anmelden übernimmt keine Aufsicht",
+          body: "An- und Abmelden ändert keine Aufsicht, Vertretung oder Betreuungsplanung. Dafür gelten weiterhin eigene Rechte. Vorhandene Zuständigkeiten und Zugänge zu offenen Räumen bleiben erhalten.",
           tone: "blue",
         },
         screenshot:
-          "Sektion Aufsicht im Reiter Betrieb mit dem Sichtbereich für Mitarbeitende.",
+          "Bereich Sehen und bearbeiten mit getrennten Auswahlfeldern für Überblick, Anwesenheit und Tagesmeldungen.",
+        image: "/help/screens/einstellungen-teamrechte.png",
+      },
+      {
+        id: "einstellungen-elternmeldungen",
+        title: "Elternmeldungen und Freigaben wählen",
+        icon: ClipboardCheck,
+        summary:
+          "Krankmeldungen und Entschuldigungen durch Eltern lassen sich unabhängig einstellen.",
+        steps: [
+          "`Einstellungen` > `Betrieb` > `Elternmeldungen` öffnen.",
+          "Für jede Meldeart `Aus`, `Sofort übernehmen` oder `Erst bestätigen` wählen.",
+          "`Sofort übernehmen` ändert den Tagesstatus sofort. `Erst bestätigen` erstellt zunächst eine Anfrage. Keine Auswahl meldet ein Kind tatsächlich an.",
+          "Bei `Wer bearbeitet diese Elternanfragen?` die Freigabe wählen. Sie gilt nur für Krankmeldungen und Entschuldigungen.",
+          "Bei `Admins und zuständige Gruppenleitungen` zählen auch gültige Vertretungen. Ohne zuständige Gruppenleitung können weiterhin Admins entscheiden.",
+          "`Berechtigtes Team` erlaubt auch Mitarbeitenden ohne eigene Gruppe die Prüfung. Die nötigen Aktionsrechte müssen weiterhin vorhanden sein.",
+          "Die direkte Tagesmeldung durch das Team bleibt davon unabhängig. Andere Elternanfragen erhalten durch diese Auswahl keine neuen Freigaben.",
+        ],
+        callout: {
+          title: "Was bedeutet Zurücksetzen?",
+          body: "Bei einer Meldeart wird die Bestätigung wieder zum Standard. Eine bisherige gemeinsame Abschaltung bleibt bestehen. Die andere Meldeart ändert sich nicht. Bei der Freigabe gilt wieder die bisherige Gruppenleitungs-Regel.",
+          tone: "blue",
+        },
+        screenshot:
+          "Bereich Elternmeldungen mit zwei unabhängigen Meldearten und der Auswahl für die Freigabe.",
+        image: "/help/screens/einstellungen-elternmeldungen.png",
       },
       {
         id: "einstellungen-zustaendigkeit",
@@ -2651,8 +2701,9 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Nicht jede Einstellung müssen Sie selbst verwalten. Ein Teil wird vom moto-Team betreut und erscheint für Schul-Admins bewusst gar nicht.",
         steps: [
-          "Was Sie selbst anpassen: alltägliche Regeln Ihrer Schule, zum Beispiel Abmeldezeiten, Aktivitäts-Indikatoren, ob mit festen Gruppen oder in offener Betreuung gearbeitet wird, ob Betreuungsplan-Zahlen sichtbar sind, die Geräte-PIN und die Tablet-Buttons. `Arbeit mit festen Gruppen` beschreibt nur, wie Ihre OGS organisiert ist. Welche Gruppen und laufenden Betreuungen Mitarbeitende sehen, steht getrennt davon unter `Sichtbereich für Mitarbeitende`.",
-          "Was das moto-Team betreut: technische und grundlegende Einstellungen, darunter die Freischaltung der Web-Anwesenheit. Bei ausgeschalteter Web-Anwesenheit verschwinden An-/Abmeldeaktionen in der Web-App; NFC- und Systemvorgänge bleiben aktiv. Diese Einstellungen sind für Schul-Admins ausgeblendet.",
+          "Was Sie selbst anpassen: alltägliche Regeln Ihrer Schule, zum Beispiel Abmeldezeiten, Aktivitäts-Indikatoren, ob mit festen Gruppen oder in offener Betreuung gearbeitet wird, ob Betreuungsplan-Zahlen sichtbar sind, die Geräte-PIN und die Tablet-Buttons. `Arbeit mit festen Gruppen` beschreibt nur, wie Ihre OGS organisiert ist. Überblick und Schreibrechte wählen Sie getrennt unter `Sehen und bearbeiten`.",
+          "Das moto-Team betreut den Bereich `Anwesenheit erfassen`. Dort stehen die Erfassung am Handy oder Computer, NFC-Geräte und die Erfassung von Räumen. Web und NFC dürfen gleichzeitig eingeschaltet sein. Diese Einstellungen sind für Schul-Admins ausgeblendet.",
+          "Bei ausgeschalteter Web-Erfassung fehlen An- und Abmeldeaktionen in der Web-App. Auch `Überall` schaltet sie nicht frei. NFC-Vorgänge und Elternmeldungen bleiben davon unabhängig.",
           "Der Reiter `System` ist überwiegend Sache des moto-Teams; als Admin sehen Sie dort in der Regel nur die automatische Datenbereinigung.",
           "Soll eine ausgeblendete Einstellung geändert werden, wenden Sie sich an das moto-Team.",
         ],

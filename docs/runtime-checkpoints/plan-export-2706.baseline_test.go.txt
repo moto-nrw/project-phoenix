@@ -1,0 +1,185 @@
+package planexport
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"runtime"
+	"slices"
+	"strings"
+	"testing"
+	"time"
+
+	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
+	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
+	usersModel "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/facilities"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
+	"github.com/moto-nrw/project-phoenix/services/listexport"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+)
+
+// Baseline harness for #2706: the pre-cutover services/planexport measured
+// over the same retained instance, instance-staff and room sources as the
+// candidate's modules/planexport/legacy harness. Temporary; not committed.
+
+type waveRooms struct{ facade *facilities.Module }
+
+func (r waveRooms) FindByIDs(ctx context.Context, ids []int64) ([]*facilitiesModel.Room, error) {
+	rows, err := r.facade.ListRoomsByID(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*facilitiesModel.Room, 0, len(rows))
+	for _, row := range rows {
+		room := &facilitiesModel.Room{Name: row.Name}
+		room.ID = row.ID
+		out = append(out, room)
+	}
+	return out, nil
+}
+
+type waveStaff struct{ members map[int64]*usersModel.Staff }
+
+func (f waveStaff) ListAllWithPerson(context.Context) ([]*usersModel.Staff, error) {
+	return nil, fmt.Errorf("not used")
+}
+
+func (f waveStaff) FindWithPersonByIDs(context.Context, []int64) (map[int64]*usersModel.Staff, error) {
+	return f.members, nil
+}
+
+type waveProbe struct{}
+
+func (waveProbe) Render(doc listexport.Document, _ listexport.Format, filenameBase string) (listexport.File, error) {
+	data, err := json.Marshal(len(doc.Rows))
+	if err != nil {
+		return listexport.File{}, err
+	}
+	return listexport.File{Data: data, ContentType: "application/json", Filename: filenameBase + ".json"}, nil
+}
+
+func waveExpectedRows(blocks, weeks int) int {
+	if blocks == 0 {
+		return 1
+	}
+	titles := blocks
+	if titles > 20 {
+		titles = 20
+	}
+	if weeks == 1 {
+		return titles
+	}
+	return weeks + weeks*titles
+}
+
+func TestPlanExportRuntimeEvidenceBaseline(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := testpkg.Ctx(t)
+	room := testpkg.CreateTestRoom(t, db, "Runtime-room")
+	members := map[int64]*usersModel.Staff{}
+	for i := range 4 {
+		member := testpkg.CreateTestStaff(t, db, "Runtime", fmt.Sprintf("Staff%d", i))
+		members[member.ID] = member
+	}
+	staffIDs := make([]int64, 0, len(members))
+	for id := range members {
+		staffIDs = append(staffIDs, id)
+	}
+	slices.Sort(staffIDs)
+	facade, err := facilitiesCompose.New(facilitiesCompose.Dependencies{
+		DB:            db,
+		DeletionLock:  func(context.Context) error { return nil },
+		DeletionGuard: func(context.Context, int64) error { return nil },
+		Observe:       func(facilitiesCompose.Observation) {},
+	})
+	require.NoError(t, err)
+	deps := func(renderer Renderer) Dependencies {
+		return Dependencies{
+			Instances:     scheduleRepo.NewActivityInstanceRepository(db),
+			InstanceStaff: scheduleRepo.NewInstanceStaffRepository(db),
+			Rooms:         waveRooms{facade: facade},
+			Staff:         waveStaff{members: members},
+			Renderer:      renderer,
+		}
+	}
+	pdfService := NewService(deps(listexport.NewService()), nil)
+	documentService := NewService(deps(waveProbe{}), nil)
+	var postgres string
+	require.NoError(t, db.NewRaw("SHOW server_version").Scan(ctx, &postgres))
+	counter := testpkg.CaptureQueriesForContext(t, db)
+	deadlocks := func() int64 {
+		var n int64
+		require.NoError(t, db.NewRaw("SELECT deadlocks FROM pg_stat_database WHERE datname = current_database()").Scan(ctx, &n))
+		return n
+	}
+	seeded := 0
+	for _, scenario := range []struct {
+		name   string
+		blocks int
+		weeks  int
+		pdf    bool
+	}{{"empty-week", 0, 1, false}, {"week-20", 20, 1, false}, {"weeks-4x20", 80, 4, false}, {"pdf-4x20", 80, 4, true}} {
+		t.Run(scenario.name, func(t *testing.T) {
+			for seeded < scenario.blocks {
+				date := monday.AddDays(7*(seeded/20) + (seeded%20)/4)
+				instance := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{
+					Title:     fmt.Sprintf("Block %02d", seeded%20),
+					StartHHMM: fmt.Sprintf("%02d:00", 12+seeded%4), EndHHMM: fmt.Sprintf("%02d:00", 13+seeded%4),
+				})
+				testpkg.CreateTestInstanceStaff(t, db, instance.ID, staffIDs[seeded%len(staffIDs)], testpkg.InstanceStaffOpts{})
+				seeded++
+			}
+			params := Params{From: monday, To: monday.AddDays(7*scenario.weeks - 3), Template: TemplateByOffering, Variant: VariantNotice, Format: listexport.FormatPDF}
+			beforeDeadlocks := deadlocks()
+			stopLocks := testpkg.SampleCheckpointLocks(func(sampleCtx context.Context) (int, error) {
+				var n int
+				err := db.NewRaw("SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'").Scan(sampleCtx, &n)
+				return n, err
+			})
+			var samples []testpkg.RuntimeCheckpointSample
+			var durations []float64
+			for i := 0; i < 35; i++ {
+				counter.Reset()
+				before := db.Stats()
+				start := time.Now()
+				var file listexport.File
+				err := testpkg.WithTenantTx(t, counter.Context(ctx), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+					var err error
+					if scenario.pdf {
+						file, err = pdfService.ExportBetreuungsplan(txCtx, params)
+						return err
+					}
+					file, err = documentService.ExportBetreuungsplan(txCtx, params)
+					return err
+				})
+				elapsed := float64(time.Since(start)) / float64(time.Millisecond)
+				after := db.Stats()
+				require.NoError(t, err)
+				if scenario.pdf {
+					require.True(t, strings.HasPrefix(string(file.Data), "%PDF-"))
+				} else {
+					var rows int
+					require.NoError(t, json.Unmarshal(file.Data, &rows))
+					require.Equal(t, waveExpectedRows(scenario.blocks, scenario.weeks), rows)
+				}
+				require.Zero(t, counter.WriteRows())
+				if i >= 5 {
+					affected, statements := counter.Rows()
+					zero := counter.WriteRows()
+					samples = append(samples, testpkg.RuntimeCheckpointSample{DurationMS: elapsed, Queries: counter.Total(), RowsAffected: affected, StatementsWithRows: statements, WriteRowsAffected: &zero, PoolWaitCount: after.WaitCount - before.WaitCount, PoolWaitMS: float64(after.WaitDuration-before.WaitDuration) / float64(time.Millisecond)})
+					durations = append(durations, elapsed)
+				}
+			}
+			locks := stopLocks()
+			require.Empty(t, locks.Error)
+			slices.Sort(durations)
+			report, err := json.Marshal(map[string]any{"scenario": scenario.name, "blocks": scenario.blocks, "weeks": scenario.weeks, "samples": samples, "p50_ms": durations[14], "p95_ms": durations[28], "max_ms": durations[29], "go": runtime.Version(), "postgres": postgres, "warmup": 5, "concurrency": 1, "unexpected_errors": 0, "lock_samples": locks, "deadlocks": deadlocks() - beforeDeadlocks, "cache": "no projection cache; fixture-backed staff names"})
+			require.NoError(t, err)
+			t.Logf("planexport-runtime: %s", report)
+		})
+	}
+}

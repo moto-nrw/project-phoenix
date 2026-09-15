@@ -48,6 +48,20 @@ Aktivitäten, Gruppen, Rollen, Geräte, Dateien, Nachrichten, Anfragen.
    Slide-over als Ersatz für eine Detailseite, kein zentriertes Modal als
    Detailansicht. Eine nicht klickbare Zeile in einer Liste klickbarer Zeilen
    gibt es nicht.
+
+   **Wann ein Pane neben der Liste zulässig ist (#3115):** nur, wenn es die
+   einzige Objektansicht des Typs im Portal ist (Gruppe, Gerät, Rolle,
+   Aktivität, Berechtigung, die Kataloge der Datenverwaltung). Dann steht
+   die Auswahl in der Adresse (`?group=`), damit ein Eintrag verlinkbar
+   bleibt; `useUpdateUrlParams` schreibt sie per `router.replace`, ein
+   Zurück im Browser springt also zur vorigen Seite, nicht zum vorigen
+   Eintrag. Sobald der Typ eine Route hat (Kind, Person, Raum,
+   Elternmitteilung), verlinkt die Zeile dorthin (`DatabaseListItem href`,
+   `?from=` trägt den Rückweg zur Sammlung samt Filtern) und es gibt kein
+   Pane, kein Slide-over und keinen zweiten Detailbaum daneben. Was das
+   Pane an Feldern oder Aktionen mehr konnte als die Route, zieht als Reiter
+   oder Kebab-Eintrag auf die Route um.
+
 3. **„Neu anlegen" steht immer als Kopf-Aktion**, auf jeder Sammlung ihres
    Typs, mit demselben Wort („Kind anlegen", „Raum anlegen"). Es gibt keine
    Sammlung, auf der man das Objekt sehen, aber nicht anlegen kann, während
@@ -122,6 +136,16 @@ keine zweite Ansicht.
    Nachtragen eines Objekts in eine Liste (Kind in die Aufsicht, Person an
    ein Kind) ist eine Kopf-Aktion mit `FormModal`, kein Formular im
    Listenkörper.
+
+   **Slide-over oder `FormModal` (#3115):** `FormModal` ist der Standard
+   für Anlegen und Nachtragen. Ein Slide-over nur, wenn das Formular
+   breiter ist, als ein Modal trägt (mehrstufiger Assistent mit
+   Empfängerwahl), oder die Liste dahinter sichtbar bleiben muss. Ein
+   Slide-over ist nie eine Detailansicht (Bauart 1 Regel 2). Ein Assistent
+   mit zwei Abschlüssen („Als Entwurf speichern" und „Veröffentlichen")
+   behält seinen eigenen Fuß; `EditActions` gilt für den Bearbeiten-Zustand
+   mit genau einem Speichern.
+
 5. **Fehler stehen im `Alert` oben im Bearbeiten-Bereich und, wo zuordenbar,
    am Feld.** Kein Toast als einzige Fehlermeldung, kein roter Absatz.
    Der Platz dafür ist fest: `error` an `FormModal`, `error` an
@@ -218,9 +242,26 @@ bekommt eine shrink-only Baseline analog zum bestehenden
 `oxlint-plugin-ui-kit.mjs`:
 
 1. `bauart/one-detail-per-type` — kein zweiter Detailbaum für einen
-   Objekttyp.
+   Objekttyp. **Umgesetzt** (`scripts/oxlint-plugin-bauart.mjs`, hard-zero,
+   #3115): `MasterDetailLayout` darf nur von den Typen importiert werden,
+   deren Pane die einzige Objektansicht ist (feste Liste im Plugin: Gruppe,
+   Gerät, Rolle, Aktivität, Berechtigung, Kataloge); `DetailPanel` und
+   `DatabaseDetailHeader` in einem Overlay sowie `InfoSection`/`DataGrid`
+   in einem `SlideOver`/`Drawer` fallen durch. Zentrierte Modale bleiben
+   außen vor, weil ein `FormModal` ein Feld zur Einordnung zeigen darf;
+   dasselbe gilt ortsgebunden für ein Formular im Slide-over (Übergabe einer
+   Gruppe). Operator-, Eltern- und Schul-Portal sind nicht im Scope.
 2. `bauart/no-local-field-grid` — kein lokales `<dt>/<dd>`-Feldgitter
-   außerhalb `ui/detail-modal-components`.
+   außerhalb `ui/detail-modal-components`. **Umgesetzt**
+   (`scripts/oxlint-plugin-bauart.mjs`, #3117): jedes handgeschriebene
+   `<dt>` außerhalb des Kits fällt durch; `DataField` rendert die einzige
+   erlaubte Beschriftungszelle. Hard-zero seit #3119: der Bestand aus #3117
+   ist umgezogen, auch Kennzahl- und Statuslisten (Statistik,
+   Elternbrief-Status, Push-Einstellungen) laufen über `DataGrid`
+   (`columns={1 | 2 | 4}`) und `DataField` (`inline` für Label links, Wert
+   rechts) statt über ein eigenes Bauteil. Operator-, Eltern- und
+   Schul-Portal sind nicht im Scope. Beschriftungspaare aus `<p>`/`<span>`
+   erkennt die Ratsche nicht — die gehören ins Review.
 3. `bauart/one-delete-confirm` — nur `ConfirmDeleteModal`; kein
    `window.confirm`, kein `ConfirmationModal` für Löschen. **Umgesetzt**
    (`scripts/oxlint-plugin-bauart.mjs`, hard-zero, #3110): prüft die
@@ -228,13 +269,50 @@ bekommt eine shrink-only Baseline analog zum bestehenden
    `title` einer `Modal`/`ChoiceModal`/`FormModal`) auf „löschen“ /
    „entfernen“ und jeden `window.confirm`-Aufruf.
 4. `bauart/no-own-skeleton` — kein eigenes Seiten-Skelett neben den
-   `TenantPage`-Zuständen.
+   `TenantPage`-Zuständen. **Umgesetzt** (`scripts/oxlint-plugin-bauart.mjs`,
+   #3118): ein `className`, das `animate-pulse` zusammen mit einer grauen
+   Fläche (`bg-gray-*`, auch mit Variante oder Transparenz) trägt, ist ein
+   handgebauter Platzhalter und fällt durch; der einzige Platzhalter ist das
+   Kit-`Skeleton` bzw. die Bausteine aus `ui/page-skeletons`, eingehängt über
+   `TenantPage.loading`. Ein
+   pulsierender Live-Punkt (belegter Raum, „nähert sich“) hat keine graue
+   Fläche und passiert. Hard-zero seit #3119 (Startseiten-Bausteine,
+   Seitenleiste und Räume sind auf das Kit-`Skeleton` umgezogen; ein
+   Seiten-Skelett wie `rooms/page-skeleton.tsx` darf bestehen, solange es
+   nur Kit-Bausteine komponiert); Operator-, Eltern- und Schul-Portal sind
+   nicht im Scope. Ein Skelett, das aus Kit-Bausteinen
+   zusammengesetzt, aber neben `TenantPage` statt in `loading` gerendert
+   wird, erkennt die Ratsche nicht — das gehört ins Review.
 5. `bauart/no-raw-status-hex` — keine rohen Hexwerte für Status- und
-   Planungsfarben.
+   Planungsfarben. **Umgesetzt** (`scripts/oxlint-plugin-bauart.mjs`,
+   #3118): jedes String-Literal und jeder Template-Abschnitt mit einem
+   CSS-Hexwert (`#83CD2D`, `text-[#4070C8]`, `text-[#666]`, ein nacktes
+   `#abcd`) fällt durch; ein Literal zählt einmal. Ausgenommen sind die
+   Quelle der Token selbst (`lib/location-helper.ts`), das Web-App-Manifest
+   (`lib/favicon-variants.ts`) und `app/global-error.tsx`, das ohne
+   Stylesheet rendert. Hard-zero seit #3119: die Raumkategorie-Farben
+   liegen als `MOTO_COLOR_PALETTE.roomCategory`, die neutrale Blockkante
+   der Planung als `MOTO_COLOR_PALETTE.neutral.muted`, alles andere läuft
+   über `moto-*`-Klassen oder Tailwind-Grau. Operator-, Eltern- und
+   Schul-Portal sowie `src/test/` sind nicht im Scope; die Hex- und
+   Skelett-Reste des Eltern-Portals sind mit #3119 trotzdem umgezogen, der
+   Scope der Ratsche bleibt.
 6. `bauart/no-disabled-menu-item` — keine dauerhaft deaktivierten
+   Menüeinträge. **Umgesetzt** (`scripts/oxlint-plugin-bauart.mjs`,
+   hard-zero, #3118): ein Menüeintrag (`label` plus `onClick` oder `href`)
+   mit dem Literal `disabled: true` fällt durch; `disabled: busy` ist ein
+   Zustand und passiert. Auswahlfeld-Optionen (`value` + `label`) sind keine
    Menüeinträge.
 7. Erweiterung von `tenant-page-scaffold.test.ts`: jede Seite deklariert ihre
-   Bauart, und die Zuordnung ist vollständig.
+   Bauart, und die Zuordnung ist vollständig. **Umgesetzt** (#3118): die
+   Zuordnung liegt zentral im Test (`BAUART`), damit eine neue Seite ohne
+   Eintrag und ein Eintrag ohne Seite gleichermaßen durchfallen. Eine Route
+   mit dynamischem Segment (`[id]`) ist immer eine Objektansicht. Seiten,
+   die in keine der vier Bauarten passen, stehen mit Begründung in
+   `OHNE_BAUART`: Weiterleitungen alter Adressen (müssen `redirect`
+   enthalten), die Startseite aus Bausteinen (#2180), der Index der
+   Datenverwaltung und die Export-Übersicht. Diese Liste ist shrink-only;
+   wer eine Seite hinzufügen will, ändert diesen Spec.
 8. `bauart/no-unconfirmed-destructive-click` — kein Löschen, Entfernen,
    Archivieren, Zurücknehmen, Widerrufen oder Stornieren direkt aus dem
    Klick. **Umgesetzt** (`scripts/oxlint-plugin-bauart.mjs`, hard-zero,
@@ -291,6 +369,20 @@ bekommt eine shrink-only Baseline analog zum bestehenden
     entfernt; dafür gilt `bauart/no-row-action-buttons`. Die ortsgebundenen
     Ausnahmen sind Einträge des Objekts, das der Dialog bearbeitet.
     Operator-, Eltern- und Schul-Portal sind nicht im Scope.
+13. `bauart/no-edit-overlay` — kein Modal je Feldgruppe und keines für das
+    ganze Objekt (Bauart 2 Regel 3). **Umgesetzt**
+    (`scripts/oxlint-plugin-bauart.mjs`, #3116): ein `Modal`, `FormModal`
+    oder `ChoiceModal`, dessen `title` „bearbeiten" oder „verwalten" enthält,
+    ein `SlideOverTitle`/`DrawerTitle` mit diesem Text und ein
+    `DatabaseFormModal` mit `mode="edit"` fallen durch, auch wenn das Wort
+    nur in einem Zweig eines bedingten Titels steht. Bearbeitet wird im
+    Reiter der Objektansicht mit `EditActions` unten; Kontoaktionen mit
+    eigenem Ablauf (Begründung, Rückfrage, Auflösen von Zuordnungen) stehen
+    im Kebab des Kopfes und behalten ihren Dialog. Shrink-only Baseline je
+    Datei für den Bestand, den #3119 auf Folge-PRs verteilt, darunter die
+    Einträge ohne eigene Objektansicht (Termin, Schließtag, Ordner,
+    Tagesinformation), für die die Spec noch keine Bauart kennt. Operator-,
+    Eltern- und Schul-Portal sind nicht im Scope.
 
 ## Reihenfolge der Umsetzung
 

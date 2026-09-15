@@ -45,15 +45,9 @@ var queryBudgets = map[string]queryBudget{
 	// api/students — #2098: each planning-time bulk load runs once per list request.
 	"api.students.list.planning_times.per_table": {max: 1, exact: true},
 	// api/students — GET /students list, 10 students, page_size=50.
-	// 33 since #3074 (#2685): schedule.instance_students moved to the
-	// timetable module, so CareExitCleanupRepository.FindOpenPresence reads
-	// the open roster rows through the owner instead of as a third UNION
-	// branch. Flat at 3 and at 10 students — a boundary cost, not an N+1.
-	"api.students.list": {max: 33},
-	// api/students — #2056: aggregated OGS group view, 10 students. Measured
-	// well below; the cap leaves room for benign changes only.
-	// 42 for the same FindOpenPresence split as api.students.list.
-	"api.students.ogs_group_live": {max: 42},
+	"api.students.list": {max: 31},
+	// api/students — #2056: aggregated OGS group view, 10 students.
+	"api.students.ogs_group_live": {max: 41},
 	// api/students — #2099: identity chain resolved once per request.
 	"api.students.ogs_group_live.identity.person":        {max: 1, exact: true},
 	"api.students.ogs_group_live.identity.staff":         {max: 1, exact: true},
@@ -63,9 +57,20 @@ var queryBudgets = map[string]queryBudget{
 	"api.auth.tenant_resolve.setting_values": {max: 1, exact: true},
 	// api/active — #2065: toggle + three labels share one settings read.
 	"api.active.tracking_indicators.setting_values": {max: 1, exact: true},
-	// api/active — aggregated supervision dashboard, 10 checked-in students
-	// (measured 29 flat; headroom for benign changes only).
-	"api.active.supervision_dashboard": {max: 40},
+	// api/active — aggregated supervision dashboard, 10 checked-in students.
+	// 41 since #3065: the projection reads which rooms the administration has
+	// released, once per request. The measured count sat at 40 — the cap
+	// itself — before that read, so this is a raise, which normally means an
+	// N+1. It is not one, and the tests say so rather than the comment:
+	// TestSupervisionDashboard_QueryBudget asserts the count is identical at 3
+	// and at 10 students, and TestOpenRoomLoadCostDoesNotGrowWithRoomsOrSessions
+	// asserts one call per port for one room with one session and for four
+	// rooms with four. The shared view costs a fixed three reads when a school
+	// has released rooms and this single read when it has none.
+	//
+	// Reviewer approval for the raise is recorded in the #3065 pull request,
+	// per the deviation clause in .claude/rules/backend-conventions.md.
+	"api.active.supervision_dashboard": {max: 41},
 	// api/active — GET /active/groups list, 8 active groups with visits.
 	"api.active.groups.list": {max: 9},
 	// #2941: formerly one identity query per supervisor / teacher.
@@ -78,6 +83,17 @@ var queryBudgets = map[string]queryBudget{
 	// api/timetable — GET /instances over a week, 8 instances on 3 days:
 	// instances + room + staff batch + student batch + one cutoff read per day.
 	"api.timetable.instances.list": {max: 7},
+	// api/timetable — GET /templates: template rows, retained list enrichments,
+	// plus the setting, offering and series-root reads for roster maintenance
+	// (#3140). The test proves all 11 statements stay flat from 3 to 8 rows.
+	"api.timetable.templates.list": {max: 11},
+	// api/timetable — GET /periods (#3124): tenant transaction (BEGIN, SET
+	// LOCAL ROLE, set_config, COMMIT) + period list + one usage read per
+	// owner (Enrollment phases, Timetable planning tables). The two owner
+	// round trips are the accepted #2580 boundary cost; the count is flat in
+	// the number of periods. Pinned exact so an owner-boundary move fails
+	// here instead of at a runtime checkpoint (#3020).
+	"api.timetable.periods.list": {max: 7, exact: true},
 	// services/schedule — GET /planned-now backing list, 8 eligible instances:
 	// instance list + rooms + staff batch + student batch (#2941).
 	"services.schedule.planned_now": {max: 4},
@@ -88,18 +104,21 @@ var queryBudgets = map[string]queryBudget{
 	// calendar projection regardless of the number of returned VEVENTs.
 	"services.calendar.caldav_snapshot": {max: 24},
 	// #2941: list/read enrichment stays flat as result rows grow.
-	"services.active.work_session_history.reads":           {max: 7},
-	"services.active.future_comp_time_commitment.reads":    {max: 4, exact: true},
-	"services.auth.pending_guardian_approvals.reads":       {max: 6},
-	"services.education.suggest_mappings.reads":            {max: 4},
-	"services.reminders.present_students_in_rooms.reads":   {max: 6},
-	"services.users.list_guardians.reads":                  {max: 2},
-	"services.users.student_guardians.reads":               {max: 4},
-	"repositories.active.combined_group_with_groups.reads": {max: 3, exact: true},
+	"services.active.work_session_history.reads":         {max: 7},
+	"services.active.future_comp_time_commitment.reads":  {max: 4, exact: true},
+	"services.auth.pending_guardian_approvals.reads":     {max: 6},
+	"services.education.suggest_mappings.reads":          {max: 4},
+	"services.reminders.present_students_in_rooms.reads": {max: 6},
+	"services.users.list_guardians.reads":                {max: 2},
+	"services.users.student_guardians.reads":             {max: 4},
+	"api.active.combination_groups.reads":                {max: 3, exact: true},
 	// services/enrollment — list/read paths stay flat as rows grow (#2941).
 	"services.enrollment.list_child_offerings.reads":    {max: 5},
 	"services.enrollment.offering_source_options.reads": {max: 5},
-	"services.enrollment.rollover_review_queue.reads":   {max: 3},
+	// Source validation adds one batched read each for the offering catalog,
+	// its auto-add rules, periods, phases and series roots; flat from 3 to 8.
+	"services.enrollment.template_roster_maintenance_feeds.reads": {max: 5},
+	"services.enrollment.rollover_review_queue.reads":             {max: 3},
 	// modules/schoolcalendar/portal — appointment target resolution, 8 explicit guardians.
 	"services.calendar.resolve_targets.reads": {max: 5, exact: true},
 	// modules/schoolcalendar/portal — reminder scan, 8 due appointments; writes scale with
@@ -130,6 +149,9 @@ var queryBudgets = map[string]queryBudget{
 	// modules/communication — inbox reads remain fixed as thread count grows.
 	"modules.communication.parent_messages.list_inbox": {max: 1, exact: true},
 	"modules.communication.staff_messages.list_inbox":  {max: 2, exact: true},
+	// database/repositories/users — due announcement reminders read their rows
+	// and targets in two batches, regardless of the number due in one tick.
+	"repositories.parent_announcements.due_reminders": {max: 2, exact: true},
 	// modules/workforce/inbound/timetracking — GET
 	// /api/staff-notices/{id}/acknowledgements (#2208): four tenant-transaction
 	// statements (BEGIN, SET ROLE, set_config, COMMIT) plus one notice read, one
@@ -163,6 +185,13 @@ var queryBudgets = map[string]queryBudget{
 	// of the transaction runtime. The presence mode is a settings read that
 	// the scenario fakes.
 	"modules.emergencysnapshot.snapshot": {max: 10, exact: true},
+	// modules/requestreview/compose — #3179: the open review page of one
+	// child with one request in each of the four native queues (the RLS
+	// proof fixture), inside one tenant transaction: the urgent and the
+	// normal phase of every queue, the conflict scan, the group and
+	// Familienschutz decorations. This remains a ceiling for the fixture,
+	// not a claim that every owner read has flat cost.
+	"modules.requestreview.open_page": {max: 101},
 	// test/e2e/timetable — end-to-end counts include TenantTxMiddleware overhead.
 	"e2e.timetable.exception_conflicts.cancelled": {max: 22},
 	"e2e.timetable.exception_conflicts.modified":  {max: 22},

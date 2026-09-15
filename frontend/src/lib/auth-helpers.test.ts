@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { getRoleDisplayName, getRoleDisplayDescription } from "./auth-helpers";
+import {
+  getRoleDisplayName,
+  getRoleDisplayDescription,
+  toAssignableRoleOptions,
+  type Role,
+} from "./auth-helpers";
 
 describe("getRoleDisplayName", () => {
   it("translates admin to Administrator", () => {
@@ -86,5 +91,38 @@ describe("getRoleDisplayDescription", () => {
     expect(getRoleDisplayDescription("ADMIN", "Admin")).toBe(
       "Systemadministrator mit vollem Zugriff",
     );
+  });
+});
+
+function role(id: string, name: string, isSystem: boolean): Role {
+  return {
+    id,
+    name,
+    description: "",
+    isSystem,
+    createdAt: "",
+    updatedAt: "",
+  };
+}
+
+describe("toAssignableRoleOptions", () => {
+  it("keeps tenant roles whose names match excluded system roles", () => {
+    const options = toAssignableRoleOptions([
+      role("1", "teacher", true),
+      role("2", "guardian", true),
+      role("3", "teacher", false),
+      role("4", "guardian", false),
+    ]);
+
+    expect(options.map((option) => option.id)).toEqual(["3", "4"]);
+  });
+
+  it("excludes roles based on the guardian base role", () => {
+    const options = toAssignableRoleOptions([
+      { ...role("1", "Elternkoordination", false), baseRole: "guardian" },
+      { ...role("2", "Betreuung", false), baseRole: "user" },
+    ]);
+
+    expect(options.map((option) => option.id)).toEqual(["2"]);
   });
 });

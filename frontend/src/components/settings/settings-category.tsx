@@ -79,7 +79,12 @@ export function SettingsCategory({
     <SectionCard
       headingLevel={3}
       title={displayCategoryLabel(category)}
-      titleClassName="capitalize"
+      titleClassName={
+        category.key === "sehen-und-bearbeiten" ||
+        category.key === "anwesenheit-erfassen"
+          ? undefined
+          : "capitalize"
+      }
       titleBadge={
         tabLabel || changed > 0 ? (
           <>

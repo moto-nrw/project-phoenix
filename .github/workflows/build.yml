@@ -13,6 +13,9 @@ on:
       - 'frontend/**'
       - 'environments/**'
       - '.github/workflows/build.yml'
+      - 'scripts/deploy-remote.sh'
+      - 'scripts/restore-db.sh'
+      - 'scripts/release-backup.sh'
       - '!**.md'
       - '!docs/**'
       - '!.vscode/**'
@@ -414,6 +417,7 @@ jobs:
           scp -i ~/.ssh/deploy_key environments/staging.compose.yml root@$SSH_HOST:~/staging/docker-compose.yml.new
           scp -i ~/.ssh/deploy_key scripts/deploy-remote.sh root@$SSH_HOST:~/scripts/deploy-remote.sh
           scp -i ~/.ssh/deploy_key scripts/restore-db.sh root@$SSH_HOST:~/scripts/restore-db.sh
+          scp -i ~/.ssh/deploy_key scripts/release-backup.sh root@$SSH_HOST:~/scripts/release-backup.sh
 
           set +e
           ssh -i ~/.ssh/deploy_key root@$SSH_HOST \
@@ -522,6 +526,7 @@ jobs:
           scp -i ~/.ssh/deploy_key environments/production.compose.yml root@$SSH_HOST:~/production/docker-compose.yml.new
           scp -i ~/.ssh/deploy_key scripts/deploy-remote.sh root@$SSH_HOST:~/scripts/deploy-remote.sh
           scp -i ~/.ssh/deploy_key scripts/restore-db.sh root@$SSH_HOST:~/scripts/restore-db.sh
+          scp -i ~/.ssh/deploy_key scripts/release-backup.sh root@$SSH_HOST:~/scripts/release-backup.sh
 
           set +e
           ssh -i ~/.ssh/deploy_key root@$SSH_HOST \

@@ -7,6 +7,9 @@ import type {
 // Override labels for category keys that don't capitalize cleanly via CSS
 // (acronyms read wrong when only the first letter is uppercased).
 const categoryLabelOverrides: Record<string, string> = {
+  "anwesenheit-erfassen": "Anwesenheit erfassen",
+  "sehen-und-bearbeiten": "Sehen und bearbeiten",
+  elternmeldungen: "Elternmeldungen",
   mfa: "Zwei-Faktor-Authentifizierung",
   pin: "PIN",
   aktivitaeten: "Aktivitäten",

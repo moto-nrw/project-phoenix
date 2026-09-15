@@ -2,6 +2,9 @@ package application
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 )
@@ -269,6 +272,100 @@ func (s *Service) StaffAbsenceTypeInUse(ctx context.Context, id int64) (result b
 		return err
 	})
 	return result, err
+}
+
+// CreateAbsenceType applies administration rules before the storage write.
+// The unique index remains the final arbiter when concurrent names race.
+func (s *Service) CreateAbsenceType(ctx context.Context, fields domain.StaffAbsenceTypeFields) (domain.StaffAbsenceType, error) {
+	fields.BaseType, fields.IsActive = domain.AbsenceTypeOther, true
+	if err := fields.Normalize(); err != nil {
+		return domain.StaffAbsenceType{}, err
+	}
+	if err := s.checkAbsenceTypeName(ctx, fields.Name, 0); err != nil {
+		return domain.StaffAbsenceType{}, err
+	}
+	created, err := s.CreateStaffAbsenceType(ctx, fields)
+	if err != nil {
+		return domain.StaffAbsenceType{}, fmt.Errorf("database error during create: %w", err)
+	}
+	return created, nil
+}
+
+func (s *Service) checkAbsenceTypeName(ctx context.Context, candidate string, excludeID int64) error {
+	name := strings.ToLower(strings.TrimSpace(candidate))
+	switch name {
+	case "urlaub", "krank", "krankmeldung", "fortbildung", "sonstige", "sonstiges", "freizeitausgleich", "sonstige abwesenheit":
+		return domain.ErrAbsenceTypeNameReserved
+	}
+	existing, err := s.ListStaffAbsenceTypes(ctx)
+	if err != nil {
+		return fmt.Errorf("database error during list all staff absence types: %w", err)
+	}
+	for _, value := range existing {
+		if value.ID != excludeID && strings.ToLower(strings.TrimSpace(value.Name)) == name {
+			return domain.ErrAbsenceTypeNameTaken
+		}
+	}
+	return nil
+}
+
+func (s *Service) UpdateAbsenceType(ctx context.Context, id int64, name *string, isActive, allowanceEnabled *bool, overrunPolicy *string) (domain.StaffAbsenceType, error) {
+	if id <= 0 {
+		return domain.StaffAbsenceType{}, domain.ErrAbsenceTypeNotFound
+	}
+	existing, err := s.LockStaffAbsenceType(ctx, id)
+	if errors.Is(err, domain.ErrAbsenceTypeNotFound) {
+		return domain.StaffAbsenceType{}, domain.ErrAbsenceTypeNotFound
+	}
+	if err != nil {
+		return domain.StaffAbsenceType{}, fmt.Errorf("lock absence type: database error during lock staff absence type: %w", err)
+	}
+	fields := domain.StaffAbsenceTypeFields{
+		Name: existing.Name, BaseType: existing.BaseType, IsActive: existing.IsActive,
+		AllowanceEnabled: existing.AllowanceEnabled, OverrunPolicy: existing.OverrunPolicy,
+	}
+	if name != nil {
+		fields.Name = *name
+		if err := fields.Normalize(); err != nil {
+			return domain.StaffAbsenceType{}, err
+		}
+		if err := s.checkAbsenceTypeName(ctx, fields.Name, id); err != nil {
+			return domain.StaffAbsenceType{}, err
+		}
+		if fields.Name != existing.Name {
+			inUse, err := s.StaffAbsenceTypeInUse(ctx, id)
+			if err != nil {
+				return domain.StaffAbsenceType{}, fmt.Errorf("check absence type usage: database error during check staff absence type usage: %w", err)
+			}
+			if inUse {
+				return domain.StaffAbsenceType{}, domain.ErrAbsenceTypeInUse
+			}
+		}
+	}
+	if isActive != nil {
+		fields.IsActive = *isActive
+	}
+	if allowanceEnabled != nil {
+		fields.AllowanceEnabled = *allowanceEnabled
+	}
+	if overrunPolicy != nil {
+		fields.OverrunPolicy = *overrunPolicy
+	}
+	if err := fields.Normalize(); err != nil {
+		return domain.StaffAbsenceType{}, err
+	}
+	existing.Name, existing.IsActive = fields.Name, fields.IsActive
+	existing.AllowanceEnabled, existing.OverrunPolicy = fields.AllowanceEnabled, fields.OverrunPolicy
+	updated, err := s.UpdateStaffAbsenceType(ctx, existing)
+	if err != nil {
+		if errors.Is(err, domain.ErrAbsenceTypeNotFound) {
+			// A row disappearing after the lock was a failed write, not a
+			// missing-resource response, in the retained administration API.
+			err = errors.New("expected 1 rows affected, got 0")
+		}
+		return domain.StaffAbsenceType{}, fmt.Errorf("database error during update staff absence type: %w", err)
+	}
+	return updated, nil
 }
 
 func (s *Service) CreateStaffAbsenceType(ctx context.Context, fields domain.StaffAbsenceTypeFields) (result domain.StaffAbsenceType, err error) {

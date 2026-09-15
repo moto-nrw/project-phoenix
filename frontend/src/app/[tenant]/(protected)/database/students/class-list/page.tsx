@@ -14,7 +14,7 @@
 import Link from "~/components/ui/navigation-link";
 import { useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Upload } from "lucide-react";
+import { Pencil, Trash2, Upload, UserRoundCheck } from "lucide-react";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -23,6 +23,10 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
+import {
+  OverflowMenu,
+  type OverflowMenuEntry,
+} from "~/components/ui/page-header/OverflowMenu";
 import type { FilterConfig } from "~/components/ui/page-header/types";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -442,50 +446,55 @@ export default function ClassListEntriesPage() {
         }
         if (!canUpdate && !canDelete) return null;
         const entry = row.entry;
+        // Zeilenaktionen nur im Kebab der Zeile (BAUARTEN-SPEC Bauart 1
+        // Regel 4); die Rückfragen bleiben in den bestehenden Dialogen.
+        const items: OverflowMenuEntry[] = [
+          ...(canDelete && entry.matchingStudentIds.length > 0
+            ? [
+                {
+                  label: "Zuordnen",
+                  icon: <UserRoundCheck className="h-4 w-4" aria-hidden />,
+                  onClick: () => {
+                    setModalError(null);
+                    setAssignTarget(
+                      entry.matchingStudentIds.length === 1
+                        ? (entry.matchingStudentIds[0] ?? null)
+                        : null,
+                    );
+                    setModal({ kind: "assign", entry });
+                  },
+                },
+              ]
+            : []),
+          ...(canUpdate
+            ? [
+                {
+                  label: "Bearbeiten",
+                  icon: <Pencil className="h-4 w-4" aria-hidden />,
+                  onClick: () => openEdit(entry),
+                },
+              ]
+            : []),
+          ...(canDelete
+            ? [
+                {
+                  label: "Löschen",
+                  icon: <Trash2 className="h-4 w-4" aria-hidden />,
+                  destructive: true,
+                  onClick: () => {
+                    setModalError(null);
+                    setModal({ kind: "delete", entry });
+                  },
+                },
+              ]
+            : []),
+        ];
         return (
-          <div className="flex items-center justify-end gap-1">
-            {canDelete && entry.matchingStudentIds.length > 0 && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="compact"
-                onClick={() => {
-                  setModalError(null);
-                  setAssignTarget(
-                    entry.matchingStudentIds.length === 1
-                      ? (entry.matchingStudentIds[0] ?? null)
-                      : null,
-                  );
-                  setModal({ kind: "assign", entry });
-                }}
-              >
-                Zuordnen
-              </Button>
-            )}
-            {canUpdate && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="compact"
-                onClick={() => openEdit(entry)}
-              >
-                Bearbeiten
-              </Button>
-            )}
-            {canDelete && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="compact"
-                className="text-moto-red hover:text-moto-red-hover"
-                onClick={() => {
-                  setModalError(null);
-                  setModal({ kind: "delete", entry });
-                }}
-              >
-                Löschen
-              </Button>
-            )}
+          <div className="flex items-center justify-end">
+            <OverflowMenu
+              ariaLabel={`Aktionen für ${entry.firstName} ${entry.lastName}`}
+              items={items}
+            />
           </div>
         );
       },

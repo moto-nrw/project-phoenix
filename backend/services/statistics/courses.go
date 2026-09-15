@@ -7,9 +7,6 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // Course participation (#2891), the third Statistik section.
@@ -86,11 +83,11 @@ func (s *service) courseSection(ctx context.Context, filters Filters, from, to, 
 		// nothing left to read, and the screen says so.
 		return nil, nil, totals, nil
 	}
-	instances, err := s.cfg.Courses.CourseInstances(ctx, scheduleModel.Date(from), scheduleModel.Date(to), scheduleModel.Date(today))
+	instances, err := s.cfg.Courses.CourseInstances(ctx, from, to, today)
 	if err != nil {
 		return nil, nil, totals, fmt.Errorf("load course instances: %w", err)
 	}
-	participation, err := s.cfg.Courses.CourseParticipation(ctx, scheduleModel.Date(from), scheduleModel.Date(to), scheduleModel.Date(today))
+	participation, err := s.cfg.Courses.CourseParticipation(ctx, from, to, today)
 	if err != nil {
 		return nil, nil, totals, fmt.Errorf("load course participation: %w", err)
 	}
@@ -194,11 +191,15 @@ func distinctStudents(rows []CourseStudentRow) int {
 // tenant's Betreuungsplan retention window, after which finished occurrences
 // are deleted by the cleanup job. Unlike the room window this is one number
 // for the whole school, not a per-child consent.
-func (s *service) courseRetentionDays(ctx context.Context) int {
-	if s.cfg.Settings == nil {
-		return defaultTimetableRetentionDays
+func (s *service) courseRetentionDays(ctx context.Context) (int, error) {
+	if s.cfg.Retention == nil {
+		return 0, fmt.Errorf("statistics retention policy is required")
 	}
-	return configService.ResolveIntOrDefault(ctx, s.cfg.Settings, configModel.KeyGDPRTimetableRetentionDays, defaultTimetableRetentionDays, s.cfg.Logger)
+	days, err := s.cfg.Retention.CourseRetentionDays(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("load course retention: %w", err)
+	}
+	return days, nil
 }
 
 // compareStudentName orders two children the way every child table in the
@@ -209,7 +210,3 @@ func compareStudentName(lastA, firstA, lastB, firstB string) int {
 	}
 	return strings.Compare(sortKey(firstA), sortKey(firstB))
 }
-
-// defaultTimetableRetentionDays mirrors the registry default of
-// gdpr.timetable_retention_days and is only reached without a settings service.
-const defaultTimetableRetentionDays = 365

@@ -640,13 +640,13 @@ func runAbandonedSessionCleanup(ctx *cleanupContext, threshold time.Duration, dr
 		return nil
 	}
 
-	count, err := ctx.SessionCleanupService.CleanupAbandonedSessions(context.Background(), threshold)
-	if err != nil {
-		return fmt.Errorf("abandoned session cleanup failed: %w", err)
-	}
-
-	printAbandonedSessionSummary(ctx.output(), threshold, count)
-	return nil
+	return forEachPresenceTenant(ctx, "abandoned session cleanup", func(txCtx context.Context, _ int64) (func(), error) {
+		count, err := ctx.SessionCleanupService.CleanupAbandonedSessions(txCtx, threshold)
+		if err != nil {
+			return nil, fmt.Errorf("abandoned session cleanup failed: %w", err)
+		}
+		return func() { printAbandonedSessionSummary(ctx.output(), threshold, count) }, nil
+	})
 }
 
 func printAbandonedSessionSummary(output io.Writer, threshold time.Duration, count int) {
@@ -662,13 +662,16 @@ func runDailySessionCleanup(ctx *cleanupContext, dryRun bool, verbose bool) erro
 		return nil
 	}
 
-	result, err := ctx.SessionCleanupService.EndDailySessions(context.Background())
-	if err != nil {
-		return fmt.Errorf("daily session cleanup failed: %w", err)
-	}
-
-	printDailySessionSummary(ctx.output(), result, verbose)
-	return nil
+	return forEachPresenceTenant(ctx, "daily session cleanup", func(txCtx context.Context, _ int64) (func(), error) {
+		result, err := ctx.SessionCleanupService.EndDailySessions(txCtx)
+		if err != nil {
+			return nil, fmt.Errorf("daily session cleanup failed: %w", err)
+		}
+		if !result.Success {
+			return nil, fmt.Errorf("daily session cleanup failed: %v", result.Errors)
+		}
+		return func() { printDailySessionSummary(ctx.output(), result, verbose) }, nil
+	})
 }
 
 func printDailySessionSummary(output io.Writer, result *active.DailySessionCleanupResult, verbose bool) {
@@ -700,19 +703,19 @@ func runCleanupSupervisors(cmd *cobra.Command, _ []string) error {
 func runSupervisorsDryRun(ctx *cleanupContext, verbose bool) error {
 	mustFprintln(ctx.output(), "DRY RUN MODE - No data will be modified")
 
-	preview, err := ctx.CleanupService.PreviewSupervisorCleanup(context.Background())
-	if err != nil {
-		return fmt.Errorf("failed to preview supervisor cleanup: %w", err)
-	}
-
-	printSupervisorPreviewHeader(ctx.output(), preview)
-
-	if verbose {
-		printStaffBreakdown(ctx.output(), "Per-staff breakdown", "Stale Records", preview.StaffRecords)
-		printDateBreakdown(ctx.output(), preview.RecordsByDate)
-	}
-
-	return nil
+	return forEachPresenceTenant(ctx, "supervisor cleanup preview", func(txCtx context.Context, _ int64) (func(), error) {
+		preview, err := ctx.CleanupService.PreviewSupervisorCleanup(txCtx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to preview supervisor cleanup: %w", err)
+		}
+		return func() {
+			printSupervisorPreviewHeader(ctx.output(), preview)
+			if verbose {
+				printStaffBreakdown(ctx.output(), "Per-staff breakdown", "Stale Records", preview.StaffRecords)
+				printDateBreakdown(ctx.output(), preview.RecordsByDate)
+			}
+		}, nil
+	})
 }
 
 func printSupervisorPreviewHeader(output io.Writer, preview *active.SupervisorCleanupPreview) {
@@ -729,13 +732,16 @@ func printSupervisorPreviewHeader(output io.Writer, preview *active.SupervisorCl
 }
 
 func runSupervisorsCleanup(ctx *cleanupContext, verbose bool) error {
-	result, err := ctx.CleanupService.CleanupStaleSupervisors(context.Background())
-	if err != nil {
-		return fmt.Errorf("supervisor cleanup failed: %w", err)
-	}
-
-	printSupervisorCleanupSummary(ctx.output(), result, verbose)
-	return nil
+	return forEachPresenceTenant(ctx, "supervisor cleanup", func(txCtx context.Context, _ int64) (func(), error) {
+		result, err := ctx.CleanupService.CleanupStaleSupervisors(txCtx)
+		if err != nil {
+			return nil, fmt.Errorf("supervisor cleanup failed: %w", err)
+		}
+		if !result.Success {
+			return nil, fmt.Errorf("supervisor cleanup failed: %v", result.Errors)
+		}
+		return func() { printSupervisorCleanupSummary(ctx.output(), result, verbose) }, nil
+	})
 }
 
 func printSupervisorCleanupSummary(output io.Writer, result *active.SupervisorCleanupResult, verbose bool) {

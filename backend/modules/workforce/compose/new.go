@@ -68,6 +68,8 @@ func newApplication(dependencies Dependencies) (*application.Service, error) {
 		assignments{ids: dependencies.AssignedStaffIDs, rebase: dependencies.RebaseStaffAnchor},
 		dependencies.LockStaffAssignment,
 		clock{now: now},
+		absenceDaysInYear,
+		additionalAbsenceDaysInYear,
 		observe,
 	)
 	return service, nil
@@ -311,6 +313,17 @@ func mapError(err error) error {
 		return workforce.ErrStaffAbsenceNotFound
 	case errors.Is(err, domain.ErrAbsenceTypeNotFound):
 		return workforce.ErrAbsenceTypeNotFound
+	case errors.Is(err, domain.ErrAbsenceTypeNameReserved):
+		return workforce.ErrAbsenceTypeNameReserved
+	case errors.Is(err, domain.ErrAbsenceTypeInUse):
+		return workforce.ErrAbsenceTypeInUse
+	case errors.Is(err, domain.ErrAbsenceTypeAllowanceExceeded):
+		return workforce.ErrAbsenceTypeAllowanceExceeded
+	case errors.Is(err, domain.ErrAbsenceTypeAllowanceInvalid):
+		if validation, ok := errors.AsType[*domain.InvalidAbsenceAllowanceError](err); ok {
+			return &workforce.InvalidAbsenceAllowanceError{Reason: validation.Reason}
+		}
+		return workforce.ErrAbsenceTypeAllowanceInvalid
 	case errors.Is(err, domain.ErrGroupSubstitutionNotFound):
 		return workforce.ErrGroupSubstitutionNotFound
 	case errors.Is(err, domain.ErrInvalidStaffAbsence):

@@ -68,6 +68,32 @@ Claude wires both. Keep lefthook and CI backstops. The guard resolves tracked
 scripts against payload `cwd`, falling back to the hook process working directory.
 Do not assume a hook ran merely because a config file exists.
 
+### Git quality gates
+
+Pre-commit keeps formatting/import checks scoped to staged files and fails if
+the pinned secret scanner is missing. Pre-push always invokes
+`scripts/pre-push.sh`: it refreshes `origin/development`, selects checks from
+the entire branch diff against the merge-base, and requires a clean working
+tree. Commit or stash non-ignored changes before pushing; ignored local config
+and tool caches remain available. Push the checked-out branch, not another ref.
+Manual runs accept an explicit base: `bash scripts/pre-push.sh origin/development`.
+
+`scripts/check-quality.sh` owns backend and frontend static checks for both CI
+and pre-push. Backend lint uses affected packages; dead-code and architecture
+analysis stay whole-program. Heavy checks run sequentially with stage timings.
+Successful static checks are cached in the worktree's Git directory under
+`pre-push-cache`. Keys include relevant committed files, checker scripts, base
+revision, pinned tools, platform and local configuration digests. Failures are
+never cached; dirty trees and missing tools fail even with a warm cache.
+Docs-only follow-up pushes reuse unchanged static results. Vulnerability scans
+always run. Runner/workflow-only changes run hook tests, not both full stacks.
+Affected/integration tests are not automatic hook steps: contributors still run
+`scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development` before
+pushing code. CI keeps independent validation, tests, builds, bundle limits,
+Storybook and seed smoke; it does not consume local success records.
+`scripts/pre-push.test.mjs` exercises selection and failure propagation in
+isolated Git repositories without running expensive analyzers.
+
 ## Maintaining context
 
 - Keep a rule in one canonical source. Entry points carry its trigger and a

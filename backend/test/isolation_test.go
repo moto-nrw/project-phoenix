@@ -412,12 +412,13 @@ func TestTenantIsolation_ActiveGroupVisibility(t *testing.T) {
 	agA := CreateTestActiveGroupForTenant(t, db, tenantA)
 	agB := CreateTestActiveGroupForTenant(t, db, tenantB)
 
-	repo := repoActive.NewGroupRepository(db, nil)
+	repo := repoActive.NewGroupRepository(nil, repositories.NewPresenceGroupRecords(db), nil)
+	presence := repositories.NewPresenceGroupRecords(db)
 
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)
 
-	groups, err := repo.List(ctx42, nil)
+	groups, err := presence.QueryGroupRecords(ctx42, repoActive.GroupRecordFilter{})
 	require.NoError(t, err)
 
 	for _, g := range groups {
@@ -432,7 +433,7 @@ func TestTenantIsolation_ActiveGroupVisibility(t *testing.T) {
 	// --- Tenant B ---
 	ctx43 := ctxForTenant(tenantB)
 
-	groups, err = repo.List(ctx43, nil)
+	groups, err = presence.QueryGroupRecords(ctx43, repoActive.GroupRecordFilter{})
 	require.NoError(t, err)
 
 	for _, g := range groups {

@@ -173,8 +173,11 @@ eingereicht werden dürfen, legt die OGS je Änderungsart fest.
 ## Elternanfrage
 
 Eine **Elternanfrage** ist eine eingereichte Elternänderung, über die ein
-OGS-Admin noch entscheiden muss. Sie verändert die wirksamen Betreuungsdaten
-erst nach der Bestätigung.
+OGS-Admin oder eine dafür berechtigte Person noch entscheiden muss; bei
+Krankmeldungen und Entschuldigungen kann die OGS diese Entscheidung an
+zuständige Gruppenleitungen oder das berechtigte Team freigeben.
+Sie verändert die wirksamen Betreuungsdaten erst nach der Bestätigung;
+die Zuständigkeiten für andere Anfragearten bleiben unverändert.
 
 ## Elternmitteilung
 

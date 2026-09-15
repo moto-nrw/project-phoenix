@@ -62,8 +62,10 @@ enabled by the deployment service.
 3. Run `python3 scripts/rehearse-runtime-env.py` for an isolated Compose
    rehearsal with fixture credentials and disposable storage. It builds production
    images, migrates, starts both apps, checks application/tenant/admin roles,
-   backs up and restores through the existing restore script, and checks health
-   again. It never loads SOPS or the developer's dotenv files.
+   backs up and restores its disposable database, and checks health again.
+   It never loads SOPS or the developer's dotenv files. The separate
+   `node --test scripts/release-backup.integration.test.mjs` exercises complete
+   release restore, including roles, uploads and immutable image references.
 
 ### Separately authorized post-deploy check
 

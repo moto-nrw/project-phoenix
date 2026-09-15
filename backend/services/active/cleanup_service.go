@@ -7,19 +7,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/audit"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
-
-// ConsentRetentionResolver resolves the data-retention window for a privacy
-// consent, honouring the per-tenant settings default (issue #586, Rule 12: the
-// retention default no longer lives on the PrivacyConsent model).
-type ConsentRetentionResolver interface {
-	ResolveDataRetentionDays(ctx context.Context, consent *userModels.PrivacyConsent) int
-}
 
 type AttendanceCleanup interface {
 	ListAttendance(context.Context, studentpresence.AttendanceFilter) ([]studentpresence.Attendance, error)
@@ -27,6 +17,7 @@ type AttendanceCleanup interface {
 }
 
 type PresenceRetention interface {
+	ListAcceptedRetentionSettings(context.Context) ([]studentpresence.StudentRetentionSetting, error)
 	AttendanceCleanup
 	ListVisitRetentionCounts(context.Context) ([]studentpresence.VisitRetentionCount, error)
 	CountExpiredVisits(context.Context) (int64, error)
@@ -37,14 +28,12 @@ type PresenceRetention interface {
 
 // cleanupService implements the CleanupService interface
 type cleanupService struct {
-	presence           PresenceRetention
-	supervisorRepo     active.GroupSupervisorRepository
-	privacyConsentRepo userModels.PrivacyConsentRepository
-	dataDeletionRepo   audit.DataDeletionRepository
-	consentRetention   ConsentRetentionResolver
-	txHandler          *tenant.TransactionRunner
-	batchSize          int
-	today              func() timezone.Date
+	presence         PresenceRetention
+	supervisorRepo   active.GroupSupervisorRepository
+	dataDeletionRepo DeletionAudit
+	txHandler        *tenant.TransactionRunner
+	batchSize        int
+	today            func() timezone.Date
 }
 
 func (s *cleanupService) todayDate() timezone.Date {
@@ -58,20 +47,15 @@ func (s *cleanupService) todayDate() timezone.Date {
 func NewCleanupService(
 	presence PresenceRetention,
 	supervisorRepo active.GroupSupervisorRepository,
-	privacyConsentRepo userModels.PrivacyConsentRepository,
-	dataDeletionRepo audit.DataDeletionRepository,
-	consentRetention ConsentRetentionResolver,
-	db *bun.DB,
+	dataDeletionRepo DeletionAudit,
 	today ...func() timezone.Date,
 ) CleanupService {
 	service := &cleanupService{
-		presence:           presence,
-		supervisorRepo:     supervisorRepo,
-		privacyConsentRepo: privacyConsentRepo,
-		dataDeletionRepo:   dataDeletionRepo,
-		consentRetention:   consentRetention,
-		txHandler:          tenant.NewTransactionRunner(),
-		batchSize:          100, // Process 100 students at a time
+		presence:         presence,
+		supervisorRepo:   supervisorRepo,
+		dataDeletionRepo: dataDeletionRepo,
+		txHandler:        tenant.NewTransactionRunner(),
+		batchSize:        100, // Process 100 students at a time
 	}
 	if len(today) > 0 {
 		service.today = today[0]
@@ -88,7 +72,7 @@ func (s *cleanupService) CleanupExpiredVisits(ctx context.Context) (*CleanupResu
 	}
 
 	// Get all students with privacy consents
-	students, err := s.privacyConsentRepo.ListAcceptedRetentionSettings(ctx)
+	students, err := s.presence.ListAcceptedRetentionSettings(ctx)
 	if err != nil {
 		result.Success = false
 		result.CompletedAt = time.Now()
@@ -201,7 +185,7 @@ type batchResult struct {
 	errors    []CleanupError
 }
 
-func (s *cleanupService) processBatch(ctx context.Context, students []userModels.StudentRetentionSetting) batchResult {
+func (s *cleanupService) processBatch(ctx context.Context, students []studentpresence.StudentRetentionSetting) batchResult {
 	result := batchResult{
 		errors: make([]CleanupError, 0),
 	}
@@ -228,7 +212,7 @@ func (s *cleanupService) processBatch(ctx context.Context, students []userModels
 // Phase 3 deviation: RunInTx retained because processStudent runs from the scheduler's forEachTenant loop,
 // which already injects tenant context per-iteration. Handler-level WithTenantTx is not applicable
 // because there is no HTTP handler or JWT involved in scheduled batch cleanup.
-func (s *cleanupService) processStudent(ctx context.Context, student userModels.StudentRetentionSetting) (int64, error) {
+func (s *cleanupService) processStudent(ctx context.Context, student studentpresence.StudentRetentionSetting) (int64, error) {
 	var deletedCount int64
 
 	err := s.txHandler.RunInTx(ctx, func(ctx context.Context) error {
@@ -241,16 +225,13 @@ func (s *cleanupService) processStudent(ctx context.Context, student userModels.
 
 		if deletedCount > 0 {
 			// Create audit record
-			deletion := audit.NewDataDeletion(
-				student.StudentID,
-				audit.DeletionTypeVisitRetention,
-				int(deletedCount),
-				"system",
-			)
-			deletion.SetTenantID(tenant.FromContext(ctx))
-			deletion.DeletionReason = fmt.Sprintf("Automated retention policy: %d days", student.DataRetentionDays)
-			deletion.SetMetadata("retention_days", student.DataRetentionDays)
-			deletion.SetMetadata("batch_cleanup", true)
+			deletion := &DeletionEvent{
+				TenantID: tenant.FromContext(ctx), StudentID: &student.StudentID,
+				DeletionType: "visit_retention", RecordsDeleted: int(deletedCount),
+				DeletedBy: "system", DeletedAt: time.Now(),
+				DeletionReason: fmt.Sprintf("Automated retention policy: %d days", student.DataRetentionDays),
+				Metadata:       map[string]interface{}{"retention_days": student.DataRetentionDays, "batch_cleanup": true},
+			}
 
 			if err := s.dataDeletionRepo.Create(ctx, deletion); err != nil {
 				return err
@@ -410,7 +391,7 @@ func (s *cleanupService) CleanupStaleSupervisors(ctx context.Context) (*Supervis
 		// Update the record
 		record.EndDate = &endDate
 		record.UpdatedAt = time.Now()
-		if _, err := s.supervisorRepo.UpdateColumns(ctx, record, "end_date", "updated_at"); err != nil {
+		if _, err := s.supervisorRepo.SetEndDate(ctx, record); err != nil {
 			errMsg := fmt.Sprintf("Failed to close supervisor record %d: %v", record.ID, err)
 			result.Errors = append(result.Errors, errMsg)
 			result.Success = false

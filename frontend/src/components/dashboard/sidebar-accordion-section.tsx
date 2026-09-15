@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { Button } from "~/components/ui/button";
+import { Skeleton } from "~/components/ui/skeleton";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import {
   SIDEBAR_ICON_CLASSES,
@@ -194,9 +195,9 @@ export function SidebarAccordionSection({
             {isLoading && (
               /* Skeleton shimmer */
               <div className="space-y-1 pr-3 pl-11">
-                <div className="h-6 w-3/4 animate-pulse rounded bg-gray-100" />
-                <div className="h-6 w-2/3 animate-pulse rounded bg-gray-100" />
-                <div className="h-6 w-1/2 animate-pulse rounded bg-gray-100" />
+                <Skeleton className="h-6 w-3/4 rounded" />
+                <Skeleton className="h-6 w-2/3 rounded" />
+                <Skeleton className="h-6 w-1/2 rounded" />
               </div>
             )}
             {!isLoading && hasChildren && children}

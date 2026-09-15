@@ -7,7 +7,6 @@ import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import { useLatest } from "~/lib/hooks/use-latest";
 import {
   SCHULHOF_ROOM_NAME,
-  type ActiveSupervisionRoom,
   type SchulhofStatusResponse,
 } from "~/components/active-supervisions/view-model";
 
@@ -16,7 +15,13 @@ const logger = createLogger({ component: "ActiveSupervisionsPage" });
 interface SchulhofActionsOptions {
   readonly schulhofStatus: SchulhofStatusResponse | null;
   readonly currentStaffId: string | undefined;
-  readonly currentRoom: ActiveSupervisionRoom | null;
+  /**
+   * The Schulhof session the caller supervises, when they do. Named
+   * explicitly rather than read off the selected room: a released room can
+   * hold several sessions, so "the room on screen" no longer identifies one
+   * supervision (#3065).
+   */
+  readonly supervisedActiveGroupId: string | null;
   readonly spontaneousStartBlockedReason?: string;
   readonly refresh: () => void;
   readonly setError: (message: string | null) => void;
@@ -42,7 +47,7 @@ export function useSchulhofActions(
   const {
     schulhofStatus,
     currentStaffId,
-    currentRoom,
+    supervisedActiveGroupId,
     spontaneousStartBlockedReason,
     refresh,
     setError,
@@ -57,14 +62,14 @@ export function useSchulhofActions(
 
   // Handle releasing Schulhof supervision
   const handleReleaseSupervision = useCallback(async () => {
-    if (!currentRoom || !currentStaffId) return;
+    if (!supervisedActiveGroupId || !currentStaffId) return;
 
     try {
       setIsReleasingSupervision(true);
 
       // Get all supervisors for this active group
       const supervisors = await activeService.getActiveGroupSupervisors(
-        currentRoom.id,
+        supervisedActiveGroupId,
       );
 
       // Find the supervisor record for the current user (using cached staff ID)
@@ -90,7 +95,7 @@ export function useSchulhofActions(
     } finally {
       setIsReleasingSupervision(false);
     }
-  }, [currentRoom, currentStaffId, refresh, setError]);
+  }, [supervisedActiveGroupId, currentStaffId, refresh, setError]);
 
   // Start a fresh Schulhof session via the generic spontaneous flow (#2161).
   // A "room is already occupied" conflict means another session won the race

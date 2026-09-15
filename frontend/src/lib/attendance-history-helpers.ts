@@ -12,8 +12,7 @@ export interface BackendAttendanceHistoryResponse {
 }
 
 export type AttendanceSlotStatus = "expected" | "present" | "absent";
-export type ActivityInstanceStatus =
-  "planned" | "active" | "completed" | "cancelled";
+type ActivityInstanceStatus = "planned" | "active" | "completed" | "cancelled";
 
 interface BackendAttendanceHistoryDay {
   date: string;

@@ -86,6 +86,8 @@ func (f *fakes) Unclaimed(ctx context.Context) ([]UnclaimedGroup, error) {
 	return f.unclaimed(ctx)
 }
 
+func (*fakes) InRooms(context.Context, []int64) ([]RunningSession, error) { return nil, nil }
+
 func (f *fakes) Status(ctx context.Context, staffID int64) (*SchulhofStatus, error) {
 	if f.yard == nil {
 		return &SchulhofStatus{}, nil
@@ -134,6 +136,8 @@ func (f *fakes) TrackingIndicators(ctx context.Context, studentIDs []int64, labe
 	}
 	return f.tracking(ctx, studentIDs, labels)
 }
+
+func (*fakes) OpenVisitsOfSessions(context.Context, []int64) ([]VisitRecord, error) { return nil, nil }
 
 func (f *fakes) Pickups(ctx context.Context, studentIDs []int64, date Date) (map[int64]Pickup, error) {
 	if f.pickups == nil {
@@ -848,6 +852,7 @@ func TestProjectionWireShape(t *testing.T) {
 		`"selected_group_id":"11","unclaimed_groups":[{"id":"13","room_name":"Igel"}],"current_staff_id":"7",` +
 		`"educational_groups":[{"id":"41","name":"Bären","room_name":"Igel"}],` +
 		`"schulhof_status":{"exists":true,"room_name":"Schulhof","is_user_supervising":false,"supervisor_count":0,"student_count":0,"supervisors":[{"id":1,"staff_id":7,"name":"Erika","is_current_user":true}]},` +
+		`"open_rooms":[],` +
 		`"capabilities":{"web_spontaneous_activities_enabled":true},` +
 		`"active_sessions":[{"active_group_id":11,"instance_id":5,"title":"Malen","start_time":"14:00","end_time":"15:00"}],` +
 		`"planned_now":[{"id":5,"title":"Malen","date":"2026-08-19","start_time":"14:00","end_time":"15:00","room_id":21,"status":"planned","is_overdue":false,"minutes_until_start":0,` +
@@ -864,5 +869,5 @@ func TestProjectionWireShape(t *testing.T) {
 	empty, err := json.Marshal(emptyProjection())
 	require.NoError(t, err)
 	assert.Equal(t, `{"business_day":"","spontaneous_start_availability":{"available":false},"groups":[],"unclaimed_groups":[],"educational_groups":[],"schulhof_status":null,`+
-		`"capabilities":{"web_spontaneous_activities_enabled":false},"active_sessions":[],"planned_now":[],"visits":[],"tracking_indicators":{"labels":[],"results":{}},"pickup_times":[],"arrival_times":[]}`, string(empty))
+		`"open_rooms":[],"capabilities":{"web_spontaneous_activities_enabled":false},"active_sessions":[],"planned_now":[],"visits":[],"tracking_indicators":{"labels":[],"results":{}},"pickup_times":[],"arrival_times":[]}`, string(empty))
 }

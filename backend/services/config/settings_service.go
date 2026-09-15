@@ -629,6 +629,9 @@ func (s *settingsService) SetValue(ctx context.Context, key string, value any, c
 	if err := checkWritePermission(def, userPermissions); err != nil {
 		return &SettingsError{Op: "set_value", Err: err}
 	}
+	if mode, ok := value.(string); ok && parentReportApprovalKey(key) != "" {
+		return s.setParentReportMode(ctx, key, mode, changedBy, userPermissions)
+	}
 
 	if err := validateValue(def, value); err != nil {
 		return &SettingsError{
@@ -646,10 +649,28 @@ func (s *settingsService) SetValue(ctx context.Context, key string, value any, c
 	if tenantID <= 0 {
 		return &SettingsError{Op: "set_value", Err: fmt.Errorf("no tenant context")}
 	}
+	if isAttendanceScopeKey(key) || isParentReportSettingKey(key) {
+		if s.runtime == nil {
+			return &SettingsError{Op: "set_value", Err: ErrRuntimeUnavailable}
+		}
+		if !s.runtime.HasTransaction(ctx) {
+			return s.runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
+				return s.SetValue(txCtx, key, value, changedBy, userPermissions)
+			})
+		}
+	}
+	if isParentReportSettingKey(key) {
+		if err := s.lockParentReportModes(ctx); err != nil {
+			return err
+		}
+	}
 
 	// Serialize a security.mfa_mode change against session mints that are
 	// re-deciding their MFA gate right now — see lockMFAPolicy.
 	if err := s.lockMFAPolicyForWrite(ctx, key); err != nil {
+		return &SettingsError{Op: "set_value", Err: err}
+	}
+	if err := s.lockParentPickupChangePolicyForWrite(ctx, key); err != nil {
 		return &SettingsError{Op: "set_value", Err: err}
 	}
 
@@ -733,10 +754,31 @@ func (s *settingsService) ResetValue(ctx context.Context, key string, changedBy 
 	if tenantID <= 0 {
 		return &SettingsError{Op: "reset_value", Err: fmt.Errorf("no tenant context")}
 	}
+	if parentReportApprovalKey(key) != "" && ctx.Value(parentReportResetContextKey{}) != true {
+		return s.resetParentReportMode(ctx, key, changedBy, userPermissions)
+	}
+	if isAttendanceScopeKey(key) || isParentReportSettingKey(key) {
+		if s.runtime == nil {
+			return &SettingsError{Op: "reset_value", Err: ErrRuntimeUnavailable}
+		}
+		if !s.runtime.HasTransaction(ctx) {
+			return s.runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
+				return s.ResetValue(txCtx, key, changedBy, userPermissions)
+			})
+		}
+	}
+	if isParentReportSettingKey(key) {
+		if err := s.lockParentReportModes(ctx); err != nil {
+			return err
+		}
+	}
 
 	// A reset restores the registry default, which changes the effective mode
 	// exactly like a write does — same lock, same reason (see lockMFAPolicy).
 	if err := s.lockMFAPolicyForWrite(ctx, key); err != nil {
+		return &SettingsError{Op: "reset_value", Err: err}
+	}
+	if err := s.lockParentPickupChangePolicyForWrite(ctx, key); err != nil {
 		return &SettingsError{Op: "reset_value", Err: err}
 	}
 
@@ -838,6 +880,10 @@ func validateValue(def *config.Definition, value any) error {
 		if !ok {
 			return fmt.Errorf("expected a time string")
 		}
+		defaultValue, optional := def.Default.(string)
+		if optional && defaultValue == "" && strings.TrimSpace(str) == "" {
+			return nil
+		}
 		if err := validateTimeFormat(str); err != nil {
 			return err
 		}
@@ -883,6 +929,8 @@ func validateValue(def *config.Definition, value any) error {
 // order — never blocks a reachable configuration.
 func (s *settingsService) validateCrossField(ctx context.Context, key string, value any) error {
 	switch key {
+	case config.KeyOperationalOverviewScope, config.KeyAttendanceEditScope:
+		return s.validateAttendanceScopePair(ctx, key, value)
 	case config.KeySlotListShortDayCutoff, config.KeySlotListLongDayCutoff:
 		return s.validateSlotListCutoffPair(ctx, key, value)
 	case config.KeyEnrollmentCollectGradeLevel, config.KeyEnrollmentCollectSchoolClass:
@@ -1236,6 +1284,52 @@ func (s *settingsService) lockMFAPolicyForWrite(ctx context.Context, key string)
 		return nil
 	}
 	return s.LockMFAPolicy(ctx)
+}
+
+// LockParentPickupChangePolicy takes the exclusive per-tenant policy lock on
+// the parent pickup-change switch and its same-day cutoff. The corresponding
+// guardian write takes the shared side before it re-reads both values.
+func (s *settingsService) LockParentPickupChangePolicy(ctx context.Context) error {
+	return s.lockParentPickupChangePolicy(ctx, s.tenantID(ctx), false)
+}
+
+// LockParentPickupChangePolicySharedForTenant takes the shared side of the
+// parent pickup-change policy lock for a guardian write transaction.
+func (s *settingsService) LockParentPickupChangePolicySharedForTenant(ctx context.Context, tenantID int64) error {
+	return s.lockParentPickupChangePolicy(ctx, tenantID, true)
+}
+
+// lockParentPickupChangePolicy serializes settings writes with guardian
+// pickup-change writes. Without the shared lock, the enabled flag and cutoff
+// can be read on separate READ COMMITTED snapshots, or a settings write can
+// commit after their re-read but before the parent write commits.
+func (s *settingsService) lockParentPickupChangePolicy(ctx context.Context, tenantID int64, shared bool) error {
+	if cache := requestCacheFromContext(ctx); cache != nil {
+		cache.evictTenant(tenantID)
+	}
+	if tenantID <= 0 || s.runtime == nil || !s.runtime.HasTransaction(ctx) {
+		return nil
+	}
+	if err := s.runtime.AcquireLock(ctx, parentPickupChangePolicyLockKey(tenantID), shared); err != nil {
+		return fmt.Errorf("lock parent pickup-change policy: %w", err)
+	}
+	return nil
+}
+
+// parentPickupChangePolicyLockKey is shared by writes to both settings and by
+// guardian writes that consume their effective policy. It is per tenant so
+// one school's settings update never stalls another school's families.
+func parentPickupChangePolicyLockKey(tenantID int64) string {
+	return fmt.Sprintf("parent-pickup-change-policy:%d", tenantID)
+}
+
+// lockParentPickupChangePolicyForWrite takes the exclusive policy lock for
+// either setting before the write reads the old value or changes the override.
+func (s *settingsService) lockParentPickupChangePolicyForWrite(ctx context.Context, key string) error {
+	if key != config.KeyParentPickupChangeEnabled && key != config.KeyParentPickupChangeCutoffTime {
+		return nil
+	}
+	return s.LockParentPickupChangePolicy(ctx)
 }
 
 // validateTimeFormat checks that a string is a valid HH:MM time.

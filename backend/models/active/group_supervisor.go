@@ -4,7 +4,6 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/users"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -19,9 +18,9 @@ type GroupSupervisor struct {
 	StartDate timezone.Date  `bun:"start_date,notnull,type:date" json:"start_date"`
 	EndDate   *timezone.Date `bun:"end_date,type:date" json:"end_date,omitempty"`
 
-	// Relations - these would be populated when using the ORM's relations
-	Staff       *users.Staff `bun:"rel:belongs-to,join:staff_id=id" json:"staff,omitempty"`
-	ActiveGroup *Group       `bun:"rel:belongs-to,join:group_id=id" json:"active_group,omitempty"`
+	// Owner-provided projections, not ORM relations.
+	Staff       *SessionStaff `bun:"-" json:"staff,omitempty"`
+	ActiveGroup *Group        `bun:"-" json:"active_group,omitempty"`
 }
 
 // StaffRoomSupervision is the (staff, room) projection of a currently active

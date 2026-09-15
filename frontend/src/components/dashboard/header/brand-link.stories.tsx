@@ -14,12 +14,6 @@ export const Default: Story = {
   args: {},
 };
 
-export const Scrolled: Story = {
-  args: {
-    isScrolled: true,
-  },
-};
-
 export const CustomHref: Story = {
   args: {
     href: "/",
@@ -35,7 +29,7 @@ export const Gallery: Story = {
     <div className="flex items-center gap-4 bg-white p-4">
       <BrandLink />
       <BreadcrumbDivider />
-      <BrandLink isScrolled />
+      <BrandLink label="Demo Schule" />
     </div>
   ),
 };

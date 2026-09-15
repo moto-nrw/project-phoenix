@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 
 	"github.com/stretchr/testify/assert"
@@ -44,21 +46,18 @@ func newActiveService(t *testing.T, db *bun.DB) activeService.Service {
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
 	svc := activeService.NewService(activeService.ServiceDependencies{
+		PrincipalReader:    services.AttendancePrincipal,
 		GroupRepo:          repos.ActiveGroup,
 		SupervisorRepo:     repos.GroupSupervisor,
-		CombinedGroupRepo:  repos.CombinedGroup,
-		GroupMappingRepo:   repos.GroupMapping,
 		SchoolPresence:     presence,
-		StudentRepo:        repos.Student,
-		PersonRepo:         repos.Person,
-		TeacherRepo:        repos.Teacher,
-		StaffRepo:          repos.Staff,
-		RoomRepo:           repos.Room,
-		ActivityGroupRepo:  repos.ActivityGroup,
-		ActivityCatRepo:    repos.ActivityCategory,
-		EducationGroupRepo: repos.Group,
-		DeviceRepo:         repos.Device,
-		UsersService: userService.NewPersonService(userService.PersonServiceDependencies{
+		StudentRepo:        services.PresenceStudents(repos.Student),
+		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
+		RoomRepo:           services.NewAttendanceRooms(repos.Room),
+		ActivityGroupRepo:  repositories.NewSessionActivities(repos.ActivityGroup),
+		ActivityCatRepo:    services.NewAttendanceActivityCategories(repos.ActivityCategory),
+		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student),
+		DeviceRepo:         services.NewSessionDeviceDirectory(repos.Device, nil, nil),
+		StaffNames: services.NewAttendanceStaffNames(repos.Staff, userService.NewPersonService(userService.PersonServiceDependencies{
 			PersonRepo:  repos.Person,
 			RFIDRepo:    repos.RFIDCard,
 			AccountRepo: repos.Account,
@@ -66,13 +65,13 @@ func newActiveService(t *testing.T, db *bun.DB) activeService.Service {
 			StaffRepo:   repos.Staff,
 			TeacherRepo: repos.Teacher,
 			DB:          db,
-		}),
+		})),
 		DB:     db,
 		Logger: slog.Default(),
 	})
-	svc.SetSettingsService(&configtest.Mock{ResolveStringFn: func(context.Context, string) (string, error) {
+	svc.SetSettingsService(services.PresenceSettings(&configtest.Mock{ResolveStringFn: func(context.Context, string) (string, error) {
 		return "binary", nil
-	}})
+	}}))
 	return svc
 }
 

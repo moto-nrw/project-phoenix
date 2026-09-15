@@ -4,10 +4,15 @@
 // editor, preview + apply, revert. Consumes /api/admin/grade-transitions.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Pencil, Play, RotateCcw, Trash2, Users } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
+import {
+  OverflowMenu,
+  type OverflowMenuEntry,
+} from "~/components/ui/page-header/OverflowMenu";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
@@ -410,64 +415,70 @@ export function GradeTransitionsManager({
         key: "actions",
         header: "",
         align: "right",
-        render: (t) => (
-          <div className="flex justify-end gap-1">
-            {t.canModify && permissions.canUpdate && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="compact"
-                onClick={() => openEditorFor(t)}
-              >
-                Bearbeiten
-              </Button>
-            )}
-            {t.canApply && permissions.canApply && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="compact"
-                onClick={() => setPreviewFor(t)}
-              >
-                Anwenden
-              </Button>
-            )}
-            {t.canModify && permissions.canDelete && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="compact"
-                className="text-moto-red"
-                onClick={() => setDeleteTarget(t)}
-              >
-                Löschen
-              </Button>
-            )}
-            {t.id === latestRevertableId && permissions.canApply && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="compact"
-                onClick={() => setRevertTarget(t)}
-              >
-                Zurücksetzen
-              </Button>
-            )}
-            {/* Every transition that ran has Abgänge worth inspecting, including
-                a reverted one — a child hard-deleted before the revert stays
-                gone, and this is the only place that says so. */}
-            {t.status !== "draft" && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="compact"
-                onClick={() => setGraduatesFor(t)}
-              >
-                Abgänge
-              </Button>
-            )}
-          </div>
-        ),
+        // Zeilenaktionen nur im Kebab der Zeile (BAUARTEN-SPEC Bauart 1
+        // Regel 4); Anwenden, Zurücksetzen und Löschen fragen weiter in
+        // ihren Dialogen nach.
+        render: (t) => {
+          const items: OverflowMenuEntry[] = [
+            ...(t.canModify && permissions.canUpdate
+              ? [
+                  {
+                    label: "Bearbeiten",
+                    icon: <Pencil className="h-4 w-4" aria-hidden />,
+                    onClick: () => openEditorFor(t),
+                  },
+                ]
+              : []),
+            ...(t.canApply && permissions.canApply
+              ? [
+                  {
+                    label: "Anwenden",
+                    icon: <Play className="h-4 w-4" aria-hidden />,
+                    onClick: () => setPreviewFor(t),
+                  },
+                ]
+              : []),
+            ...(t.id === latestRevertableId && permissions.canApply
+              ? [
+                  {
+                    label: "Zurücksetzen",
+                    icon: <RotateCcw className="h-4 w-4" aria-hidden />,
+                    onClick: () => setRevertTarget(t),
+                  },
+                ]
+              : []),
+            // Every transition that ran has Abgänge worth inspecting, including
+            // a reverted one — a child hard-deleted before the revert stays
+            // gone, and this is the only place that says so.
+            ...(t.status !== "draft"
+              ? [
+                  {
+                    label: "Abgänge",
+                    icon: <Users className="h-4 w-4" aria-hidden />,
+                    onClick: () => setGraduatesFor(t),
+                  },
+                ]
+              : []),
+            ...(t.canModify && permissions.canDelete
+              ? [
+                  {
+                    label: "Löschen",
+                    icon: <Trash2 className="h-4 w-4" aria-hidden />,
+                    destructive: true,
+                    onClick: () => setDeleteTarget(t),
+                  },
+                ]
+              : []),
+          ];
+          return (
+            <div className="flex justify-end">
+              <OverflowMenu
+                ariaLabel={`Aktionen für ${t.academicYear}`}
+                items={items}
+              />
+            </div>
+          );
+        },
       },
     ],
     [openEditorFor, permissions, latestRevertableId],

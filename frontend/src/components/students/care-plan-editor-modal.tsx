@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useFormError } from "~/components/ui/form-error";
-import { ChevronDown, Clock, Loader2, StickyNote } from "lucide-react";
+import { Clock, Loader2 } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   SlideOver,
@@ -13,45 +13,33 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
-import { Checkbox } from "~/components/ui/checkbox";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
-import { PickupAdjustmentDecision } from "./pickup-adjustment-decision";
 import { useToast } from "~/contexts/ToastContext";
 import {
   type ArrivalDayData,
-  type ArrivalScheduleFormEntry,
-  WEEKDAYS,
   formatShortDate,
   getWeekdayLabel,
 } from "~/lib/arrival-schedule-helpers";
-import type {
-  DayData as PickupDayData,
-  PickupScheduleFormData,
-} from "~/lib/pickup-schedule-helpers";
+import type { DayData as PickupDayData } from "~/lib/pickup-schedule-helpers";
 import {
-  formatDateISO,
   formatPickupTime,
   pickupScheduleSourceLabel,
 } from "~/lib/pickup-schedule-helpers";
-import type { CareDaysSource } from "~/lib/student-arrival-api";
-import type {
-  PickupAdjustmentPreview,
-  PickupAdjustmentResolution,
-  PickupAdjustmentSelection,
-} from "~/lib/pickup-schedule-api";
 
 /**
  * The care plan is edited through exactly two doors, and each one owns one kind
  * of thing (issue #893):
  *
- *   day card         -> an EXCEPTION for that date, with a Grund
- *   "Wochenplan"     -> the recurring times of the week, with Notizen
+ *   day card                  -> an EXCEPTION for that date, with a Grund
+ *   "Wochenplan bearbeiten"   -> the recurring times of the week, with Notizen
  *
  * That split is the whole fix: before, two identical-looking pencils both led
  * to dialogs that mixed exceptions and notes, and a note gave no hint whether
- * it applied once or every week.
+ * it applied once or every week. Since #3119 only the exception lives in this
+ * slide-over; the weekly plan is edited in place in the section
+ * (`care-weekly-plan-editor.tsx`, Bauart 2 Regel 3).
  */
 type ArrivalMode = "regular" | "time" | "absent";
 type PickupMode = "regular" | "time" | "none";
@@ -70,42 +58,18 @@ export interface CareExceptionSubmit {
   readonly pickup: CareLegSubmit | null;
 }
 
-export interface CarePlanWeeklySubmit {
-  readonly arrivalSchedules: ArrivalScheduleFormEntry[];
-  readonly pickupSchedules: PickupScheduleFormData[];
-}
-
 interface NoteDeletionTarget {
   readonly content: string;
   readonly deleteNote: () => Promise<void>;
 }
 
-export interface CarePlanWeeklyAdjustment {
-  readonly resolution: PickupAdjustmentResolution;
-  readonly preview: PickupAdjustmentPreview;
-  readonly selections?: PickupAdjustmentSelection[];
-  readonly effectiveFrom?: string;
-  readonly reason?: string;
-  /** false refreshes the offering consequences; true performs the write. */
-  readonly confirm: boolean;
-  readonly completeWithdrawalConfirmed?: boolean;
-}
-
 interface CarePlanEditorModalProps {
   readonly isOpen: boolean;
-  readonly careDaysSource: CareDaysSource;
   readonly onClose: () => void;
-  /** The day the editor was opened from. null = the weekly plan. */
-  readonly date: Date | null;
+  /** The day the editor was opened from; both null while closed. */
   readonly arrivalDay: ArrivalDayData | null;
   readonly pickupDay: PickupDayData | null;
-  readonly weeklyArrival: ArrivalScheduleFormEntry[];
-  readonly weeklyPickup: PickupScheduleFormData[];
   readonly onSubmitException: (payload: CareExceptionSubmit) => Promise<void>;
-  readonly onSubmitWeekly: (
-    payload: CarePlanWeeklySubmit,
-    adjustment?: CarePlanWeeklyAdjustment,
-  ) => Promise<PickupAdjustmentPreview | void>;
   /** Setzt die reguläre Gehzeit des Wochentags auf die Angebots-Gehzeit
    * zurück (#2290); nur angeboten, wenn der Tag von Hand gepflegt ist. */
   readonly onResetPickupToOffering?: (
@@ -137,30 +101,12 @@ interface CarePlanEditorModalProps {
 const TIME_PATTERN = /^([01]?\d|2[0-3]):[0-5]\d$/;
 const noopNoteAction = async () => undefined;
 
-interface WeeklyRow {
-  readonly weekday: number;
-  /** The child is in care that weekday (#2414). */
-  readonly arrivalInCare: boolean;
-  /** The child's OWN arrival time. Empty means the class time applies. */
-  readonly arrivalTime: string;
-  /** The class time that applies when the child has none. Read-only. */
-  readonly arrivalClassTime: string;
-  readonly arrivalNotes: string;
-  readonly pickupTime: string;
-  readonly pickupNotes: string;
-}
-
 export function CarePlanEditorModal({
   isOpen,
-  careDaysSource,
   onClose,
-  date,
   arrivalDay,
   pickupDay,
-  weeklyArrival,
-  weeklyPickup,
   onSubmitException,
-  onSubmitWeekly,
   onResetPickupToOffering,
   onCreateArrivalNote = noopNoteAction,
   onUpdateArrivalNote = noopNoteAction,
@@ -170,8 +116,7 @@ export function CarePlanEditorModal({
   onDeletePickupNote = noopNoteAction,
 }: CarePlanEditorModalProps) {
   const toast = useToast();
-  const isException =
-    date !== null && arrivalDay !== null && pickupDay !== null;
+  const isException = arrivalDay !== null && pickupDay !== null;
 
   const [arrivalMode, setArrivalMode] = useState<ArrivalMode>("regular");
   const [arrivalTime, setArrivalTime] = useState("");
@@ -180,35 +125,14 @@ export function CarePlanEditorModal({
   const [pickupTime, setPickupTime] = useState("");
   const [isResettingPickup, setIsResettingPickup] = useState(false);
   const [pickupReason, setPickupReason] = useState("");
-  const [weeklyRows, setWeeklyRows] = useState<WeeklyRow[]>([]);
-  const [expandedWeekdays, setExpandedWeekdays] = useState<Set<number>>(
-    () => new Set(),
-  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useFormError();
-  const [showRemovalConfirm, setShowRemovalConfirm] = useState(false);
   const [showParentConfirm, setShowParentConfirm] = useState(false);
   const [noteDeletionTarget, setNoteDeletionTarget] =
     useState<NoteDeletionTarget | null>(null);
   const [isDeletingNote, setIsDeletingNote] = useState(false);
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
-  const [weeklyAdjustment, setWeeklyAdjustment] =
-    useState<PickupAdjustmentPreview | null>(null);
-  const [offeringSelections, setOfferingSelections] = useState<
-    PickupAdjustmentSelection[]
-  >([]);
-  const [offeringEffectiveFrom, setOfferingEffectiveFrom] = useState("");
-  const [offeringReason, setOfferingReason] = useState("");
-  const [offeringConfirmed, setOfferingConfirmed] = useState(false);
-  const [selectedOfferingId, setSelectedOfferingId] = useState<string | null>(
-    null,
-  );
   const initializedExceptionKey = useRef<string | null>(null);
-  const initializedWeeklyEditor = useRef(false);
-  const offeringPreviewRequestId = useRef(0);
-  const weeklyExceptionPreview = useRef<PickupAdjustmentPreview | null>(null);
-  const decisionHeadingRef = useRef<HTMLHeadingElement>(null);
-  const decisionWasVisible = useRef(false);
   // The form steps aside while the confirmation is up so the two dialogs never
   // stack. Kept out of `isOpen` on purpose: the reset effect keys on `isOpen`,
   // so toggling this preserves what the user typed.
@@ -226,18 +150,9 @@ export function CarePlanEditorModal({
     initializedExceptionKey.current = exceptionKey;
 
     setError(null);
-    setShowRemovalConfirm(false);
     setShowParentConfirm(false);
     setNoteDeletionTarget(null);
     setIsDeletingNote(false);
-    setWeeklyAdjustment(null);
-    weeklyExceptionPreview.current = null;
-    setSelectedOfferingId(null);
-    offeringPreviewRequestId.current++;
-    setOfferingSelections([]);
-    setOfferingEffectiveFrom("");
-    setOfferingReason("");
-    setOfferingConfirmed(false);
     setFormVisible(true);
 
     const arrivalInit = arrivalInitialState(arrivalDay);
@@ -251,49 +166,7 @@ export function CarePlanEditorModal({
     setPickupReason(pickupInit.reason);
   }, [isOpen, isException, arrivalDay, pickupDay, setError]);
 
-  useEffect(() => {
-    if (!isOpen || isException) {
-      initializedWeeklyEditor.current = false;
-      return;
-    }
-    if (initializedWeeklyEditor.current) return;
-    initializedWeeklyEditor.current = true;
-
-    setError(null);
-    setShowRemovalConfirm(false);
-    setShowParentConfirm(false);
-    setNoteDeletionTarget(null);
-    setIsDeletingNote(false);
-    setNoteDrafts({});
-    setWeeklyAdjustment(null);
-    weeklyExceptionPreview.current = null;
-    setSelectedOfferingId(null);
-    offeringPreviewRequestId.current++;
-    setOfferingSelections([]);
-    setOfferingEffectiveFrom("");
-    setOfferingReason("");
-    setOfferingConfirmed(false);
-    setFormVisible(true);
-
-    const rows = buildWeeklyRows(weeklyArrival, weeklyPickup);
-    setWeeklyRows(rows);
-    setExpandedWeekdays(
-      new Set(
-        rows
-          .filter((row) => row.arrivalNotes || row.pickupNotes)
-          .map((row) => row.weekday),
-      ),
-    );
-  }, [isOpen, isException, weeklyArrival, weeklyPickup, setError]);
-
-  useEffect(() => {
-    if (weeklyAdjustment && !decisionWasVisible.current) {
-      decisionHeadingRef.current?.focus();
-    }
-    decisionWasVisible.current = weeklyAdjustment !== null;
-  }, [weeklyAdjustment]);
-
-  if (!isOpen) return null;
+  if (!isOpen || !arrivalDay || !pickupDay) return null;
 
   const arrivalInit = arrivalInitialState(arrivalDay);
   const pickupInit = pickupInitialState(pickupDay);
@@ -309,42 +182,18 @@ export function CarePlanEditorModal({
     pickupInit,
   );
 
-  const weeklyRemovals = collectWeeklyRemovals(
-    weeklyRows,
-    weeklyArrival,
-    weeklyPickup,
-  );
-
   const parentAuthored =
-    arrivalDay?.exception?.source === "guardian" ||
-    pickupDay?.exception?.source === "guardian";
+    arrivalDay.exception?.source === "guardian" ||
+    pickupDay.exception?.source === "guardian";
   const overwritesParent =
-    (arrivalDay?.exception?.source === "guardian" && arrivalChanged) ||
-    (pickupDay?.exception?.source === "guardian" && pickupChanged);
+    (arrivalDay.exception?.source === "guardian" && arrivalChanged) ||
+    (pickupDay.exception?.source === "guardian" && pickupChanged);
 
-  const title = isException
-    ? `Ausnahme für ${getWeekdayLabel(arrivalDay.weekday)}, ${formatShortDate(arrivalDay.date)}`
-    : "Wochenplan bearbeiten";
+  const title = `Ausnahme für ${getWeekdayLabel(arrivalDay.weekday)}, ${formatShortDate(arrivalDay.date)}`;
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
-
-    if (!isException) {
-      if (weeklyAdjustment) return;
-      const invalidWeekly = validateWeeklyRows(weeklyRows);
-      if (invalidWeekly) {
-        setError(invalidWeekly);
-        return;
-      }
-      if (weeklyRemovals.length > 0) {
-        setFormVisible(false);
-        setShowRemovalConfirm(true);
-        return;
-      }
-      void performSave();
-      return;
-    }
 
     if (arrivalMode === "time" && !TIME_PATTERN.test(arrivalTime)) {
       setError("Bitte eine gültige Ankunftszeit eingeben.");
@@ -360,7 +209,6 @@ export function CarePlanEditorModal({
     }
     if (overwritesParent) {
       setFormVisible(false);
-      setShowRemovalConfirm(false);
       setShowParentConfirm(true);
       return;
     }
@@ -369,7 +217,6 @@ export function CarePlanEditorModal({
   };
 
   const cancelConfirm = () => {
-    setShowRemovalConfirm(false);
     setShowParentConfirm(false);
     setFormVisible(true);
   };
@@ -419,28 +266,16 @@ export function CarePlanEditorModal({
     setError(null);
     setIsSubmitting(true);
     try {
-      if (!isException) {
-        const adjustment = await onSubmitWeekly(toWeeklySubmit(weeklyRows));
-        if (adjustment) {
-          weeklyExceptionPreview.current = adjustment;
-          setWeeklyAdjustment(adjustment);
-          setOfferingEffectiveFrom(adjustment.effective_from);
-          setOfferingConfirmed(false);
-          return;
-        }
-        toast.success("Wochenplan wurde gespeichert");
-      } else {
-        await onSubmitException({
-          date: toDayISO(arrivalDay.date),
-          arrival: arrivalChanged
-            ? toLegSubmit(arrivalMode, arrivalTime, arrivalReason)
-            : null,
-          pickup: pickupChanged
-            ? toLegSubmit(pickupMode, pickupTime, pickupReason)
-            : null,
-        });
-        toast.success("Ausnahme wurde gespeichert");
-      }
+      await onSubmitException({
+        date: toDayISO(arrivalDay.date),
+        arrival: arrivalChanged
+          ? toLegSubmit(arrivalMode, arrivalTime, arrivalReason)
+          : null,
+        pickup: pickupChanged
+          ? toLegSubmit(pickupMode, pickupTime, pickupReason)
+          : null,
+      });
+      toast.success("Ausnahme wurde gespeichert");
       setShowParentConfirm(false);
       onClose();
     } catch (err) {
@@ -454,174 +289,13 @@ export function CarePlanEditorModal({
         ? "Diese Zeit wurde von den Eltern gesetzt und kann nur von Mitarbeitenden mit Personalprofil geändert werden."
         : raw;
       setError(message);
-      offeringPreviewRequestId.current++;
-      weeklyExceptionPreview.current = null;
-      setWeeklyAdjustment(null);
-      setOfferingSelections([]);
-      setSelectedOfferingId(null);
-      setOfferingConfirmed(false);
       cancelConfirm();
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const saveWeeklyException = async () => {
-    const preview = weeklyExceptionPreview.current;
-    if (!preview) return;
-    setError(null);
-    setIsSubmitting(true);
-    try {
-      await onSubmitWeekly(toWeeklySubmit(weeklyRows), {
-        resolution: "exception",
-        preview,
-        reason: offeringReason,
-        confirm: true,
-      });
-      toast.success("Dauerhafte Ausnahme wurde gespeichert");
-      onClose();
-    } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Dauerhafte Ausnahme konnte nicht gespeichert werden";
-      setError(message);
-      offeringPreviewRequestId.current++;
-      weeklyExceptionPreview.current = null;
-      setWeeklyAdjustment(null);
-      setOfferingSelections([]);
-      setSelectedOfferingId(null);
-      setOfferingConfirmed(false);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const previewMatchingOffering = async (
-    offeringId: string,
-    effectiveFrom = offeringEffectiveFrom,
-  ) => {
-    if (!weeklyAdjustment?.offering_catalog) return;
-    const match = weeklyAdjustment.matching_offerings.find(
-      (item) => item.offering_id === offeringId,
-    );
-    const target = weeklyAdjustment.offering_catalog.items.find(
-      (item) => item.offering_id === offeringId,
-    );
-    if (!match || !target) return;
-    const selections = match.selections;
-    const requestId = ++offeringPreviewRequestId.current;
-    setSelectedOfferingId(null);
-    setOfferingSelections([]);
-    setOfferingConfirmed(false);
-
-    setError(null);
-    setIsSubmitting(true);
-    try {
-      const preview = await onSubmitWeekly(toWeeklySubmit(weeklyRows), {
-        resolution: "offering",
-        preview: weeklyAdjustment,
-        selections,
-        effectiveFrom,
-        reason: offeringReason,
-        confirm: false,
-      });
-      if (!preview) {
-        throw new Error("Die Angebotsänderung konnte nicht geprüft werden.");
-      }
-      if (requestId !== offeringPreviewRequestId.current) return;
-      if (
-        !preview.matching_offerings.some(
-          (item) => item.offering_id === offeringId,
-        )
-      ) {
-        setWeeklyAdjustment(preview);
-        return;
-      }
-      const refreshedTarget = preview.offering_catalog?.items.find(
-        (item) => item.offering_id === offeringId,
-      );
-      if (
-        refreshedTarget &&
-        !refreshedTarget.selected &&
-        refreshedTarget.capacity !== undefined &&
-        refreshedTarget.free_slots === 0
-      ) {
-        throw new Error("Dieses Angebot hat keinen freien Platz mehr.");
-      }
-      setOfferingSelections(selections);
-      setWeeklyAdjustment(preview);
-      setSelectedOfferingId(offeringId);
-      setOfferingConfirmed(false);
-    } catch (err) {
-      if (requestId !== offeringPreviewRequestId.current) return;
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Angebot konnte nicht geprüft werden";
-      setError(message);
-      setOfferingSelections([]);
-      setSelectedOfferingId(null);
-      setOfferingConfirmed(false);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const saveMatchingOffering = async () => {
-    if (!weeklyAdjustment || !offeringConfirmed) return;
-    setError(null);
-    setIsSubmitting(true);
-    try {
-      await onSubmitWeekly(toWeeklySubmit(weeklyRows), {
-        resolution: "offering",
-        preview: weeklyAdjustment,
-        selections: offeringSelections,
-        effectiveFrom: offeringEffectiveFrom,
-        reason: offeringReason,
-        confirm: true,
-        completeWithdrawalConfirmed: offeringRemovesAllCareDays(
-          weeklyAdjustment,
-          offeringSelections,
-        ),
-      });
-      toast.success("Angebot und Wochenplan wurden geändert");
-      onClose();
-    } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Angebot konnte nicht geändert werden";
-      setError(message);
-      offeringPreviewRequestId.current++;
-      weeklyExceptionPreview.current = null;
-      setWeeklyAdjustment(null);
-      setOfferingSelections([]);
-      setSelectedOfferingId(null);
-      setOfferingConfirmed(false);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const footer = weeklyAdjustment ? (
-    <Button
-      type="button"
-      variant="outline"
-      size="md"
-      onClick={() => {
-        offeringPreviewRequestId.current++;
-        weeklyExceptionPreview.current = null;
-        setWeeklyAdjustment(null);
-        setOfferingSelections([]);
-        setOfferingConfirmed(false);
-        setSelectedOfferingId(null);
-      }}
-      disabled={isSubmitting}
-    >
-      Zurück zum Wochenplan
-    </Button>
-  ) : (
+  const footer = (
     <>
       <Button
         type="button"
@@ -655,9 +329,7 @@ export function CarePlanEditorModal({
           if (!open) onClose();
         }}
       >
-        <SlideOverContent
-          widthClass={isException ? "sm:w-[640px]" : "sm:w-[860px]"}
-        >
+        <SlideOverContent widthClass="sm:w-[640px]">
           <SlideOverHeader className="flex-row items-start justify-between gap-3">
             <div className="min-w-0">
               <SlideOverTitle>{title}</SlideOverTitle>
@@ -678,197 +350,122 @@ export function CarePlanEditorModal({
               onSubmit={handleSubmit}
               className="space-y-5"
             >
-              {isException ? (
-                <>
-                  <p className="text-sm leading-6 text-gray-600">
-                    Gilt nur an diesem Tag. Die festen Zeiten der Woche bleiben
-                    unverändert.
-                  </p>
+              <p className="text-sm leading-6 text-gray-600">
+                Gilt nur an diesem Tag. Die festen Zeiten der Woche bleiben
+                unverändert.
+              </p>
 
-                  {parentAuthored ? (
-                    <div className="border-moto-blue/20 bg-moto-blue/10 text-moto-blue-hover flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm">
-                      <MotoConceptIcon
-                        concept="parents"
-                        size={18}
-                        className="mt-0.5"
-                      />
-                      <span>
-                        Diese Zeiten wurden von den Eltern über das Elternportal
-                        gesetzt. Wenn du sie änderst, ersetzt deine Eingabe die
-                        Angabe der Eltern.
-                      </span>
-                    </div>
-                  ) : null}
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <LegSection
-                      label="Ankunft"
-                      icon={<Clock className="h-4 w-4" aria-hidden="true" />}
-                      regularLabel={`Regulär: ${formatRegularArrival(arrivalDay)}`}
-                      mode={arrivalMode}
-                      onModeChange={(mode) =>
-                        setArrivalMode(mode as ArrivalMode)
-                      }
-                      options={[
-                        ["regular", "Regulär"],
-                        ["time", "Andere Zeit"],
-                        ["absent", "Kommt nicht"],
-                      ]}
-                      time={arrivalTime}
-                      onTimeChange={setArrivalTime}
-                      reason={arrivalReason}
-                      onReasonChange={setArrivalReason}
-                      showTime={arrivalMode === "time"}
-                      showReason={arrivalMode !== "regular"}
-                    />
-                    <LegSection
-                      label="Abholung"
-                      icon={<MotoConceptIcon concept="pickup" size={18} />}
-                      regularLabel={`Regulär: ${formatRegularPickup(pickupDay)}`}
-                      mode={pickupMode}
-                      onModeChange={(mode) => setPickupMode(mode as PickupMode)}
-                      options={[
-                        ["regular", "Regulär"],
-                        ["time", "Andere Zeit"],
-                        ["none", "Keine Abholung"],
-                      ]}
-                      time={pickupTime}
-                      onTimeChange={setPickupTime}
-                      reason={pickupReason}
-                      onReasonChange={setPickupReason}
-                      showTime={pickupMode === "time"}
-                      showReason={pickupMode !== "regular"}
-                    />
-                  </div>
-                  {pickupPulledForward(pickupMode, pickupTime, pickupDay) ? (
-                    <div className="border-moto-amber/40 bg-moto-amber-soft text-moto-amber-strong flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm">
-                      <Clock
-                        className="mt-0.5 h-4 w-4 shrink-0"
-                        aria-hidden="true"
-                      />
-                      <span>
-                        Abholung vorverlegt: Betreuungsblöcke, die um{" "}
-                        {pickupTime} Uhr oder später beginnen, werden für diesen
-                        Tag automatisch abgemeldet (entschuldigt). Wird die Zeit
-                        wieder geändert oder die Ausnahme entfernt, gilt der
-                        reguläre Plan.
-                      </span>
-                    </div>
-                  ) : null}
-                  {onResetPickupToOffering &&
-                  pickupDay?.baseSchedule &&
-                  pickupDay.offeringSchedule &&
-                  pickupDay.baseSchedule.source !== "care_offering" ? (
-                    <div className="flex justify-end">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="compact"
-                        disabled={isResettingPickup}
-                        onClick={() =>
-                          void handleResetPickupToOffering(
-                            pickupDay.weekday,
-                            toDayISO(pickupDay.date),
-                          )
-                        }
-                      >
-                        {isResettingPickup
-                          ? "Setzt zurück…"
-                          : "Abholung auf Angebots-Gehzeit zurücksetzen"}
-                      </Button>
-                    </div>
-                  ) : null}
-                  <DayNotesEditor
-                    key={toDayISO(arrivalDay.date)}
-                    date={toDayISO(arrivalDay.date)}
-                    arrivalNotes={arrivalDay.notes}
-                    pickupNotes={pickupDay.notes}
-                    onCreateArrival={onCreateArrivalNote}
-                    onUpdateArrival={onUpdateArrivalNote}
-                    onDeleteArrival={onDeleteArrivalNote}
-                    onCreatePickup={onCreatePickupNote}
-                    onUpdatePickup={onUpdatePickupNote}
-                    onDeletePickup={onDeletePickupNote}
-                    onError={handleNoteError}
-                    noteDrafts={noteDrafts}
-                    onNoteDraftChange={(key, content) =>
-                      setNoteDrafts((drafts) => ({ ...drafts, [key]: content }))
-                    }
-                    onRequestDelete={(target) => {
-                      setFormVisible(false);
-                      setNoteDeletionTarget(target);
-                    }}
+              {parentAuthored ? (
+                <div className="border-moto-blue/20 bg-moto-blue/10 text-moto-blue-hover flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm">
+                  <MotoConceptIcon
+                    concept="parents"
+                    size={18}
+                    className="mt-0.5"
                   />
-                </>
-              ) : weeklyAdjustment ? (
-                <PickupAdjustmentDecision
-                  preview={weeklyAdjustment}
-                  headingRef={decisionHeadingRef}
-                  reason={offeringReason}
-                  selectedOfferingId={selectedOfferingId}
-                  effectiveFrom={offeringEffectiveFrom}
-                  canSaveException={
-                    offeringEffectiveFrom <= formatDateISO(new Date())
-                  }
-                  confirmed={offeringConfirmed}
-                  busy={isSubmitting}
-                  onReasonChange={setOfferingReason}
-                  onSelectOffering={(offeringId) =>
-                    void previewMatchingOffering(offeringId)
-                  }
-                  onEffectiveFromChange={(value) => {
-                    setOfferingEffectiveFrom(value);
-                    setOfferingConfirmed(false);
-                    if (selectedOfferingId) {
-                      void previewMatchingOffering(selectedOfferingId, value);
+                  <span>
+                    Diese Zeiten wurden von den Eltern über das Elternportal
+                    gesetzt. Wenn du sie änderst, ersetzt deine Eingabe die
+                    Angabe der Eltern.
+                  </span>
+                </div>
+              ) : null}
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <LegSection
+                  label="Ankunft"
+                  icon={<Clock className="h-4 w-4" aria-hidden="true" />}
+                  regularLabel={`Regulär: ${formatRegularArrival(arrivalDay)}`}
+                  mode={arrivalMode}
+                  onModeChange={(mode) => setArrivalMode(mode as ArrivalMode)}
+                  options={[
+                    ["regular", "Regulär"],
+                    ["time", "Andere Zeit"],
+                    ["absent", "Kommt nicht"],
+                  ]}
+                  time={arrivalTime}
+                  onTimeChange={setArrivalTime}
+                  reason={arrivalReason}
+                  onReasonChange={setArrivalReason}
+                  showTime={arrivalMode === "time"}
+                  showReason={arrivalMode !== "regular"}
+                />
+                <LegSection
+                  label="Abholung"
+                  icon={<MotoConceptIcon concept="pickup" size={18} />}
+                  regularLabel={`Regulär: ${formatRegularPickup(pickupDay)}`}
+                  mode={pickupMode}
+                  onModeChange={(mode) => setPickupMode(mode as PickupMode)}
+                  options={[
+                    ["regular", "Regulär"],
+                    ["time", "Andere Zeit"],
+                    ["none", "Keine Abholung"],
+                  ]}
+                  time={pickupTime}
+                  onTimeChange={setPickupTime}
+                  reason={pickupReason}
+                  onReasonChange={setPickupReason}
+                  showTime={pickupMode === "time"}
+                  showReason={pickupMode !== "regular"}
+                />
+              </div>
+              {pickupPulledForward(pickupMode, pickupTime, pickupDay) ? (
+                <div className="border-moto-amber/40 bg-moto-amber-soft text-moto-amber-strong flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm">
+                  <Clock
+                    className="mt-0.5 h-4 w-4 shrink-0"
+                    aria-hidden="true"
+                  />
+                  <span>
+                    Abholung vorverlegt: Betreuungsblöcke, die um {pickupTime}{" "}
+                    Uhr oder später beginnen, werden für diesen Tag automatisch
+                    abgemeldet (entschuldigt). Wird die Zeit wieder geändert
+                    oder die Ausnahme entfernt, gilt der reguläre Plan.
+                  </span>
+                </div>
+              ) : null}
+              {onResetPickupToOffering &&
+              pickupDay.baseSchedule &&
+              pickupDay.offeringSchedule &&
+              pickupDay.baseSchedule.source !== "care_offering" ? (
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="compact"
+                    disabled={isResettingPickup}
+                    onClick={() =>
+                      void handleResetPickupToOffering(
+                        pickupDay.weekday,
+                        toDayISO(pickupDay.date),
+                      )
                     }
-                  }}
-                  onConfirmedChange={setOfferingConfirmed}
-                  onSaveOffering={() => void saveMatchingOffering()}
-                  onSaveException={() => void saveWeeklyException()}
-                />
-              ) : (
-                <WeeklySection
-                  rows={weeklyRows}
-                  careDaysSource={careDaysSource}
-                  expandedWeekdays={expandedWeekdays}
-                  removals={weeklyRemovals}
-                  onToggleNotes={(weekday) =>
-                    setExpandedWeekdays((current) => {
-                      const next = new Set(current);
-                      if (next.has(weekday)) {
-                        next.delete(weekday);
-                      } else {
-                        next.add(weekday);
-                      }
-                      return next;
-                    })
-                  }
-                  onChange={(weekday, field, value) =>
-                    setWeeklyRows((rows) =>
-                      rows.map((row) =>
-                        row.weekday === weekday
-                          ? { ...row, [field]: value }
-                          : row,
-                      ),
-                    )
-                  }
-                  onToggleCare={(weekday, inCare) =>
-                    setWeeklyRows((rows) =>
-                      rows.map((row) =>
-                        row.weekday === weekday
-                          ? {
-                              ...row,
-                              arrivalInCare: inCare,
-                              arrivalTime: inCare ? row.arrivalTime : "",
-                              arrivalNotes: inCare ? row.arrivalNotes : "",
-                            }
-                          : row,
-                      ),
-                    )
-                  }
-                />
-              )}
+                  >
+                    {isResettingPickup
+                      ? "Setzt zurück…"
+                      : "Abholung auf Angebots-Gehzeit zurücksetzen"}
+                  </Button>
+                </div>
+              ) : null}
+              <DayNotesEditor
+                key={toDayISO(arrivalDay.date)}
+                date={toDayISO(arrivalDay.date)}
+                arrivalNotes={arrivalDay.notes}
+                pickupNotes={pickupDay.notes}
+                onCreateArrival={onCreateArrivalNote}
+                onUpdateArrival={onUpdateArrivalNote}
+                onDeleteArrival={onDeleteArrivalNote}
+                onCreatePickup={onCreatePickupNote}
+                onUpdatePickup={onUpdatePickupNote}
+                onDeletePickup={onDeletePickupNote}
+                onError={handleNoteError}
+                noteDrafts={noteDrafts}
+                onNoteDraftChange={(key, content) =>
+                  setNoteDrafts((drafts) => ({ ...drafts, [key]: content }))
+                }
+                onRequestDelete={(target) => {
+                  setFormVisible(false);
+                  setNoteDeletionTarget(target);
+                }}
+              />
             </form>
           </SlideOverBody>
           <SlideOverFooter className="flex-row justify-end gap-2">
@@ -894,29 +491,6 @@ export function CarePlanEditorModal({
         </p>
       </ConfirmationModal>
 
-      <ConfirmationModal
-        isOpen={showRemovalConfirm}
-        onClose={cancelConfirm}
-        onConfirm={() => void performSave()}
-        title="Zeiten entfernen?"
-        confirmText="Trotzdem speichern"
-        cancelText="Zurück"
-        isConfirmLoading={isSubmitting}
-        confirmVariant="danger"
-      >
-        <div className="space-y-2 text-sm leading-6 text-gray-600">
-          <p>
-            Diese Zeiten sind im Wochenplan hinterlegt und werden durch das
-            Speichern entfernt:
-          </p>
-          <ul className="list-inside list-disc font-semibold text-gray-800">
-            {weeklyRemovals.map((removal) => (
-              <li key={removal}>{removal}</li>
-            ))}
-          </ul>
-        </div>
-      </ConfirmationModal>
-
       <ConfirmDeleteModal
         isOpen={noteDeletionTarget !== null}
         title="Hinweis löschen?"
@@ -936,23 +510,6 @@ export function CarePlanEditorModal({
         onClose={closeNoteDeleteConfirmation}
       />
     </>
-  );
-}
-
-function offeringRemovesAllCareDays(
-  preview: PickupAdjustmentPreview,
-  selections: PickupAdjustmentSelection[],
-) {
-  if (!preview.offering_catalog) return false;
-  const selected = new Map(
-    selections.map((selection) => [selection.offering_id, selection]),
-  );
-  return !preview.offering_catalog.items.some(
-    (item) =>
-      item.counts_as_care &&
-      (item.days_of_week_mode === "fixed"
-        ? selected.has(item.offering_id) && item.available_days.length > 0
-        : (selected.get(item.offering_id)?.selected_days.length ?? 0) > 0),
   );
 }
 
@@ -1286,220 +843,6 @@ function NoteEditor({
   );
 }
 
-function WeeklySection({
-  rows,
-  careDaysSource,
-  expandedWeekdays,
-  removals,
-  onToggleNotes,
-  onChange,
-  onToggleCare,
-}: {
-  readonly rows: WeeklyRow[];
-  readonly careDaysSource: CareDaysSource;
-  readonly expandedWeekdays: Set<number>;
-  readonly removals: string[];
-  readonly onToggleNotes: (weekday: number) => void;
-  readonly onChange: (
-    weekday: number,
-    field: "arrivalTime" | "pickupTime" | "arrivalNotes" | "pickupNotes",
-    value: string,
-  ) => void;
-  readonly onToggleCare: (weekday: number, inCare: boolean) => void;
-}) {
-  return (
-    <div className="space-y-3">
-      <p className="text-sm leading-6 text-gray-600">
-        Gilt ab sofort für alle kommenden Wochen. Bereits eingetragene Ausnahmen
-        bleiben bestehen.
-      </p>
-      {careDaysSource === "bookings" ? (
-        <p className="text-sm font-medium text-gray-700">
-          Die Betreuungstage kommen aus den Buchungen. Ändern Sie die Tage bei
-          den Buchungen.
-        </p>
-      ) : null}
-
-      <div className="moto-content-surface overflow-hidden rounded-xl border shadow-sm sm:rounded-2xl">
-        <div className="hidden grid-cols-[minmax(100px,0.7fr)_minmax(140px,1fr)_minmax(140px,1fr)] gap-3 border-b border-gray-100 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase sm:grid">
-          <span>Tag</span>
-          <span>Ankunft</span>
-          <span>Abholung</span>
-        </div>
-        <div className="divide-y divide-gray-100">
-          {WEEKDAYS.map((day) => {
-            const row = rows.find((entry) => entry.weekday === day.value);
-            return (
-              <div
-                key={day.value}
-                className="grid gap-3 px-3 py-4 sm:grid-cols-[minmax(100px,0.7fr)_minmax(140px,1fr)_minmax(140px,1fr)] sm:items-center sm:px-4"
-              >
-                <div>
-                  <label
-                    htmlFor={`weekly-care-${day.value}`}
-                    className="flex min-h-6 cursor-pointer items-center gap-2 text-sm font-semibold text-gray-900 has-[:disabled]:cursor-not-allowed"
-                  >
-                    <Checkbox
-                      id={`weekly-care-${day.value}`}
-                      checked={row?.arrivalInCare ?? false}
-                      disabled={careDaysSource === "bookings"}
-                      onChange={(event) =>
-                        onToggleCare(day.value, event.target.checked)
-                      }
-                    />
-                    <span>{day.label}</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => onToggleNotes(day.value)}
-                    className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-gray-500 transition-colors hover:text-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                  >
-                    <StickyNote className="h-3.5 w-3.5" aria-hidden="true" />
-                    Notizen
-                    <ChevronDown
-                      className={`h-3.5 w-3.5 transition-transform ${
-                        expandedWeekdays.has(day.value) ? "rotate-180" : ""
-                      }`}
-                      aria-hidden="true"
-                    />
-                  </button>
-                </div>
-                <div>
-                  <WeeklyTimeField
-                    id={`weekly-arrival-${day.value}`}
-                    label="Ankunft"
-                    value={row?.arrivalTime ?? ""}
-                    disabled={!row?.arrivalInCare}
-                    onChange={(value) =>
-                      onChange(day.value, "arrivalTime", value)
-                    }
-                  />
-                  {row?.arrivalInCare && row.arrivalClassTime ? (
-                    <div className="mt-1 flex flex-wrap items-center justify-between gap-1">
-                      <p className="text-xs text-gray-500">
-                        Ohne Eintrag gilt {row.arrivalClassTime} Uhr aus der
-                        Klasse.
-                      </p>
-                      {row.arrivalTime ? (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="compact"
-                          onClick={() => onChange(day.value, "arrivalTime", "")}
-                        >
-                          Klassenzeit nutzen
-                        </Button>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-                <WeeklyTimeField
-                  id={`weekly-pickup-${day.value}`}
-                  label="Abholung"
-                  value={row?.pickupTime ?? ""}
-                  disabled={false}
-                  onChange={(value) => onChange(day.value, "pickupTime", value)}
-                />
-                {expandedWeekdays.has(day.value) ? (
-                  <div className="grid gap-3 sm:col-span-3 sm:grid-cols-[minmax(100px,0.7fr)_minmax(140px,1fr)_minmax(140px,1fr)]">
-                    <div className="hidden sm:block" />
-                    <WeeklyNoteField
-                      id={`weekly-arrival-notes-${day.value}`}
-                      label="Ankunftsnotiz (jede Woche)"
-                      value={row?.arrivalNotes ?? ""}
-                      disabled={!row?.arrivalInCare}
-                      onChange={(value) =>
-                        onChange(day.value, "arrivalNotes", value)
-                      }
-                    />
-                    <WeeklyNoteField
-                      id={`weekly-pickup-notes-${day.value}`}
-                      label="Abholnotiz (jede Woche)"
-                      value={row?.pickupNotes ?? ""}
-                      disabled={false}
-                      onChange={(value) =>
-                        onChange(day.value, "pickupNotes", value)
-                      }
-                    />
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {removals.length > 0 ? (
-        <div className="border-moto-orange/25 bg-moto-orange/10 text-moto-orange-strong rounded-xl border px-4 py-3 text-sm">
-          Wird beim Speichern entfernt: {removals.join(", ")}.
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function WeeklyNoteField({
-  id,
-  label,
-  value,
-  disabled,
-  onChange,
-}: {
-  readonly id: string;
-  readonly label: string;
-  readonly value: string;
-  readonly disabled: boolean;
-  readonly onChange: (value: string) => void;
-}) {
-  return (
-    <label className="block" htmlFor={id}>
-      <span className="mb-1 block text-xs font-medium text-gray-500">
-        {label}
-      </span>
-      <input
-        id={id}
-        type="text"
-        value={value}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
-        maxLength={500}
-        className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 shadow-sm transition-colors hover:border-gray-300 focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 sm:h-10"
-        placeholder="Optional"
-      />
-    </label>
-  );
-}
-
-function WeeklyTimeField({
-  id,
-  label,
-  value,
-  disabled,
-  onChange,
-}: {
-  readonly id: string;
-  readonly label: string;
-  readonly value: string;
-  readonly disabled: boolean;
-  readonly onChange: (value: string) => void;
-}) {
-  return (
-    <label className="block" htmlFor={id}>
-      <span className="mb-1 block text-xs font-medium text-gray-500 sm:hidden">
-        {label}
-      </span>
-      <input
-        id={id}
-        type="time"
-        value={value}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 shadow-sm transition-colors hover:border-gray-300 focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 sm:h-10"
-      />
-    </label>
-  );
-}
-
 // --- pure helpers -----------------------------------------------------------
 
 interface LegState {
@@ -1599,103 +942,4 @@ function formatRegularPickup(day: PickupDayData | null): string {
   if (!day?.baseSchedule?.pickupTime) return "nicht geplant";
   const time = formatPickupTime(day.baseSchedule.pickupTime);
   return `${time} (${pickupScheduleSourceLabel(day.baseSchedule)})`;
-}
-
-function buildWeeklyRows(
-  arrival: readonly ArrivalScheduleFormEntry[],
-  pickup: readonly PickupScheduleFormData[],
-): WeeklyRow[] {
-  return WEEKDAYS.map((day) => {
-    const arrivalEntry = arrival.find(
-      (schedule) => schedule.weekday === day.value,
-    );
-    const pickupEntry = pickup.find(
-      (schedule) => schedule.weekday === day.value,
-    );
-    return {
-      weekday: day.value,
-      // A row exists = care day. Its time is the child's own only when it did
-      // not come from the class timetable (#2414).
-      arrivalInCare: arrivalEntry?.inCare ?? false,
-      arrivalTime: arrivalEntry?.expected_arrival ?? "",
-      arrivalClassTime: arrivalEntry?.classTime ?? "",
-      arrivalNotes: arrivalEntry?.notes ?? "",
-      pickupTime: pickupEntry?.pickupTime ?? "",
-      pickupNotes: pickupEntry?.notes ?? "",
-    };
-  });
-}
-
-function validateWeeklyRows(rows: readonly WeeklyRow[]): string | null {
-  for (const row of rows) {
-    const day = WEEKDAYS.find((weekday) => weekday.value === row.weekday);
-    if (row.arrivalTime && !TIME_PATTERN.test(row.arrivalTime)) {
-      return `Ungültige Ankunftszeit für ${day?.label ?? "diesen Tag"}.`;
-    }
-    if (row.arrivalNotes.trim() && !row.arrivalInCare) {
-      return `Eine Ankunftsnotiz für ${day?.label ?? "diesen Tag"} braucht einen Betreuungstag.`;
-    }
-    if (row.pickupTime && !TIME_PATTERN.test(row.pickupTime)) {
-      return `Ungültige Abholzeit für ${day?.label ?? "diesen Tag"}.`;
-    }
-    if (row.pickupNotes.trim() && !row.pickupTime.trim()) {
-      return `Eine Abholnotiz für ${day?.label ?? "diesen Tag"} benötigt eine Abholzeit.`;
-    }
-  }
-  return null;
-}
-
-/**
- * Which previously scheduled times an emptied field would delete. The weekly
- * write REPLACES the plan, so clearing a field really does remove that day —
- * this is what the warning and the confirmation are built from, so a mistyped
- * Friday cannot vanish silently.
- */
-function collectWeeklyRemovals(
-  rows: readonly WeeklyRow[],
-  arrival: readonly ArrivalScheduleFormEntry[],
-  pickup: readonly PickupScheduleFormData[],
-): string[] {
-  const removals: string[] = [];
-  for (const row of rows) {
-    const label =
-      WEEKDAYS.find((day) => day.value === row.weekday)?.label ?? "Tag";
-    // "Had" means it was a care day — the template carries an entry for every
-    // weekday, care day or not (#2414).
-    const hadArrival = arrival.some(
-      (entry) => entry.weekday === row.weekday && entry.inCare,
-    );
-    const hadPickup = pickup.some(
-      (entry) => entry.weekday === row.weekday && entry.pickupTime,
-    );
-    if (hadArrival && !row.arrivalInCare) {
-      removals.push(`${label} Ankunft`);
-    }
-    if (hadPickup && !row.pickupTime.trim()) {
-      removals.push(`${label} Abholung`);
-    }
-  }
-  return removals;
-}
-
-function toWeeklySubmit(rows: readonly WeeklyRow[]): CarePlanWeeklySubmit {
-  return {
-    arrivalSchedules: rows
-      .filter((row) => row.arrivalInCare)
-      .map((row) => ({
-        weekday: row.weekday,
-        inCare: true,
-        // Empty = the class timetable supplies the time (#2414). Sending the
-        // inherited value back would freeze it as a per-child deviation.
-        expected_arrival: row.arrivalTime.trim(),
-        notes: row.arrivalNotes.trim() ? row.arrivalNotes : null,
-      })),
-    pickupSchedules: rows
-      .filter((row) => row.pickupTime.trim() !== "")
-      .map((row) => ({
-        weekday: row.weekday,
-        pickupTime: row.pickupTime,
-        notes: row.pickupNotes.trim() ? row.pickupNotes : undefined,
-      })),
-  };
 }

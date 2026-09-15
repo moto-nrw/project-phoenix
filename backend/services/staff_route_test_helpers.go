@@ -5,9 +5,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
-	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/iot"
@@ -31,8 +30,8 @@ func newStaffIdentityForTests(db *bun.DB) (usercontext.UserContextService, repos
 }
 
 type AbsenceTypeTestModule struct {
-	StaffAbsenceType active.StaffAbsenceTypeService
-	UserContext      usercontext.UserContextService
+	Catalog     workforce.Capability
+	UserContext usercontext.UserContextService
 }
 
 func NewAbsenceTypeTestModule(db *bun.DB) (AbsenceTypeTestModule, error) {
@@ -40,13 +39,7 @@ func NewAbsenceTypeTestModule(db *bun.DB) (AbsenceTypeTestModule, error) {
 	if err != nil {
 		return AbsenceTypeTestModule{}, err
 	}
-	repos := repositories.NewAbsenceTypeTestRepositories(db)
-	types := active.NewStaffAbsenceTypeService(repos.Types, slog.Default())
-	types.(interface {
-		SetAllowanceRepositories(activeModels.StaffAbsenceTypeAllowanceRepository,
-			activeModels.StaffAbsenceTypeAllowanceChangeRepository, activeModels.StaffAbsenceRepository)
-	}).SetAllowanceRepositories(repos.Allowances, repos.Changes, repos.Absences)
-	return AbsenceTypeTestModule{StaffAbsenceType: types, UserContext: identity}, nil
+	return AbsenceTypeTestModule{Catalog: repositories.NewAbsenceTypeTestCapability(db), UserContext: identity}, nil
 }
 
 type BirthdayTestModule struct {

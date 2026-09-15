@@ -24,6 +24,7 @@ import (
 	"unicode/utf8"
 
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/enrollment/selection"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -757,10 +758,11 @@ func (s *offeringChangeRequestService) catalogAt(
 	if err != nil {
 		return nil, fmt.Errorf("offering change: list active offerings: %w", err)
 	}
-	current, err := readOwnerOfferingSelections(ctx, s.Children, period.RequestChildID, onDate)
+	state, err := s.Children.OfferingCatalogState(ctx, phase.ID, period.RequestChildID, enrollmentOwner.Date(onDate), enrollmentOwner.Date(timezone.Date(phase.ServiceEndDate).AddDays(1)))
 	if err != nil {
 		return nil, fmt.Errorf("offering change: list current offerings: %w", err)
 	}
+	current := legacyOfferingSelections(state.Current)
 	currentByID := make(map[int64]*RequestChildOffering, len(current))
 	for _, link := range current {
 		if link != nil {
@@ -804,10 +806,7 @@ func (s *offeringChangeRequestService) catalogAt(
 		if offering == nil {
 			continue
 		}
-		item, itemErr := s.catalogItem(ctx, offering, currentByID[offering.ID], onDate, timezone.Date(phase.ServiceEndDate).AddDays(1))
-		if itemErr != nil {
-			return nil, itemErr
-		}
+		item := catalogItem(offering, currentByID[offering.ID], state.CapacityPeaks[offering.ID])
 		item.IsActive = activeByID[offering.ID] != nil
 		catalog.Items = append(catalog.Items, item)
 	}
@@ -817,12 +816,11 @@ func (s *offeringChangeRequestService) catalogAt(
 	return catalog, nil
 }
 
-func (s *offeringChangeRequestService) catalogItem(
-	ctx context.Context,
+func catalogItem(
 	offering *enrollmentModels.CareOffering,
 	current *RequestChildOffering,
-	onDate, phaseEndExclusive timezone.Date,
-) (OfferingChangeCatalogItem, error) {
+	taken int,
+) OfferingChangeCatalogItem {
 	item := OfferingChangeCatalogItem{
 		OfferingID:      offering.ID,
 		Name:            offering.Name,
@@ -847,17 +845,13 @@ func (s *offeringChangeRequestService) catalogItem(
 		item.Automatic = len(current.ManualSelectedDays) == 0 && len(current.AutomaticSelectedDays) > 0
 	}
 	if offering.Capacity == nil {
-		return item, nil
+		return item
 	}
 	capacity := *offering.Capacity
 	item.Capacity = &capacity
-	taken, err := s.Children.OfferingCapacityPeak(ctx, offering.ID, nil, enrollmentOwner.Date(onDate), enrollmentOwner.Date(phaseEndExclusive))
-	if err != nil {
-		return OfferingChangeCatalogItem{}, fmt.Errorf("offering change: count offering occupancy: %w", err)
-	}
 	free := max(capacity-taken, 0)
 	item.FreeSlots = &free
-	return item, nil
+	return item
 }
 
 func (s *offeringChangeRequestService) GetForStudent(
@@ -1546,7 +1540,7 @@ func (s *offeringChangeRequestService) pendingReviews(
 	for childID, date := range dates {
 		ownerDates[childID] = enrollmentOwner.Date(date)
 	}
-	values, err := s.Children.RequestChildOfferingsAtDates(ctx, ownerDates)
+	values, err := s.Children.EffectiveOfferingSelectionsAtDates(ctx, ownerDates)
 	current := legacyOfferingSelections(values)
 	if err != nil {
 		return nil, fmt.Errorf("load current offerings: %w", err)
@@ -3105,43 +3099,24 @@ func annotateAutomaticShares(
 	materialized []materializedOfferingSelection,
 	offeringByID map[int64]*enrollmentModels.CareOffering,
 ) {
-	selByID := materializedSelectionPointers(materialized)
+	shares := selection.AutomaticShares(materialized, nativeOfferingCatalog(offeringByID))
 	for i := range entries {
-		annotateAutomaticShare(&entries[i], selByID, offeringByID)
-	}
-}
-
-func annotateAutomaticShare(
-	entry *OfferingChangeDiffEntry,
-	selections map[int64]*materializedOfferingSelection,
-	offerings map[int64]*enrollmentModels.CareOffering,
-) {
-	selection, ok := selections[entry.OfferingID]
-	if !ok || selection == nil || len(selection.AutomaticSelectedDays) == 0 {
-		return
-	}
-	entry.NewAutomaticDays = append([]string(nil), selection.AutomaticSelectedDays...)
-	target := offerings[entry.OfferingID]
-	if target == nil {
-		return
-	}
-	ruleDays := ruleContributionForTarget(target, selection, selections, offerings)
-	if len(ruleDays) == 0 {
-		return
-	}
-	entry.NewRuleDays = append([]string(nil), ruleDays...)
-	entry.NewDaysWithoutRules = nonRuleDaysForTarget(target, selection, selections, offerings)
-	for _, triggerID := range target.AutoAddTriggerOfferingIDs {
-		triggerDays := autoDaysForTarget(target, []int64{triggerID}, selections, offerings)
-		if !daysOverlap(triggerDays, ruleDays) {
+		entry := &entries[i]
+		share, ok := shares[entry.OfferingID]
+		if !ok {
 			continue
 		}
-		name := fmt.Sprintf("Angebot %d", triggerID)
-		if trigger := offerings[triggerID]; trigger != nil && trigger.Name != "" {
-			name = trigger.Name
+		entry.NewAutomaticDays = share.AutomaticDays
+		entry.NewRuleDays = share.RuleDays
+		entry.NewDaysWithoutRules = share.DaysWithoutRules
+		entry.AutoTriggerIDs = share.TriggerIDs
+		for _, triggerID := range share.TriggerIDs {
+			name := fmt.Sprintf("Angebot %d", triggerID)
+			if trigger := offeringByID[triggerID]; trigger != nil && trigger.Name != "" {
+				name = trigger.Name
+			}
+			entry.AutoTriggerNames = append(entry.AutoTriggerNames, name)
 		}
-		entry.AutoTriggerIDs = append(entry.AutoTriggerIDs, triggerID)
-		entry.AutoTriggerNames = append(entry.AutoTriggerNames, name)
 	}
 }
 
@@ -3186,15 +3161,6 @@ func daysExcept(days, excluded []string) []string {
 	return slices.DeleteFunc(slices.Clone(days), func(day string) bool {
 		return slices.Contains(excluded, day)
 	})
-}
-
-func daysOverlap(left, right []string) bool {
-	for _, day := range left {
-		if slices.Contains(right, day) {
-			return true
-		}
-	}
-	return false
 }
 
 func offeringDiffEntry(

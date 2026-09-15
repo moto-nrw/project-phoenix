@@ -1,0 +1,419 @@
+// Package active_test tests the checkin-related functionality
+package presence_test
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"log/slog"
+	"net/http/httptest"
+	"strconv"
+	"testing"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// Test JWT secret - must match the secret used in test fixtures
+
+// =============================================================================
+// Live Group Openness Tests
+// =============================================================================
+
+func TestLiveGroup_IsOpen(t *testing.T) {
+	t.Parallel()
+
+	t.Run("group with no end time is open", func(t *testing.T) {
+		group := studentpresence.LiveGroup{
+			RoomID: 1,
+		}
+		assert.True(t, group.IsOpen())
+	})
+
+	t.Run("group with end time is not open (regardless of time)", func(t *testing.T) {
+		// IsOpen() returns true only when EndTime is nil
+		futureTime := time.Now().Add(1 * time.Hour)
+		group := studentpresence.LiveGroup{
+			RoomID:  1,
+			EndTime: &futureTime,
+		}
+		assert.False(t, group.IsOpen()) // EndTime is set, so not open
+	})
+
+	t.Run("group with past end time is not open", func(t *testing.T) {
+		pastTime := time.Now().Add(-1 * time.Hour)
+		group := studentpresence.LiveGroup{
+			RoomID:  1,
+			EndTime: &pastTime,
+		}
+		assert.False(t, group.IsOpen())
+	})
+}
+
+// =============================================================================
+// CheckinRequest Tests
+// =============================================================================
+
+func TestCheckinRequest_Validation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("valid request with active_group_id", func(t *testing.T) {
+		req := presence.CheckinRequest{
+			ActiveGroupID: 1,
+		}
+		assert.Greater(t, req.ActiveGroupID, int64(0))
+	})
+
+	t.Run("invalid request without active_group_id", func(t *testing.T) {
+		req := presence.CheckinRequest{}
+		assert.Equal(t, int64(0), req.ActiveGroupID)
+	})
+}
+
+func TestCheckinRequest_JSONDecoding(t *testing.T) {
+	t.Parallel()
+
+	t.Run("decodes from JSON correctly", func(t *testing.T) {
+		jsonData := `{"active_group_id": 456}`
+		var req presence.CheckinRequest
+		err := json.Unmarshal([]byte(jsonData), &req)
+		require.NoError(t, err)
+		assert.Equal(t, int64(456), req.ActiveGroupID)
+	})
+
+	t.Run("decodes zero value when missing", func(t *testing.T) {
+		jsonData := `{}`
+		var req presence.CheckinRequest
+		err := json.Unmarshal([]byte(jsonData), &req)
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), req.ActiveGroupID)
+	})
+
+	t.Run("encodes to JSON correctly", func(t *testing.T) {
+		req := presence.CheckinRequest{ActiveGroupID: 123}
+		data, err := json.Marshal(req)
+		require.NoError(t, err)
+		assert.Contains(t, string(data), "123")
+	})
+}
+
+// =============================================================================
+// Handler Integration Tests (Hermetic with Test DB)
+// =============================================================================
+
+// setupCheckinRoute creates the check-in route with real services.
+func setupCheckinRoute(t *testing.T, db *testpkg.DB) *presence.Resource {
+	t.Helper()
+
+	_, serviceFactory := testutil.SetupActiveModule(t)
+
+	return presence.NewResource(serviceFactory.PresenceOperations(), activePeople{source: serviceFactory.AttendancePeople()}, serviceFactory.TeacherGroupIDs, serviceFactory.Schulhof, activeStaffAccess{source: serviceFactory.AttendanceStaff()}, serviceFactory.Settings, common.ProtectedTenantRoutes, slog.Default(), testPresenceQueries(t, db), requestRuntimeForTest(serviceFactory.WithAttendanceStaff), authorizationForTest())
+}
+
+// makeCheckinRequest creates an HTTP request with JWT auth for the checkin endpoint
+func makeCheckinRequest(t *testing.T, studentID int64, body interface{}, token string) *testutil.Request {
+	t.Helper()
+
+	bodyBytes, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	path := "/visits/student/" + strconv.FormatInt(studentID, 10) + "/checkin"
+	req := httptest.NewRequest(testutil.MethodPost, path, bytes.NewReader(bodyBytes))
+	req.Header.Set("Content-Type", "application/json")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+
+	return req.WithContext(testpkg.WithPackageTenantRuntime(req.Context()))
+}
+
+func TestCheckinStudent_Integration(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	// A web check-in books attendance against the virtual WEB-MANUAL-001
+	// device every real school is provisioned with.
+	testpkg.EnsureWebManualDevice(t, db)
+
+	// Permissions needed for checkin endpoint
+	checkinPermissions := []string{permissions.VisitsUpdate}
+
+	t.Run("returns 401 when no JWT token", func(t *testing.T) {
+		handler := setupCheckinRoute(t, db)
+
+		// Create minimal fixtures
+		activity := testpkg.CreateTestActivityGroup(t, db, "no-auth-test")
+		room := testpkg.CreateTestRoom(t, db, "No Auth Room")
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+		student := testpkg.CreateTestStudent(t, db, "NoAuth", "Student", "1a")
+
+		// Make request without JWT token
+		body := presence.CheckinRequest{ActiveGroupID: activeGroup.ID}
+		req := makeCheckinRequest(t, student.ID, body, "")
+
+		router := handler.Router()
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		// Should return 401 because no JWT token
+		assert.Equal(t, testutil.StatusUnauthorized, rr.Code)
+	})
+
+	t.Run("returns 401 for invalid JWT token", func(t *testing.T) {
+		handler := setupCheckinRoute(t, db)
+
+		student := testpkg.CreateTestStudent(t, db, "InvalidToken", "Student", "1a")
+
+		body := presence.CheckinRequest{ActiveGroupID: 1}
+		req := makeCheckinRequest(t, student.ID, body, "invalid-token")
+
+		router := handler.Router()
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, testutil.StatusUnauthorized, rr.Code)
+	})
+
+	t.Run("returns 400 for invalid student ID in URL", func(t *testing.T) {
+		handler := setupCheckinRoute(t, db)
+
+		// Create staff with account
+		_, account := testpkg.CreateTestStaffWithAccount(t, db, "Invalid", "IDTest")
+
+		// Create JWT token
+		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)
+
+		body := presence.CheckinRequest{ActiveGroupID: 1}
+		bodyBytes, _ := json.Marshal(body)
+
+		req := httptest.NewRequest(testutil.MethodPost, "/visits/student/invalid/checkin", bytes.NewReader(bodyBytes))
+		req = req.WithContext(testpkg.WithPackageTenantRuntime(req.Context()))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+
+		router := handler.Router()
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, testutil.StatusBadRequest, rr.Code)
+	})
+
+	t.Run("returns 400 when active_group_id is missing", func(t *testing.T) {
+		handler := setupCheckinRoute(t, db)
+
+		// Create staff with account
+		_, account := testpkg.CreateTestStaffWithAccount(t, db, "Missing", "GroupID")
+		student := testpkg.CreateTestStudent(t, db, "Missing", "GroupStudent", "2a")
+
+		// Create JWT token
+		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)
+
+		// Request body missing active_group_id
+		body := map[string]interface{}{}
+		req := makeCheckinRequest(t, student.ID, body, token)
+
+		router := handler.Router()
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, testutil.StatusBadRequest, rr.Code)
+	})
+
+	t.Run("returns 404 when active group does not exist", func(t *testing.T) {
+		handler := setupCheckinRoute(t, db)
+
+		// Create staff with account
+		_, account := testpkg.CreateTestStaffWithAccount(t, db, "NotFound", "GroupTest")
+		student := testpkg.CreateTestStudent(t, db, "NotFound", "Student", "2b")
+
+		// Create JWT token
+		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)
+
+		// Use non-existent active group ID
+		body := presence.CheckinRequest{ActiveGroupID: 999999}
+		req := makeCheckinRequest(t, student.ID, body, token)
+
+		router := handler.Router()
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, testutil.StatusNotFound, rr.Code)
+	})
+
+	t.Run("returns 403 when user is not staff", func(t *testing.T) {
+		handler := setupCheckinRoute(t, db)
+
+		// Create person with account but NO staff record
+		_, account := testpkg.CreateTestPersonWithAccount(t, db, "NotStaff", "User")
+		student := testpkg.CreateTestStudent(t, db, "NotStaff", "Student", "2c")
+		activity := testpkg.CreateTestActivityGroup(t, db, "not-staff-test")
+		room := testpkg.CreateTestRoom(t, db, "Not Staff Room")
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+
+		// Create JWT token
+		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)
+
+		body := presence.CheckinRequest{ActiveGroupID: activeGroup.ID}
+		req := makeCheckinRequest(t, student.ID, body, token)
+
+		router := handler.Router()
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		// Should be 403 (forbidden) because user has no staff record
+		// or 500 if the lookup fails - both indicate the user can't check in students
+		assert.Contains(t, []int{testutil.StatusForbidden, testutil.StatusInternalServerError}, rr.Code)
+	})
+
+	t.Run("staff without a group relation to the student may check in", func(t *testing.T) {
+		// #2329: being verified staff of the tenant is the whole gate — the
+		// former "you must be their group teacher" refusal is gone.
+		handler := setupCheckinRoute(t, db)
+
+		_, account := testpkg.CreateTestStaffWithAccount(t, db, "NoAccess", "Staff")
+		student := testpkg.CreateTestStudent(t, db, "NoAccess", "Student", "3a")
+		activity := testpkg.CreateTestActivityGroup(t, db, "no-access-test")
+		room := testpkg.CreateTestRoom(t, db, "No Access Room")
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+
+		// Create JWT token
+		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)
+
+		body := presence.CheckinRequest{ActiveGroupID: activeGroup.ID}
+		req := makeCheckinRequest(t, student.ID, body, token)
+
+		router := handler.Router()
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, testutil.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+	})
+
+	t.Run("returns 409 when active group session has ended", func(t *testing.T) {
+		handler := setupCheckinRoute(t, db)
+
+		// Create teacher with account and education group
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "EndedSession", "Teacher")
+		educationGroup := testpkg.CreateTestEducationGroup(t, db, "Ended Session Group")
+		testpkg.CreateTestGroupTeacher(t, db, educationGroup.ID, teacher.ID)
+
+		// Create student assigned to the education group
+		student := testpkg.CreateTestStudent(t, db, "EndedSession", "Student", "4a")
+		testpkg.AssignStudentToGroup(t, db, student.ID, educationGroup.ID)
+
+		activity := testpkg.CreateTestActivityGroup(t, db, "ended-session-test")
+		room := testpkg.CreateTestRoom(t, db, "Ended Room")
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+
+		// End the active group session
+		endTime := time.Now().Add(-1 * time.Hour)
+		_, err := db.NewUpdate().
+			TableExpr(`active.groups`).
+			Set("end_time = ?", endTime).
+			Where("id = ?", activeGroup.ID).
+			Exec(context.Background())
+		require.NoError(t, err)
+
+		// Create JWT token
+		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)
+
+		body := presence.CheckinRequest{ActiveGroupID: activeGroup.ID}
+		req := makeCheckinRequest(t, student.ID, body, token)
+
+		router := handler.Router()
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, testutil.StatusConflict, rr.Code)
+	})
+
+	t.Run("returns 409 when room capacity is reached", func(t *testing.T) {
+		handler := setupCheckinRoute(t, db)
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "FullRoom", "Teacher")
+		educationGroup := testpkg.CreateTestEducationGroup(t, db, "Full Room Group")
+		testpkg.CreateTestGroupTeacher(t, db, educationGroup.ID, teacher.ID)
+
+		student := testpkg.CreateTestStudent(t, db, "FullRoom", "Incoming", "4b")
+		testpkg.AssignStudentToGroup(t, db, student.ID, educationGroup.ID)
+		existingStudent := testpkg.CreateTestStudent(t, db, "FullRoom", "Existing", "4b")
+		activity := testpkg.CreateTestActivityGroup(t, db, "full-room-checkin-test")
+		room := testpkg.CreateTestRoom(t, db, "Full Room")
+		room.Capacity = testpkg.IntPtr(1)
+		_, err := db.NewUpdate().Model(room).Column("capacity").WherePK().Exec(context.Background())
+		require.NoError(t, err)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+		_ = testpkg.CreateTestVisit(t, db, existingStudent.ID, activeGroup.ID, time.Now(), nil)
+
+		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)
+		body := presence.CheckinRequest{ActiveGroupID: activeGroup.ID}
+		req := makeCheckinRequest(t, student.ID, body, token)
+		rr := httptest.NewRecorder()
+		handler.Router().ServeHTTP(rr, req)
+
+		assert.Equal(t, testutil.StatusConflict, rr.Code)
+		assert.Contains(t, rr.Body.String(), "room capacity exceeded")
+	})
+
+	t.Run("successful checkin creates visit", func(t *testing.T) {
+		handler := setupCheckinRoute(t, db)
+
+		// Ensure web manual device exists (required for manual check-ins)
+		_ = testpkg.EnsureWebManualDevice(t, db)
+
+		// Create teacher with account and education group
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Success", "Teacher")
+		educationGroup := testpkg.CreateTestEducationGroup(t, db, "Success Group")
+		testpkg.CreateTestGroupTeacher(t, db, educationGroup.ID, teacher.ID)
+
+		// Create student assigned to the education group
+		student := testpkg.CreateTestStudent(t, db, "Success", "Student", "5a")
+		testpkg.AssignStudentToGroup(t, db, student.ID, educationGroup.ID)
+
+		activity := testpkg.CreateTestActivityGroup(t, db, "success-checkin-test")
+		room := testpkg.CreateTestRoom(t, db, "Success Room")
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+
+		// Create JWT token
+		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)
+
+		body := presence.CheckinRequest{ActiveGroupID: activeGroup.ID}
+		req := makeCheckinRequest(t, student.ID, body, token)
+
+		router := handler.Router()
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		// Should succeed with 200
+		assert.Equal(t, testutil.StatusOK, rr.Code, "Response body: %s", rr.Body.String())
+
+		// Verify response contains expected fields
+		var response map[string]interface{}
+		err := json.Unmarshal(rr.Body.Bytes(), &response)
+		require.NoError(t, err)
+
+		assert.Equal(t, "success", response["status"])
+		assert.Contains(t, response["message"], "checked in")
+
+		// Verify data contains visit info
+		data, ok := response["data"].(map[string]interface{})
+		require.True(t, ok, "data should be a map")
+		assert.Equal(t, float64(student.ID), data["student_id"])
+		assert.Equal(t, "checked_in", data["action"])
+		assert.NotZero(t, data["visit_id"])
+	})
+}
+
+func testPresenceQueries(t *testing.T, db *testpkg.DB) *studentpresence.Module {
+	t.Helper()
+	module, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
+	return module
+}

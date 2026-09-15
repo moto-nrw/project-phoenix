@@ -206,6 +206,8 @@ type StaffAbsenceAudit struct {
 
 // AbsenceQuery reads staff absences, absence types and the audit trail.
 type AbsenceQuery interface {
+	AbsenceTypeQuery
+	AllowanceSummary(ctx context.Context, staffID, absenceTypeID int64, year int) (AbsenceTypeAllowanceSummary, error)
 	FindStaffAbsence(context.Context, int64) (StaffAbsence, error)
 	ListStaffAbsences(context.Context, StaffAbsenceFilter) ([]StaffAbsence, error)
 	CountStaffAbsences(context.Context, StaffAbsenceFilter) (int, error)
@@ -223,17 +225,23 @@ type AbsenceQuery interface {
 	// rows where column < before; empty when nothing matches.
 	OldestStaffAbsenceDate(ctx context.Context, column, before string) (string, error)
 
-	ListStaffAbsenceTypes(context.Context) ([]StaffAbsenceType, error)
-	FindStaffAbsenceType(context.Context, int64) (StaffAbsenceType, error)
-	// LockStaffAbsenceType returns the type with a transaction-scoped row
-	// lock, so a rename or retirement cannot race with a newly filed absence.
-	LockStaffAbsenceType(context.Context, int64) (StaffAbsenceType, error)
 	// StaffAbsenceTypeInUse reports whether an absence references the type.
 	StaffAbsenceTypeInUse(context.Context, int64) (bool, error)
 }
 
+// AbsenceTypeQuery supplies custom labels and validates bookings without
+// granting consumers absence-type administration or absence writes.
+type AbsenceTypeQuery interface {
+	ListStaffAbsenceTypes(context.Context) ([]StaffAbsenceType, error)
+	FindStaffAbsenceType(context.Context, int64) (StaffAbsenceType, error)
+	// LockStaffAbsenceType holds the type against retirement during a booking.
+	LockStaffAbsenceType(context.Context, int64) (StaffAbsenceType, error)
+	PreviewAllowanceBooking(ctx context.Context, staffID, absenceTypeID int64, start, end string, halfDay bool) ([]AbsenceTypeAllowanceSummary, error)
+}
+
 // AbsenceCommand writes staff absences, absence types and the audit trail.
 type AbsenceCommand interface {
+	SetAllowance(context.Context, SetAbsenceTypeAllowance) (AbsenceTypeAllowanceSummary, error)
 	// LockStaffAbsenceWrites serializes absence lifecycle writes of one staff
 	// member inside the ambient transaction. It takes the shared staff
 	// balance lock first, because effective absences change the Stundenkonto.
@@ -249,6 +257,8 @@ type AbsenceCommand interface {
 	DeleteStaffAbsencesOlderThan(ctx context.Context, column, cutoff string) (int64, error)
 
 	CreateStaffAbsenceType(context.Context, StaffAbsenceTypeFields) (StaffAbsenceType, error)
+	CreateAbsenceType(context.Context, CreateAbsenceType) (StaffAbsenceType, error)
+	UpdateAbsenceType(context.Context, UpdateAbsenceType) (StaffAbsenceType, error)
 	// UpdateStaffAbsenceType rewrites name, active flag and allowance
 	// configuration; the base type is fixed at creation.
 	UpdateStaffAbsenceType(context.Context, StaffAbsenceType) (StaffAbsenceType, error)
@@ -307,6 +317,31 @@ type AbsenceTypeAdministration interface {
 type absenceEngine interface {
 	AbsenceQuery
 	AbsenceCommand
+}
+
+func (m *Module) SetAllowance(ctx context.Context, input SetAbsenceTypeAllowance) (AbsenceTypeAllowanceSummary, error) {
+	return m.engine.SetAllowance(ctx, input)
+}
+
+type InvalidAbsenceAllowanceError struct{ Reason string }
+
+func (e *InvalidAbsenceAllowanceError) Error() string { return e.Reason }
+func (e *InvalidAbsenceAllowanceError) Unwrap() error { return ErrAbsenceTypeAllowanceInvalid }
+
+func (m *Module) AllowanceSummary(ctx context.Context, staffID, absenceTypeID int64, year int) (AbsenceTypeAllowanceSummary, error) {
+	return m.engine.AllowanceSummary(ctx, staffID, absenceTypeID, year)
+}
+
+func (m *Module) PreviewAllowanceBooking(ctx context.Context, staffID, absenceTypeID int64, start, end string, halfDay bool) ([]AbsenceTypeAllowanceSummary, error) {
+	return m.engine.PreviewAllowanceBooking(ctx, staffID, absenceTypeID, start, end, halfDay)
+}
+
+func (m *Module) CreateAbsenceType(ctx context.Context, input CreateAbsenceType) (StaffAbsenceType, error) {
+	return m.engine.CreateAbsenceType(ctx, input)
+}
+
+func (m *Module) UpdateAbsenceType(ctx context.Context, input UpdateAbsenceType) (StaffAbsenceType, error) {
+	return m.engine.UpdateAbsenceType(ctx, input)
 }
 
 // --- staff absences ---

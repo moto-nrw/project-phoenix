@@ -2,10 +2,7 @@ package active
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
-
-	"github.com/moto-nrw/project-phoenix/constants"
 )
 
 // YardRoomColorResolver reports the tenant's configured Schulhof room color.
@@ -60,37 +57,10 @@ func (s *service) ResolveSchulhofRoomColor(ctx context.Context) *string {
 	return color
 }
 
-// GetSchulhofRoomColor looks up the canonical Schulhof room's color.
-//
-// Returns nil (not an error) when the room is missing: the Schulhof room is
-// bootstrapped lazily on first use, so "not there yet" is a normal state for
-// a tenant that has never opened the yard. Every other repository failure is
-// returned, so a broken connection or a rejected query reaches the log
-// instead of reading as "no colour configured" — the two are indistinguishable
-// on the badge, and only one of them is worth waking up for.
-//
-// The name lookup is case-insensitive while the uniqueness index is not, so a
-// tenant carrying a legacy "schulhof" room from before the reservation guards
-// has TWO matching rows. Reading a single unordered row would hand back the
-// legacy one often enough to silently drop the configured colour, so every
-// match is inspected and only the exact reserved name on a system room counts
-// — the same validation facilities.FindCanonicalSchulhofRoom applies.
+// GetSchulhofRoomColor delegates canonical room selection to Facilities.
 func (s *service) GetSchulhofRoomColor(ctx context.Context) (*string, error) {
-	if s.RoomRepo == nil {
+	if s.YardRoomColor == nil {
 		return nil, nil
 	}
-	rooms, err := s.RoomRepo.List(ctx, map[string]any{"name": constants.SchulhofRoomName})
-	if err != nil {
-		return nil, fmt.Errorf("list Schulhof rooms: %w", err)
-	}
-	for _, room := range rooms {
-		if room == nil || room.Name != constants.SchulhofRoomName || !room.IsSystem {
-			continue
-		}
-		if room.Color == nil || *room.Color == "" {
-			return nil, nil
-		}
-		return room.Color, nil
-	}
-	return nil, nil
+	return s.YardRoomColor(ctx)
 }

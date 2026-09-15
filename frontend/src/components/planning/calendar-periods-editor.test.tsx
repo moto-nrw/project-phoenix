@@ -264,8 +264,9 @@ describe("CalendarPeriodsEditor", () => {
     expect(name).not.toHaveClass("truncate");
     expect(name.parentElement?.className).not.toMatch(/max-w-\[/);
 
+    // Zeilenaktionen liegen im Kebab der Zeile (Bauart 1 Regel 4).
     const actionCell = screen
-      .getByRole("button", { name: "Bearbeiten" })
+      .getByRole("button", { name: "Aktionen für Sommerferienbetreuung" })
       .closest("td");
     expect(actionCell).toHaveClass("w-px");
   });
@@ -297,7 +298,10 @@ describe("CalendarPeriodsEditor", () => {
 
     render(<CalendarPeriodsHost />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Bearbeiten" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: /^Aktionen für/ }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Bearbeiten" }));
     expect(screen.getByTestId("calendar-period-modal")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "modal-save" }));
@@ -331,7 +335,10 @@ describe("CalendarPeriodsEditor", () => {
 
     render(<CalendarPeriodsHost />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Bearbeiten" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: /^Aktionen für/ }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Bearbeiten" }));
     fireEvent.click(screen.getByRole("button", { name: "modal-toggle-phase" }));
 
     await waitFor(() =>

@@ -35,6 +35,7 @@ type EndedGroupSessions struct {
 
 // GroupSessionStore closes live groups inside the caller's transaction.
 type GroupSessionStore interface {
+	LockSessionStart(context.Context, int64) (Stats, error)
 	LockGroup(context.Context, int64) (LiveGroup, Stats, error)
 	EndGroupSession(context.Context, int64, time.Time, Date) (EndedGroupSession, Stats, error)
 	EndGroupSessions(context.Context, []int64, time.Time, Date) (EndedGroupSessions, Stats, error)

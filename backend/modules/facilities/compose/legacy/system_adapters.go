@@ -3,9 +3,7 @@ package legacy
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	activityService "github.com/moto-nrw/project-phoenix/services/activities"
 	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
 )
@@ -79,56 +77,24 @@ func systemCategory(category *activityModels.Category) facilitiesService.SystemC
 	}
 }
 
-type openGroupCatalogAdapter struct{ service activeService.Service }
+type openGroupCatalogAdapter struct {
+	supervisors func(context.Context, []int64) ([]facilitiesService.OpenGroupSupervisor, error)
+	rooms       func(context.Context, int64) ([]facilitiesService.OpenGroup, error)
+	visits      func(context.Context, int64) ([]facilitiesService.OpenGroupVisit, error)
+}
 
-func OpenGroupCatalog(service activeService.Service) facilitiesService.OpenGroupCatalog {
-	return openGroupCatalogAdapter{service: service}
+func OpenGroupCatalog(supervisors func(context.Context, []int64) ([]facilitiesService.OpenGroupSupervisor, error), rooms func(context.Context, int64) ([]facilitiesService.OpenGroup, error), visits func(context.Context, int64) ([]facilitiesService.OpenGroupVisit, error)) facilitiesService.OpenGroupCatalog {
+	return openGroupCatalogAdapter{supervisors: supervisors, rooms: rooms, visits: visits}
 }
 
 func (a openGroupCatalogAdapter) ListByRoom(ctx context.Context, roomID int64) ([]facilitiesService.OpenGroup, error) {
-	groups, err := a.service.FindActiveGroupsByRoomID(ctx, roomID)
-	if err != nil {
-		return nil, err
-	}
-	today := timezone.TodayDate()
-	result := make([]facilitiesService.OpenGroup, 0, len(groups))
-	for _, group := range groups {
-		result = append(result, facilitiesService.OpenGroup{
-			ID: group.ID, StartTime: group.StartTime, EndTime: group.EndTime,
-			IsToday: timezone.DateFromTime(group.StartTime) == today,
-		})
-	}
-	return result, nil
+	return a.rooms(ctx, roomID)
 }
 
 func (a openGroupCatalogAdapter) ListSupervisors(ctx context.Context, groupIDs []int64) ([]facilitiesService.OpenGroupSupervisor, error) {
-	supervisors, err := a.service.FindSupervisorsByActiveGroupIDs(ctx, groupIDs)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]facilitiesService.OpenGroupSupervisor, 0, len(supervisors))
-	for _, supervisor := range supervisors {
-		row := facilitiesService.OpenGroupSupervisor{
-			ID: supervisor.ID, GroupID: supervisor.GroupID,
-			StaffID: supervisor.StaffID, Ended: supervisor.EndDate != nil,
-		}
-		if supervisor.Staff != nil && supervisor.Staff.Person != nil {
-			row.FirstName = supervisor.Staff.Person.FirstName
-			row.LastName = supervisor.Staff.Person.LastName
-		}
-		result = append(result, row)
-	}
-	return result, nil
+	return a.supervisors(ctx, groupIDs)
 }
 
 func (a openGroupCatalogAdapter) ListVisits(ctx context.Context, groupID int64) ([]facilitiesService.OpenGroupVisit, error) {
-	visits, err := a.service.FindVisitsByActiveGroupID(ctx, groupID)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]facilitiesService.OpenGroupVisit, 0, len(visits))
-	for _, visit := range visits {
-		result = append(result, facilitiesService.OpenGroupVisit{ExitTime: visit.ExitTime})
-	}
-	return result, nil
+	return a.visits(ctx, groupID)
 }

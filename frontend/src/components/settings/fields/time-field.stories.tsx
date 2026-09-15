@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
-import { TimeField } from "./time-field";
+import { SettingsTimeField } from "./time-field";
 
 function TimeFieldDemo({
   initialValue,
@@ -14,7 +14,7 @@ function TimeFieldDemo({
 }>) {
   const [value, setValue] = useState(initialValue);
   return (
-    <TimeField
+    <SettingsTimeField
       value={value}
       onChange={setValue}
       disabled={disabled}
@@ -24,15 +24,15 @@ function TimeFieldDemo({
 }
 
 const meta = {
-  title: "components/settings/fields/TimeField",
-  component: TimeField,
+  title: "components/settings/fields/SettingsTimeField",
+  component: SettingsTimeField,
   args: {
     value: "08:00",
     onChange: () => {
       // no-op for story defaults
     },
   },
-} satisfies Meta<typeof TimeField>;
+} satisfies Meta<typeof SettingsTimeField>;
 
 export default meta;
 

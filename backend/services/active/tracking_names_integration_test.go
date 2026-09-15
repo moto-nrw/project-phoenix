@@ -21,9 +21,9 @@ func TestTrackingIndicatorsResolveTodaysActivityAndRoomNames(t *testing.T) {
 	require.Empty(t, result)
 
 	data := newVisitProjectionFixture(t, db)
-	testpkg.CreateTestVisit(t, db, data.Student1.ID, data.GroupID, timezone.Today().Add(30*time.Minute), nil)
-	result, err = svc.GetTrackingIndicators(ctx, []int64{data.Student1.ID, data.Student1.ID}, labels)
+	testpkg.CreateTestVisit(t, db, data.Student1, data.GroupID, timezone.Today().Add(30*time.Minute), nil)
+	result, err = svc.GetTrackingIndicators(ctx, []int64{data.Student1, data.Student1}, labels)
 	require.NoError(t, err)
-	require.Contains(t, result, data.Student1.ID)
-	assert.Equal(t, []bool{true, true}, result[data.Student1.ID], "both activity and room names must resolve for today's visit")
+	require.Contains(t, result, data.Student1)
+	assert.Equal(t, []bool{true, true}, result[data.Student1], "both activity and room names must resolve for today's visit")
 }

@@ -116,13 +116,10 @@ function formatLocaleDate(iso: string, locale: string): string {
 
 // --- data hook ---
 
-// Sick notes and team messages default ON so a transient features-fetch
-// failure doesn't lock a parent out of an action their school allows. The
-// pickup-time change is ON by default at the school level too, but here we fall
-// back to OFF on a features-fetch failure — hiding a button on a transient
-// error beats showing one the backend might reject with 403.
+// An unavailable capability response must not offer parent mutations.
 const DEFAULT_FEATURES: ChildFeatures = {
-  sick_note_enabled: true,
+  sick_note_enabled: false,
+  excused_note_enabled: false,
   // Default false on fetch failure (least privilege), consistent with the other
   // consequential flags below: the features fetch .catch returns DEFAULT_FEATURES,
   // and a school with messaging turned OFF would otherwise show an enabled
@@ -673,6 +670,8 @@ export function SickNoteModal({
   onSubmit,
   sickRequiresApproval,
   excusedRequiresApproval,
+  sickEnabled = true,
+  excusedEnabled = true,
   reasonRequired = true,
 }: Readonly<{
   studentId?: string;
@@ -683,6 +682,8 @@ export function SickNoteModal({
     status: StudentStatusKind,
     recipientGuardianProfileIds?: string[],
   ) => Promise<AbsenceSubmissionOutcome | void>;
+  sickEnabled?: boolean;
+  excusedEnabled?: boolean;
   sickRequiresApproval?: boolean;
   excusedRequiresApproval?: boolean;
   /** Ob die OGS einen Grund verlangt (requiresGuardianReason). */
@@ -693,7 +694,13 @@ export function SickNoteModal({
   const initial = todayISO();
   const [from, setFrom] = useState(initial);
   const [to, setTo] = useState(initial);
-  const [status, setStatus] = useState<StudentStatusKind>("sick");
+  const [selectedStatus, setStatus] = useState<StudentStatusKind>("sick");
+  const status =
+    selectedStatus === "sick" && !sickEnabled
+      ? "excused"
+      : selectedStatus === "excused" && !excusedEnabled
+        ? "sick"
+        : selectedStatus;
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -721,6 +728,7 @@ export function SickNoteModal({
         : t("sick.daysCount", { count: dates.length });
 
   const handleSubmit = async () => {
+    if (!sickEnabled && !excusedEnabled) return;
     if (dates.length === 0) {
       setError(t("sick.invalidDate"));
       return;
@@ -774,7 +782,7 @@ export function SickNoteModal({
               size="md"
               className="w-full gap-2 sm:w-auto"
               onClick={() => void handleSubmit()}
-              disabled={submitting}
+              disabled={submitting || (!sickEnabled && !excusedEnabled)}
             >
               {submitting && (
                 <Loader2 className="size-4 animate-spin" aria-hidden="true" />
@@ -806,8 +814,12 @@ export function SickNoteModal({
                 setError(null);
               }}
               options={[
-                { value: "sick", label: t("sick.kindSick") },
-                { value: "excused", label: t("sick.kindExcused") },
+                ...(sickEnabled
+                  ? [{ value: "sick", label: t("sick.kindSick") }]
+                  : []),
+                ...(excusedEnabled
+                  ? [{ value: "excused", label: t("sick.kindExcused") }]
+                  : []),
               ]}
             />
           </label>
@@ -913,6 +925,9 @@ export function PickupTimeModal({
   onSubmit,
   onRemove,
   reasonRequired = true,
+  cutoffTime,
+  todayClosed = false,
+  onCutoffPassed,
 }: Readonly<{
   studentId?: string;
   careExceptions: CareException[];
@@ -932,11 +947,20 @@ export function PickupTimeModal({
   onRemove: (date: string) => Promise<void>;
   /** Ob die OGS einen Grund verlangt (requiresGuardianReason). */
   reasonRequired?: boolean;
+  /** Uhrzeit (HH:MM), bis zu der Eltern heute noch ändern dürfen (#3163). */
+  cutoffTime?: string;
+  /** Die Frist für heute ist vorbei; heute ist für Eltern gesperrt. */
+  todayClosed?: boolean;
+  /** Der Server hat die Frist gemeldet: Daten neu laden. */
+  onCutoffPassed?: () => void;
 }>) {
   const t = useTranslations("parentChildCare");
   const locale = useLocale();
   const datePicker = useLocalizedDatePicker();
   const today = berlinTodayISO();
+  // Meldet der Server die Frist, bevor die Merkmale neu geladen sind, sperrt
+  // der Dialog heute sofort, statt dieselbe Absage noch einmal zu zeigen.
+  const [cutoffReported, setCutoffReported] = useState(false);
   // Ist das Aendern abgeschaltet, oeffnet der Dialog auf dem einzigen Tag, den
   // die Eltern noch bearbeiten koennen. Ein offener Antrag geht dabei vor: er
   // ist der Tag mit dem Zuruecknehmen-Knopf, und ohne diese Vorauswahl stuende
@@ -989,6 +1013,9 @@ export function PickupTimeModal({
   const pending = request?.status === "pending";
   const staffOwned = existing?.pickup_source === "staff";
   const alreadyHome = date === today && childToday?.state === "left";
+  // Nach der Frist ist heute für Eltern ganz zu: nicht anfragen, nicht
+  // bearbeiten, nicht zurücknehmen. Spätere Tage bleiben offen (#3163).
+  const todayLocked = date === today && (todayClosed || cutoffReported);
   // Eine offene eigene Anfrage wird geändert, nicht zurückgezogen (#2267).
   const canEditRequest =
     pending && studentId !== undefined && request?.is_self !== false;
@@ -1027,6 +1054,12 @@ export function PickupTimeModal({
           return t("pickup.reasonTooLong");
         case "care_request_already_pending":
           return t("pickup.statusPending");
+        case "pickup_change_cutoff_passed":
+          setCutoffReported(true);
+          onCutoffPassed?.();
+          return cutoffTime
+            ? t("pickup.cutoffClosed", { time: cutoffTime })
+            : t("pickup.cutoffClosedGeneric");
       }
     }
     return err instanceof Error ? err.message : t("pickup.saveError");
@@ -1165,22 +1198,24 @@ export function PickupTimeModal({
       mobileSheet
       footer={
         <>
-          {!pending && existing?.pickup_source === "guardian" && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="md"
-              className="w-full gap-2 whitespace-nowrap sm:w-auto"
-              onClick={() => {
-                setResetError(null);
-                setConfirmingReset(true);
-              }}
-              disabled={submitting || alreadyHome}
-            >
-              <Trash2 className="size-4" aria-hidden="true" />
-              {t("pickup.reset")}
-            </Button>
-          )}
+          {!pending &&
+            !todayLocked &&
+            existing?.pickup_source === "guardian" && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="md"
+                className="w-full gap-2 whitespace-nowrap sm:w-auto"
+                onClick={() => {
+                  setResetError(null);
+                  setConfirmingReset(true);
+                }}
+                disabled={submitting || alreadyHome}
+              >
+                <Trash2 className="size-4" aria-hidden="true" />
+                {t("pickup.reset")}
+              </Button>
+            )}
           <Button
             type="button"
             variant="outline"
@@ -1196,7 +1231,7 @@ export function PickupTimeModal({
               size="md"
               className="w-full gap-2 whitespace-nowrap shadow-sm max-sm:min-h-11 sm:w-auto"
               onClick={() => void handleSaveEdit()}
-              disabled={submitting}
+              disabled={submitting || todayLocked}
             >
               {submitting && (
                 <Loader2 className="size-4 animate-spin" aria-hidden="true" />
@@ -1212,6 +1247,7 @@ export function PickupTimeModal({
               disabled={
                 submitting ||
                 alreadyHome ||
+                todayLocked ||
                 staffOwned ||
                 !pickupChangeEnabled ||
                 !careExceptionsLoaded ||
@@ -1250,6 +1286,24 @@ export function PickupTimeModal({
           />
         </label>
 
+        {/* Der Hinweis nennt eine noch offene Möglichkeit; nach der Frist
+            würde er an einem anderen Tag falsch klingen. */}
+        {date === today && cutoffTime && !todayClosed && !cutoffReported && (
+          <p className="text-sm text-gray-600">
+            {t("pickup.cutoffHint", { time: cutoffTime })}
+          </p>
+        )}
+        {todayLocked && (
+          <p
+            role="status"
+            className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600"
+          >
+            {cutoffTime
+              ? t("pickup.cutoffClosed", { time: cutoffTime })
+              : t("pickup.cutoffClosedGeneric")}
+          </p>
+        )}
+
         {pending && (
           <div className="bg-moto-orange-soft text-moto-orange-strong space-y-2 rounded-lg px-3 py-2.5">
             <p className="text-base font-semibold tabular-nums">
@@ -1270,7 +1324,7 @@ export function PickupTimeModal({
                 })}
               </p>
             )}
-            {canEditRequest && !editing && (
+            {canEditRequest && !editing && !todayLocked && (
               <Button
                 type="button"
                 variant="outline"
@@ -1304,7 +1358,8 @@ export function PickupTimeModal({
           </p>
         )}
 
-        {pending && !editing ? null : alreadyHome && childFirstName ? (
+        {(pending && !editing) || todayLocked ? null : alreadyHome &&
+          childFirstName ? (
           <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
             {t("pickup.alreadyHome", { name: childFirstName })}
           </p>
@@ -1369,7 +1424,7 @@ export function PickupTimeModal({
           </div>
         )}
 
-        {existing?.pickup_source === "guardian" && (
+        {existing?.pickup_source === "guardian" && !todayLocked && (
           <p className="text-sm text-gray-500">
             {t("pickup.existingHint", {
               date: formatLocaleDate(date, locale),
@@ -1377,7 +1432,7 @@ export function PickupTimeModal({
           </p>
         )}
 
-        {error && (
+        {error && !todayLocked && (
           <p
             id={errorId}
             role="alert"
@@ -1617,7 +1672,9 @@ export function getOgsActions(features: ChildFeatures): OgsAction[] {
     {
       key: "sick",
       concept: "sick",
-      enabled: features.sick_note_enabled,
+      enabled:
+        features.sick_note_enabled ||
+        (features.excused_note_enabled ?? features.sick_note_enabled),
     },
     {
       key: "pickup",

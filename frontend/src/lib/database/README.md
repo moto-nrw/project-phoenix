@@ -108,18 +108,28 @@ export const roomsConfig = defineEntityConfig<Room>({
 import { useMemo, useState } from "react";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
-import { RoomsMasterDetail } from "@/components/rooms/rooms-master-detail";
+import { RoomsList } from "@/components/rooms/rooms-list";
 import { roomsConfig } from "@/components/database/configs/rooms.config";
 import { createCrudService } from "@/lib/database/service-factory";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 
 export default function RoomsPage() {
   const service = useMemo(() => createCrudService(roomsConfig), []);
+  const tenantPath = useTenantAwarePath();
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   return (
     <DatabasePageLayout loading={loading} sessionLoading={sessionLoading}>
-      {/* Fetch with service.getList(), then render the page-specific controls. */}
-      <RoomsMasterDetail {...masterDetailProps} />
+      {/* Fetch with service.getList(), then render the page-specific controls.
+          Every row links to the type's object route (BAUARTEN-SPEC Bauart 1
+          Regel 2); `?from=` carries the way back to this register. Editing
+          and deleting live on that route, not next to the list. */}
+      <RoomsList
+        groupDefinitions={groupDefinitions}
+        objectHref={(room) =>
+          tenantPath(`/rooms/${room.id}?from=${encodeURIComponent("/database/rooms")}`)
+        }
+      />
       <DatabaseFormModal<Room>
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}

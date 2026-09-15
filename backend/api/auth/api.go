@@ -238,11 +238,11 @@ func (rs *Resource) Router() chi.Router {
 			r.Route("/roles", func(r chi.Router) {
 				r.With(common.RequiresPermission("roles:create")).Post("/", rs.createRole)
 				// The list carries names and descriptions only (no
-				// permissions). Whoever may create users (users:create)
-				// assigns one of these roles by name, in the staff import
-				// for instance, so they read the list too; role details and
-				// permission sets stay behind roles:read (#2906).
-				r.With(common.RequiresAnyPermission(permRolesRead, permUsersCreate)).Get("/", rs.listRoles)
+				// permissions). Whoever may create or manage users assigns one
+				// of these roles by name, in the staff import or role field for
+				// instance, so they read the list too; role details and permission
+				// sets stay behind roles:read (#2906).
+				r.With(common.RequiresAnyPermission(permRolesRead, permUsersCreate, permUsersManage)).Get("/", rs.listRoles)
 				r.Route("/{id}", func(r chi.Router) {
 					r.With(common.RequiresPermission(permRolesRead)).Get("/", rs.getRoleByID)
 					r.With(common.RequiresPermission("roles:update")).Put("/", rs.updateRole)
@@ -279,6 +279,7 @@ func (rs *Resource) Router() chi.Router {
 					// Role assignments
 					r.Route("/roles", func(r chi.Router) {
 						r.With(common.RequiresPermission(permUsersManage)).Get("/", rs.getAccountRoles)
+						r.With(common.RequiresPermission(permUsersManage)).Put("/", rs.replaceAccountRole)
 						r.With(common.RequiresPermission(permUsersManage)).Post("/{roleId}", rs.assignRoleToAccount)
 						r.With(common.RequiresPermission(permUsersManage)).Delete("/{roleId}", common.TwoIDAction("accountId", common.MsgInvalidAccountID, "roleId", common.MsgInvalidRoleID, rs.AuthService.RemoveRoleFromAccount, accountManagementErrorRenderer))
 					})
@@ -312,6 +313,7 @@ func (rs *Resource) Router() chi.Router {
 			// Role permission assignments
 			r.Route("/roles/{roleId}/permissions", func(r chi.Router) {
 				r.With(common.RequiresPermission(permRolesManage)).Get("/", rs.getRolePermissions)
+				r.With(common.RequiresPermission(permRolesManage)).Put("/", rs.replaceRolePermissions)
 				r.With(common.RequiresPermission(permRolesManage)).Post(pathPermissionID, common.TwoIDAction("roleId", common.MsgInvalidRoleID, "permissionId", common.MsgInvalidPermissionID, rs.AuthService.AssignPermissionToRole, renderRoleMutationError))
 				r.With(common.RequiresPermission(permRolesManage)).Delete(pathPermissionID, common.TwoIDAction("roleId", common.MsgInvalidRoleID, "permissionId", common.MsgInvalidPermissionID, rs.AuthService.RemovePermissionFromRole, renderRoleMutationError))
 			})

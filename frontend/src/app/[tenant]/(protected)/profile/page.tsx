@@ -12,6 +12,7 @@ import type { ProfileUpdateRequest } from "~/lib/profile-helpers";
 import { useProfile } from "~/lib/profile-context";
 import { compressAvatar } from "~/lib/image-utils";
 import { Button } from "~/components/ui/button";
+import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { Input } from "~/components/ui/input";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useFormError } from "~/components/ui/form-error";
@@ -235,12 +236,11 @@ function ProfileContent() {
               }
               maxLength={255}
             />
-            <div>
-              <span className="text-xs font-medium text-gray-500">E-Mail</span>
-              <p className="text-sm font-medium text-gray-900">
-                {formData.email}
-              </p>
-            </div>
+            <DataGrid>
+              <DataField label="E-Mail" fullWidth>
+                {formData.email || "–"}
+              </DataField>
+            </DataGrid>
             <div className="flex justify-end gap-3 pt-1">
               <Button
                 type="button"
@@ -267,26 +267,13 @@ function ProfileContent() {
             </div>
           </div>
         ) : (
-          <dl className="space-y-3">
-            <div>
-              <dt className="text-xs font-medium text-gray-500">Vorname</dt>
-              <dd className="text-sm font-medium text-gray-900">
-                {formData.firstName || "–"}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs font-medium text-gray-500">Nachname</dt>
-              <dd className="text-sm font-medium text-gray-900">
-                {formData.lastName || "–"}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs font-medium text-gray-500">E-Mail</dt>
-              <dd className="text-sm font-medium text-gray-900">
-                {formData.email || "–"}
-              </dd>
-            </div>
-          </dl>
+          <DataGrid>
+            <DataField label="Vorname">{formData.firstName || "–"}</DataField>
+            <DataField label="Nachname">{formData.lastName || "–"}</DataField>
+            <DataField label="E-Mail" fullWidth>
+              {formData.email || "–"}
+            </DataField>
+          </DataGrid>
         )}
       </SectionCard>
 

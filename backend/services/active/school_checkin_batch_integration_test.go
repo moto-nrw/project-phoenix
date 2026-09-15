@@ -10,7 +10,6 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // Service-level integration tests for ProcessSchoolCheckinBatch (#2359).
@@ -20,7 +19,7 @@ import (
 // the aggregated SSE fan-out (students with educational groups, checkouts
 // with room provenance).
 
-func setGroupID(t *testing.T, db *bun.DB, studentID, groupID int64) {
+func setGroupID(t *testing.T, db *testpkg.DB, studentID, groupID int64) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

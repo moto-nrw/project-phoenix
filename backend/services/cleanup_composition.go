@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -79,21 +78,22 @@ func NewInvitationCleanupService(db *bun.DB, logger *slog.Logger) auth.Invitatio
 
 func NewSessionCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, timetableCapability timetable.Capability, logger *slog.Logger) active.Service {
 	repos := repositories.NewSessionCleanupRepositories(db, timetableCapability)
+	settings := NewCleanupSettingsService(db, runtime, schools, logger)
 	service := active.NewService(active.ServiceDependencies{
-		SchoolPresence: newStudentPresence(db, logger),
-		GroupRepo:      repos.Group, SupervisorRepo: repos.Supervisor,
-		DeviceRepo: repos.Device, TimetableBridgeCompleter: repos.TimetableBridge, DB: db, Logger: logger,
+		PrincipalReader: AttendancePrincipal,
+		SchoolPresence:  newStudentPresence(db, logger),
+		GroupRepo:       repos.Group, SupervisorRepo: repos.Supervisor,
+		DeviceRepo: NewSessionDeviceDirectory(repos.Device, settings, logger), TimetableBridgeCompleter: repos.TimetableBridge, DB: db, Logger: logger,
 	})
 	service.SetTenantRuntime(runtime)
-	service.SetSettingsService(NewCleanupSettingsService(db, runtime, schools, logger))
+	service.SetSettingsService(PresenceSettings(settings))
 	return service
 }
 
 func NewRetentionCleanupService(db *bun.DB, logger *slog.Logger, command AuditCommand) active.CleanupService {
 	repos := repositories.NewRetentionCleanupRepositories(db, command)
 	return active.NewCleanupService(
-		newStudentPresence(db, logger), repos.Supervisor, repos.Consent, repos.Deletion,
-		users.NewPrivacyConsentService(nil, logger), db,
+		newStudentPresence(db, logger), repos.Supervisor, NewDeletionAudit(repos.Deletion),
 	)
 }
 
@@ -108,7 +108,7 @@ func NewTimetableCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools o
 func NewTimeTrackingCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, logger *slog.Logger, command AuditCommand) active.TimeTrackingCleanupService {
 	repos := repositories.NewTimeTrackingCleanupRepositories(db, command)
 	return active.NewTimeTrackingCleanupService(
-		repos.Session, repos.Absence, repos.Deletion, NewCleanupSettingsService(db, runtime, schools, logger), logger,
+		repos.Session, repos.Absence, NewDeletionAudit(repos.Deletion), PresenceSettings(NewCleanupSettingsService(db, runtime, schools, logger)), logger,
 	)
 }
 

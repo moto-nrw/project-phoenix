@@ -1186,17 +1186,15 @@ describe("StudentsInRoomSection", () => {
   });
 
   describe("navigation", () => {
-    it("encodes the full URL as from= in the slide-over context (preserves filters)", () => {
-      // The section now only renders inside the slide-over (legacy
-      // /rooms/{id} subpage is a server-side redirect). The from= URL
-      // must carry the complete current query string, including any
-      // grid filters (search, building, status), so the user lands
-      // back on their narrowed view, not a reset grid.
+    it("encodes the room page with its query as from= (preserves the way back)", () => {
+      // The section renders on the room page /rooms/{id} (#3115). The
+      // from= URL must carry that page's complete query string — its own
+      // `from` back to the grid or register and the open tab — so the user
+      // lands back on the room page and from there on the collection they
+      // came from.
       mockUseSearchParams.mockReturnValue({
         get: vi.fn(() => null),
-        toString: vi.fn(
-          () => "search=foo&building=Main&status=occupied&room=42",
-        ),
+        toString: vi.fn(() => "from=%2Frooms%3Fbuilding%3DMain&tab=uebersicht"),
       });
       setSWR({ data: { students: [makeStudent({ id: "7" })] } });
 
@@ -1211,12 +1209,12 @@ describe("StudentsInRoomSection", () => {
       // sees only the first param.
       expect(mockPush).toHaveBeenCalledWith(
         `/students/7?from=${encodeURIComponent(
-          "/rooms?search=foo&building=Main&status=occupied&room=42",
+          "/rooms/42?from=%2Frooms%3Fbuilding%3DMain&tab=uebersicht",
         )}`,
       );
     });
 
-    it("falls back to /rooms?room={id} when no query string is present", () => {
+    it("falls back to the bare room page when no query string is present", () => {
       mockUseSearchParams.mockReturnValue({
         get: vi.fn(() => null),
         toString: vi.fn(() => ""),
@@ -1230,7 +1228,7 @@ describe("StudentsInRoomSection", () => {
       );
 
       expect(mockPush).toHaveBeenCalledWith(
-        `/students/7?from=${encodeURIComponent("/rooms?room=42")}`,
+        `/students/7?from=${encodeURIComponent("/rooms/42")}`,
       );
     });
 

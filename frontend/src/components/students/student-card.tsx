@@ -17,6 +17,7 @@ import {
 import {
   CalendarXIcon,
   ChalkboardTeacherIcon,
+  ListChecksIcon,
   UsersThreeIcon,
   WarningCircleIcon,
 } from "@phosphor-icons/react";
@@ -309,6 +310,11 @@ export function SchoolClassIcon() {
 /** Icon for group display */
 export function GroupIcon() {
   return <MotoDuotoneIcon icon={UsersThreeIcon} tone="neutral" size={14} />;
+}
+
+/** Icon for activity (Angebot) display — the app's `activities` glyph */
+export function ActivityIcon() {
+  return <MotoDuotoneIcon icon={ListChecksIcon} tone="neutral" size={14} />;
 }
 
 export function DepartureModeIcon() {

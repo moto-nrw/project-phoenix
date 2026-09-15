@@ -5,33 +5,30 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/iot"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
-// attendanceTestData holds test entities created via hermetic fixtures
+// attendanceTestData holds test entity IDs created via hermetic fixtures
 type attendanceTestData struct {
-	Student1 *users.Student
-	Student2 *users.Student
-	Staff1   *users.Staff
-	Staff2   *users.Staff
-	Device1  *iot.Device
+	Student1ID int64
+	Student2ID int64
+	Staff1ID   int64
+	Staff2ID   int64
+	Device1ID  int64
 }
 
 // createAttendanceTestData creates test fixtures using the hermetic pattern
-func createAttendanceTestData(t *testing.T, db *bun.DB) *attendanceTestData {
+func createAttendanceTestData(t *testing.T, db *testpkg.DB) *attendanceTestData {
 	return &attendanceTestData{
-		Student1: testpkg.CreateTestStudent(t, db, "Attendance", "Student1", "1a"),
-		Student2: testpkg.CreateTestStudent(t, db, "Attendance", "Student2", "1b"),
-		Staff1:   testpkg.CreateTestStaff(t, db, "Attendance", "Staff1"),
-		Staff2:   testpkg.CreateTestStaff(t, db, "Attendance", "Staff2"),
-		Device1:  testpkg.CreateTestDevice(t, db, "attendance-repo-test-device"),
+		Student1ID: testpkg.CreateTestStudent(t, db, "Attendance", "Student1", "1a").ID,
+		Student2ID: testpkg.CreateTestStudent(t, db, "Attendance", "Student2", "1b").ID,
+		Staff1ID:   testpkg.CreateTestStaff(t, db, "Attendance", "Staff1").ID,
+		Staff2ID:   testpkg.CreateTestStaff(t, db, "Attendance", "Staff2").ID,
+		Device1ID:  testpkg.CreateTestDevice(t, db, "attendance-repo-test-device").ID,
 	}
 }
 
@@ -50,11 +47,11 @@ func TestPresenceAttendance_Create(t *testing.T) {
 		date := timezone.TodayDate()
 
 		attendance := studentpresence.Attendance{
-			StudentID:   data.Student1.ID,
+			StudentID:   data.Student1ID,
 			Date:        date.String(),
 			CheckInTime: now,
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 		}
 
 		attendance, err := repo.RecordAttendance(ctx, attendance)
@@ -72,16 +69,16 @@ func TestPresenceAttendance_Create(t *testing.T) {
 		now := time.Now()
 		date := timezone.TodayDate()
 		checkOutTime := now.Add(2 * time.Hour)
-		checkedOutBy := data.Staff2.ID
+		checkedOutBy := data.Staff2ID
 
 		attendance := studentpresence.Attendance{
-			StudentID:    data.Student2.ID,
+			StudentID:    data.Student2ID,
 			Date:         date.String(),
 			CheckInTime:  now,
 			CheckOutTime: &checkOutTime,
-			CheckedInBy:  data.Staff1.ID,
+			CheckedInBy:  data.Staff1ID,
 			CheckedOutBy: &checkedOutBy,
-			DeviceID:     data.Device1.ID,
+			DeviceID:     data.Device1ID,
 		}
 
 		attendance, err := repo.RecordAttendance(ctx, attendance)
@@ -114,8 +111,8 @@ func TestPresenceAttendance_Create(t *testing.T) {
 			StudentID:   isolatedStudent.ID,
 			Date:        date.String(),
 			CheckInTime: now.Add(1 * time.Hour),
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 		}
 
 		attendanceCheckedIn, err := repo.RecordAttendance(ctx, attendanceCheckedIn)
@@ -125,15 +122,15 @@ func TestPresenceAttendance_Create(t *testing.T) {
 
 		// Create attendance with check-out
 		checkOutTime := now.Add(3 * time.Hour)
-		checkedOutBy := data.Staff1.ID
+		checkedOutBy := data.Staff1ID
 		attendanceCheckedOut := studentpresence.Attendance{
-			StudentID:    data.Student2.ID,
+			StudentID:    data.Student2ID,
 			Date:         date.String(),
 			CheckInTime:  now.Add(2 * time.Hour), // Different time to avoid conflict
 			CheckOutTime: &checkOutTime,
-			CheckedInBy:  data.Staff1.ID,
+			CheckedInBy:  data.Staff1ID,
 			CheckedOutBy: &checkedOutBy,
-			DeviceID:     data.Device1.ID,
+			DeviceID:     data.Device1ID,
 		}
 
 		attendanceCheckedOut, err = repo.RecordAttendance(ctx, attendanceCheckedOut)
@@ -153,15 +150,15 @@ func TestPresenceAttendance_ListOpenStudentIDsForDate(t *testing.T) {
 	data := createAttendanceTestData(t, db)
 
 	now := time.Now()
-	testpkg.CreateTestAttendance(t, db, data.Student1.ID, data.Staff1.ID, data.Device1.ID, now.Add(-30*time.Minute), nil)
+	testpkg.CreateTestAttendance(t, db, data.Student1ID, data.Staff1ID, data.Device1ID, now.Add(-30*time.Minute), nil)
 	checkOutTime := now.Add(-5 * time.Minute)
-	testpkg.CreateTestAttendance(t, db, data.Student2.ID, data.Staff1.ID, data.Device1.ID, now.Add(-30*time.Minute), &checkOutTime)
+	testpkg.CreateTestAttendance(t, db, data.Student2ID, data.Staff1ID, data.Device1ID, now.Add(-30*time.Minute), &checkOutTime)
 
 	ids, err := repo.ListOpenAttendanceStudentIDs(ctx, timezone.TodayDate().String())
 
 	require.NoError(t, err)
-	assert.Contains(t, ids, data.Student1.ID)
-	assert.NotContains(t, ids, data.Student2.ID)
+	assert.Contains(t, ids, data.Student1ID)
+	assert.NotContains(t, ids, data.Student2ID)
 }
 
 // TestAttendanceRepository_FindByStudentAndDate tests querying attendance records by student and date
@@ -179,11 +176,11 @@ func TestPresenceAttendance_StudentDate(t *testing.T) {
 		date := timezone.TodayDate()
 
 		attendance := &studentpresence.Attendance{
-			StudentID:   data.Student1.ID,
+			StudentID:   data.Student1ID,
 			Date:        date.String(),
 			CheckInTime: now,
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 		}
 
 		record, err := repo.RecordAttendance(ctx, *attendance)
@@ -191,7 +188,7 @@ func TestPresenceAttendance_StudentDate(t *testing.T) {
 		*attendance = record
 
 		// Find records for this student and date
-		records, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{data.Student1.ID}, FromDate: date.String(), UntilDate: date.String()})
+		records, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{data.Student1ID}, FromDate: date.String(), UntilDate: date.String()})
 		require.NoError(t, err)
 
 		require.GreaterOrEqual(t, len(records), 1, "Should find at least one record")
@@ -200,7 +197,7 @@ func TestPresenceAttendance_StudentDate(t *testing.T) {
 		for _, r := range records {
 			if r.ID == attendance.ID {
 				found = true
-				assert.Equal(t, data.Student1.ID, r.StudentID)
+				assert.Equal(t, data.Student1ID, r.StudentID)
 				break
 			}
 		}
@@ -220,16 +217,16 @@ func TestPresenceAttendance_StudentDate(t *testing.T) {
 
 		checkout1 := now.Add(-90 * time.Minute)
 		checkout2 := now.Add(30 * time.Minute)
-		closedBy := data.Staff1.ID
+		closedBy := data.Staff1ID
 
 		attendance1 := &studentpresence.Attendance{
 			StudentID:    multiRowStudent.ID,
 			Date:         date.String(),
 			CheckInTime:  now.Add(-2 * time.Hour), // Earliest
 			CheckOutTime: &checkout1,
-			CheckedInBy:  data.Staff1.ID,
+			CheckedInBy:  data.Staff1ID,
 			CheckedOutBy: &closedBy,
-			DeviceID:     data.Device1.ID,
+			DeviceID:     data.Device1ID,
 		}
 
 		attendance2 := &studentpresence.Attendance{
@@ -237,17 +234,17 @@ func TestPresenceAttendance_StudentDate(t *testing.T) {
 			Date:         date.String(),
 			CheckInTime:  now, // Middle
 			CheckOutTime: &checkout2,
-			CheckedInBy:  data.Staff1.ID,
+			CheckedInBy:  data.Staff1ID,
 			CheckedOutBy: &closedBy,
-			DeviceID:     data.Device1.ID,
+			DeviceID:     data.Device1ID,
 		}
 
 		attendance3 := &studentpresence.Attendance{
 			StudentID:   multiRowStudent.ID,
 			Date:        date.String(),
 			CheckInTime: now.Add(1 * time.Hour), // Latest, still open
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 		}
 
 		for _, att := range []*studentpresence.Attendance{attendance1, attendance2, attendance3} {
@@ -278,7 +275,7 @@ func TestPresenceAttendance_StudentDate(t *testing.T) {
 		// Use a date with no records
 		emptyDate := timezone.NewDate(2023, 1, 1)
 
-		records, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{data.Student1.ID}, FromDate: emptyDate.String(), UntilDate: emptyDate.String()})
+		records, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{data.Student1ID}, FromDate: emptyDate.String(), UntilDate: emptyDate.String()})
 		require.NoError(t, err)
 
 		assert.Len(t, records, 0, "Should find no records for date with no attendance")
@@ -296,8 +293,8 @@ func TestPresenceAttendance_StudentDate(t *testing.T) {
 			StudentID:   dateFilterStudent.ID,
 			Date:        date.String(),
 			CheckInTime: now.Add(5 * time.Hour), // Different time
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 		}
 
 		record, err := repo.RecordAttendance(ctx, *attendance)
@@ -334,16 +331,16 @@ func TestPresenceAttendance_StudentDate(t *testing.T) {
 			StudentID:   diffStudentA.ID,
 			Date:        date.String(),
 			CheckInTime: now.Add(6 * time.Hour),
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 		}
 
 		attendance2 := &studentpresence.Attendance{
 			StudentID:   diffStudentB.ID,
 			Date:        date.String(),
 			CheckInTime: now.Add(7 * time.Hour),
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 		}
 
 		for _, att := range []*studentpresence.Attendance{attendance1, attendance2} {
@@ -383,8 +380,8 @@ func TestPresenceAttendance_StudentDate(t *testing.T) {
 			StudentID:   twoDayStudent.ID,
 			Date:        date1.String(),
 			CheckInTime: now.Add(8 * time.Hour),
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 		}
 
 		// Create attendance for date2
@@ -392,8 +389,8 @@ func TestPresenceAttendance_StudentDate(t *testing.T) {
 			StudentID:   twoDayStudent.ID,
 			Date:        date2.String(),
 			CheckInTime: now.Add(32 * time.Hour),
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 		}
 
 		for _, att := range []*studentpresence.Attendance{attendance1, attendance2} {
@@ -454,8 +451,8 @@ func TestPresenceAttendance_FindLatestByStudent(t *testing.T) {
 			StudentID:   latestDateStudent.ID,
 			Date:        date1.String(),
 			CheckInTime: now.Add(-48 * time.Hour),
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 		}
 
 		// Create attendance for date2 (middle)
@@ -463,8 +460,8 @@ func TestPresenceAttendance_FindLatestByStudent(t *testing.T) {
 			StudentID:   latestDateStudent.ID,
 			Date:        date2.String(),
 			CheckInTime: now.Add(-24 * time.Hour),
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 		}
 
 		// Create attendance for date3 (latest by date)
@@ -472,8 +469,8 @@ func TestPresenceAttendance_FindLatestByStudent(t *testing.T) {
 			StudentID:   latestDateStudent.ID,
 			Date:        date3.String(),
 			CheckInTime: now,
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 		}
 
 		for _, att := range []*studentpresence.Attendance{attendance1, attendance2, attendance3} {
@@ -503,24 +500,24 @@ func TestPresenceAttendance_FindLatestByStudent(t *testing.T) {
 		multiCheckinStudent := testpkg.CreateTestStudent(t, db, "MultiCheckin", "Same", "1m")
 
 		earlyCheckout := now.Add(-1 * time.Hour)
-		closedBy := data.Staff1.ID
+		closedBy := data.Staff1ID
 
 		attendance1 := &studentpresence.Attendance{
 			StudentID:    multiCheckinStudent.ID,
 			Date:         date.String(),
 			CheckInTime:  now.Add(-2 * time.Hour), // Earlier, closed
 			CheckOutTime: &earlyCheckout,
-			CheckedInBy:  data.Staff1.ID,
+			CheckedInBy:  data.Staff1ID,
 			CheckedOutBy: &closedBy,
-			DeviceID:     data.Device1.ID,
+			DeviceID:     data.Device1ID,
 		}
 
 		attendance2 := &studentpresence.Attendance{
 			StudentID:   multiCheckinStudent.ID,
 			Date:        date.String(),
 			CheckInTime: now.Add(1 * time.Hour), // Later, open
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 		}
 
 		for _, att := range []*studentpresence.Attendance{attendance1, attendance2} {
@@ -561,8 +558,8 @@ func TestPresenceAttendance_FindLatestByStudent(t *testing.T) {
 			StudentID:   singleStudent.ID,
 			Date:        date.String(),
 			CheckInTime: now,
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 		}
 
 		record, err := repo.RecordAttendance(ctx, *attendance)
@@ -590,23 +587,23 @@ func TestPresenceAttendance_FindLatestByStudent(t *testing.T) {
 		// to respect the partial unique index on
 		// (student_id, date) WHERE check_out_time IS NULL.
 		yesterdayCheckout := now.Add(-26 * time.Hour)
-		closedBy := data.Staff1.ID
+		closedBy := data.Staff1ID
 		attendanceYesterday1 := &studentpresence.Attendance{
 			StudentID:    complexStudent.ID,
 			Date:         yesterday.String(),
 			CheckInTime:  now.Add(-30 * time.Hour), // Earlier yesterday, closed
 			CheckOutTime: &yesterdayCheckout,
-			CheckedInBy:  data.Staff1.ID,
+			CheckedInBy:  data.Staff1ID,
 			CheckedOutBy: &closedBy,
-			DeviceID:     data.Device1.ID,
+			DeviceID:     data.Device1ID,
 		}
 
 		attendanceYesterday2 := &studentpresence.Attendance{
 			StudentID:   complexStudent.ID,
 			Date:        yesterday.String(),
 			CheckInTime: now.Add(-25 * time.Hour), // Later yesterday, open
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 		}
 
 		// Today: single record but earlier in the day than latest yesterday record
@@ -614,8 +611,8 @@ func TestPresenceAttendance_FindLatestByStudent(t *testing.T) {
 			StudentID:   complexStudent.ID,
 			Date:        today.String(),
 			CheckInTime: now.Add(-2 * time.Hour), // Early today
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 		}
 
 		for _, att := range []*studentpresence.Attendance{attendanceYesterday1, attendanceYesterday2, attendanceToday} {
@@ -650,16 +647,16 @@ func TestPresenceAttendance_FindLatestByStudent(t *testing.T) {
 			StudentID:   noInterfereA.ID,
 			Date:        date.String(),
 			CheckInTime: now.Add(2 * time.Hour),
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 		}
 
 		attendanceStudent2 := &studentpresence.Attendance{
 			StudentID:   noInterfereB.ID,
 			Date:        date.String(),
 			CheckInTime: now.Add(3 * time.Hour),
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 		}
 
 		for _, att := range []*studentpresence.Attendance{attendanceStudent1, attendanceStudent2} {
@@ -716,8 +713,8 @@ func TestPresenceAttendance_GetStudentCurrentStatus(t *testing.T) {
 			StudentID:   checkedInStudent.ID,
 			Date:        today.String(),
 			CheckInTime: now,
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 			// CheckOutTime is nil - student is checked in
 		}
 
@@ -743,16 +740,16 @@ func TestPresenceAttendance_GetStudentCurrentStatus(t *testing.T) {
 		now := time.Now()
 		today := timezone.TodayDate()
 		checkOutTime := now.Add(2 * time.Hour)
-		checkedOutBy := data.Staff2.ID
+		checkedOutBy := data.Staff2ID
 
 		attendance := &studentpresence.Attendance{
 			StudentID:    checkedOutStudent.ID,
 			Date:         today.String(),
 			CheckInTime:  now,
 			CheckOutTime: &checkOutTime,
-			CheckedInBy:  data.Staff1.ID,
+			CheckedInBy:  data.Staff1ID,
 			CheckedOutBy: &checkedOutBy,
-			DeviceID:     data.Device1.ID,
+			DeviceID:     data.Device1ID,
 		}
 
 		record, err := repo.RecordAttendance(ctx, *attendance)
@@ -781,28 +778,28 @@ func TestPresenceAttendance_GetStudentCurrentStatus(t *testing.T) {
 		// later open row under the partial unique index on
 		// (student_id, date) WHERE check_out_time IS NULL.
 		earlyCheckout := now.Add(-2*time.Hour - 45*time.Minute)
-		earlyClosedBy := data.Staff1.ID
+		earlyClosedBy := data.Staff1ID
 		attendance1 := &studentpresence.Attendance{
 			StudentID:    multiRecordStudent.ID,
 			Date:         today.String(),
 			CheckInTime:  now.Add(-3 * time.Hour),
 			CheckOutTime: &earlyCheckout,
-			CheckedInBy:  data.Staff1.ID,
+			CheckedInBy:  data.Staff1ID,
 			CheckedOutBy: &earlyClosedBy,
-			DeviceID:     data.Device1.ID,
+			DeviceID:     data.Device1ID,
 		}
 
 		// Re-entry, also closed
 		checkOutTime1 := now.Add(-2 * time.Hour)
-		checkedOutBy1 := data.Staff1.ID
+		checkedOutBy1 := data.Staff1ID
 		attendance2 := &studentpresence.Attendance{
 			StudentID:    multiRecordStudent.ID,
 			Date:         today.String(),
 			CheckInTime:  now.Add(-2*time.Hour - 30*time.Minute),
 			CheckOutTime: &checkOutTime1,
-			CheckedInBy:  data.Staff1.ID,
+			CheckedInBy:  data.Staff1ID,
 			CheckedOutBy: &checkedOutBy1,
-			DeviceID:     data.Device1.ID,
+			DeviceID:     data.Device1ID,
 		}
 
 		// Second check-in (latest, still open)
@@ -810,8 +807,8 @@ func TestPresenceAttendance_GetStudentCurrentStatus(t *testing.T) {
 			StudentID:   multiRecordStudent.ID,
 			Date:        today.String(),
 			CheckInTime: now.Add(-1 * time.Hour), // Latest check-in time
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 		}
 
 		for _, att := range []*studentpresence.Attendance{attendance1, attendance2, attendance3} {
@@ -843,8 +840,8 @@ func TestPresenceAttendance_GetStudentCurrentStatus(t *testing.T) {
 			StudentID:   historicalStudent.ID,
 			Date:        yesterday.String(),
 			CheckInTime: now.Add(-24 * time.Hour),
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 		}
 
 		record, err := repo.RecordAttendance(ctx, *attendance)
@@ -872,21 +869,21 @@ func TestPresenceAttendance_GetStudentCurrentStatus(t *testing.T) {
 			StudentID:   diffStudent1.ID,
 			Date:        today.String(),
 			CheckInTime: now.Add(-1 * time.Hour),
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 		}
 
 		// Create attendance for student2 with check-out
 		checkOutTime2 := now
-		checkedOutBy2 := data.Staff1.ID
+		checkedOutBy2 := data.Staff1ID
 		attendance2 := &studentpresence.Attendance{
 			StudentID:    diffStudent2.ID,
 			Date:         today.String(),
 			CheckInTime:  now.Add(-2 * time.Hour),
 			CheckOutTime: &checkOutTime2,
-			CheckedInBy:  data.Staff1.ID,
+			CheckedInBy:  data.Staff1ID,
 			CheckedOutBy: &checkedOutBy2,
-			DeviceID:     data.Device1.ID,
+			DeviceID:     data.Device1ID,
 		}
 
 		for _, att := range []*studentpresence.Attendance{attendance1, attendance2} {
@@ -924,8 +921,8 @@ func TestPresenceAttendance_GetStudentCurrentStatus(t *testing.T) {
 			StudentID:   tzStudent.ID,
 			Date:        today.String(),
 			CheckInTime: today.BerlinMidnight().Add(23 * time.Hour), // Late in the day
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 		}
 
 		record, err := repo.RecordAttendance(ctx, *attendance)
@@ -956,11 +953,11 @@ func TestPresenceAttendance_Update(t *testing.T) {
 		date := timezone.TodayDate()
 
 		attendance := studentpresence.Attendance{
-			StudentID:   data.Student1.ID,
+			StudentID:   data.Student1ID,
 			Date:        date.String(),
 			CheckInTime: now,
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 		}
 
 		attendance, err := repo.RecordAttendance(ctx, attendance)
@@ -968,7 +965,7 @@ func TestPresenceAttendance_Update(t *testing.T) {
 
 		// Update with check-out
 		checkOutTime := now.Add(3 * time.Hour)
-		checkedOutBy := data.Staff2.ID
+		checkedOutBy := data.Staff2ID
 		attendance.CheckOutTime = &checkOutTime
 		attendance.CheckedOutBy = &checkedOutBy
 
@@ -1005,11 +1002,11 @@ func TestPresenceAttendance_FindByID(t *testing.T) {
 		date := timezone.TodayDate()
 
 		attendance := studentpresence.Attendance{
-			StudentID:   data.Student1.ID,
+			StudentID:   data.Student1ID,
 			Date:        date.String(),
 			CheckInTime: now,
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 		}
 
 		attendance, err := repo.RecordAttendance(ctx, attendance)
@@ -1018,7 +1015,7 @@ func TestPresenceAttendance_FindByID(t *testing.T) {
 		found, err := repo.FindAttendance(ctx, attendance.ID)
 		require.NoError(t, err)
 		assert.Equal(t, attendance.ID, found.ID)
-		assert.Equal(t, data.Student1.ID, found.StudentID)
+		assert.Equal(t, data.Student1ID, found.StudentID)
 	})
 
 	t.Run("returns error for non-existent ID", func(t *testing.T) {
@@ -1042,11 +1039,11 @@ func TestPresenceAttendance_Delete(t *testing.T) {
 		date := timezone.TodayDate()
 
 		attendance := studentpresence.Attendance{
-			StudentID:   data.Student1.ID,
+			StudentID:   data.Student1ID,
 			Date:        date.String(),
 			CheckInTime: now,
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 		}
 
 		attendance, err := repo.RecordAttendance(ctx, attendance)
@@ -1075,18 +1072,18 @@ func TestPresenceAttendance_GetTodayByStudentID(t *testing.T) {
 		today := timezone.TodayDate()
 
 		attendance := &studentpresence.Attendance{
-			StudentID:   data.Student1.ID,
+			StudentID:   data.Student1ID,
 			Date:        today.String(),
 			CheckInTime: now,
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 		}
 
 		record, err := repo.RecordAttendance(ctx, *attendance)
 		require.NoError(t, err)
 		*attendance = record
 
-		found, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{data.Student1.ID}, FromDate: timezone.TodayDate().String(), UntilDate: timezone.TodayDate().String(), NewestFirst: true, Limit: 1})
+		found, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{data.Student1ID}, FromDate: timezone.TodayDate().String(), UntilDate: timezone.TodayDate().String(), NewestFirst: true, Limit: 1})
 		require.NoError(t, err)
 		assert.Equal(t, attendance.ID, found[0].ID)
 	})
@@ -1117,19 +1114,19 @@ func TestPresenceAttendance_FindForDate(t *testing.T) {
 
 		// Create multiple attendance records for same date
 		attendance1 := &studentpresence.Attendance{
-			StudentID:   data.Student1.ID,
+			StudentID:   data.Student1ID,
 			Date:        date.String(),
 			CheckInTime: now.Add(-1 * time.Hour),
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 		}
 
 		attendance2 := &studentpresence.Attendance{
-			StudentID:   data.Student2.ID,
+			StudentID:   data.Student2ID,
 			Date:        date.String(),
 			CheckInTime: now,
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 		}
 
 		record, err := repo.RecordAttendance(ctx, *attendance1)
@@ -1201,8 +1198,8 @@ func TestPresenceAttendance_CreateIfNoOpenForToday(t *testing.T) {
 			StudentID:   student.ID,
 			Date:        timezone.TodayDate().String(),
 			CheckInTime: now,
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 		}
 
 		att, inserted, err := repo.EnsureAttendance(ctx, att)
@@ -1221,8 +1218,8 @@ func TestPresenceAttendance_CreateIfNoOpenForToday(t *testing.T) {
 			StudentID:   student.ID,
 			Date:        date.String(),
 			CheckInTime: now,
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 		}
 		_, ok1, err1 := repo.EnsureAttendance(ctx, first)
 		require.NoError(t, err1)
@@ -1232,8 +1229,8 @@ func TestPresenceAttendance_CreateIfNoOpenForToday(t *testing.T) {
 			StudentID:   student.ID,
 			Date:        date.String(),
 			CheckInTime: now.Add(1 * time.Minute),
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 		}
 		_, ok2, err2 := repo.EnsureAttendance(ctx, second)
 		require.NoError(t, err2, "ON CONFLICT must swallow the duplicate, not raise")
@@ -1245,7 +1242,7 @@ func TestPresenceAttendance_CreateIfNoOpenForToday(t *testing.T) {
 
 		now := time.Now()
 		date := timezone.TodayDate()
-		closedBy := data.Staff1.ID
+		closedBy := data.Staff1ID
 		closeTime := now.Add(30 * time.Minute)
 
 		closed := studentpresence.Attendance{
@@ -1253,9 +1250,9 @@ func TestPresenceAttendance_CreateIfNoOpenForToday(t *testing.T) {
 			Date:         date.String(),
 			CheckInTime:  now,
 			CheckOutTime: &closeTime,
-			CheckedInBy:  data.Staff1.ID,
+			CheckedInBy:  data.Staff1ID,
 			CheckedOutBy: &closedBy,
-			DeviceID:     data.Device1.ID,
+			DeviceID:     data.Device1ID,
 		}
 		_, ok1, err1 := repo.EnsureAttendance(ctx, closed)
 		require.NoError(t, err1)
@@ -1267,8 +1264,8 @@ func TestPresenceAttendance_CreateIfNoOpenForToday(t *testing.T) {
 			StudentID:   student.ID,
 			Date:        date.String(),
 			CheckInTime: now.Add(1 * time.Hour),
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 		}
 		_, ok2, err2 := repo.EnsureAttendance(ctx, reentry)
 		require.NoError(t, err2)
@@ -1305,28 +1302,28 @@ func TestPresenceAttendance_CloseOpenForToday(t *testing.T) {
 			StudentID:   student.ID,
 			Date:        timezone.NewDate(2026, 8, 24).String(),
 			CheckInTime: now.Add(-1 * time.Hour),
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 			YardSince:   &yard,
 		}
 		open, err := repo.RecordAttendance(ctx, open)
 		require.NoError(t, err)
 
-		closed, err := repo.CloseAttendance(ctx, studentpresence.AttendanceCheckout{StudentIDs: []int64{student.ID}, At: now, Date: timezone.DateFromTime(now).String(), StaffID: data.Staff2.ID, DeviceID: 0})
+		closed, err := repo.CloseAttendance(ctx, studentpresence.AttendanceCheckout{StudentIDs: []int64{student.ID}, At: now, Date: timezone.DateFromTime(now).String(), StaffID: data.Staff2ID, DeviceID: 0})
 		require.NoError(t, err)
 		require.Len(t, closed, 1, "open row must have been closed")
 		assert.Equal(t, open.ID, closed[0].ID)
 		require.NotNil(t, closed[0].CheckOutTime)
 		assert.WithinDuration(t, now, *closed[0].CheckOutTime, time.Second)
 		require.NotNil(t, closed[0].CheckedOutBy)
-		assert.Equal(t, data.Staff2.ID, *closed[0].CheckedOutBy)
+		assert.Equal(t, data.Staff2ID, *closed[0].CheckedOutBy)
 		assert.Nil(t, closed[0].YardSince, "yard sub-state must be cleared on checkout")
 	})
 
 	t.Run("no open row returns nil without error", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Close", "Idempotent", "2y")
 
-		closed, err := repo.CloseAttendance(ctx, studentpresence.AttendanceCheckout{StudentIDs: []int64{student.ID}, At: time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC), Date: timezone.NewDate(2026, 8, 24).String(), StaffID: data.Staff1.ID})
+		closed, err := repo.CloseAttendance(ctx, studentpresence.AttendanceCheckout{StudentIDs: []int64{student.ID}, At: time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC), Date: timezone.NewDate(2026, 8, 24).String(), StaffID: data.Staff1ID})
 		require.NoError(t, err)
 		assert.Empty(t, closed, "no open row → idempotent success, repo returns nil")
 	})
@@ -1341,19 +1338,19 @@ func TestPresenceAttendance_CloseOpenForToday(t *testing.T) {
 			StudentID:   student.ID,
 			Date:        timezone.NewDate(2026, 8, 24).String(),
 			CheckInTime: now.Add(-1 * time.Hour),
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 		}
 		open, err := repo.RecordAttendance(ctx, open)
 		require.NoError(t, err)
 
-		closed, err := repo.CloseAttendance(ctx, studentpresence.AttendanceCheckout{StudentIDs: []int64{student.ID}, At: now, Date: timezone.DateFromTime(now).String(), StaffID: 0, DeviceID: data.Device1.ID})
+		closed, err := repo.CloseAttendance(ctx, studentpresence.AttendanceCheckout{StudentIDs: []int64{student.ID}, At: now, Date: timezone.DateFromTime(now).String(), StaffID: 0, DeviceID: data.Device1ID})
 		require.NoError(t, err)
 		require.Len(t, closed, 1)
 		assert.Equal(t, open.ID, closed[0].ID)
 		assert.Nil(t, closed[0].CheckedOutBy, "staffID=0 must not write a bogus FK")
 		require.NotNil(t, closed[0].CheckedOutDeviceID)
-		assert.Equal(t, data.Device1.ID, *closed[0].CheckedOutDeviceID)
+		assert.Equal(t, data.Device1ID, *closed[0].CheckedOutDeviceID)
 	})
 
 	t.Run("rejects checkout device from another tenant", func(t *testing.T) {
@@ -1366,8 +1363,8 @@ func TestPresenceAttendance_CloseOpenForToday(t *testing.T) {
 			StudentID:   student.ID,
 			Date:        timezone.NewDate(2026, 8, 24).String(),
 			CheckInTime: now.Add(-time.Hour),
-			CheckedInBy: data.Staff1.ID,
-			DeviceID:    data.Device1.ID,
+			CheckedInBy: data.Staff1ID,
+			DeviceID:    data.Device1ID,
 		}
 		open, err := repo.RecordAttendance(ctx, open)
 		require.NoError(t, err)
@@ -1404,25 +1401,25 @@ func TestPresenceAttendance_CloseOpenForTodayUsesCallerDate(t *testing.T) {
 		StudentID:   student.ID,
 		Date:        yesterday.String(),
 		CheckInTime: now.Add(-25 * time.Hour),
-		CheckedInBy: data.Staff1.ID,
-		DeviceID:    data.Device1.ID,
+		CheckedInBy: data.Staff1ID,
+		DeviceID:    data.Device1ID,
 	}
 	open, err := repo.RecordAttendance(ctx, open)
 	require.NoError(t, err)
 
 	// A close scoped to the CURRENT day must not touch yesterday's open row.
-	closed, err := repo.CloseAttendance(ctx, studentpresence.AttendanceCheckout{StudentIDs: []int64{student.ID}, At: now, Date: timezone.TodayDate().String(), StaffID: data.Staff1.ID, DeviceID: 0})
+	closed, err := repo.CloseAttendance(ctx, studentpresence.AttendanceCheckout{StudentIDs: []int64{student.ID}, At: now, Date: timezone.TodayDate().String(), StaffID: data.Staff1ID, DeviceID: 0})
 	require.NoError(t, err)
 	assert.Empty(t, closed, "a different-day close must not match the snapshot day's row")
 
 	// The same close scoped to the snapshot day closes exactly that row.
-	closed, err = repo.CloseAttendance(ctx, studentpresence.AttendanceCheckout{StudentIDs: []int64{student.ID}, At: now, Date: yesterday.String(), StaffID: data.Staff1.ID, DeviceID: 0})
+	closed, err = repo.CloseAttendance(ctx, studentpresence.AttendanceCheckout{StudentIDs: []int64{student.ID}, At: now, Date: yesterday.String(), StaffID: data.Staff1ID, DeviceID: 0})
 	require.NoError(t, err)
 	require.Len(t, closed, 1, "the caller-supplied day's open row must be closed")
 	assert.Equal(t, open.ID, closed[0].ID)
 }
 
-func newPresence(t *testing.T, db *bun.DB) *studentpresence.Module {
+func newPresence(t *testing.T, db *testpkg.DB) *studentpresence.Module {
 	t.Helper()
 	module, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)

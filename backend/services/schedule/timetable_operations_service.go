@@ -230,6 +230,10 @@ type OperationRoster struct {
 	// requireCanOperate (#3167). The all_staff overview scope shows every
 	// running roster without granting action rights.
 	CanOperate bool `json:"can_operate"`
+	// CanEditAttendance is separate from start/complete/reopen authority.
+	CanEditAttendance bool `json:"can_edit_attendance"`
+	// CanReportAbsence covers sick/excused block markers, not other statuses.
+	CanReportAbsence bool `json:"can_report_absence"`
 }
 
 type OperationRosterInstance struct {
@@ -695,11 +699,7 @@ func (s *timetableOperationsService) Roster(ctx context.Context, accountID int64
 	if err != nil {
 		return nil, err
 	}
-	roster.CanOperate, err = s.canOperate(ctx, accountID, isAdmin, instanceID)
-	if err != nil {
-		return nil, err
-	}
-	return roster, nil
+	return s.rosterWithActionAccess(ctx, accountID, isAdmin, instanceID, roster, nil)
 }
 
 // canOperate turns requireCanOperate into a flag for read responses. Only a
@@ -712,14 +712,24 @@ func (s *timetableOperationsService) canOperate(ctx context.Context, accountID i
 	return err == nil, err
 }
 
-// operatedRoster marks the roster of a write response as operable: the caller
-// has just passed requireCanOperate, and the client replaces its cached
-// roster with this one.
-func operatedRoster(roster *OperationRoster, err error) (*OperationRoster, error) {
-	if roster != nil {
-		roster.CanOperate = true
+// Reads and write responses carry the same action-specific capabilities.
+func (s *timetableOperationsService) rosterWithActionAccess(ctx context.Context, accountID int64, isAdmin bool, instanceID int64, roster *OperationRoster, err error) (*OperationRoster, error) {
+	if err != nil || roster == nil {
+		return roster, err
 	}
-	return roster, err
+	roster.CanOperate, err = s.canOperate(ctx, accountID, isAdmin, instanceID)
+	if err != nil {
+		return nil, err
+	}
+	staffID, err := s.requireCanEditAttendance(ctx, accountID, isAdmin, instanceID)
+	if err != nil && !errors.Is(err, ErrTimetableOperationForbidden) {
+		return nil, err
+	}
+	roster.CanEditAttendance = err == nil && staffID > 0
+	// A failed absence-policy lookup hides that action without preventing
+	// an independently authorized check-in or check-out.
+	roster.CanReportAbsence = s.requireCanReportAbsence(ctx, accountID, isAdmin, instanceID) == nil
+	return roster, nil
 }
 
 func (s *timetableOperationsService) RosterByActiveGroup(ctx context.Context, accountID int64, isAdmin bool, activeGroupID int64) (*OperationRoster, error) {
@@ -734,11 +744,12 @@ func (s *timetableOperationsService) RosterByActiveGroup(ctx context.Context, ac
 }
 
 func (s *timetableOperationsService) CheckInStudent(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64) (*OperationRoster, error) {
-	return operatedRoster(s.checkInStudent(ctx, accountID, isAdmin, instanceID, studentID))
+	roster, err := s.checkInStudent(ctx, accountID, isAdmin, instanceID, studentID)
+	return s.rosterWithActionAccess(ctx, accountID, isAdmin, instanceID, roster, err)
 }
 
 func (s *timetableOperationsService) checkInStudent(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64) (*OperationRoster, error) {
-	staffID, err := s.requireCanOperate(ctx, accountID, isAdmin, instanceID)
+	staffID, err := s.requireCanEditAttendance(ctx, accountID, isAdmin, instanceID)
 	if err != nil {
 		return nil, err
 	}
@@ -818,7 +829,7 @@ func (s *timetableOperationsService) checkInStudentWithCurrentVisit(ctx context.
 // in another running session" check-in conflict by moving the child instead
 // of rejecting (#2386). The shared bulk-move path owns checkout semantics,
 // attendance mirroring, and SSE broadcasts for both the old and new visit.
-// Target authorization already happened in requireCanOperate, so the move's
+// Target authorization already happened in requireCanEditAttendance, so the move's
 // own supervision check is bypassed.
 func (s *timetableOperationsService) moveStudentFromOtherSession(ctx context.Context, staffID int64, inst *scheduleModel.ActivityInstance, instanceID, studentID int64) (*OperationRoster, error) {
 	result, err := s.deps.ActiveService.MoveStudentsToActiveGroupAuthorized(ctx, []int64{studentID}, *inst.ActiveGroupID, activeSvc.StudentMoveAuthorization{
@@ -886,11 +897,12 @@ func (s *timetableOperationsService) markPlannedStudentPresent(ctx context.Conte
 }
 
 func (s *timetableOperationsService) CheckOutStudent(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64) (*OperationRoster, error) {
-	return operatedRoster(s.checkOutStudent(ctx, accountID, isAdmin, instanceID, studentID))
+	roster, err := s.checkOutStudent(ctx, accountID, isAdmin, instanceID, studentID)
+	return s.rosterWithActionAccess(ctx, accountID, isAdmin, instanceID, roster, err)
 }
 
 func (s *timetableOperationsService) checkOutStudent(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64) (*OperationRoster, error) {
-	staffID, err := s.requireCanOperate(ctx, accountID, isAdmin, instanceID)
+	staffID, err := s.requireCanEditAttendance(ctx, accountID, isAdmin, instanceID)
 	if err != nil {
 		return nil, err
 	}
@@ -925,9 +937,6 @@ func (s *timetableOperationsService) checkOutStudent(ctx context.Context, accoun
 }
 
 func (s *timetableOperationsService) PatchAttendance(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64, patch scheduleModel.AttendanceFieldPatch) (*OperationRosterRow, error) {
-	if _, err := s.requireCanOperate(ctx, accountID, isAdmin, instanceID); err != nil {
-		return nil, err
-	}
 	inst, err := s.loadInstance(ctx, instanceID)
 	if err != nil {
 		return nil, err
@@ -957,6 +966,18 @@ func (s *timetableOperationsService) PatchAttendance(ctx context.Context, accoun
 	if row == nil {
 		return nil, ErrTimetableOperationNotFound
 	}
+	if isAbsenceOnlyAttendancePatch(patch, row) {
+		if err := s.requireCanReportAbsence(ctx, accountID, isAdmin, instanceID); err != nil {
+			return nil, err
+		}
+	} else if _, err := s.requireCanOperate(ctx, accountID, isAdmin, instanceID); err != nil {
+		return nil, err
+	}
+	if isReportableAbsenceSubstatus(patch.Substatus) || isReportableAbsenceSubstatus(row.Substatus) {
+		if err := s.requireDirectAbsenceScope(ctx, isAdmin); err != nil {
+			return nil, err
+		}
+	}
 	if verrs := ValidateAttendancePatch(patch, row); len(verrs) > 0 {
 		return nil, &TimetableAttendanceValidationError{Fields: verrs}
 	}
@@ -974,6 +995,61 @@ func (s *timetableOperationsService) PatchAttendance(ctx context.Context, accoun
 		}
 	}
 	return nil, ErrTimetableOperationNotFound
+}
+
+func isReportableAbsenceSubstatus(substatus *string) bool {
+	return substatus != nil && (*substatus == scheduleModel.AttendanceSubstatusSick || *substatus == scheduleModel.AttendanceSubstatusExcused)
+}
+
+// Only reporting sick/excused and returning such a row to expected use the
+// absence grant. Present, unexplained absence and other substatuses retain
+// their existing block authorization, even when replacing an excusal.
+func isAbsenceOnlyAttendancePatch(patch scheduleModel.AttendanceFieldPatch, row *scheduleModel.InstanceStudent) bool {
+	status, substatus := row.Status, row.Substatus
+	if patch.Status != nil {
+		status = *patch.Status
+	}
+	if patch.SubstatusClear {
+		substatus = nil
+	} else if patch.Substatus != nil {
+		substatus = patch.Substatus
+	}
+	return (status == scheduleModel.AttendanceStatusAbsent && isReportableAbsenceSubstatus(substatus)) ||
+		(status == scheduleModel.AttendanceStatusExpected && substatus == nil && isReportableAbsenceSubstatus(row.Substatus))
+}
+
+func (s *timetableOperationsService) requireCanReportAbsence(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) error {
+	_, operationErr := s.requireCanOperate(ctx, accountID, isAdmin, instanceID)
+	if operationErr == nil {
+		return s.requireDirectAbsenceScope(ctx, isAdmin)
+	}
+	if !errors.Is(operationErr, ErrTimetableOperationForbidden) || isAssignmentBoundPortal(ctx) {
+		return operationErr
+	}
+	if err := s.requireDirectAbsenceScope(ctx, isAdmin); err != nil {
+		return err
+	}
+	_, err := s.requireOGSAttendanceActor(ctx, accountID)
+	return err
+}
+
+// School-portal and admin contracts stay unchanged. Callers separately
+// verify the existing block access or a verified OGS actor.
+func (s *timetableOperationsService) requireDirectAbsenceScope(ctx context.Context, isAdmin bool) error {
+	if isAssignmentBoundPortal(ctx) || s.hasAdministrativeActionAccess(ctx, isAdmin) {
+		return nil
+	}
+	if s.deps.Settings == nil {
+		return fmt.Errorf("absence edit settings unavailable")
+	}
+	scope, err := s.deps.Settings.ResolveString(ctx, configModel.KeyStudentAbsenceEditScope)
+	if err != nil {
+		return err
+	}
+	if scope != configModel.StudentAbsenceEditScopeAllStaff {
+		return ErrTimetableOperationForbidden
+	}
+	return nil
 }
 
 // requireRosterStudent bounds a per-child write to the children this block
@@ -1037,6 +1113,68 @@ func (s *timetableOperationsService) rosterStudentExcluded(ctx context.Context, 
 		return false, err
 	}
 	return rosterExcludedAlumni(inst, students, s.today())[studentID], nil
+}
+
+// The scope only extends attendance commands. Lifecycle actions continue to
+// use requireCanOperate, including a start required before a first check-in.
+func (s *timetableOperationsService) requireCanEditAttendance(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (int64, error) {
+	if isAssignmentBoundPortal(ctx) || s.hasAdministrativeActionAccess(ctx, isAdmin) {
+		return s.requireCanOperate(ctx, accountID, isAdmin, instanceID)
+	}
+	if s.deps.Settings == nil {
+		return 0, fmt.Errorf("attendance edit settings unavailable")
+	}
+	scope, err := s.deps.Settings.ResolveString(ctx, configModel.KeyAttendanceEditScope)
+	if err != nil {
+		return 0, err
+	}
+	switch scope {
+	case configModel.AttendanceEditScopeOwn:
+		return s.requireCanOperate(ctx, accountID, isAdmin, instanceID)
+	case configModel.AttendanceEditScopeAllStaff:
+		return s.requireSchoolWideAttendanceActor(ctx, accountID, instanceID)
+	default:
+		return 0, ErrTimetableOperationForbidden
+	}
+}
+
+func (s *timetableOperationsService) requireSchoolWideAttendanceActor(ctx context.Context, accountID, instanceID int64) (int64, error) {
+	staffID, err := s.requireOGSAttendanceActor(ctx, accountID)
+	if err != nil {
+		return 0, err
+	}
+	visibility, err := s.deps.Settings.ResolveString(ctx, configModel.KeyOperationalOverviewScope)
+	if err != nil {
+		return 0, err
+	}
+	if visibility != configModel.OverviewScopeAllStaff {
+		return 0, ErrTimetableOperationForbidden
+	}
+	inst, err := s.loadInstance(ctx, instanceID)
+	if err != nil {
+		return 0, err
+	}
+	if inst.Status != scheduleModel.InstanceStatusActive || inst.ActiveGroupID == nil {
+		return 0, ErrTimetableOperationForbidden
+	}
+	return staffID, nil
+}
+
+func (s *timetableOperationsService) requireOGSAttendanceActor(ctx context.Context, accountID int64) (int64, error) {
+	claims := jwt.ClaimsFromCtx(ctx)
+	if (claims.Scope != "" && claims.Scope != "tenant" && claims.Scope != "org") ||
+		int64(claims.ID) != accountID || claims.TenantID <= 0 || claims.TenantID != tenant.FromContext(ctx) ||
+		!authorize.HasPermission("schedules:read", jwt.PermissionsFromCtx(ctx)) {
+		return 0, ErrTimetableOperationForbidden
+	}
+	staffID, hasStaff, err := s.resolveStaffID(ctx, accountID)
+	if err != nil {
+		return 0, err
+	}
+	if !hasStaff {
+		return 0, ErrTimetableOperationForbidden
+	}
+	return staffID, nil
 }
 
 func (s *timetableOperationsService) requireCanOperate(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (int64, error) {

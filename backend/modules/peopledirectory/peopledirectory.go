@@ -68,10 +68,13 @@ type UpdatePerson struct {
 }
 
 // PersonFilter narrows a directory search. Every field is optional; the
-// prefix and contains matches are case-insensitive.
+// prefix, contains and equals matches are case-insensitive, and the equals
+// matches also ignore surrounding whitespace on both sides.
 type PersonFilter struct {
 	FirstNamePrefix  string
 	LastNamePrefix   string
+	FirstNameEquals  string
+	LastNameEquals   string
 	FullNameContains string
 	TagID            string
 	AccountIDs       []int64
@@ -86,6 +89,9 @@ type ReleasedTag struct {
 }
 
 type Query interface {
+	FamilyProtectionQuery
+	StudentDepartureQuery
+	StudentFieldReviewQuery
 	StudentQuery
 	GuardianQuery
 	// FindPerson returns one non-deleted person of the current tenant.
@@ -137,6 +143,8 @@ type Capability interface {
 }
 
 type engine interface {
+	FamilyProtectionQuery
+	StudentDepartureQuery
 	studentEngine
 	guardianEngine
 	Create(context.Context, CreatePerson) (Person, error)
@@ -275,6 +283,8 @@ func (m *Module) ListPersonsByAccount(ctx context.Context, accountIDs []int64) (
 func (m *Module) SearchPersons(ctx context.Context, filter PersonFilter) ([]Person, error) {
 	filter.FirstNamePrefix = strings.TrimSpace(filter.FirstNamePrefix)
 	filter.LastNamePrefix = strings.TrimSpace(filter.LastNamePrefix)
+	filter.FirstNameEquals = strings.TrimSpace(filter.FirstNameEquals)
+	filter.LastNameEquals = strings.TrimSpace(filter.LastNameEquals)
 	filter.FullNameContains = strings.TrimSpace(filter.FullNameContains)
 	filter.TagID = NormalizeTagID(filter.TagID)
 	filter.AccountIDs = uniquePositive(filter.AccountIDs)

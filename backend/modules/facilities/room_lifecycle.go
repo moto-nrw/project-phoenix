@@ -102,6 +102,10 @@ type RoomFilter struct {
 	MaximumCapacity  *int
 	Search           *string
 	ExcludeSystem    bool
+	// IsOpenRoom selects by the permanent release ("offener Raum", #3062).
+	// nil means "either"; the pointer keeps "unreleased only" expressible,
+	// which a plain bool could not distinguish from "no opinion".
+	IsOpenRoom *bool
 }
 
 // RoomPage is one bounded room-list result plus the count before pagination.

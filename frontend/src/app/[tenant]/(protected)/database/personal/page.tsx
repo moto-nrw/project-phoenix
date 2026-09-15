@@ -20,31 +20,20 @@ import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { ActiveFilter } from "~/components/ui/page-header/types";
-import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
-import { CaregiverCapabilityModal } from "@/components/teachers/caregiver-capability-modal";
-import { RoleManagementModal } from "@/components/teachers/role-management-modal";
-import { StaffMasterDetail } from "@/components/teachers/staff-master-detail";
-import { TeacherEditModal } from "@/components/teachers/teacher-edit-modal";
-import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-modal";
+import { StaffList } from "@/components/teachers/staff-list";
 import { InvitationForm } from "~/components/admin/invitation-form";
 import { PendingInvitationsList } from "~/components/admin/pending-invitations-list";
 import { RoleGuard } from "~/components/auth/role-guard";
 import { hasPermission } from "~/lib/auth-utils";
-import { getDbOperationMessage } from "@/lib/use-notification";
 import { getRoleDisplayName } from "@/lib/auth-helpers";
 import { createCrudService } from "@/lib/database/service-factory";
 import { teachersConfig } from "@/components/database/configs/teachers.config";
 import type { Teacher } from "@/lib/teacher-api";
 import { Modal } from "~/components/ui/modal";
-import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
-import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
-import { createLogger } from "~/lib/logger";
-import { useSWRAuth, useTenantMutate } from "~/lib/swr";
+import { useSWRAuth } from "~/lib/swr";
 import { useTenantAwarePath } from "~/lib/tenant-path";
-
-const logger = createLogger({ component: "DatabaseTeachersPage" });
 
 type StaffGroupingMode = "none" | "role";
 
@@ -54,6 +43,9 @@ const STAFF_GROUPING_OPTIONS: { value: StaffGroupingMode; label: string }[] = [
   { value: "role", label: "Rolle" },
   { value: "none", label: "Keine" },
 ];
+
+/** Die Sammlung dieser Seite, für den Rückweg aus der Personalakte (`?from=`). */
+const COLLECTION_PATH = "/database/personal";
 
 function parseStaffGrouping(value: string | null): StaffGroupingMode {
   if (value === "none") return value;
@@ -84,14 +76,22 @@ export default function TeachersPage() {
   );
 }
 
+/**
+ * Personal (BAUARTEN-SPEC Bauart 1): die Sammlung mit Einladen, Import,
+ * Gruppierung und Suche. Jede Zeile führt auf die Personalakte `/staff/[id]`,
+ * die einzige Objektansicht einer Person (#3115). Bearbeiten, Löschen, Notizen
+ * und die Kontoaktionen liegen dort im Reiter „Konto" und im Kebab der
+ * Kopfkarte.
+ */
 function TeachersPageContent() {
   const tenantPath = useTenantAwarePath();
   const searchParams = useSearchParams();
   const updateUrlParams = useUpdateUrlParams();
 
-  const selectedId = searchParams.get("staff");
   const grouping = parseStaffGrouping(searchParams.get("groupBy"));
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState(
+    () => searchParams.get("search") ?? "",
+  );
   const isMobile = useIsMobile();
 
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -99,40 +99,13 @@ function TeachersPageContent() {
     Date.now(),
   );
 
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [caregiverModalOpen, setCaregiverModalOpen] = useState(false);
-  const [mfaModalOpen, setMfaModalOpen] = useState(false);
-  const [roleModalOpen, setRoleModalOpen] = useState(false);
-  const [savingTeacher, setSavingTeacher] = useState(false);
-
-  const {
-    showConfirmModal: showDeleteConfirmModal,
-    handleDeleteClick,
-    handleDeleteCancel,
-    confirmDelete,
-  } = useDeleteConfirmation();
-
-  const { success: toastSuccess, error: toastError } = useToast();
-
   const { data: sessionData, status } = useSession({
     required: true,
     onUnauthenticated() {
       redirect("/");
     },
   });
-  const accessToken = sessionData?.user?.token ?? "";
   const canManageUsers = hasPermission(sessionData, "users:manage");
-  // Personalnotizen am Mitarbeiter-Datensatz: staff:manage (#2906), nicht
-  // mehr users:update — das hält jede Betreuungskraft für die Kinderdaten.
-  const canManageStaffRecords = hasPermission(sessionData, "staff:manage");
-  // Löschen und die Kontoaktionen (Betreuer-Konto, 2-Faktor, Rolle) hängen am
-  // Konto, nicht am Personal-Datensatz. Ohne diese Berechtigungen antwortet
-  // das Backend mit 403, also zeigen wir die Aktionen erst gar nicht an.
-  const canDeleteStaff = hasPermission(sessionData, "users:delete");
-  // Vorname, Nachname und NFC-Karte gehen über PUT /api/users/{id} und
-  // brauchen users:update. Wer nur staff:manage hat, bekommt sie im
-  // Bearbeiten-Dialog als Anzeige, nicht als Eingabefeld (#2906).
-  const canEditPersonFields = hasPermission(sessionData, "users:update");
   // Seit #2906 erreicht die Seite auch, wer nur staff:manage oder
   // staff:stammdaten hat. Die beiden Import-Wege hängen an denselben
   // Berechtigungen wie ihre Backend-Routen: Personal-Import an users:create
@@ -145,7 +118,6 @@ function TeachersPageContent() {
   );
 
   const service = useMemo(() => createCrudService(teachersConfig), []);
-  const tenantMutate = useTenantMutate();
 
   const {
     data: teachersData,
@@ -216,18 +188,22 @@ function TeachersPageContent() {
     return filters;
   }, [searchTerm]);
 
-  const selectedTeacher = useMemo(() => {
-    if (!selectedId) return null;
-    return (
-      (teachersData ?? []).find((teacher) => teacher.id === selectedId) ?? null
-    );
-  }, [teachersData, selectedId]);
-
-  const handleSelectTeacher = useCallback(
-    (id: string | null) => {
-      updateUrlParams({ staff: id });
+  // Der Rückweg trägt den tatsächlichen Suchzustand mit, damit „Zurück" die
+  // gefilterte Personalübersicht wiederherstellt.
+  const collectionReferrer = useMemo(() => {
+    const query = new URLSearchParams(searchParams);
+    if (searchTerm) query.set("search", searchTerm);
+    else query.delete("search");
+    const serialized = query.toString();
+    return serialized ? `${COLLECTION_PATH}?${serialized}` : COLLECTION_PATH;
+  }, [searchParams, searchTerm]);
+  const objectHref = useCallback(
+    (teacher: Teacher) => {
+      return tenantPath(
+        `/staff/${teacher.id}?tab=konto&from=${encodeURIComponent(collectionReferrer)}`,
+      );
     },
-    [updateUrlParams],
+    [collectionReferrer, tenantPath],
   );
 
   const handleGroupingChange = useCallback(
@@ -265,76 +241,8 @@ function TeachersPageContent() {
     () => setShowInviteModal(false),
     [],
   );
-  const handleCloseEditModal = useCallback(() => setShowEditModal(false), []);
-  const handleEditClick = useCallback(() => setShowEditModal(true), []);
-  const handleManageCaregiverClick = useCallback(
-    () => setCaregiverModalOpen(true),
-    [],
-  );
-  const handleManageMFAClick = useCallback(() => setMfaModalOpen(true), []);
-  const handleManageRoleClick = useCallback(() => setRoleModalOpen(true), []);
 
-  const handleEditTeacher = useCallback(
-    async (data: Partial<Teacher> & { password?: string }) => {
-      if (!selectedTeacher) return;
-      try {
-        setSavingTeacher(true);
-        await service.update(selectedTeacher.id, data);
-        setShowEditModal(false);
-        toastSuccess(
-          getDbOperationMessage("update", teachersConfig.name.singular),
-        );
-        await tenantMutate("database-teachers-list");
-      } catch (err) {
-        logger.error("failed to update teacher", {
-          teacher_id: selectedTeacher.id,
-          error: err instanceof Error ? err.message : String(err),
-        });
-        throw err;
-      } finally {
-        setSavingTeacher(false);
-      }
-    },
-    [selectedTeacher, service, tenantMutate, toastSuccess],
-  );
-
-  const handleDeleteTeacher = useCallback(async () => {
-    if (!selectedTeacher) return;
-    const deleteError = await service.delete(selectedTeacher.id);
-    if (deleteError) {
-      toastError(deleteError);
-      return;
-    }
-    toastSuccess(getDbOperationMessage("delete", teachersConfig.name.singular));
-    handleSelectTeacher(null);
-    await tenantMutate("database-teachers-list");
-  }, [
-    selectedTeacher,
-    service,
-    toastError,
-    toastSuccess,
-    handleSelectTeacher,
-    tenantMutate,
-  ]);
-
-  const handleUpdateNotes = useCallback(
-    async (notes: string) => {
-      if (!selectedTeacher) return;
-      try {
-        await service.update(selectedTeacher.id, { staff_notes: notes });
-        await tenantMutate("database-teachers-list");
-      } catch (err) {
-        logger.error("failed to update teacher notes", {
-          teacher_id: selectedTeacher.id,
-          error: err instanceof Error ? err.message : String(err),
-        });
-        throw err;
-      }
-    },
-    [selectedTeacher, service, tenantMutate],
-  );
-
-  const canShowDetail = !loading && filteredTeachers.length > 0;
+  const canShowList = !loading && filteredTeachers.length > 0;
 
   return (
     <DatabasePageLayout
@@ -342,97 +250,21 @@ function TeachersPageContent() {
       sessionLoading={status === "loading"}
       error={error}
       overlays={
-        <>
-          {canManageUsers ? (
-            <Modal
-              isOpen={showInviteModal}
-              onClose={handleCloseInviteModal}
-              title="Personal einladen"
-            >
-              <InvitationForm
-                existingPositions={existingPositions}
-                onCreated={() => {
-                  setInvitationRefreshKey(Date.now());
-                  setShowInviteModal(false);
-                }}
-              />
-            </Modal>
-          ) : null}
-
-          {selectedTeacher && (
-            <ConfirmDeleteModal
-              isOpen={showDeleteConfirmModal}
-              onClose={handleDeleteCancel}
-              onConfirm={() => confirmDelete(() => void handleDeleteTeacher())}
-              title="Personal löschen?"
-              description={
-                <>
-                  Der Zugang wird deaktiviert und die Person aus allen Listen
-                  entfernt. Vorhandene Einträge wie Anwesenheiten und
-                  Zeiterfassung bleiben für die Historie erhalten. Die Person
-                  kann jederzeit erneut eingeladen werden.
-                </>
-              }
-              gate={{
-                mode: "textConfirm",
-                expected: `${selectedTeacher.first_name} ${selectedTeacher.last_name}`,
-                inputId: "confirm-delete-staff-name",
-                label: "Tippen Sie zur Bestätigung den Namen der Person:",
-                preview: `${selectedTeacher.first_name} ${selectedTeacher.last_name}`,
-                placeholder: "Vorname Nachname",
-              }}
-              loading={savingTeacher}
-              error=""
-            />
-          )}
-
-          {selectedTeacher && (
-            <TeacherEditModal
-              isOpen={showEditModal}
-              onClose={handleCloseEditModal}
-              teacher={selectedTeacher}
-              onSave={handleEditTeacher}
-              loading={savingTeacher}
+        canManageUsers ? (
+          <Modal
+            isOpen={showInviteModal}
+            onClose={handleCloseInviteModal}
+            title="Personal einladen"
+          >
+            <InvitationForm
               existingPositions={existingPositions}
-              canEditPersonFields={canEditPersonFields}
-            />
-          )}
-
-          {selectedTeacher && (
-            <CaregiverCapabilityModal
-              isOpen={caregiverModalOpen}
-              onClose={() => setCaregiverModalOpen(false)}
-              scope="tenant"
-              accountId={selectedTeacher.account_id?.toString() ?? ""}
-              accountLabel={`${selectedTeacher.first_name} ${selectedTeacher.last_name}`}
-              onUpdated={async () => {
-                await tenantMutate("database-teachers-list");
+              onCreated={() => {
+                setInvitationRefreshKey(Date.now());
+                setShowInviteModal(false);
               }}
             />
-          )}
-
-          {selectedTeacher?.account_id && accessToken && (
-            <MFAAdminOverrideModal
-              isOpen={mfaModalOpen}
-              onClose={() => setMfaModalOpen(false)}
-              bearerToken={accessToken}
-              accountId={selectedTeacher.account_id.toString()}
-              accountLabel={`${selectedTeacher.first_name} ${selectedTeacher.last_name}`}
-            />
-          )}
-
-          {selectedTeacher?.account_id && (
-            <RoleManagementModal
-              isOpen={roleModalOpen}
-              onClose={() => setRoleModalOpen(false)}
-              accountId={selectedTeacher.account_id.toString()}
-              accountLabel={`${selectedTeacher.first_name} ${selectedTeacher.last_name}`}
-              onUpdated={async () => {
-                await tenantMutate("database-teachers-list");
-              }}
-            />
-          )}
-        </>
+          </Modal>
+        ) : null
       }
       className="flex w-full flex-col"
       intro={{
@@ -535,33 +367,11 @@ function TeachersPageContent() {
             }
           />
         </SectionCard>
-      ) : canShowDetail ? (
+      ) : canShowList ? (
         <div className="min-h-0 flex-1 pb-4">
-          <StaffMasterDetail
+          <StaffList
             groupDefinitions={groupDefinitions}
-            selectedId={selectedId}
-            selectedTeacher={selectedTeacher}
-            onSelect={handleSelectTeacher}
-            onEditClick={canManageStaffRecords ? handleEditClick : undefined}
-            onDeleteClick={canDeleteStaff ? handleDeleteClick : undefined}
-            onUpdateNotes={
-              canManageStaffRecords ? handleUpdateNotes : undefined
-            }
-            onManageCaregiver={
-              canManageUsers && selectedTeacher?.account_id
-                ? handleManageCaregiverClick
-                : undefined
-            }
-            onManageMFA={
-              canManageUsers && selectedTeacher?.account_id
-                ? handleManageMFAClick
-                : undefined
-            }
-            onManageRole={
-              canManageUsers && selectedTeacher?.account_id
-                ? handleManageRoleClick
-                : undefined
-            }
+            objectHref={objectHref}
           />
         </div>
       ) : null}

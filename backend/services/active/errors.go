@@ -4,44 +4,45 @@ import (
 	"errors"
 	"fmt"
 
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
-// Common service errors
+// Common service errors. The presence-facing sentinels are the owner's public
+// values so every consumer classifies them without this package.
 var (
-	ErrActiveGroupNotFound     = errors.New("active group not found")
-	ErrVisitNotFound           = errors.New("visit not found")
-	ErrGroupSupervisorNotFound = errors.New("group supervisor not found")
-	ErrCombinedGroupNotFound   = errors.New("combined group not found")
-	ErrGroupMappingNotFound    = errors.New("group mapping not found")
-	ErrStaffNotFound           = errors.New("staff member not found")
-	ErrStudentNotFound         = errors.New("student not found")
+	ErrActiveGroupNotFound     = studentpresence.ErrGroupNotFound
+	ErrVisitNotFound           = studentpresence.ErrVisitNotFound
+	ErrGroupSupervisorNotFound = studentpresence.ErrGroupSupervisorNotFound
+	ErrCombinedGroupNotFound   = studentpresence.ErrCombinedGroupNotFound
+	ErrGroupMappingNotFound    = studentpresence.ErrGroupMappingNotFound
+	ErrStaffNotFound           = studentpresence.ErrStaffNotFound
+	ErrStudentNotFound         = studentpresence.ErrStudentNotFound
 	// ErrStudentGraduated guards the check-in write path against a graduated
 	// (alumnus) student. It is the atomic backstop to the grade-transition
 	// checked-in guard: the write path locks the student row FOR UPDATE and
 	// rejects an alumnus, closing the race where resolution saw an active
 	// student but a concurrent graduation committed mid-request (#405).
-	ErrStudentGraduated = errors.New("student has graduated and cannot check in")
+	ErrStudentGraduated = studentpresence.ErrStudentGraduated
 	// ErrStudentCareEnded guards every presence write against a child whose
 	// care has ended (#2487). Same shape as ErrStudentGraduated: resolution may
 	// have seen a child still in care while the exit took effect mid-request,
 	// so the write path re-checks under the row lock. The message is part of
 	// the /api/iot/* wire contract PyrePortal maps to German text.
-	ErrStudentCareEnded          = errors.New("student care has ended and cannot check in")
-	ErrActiveGroupAlreadyEnded   = errors.New("active group session already ended")
-	ErrVisitAlreadyEnded         = errors.New("visit already ended")
-	ErrSupervisionAlreadyEnded   = errors.New("supervision already ended")
-	ErrCombinedGroupAlreadyEnded = errors.New("combined group already ended")
-	ErrStudentAlreadyInGroup     = errors.New("student already present in this group")
-	ErrGroupAlreadyInCombination = errors.New("group already part of this combination")
-	ErrInvalidTimeRange          = errors.New("invalid time range")
-	ErrCannotDeleteActiveGroup   = errors.New("cannot delete active group with active visits")
-	ErrStudentAlreadyActive      = errors.New("student already has an active visit")
-	ErrStaffAlreadySupervising   = errors.New("staff member already supervising this group")
-	ErrStudentsNotPresent        = errors.New("no requested students are currently present")
-	ErrStudentMoveForbidden      = errors.New("not authorized to move the selected students")
-	ErrInvalidData               = errors.New("invalid data provided")
-	ErrDatabaseOperation         = errors.New("database operation failed")
+	ErrStudentCareEnded          = studentpresence.ErrStudentCareEnded
+	ErrActiveGroupAlreadyEnded   = studentpresence.ErrGroupAlreadyEnded
+	ErrVisitAlreadyEnded         = studentpresence.ErrVisitAlreadyEnded
+	ErrSupervisionAlreadyEnded   = studentpresence.ErrSupervisionAlreadyEnded
+	ErrCombinedGroupAlreadyEnded = studentpresence.ErrCombinedGroupAlreadyEnded
+	ErrStudentAlreadyInGroup     = studentpresence.ErrStudentAlreadyInGroup
+	ErrGroupAlreadyInCombination = studentpresence.ErrGroupAlreadyInCombination
+	ErrInvalidTimeRange          = studentpresence.ErrInvalidTimeRange
+	ErrCannotDeleteActiveGroup   = studentpresence.ErrCannotDeleteActiveGroup
+	ErrStudentAlreadyActive      = studentpresence.ErrStudentAlreadyActive
+	ErrStaffAlreadySupervising   = studentpresence.ErrStaffAlreadySupervising
+	ErrStudentsNotPresent        = studentpresence.ErrStudentsNotPresent
+	ErrStudentMoveForbidden      = studentpresence.ErrStudentMoveForbidden
+	ErrInvalidData               = studentpresence.ErrInvalidData
+	ErrDatabaseOperation         = studentpresence.ErrDatabaseOperation
 	// ErrNoAttendanceRecordForCheckout is returned by ConfirmDailyCheckout when
 	// the student has no attendance record for today — a daily checkout makes no
 	// sense because the student was never checked in. The message is a cross-repo
@@ -54,17 +55,17 @@ var (
 	ErrSessionConflict        = errors.New("session conflict detected")
 	ErrInvalidActivitySession = errors.New("invalid activity session parameters")
 	// Room conflict management errors
-	ErrRoomConflict         = errors.New("room is already occupied by another active group")
-	ErrRoomCapacityExceeded = activeModels.ErrRoomCapacityExceeded
+	ErrRoomConflict         = studentpresence.ErrRoomConflict
+	ErrRoomCapacityExceeded = studentpresence.ErrRoomCapacityExceeded
 	// ErrNoRoomAvailable: no room was selected and the activity has no planned
 	// room. There is no safe default here — room id 1 belongs to one specific
 	// school, so any hardcoded fallback trips fk_active_groups_room_tenant for
 	// every other tenant. The message is part of the PyrePortal contract.
-	ErrNoRoomAvailable = errors.New("no room available for this activity")
+	ErrNoRoomAvailable = studentpresence.ErrNoRoomAvailable
 )
 
 // RoomCapacityError preserves the service contract for the presence domain error.
-type RoomCapacityError = activeModels.RoomCapacityError
+type RoomCapacityError = studentpresence.RoomCapacityError
 
 // ActiveError represents an error that occurred in the active service
 type ActiveError struct {

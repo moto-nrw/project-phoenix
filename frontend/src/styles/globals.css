@@ -387,14 +387,16 @@
   inset: 0;
 }
 
+/* Beginnt unter der 48px hohen Kopfzeile (#2827), die das Schul-Portal auf
+   jeder Breite zeigt. */
 .moto-dotted-background--app-fixed {
   position: fixed;
-  inset: 3.5rem 0 0;
+  inset: 3rem 0 0;
 }
 
 /* Vollhöhe für Portale ohne mobile Kopfzeile (Eltern-App und seit dem
    Kopfzeilen-Aus auch das Personal-Portal): ohne die Überschreibung stünde
-   über dem Muster ein 56-px-weißer-Balken, wo früher die Kopfzeile saß. */
+   über dem Muster ein 48-px-weißer-Balken, wo früher die Kopfzeile saß. */
 .moto-dotted-background--parent,
 .moto-dotted-background--full {
   inset: 0;
@@ -538,14 +540,17 @@
 /* Jede sichtbare Hülle auf dem Weg zur letzten Kartenfläche wird selbst zur
    Flex-Spalte. `flex: 1` allein wirkt nur auf Flex-Elemente und ließ bei
    verschachtelten Seitenhüllen ansonsten den Punkthintergrund unter der
-   letzten Karte frei. */
+   letzten Karte frei. Eine Hülle, die ab `md` ausgeblendet ist (die
+   gestapelten Telefonzeilen einer `DataTable`), bleibt außen vor: sonst
+   schlägt dieses `display: flex` ihr `md:hidden` und die Zeilen stehen auf
+   dem Desktop doppelt, als Karten und als Tabelle. */
 .moto-tenant-body
-  > :last-child:not(.grid, .moto-content-surface, .hidden):has(
+  > :last-child:not(.grid, .moto-content-surface, .hidden, .md\:hidden):has(
     .moto-content-surface:last-child:is(section, div)
   ),
 .moto-tenant-body
-  > :last-child:not(.grid, .moto-content-surface, .hidden)
-  :not(.grid, .moto-content-surface, .hidden):has(
+  > :last-child:not(.grid, .moto-content-surface, .hidden, .md\:hidden)
+  :not(.grid, .moto-content-surface, .hidden, .md\:hidden):has(
     .moto-content-surface:last-child:is(section, div)
   ) {
   display: flex;

@@ -1663,6 +1663,76 @@ describe("Sidebar", () => {
       );
     });
 
+    it("navigates to the shared view for a saved session in a released room", () => {
+      vi.spyOn(localStorage, "getItem").mockImplementation((key: string) => {
+        if (key === "supervision-last-session") return "active-open";
+        return null;
+      });
+      mockUsePathname.mockReturnValue("/activities");
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [
+          {
+            id: "sporthalle",
+            name: "Sporthalle",
+            groupId: "",
+            isOpenRoom: true,
+            sessionIds: ["active-open"],
+          },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      fireEvent.click(screen.getByText("Aktuelle Aufsicht"));
+
+      expect(mockRouterPush).toHaveBeenCalledWith(
+        "/test-tenant/active-supervisions?room=sporthalle",
+      );
+    });
+
+    it("does not mistake a released room id for a saved session", () => {
+      vi.spyOn(localStorage, "getItem").mockImplementation((key: string) => {
+        if (key === "supervision-last-session") return "7";
+        return null;
+      });
+      mockUsePathname.mockReturnValue("/activities");
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [
+          { id: "10", name: "Raum A", groupId: "active-raum-a" },
+          {
+            id: "7",
+            name: "Turnhalle",
+            groupId: "7",
+            isOpenRoom: true,
+          },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      // The released room sits in its own "Offene Räume" section, so the
+      // own-supervision header counts one room only.
+      fireEvent.click(screen.getByText("Aktuelle Aufsicht"));
+
+      expect(mockRouterPush).toHaveBeenCalledWith(
+        "/test-tenant/active-supervisions?session=active-raum-a",
+      );
+    });
+
     it("falls back to first group when saved group not found", () => {
       const mockGetItem = vi.fn((key: string) => {
         if (key === "sidebar-last-group") return "999";
@@ -1776,8 +1846,8 @@ describe("Sidebar", () => {
     });
   });
 
-  describe("Schulhof room handling", () => {
-    it("renders Schulhof room with special styling", () => {
+  describe("released rooms in the supervision navigation (#3065)", () => {
+    it("lists a released room next to an own supervision", () => {
       mockUseSupervision.mockReturnValue({
         hasGroups: true,
         isSupervising: true,
@@ -1787,10 +1857,10 @@ describe("Sidebar", () => {
         supervisedRooms: [
           { id: "10", name: "Raum A", groupId: "1" },
           {
-            id: "schulhof",
+            id: "7",
             name: "Schulhof",
-            groupId: "schulhof",
-            isSchulhof: true,
+            groupId: "7",
+            isOpenRoom: true,
           },
         ],
         groups: [],
@@ -1804,7 +1874,7 @@ describe("Sidebar", () => {
       expect(screen.getByText("Raum A")).toBeInTheDocument();
     });
 
-    it("navigates to schulhof param when Schulhof room clicked", () => {
+    it("links a released room by its real room id", () => {
       mockUseSupervision.mockReturnValue({
         hasGroups: true,
         isSupervising: true,
@@ -1813,10 +1883,10 @@ describe("Sidebar", () => {
         overviewEnabled: false,
         supervisedRooms: [
           {
-            id: "schulhof",
+            id: "7",
             name: "Schulhof",
-            groupId: "schulhof",
-            isSchulhof: true,
+            groupId: "7",
+            isOpenRoom: true,
           },
         ],
         groups: [],
@@ -1826,51 +1896,53 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
+      // A released room travels by its real room id, never by a synthetic tab
+      // id: several sessions can run in it, so no session identifies it.
       const schulhofLink = screen.getByText("Schulhof").closest("a");
       expect(schulhofLink).toHaveAttribute(
         "href",
-        "/active-supervisions?session=schulhof",
+        "/active-supervisions?room=7",
       );
     });
 
-    it("uses schulhof string in navigation for Schulhof rooms", () => {
-      // Test the condition: room.isSchulhof ? "schulhof" : room.id
-      const room = { id: "schulhof", name: "Schulhof", isSchulhof: true };
-      const navParam = room.isSchulhof ? "schulhof" : room.id;
+    it("marks the released room for a session running in it", () => {
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [
+          { id: "10", name: "Werkraum", groupId: "active-werk" },
+          {
+            id: "7",
+            name: "Turnhalle",
+            groupId: "7",
+            isOpenRoom: true,
+            sessionIds: ["active-turn"],
+          },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+      mockUsePathname.mockReturnValue("/active-supervisions");
+      mockUseSearchParams.mockReturnValue(
+        createMockSearchParams((key) =>
+          key === "session" ? "active-turn" : null,
+        ),
+      );
 
-      expect(navParam).toBe("schulhof");
+      render(<Sidebar />);
+
+      expect(screen.getByText("Turnhalle").closest("a")).toHaveClass(
+        "bg-gray-100",
+      );
+      expect(screen.getByText("Werkraum").closest("a")).not.toHaveClass(
+        "bg-gray-100",
+      );
     });
 
-    it("uses room id in navigation for regular rooms", () => {
-      const room = { id: "10", name: "Raum A", isSchulhof: false };
-      const navParam = room.isSchulhof ? "schulhof" : room.id;
-
-      expect(navParam).toBe("10");
-    });
-
-    it("generates correct href for Schulhof room", () => {
-      const room = { id: "schulhof", name: "Schulhof", isSchulhof: true };
-      const basePath = "/active-supervisions";
-
-      const href = room.isSchulhof
-        ? `${basePath}?room=schulhof`
-        : `${basePath}?room=${room.id}`;
-
-      expect(href).toBe("/active-supervisions?room=schulhof");
-    });
-
-    it("generates correct href for regular room", () => {
-      const room = { id: "20", name: "Raum B", isSchulhof: false };
-      const basePath = "/active-supervisions";
-
-      const href = room.isSchulhof
-        ? `${basePath}?room=schulhof`
-        : `${basePath}?room=${room.id}`;
-
-      expect(href).toBe("/active-supervisions?room=20");
-    });
-
-    it("includes Schulhof in supervised rooms list", () => {
+    it("lists a released room and an own supervision side by side", () => {
       mockUseSupervision.mockReturnValue({
         hasGroups: true,
         isSupervising: true,
@@ -1880,10 +1952,10 @@ describe("Sidebar", () => {
         supervisedRooms: [
           { id: "10", name: "Raum A", groupId: "1" },
           {
-            id: "schulhof",
+            id: "7",
             name: "Schulhof",
-            groupId: "schulhof",
-            isSchulhof: true,
+            groupId: "7",
+            isOpenRoom: true,
           },
         ],
         groups: [],
@@ -1900,6 +1972,109 @@ describe("Sidebar", () => {
           link.textContent === "Raum A" || link.textContent === "Schulhof",
       );
       expect(roomLinks).toHaveLength(2);
+    });
+
+    it("keeps released rooms in their own Offene Räume section", () => {
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [
+          { id: "10", name: "Raum A", groupId: "1" },
+          { id: "11", name: "Raum B", groupId: "2" },
+          { id: "7", name: "Schulhof", groupId: "", isOpenRoom: true },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+      mockUsePathname.mockReturnValue("/active-supervisions");
+
+      render(<Sidebar />);
+
+      // Shared rooms are visibly apart from own supervisions (#3065), the
+      // same way "Weitere Gruppen" stands apart from "Meine Gruppen".
+      expect(screen.getByText("Offene Räume")).toBeInTheDocument();
+      expect(screen.getByText("Aktuelle Aufsichten")).toBeInTheDocument();
+      expect(screen.getByText("Schulhof").closest("a")).toHaveAttribute(
+        "href",
+        "/active-supervisions?room=7",
+      );
+    });
+
+    it("counts only own supervisions in the Aktuelle Aufsicht header", () => {
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [
+          { id: "7", name: "Schulhof", groupId: "", isOpenRoom: true },
+          { id: "8", name: "Sporthalle", groupId: "", isOpenRoom: true },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+      mockUsePathname.mockReturnValue("/active-supervisions");
+
+      render(<Sidebar />);
+
+      // Reaching two shared rooms is not supervising two rooms.
+      expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
+      expect(screen.queryByText("Aktuelle Aufsichten")).not.toBeInTheDocument();
+      expect(screen.getByText("Offene Räume")).toBeInTheDocument();
+    });
+
+    it("shows no Offene Räume section without released rooms", () => {
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [{ id: "10", name: "Raum A", groupId: "1" }],
+        groups: [],
+        refresh: vi.fn(),
+      });
+      mockUsePathname.mockReturnValue("/active-supervisions");
+
+      render(<Sidebar />);
+
+      expect(screen.queryByText("Offene Räume")).not.toBeInTheDocument();
+    });
+
+    it("opens the Offene Räume section for the selected released room", () => {
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [
+          { id: "10", name: "Raum A", groupId: "1" },
+          { id: "7", name: "Schulhof", groupId: "", isOpenRoom: true },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+      mockUsePathname.mockReturnValue("/active-supervisions");
+      mockUseSearchParams.mockReturnValue(
+        createMockSearchParams((key) => (key === "room" ? "7" : null)),
+      );
+
+      render(<Sidebar />);
+
+      expect(
+        screen.getByRole("button", { name: /Offene Räume/ }),
+      ).toHaveAttribute("aria-expanded", "true");
+      expect(
+        screen.getByRole("button", { name: /Aktuelle Aufsicht/ }),
+      ).toHaveAttribute("aria-expanded", "false");
+      expect(screen.getByText("Schulhof").closest("a")).toHaveClass(
+        "bg-gray-100",
+      );
     });
   });
 
@@ -1931,9 +2106,7 @@ describe("Sidebar", () => {
         isLoadingGroups: false,
         isLoadingSupervision: false,
         overviewEnabled: false,
-        supervisedRooms: [
-          { id: "r1", name: "Raum A", groupId: "g1", isSchulhof: false },
-        ],
+        supervisedRooms: [{ id: "r1", name: "Raum A", groupId: "g1" }],
         groups: [{ id: "1", name: "1a" }],
         refresh: vi.fn(),
       });
@@ -2290,9 +2463,7 @@ describe("Sidebar", () => {
         isLoadingGroups: false,
         isLoadingSupervision: false,
         overviewEnabled: false,
-        supervisedRooms: [
-          { id: "7", name: "Raum 1", groupId: "g1", isSchulhof: false },
-        ],
+        supervisedRooms: [{ id: "7", name: "Raum 1", groupId: "g1" }],
         groups: [],
         refresh: vi.fn(),
       });

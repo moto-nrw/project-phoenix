@@ -65,3 +65,15 @@ func (s *Service) EndGroupSession(ctx context.Context, groupID int64, at time.Ti
 	})
 	return result, err
 }
+
+func (s *Service) LockSessionStart(ctx context.Context, activityID int64) error {
+	return s.run("lock_session_start", func() (ports.Stats, error) {
+		if activityID <= 0 {
+			return ports.Stats{}, errors.New("lock session start: activity ID must be positive")
+		}
+		if err := s.tx.Require(ctx); err != nil {
+			return ports.Stats{}, err
+		}
+		return s.store.LockSessionStart(ctx, activityID)
+	})
+}

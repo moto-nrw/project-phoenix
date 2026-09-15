@@ -1,7 +1,6 @@
 package repositories
 
 import (
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -38,7 +37,6 @@ type StudentTestRepositories struct {
 	CareExitCleanup              usersModels.CareExitCleanupRepository
 	CareWithdrawal               usersModels.CareWithdrawalCompletionRepository
 	GradeTransition              educationModels.GradeTransitionRepository
-	PrivacyConsent               usersModels.PrivacyConsentRepository
 	StudentDeletion              usersModels.StudentDeletionRepository
 	StudentDeletionAudit         auditModels.StudentDeletionRepository
 	StudentFieldEdit             auditModels.StudentFieldEditRepository
@@ -80,7 +78,6 @@ func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (Studen
 		EnrollmentRestorationAudit:   auditRepo.NewEnrollmentRestorationRepository(newTestAuditRuntime(db)),
 		GuardianFinancialChange:      auditRepo.NewGuardianFinancialChangeRepository(newTestAuditRuntime(db)),
 		SubstitutionChange:           auditRepo.NewSubstitutionChangeRepository(newTestAuditRuntime(db)),
-		PrivacyConsent:               activeRepo.NewPrivacyConsentRepository(db),
 		StudentDeletionAudit:         auditRepo.NewStudentDeletionRepository(newTestAuditRuntime(db)),
 		StudentConsentChange:         auditRepo.NewStudentConsentChangeRepository(newTestAuditRuntime(db)),
 		DataDeletion:                 auditRepo.NewDataDeletionRepository(newTestAuditRuntime(db)),
@@ -107,7 +104,7 @@ func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (Studen
 		GuardianFinancialChange:      r.GuardianFinancialChange,
 		SubstitutionChange:           r.SubstitutionChange,
 		EnrollmentTestRepositories:   enrollment, CareExit: lifecycle.CareExit, CareExitCleanup: lifecycle.CareExitCleanup,
-		CareWithdrawal: lifecycle.CareWithdrawal, GradeTransition: lifecycle.GradeTransition, PrivacyConsent: r.PrivacyConsent,
+		CareWithdrawal: lifecycle.CareWithdrawal, GradeTransition: lifecycle.GradeTransition,
 		StudentDeletion: r.StudentDeletion, StudentDeletionAudit: r.StudentDeletionAudit, StudentFieldEdit: lifecycle.StudentFieldEdit,
 		StudentConsentChange: r.StudentConsentChange, DataDeletion: r.DataDeletion,
 		ParentMessageThread: parentStore.NewParentMessageThreadRepository(db, usersRepo.NewMessageableGuardianRepository(db)),
