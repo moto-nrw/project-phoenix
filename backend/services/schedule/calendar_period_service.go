@@ -297,9 +297,11 @@ func (s *calendarPeriodService) withRecurrenceGate(
 // and always ends on July 31st of the following year.
 //
 // MUST stay in sync with the frontend helper schoolYearPeriodDefaults in
-// frontend/src/app/[tenant]/(protected)/timetables/page.tsx — both sides
-// derive the same name ("Schuljahr YYYY/YYYY+1") and the same date bounds
-// so the bootstrap endpoint and the client-side prefill never diverge.
+// frontend/src/app/[tenant]/(protected)/timetables/page.tsx and with
+// schoolYearBounds in backend/simulate/fullday.go — all three derive the same
+// name ("Schuljahr YYYY/YYYY+1") and the same date bounds, so the bootstrap
+// endpoint, the client-side prefill, and the demo school-year rollover never
+// diverge. (simulate cannot import internal/timezone, hence its own copy.)
 //
 // Extracted as a pure function so the year-boundary logic is testable
 // without injecting a clock.
