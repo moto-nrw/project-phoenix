@@ -8,8 +8,13 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
+import {
+  OverflowMenu,
+  type OverflowMenuEntry,
+} from "~/components/ui/page-header/OverflowMenu";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { RotateCcw, Send } from "lucide-react";
 import { useShellAuthSafe } from "~/lib/shell-auth-context";
 import { createLogger } from "~/lib/logger";
 import { sendTestNotification } from "~/lib/notification-api";
@@ -302,20 +307,20 @@ export function PushNotificationSection({
       </Button>
     ) : null;
 
-  const testAction =
-    state === "subscribed" && portal !== "parent" ? (
-      <Button
-        type="button"
-        variant="surface"
-        size="md"
-        isLoading={testing}
-        loadingText={t("testing")}
-        disabled={busy}
-        onClick={() => void sendTest()}
-      >
-        {t("sendTest")}
-      </Button>
-    ) : null;
+  // Zweitrangige Aktionen stehen im Kebab-Menü statt als weitere Knöpfe im
+  // Kartenkopf: auf dem Telefon passten drei Textknöpfe nicht in eine Zeile
+  // (sie ragten aus der Karte), und umgebrochen schoben sie die Karte auf
+  // drei Knopfreihen auseinander. Der Kartenkopf trägt so immer genau eine
+  // Aktion plus Menü.
+  const secondaryActions: OverflowMenuEntry[] = [];
+  if (state === "subscribed" && portal !== "parent") {
+    secondaryActions.push({
+      label: t("sendTest"),
+      icon: <Send className="size-4" aria-hidden />,
+      disabled: busy,
+      onClick: () => void sendTest(),
+    });
+  }
 
   // Desktop-Chromium meldet die Installierbarkeit über dasselbe Ereignis wie
   // Android. Auf dem Rechner ist sie kein Muss für Benachrichtigungen, deshalb
@@ -328,25 +333,22 @@ export function PushNotificationSection({
     state !== "needs-install-ios" &&
     state !== "needs-install-android";
 
-  const restartAction =
-    accountId !== undefined && state !== "unsupported" ? (
-      <Button
-        type="button"
-        variant="surface"
-        size="md"
-        disabled={busy}
-        onClick={() => setRestartToken((token) => token + 1)}
-      >
-        {t("restart")}
-      </Button>
-    ) : null;
+  if (accountId !== undefined && state !== "unsupported") {
+    secondaryActions.push({
+      label: t("restart"),
+      icon: <RotateCcw className="size-4" aria-hidden />,
+      disabled: busy,
+      onClick: () => setRestartToken((token) => token + 1),
+    });
+  }
 
   const headerActions =
-    primaryAction != null || testAction != null || restartAction != null ? (
+    primaryAction != null || secondaryActions.length > 0 ? (
       <>
-        {restartAction}
-        {testAction}
         {primaryAction}
+        {secondaryActions.length > 0 && (
+          <OverflowMenu items={secondaryActions} ariaLabel={t("moreActions")} />
+        )}
       </>
     ) : null;
 
@@ -354,6 +356,7 @@ export function PushNotificationSection({
   const hasBody =
     error != null ||
     message != null ||
+    testing ||
     state === "needs-install-ios" ||
     state === "needs-install-android" ||
     state === "denied" ||
@@ -373,6 +376,14 @@ export function PushNotificationSection({
         actionsClassName="ms-auto flex flex-wrap items-center gap-2"
       />
 
+      {/* Die Testaktion liegt im Menü und kann dort keinen Ladezustand zeigen.
+          Ohne sichtbare Rückmeldung wirkte der Tipp folgenlos, bis die
+          Erfolgsmeldung kam. */}
+      {testing && (
+        <div className="mb-3">
+          <Alert type="info" message={t("testing")} />
+        </div>
+      )}
       {error && (
         <div className="mb-3">
           <Alert type="error" message={error} />

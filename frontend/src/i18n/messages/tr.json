@@ -250,6 +250,7 @@
   },
   "pushNotifications": {
     "title": "Bu cihazdaki bildirimler",
+    "moreActions": "Diğer işlemler",
     "installIntro": "iPhone ve iPad'de bildirimler yalnızca moto'yu ana ekrandan açtığınızda çalışır.",
     "installStepsLabel": "moto'yu ana ekrana ekleyin",
     "installStep1": "Menüde Paylaş'a dokunun.",

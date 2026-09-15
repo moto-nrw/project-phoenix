@@ -250,6 +250,7 @@
   },
   "pushNotifications": {
     "title": "Уведомления на этом устройстве",
+    "moreActions": "Другие действия",
     "installIntro": "На iPhone и iPad уведомления работают только при запуске moto с экрана Домой.",
     "installStepsLabel": "Добавление moto на экран Домой",
     "installStep1": "Нажмите «Поделиться» в меню.",

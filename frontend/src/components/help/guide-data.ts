@@ -1420,7 +1420,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Über `Neue Nachricht` wählt sie eine Person aus. Neben jedem Namen steht, um wen es sich handelt: `OGS-Leitung`, `OGS-Team` oder `Lehrkraft`. Eltern sehen von diesen Nachrichten nichts.",
           "Eine Zahl neben `Nachrichten` zeigt, wie viele Nachrichten noch nicht gelesen sind. Sie verschwindet, sobald die Unterhaltung geöffnet ist.",
           "Antworten aus der OGS erscheinen sofort, ohne die Seite neu zu laden. Ist die Lehrkraft gerade an anderer Stelle im Portal, erscheint ein kurzer Hinweis mit dem Weg zur Unterhaltung.",
-          "Im Menü hinter dem eigenen Namen liegt `Einstellungen`. Dort legt die Lehrkraft zuerst fest, worüber sie informiert werden möchte, und richtet danach das Gerät ein. Mit `Testbenachrichtigung senden` prüft sie, ob wirklich etwas ankommt.",
+          "Im Menü hinter dem eigenen Namen liegt `Einstellungen`. Dort legt die Lehrkraft zuerst fest, worüber sie informiert werden möchte, und richtet danach das Gerät ein. Über die drei Punkte neben `Aktivieren` liegt `Testbenachrichtigung senden`. Damit prüft sie, ob wirklich etwas ankommt.",
           "Auf iPhone und iPad kommen Benachrichtigungen nur an, wenn moto schule vorher über `Zum Home-Bildschirm` hinzugefügt wurde. Die Anleitung dazu steht auf der Einstellungsseite.",
         ],
         callout: {
@@ -2503,10 +2503,10 @@ export const appChapters: readonly GuideChapter[] = [
           "Damit die ausgewählten Hinweise auch bei geschlossener App ankommen, wird jedes Gerät einmal freigeschaltet. Die Freigabe gilt nur für dieses eine Gerät.",
         steps: [
           "Nach dem Anmelden fragt moto einmal von selbst nach. Der Dialog führt durch die fehlenden Schritte: erst installieren, dann erlauben.",
-          "Wer den Dialog weggetippt hat, findet denselben Weg im Profil unter `Benachrichtigungen auf diesem Gerät` über `Einrichtung erneut starten`.",
+          "Wer den Dialog weggetippt hat, findet denselben Weg im Profil unter `Benachrichtigungen auf diesem Gerät`: die drei Punkte neben der Schaltfläche antippen und `Einrichtung erneut starten` wählen.",
           "Die Karte zeigt oben, wie es auf diesem Gerät steht: ob moto als App geöffnet ist und ob moto benachrichtigen darf.",
           "`Aktivieren` antippen und die Browser-Nachfrage mit `Erlauben` bestätigen.",
-          "Sobald Push aktiv ist, mit `Testbenachrichtigung senden` prüfen, ob die Benachrichtigung auf diesem Gerät ankommt.",
+          "Sobald Push aktiv ist, hinter den drei Punkten `Testbenachrichtigung senden` wählen und prüfen, ob die Benachrichtigung auf diesem Gerät ankommt.",
           "Fertig: Die ausgewählten Hinweise erscheinen jetzt als Benachrichtigung auf diesem Gerät.",
         ],
         callout: {
@@ -2514,7 +2514,7 @@ export const appChapters: readonly GuideChapter[] = [
           body: "Auf iPhone und iPad funktioniert das nur in der zum Home-Bildschirm hinzugefügten App (siehe die Schritte oben). Im normalen Safari-Tab bietet Apple keine Push-Benachrichtigungen an. Zusätzlich muss die Schule die Benachrichtigungen in den Einstellungen eingeschaltet haben.",
         },
         screenshot:
-          "Profilseite mit dem aktiven Abschnitt Push-Benachrichtigungen und der Schaltfläche Testbenachrichtigung senden.",
+          "Profilseite mit dem aktiven Abschnitt Push-Benachrichtigungen und dem Menü mit Testbenachrichtigung senden.",
       },
     ],
   },

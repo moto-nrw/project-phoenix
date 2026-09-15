@@ -250,6 +250,7 @@
   },
   "pushNotifications": {
     "title": "Powiadomienia na tym urządzeniu",
+    "moreActions": "Więcej działań",
     "installIntro": "Na iPhone i iPad powiadomienia działają tylko wtedy, gdy otwierają Państwo moto z ekranu początkowego.",
     "installStepsLabel": "Dodaj moto do ekranu początkowego",
     "installStep1": "Proszę dotknąć w menu przycisku Udostępnij.",
